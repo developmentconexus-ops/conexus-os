@@ -1,0 +1,84 @@
+{
+  "readBackViaHubSourceApi": true,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "sourceRevision": "7f90b00cbdfa8e11d4f1d97262caf999a38fe49b",
+  "serverSourceBytes": 7072,
+  "files": [
+    {
+      "path": ".agents",
+      "status": 404
+    },
+    {
+      "path": ".agents/skills",
+      "status": 404
+    },
+    {
+      "path": ".agents/skills/conexus-server",
+      "status": 404
+    },
+    {
+      "path": ".agents/skills/conexus-server/SKILL.md",
+      "bytes": 3599
+    },
+    {
+      "path": "app",
+      "status": 404
+    },
+    {
+      "path": "app/index.html",
+      "bytes": 313
+    },
+    {
+      "path": "app/src",
+      "status": 404
+    },
+    {
+      "path": "app/src/main.tsx",
+      "bytes": 10507
+    },
+    {
+      "path": "app/src/style.css",
+      "bytes": 4215
+    },
+    {
+      "path": "conexus",
+      "status": 404
+    },
+    {
+      "path": "conexus.json",
+      "bytes": 65
+    },
+    {
+      "path": "conexus/check.sh",
+      "bytes": 541
+    },
+    {
+      "path": "conexus/handlers",
+      "status": 404
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "bytes": 2252
+    },
+    {
+      "path": "conexus/manifest.json",
+      "bytes": 3874
+    },
+    {
+      "path": "conexus/migrations",
+      "status": 404
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_notes.sql",
+      "bytes": 318
+    },
+    {
+      "path": "conexus/migrations/002_add_status_to_purchase_order_note.sql",
+      "bytes": 87
+    },
+    {
+      "path": "README.md",
+      "bytes": 31
+    }
+  ]
+}

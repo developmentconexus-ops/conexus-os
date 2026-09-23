@@ -1,6 +1,6 @@
 # Stage 2 Q2 — Data programming model qualification
 
-**Status:** IN PROGRESS. Task prepared on 2026-09-23; amended the same day for a pilot fault rerun (section 14).  
+**Status:** CLOSED, **ACCEPT** on 2026-09-23 ([evidence](../evidence/stage2-q2/README.md#q21-attempt-2)). Amended the same day for a pilot fault rerun (section 14).  
 **Type:** Builder programming-model qualification. It is not a trust-boundary gate, so it has no
 adversarial review rounds.  
 **Execution owner:** executor named by the operator  

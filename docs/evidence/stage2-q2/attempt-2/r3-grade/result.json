@@ -1,0 +1,95 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T22:56:02.509Z",
+  "finishedAt": "2026-09-23T22:56:04.158Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r3-order-owner-date.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "2fdf22a2e72b0786def2309be10a7323a27e093f",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-ddff7a71-a72f-4ce9-9295-af8b795a29cf.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Responsável",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Data prevista",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Responsável",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Data prevista",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

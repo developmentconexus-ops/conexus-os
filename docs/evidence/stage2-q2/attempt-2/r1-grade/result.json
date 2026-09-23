@@ -1,0 +1,71 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T22:46:48.279Z",
+  "finishedAt": "2026-09-23T22:46:49.891Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r1-follow-up-notes.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "eb8372f9e4004fa7e973fafd36e03ce028107d02",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-b2d3fee3-9014-454f-b363-cfeeeb99d9d7.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/pedido/i] >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/nota|acompanhamento|observa/i] >> nth=0",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

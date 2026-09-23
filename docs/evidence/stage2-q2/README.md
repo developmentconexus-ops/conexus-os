@@ -51,3 +51,49 @@ R2 and R3 each tried `sh conexus/check.sh` once without setting the workspace as
 
 The first polling step for a reused Project accepted any settled latest run, including one that existed before the new request. Commit `94657770` records the fix: capture the prior run id and ignore it while waiting for the new request. The authenticated Hub history and the R3 run confirm that polling selected the newly submitted BuilderRun.
 
+## Q2.1 attempt 2
+
+**Verdict: ACCEPT.** The Builder built the purchasing notebook and changed it three times with parameterized SQL through `pg` and forward SQL migrations. One SQL failure happened, once, and the Builder repaired it from the database's own diagnostic. No failure class repeated, so under section 8 SQL-first stands and neither Kysely nor a typed Data API is qualified. The handler contract becomes the durable programming model.
+
+The rerun followed [task section 14](../../tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun): the pilot Hub ran with `CONEXUS_APP_RUNNER_SOCKET`, a runner outage names a platform failure instead of a build to repair, and the reload check clears the Preview origin's browser storage first. Model `google-ai-pro/gemini-3.8-flash-high`, one Project (`2b9d2bbb-6336-4957-bb55-78e5fdd228cd`), each step in a fresh conversation. The sequence spent **6 of 6 runs**.
+
+| Step | BuilderRuns | Outcome | Repair | Error class | Unsafe SQL | Duplication | Server source | Tool calls |
+| --- | --- | --- | --- | --- | --- | --- | ---: | ---: |
+| R1 | `e11cd164` | PASS on regrade, reload with cleared storage included | 0 | none | no | one handler repeats its projection in two list queries | 4,518 B | 37 |
+| R2 | `fcda5f16` | PASS, earlier note present and "Em aberto" | 0 | none | no | both list queries gained `status`; no stale copy | 7,072 B | 27 |
+| R3 | `b9d159d0` failed, `0d623059` repaired | PASS on regrade | 1 | migration: `42804`, once | no | same projection pair, both updated | 12,552 B | 48 |
+| R4 | `6aa7aabc` interrupted, `f8a680b4` | PASS on grade-only, reload included | 0 | none from the Builder; one pilot fault | no | none new | 13,636 B | 123 |
+
+Server source counts every file under `conexus/`, including the 541-byte `check.sh`. Every step loaded the `conexus-server` skill once (`turns.json`, `toolCallsByName.skill`). No step used browser storage: `localStorage` appears in none of the final `app/src/main.tsx` files.
+
+### Data across changes
+
+R1's note was written through the Preview and read back after a reload with the Preview origin's `localStorage`, `sessionStorage` and IndexedDB cleared. The row was in `p_2b9d2bbb63364957bb5578e5fdd228cd_preview.purchase_order_note` on the Applications cluster. R2's migration `002` added `status text NOT NULL DEFAULT 'Em aberto'`, so the existing note became "Em aberto". R3's migration `003` created `purchase_order` and filled it from the order numbers already in the notes. R4 changed no migration. The R2 and R3 grades found R1's note and the R4 grade found its order `PC-4521`, so no data was lost across a change.
+
+### R3 migration failure
+
+The first R3 run wrote `003_create_purchase_order.sql` with `INSERT ... SELECT DISTINCT order_number, '', NULL`. The `NULL` in a `SELECT DISTINCT` resolves to `text`, and the runner refused the migration with `42804 column "expected_delivery_date" is of type date but expression is of type text`. The Hub wrote that diagnostic into the conversation, the eval sent one repair message, and the repair dropped the column from the insert. The failed source is in [`attempt-2/r3/failed-attempt`](attempt-2/r3/failed-attempt/). This is the only SQL error in the sequence.
+
+### SQL safety
+
+Every value reaches `db.query` through its values array. R4's list handler builds its `WHERE` from fixed fragments whose only interpolations are placeholder numbers (`$${values.length}`); the search terms themselves are pushed into `values`. Its order is `expected_delivery_date ASC NULLS LAST`, which puts the most overdue order first.
+
+### Grader corrections
+
+Two checks misread a reasonable app, and each was regraded without a Builder run, as section 6 allows:
+
+- R1's case filled the second textbox. The app put an optional author field there, so the note was never saved ([`r1`](attempt-2/r1/result.json)). The case now selects the order and note fields by label ([`r1-grade`](attempt-2/r1-grade/result.json)).
+- R3's case expected "Data prevista"; the app says "Data Prevista de Entrega" ([`r3`](attempt-2/r3/result.json)). Checks now ignore case ([`r3-grade`](attempt-2/r3-grade/result.json)).
+
+### Pilot faults
+
+- The first R4 run, `6aa7aabc`, was interrupted when the pilot Hub process stopped at 22:57Z without an error in its log; the restarted Hub settled it as `HUB_RESTART` ([`r4-interrupted`](attempt-2/r4-interrupted/)). It counts against the budget, so the retry ran with no repair.
+- The retry, `f8a680b4`, took 13 minutes 19 seconds and 123 tool calls, longer than the eval's 10-minute wait. The eval timed out while the run was still working ([`r4`](attempt-2/r4/result.json)); the run then succeeded and was graded with `--grade-only` ([`r4-grade`](attempt-2/r4-grade/result.json)).
+
+R4's checks prove the list keeps the earlier data and shows the filters. They do not assert the order; the order comes from the SQL above.
+
+### Observed, not decided here
+
+- The Builder never writes a foreign key: R3 links notes to orders by `order_number` text. It is a reasonable schema, not a failure.
+- Gemini 3.8 Flash writes no text between tool calls and one summary at the end, so a long run shows only its action group until it finishes.
+

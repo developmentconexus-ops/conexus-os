@@ -1,0 +1,85 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T22:50:14.023Z",
+  "finishedAt": "2026-09-23T22:55:25.424Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r3-order-owner-date.json",
+  "gradeOnly": false,
+  "request": "Cada pedido de compra precisa ter uma pessoa responsável e uma data prevista de entrega. As notas de acompanhamento ficam vinculadas ao pedido correspondente. Preserve as informações já cadastradas e mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": "69de889d-9712-4d1b-879a-09c55faf7711",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "7f90b00cbdfa8e11d4f1d97262caf999a38fe49b",
+  "sourceRevisionAfter": "2fdf22a2e72b0786def2309be10a7323a27e093f",
+  "filesChanged": [],
+  "runs": [
+    {
+      "builderRunId": "b9d159d0-7fd5-4790-95de-1523b38b6ca0",
+      "isRepair": false,
+      "state": "FAILED",
+      "resultKind": "SOURCE_CHANGED_BUILD_FAILED",
+      "failureCode": "APPLICATION_MIGRATION_FAILED",
+      "failureCategory": "APPLICATION_BUILD_FAILED",
+      "baseSourceRevision": "7f90b00cbdfa8e11d4f1d97262caf999a38fe49b",
+      "resultSourceRevision": "d8ba39433e722c700d77b094bdf86449d7092c2f",
+      "requestText": "Cada pedido de compra precisa ter uma pessoa responsável e uma data prevista de entrega. As notas de acompanhamento ficam vinculadas ao pedido correspondente. Preserve as informações já cadastradas e mantenha a interface simples."
+    },
+    {
+      "builderRunId": "0d623059-1bbe-4615-b2e8-5bca7f656a1c",
+      "isRepair": true,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "d8ba39433e722c700d77b094bdf86449d7092c2f",
+      "resultSourceRevision": "2fdf22a2e72b0786def2309be10a7323a27e093f",
+      "requestText": "o build falhou, corrija"
+    }
+  ],
+  "repairIterations": 1,
+  "wallTimeToUsablePreviewMs": 293387,
+  "previewUrl": "https://preview-ddff7a71-a72f-4ce9-9295-af8b795a29cf.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Responsável",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Data prevista",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

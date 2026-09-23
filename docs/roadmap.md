@@ -87,8 +87,8 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | Gate | Protected question | Status |
 | --- | --- | --- |
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
-| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **IN PROGRESS**. Q2.0 delivered the guide as the `conexus-server` skill. The first R1-R3 sequence was voided by a pilot fault (the Hub ran without its application runner); the rerun is owed ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md)) |
-| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
+| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
+| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **NEXT**, task to be prepared |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
@@ -183,30 +183,22 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Rerun the Stage 2 Q2 SQL baseline (R1 to R4, six fresh Builder runs) on a pilot Hub wired to its application runner, per task §14.**
-
-[Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md)
+**Prepare the Stage 2 Q3 application identity task.**
 
 Protected question:
 
-> Is parameterized SQL through `pg` sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API?
+> Can an employee use an application without gaining Control Plane authority?
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
-Q2 does not change its runtime boundary.
+Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
+([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 changes neither.
 
-```text
-Q2.0 where the guidance lives (Mastra skill or conexus/SERVER.md)
-→ Q2.1 the Builder builds, then changes, the app on the SQL baseline
-→ ACCEPT / ACCEPT_WITH_BOUNDARY / CHALLENGER_REQUIRED / INSUFFICIENT_EVIDENCE
-```
-
-A challenger probe runs only if the baseline shows a named, repeated failure, and only after the
-planner prepares it. Do not start Q3 automatically. Its task is written after the Q2 verdict.
+The app-only Keycloak user for Q3 exists and is not a member of any Workspace. Do not start Q3
+before its task is written and granted.
 
 ## What the operator still owes
 
-- A second Keycloak user with a verified email address, for multi-account and for Q3's app-only user.
-- The Sankhya business input for Q4.
+- Confirmation that the Sankhya gateway credential is read-only, before Q4 calls it.
 
 ## Before a production installation
 
