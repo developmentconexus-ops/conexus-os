@@ -60,7 +60,12 @@ body {
 
 // The paved road for server logic and saved data, kept in the Project's own source so the Builder
 // reads it when the request needs it and the check enforces the same shape.
-const SERVER_GUIDE = `# Server logic and saved data
+const SERVER_GUIDE = `---
+name: conexus-server
+description: Use when an app needs server logic, saved data, or browser calls to Project operations.
+---
+
+# Server logic and saved data
 
 Read this only when the app must save data or run logic on the server. The browser app stays in \`app/\`.
 
@@ -168,7 +173,7 @@ export const APPLICATION_CHECK_FILES = Object.freeze([
       '',
     ].join('\n'),
   }),
-  Object.freeze({ path: 'conexus/SERVER.md', content: SERVER_GUIDE }),
+  Object.freeze({ path: '.agents/skills/conexus-server/SKILL.md', content: SERVER_GUIDE }),
 ] as const)
 
 // The check links the compiler's dependencies into app/, and that link must never reach the tree.
@@ -179,7 +184,7 @@ export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh 
 
 export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
   'Work only in the exact Session Workspace at /workspace/repo.',
-  'Keep application edits under /workspace/repo/app/**, except server logic and saved data, which follow /workspace/repo/conexus/SERVER.md.',
+  'Keep application edits under /workspace/repo/app/**, except server logic and saved data under /workspace/repo/conexus/**; load the `conexus-server` skill before editing those.',
   'Use the fixed REACT_VITE_V1 application shape.',
   'Do not install or add package dependencies.',
   'Do not mutate Conexus platform or generated owner files.',

@@ -1,0 +1,44 @@
+{
+  "readBackViaHubSourceApi": true,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "sourceRevision": "47319a568e57c265ba740bc54f18e1d675955d76",
+  "sourceTreePaths": [
+    ".agents/skills/conexus-server/SKILL.md",
+    "app/index.html",
+    "app/src/main.tsx",
+    "app/src/style.css",
+    "conexus/check.sh"
+  ],
+  "comparisonFromInitialRevision": {
+    "status": 404,
+    "body": {
+      "type": "urn:conexus:problem:source-revision-not-found",
+      "title": "Source revision not found",
+      "status": 404
+    }
+  },
+  "files": [
+    {
+      "path": ".agents/skills/conexus-server/SKILL.md",
+      "bytes": 3599
+    },
+    {
+      "path": "app/index.html",
+      "bytes": 298
+    },
+    {
+      "path": "app/src/main.tsx",
+      "bytes": 5586
+    },
+    {
+      "path": "app/src/style.css",
+      "bytes": 2926
+    },
+    {
+      "path": "conexus/check.sh",
+      "bytes": 541
+    }
+  ],
+  "serverSourceBytes": 541,
+  "serverFileCount": 1
+}

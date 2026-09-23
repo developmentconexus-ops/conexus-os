@@ -1,0 +1,8 @@
+{
+  "request": "Na tela de acompanhamento, cada nota precisa ter um status fácil de atualizar entre Em aberto, Aguardando o fornecedor e Resolvida. As notas já cadastradas devem continuar disponíveis e começar como Em aberto. Mantenha a mesma forma simples de acompanhar os pedidos.",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "Ligar para o fornecedor na segunda" },
+    { "action": "expectText", "selector": "body", "text": "Em aberto" }
+  ],
+  "reload": true
+}

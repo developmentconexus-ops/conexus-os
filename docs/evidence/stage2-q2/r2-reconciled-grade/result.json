@@ -1,0 +1,46 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T21:45:34.297Z",
+  "finishedAt": "2026-09-23T21:46:05.494Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r2-note-status.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "1e01aca47fa43422a80a3959cd83d7c6101a6327",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-92d24f8b-f22e-4fb0-8b0f-75c39e1a3963.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

@@ -104,6 +104,8 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
   BUILD_FAILED: ({ builderRunId, code, detail }) =>
     `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
+  PLATFORM_FAILED: ({ builderRunId, code }) =>
+    `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })

@@ -2,6 +2,7 @@ import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, FactorySourceReads } from './factory-source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore, FactoryBindingRecord } from './store.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
+import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 
 export type BuilderService = Readonly<{
@@ -22,7 +23,7 @@ export type RunNote = Readonly<{
   conversationId: string
   builderRunId: string
   code: string
-  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED' | 'PREVIEW_DATA_RESET'
+  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET'
   // The revision the files are at after the run: its base when discarded, its result when admitted.
   sourceRevision: string
   // The Project's own diagnostic, such as the database's error for its migration.
@@ -131,7 +132,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome, sourceRevision: admitted,
         ...(detail ? { detail: detail.slice(0, 400) } : {}),
       }).catch(() => undefined)
-      const buildFailed = (code: string, detail?: string): Promise<void> => note(code, 'BUILD_FAILED', detail)
+      // Only a build the source broke asks the agent for a fix; a platform fault asking the same
+      // teaches it to delete correct code until the fault goes away.
+      const buildFailed = (code: string, detail?: string): Promise<void> =>
+        note(code, builderFailureCategory(code) === 'APPLICATION_BUILD_FAILED' ? 'BUILD_FAILED' : 'PLATFORM_FAILED', detail)
       // The agent's sandbox already compiled (and smoked) the artifact. A build or smoke failure
       // there still admitted the source, so it settles as a build failure and the last good
       // Preview stays in place.

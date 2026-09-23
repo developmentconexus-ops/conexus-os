@@ -231,6 +231,8 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   await unconfigured.start()
   await unconfigured.service.close()
   assert.deepEqual(unconfigured.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, 'APPLICATION_RUNNER_UNAVAILABLE']])
+  // A runner the Hub cannot reach is not the source's fault, so the agent is not asked to fix it.
+  assert.deepEqual(unconfigured.diagnostics.map(({ code, outcome }) => [code, outcome]), [['APPLICATION_RUNNER_UNAVAILABLE', 'PLATFORM_FAILED']])
 })
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))

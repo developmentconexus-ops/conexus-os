@@ -1,0 +1,85 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T21:57:55.627Z",
+  "finishedAt": "2026-09-23T22:01:53.356Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r3-order-owner-date.json",
+  "gradeOnly": false,
+  "request": "Cada pedido de compra precisa ter uma pessoa responsável e uma data prevista de entrega. As notas de acompanhamento ficam vinculadas ao pedido correspondente. Preserve as informações já cadastradas e mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "projectName": null,
+  "conversationId": "64807616-3c91-4c09-ba30-71c109e9b8fe",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "1e01aca47fa43422a80a3959cd83d7c6101a6327",
+  "sourceRevisionAfter": "f1f473dec9f58632ed12137ec54a098091fe96e7",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "bb2291be-7eb8-4c00-807d-59f3e39a821e",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "1e01aca47fa43422a80a3959cd83d7c6101a6327",
+      "resultSourceRevision": "f1f473dec9f58632ed12137ec54a098091fe96e7",
+      "requestText": "Cada pedido de compra precisa ter uma pessoa responsável e uma data prevista de entrega. As notas de acompanhamento ficam vinculadas ao pedido correspondente. Preserve as informações já cadastradas e mantenha a interface simples."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 190007,
+  "previewUrl": "https://preview-2ac2782f-80ba-4bb7-ac48-cebef59c0c5c.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Responsável",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Data prevista",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

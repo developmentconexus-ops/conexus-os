@@ -1,0 +1,105 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T22:43:04.729Z",
+  "finishedAt": "2026-09-23T22:46:17.379Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r1-follow-up-notes.json",
+  "gradeOnly": false,
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota e salvo. As notas ficam guardadas para toda a equipe de compras: quem abrir o app, em qualquer computador, vê as mesmas notas, e elas continuam lá depois de recarregar a página. Mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": "840c8630-eb50-435e-9adf-a6084930d2ae",
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": "eval-20260923-224304",
+  "conversationId": "09029b62-03e0-4be2-a04f-cdb48a385eb6",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "07df8a6858ff815e81ef1f34846067fd6ee74972",
+  "sourceRevisionAfter": "eb8372f9e4004fa7e973fafd36e03ce028107d02",
+  "filesChanged": [
+    {
+      "path": "app/index.html",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_notes.sql",
+      "status": "ADDED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "e11cd164-e757-4fe7-9b3d-9d972e276b40",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "07df8a6858ff815e81ef1f34846067fd6ee74972",
+      "resultSourceRevision": "eb8372f9e4004fa7e973fafd36e03ce028107d02",
+      "requestText": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota e salvo. As notas ficam guardadas para toda a equipe de compras: quem abrir o app, em qualquer computador, vê as mesmas notas, e elas continuam lá depois de recarregar a página. Mantenha a interface simples."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 176112,
+  "previewUrl": "https://preview-b2d3fee3-9014-454f-b363-cfeeeb99d9d7.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=1",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

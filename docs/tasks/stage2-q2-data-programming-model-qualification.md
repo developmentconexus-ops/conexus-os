@@ -1,6 +1,6 @@
 # Stage 2 Q2 — Data programming model qualification
 
-**Status:** NEXT. Task prepared on 2026-09-23.  
+**Status:** CLOSED, **ACCEPT** on 2026-09-23 ([evidence](../evidence/stage2-q2/README.md#q21-attempt-2)). Amended the same day for a pilot fault rerun (section 14).  
 **Type:** Builder programming-model qualification. It is not a trust-boundary gate, so it has no
 adversarial review rounds.  
 **Execution owner:** executor named by the operator  
@@ -195,3 +195,28 @@ After the verdict, reconcile only what Q2 proved:
   from Q2.0;
 - `docs/roadmap.md`: the Q2 status and the exact next action;
 - C-028 only if the evidence changes its boundary.
+
+## 14. Amendment 2026-09-23 — pilot fault rerun
+
+The first Q2.1 sequence returned **INSUFFICIENT_EVIDENCE**, not a challenger. The pilot Hub ran
+without `CONEXUS_APP_RUNNER_SOCKET`, so every build that carried a server tree failed with
+`APPLICATION_RUNNER_UNAVAILABLE`. R1's first run wrote a correct parameterized handler and migration
+and hit that fault. The Hub named it a build failure, the eval sent "o build falhou, corrija", and
+the repair deleted the server tree for browser `localStorage`. The reload check passed on
+`localStorage`, and R2 and R3 built on the browser-only app. Their "data loss" is that app's storage
+missing in a fresh browser. No step exercised SQL against the runner. The evidence is kept as
+[attempt 1](../evidence/stage2-q2/README.md).
+
+Before the rerun:
+
+- the Hub maps `APPLICATION_RUNNER_UNAVAILABLE` to `ENVIRONMENT_PREPARATION_FAILED`, a platform
+  failure, not a build the author can repair;
+- the eval repairs only `APPLICATION_BUILD_FAILED`, and its reload check clears the Preview origin's
+  browser storage first, so browser-only storage cannot pass as saved data;
+- R1's request states the real need: the whole purchasing team sees the same notes from any
+  computer;
+- the pilot Hub runs with the runner socket. R1's first server-backed build proves the wiring; a
+  platform failure there stops the sequence without spending a repair.
+
+The operator granted a fresh budget of six Builder runs for R1 to R4. Sections 5 to 13 apply
+unchanged. Record the rerun as attempt 2 under `docs/evidence/stage2-q2/attempt-2/`.

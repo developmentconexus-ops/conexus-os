@@ -1,0 +1,10 @@
+{
+  "request": "Cada pedido de compra precisa ter uma pessoa responsável e uma data prevista de entrega. As notas de acompanhamento ficam vinculadas ao pedido correspondente. Preserve as informações já cadastradas e mantenha a interface simples.",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "Ligar para o fornecedor na segunda" },
+    { "action": "expectText", "selector": "body", "text": "Em aberto" },
+    { "action": "expectText", "selector": "body", "text": "Responsável" },
+    { "action": "expectText", "selector": "body", "text": "Data prevista" }
+  ],
+  "reload": true
+}

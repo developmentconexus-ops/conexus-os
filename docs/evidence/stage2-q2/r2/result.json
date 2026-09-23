@@ -1,0 +1,79 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T21:20:44.051Z",
+  "finishedAt": "2026-09-23T21:21:03.934Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r2-note-status.json",
+  "gradeOnly": false,
+  "request": "Na tela de acompanhamento, cada nota precisa ter um status fácil de atualizar entre Em aberto, Aguardando o fornecedor e Resolvida. As notas já cadastradas devem continuar disponíveis e começar como Em aberto. Mantenha a mesma forma simples de acompanhar os pedidos.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "projectName": null,
+  "conversationId": "051c72d6-6bd2-4496-8f97-b0a9991cc85c",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "95da0056412212622b658faacff9d0d981e7225a",
+  "sourceRevisionAfter": "47319a568e57c265ba740bc54f18e1d675955d76",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "REMOVED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "REMOVED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_notes.sql",
+      "status": "REMOVED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "10f7e08d-4687-4f1c-baae-ce32916a6dec",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "95da0056412212622b658faacff9d0d981e7225a",
+      "resultSourceRevision": "47319a568e57c265ba740bc54f18e1d675955d76",
+      "requestText": "o build falhou, corrija"
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 1338,
+  "previewUrl": "https://preview-3962ed1d-85ef-488c-a3ef-09cb8cbed936.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | - Expected substring  - 1 | + Received string     + 5"
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Em aberto",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Expected substring: \"Em aberto\" | Received string:    \"\""
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

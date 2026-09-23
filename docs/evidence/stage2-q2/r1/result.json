@@ -1,0 +1,94 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T20:37:05.429Z",
+  "finishedAt": "2026-09-23T20:44:05.613Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q2/r1-follow-up-notes.json",
+  "gradeOnly": false,
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": "840c8630-eb50-435e-9adf-a6084930d2ae",
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "projectName": "eval-20260923-203705",
+  "conversationId": "deb8df49-aafb-40a8-9861-39b6b6cafe34",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "ed57c1d12374fc4055555be812e276773bfb9efb",
+  "sourceRevisionAfter": "47319a568e57c265ba740bc54f18e1d675955d76",
+  "filesChanged": [],
+  "runs": [
+    {
+      "builderRunId": "9db710f0-adf1-4a0a-b74a-26ee0b0e3bce",
+      "isRepair": false,
+      "state": "FAILED",
+      "resultKind": "SOURCE_CHANGED_BUILD_FAILED",
+      "failureCode": "APPLICATION_RUNNER_UNAVAILABLE",
+      "failureCategory": "APPLICATION_BUILD_FAILED",
+      "baseSourceRevision": "ed57c1d12374fc4055555be812e276773bfb9efb",
+      "resultSourceRevision": "95da0056412212622b658faacff9d0d981e7225a",
+      "requestText": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples."
+    },
+    {
+      "builderRunId": "10f7e08d-4687-4f1c-baae-ce32916a6dec",
+      "isRepair": true,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "95da0056412212622b658faacff9d0d981e7225a",
+      "resultSourceRevision": "47319a568e57c265ba740bc54f18e1d675955d76",
+      "requestText": "o build falhou, corrija"
+    }
+  ],
+  "repairIterations": 1,
+  "wallTimeToUsablePreviewMs": 415374,
+  "previewUrl": "https://preview-3962ed1d-85ef-488c-a3ef-09cb8cbed936.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=1",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

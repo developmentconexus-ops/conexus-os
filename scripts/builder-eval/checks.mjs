@@ -52,12 +52,13 @@ async function runStep(target, step) {
       await locator.first().click({ timeout: STEP_TIMEOUT_MS })
     } else if (step.action === 'expectText') {
       // An app that saves through its API renders the result after the request returns, so the
-      // assertion retries until the text appears or the timeout passes.
-      await expect(locator.first()).toContainText(step.text, { timeout: STEP_TIMEOUT_MS })
+      // assertion retries until the text appears or the timeout passes. Case is the app's choice
+      // ("Data Prevista" and "Data prevista" are the same label), so it is ignored.
+      await expect(locator.first()).toContainText(step.text, { timeout: STEP_TIMEOUT_MS, ignoreCase: true })
     } else {
       // Absence passes at once on a page that has not rendered its data yet; a case proves the
       // data loaded with an expectText step before this one.
-      await expect(locator.first()).not.toContainText(step.text, { timeout: STEP_TIMEOUT_MS })
+      await expect(locator.first()).not.toContainText(step.text, { timeout: STEP_TIMEOUT_MS, ignoreCase: true })
     }
     return { ...step, ok: true, error: null }
   } catch (error) {
