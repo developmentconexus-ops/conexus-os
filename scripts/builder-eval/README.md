@@ -51,9 +51,11 @@ the database or Mastra storage directly, only the Hub's own HTTP API and the pro
 `checks` run in order against the Preview iframe once the run settles and the Preview names the
 final run's source revision (polled up to three minutes). `selector` is any Playwright locator
 string (CSS, `text=`, `role=...`). `fill` needs `value`; `expectText` needs `text` and passes when
-the element's text contains it within 15 seconds (Playwright's retrying `toContainText`). A failing step is recorded, not thrown, so
+the element's text contains it within 15 seconds (Playwright's retrying `toContainText`).
+`expectNoText` needs `text` and passes when the text is absent; put an `expectText` for data the
+page must have loaded before it, or absence passes on a page that has not rendered yet. A failing step is recorded, not thrown, so
 every step still runs. `reload` (optional, default `false`): once every initial check passes,
-reload the Preview iframe in place and rerun the `expectText` checks against it, to prove the
+reload the Preview iframe in place and rerun the `expectText` and `expectNoText` checks against it, to prove the
 result persists across a refresh.
 
 ## Output

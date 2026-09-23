@@ -246,7 +246,7 @@ async function gradePreview(page, { out, caseFile, result }) {
     await previewFrame.goto(previewFrame.url(), { waitUntil: 'load' })
     await previewFrame.waitForFunction(() => (document.getElementById('root')?.children.length ?? 0) > 0, undefined, { timeout: 15_000 })
     const frameAfterReload = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
-    result.checks.afterReload = await runChecks(frameAfterReload, caseFile.checks.filter((step) => step.action === 'expectText'))
+    result.checks.afterReload = await runChecks(frameAfterReload, caseFile.checks.filter((step) => step.action === 'expectText' || step.action === 'expectNoText'))
     await iframe.screenshot({ path: join(out, 'preview-after-reload.png') }).catch(() => {})
   }
   return usablePreviewAt
