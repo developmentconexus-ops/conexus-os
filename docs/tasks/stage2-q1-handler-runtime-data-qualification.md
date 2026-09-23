@@ -1,6 +1,6 @@
 # Stage 2 Q1 — Handler runtime + persistent Preview data qualification
 
-**Status:** AUTHORIZED NEXT QUALIFICATION after this documentation rebaseline is accepted  
+**Status:** CLOSED on 2026-09-23 with verdict ACCEPT_WITH_BOUNDARY ([evidence and verdict](../evidence/stage2-q1/README.md#verdict)). Kept as a record.  
 **Type:** material runtime/trust-boundary qualification  
 **Execution owner:** executor named by the operator  
 **Review:** independent review is required because this slice creates a runtime/database trust boundary

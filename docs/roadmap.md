@@ -86,8 +86,8 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 | Gate | Protected question | Status |
 | --- | --- | --- |
-| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed on the amended task: Applications PostgreSQL separate and bounded on the pilot, containment proven structurally; independent review pending** ([evidence](evidence/stage2-q1/README.md)) |
-| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured Q1 evidence justify Kysely or a typed Data API? | WAITING FOR Q1 |
+| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
+| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **NEXT**, task prepared ([task](tasks/stage2-q2-data-programming-model-qualification.md)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
@@ -126,7 +126,7 @@ Current baseline/challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
 - SQL/`pg`: baseline programming hypothesis for Q1/Q2;
-- Kysely: Q2 challenger only if Q1 measures a concrete SQL ergonomics/type problem;
+- Kysely: Q2 challenger only if the Q2 SQL baseline shows a named, repeated failure (Q1 named none);
 - Prisma, Drizzle, Hono, oRPC: deferred without a current falsifier;
 - Nango/Pipedream/Composio: deferred until a real SaaS/OAuth or agent-tool Connector requires them;
 - Airbyte/Debezium: deferred until a real replication/CDC requirement;
@@ -183,28 +183,25 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Independently review the Stage 2 Q1 evidence on the amended task and its proposed verdict, ACCEPT_WITH_BOUNDARY.**
+**Execute the Stage 2 Q2 task: measure whether the Builder builds and changes a small data application with parameterized SQL, within six Builder runs.**
 
-[Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
-([evidence and verdict](evidence/stage2-q1/README.md))
+[Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md)
 
-Protected result:
+Protected question:
 
-> A normal Builder request produces a server-backed Preview whose generated handler runs outside the Hub, persists Preview data for exactly one Project, and cannot acquire another Project's data or privileged platform/network authority.
+> Is parameterized SQL through `pg` sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API?
 
-Q1 must prove the positive application flow, the adversarial boundary and Data Plane containment. A green unit suite alone cannot close it.
-
-The implementation, the live Builder runs, the Applications PostgreSQL on the pilot, restart
-persistence, the adversarial suites and the structural containment proof are committed and pushed.
-What remains:
+Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
+Q2 does not change its runtime boundary.
 
 ```text
-independent review
-→ ACCEPT / ACCEPT_WITH_BOUNDARY / REJECT / INSUFFICIENT_EVIDENCE
-→ if accepted, the Q2 task
+Q2.0 where the guidance lives (Mastra skill or conexus/SERVER.md)
+→ Q2.1 the Builder builds, then changes, the app on the SQL baseline
+→ ACCEPT / ACCEPT_WITH_BOUNDARY / CHALLENGER_REQUIRED / INSUFFICIENT_EVIDENCE
 ```
 
-Do not start Q2 before the review accepts Q1.
+A challenger probe runs only if the baseline shows a named, repeated failure, and only after the
+planner prepares it. Do not start Q3 automatically. Its task is written after the Q2 verdict.
 
 ## What the operator still owes
 

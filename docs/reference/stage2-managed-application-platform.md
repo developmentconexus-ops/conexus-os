@@ -135,7 +135,7 @@ Only one qualification task is actionable at a time. Later rows are roadmap gate
 | Gate | Question | Baseline / candidate | Deciding evidence |
 | --- | --- | --- | --- |
 | Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail; exhaustion or failure of the Applications PostgreSQL does not reach the Hub |
-| Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | Start SQL-first with parameterized `pg`; qualify Kysely or a typed Data API only against measured Q1 pain | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
+| Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | Start SQL-first with parameterized `pg`. Q1 named no SQL problem, so Kysely or a typed Data API is qualified only against a named, repeated failure of the SQL baseline in Q2 | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
 | Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
 | Q4 First Connector | Does Connector Definition -> Workspace Connection -> Project Grant work against a real enterprise system? | Direct narrow Sankhya read-only adapter first | Builder uses the authorized operation from the app; real Sankhya result; revoked grant fails; no credential or arbitrary URL reaches browser/handler |
 | Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? Where does Published data live: in the Applications cluster beside Preview data, or apart from it? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges; the Published data placement is decided with evidence, not assumed |
@@ -174,10 +174,10 @@ The public Project programming model must remain smaller than the hosting framew
 
 ### Q1 result
 
-Proposed verdict ACCEPT_WITH_BOUNDARY. Two independent reviews rejected the first candidate
-(`8ad7d5bf`); the fixes and the re-review are recorded in the evidence. The evidence and its
-conditions live in [`docs/evidence/stage2-q1/README.md`](../evidence/stage2-q1/README.md). What Q1
-showed on the pilot:
+Verdict ACCEPT_WITH_BOUNDARY, accepted on 2026-09-23 after three review rounds and merged to `main`
+as `b90c54f7`. The evidence, its durable boundaries and their reopen triggers live in
+[`docs/evidence/stage2-q1/README.md`](../evidence/stage2-q1/README.md#verdict). What Q1 showed on
+the pilot:
 
 - **Source shape.** Without hints, the Builder wrote the server half in the places its guide names:
   `conexus/manifest.json`, one handler under `conexus/handlers/` and forward SQL under
@@ -209,7 +209,7 @@ These technologies were researched but are **not selected by research alone**.
 | Fastify | Q1 platform-host baseline | Proven host limitation |
 | Zod | Q1 schema-boundary baseline | Proven contract/tooling limitation |
 | pg | Q1/Q2 SQL-first baseline | Repeated Builder type/query errors or unsafe repetition |
-| Kysely | Q2 challenger, only if Q1 produces a concrete SQL ergonomics/type problem | Q1 evidence names the problem |
+| Kysely | Q2 challenger, only if the Q2 SQL baseline shows a named, repeated failure. Q1 named none | Q2 baseline evidence names the failure |
 | Prisma | Deferred | Real need for its schema/migration/client model that smaller SQL tooling does not meet |
 | Drizzle | Deferred | Same; do not qualify merely because it is typed |
 | Hono | Deferred | Fastify becomes a real portability/host problem |
