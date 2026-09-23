@@ -1,0 +1,109 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T13:47:45.463Z",
+  "finishedAt": "2026-09-23T13:51:01.903Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/follow-up-notes.json",
+  "gradeOnly": false,
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": "840c8630-eb50-435e-9adf-a6084930d2ae",
+  "projectId": "f0d631f4-4684-446d-8d23-3057e3de154a",
+  "projectName": "eval-q1-followup-4",
+  "conversationId": "c2ebc903-1dce-457a-94fc-75e5ec7576fd",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "f7403b93da9caa785325fcc2d2a8132230f16c14",
+  "sourceRevisionAfter": "b36da41d2d0afbbea29a3dc4702560df1cd2b8d5",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/purchase_order_notes.ts",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_note.sql",
+      "status": "ADDED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "d2d23029-1ed4-49c0-8f13-7daa1fc5c1e1",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "f7403b93da9caa785325fcc2d2a8132230f16c14",
+      "resultSourceRevision": "b36da41d2d0afbbea29a3dc4702560df1cd2b8d5",
+      "requestText": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 180208,
+  "previewUrl": "https://preview-3508d66e-7d3c-45fc-85c5-23aa994b9503.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=1",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

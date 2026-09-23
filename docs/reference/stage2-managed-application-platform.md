@@ -152,6 +152,30 @@ generated business handler
 
 The public Project programming model must remain smaller than the hosting framework.
 
+### Q1 result
+
+Proposed verdict ACCEPT_WITH_BOUNDARY, pending the independent review. The evidence and its
+conditions live in [`docs/evidence/stage2-q1/README.md`](../evidence/stage2-q1/README.md). What Q1
+showed on the pilot:
+
+- **Source shape.** Without hints, the Builder wrote the server half in the places its guide names:
+  `conexus/manifest.json`, one handler under `conexus/handlers/` and forward SQL under
+  `conexus/migrations/`, beside its `app/` changes. It needed no `conexus.json`. The guide is
+  `conexus/SERVER.md`, which every BUILD run writes into the checkout, and `conexus/check.sh` runs
+  the same server build the Conexus build runs. These names and the handler contract are
+  qualification-only. Q2 owns the durable programming model.
+- **Runtime.** One application runner outside the Hub owns the application database. It runs each
+  migration and each invocation in a fresh rootless bubblewrap worker with an empty network
+  namespace, no host files, no credential and wall-clock, memory, input and output bounds. The worker
+  reaches only its own Project's role on the application database, through a per-invocation relay
+  that authenticates upstream itself.
+- **Data.** Each Project has its own Preview schema, a migration role and a runtime role, all derived
+  from the Project id. Preview data survives a runner restart.
+- **Programming model signal for Q2.** Four Builder runs wrote parameterized SQL through `pg`. Every
+  invocation the runner logged during the live proof answered 200, or 429 at its concurrency cap.
+  One run's manifest was refused by the check and repaired by the Builder in the same run. Q1
+  names no SQL ergonomics problem.
+
 ## 7. Technology qualification queue
 
 These technologies were researched but are **not selected by research alone**.

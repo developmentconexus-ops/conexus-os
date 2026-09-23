@@ -2,7 +2,8 @@
 
 **Task:** [`docs/tasks/stage2-q1-handler-runtime-data-qualification.md`](../../tasks/stage2-q1-handler-runtime-data-qualification.md)
 **Branch:** `feat/stage2-q1`
-**Status:** in progress. Each unit below records what it proved and how to rerun it.
+**Status:** proposed verdict **ACCEPT_WITH_BOUNDARY** (see [Verdict](#verdict)), pending the
+independent review. Each unit below records what it proved and how to rerun it.
 
 ## Q1.0 exact dependency and API verification
 
@@ -106,7 +107,8 @@ Each migration and each invocation runs in a fresh worker (`sandbox.ts`, `worker
 - `prlimit --as=1792MiB --core=0 --nofile=256` around `bwrap` with `--unshare-user --unshare-pid
   --unshare-net --unshare-ipc --unshare-uts --unshare-cgroup-try --disable-userns --cap-drop ALL
   --die-with-parent --new-session --clearenv`.
-- Root filesystem: `/usr` read-only, the `lib`/`bin` symlinks, a new `/proc` for the sandbox's own
+- Root filesystem: `/usr/lib` and `/usr/lib64` read-only with their `lib`/`lib64` symlinks (no
+  `/usr/bin`, so no shell), a new `/proc` for the sandbox's own
   pid namespace, a minimal `/dev`, a 1 MiB `/tmp`, the Node binary at `/runtime/node`, `/runner`
   (the worker, `data-plane.js` and a copy of pg's dependency closure) and, for an invocation, `/app`
   (only the admitted artifact's `conexus-server/*.mjs`). The operator's home, `/etc` and `/sys` are
@@ -231,6 +233,134 @@ The guidance is source-owned, in the order the task prefers:
    follow /workspace/repo/conexus/SERVER.md." That line is the invariant that would otherwise forbid
    the server source.
 
+## Q1.5 real Builder generation
+
+Every run sent the task's request, in Portuguese product language, as the first message of a fresh
+Project, through the product UI, with `scripts/builder-eval/run.mjs` and
+`scripts/builder-eval/cases/follow-up-notes.json`. No file names, locations or implementation were
+given. The test operator drove the runs. Each run spends one of the operator's Builder runs and
+creates one `eval-*` repository.
+
+| Run | Model | Project | Source before → after | Builder steps / tool calls | Found `conexus/SERVER.md` | Check runs (failing) | Repairs | Request → usable Preview | Eval outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| run-1 | `google-ai-pro/gemini-3-flash` | `0429fa8e` | `19687a4b` → `d5197295` | 24 / 24 | yes, first tool call | 3 (0) | 0 | 332 s | FAIL, harness misread |
+| run-2 | `google-ai-pro/gemini-3-flash` | `a700a0f2` | `1190d2df` → `c6ae737e` | 16 / 16 | yes, second tool call | 3 (0) | 0 | 318 s to Preview committed | FAIL, harness misread; regraded PASS |
+| run-3 | `google-ai-pro/gemini-3-flash` | `e39250ac` | `625b2592` → `58d5ccb0` | 22 / 22 | yes, second tool call | 2 (0) | 0 | 315 s | **PASS** with reload |
+| run-4 | `google-ai-pro/gemini-3.8-flash-high` | `f0d631f4` | `f7403b93` → `b36da41d` | 32 / 35 | yes, second tool call | 4 (1, repaired in the same run) | 0 | 180 s | FAIL on the case's reload step; regraded PASS |
+
+Runs 1 to 3 used `google-ai-pro/gemini-3-flash`. After them the operator directed that every later
+Builder run use Gemini 3.8 Flash. The test operator's model list
+(`GET /api/control/model-accounts/models`) offers it as `google-ai-pro/gemini-3.8-flash-high`
+with a usable key, and run-4 used that id. Runs 1 to 3 stay recorded as `gemini-3-flash` results.
+
+In every run the Builder created the server half by itself, in the places the guide names: a
+handler under `conexus/handlers/`, `conexus/manifest.json` and one migration under
+`conexus/migrations/`, plus changes to `app/src/main.tsx` and `app/src/style.css`. Runs 1 to 3
+chose `handlers/notes.ts`; run-4 chose `handlers/purchase_order_notes.ts`. Every run's first check
+ran before any server source existed. In runs 1 to 3 every later check printed `conexus server
+check: 2 operations, 1 migrations`. In run-4 one check failed with `conexus server check:
+MANIFEST_REFUSED: operations.listNotes: "handler" must be a path like handlers/notes.ts inside
+conexus/`. The Builder read that line, fixed its manifest and reran the check to green in the same
+run, without an operator message. That is the check-and-repair loop Q1.4 asks for. No Conexus build
+failed. The resulting Preview operations are `listNotes` and `addNote` in every run. The generated
+server source is 2.7 to 3.0 KB per run (manifest, handler and migration). run-2's is kept in
+[`q1.5/run-2/server-source/`](q1.5/run-2/server-source/) as read back from Project Git through the
+Hub's source API.
+
+run-4's app lists notes per order number: a person enters the number and presses "Carregar
+Notas". The request says exactly that ("Eu informo o número do pedido"). The generic case's reload
+step expects the note on the page with no number entered, so it failed although the row was saved
+(`PC-4521`, 13:50:46Z). A fresh page load graded with
+[`q1.5/run-4-grade/case.json`](q1.5/run-4-grade/case.json), which enters the number again and loads,
+shows the note. PASS. A fixed selector list cannot grade every reasonable reading of one request.
+That limit belongs to the eval's grader, not to Q1.
+
+The two misreads were harness defects, not product behavior:
+
+- run-1 read `expectText` once while the app still showed "Salvando...". The row was saved
+  (`PC-4521` in its Preview schema).
+- run-2 read `builder-session` once as the run settled and saw the run `SUCCEEDED` beside the
+  previous Preview. The next section explains that read.
+
+`24ef941e` fixed both. The tool now polls `builder-session` until the Preview names the final run's
+`resultSourceRevision`, bounded by `PREVIEW_READY_TIMEOUT_MS`, and otherwise fails
+`PREVIEW_NOT_FROM_FINAL_RUN`. `expectText` is Playwright's retrying `toContainText`. A new
+`--project <id> --grade-only` path sends no request and grades the Project's current Preview.
+run-2 graded that way passed every check, initially and after a reload
+([`q1.5/run-2-grade/result.json`](q1.5/run-2-grade/result.json)). run-3 is the first run graded
+end to end by the fixed tool, and it passed, reload included.
+
+Where the numbers come from. Source revisions, files and outcomes come from each `result.json`.
+Steps, tool calls, the guide read and the check runs come from Mastra's own message store
+(`factory.mastra_messages`, one row per model message with its tool-invocation parts), summarized
+in `q1.5/run-*/turns.json`. Mastra's span store (`factory.mastra_ai_spans`) holds no rows on the
+pilot, and the Hub's trace endpoint answers `available: false` for these runs, so the spans could
+not be cited. run-2's time is from the pilot row: the run was created at 12:51:41.28Z and its
+Preview committed at 12:56:59.44Z.
+
+Rerun a grade without spending a Builder run:
+`node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/follow-up-notes.json --project <id> --grade-only --out <dir>`.
+
+### Does a run show SUCCEEDED before its Preview exists?
+
+No. The store settles both in one transaction. `builder.settle_builder_run_build`
+(`apps/hub/migrations/0001_baseline.sql`, lines 603 to 638) updates
+`project_working_state.last_preview_source_revision` and the artifact columns, then sets the run
+`SUCCEEDED`, inside one function call. The pilot row agrees: run-2's `finished_at` is
+12:56:59.443923Z and the working state's `updated_at` is 12:56:59.44383Z. They are 93
+microseconds of `clock_timestamp()` apart, inside one transaction.
+
+The gap is in the read. `BuilderSessionPort.read` (`apps/hub/src/builder/module.ts`, lines 284 to
+294) runs `store.readPreviewSubject` and then `store.listBuilderRuns` as two statements with no
+shared snapshot. A settle that commits between them yields one response with the new run state and
+the old Preview. That is what run-2's single read saw. The UI polls the same endpoint, so for one
+poll it can show a finished run beside the previous Preview, and the next poll corrects it. It is
+not an ordering the UI must represent. It is a torn read the endpoint should not produce. Reading
+both inside one repeatable-read transaction, or through one function, removes it. This is a Hub
+read defect outside Q1's protected claim, reported for its own fix.
+
+## Q1.6 restart persistence and a second Project, on the live path
+
+Every step ran through the real Preview in a browser, against the pilot Hub and the runner from this
+branch, with the rerunnable cases in [`q1.6/cases/`](q1.6/cases/).
+
+1. `write-before-restart.json` on run-2's Project wrote the note "Q1.6 nota antes do reinicio do
+   runner" through the app and saw it again after a reload. PASS. The row landed in
+   `p_a700a0f2883b427f9f5289c1eb476be3_preview.purchase_order_note` as id 3.
+2. `~/q1/runner-kill.sh` sent `SIGKILL` to the runner at 13:40:46.355Z. It was gone 15 ms later and
+   the Hub still answered `200`.
+3. The runner restarted from the same build and reported ready in 70 ms
+   ([`q1.6/runner-after-restart.log`](q1.6/runner-after-restart.log)). Its state directory holds
+   only the worker runtime it rewrites at startup and per-invocation directories, empty after each
+   call. No application data is on its disk. The note lives in Postgres.
+4. `read-after-restart.json` reopened the Preview. The note was there, initially and after a reload.
+   PASS.
+5. `second-project-isolation.json` opened run-1's Project, a second Project with its own schema
+   and roles. Its Preview listed its own `PC-4521` note and not the marked note, initially and after
+   a reload. PASS. The `expectText` step runs first so the absence is read from a rendered list.
+
+The data-plane suites already prove the database refuses cross-Project reads. This is the same
+claim on the path a person uses.
+
+## Measurements
+
+| Measurement | Value | Source |
+| --- | --- | --- |
+| Builder request → usable Preview | 315 to 332 s on `gemini-3-flash` (runs 1 to 3), 180 s on `gemini-3.8-flash-high` (run-4) | `result.json`, pilot row for run-2 |
+| Builder repair iterations | 0 repair messages in every run; run-4 repaired one failing check inside its own run | `result.json`, `turns.json` |
+| Generated server source | 2,668 to 2,982 bytes (manifest + handler + migration) | Project Git through the source API |
+| Runner start to ready | 138 ms and 70 ms (two starts) | runner `ready` event |
+| First handler after a restart | 76 ms (runner) | runner log |
+| `listNotes`, 40 sequential calls from the Preview page | browser p50 73 ms, p95 88 ms; runner p50 66 ms, p95 91 ms | [`q1.6/measurements.json`](q1.6/measurements.json) |
+| 8 concurrent calls | 4 answered 200, 4 answered 429 at the runner's cap of 4 in flight | same |
+| Postgres sessions used by one Preview | observed peak 1 during the sample, 0 at rest; bounded at 2 per invocation by the relay and 8 by the runtime role's connection limit | `pg_stat_activity`, `data-plane.ts` |
+| Adversarial falsifiers | see Q1.7 | suites |
+
+The per-invocation worker dominates the latency. Most of the 66 ms is building the namespace and
+starting Node. That is usable for a Preview. A warm-worker strategy is a later question, not a Q1
+blocker. The cap of 4 is one number for the whole runner, not per Project, so one Project's burst
+can make another Project wait or see `429`.
+
 ## Q1.7 adversarial boundary
 
 Every forbidden capability in the task's section 9 is exercised as generated handler or migration
@@ -263,7 +393,8 @@ observed (no credential in env, files or `/proc`, and the worker is handed no da
 all), 5 not observed (Project, role, module and operation all come from the binding and
 the admitted manifest), 6 not observed (empty network namespace), 7 not observed (a worker failure
 ends the worker, not the runner or Hub), 8 not observed (data is in Postgres, not the worker
-filesystem; Q1.6 below), 9 measured in Q1.5, 10 not observed (server source is in Project Git), 11
+filesystem; Q1.6 above), 9 not observed (Q1.5: four runs on two models with no file or
+implementation hints, every one reaching a working Preview with no operator repair message), 10 not observed (server source is in Project Git), 11
 not observed (a migration gains no authority beyond its own schema).
 
 Adversarial review by GPT-6 Sol (`scratchpad/q1-sol-runner-boundary-out.md`) found three shared-runner
@@ -286,3 +417,79 @@ client that sends no password is admitted, a client that sends a wrong password 
 structurally rather than as an operational condition. The runner still connects to the pilot cluster
 over TCP 5433; binding that cluster to loopback or a private interface remains good practice but is
 no longer what the boundary rests on.
+
+## Verdict
+
+**Proposed: ACCEPT_WITH_BOUNDARY.** The protected result held on the pilot path. A normal Builder
+request produced a server-backed Preview whose generated handler runs outside the Hub, persists
+Preview data for exactly one Project, and could not acquire another Project's data or privileged
+platform or network authority in any probe. The claim rests on conditions that must stay durable,
+listed below. The independent review decides.
+
+The positive completion proof of task section 12, step by step:
+
+| Step | Evidence |
+| --- | --- |
+| Natural-language request → Builder edits browser and server/data source | Q1.5, four runs, `result.json` `filesChanged` and `turns.json` |
+| Project check | `conexus/check.sh` runs in every run; run-4 repaired a refused manifest by itself |
+| Conexus build → Preview opens | runs settled `SUCCEEDED`/`SOURCE_CHANGED`; Preview veil lifted in each graded run |
+| Browser creates a note through the same-origin API | `addNote` 200 in the runner log; rows in each Project's Preview schema |
+| Reload reads the persisted note | run-2 regrade, run-3, Q1.6 step 1, all with reload; run-4 on a fresh page load |
+| Runner restart still reads it | Q1.6 steps 2 to 4, after `SIGKILL` |
+| Second Project cannot read it | Q1.6 step 5 on the live path; `application-data-postgres` and `application-runner-sandbox` at the database and runner |
+| Adversarial handler cannot acquire forbidden authority | Q1.7 suites; no falsifier observed |
+
+Identities captured for run-2, the Project used for Q1.6: source `c6ae737eb891699cad6507888fef10e7ccaf6b80`,
+artifact revision `65804464-bfb1-40fb-b06a-134cd822b0f8`, digest
+`3f08585e5ad38dd1147ac3576c65f02108d0f1c537577aa8d1095560cbdb6d6d`, schema
+`p_a700a0f2883b427f9f5289c1eb476be3_preview`, runtime role `app_a700a0f2883b427f9f5289c1eb476be3_preview_rt`
+(connection limit 8), migration role `app_a700a0f2883b427f9f5289c1eb476be3_preview_mig` (connection
+limit 2), neither superuser nor `CREATEROLE` nor `CREATEDB`. Runner code at `b2e6335e`, built and run
+by `~/q1/runner.sh` with the configuration in Q1.2. run-3: source `58d5ccb0`, artifact
+`9e5dc09b-a3fc-4fb4-bc3e-d3024238f5bd`. run-4: source `b36da41d`, artifact
+`3508d66e-7d3c-45fc-85c5-23aa994b9503`.
+
+Boundaries that must become durable:
+
+1. **Rootless namespaces are a host requirement.** The runner refuses to start without them
+   (`RUNNER_USER_NAMESPACES_UNAVAILABLE`), and CI lifts ubuntu-24.04's AppArmor restriction for
+   the sandbox job. A host without them runs no generated code, and Preview answers
+   `503 APPLICATION_RUNNER_UNAVAILABLE`.
+2. **The worker runs under the runner's OS user, confined by namespaces, not by a separate user.**
+   Its root holds only `dev`, `lib`, `lib64`, `proc`, `runtime`, `tmp` and `usr` (with only
+   `/usr/lib` and `/usr/lib64`), plus `/runner`, `/app` and the database socket. It has an empty
+   network namespace, its own pid namespace, no capabilities, a cleared environment and no
+   credential. The Node permission flag is defense in depth. The committed suite asserts the
+   filesystem refusals at that permission layer. The namespace root was observed by the Q1.2 root
+   probe (`~/q1/probe/q12-rootfs.sh`, kept outside the repository). A committed assertion of the
+   namespace root with the permission layer off is owed before the runner serves anything but a
+   Preview.
+3. **The runner process is in the Hub's trust domain on the pilot.** It runs as the operator's user
+   and holds the provisioner credential and the runner key. Generated code never runs in it. Before a
+   production installation, the runner needs its own OS user, apart from the Hub's secrets, beside
+   the dedicated Hub user the roadmap already requires.
+4. **One runner cap is shared by every Project.** Four invocations in flight, then `429`. One
+   Project's burst therefore slows or refuses another's. That is acceptable for Preview. Published
+   applications (Q5) need a per-Project share.
+5. **Preview data is disposable.** An edited applied migration resets the Preview schema, and the
+   conversation says so. Published data needs its own migration rule.
+
+What Q1 did not prove. The Q1.7 probes ran through the committed suites against the real
+supervisor, sandbox and relay on the pilot host, with probe handlers and migrations. They did not
+run as Builder-generated code behind the live Preview. A standalone attack script for the live path
+was not authored, because a safety classifier stopped it. Only the existing reviewed suites were
+reused.
+
+Found on the way, outside Q1's claim, each owed its own fix:
+
+- **Torn `builder-session` read.** The session read issues two statements, so one response can
+  pair a settled run with the Preview it replaced (see Q1.5). The UI can show that for one poll.
+- **No Mastra spans on the pilot.** `factory.mastra_ai_spans` is empty and the Hub's trace endpoint
+  answers `available: false` for every Q1 run. The Builder record here comes from Mastra's message
+  store instead.
+- **The eval grades with fixed selectors.** run-4 shows a correct app failing a generic reload step.
+  Mastra ships scorers, datasets and experiments (`@mastra/core` evals and the `scores`,
+  `datasets` and `experiments` storage domains in `@mastra/pg`). Another lane is qualifying them for
+  this tool, so it was not migrated here.
+
+Builder runs used by Q1: four (run-1 to run-4). The operator's budget has 11 left.
