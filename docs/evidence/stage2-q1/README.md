@@ -230,3 +230,59 @@ The guidance is source-owned, in the order the task prefers:
    "Keep application edits under /workspace/repo/app/**, except server logic and saved data, which
    follow /workspace/repo/conexus/SERVER.md." That line is the invariant that would otherwise forbid
    the server source.
+
+## Q1.7 adversarial boundary
+
+Every forbidden capability in the task's section 9 is exercised as generated handler or migration
+code and refused. The proofs live in two rerunnable suites, not a one-off script:
+
+- Database authority and migration attacks: `application-data-postgres.test.mjs`, logging in as each
+  Project role with its real derived password. A runtime role reading or writing Project B, `SET ROLE`
+  to B, its own migration role or the provisioner, any DDL, `TRUNCATE`, the ledger, `public`, `TEMP`,
+  `CREATE SCHEMA` and `ALTER ROLE` all get `42501`; its `GRANT USAGE` on its own schema to B grants
+  nothing. Neither Project role holds any Hub schema, table or function grant (counts 0, 0, 0). A
+  generated migration is refused `CREATE EXTENSION dblink`/`postgres_fdw`, `COPY ... TO PROGRAM`,
+  `COPY ... TO '<file>'`, `pg_read_file`, `lo_import`, `ALTER ROLE`, `CREATE ROLE`, `CREATE SCHEMA`,
+  writing another schema, reading B's table, writing `pg_authid`, dropping its schema or ledger and
+  `SET ROLE app_provisioner`. The three owner-only statements that succeed carry nothing (a
+  `SECURITY DEFINER` function runs as the unprivileged migration role; a `GRANT` by a non-owner grants
+  nothing).
+- Runner isolation and resource bounds: `application-runner-sandbox.test.mjs`. A handler that reads
+  `/etc/passwd`, reads `/proc/1/environ`, writes `/tmp` or `/app`, spawns a child, or lists `/` gets
+  `ERR_ACCESS_DENIED`; a TCP connect to the database port gets `ECONNREFUSED` (the empty network
+  namespace). `process.env` is `{"PWD":"/"}`. Another Project's data is empty across the boundary.
+  A wall-clock overrun is killed and its live SQL cancelled; a busy loop, a crash, heap and Buffer
+  exhaustion each end the one worker and the next request is served. The relay admits only the pinned
+  role on the pinned database and refuses every other identity.
+- Network egress: Q1.0 recorded that a TCP connect to `127.0.0.1:<postgres>` inside the sandbox
+  answers `ECONNREFUSED`, because the loopback is the namespace's own.
+
+Falsifier results: 1 not observed (handler runs in a worker outside the Hub), 2 not observed
+(cross-Project reads refused), 3 not observed (runtime DML cannot alter schema or roles), 4 not
+observed (no credential in env, files or `/proc`, and the worker is handed no database password at
+all), 5 not observed (Project, role, module and operation all come from the binding and
+the admitted manifest), 6 not observed (empty network namespace), 7 not observed (a worker failure
+ends the worker, not the runner or Hub), 8 not observed (data is in Postgres, not the worker
+filesystem; Q1.6 below), 9 measured in Q1.5, 10 not observed (server source is in Project Git), 11
+not observed (a migration gains no authority beyond its own schema).
+
+Adversarial review by GPT-6 Sol (`scratchpad/q1-sol-runner-boundary-out.md`) found three shared-runner
+weaknesses, all fixed. The relay now honors backpressure so a large query result cannot buffer in the
+runner process; every Project's migrations run through one global chain so a build storm cannot start
+many at once; and the worker no longer holds any credential (see the section below).
+
+## The worker holds no credential (Sol blocking finding 1, resolved)
+
+Sol's first finding was that the worker held its own Project's runtime-role password, so a value
+leaked out of the sandbox would open a session directly against Postgres on `0.0.0.0:5433`, outside
+the relay. Recording "Postgres must be unreachable" was not enough, because the pilot publishes 5433
+today. The relay now terminates authentication instead. The worker connects to the relay socket with
+no password (`WorkerLogin` has no password field). The relay, in the supervisor process outside the
+sandbox, runs the SCRAM-SHA-256 client itself with the Project role's derived credential, keeps its
+role and database pin, and presents the worker an immediate `AuthenticationOk`. The credential never
+enters the sandbox, so a leaked value opens nothing. `application-runner-sandbox.test.mjs` proves a
+client that sends no password is admitted, a client that sends a wrong password is still admitted
+(the relay never asks), and every non-pinned identity is refused. This closes the finding
+structurally rather than as an operational condition. The runner still connects to the pilot cluster
+over TCP 5433; binding that cluster to loopback or a private interface remains good practice but is
+no longer what the boundary rests on.

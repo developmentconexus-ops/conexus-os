@@ -9,7 +9,9 @@ import type { MigrationPlan } from './data-plane.js'
  * admitted module and export, the validated input and the database login the platform chose; nothing
  * the generated code does can change any of them before this process is gone.
  */
-export type WorkerLogin = Readonly<{ host: string; user: string; password: string; database: string }>
+// No password: the worker reaches the database only through the relay socket, which authenticates
+// upstream itself. Nothing in the sandbox holds a usable credential.
+export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
 export type WorkerJob =
   | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; responseLimit: number }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>

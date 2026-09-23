@@ -45,6 +45,26 @@ export const wrongShape = async () => ({ id: '1', purchaseOrderId: 'PO-1', note:
 export const environment = async () => ({ text: JSON.stringify(process.env) })
 export const hogMemory = async () => { const kept = []; for (;;) kept.push(new Array(1e6).fill(Math.random())) }
 export const hogBuffers = async () => { const kept = []; for (;;) kept.push(Buffer.alloc(256 * 1024 * 1024, 1)) }
+// A handler asking the sandbox for authority it must not have. Each attempt reports the refusal
+// code instead of the value, so the boundary is what the test reads.
+export const beyondBoundary = async () => {
+  const fs = await import('node:fs')
+  const attempt = (work) => { try { return work() ? 'ALLOWED' : 'ALLOWED' } catch (error) { return String(error?.code ?? error?.name ?? 'ERROR') } }
+  return { text: JSON.stringify({
+    readEtcPasswd: attempt(() => fs.readFileSync('/etc/passwd', 'utf8').length),
+    readParentEnviron: attempt(() => fs.readFileSync('/proc/1/environ', 'utf8').length),
+    writeTmp: attempt(() => { fs.writeFileSync('/tmp/probe', 'x'); return true }),
+    writeApp: attempt(() => { fs.writeFileSync('/app/probe', 'x'); return true }),
+    spawnChild: await import('node:child_process').then((cp) => attempt(() => cp.execSync('id').toString())).catch((error) => String(error?.code ?? 'ERROR')),
+    tcpToDatabasePort: await import('node:net').then((net) => new Promise((resolve) => {
+      const socket = net.connect({ host: '127.0.0.1', port: 5432 })
+      socket.setTimeout(1500, () => { socket.destroy(); resolve('TIMEOUT') })
+      socket.once('connect', () => { socket.destroy(); resolve('CONNECTED') })
+      socket.once('error', (error) => resolve(String(error.code)))
+    })),
+    root: attempt(() => fs.readdirSync('/').join(',')),
+  }) }
+}
 `
 const byPurchaseOrder = { type: 'object', properties: { purchaseOrderId: { type: 'string', minLength: 1, maxLength: 40 } }, required: ['purchaseOrderId'], additionalProperties: false }
 const empty = { type: 'object', properties: {}, additionalProperties: false }
@@ -64,6 +84,7 @@ const serverTree = (migrations) => {
       environment: { module: 'handlers/probe.mjs', export: 'environment', input: empty, output: text },
       hogMemory: { module: 'handlers/probe.mjs', export: 'hogMemory', input: empty, output: empty },
       hogBuffers: { module: 'handlers/probe.mjs', export: 'hogBuffers', input: empty, output: empty },
+      beyondBoundary: { module: 'handlers/probe.mjs', export: 'beyondBoundary', input: empty, output: text },
     },
     migrations: migrations.map(([name, sql]) => ({ name, sha256: sha(sql), sql })),
   }
@@ -144,6 +165,20 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).status, 200)
   })
 
+  await t.test('a handler cannot read host files, write, spawn, or open the network', async () => {
+    const answer = await invoke(a, 'beyondBoundary')
+    assert.equal(answer.status, 200)
+    const seen = JSON.parse(answer.body.text)
+    assert.equal(seen.readEtcPasswd, 'ERR_ACCESS_DENIED')
+    assert.equal(seen.readParentEnviron, 'ERR_ACCESS_DENIED')
+    assert.equal(seen.writeTmp, 'ERR_ACCESS_DENIED')
+    assert.equal(seen.writeApp, 'ERR_ACCESS_DENIED')
+    assert.equal(seen.spawnChild, 'ERR_ACCESS_DENIED')
+    assert.equal(seen.tcpToDatabasePort, 'ECONNREFUSED')
+    // The permission model even refuses listing '/', which the namespace root would otherwise allow.
+    assert.equal(seen.root, 'ERR_ACCESS_DENIED')
+  })
+
   await t.test('a failing migration applies nothing and names the error', async () => {
     const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_broken.sql', 'ALTER TABLE follow_up_note ADD COLUMN done boolean; SELECT * FROM missing_table']])
     const result = await supervisor.prepare({ projectId: a, files: broken })
@@ -152,19 +187,24 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).body.length, 1)
   })
 
-  await t.test('the relay admits only the pinned role on the pinned database', async () => {
+  await t.test('the relay authenticates upstream itself and admits only the pinned identity', async () => {
     const socketDir = mkdtempSync(join(tmpdir(), 'conexus-relay-'))
     t.after(() => rmSync(socketDir, { recursive: true, force: true }))
-    const relay = await openPgRelay({ socketPath: join(socketDir, '.s.PGSQL.5432'), upstream: { host: admin.host, port: admin.port }, pin: { user: previewAllocation(a).runtimeRole, database }, maxSessions: 2 })
+    const runtimeRole = previewAllocation(a).runtimeRole
+    const relay = await openPgRelay({ socketPath: join(socketDir, '.s.PGSQL.5432'), upstream: { host: admin.host, port: admin.port }, pin: { user: runtimeRole, database }, password: roleCredential(credentialKey, runtimeRole), maxSessions: 2 })
+    // The client sends no password at all; the relay completes SCRAM upstream with the credential.
     const login = (user, target) => {
-      const client = new pg.Client({ host: socketDir, user, password: roleCredential(credentialKey, user), database: target, connectionTimeoutMillis: 3000 })
+      const client = new pg.Client({ host: socketDir, user, database: target, connectionTimeoutMillis: 3000 })
       return client.connect().then(() => client.query('SELECT current_user AS who').then((result) => { client.end(); return result.rows[0].who }), (error) => error.message)
     }
+    assert.equal(await login(runtimeRole, database), runtimeRole)
     assert.equal(await login(previewAllocation(b).runtimeRole, database), 'conexus: session refused')
     assert.equal(await login(previewAllocation(a).migrationRole, database), 'conexus: session refused')
-    assert.equal(await login(previewAllocation(a).runtimeRole, 'postgres'), 'conexus: session refused')
-    assert.equal(await login(previewAllocation(a).runtimeRole, database), previewAllocation(a).runtimeRole)
+    assert.equal(await login(runtimeRole, 'postgres'), 'conexus: session refused')
     assert.deepEqual(relay.refused(), ['IDENTITY', 'IDENTITY', 'IDENTITY'])
+    // A password the client offers is ignored: the relay never asks for one and still admits it.
+    const withPassword = new pg.Client({ host: socketDir, user: runtimeRole, password: 'wrong', database, connectionTimeoutMillis: 3000 })
+    assert.equal(await withPassword.connect().then(() => { withPassword.end(); return 'connected' }, (error) => error.message), 'connected')
     await relay.close()
   })
 })

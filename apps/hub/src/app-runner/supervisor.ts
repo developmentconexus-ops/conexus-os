@@ -125,7 +125,8 @@ export const createSupervisor = (config: SupervisorConfig) => {
         }
       }
       const relay = await openPgRelay({
-        socketPath: socket, upstream: config.cluster, pin: { user: input.role, database: config.database }, maxSessions: limits.sessionsPerInvocation,
+        socketPath: socket, upstream: config.cluster, pin: { user: input.role, database: config.database },
+        password: credential(input.role), maxSessions: limits.sessionsPerInvocation,
       })
       try {
         const outcome = await runWorker({
@@ -133,7 +134,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
           runtimeDir: config.runtimeDir,
           ...(input.modules ? { appDir } : {}),
           databaseSocket: socket,
-          job: input.job({ host: SANDBOX_DATABASE_HOST, user: input.role, password: credential(input.role), database: config.database }),
+          job: input.job({ host: SANDBOX_DATABASE_HOST, user: input.role, database: config.database }),
           timeoutMs: input.timeoutMs,
           resultLimit: limits.responseBytes,
         })
