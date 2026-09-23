@@ -11,12 +11,13 @@
 # The cluster refuses to start anywhere but on that filesystem, on every start. This script requires
 # the marker, a mountpoint at <storage-root>, and, for a loop image, every block of the image
 # allocated. Docker restarts the container without this script, after a crash or a reboot, so the
-# container's own entrypoint checks again that the marker is present and on the same filesystem as
-# PGDATA before it hands over to the image's entrypoint. An unmounted <storage-root> is an ordinary
-# directory with no marker, whatever stale `pgdata` it holds.
-#
-# CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci skips the mountpoint and allocation checks and nothing
-# else. Only CI sets it: its runner has no loop mount.
+# container's own entrypoint checks again on every start: the marker is present, on the same
+# filesystem as PGDATA, and that filesystem is still the dedicated one, not merely something with a
+# marker and stale `pgdata` copied into the plain directory left behind once <storage-root> is
+# unmounted. The entrypoint reads /proc/self/mountinfo and requires the mount covering the storage
+# root to be ext4 from the exact source this script found mounted at <storage-root> when it started
+# the container, passed in as CONEXUS_APP_CLUSTER_STORAGE_SOURCE. A plain directory reports its own
+# root filesystem's source there, never a match.
 #
 # The settings below are cluster-level: set on the server command line, so no Project role can
 # change them for the cluster. Roles get tighter per-role values from the application runner
@@ -43,22 +44,23 @@ fail() { echo "$1" >&2; exit 1; }
 [[ "$port" =~ ^[0-9]+$ ]] || fail "APPLICATION_CLUSTER_PORT_REFUSED"
 case "$root" in /*) ;; *) fail "APPLICATION_CLUSTER_STORAGE_NOT_ABSOLUTE: $root" ;; esac
 [ -f "$root/$marker" ] && [ -d "$root/pgdata" ] || fail "APPLICATION_CLUSTER_STORAGE_MISSING: $root"
-if [ "${CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE:-}" != ci ]; then
-  mountpoint -q "$root" || fail "APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED: $root"
-  device="$(findmnt -n -o SOURCE --mountpoint "$root")"
-  # A trim punches holes in the image even with nodiscard, and a sparse image reserves nothing.
-  case "$device" in
-    /dev/loop*)
-      image_file="$(cat "/sys/block/${device#/dev/}/loop/backing_file")"
-      allocated=$(($(stat -c %b "$image_file") * $(stat -c %B "$image_file")))
-      size="$(stat -c %s "$image_file")"
-      [ "$allocated" -ge "$size" ] || fail "APPLICATION_CLUSTER_STORAGE_SPARSE: $allocated of $size bytes allocated in $image_file"
-      ;;
-  esac
-fi
+mountpoint -q "$root" || fail "APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED: $root"
+device="$(findmnt -n -o SOURCE --mountpoint "$root")"
+# A trim punches holes in the image even with nodiscard, and a sparse image reserves nothing.
+case "$device" in
+  /dev/loop*)
+    image_file="$(cat "/sys/block/${device#/dev/}/loop/backing_file")"
+    allocated=$(($(stat -c %b "$image_file") * $(stat -c %B "$image_file")))
+    size="$(stat -c %s "$image_file")"
+    [ "$allocated" -ge "$size" ] || fail "APPLICATION_CLUSTER_STORAGE_SPARSE: $allocated of $size bytes allocated in $image_file"
+    ;;
+esac
 
-# Runs as the container's entrypoint on every start, Docker's restarts included.
-guard="[ -f $storage/$marker ] && [ \"\$(stat -c %d $storage/$marker)\" = \"\$(stat -c %d /var/lib/postgresql/data)\" ] || { echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1; }; exec docker-entrypoint.sh \"\$@\""
+# Runs as the container's entrypoint on every start, Docker's restarts included. Beyond the marker,
+# it requires the mount covering $storage to still be the dedicated ext4 filesystem this script found
+# at <storage-root>: a plain directory left behind by an unmount reports its own root filesystem's
+# source, which never matches CONEXUS_APP_CLUSTER_STORAGE_SOURCE below.
+guard="[ -f $storage/$marker ] && [ \"\$(stat -c %d $storage/$marker)\" = \"\$(stat -c %d /var/lib/postgresql/data)\" ]"' && line=$(grep -F " /var/lib/conexus-apps-storage " /proc/self/mountinfo | tail -n1) && rest=${line#*" - "} && fstype=${rest%% *} && src=${rest#* } && src=${src%% *} && [ "$fstype" = ext4 ] && [ "$src" = "$CONEXUS_APP_CLUSTER_STORAGE_SOURCE" ] || { echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1; }; exec docker-entrypoint.sh "$@"'
 
 docker run -d --name "$container" \
   --restart unless-stopped \
@@ -72,6 +74,7 @@ docker run -d --name "$container" \
   --mount "type=bind,source=$password_file,target=/run/secrets/postgres-password,readonly" \
   --env POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password \
   --env POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 \
+  --env CONEXUS_APP_CLUSTER_STORAGE_SOURCE="$device" \
   --entrypoint /bin/sh \
   "$image" \
   -c "$guard" conexus-storage-guard \

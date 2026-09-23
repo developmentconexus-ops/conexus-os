@@ -30,6 +30,7 @@ const MUTATIONS = [
   ['no-tls-reset', CONFINE, /^ +for \(const name of Object\.keys\(settings\)\) sql\(`ALTER SYSTEM RESET[^\n]*\n/m, '', INSTALL],
   ['no-storage-mountpoint-check', RUN_CLUSTER, /^ +mountpoint -q [^\n]*\n/m, '', INSTALL],
   ['no-storage-entrypoint-guard', RUN_CLUSTER, 'echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1;', 'true;', INSTALL],
+  ['no-storage-source-check', RUN_CLUSTER, ' && line=$(grep -F " /var/lib/conexus-apps-storage " /proc/self/mountinfo | tail -n1) && rest=${line#*" - "} && fstype=${rest%% *} && src=${rest#* } && src=${src%% *} && [ "$fstype" = ext4 ] && [ "$src" = "$CONEXUS_APP_CLUSTER_STORAGE_SOURCE" ]', '', INSTALL],
   ['no-valid-until', DATA_PLANE, "VALID UNTIL '-infinity'", "VALID UNTIL 'infinity'", DATA],
   ['no-ledger-rls', DATA_PLANE, 'ENABLE ROW LEVEL SECURITY', 'DISABLE ROW LEVEL SECURITY', DATA],
   ['runtime-gets-create', DATA_PLANE, /GRANT USAGE ON SCHEMA \$\{schema\} TO \$\{runtime\}/, (grant) => grant.replace('USAGE', 'USAGE, CREATE'), DATA],

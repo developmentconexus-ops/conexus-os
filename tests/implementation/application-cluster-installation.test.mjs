@@ -8,15 +8,20 @@ import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { confineApplicationCluster, ensureTlsMaterial } from '../../scripts/confine-application-cluster.mjs'
 
-// The Applications cluster's installation steps on a throwaway container of their own: the run script
-// and the container's entrypoint refuse storage that is not the cluster's filesystem, and confinement
-// takes back TLS settings the runner cannot verify. Needs Docker; the storage is an ordinary directory,
-// which is what an unmounted mountpoint is.
+// The Applications cluster's installation steps on throwaway containers of their own: the run script
+// and the container's entrypoint refuse storage that is not the cluster's dedicated, mounted
+// filesystem, on first start and on every restart, and confinement takes back TLS settings the
+// runner cannot verify. Needs Docker and passwordless sudo, to mount and unmount the same small
+// preallocated image an installation gets.
 const repository = resolve(import.meta.dirname, '../..')
 const MARKER = '.conexus-apps-storage'
 const REFUSAL = 'APPLICATION_CLUSTER_STORAGE_UNMOUNTED'
+const MOUNT_SCRIPT = 'scripts/mount-application-cluster-storage.sh'
+const STORAGE_MIB = 256
 
 const docker = (...args) => spawnSync('docker', args, { encoding: 'utf8' })
+const sudo = (...args) => spawnSync('sudo', ['-n', ...args], { cwd: repository, encoding: 'utf8' })
+const run = (container, port, root, passwordFile) => spawnSync('bash', ['scripts/run-application-cluster.sh', container, String(port), root, passwordFile], { cwd: repository, encoding: 'utf8' })
 const freePort = () => new Promise((done) => {
   const server = net.createServer()
   server.listen(0, '127.0.0.1', () => { const { port } = server.address(); server.close(() => done(port)) })
@@ -28,46 +33,56 @@ const until = async (probe, what, seconds = 60) => {
   }
   assert.fail(`timed out waiting for ${what}`)
 }
+const ready = (container) => docker('exec', container, 'pg_isready', '-U', 'postgres', '-h', '127.0.0.1').status === 0
+const refusals = (container) => docker('logs', container).stderr.split('\n').filter((line) => line === REFUSAL).length
+const refusedAgain = async (container, before, what) => {
+  await until(() => refusals(container) > before, `${what} to be refused`)
+  assert.equal(ready(container), false, `${what}: nothing serves`)
+}
+const mountStorage = (image, mountpoint) => {
+  const result = sudo('bash', MOUNT_SCRIPT, 'install', image, String(STORAGE_MIB), mountpoint)
+  assert.equal(result.status, 0, result.stderr)
+}
+const removeStorage = (image, mountpoint) => {
+  sudo('bash', MOUNT_SCRIPT, 'remove', image, mountpoint)
+  sudo('rm', '-rf', mountpoint)
+}
 
 test('the Applications cluster starts only on its own storage, and confinement undoes TLS it cannot verify', async (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'conexus-apps-storage-'))
   const secrets = mkdtempSync(join(tmpdir(), 'conexus-apps-install-'))
-  mkdirSync(join(root, 'pgdata'), { mode: 0o700 })
+  const image = join(secrets, 'apps.img')
+  const root = join(secrets, 'apps-storage')
   const passwordFile = join(secrets, 'password')
   writeFileSync(passwordFile, randomBytes(18).toString('base64url'), { mode: 0o600 })
   const container = `conexus-install-test-${randomBytes(4).toString('hex')}`
   const port = await freePort()
-  const runScript = (env = {}) => spawnSync('bash', ['scripts/run-application-cluster.sh', container, String(port), root, passwordFile], { cwd: repository, encoding: 'utf8', env: { ...process.env, ...env } })
-  const ci = { CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE: 'ci' }
   t.after(() => {
-    const image = docker('inspect', '--format', '{{.Config.Image}}', container).stdout.trim()
+    const usedImage = docker('inspect', '--format', '{{.Config.Image}}', container).stdout.trim()
     docker('rm', '-f', container)
     // The cluster's files belong to the image's postgres uid; only a container can remove them.
-    if (image) docker('run', '--rm', '--mount', `type=bind,source=${root},target=/s`, '--entrypoint', 'rm', image, '-rf', '/s/pgdata')
-    rmSync(root, { recursive: true, force: true })
+    if (usedImage) docker('run', '--rm', '--mount', `type=bind,source=${root},target=/s`, '--entrypoint', 'rm', usedImage, '-rf', '/s/pgdata')
+    removeStorage(image, root)
     rmSync(secrets, { recursive: true, force: true })
   })
-  const ready = () => docker('exec', container, 'pg_isready', '-U', 'postgres', '-h', '127.0.0.1').status === 0
-  const refusals = () => docker('logs', container).stderr.split('\n').filter((line) => line === REFUSAL).length
-  const refusedAgain = async (before, what) => {
-    await until(() => refusals() > before, `${what} to be refused`)
-    assert.equal(ready(), false, `${what}: nothing serves`)
-  }
 
   await t.test('the run script refuses storage without the marker, or not mounted', () => {
-    const unmarked = runScript(ci)
+    const bare = mkdtempSync(join(tmpdir(), 'conexus-apps-bare-'))
+    const unmarked = run(container, port, bare, passwordFile)
     assert.equal(unmarked.status, 1)
-    assert.equal(unmarked.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_MISSING: ${root}`)
-    writeFileSync(join(root, MARKER), '')
-    const unmounted = runScript()
+    assert.equal(unmarked.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_MISSING: ${bare}`)
+    mkdirSync(join(bare, 'pgdata'), { mode: 0o700 })
+    writeFileSync(join(bare, MARKER), '')
+    const unmounted = run(container, port, bare, passwordFile)
     assert.equal(unmounted.status, 1)
-    assert.equal(unmounted.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED: ${root}`)
+    assert.equal(unmounted.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED: ${bare}`)
     assert.equal(docker('inspect', container).status, 1, 'no container was created')
+    rmSync(bare, { recursive: true, force: true })
   })
 
   await t.test('a failed TLS load leaves no TLS settings behind', async () => {
-    assert.equal(runScript(ci).status, 0)
-    await until(ready, 'the cluster to accept connections')
+    mountStorage(image, root)
+    assert.equal(run(container, port, root, passwordFile).status, 0)
+    await until(() => ready(container), 'the cluster to accept connections')
     const tls = mkdtempSync(join(secrets, 'tls-'))
     const material = ensureTlsMaterial({ authorityDir: join(tls, 'authority'), relayDir: join(tls, 'relay') }, ['DNS:elsewhere.invalid'])
     assert.throws(() => confineApplicationCluster({ container, authorityDir: material.authorityDir, tlsDir: material.relayDir, database: 'conexus_apps_000000000000' }),
@@ -80,14 +95,57 @@ test('the Applications cluster starts only on its own storage, and confinement u
   await t.test('without the marker, Docker cannot start the cluster again, on any path', async () => {
     unlinkSync(join(root, MARKER))
     docker('exec', '-u', 'postgres', container, 'pg_ctl', 'stop', '-m', 'fast', '-D', '/var/lib/postgresql/data')
-    await refusedAgain(0, 'the restart policy\'s restart')
+    await refusedAgain(container, 0, 'the restart policy\'s restart')
     assert.ok(Number(docker('inspect', '--format', '{{.RestartCount}}', container).stdout) >= 1)
     assert.equal(docker('stop', container).status, 0)
-    const stopped = refusals()
+    const stopped = refusals(container)
     assert.equal(docker('start', container).status, 0)
-    await refusedAgain(stopped, 'docker start')
-    const started = refusals()
+    await refusedAgain(container, stopped, 'docker start')
+    const started = refusals(container)
     assert.equal(docker('restart', container).status, 0)
-    await refusedAgain(started, 'docker restart')
+    await refusedAgain(container, started, 'docker restart')
+  })
+
+  // The bug this guards against: the old entrypoint compared only device numbers, so a marker plus a
+  // stale pgdata copied directly onto the plain directory an unmounted <storage-root> leaves behind
+  // would satisfy it, because both bind mounts still resolve to the same (wrong) filesystem. Docker's
+  // own restart runs the entrypoint again without this script, so only the container-side guard,
+  // never the host-side mountpoint check above, stands between an unmounted host and a served cluster.
+  await t.test('a stale pgdata and a copied marker on an ordinary directory are refused, on start and restart', async (t2) => {
+    const attackImage = join(secrets, 'apps-attack.img')
+    const attackRoot = join(secrets, 'apps-attack-storage')
+    const attackContainer = `conexus-install-attack-${randomBytes(4).toString('hex')}`
+    const attackPort = await freePort()
+    const stage = mkdtempSync(join(tmpdir(), 'conexus-apps-stale-'))
+    t2.after(() => {
+      docker('rm', '-f', attackContainer)
+      removeStorage(attackImage, attackRoot)
+      rmSync(stage, { recursive: true, force: true })
+    })
+
+    mountStorage(attackImage, attackRoot)
+    assert.equal(run(attackContainer, attackPort, attackRoot, passwordFile).status, 0)
+    await until(() => ready(attackContainer), 'the throwaway cluster to accept connections')
+    assert.equal(docker('stop', attackContainer).status, 0)
+
+    // Stage a copy of the real pgdata while it is still reachable, unmount the dedicated filesystem,
+    // then plant the stage and a fresh marker directly on the plain directory left behind: what an
+    // unmounted <storage-root> is, and what the run script's own mountpoint check no longer runs on
+    // Docker's restart.
+    const staged = sudo('cp', '-a', join(attackRoot, 'pgdata'), stage)
+    assert.equal(staged.status, 0, staged.stderr)
+    const unmounted = sudo('umount', attackRoot)
+    assert.equal(unmounted.status, 0, unmounted.stderr)
+    const replantedData = sudo('cp', '-a', join(stage, 'pgdata'), join(attackRoot, 'pgdata'))
+    assert.equal(replantedData.status, 0, replantedData.stderr)
+    const replantedMarker = sudo('touch', join(attackRoot, MARKER))
+    assert.equal(replantedMarker.status, 0, replantedMarker.stderr)
+
+    const before = refusals(attackContainer)
+    assert.equal(docker('start', attackContainer).status, 0)
+    await refusedAgain(attackContainer, before, 'docker start on the unmounted directory')
+    const started = refusals(attackContainer)
+    assert.equal(docker('restart', attackContainer).status, 0)
+    await refusedAgain(attackContainer, started, 'docker restart on the unmounted directory')
   })
 })

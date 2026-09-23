@@ -91,22 +91,28 @@ by numeric id.
 
 The storage bound was proven on the 1 GiB probe filesystem, never the pilot's:
 
-- **An unmounted filesystem stops the cluster, on every start (round 3).** The round-2 proof used a
-  source path that did not exist, and the run script checked only that `pgdata` existed. An
-  unmounted mountpoint holding a stale `pgdata` would have passed that check, and Docker restarts
-  the container without the script. The install step now leaves a marker,
+- **An unmounted filesystem stops the cluster, on every start (round 3, hardened in round 3b).** The
+  round-2 proof used a source path that did not exist, and the run script checked only that `pgdata`
+  existed. An unmounted mountpoint holding a stale `pgdata` would have passed that check, and Docker
+  restarts the container without the script. The install step now leaves a marker,
   `.conexus-apps-storage`, at the filesystem's root. `run-application-cluster.sh` takes the storage
   root and refuses without the marker (`APPLICATION_CLUSTER_STORAGE_MISSING`), without a mountpoint
   there (`APPLICATION_CLUSTER_STORAGE_NOT_MOUNTED`), and, for a loop image, with any block of the
-  image unallocated (`APPLICATION_CLUSTER_STORAGE_SPARSE`). The container's entrypoint is a guard
-  around the image's own: on every start it requires the marker, bound read-only from the root, on
-  the same filesystem as PGDATA, and otherwise exits with `APPLICATION_CLUSTER_STORAGE_UNMOUNTED`.
-  `application-cluster-installation.test.mjs` proves it on an ordinary directory holding a stale,
-  initialized `pgdata`: the script refuses without the marker and without the mount, and with the
-  marker removed the restart policy's own restart, `docker start` and `docker restart` are each
-  refused and nothing serves ([`q1.8/start-guard-proof.txt`](q1.8/start-guard-proof.txt)). CI runs
-  it; CI's own cluster opts out of the mountpoint and allocation checks only
-  (`CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci`), because its runner has no loop mount.
+  image unallocated (`APPLICATION_CLUSTER_STORAGE_SPARSE`). Round 3's container-side guard compared
+  only device numbers, so a marker plus a stale `pgdata` copied directly onto the plain directory an
+  unmounted mountpoint leaves behind would still pass it, on Docker's own restart, which runs the
+  guard without this script. Round 3b closed that: the entrypoint now also reads
+  `/proc/self/mountinfo` and requires the mount covering the storage root to still be `ext4` from the
+  exact source the run script found at start, passed in as `CONEXUS_APP_CLUSTER_STORAGE_SOURCE`; a
+  plain directory reports its own root filesystem's source there, never a match.
+  `application-cluster-installation.test.mjs` proves it on the cluster's own small mounted
+  filesystem: the script refuses without the marker and without the mount; with the marker removed
+  the restart policy's own restart, `docker start` and `docker restart` are each refused and nothing
+  serves; and a marker plus a stale `pgdata` copied onto the plain directory left behind by an
+  unmount is refused the same way, on start and restart
+  ([`q1.8/start-guard-proof.txt`](q1.8/start-guard-proof.txt)). CI runs it; the runner's passwordless
+  sudo mounts the same small preallocated image an installation gets, so CI proves the guards on the
+  real mount, not an ordinary directory.
 - **Filling it stays inside it.** A session wrote incompressible rows until the probe filesystem was
   full (192 KiB left). That cluster then restarted in a loop, unable to write WAL. Throughout, the
   Hub PostgreSQL kept its start time and served a write and read-back
@@ -201,9 +207,10 @@ The Hub PostgreSQL's start time stayed `2026-09-23 14:35:07.161635+00` through a
 
 CI runs the same shape. The verify job starts its own Applications cluster from
 `run-application-cluster.sh` on 5434, confines it, and runs the suites against both clusters. Its
-storage is an ordinary directory carrying the marker, started with
-`CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci`, so CI proves the guards but not the fixed-size mount;
-the pilot records carry that.
+storage is the runner's own small preallocated image, mounted with
+`scripts/mount-application-cluster-storage.sh` through the runner's passwordless sudo, so CI proves
+the guards on a real dedicated mount, at a fraction of the pilot's size; the pilot records carry the
+full-size allocation.
 
 ## Q1.1 data isolation substrate
 
@@ -639,7 +646,7 @@ Evidence from the pilot, rerunnable with [`q1.8/structural.sh`](q1.8/structural.
 | 1 | Separate clusters in separate containers | `conexus-s7-postgres` (Docker volume, 127.0.0.1:5433, system identifier 7685719825529860133) and `conexus-apps-postgres` (bind mount on `/dev/loop2`, 127.0.0.1:5434, system identifier 7688777040721199149) |
 | 2 | The Hub cluster holds no application database, schema or Project role | Databases `conexus_s7`, `postgres`, `template0`, `template1`. Roles matching `^app_`: 0. Application schemas in every database: 0. |
 | 3 | All Applications storage on its own fixed-size, fully preallocated filesystem | See [the storage mechanism](#q10-step-4-the-storage-mechanism). PGDATA, `pg_wal`, `log` and `base` report `/dev/loop2` (device 1794; the host root is device 2128). The image is 4,294,967,296 bytes with 8,388,616 × 512 bytes allocated. |
-| 4 | The container refuses to start without that filesystem | The source is a bind `--mount`. A missing source is refused by the run script and by Docker ([`topology/storage-proof.txt`](topology/storage-proof.txt)). |
+| 4 | The container refuses to start without that filesystem, on every start | The run script requires the marker, the mountpoint and full allocation before it starts the container; the container's own entrypoint re-checks the marker and, from `/proc/self/mountinfo`, that the mount covering the storage root is still `ext4` from the exact source the run script found, on every start, Docker's restarts included. A marker and a stale `pgdata` copied onto the plain directory an unmounted mountpoint leaves behind is refused the same way ([`q1.8/start-guard-proof.txt`](q1.8/start-guard-proof.txt), `application-cluster-installation.test.mjs` in CI). The pilot recreation ran the hardened guard against its live mount ([`q1.8/pilot-start-guard.txt`](q1.8/pilot-start-guard.txt)). |
 | 5 | The container runtime enforces a memory limit | `HostConfig.Memory` 1073741824, `MemorySwap` 1073741824. Inside the container, cgroup v2 reads `memory.max` 1073741824 and `memory.swap.max` 0. |
 | 6 | One ordinary stop leaves the Hub serving | Below |
 
@@ -903,9 +910,10 @@ supervisor, sandbox and relay on the pilot host, with probe handlers and migrati
 run as Builder-generated code behind the live Preview. A standalone attack script for the live path
 was not authored, because a safety classifier stopped it. Only the existing reviewed suites were
 reused. Q1.8 proved containment by structure and by one ordinary stop, not by exhaustion runs against
-the pilot. The unmounted-filesystem refusal is proven on an ordinary directory with a stale
-`pgdata` (the unmounted mountpoint's shape) and on the pilot's own container, not by stopping the
-pilot's systemd mount unit, which needs `sudo`.
+the pilot. The unmounted-filesystem refusal is proven by mounting and unmounting a throwaway
+filesystem of its own (`application-cluster-installation.test.mjs`, through the runner's or a
+developer's passwordless `sudo`) and on the pilot's own container, not by stopping the pilot's own
+systemd mount unit.
 
 Found on the way, outside Q1's claim, each owed its own fix:
 
