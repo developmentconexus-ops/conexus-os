@@ -80,6 +80,8 @@ export const provisionApplicationDatabase = async (config) => {
     } else if (database.rows[0].owner !== PROVISIONER) {
       fail('APPLICATION_DATABASE_OWNER_REFUSED', database.rows[0].owner)
     }
+    // Lets the provisioner set temp_file_limit on the Project roles it creates; they cannot change it.
+    await installation.query(`GRANT SET ON PARAMETER temp_file_limit TO ${PROVISIONER}`)
     await closeDatabaseToPublic(installation, config.hubDatabase, config.hubRoles)
     await closeDatabaseToPublic(installation, 'postgres', [])
   } finally {

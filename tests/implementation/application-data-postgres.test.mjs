@@ -102,6 +102,18 @@ test('Project Preview data is confined to its own schema, roles and database', a
     assert.deepEqual(await readLedger(provisioner, a), [{ position: 1, name: NOTES.name, sha256: NOTES.sha256 }])
   })
 
+  await t.test('a Project session cannot lift its temporary-file bound; statement_timeout it can', async (st) => {
+    for (const [role, limit] of [[a.runtimeRole, '256MB'], [a.migrationRole, '1GB']]) {
+      const session = await loginAs(st, role, database)
+      assert.deepEqual({
+        limit: (await session.query('SHOW temp_file_limit')).rows[0].temp_file_limit,
+        lift: await attempt(session, "SET temp_file_limit = '-1'"),
+        liftForRole: await attempt(session, `ALTER ROLE ${role} SET temp_file_limit = '-1'`),
+        liftStatementTimeout: await attempt(session, 'SET statement_timeout = 0'),
+      }, { limit, lift: '42501', liftForRole: '42501', liftStatementTimeout: 'ok' }, role)
+    }
+  })
+
   await t.test('Project A runtime reaches nothing of Project B and cannot change schema or roles', async (st) => {
     const runtimeA = await loginAs(st, a.runtimeRole, database)
     assert.deepEqual({

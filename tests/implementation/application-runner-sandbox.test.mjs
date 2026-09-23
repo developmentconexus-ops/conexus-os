@@ -38,7 +38,7 @@ export async function listNotes(input, { db }) {
   return rows
 }
 `
-const PROBE_HANDLER = `export const sleepInDatabase = async (input, { db }) => { await db.query('SELECT pg_sleep(60)'); return {} }
+const PROBE_HANDLER = `export const sleepInDatabase = async (input, { db }) => { await db.query('SET statement_timeout = 0'); await db.query('SELECT pg_sleep(60)'); return {} }
 export const spin = async () => { for (;;) {} }
 export const crash = async () => { process.abort() }
 export const huge = async () => ({ text: 'x'.repeat(2 * 1024 * 1024) })
@@ -146,6 +146,8 @@ test('the runner migrates and serves each Project through its own sandboxed work
   assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: { error: { code: 'RESPONSE_TOO_LARGE' } } })
   assert.deepEqual(await invoke(a, 'environment'), { status: 200, body: { text: '{"PWD":"/"}' } })
 
+  // The handler first lifts its own statement_timeout, which any session may do, so only the
+  // relay's cancel at the invocation's wall clock can end the statement.
   await t.test('a worker past its wall clock is killed and its database statement cancelled', async () => {
     const started = Date.now()
     assert.deepEqual(await invoke(a, 'sleepInDatabase'), { status: 504, body: { error: { code: 'HANDLER_TIMEOUT' } } })

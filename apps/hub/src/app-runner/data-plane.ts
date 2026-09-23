@@ -23,6 +23,8 @@ export const LEDGER_TABLE = 'conexus_migration'
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const RUNTIME_CONNECTION_LIMIT = 8
 const MIGRATION_CONNECTION_LIMIT = 2
+const RUNTIME_TEMP_FILE_LIMIT = '256MB'
+const MIGRATION_TEMP_FILE_LIMIT = '1GB'
 
 export const previewAllocation = (projectId: string): PreviewAllocation => {
   if (!PROJECT_ID.test(projectId)) throw new Error('APPLICATION_PROJECT_ID_REFUSED')
@@ -71,9 +73,13 @@ export const ensurePreviewAllocation = async (
   const migration = identifier(allocation.migrationRole)
   await ensureRole(provisioner, allocation.runtimeRole, RUNTIME_CONNECTION_LIMIT)
   await ensureRole(provisioner, allocation.migrationRole, MIGRATION_CONNECTION_LIMIT)
+  // temp_file_limit is the one bound here a session cannot lift: only a role granted SET on it may
+  // change it, so a spilling sort or hash stops before it fills the shared cluster's disk. The others
+  // are defaults a session may change; the relay's wall-clock cancel, not statement_timeout, is
+  // what ends a runaway statement.
   for (const [role, settings] of [
-    [runtime, [['search_path', allocation.schema], ['statement_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s']]],
-    [migration, [['search_path', allocation.schema], ['statement_timeout', '30s'], ['lock_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s']]],
+    [runtime, [['search_path', allocation.schema], ['statement_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', RUNTIME_TEMP_FILE_LIMIT]]],
+    [migration, [['search_path', allocation.schema], ['statement_timeout', '30s'], ['lock_timeout', '5s'], ['idle_in_transaction_session_timeout', '10s'], ['temp_file_limit', MIGRATION_TEMP_FILE_LIMIT]]],
   ] as const) {
     for (const [name, value] of settings) await provisioner.query(`ALTER ROLE ${role} IN DATABASE ${identifier(database)} SET ${name} = ${literal(value)}`)
   }
