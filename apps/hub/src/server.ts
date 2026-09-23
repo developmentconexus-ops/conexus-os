@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
+import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -73,6 +74,7 @@ const project = config.project ? createConfiguredProjectModule({
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
+const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
 const mar = config.preview ? createMarModule({
   access: identityAccess.previewAccess,
   exactHubOrigin: config.origin,
@@ -84,6 +86,19 @@ const mar = config.preview ? createMarModule({
       artifactRevisionId: input.artifactRevisionId, path: input.path,
     })
   },
+  // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
+  // The MAR module bounds in-flight work and the tree's total size before any file is read, ahead of
+  // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
+  ...(applicationRunner ? {
+    applicationRunner: {
+      readFile: (input) => {
+        const reader = builder
+        if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+        return reader.readApplicationFileBySource(input)
+      },
+      invoke: applicationRunner.invoke,
+    },
+  } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
   const opened = mar.openRoute({
@@ -125,6 +140,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   factory: config.factory,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
+  ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,

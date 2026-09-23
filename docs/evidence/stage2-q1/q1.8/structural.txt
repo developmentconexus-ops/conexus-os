@@ -1,0 +1,73 @@
+== 1. two clusters, two containers
+container=/conexus-s7-postgres id=99f14247c162 image=postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5433"}]} memory=0
+  mount volume /var/lib/docker/volumes/d4ff9952fef3a02695a8faee48b79c0f12b7461cf9bdc6abd6c3122e21096e90/_data -> /var/lib/postgresql/data
+
+container=/conexus-apps-postgres id=35a0a6239b7d image=postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5434"}]} memory=1073741824
+  mount bind /var/lib/conexus/applications-postgres/pgdata -> /var/lib/postgresql/data
+  mount bind /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password
+
+hub   system identifier: 7685719825529860133
+apps  system identifier: 7688777040721199149
+== 2. the Hub cluster holds no application database, schema or Project role
+databases | conexus_s7,postgres,template0,template1
+app roles | 0
+application schemas in template1: 0
+application schemas in postgres: 0
+application schemas in conexus_s7: 0
+hub postmaster start: 2026-09-23 14:35:07.161635+00
+== 3. everything the Applications cluster writes is on its fixed-size filesystem
+/var/lib/conexus/applications-postgres /dev/loop2 ext4 rw,noatime
+image /var/lib/conexus/applications-postgres.img size=4294967296 allocated=8388616*512
+/dev/loop2     4143677440 318676992 3593478144
+data_directory | /var/lib/postgresql/data
+log_directory | log
+temp_tablespaces | (default: pg_default, inside data_directory)
+tablespaces | pg_default=data_directory,pg_global=data_directory
+wal bytes | 16777216
+. on /dev/loop2       4046560 1794
+pg_wal on /dev/loop2       4046560 1794
+log on /dev/loop2       4046560 1794
+base on /dev/loop2       4046560 1794
+total 16400
+drwx------  4 postgres postgres     4096 Sep 23 17:01 .
+drwx------ 21 postgres postgres     4096 Sep 23 17:14 ..
+pg_wal is a directory, not a link
+host root device 2128 ; image filesystem device 1794
+== 4. no filesystem, no container (a missing source is refused; see topology/storage-proof.txt)
+pgdata mount type=bind source=/var/lib/conexus/applications-postgres/pgdata
+== 5. memory limit
+HostConfig.Memory=1073741824 MemorySwap=1073741824 NanoCpus=2000000000 PidsLimit=512 OomKillDisable=<no value>
+cgroup memory.max=1073741824 memory.swap.max=0 memory.current=35794944
+cgroup 2 driver systemd
+host memory bytes 14656077824 cpus 10; Hub cluster container memory limit 0 (0 = none)
+host root filesystem (Hub cluster volume): /dev/sdf       1081101176832 970670100480
+== settings: cluster level
+idle_in_transaction_session_timeout | 30000 | ms | command line | user
+lock_timeout | 10000 | ms | command line | user
+logging_collector | on |  | command line | postmaster
+log_lock_waits | on |  | command line | superuser
+log_temp_files | 16384 | kB | command line | superuser
+max_connections | 60 |  | command line | postmaster
+max_wal_size | 512 | MB | command line | sighup
+min_wal_size | 80 | MB | command line | sighup
+reserved_connections | 4 |  | command line | postmaster
+shared_buffers | 16384 | 8kB | command line | postmaster
+shared_preload_libraries | pg_stat_statements |  | command line | postmaster
+statement_timeout | 60000 | ms | command line | user
+superuser_reserved_connections | 3 |  | command line | postmaster
+temp_file_limit | 1048576 | kB | command line | superuser
+transaction_timeout | 120000 | ms | command line | user
+work_mem | 4096 | kB | default | user
+== settings: role level, in conexus_apps, for one Project
+app_a700a0f2883b427f9f5289c1eb476be3_preview_mig | 2 | search_path=p_a700a0f2883b427f9f5289c1eb476be3_preview, statement_timeout=30s, transaction_timeout=30s, lock_timeout=5s, idle_in_transaction_session_timeout=10s, temp_file_limit=1GB
+app_a700a0f2883b427f9f5289c1eb476be3_preview_rt | 8 | search_path=p_a700a0f2883b427f9f5289c1eb476be3_preview, statement_timeout=5s, transaction_timeout=6s, lock_timeout=2s, idle_in_transaction_session_timeout=10s, temp_file_limit=256MB
+== settings: who may set temp_file_limit
+temp_file_limit | {postgres=sA/postgres,app_provisioner=s/postgres}
+== pg_stat_statements
+extension | 1.11
+statements tracked | 279 | calls | 877
+top by total time | postgres | 1 | 272 ms | CREATE DATABASE "conexus_apps" OWNER app_provisioner
+top by total time | app_000000000000400080000000000000bf_preview_mig | 11 | 18 ms | CREATE TABLE probe_note (id integer GENERATED ALWAYS AS IDEN
+top by total time | postgres | 1 | 12 ms | ALTER SYSTEM SET ssl = 'on'
+top by total time | postgres | 1 | 11 ms | ALTER SYSTEM SET ssl_cert_file = 'conexus-tls/server.pem'
+top by total time | postgres | 1 | 11 ms | ALTER SYSTEM SET ssl_key_file = 'conexus-tls/server-key.pem'

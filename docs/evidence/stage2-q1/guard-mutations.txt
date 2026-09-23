@@ -1,0 +1,20 @@
+no-reserved-connections-inherit	application-data-postgres	FAILED_AS_REQUIRED	the Applications cluster bounds: where each is set and what a Project session can change
+no-public-connect-revoke	application-data-postgres	FAILED_AS_REQUIRED	PUBLIC holds no CONNECT on the application or postgres database
+no-language-revoke	application-data-postgres	FAILED_AS_REQUIRED	a generated migration gains nothing beyond its own Project schema
+no-tls-key-check	application-data-postgres	FAILED_AS_REQUIRED	confinement refuses server TLS material the cluster could not restart with
+no-tls-reset	application-cluster-installation	FAILED_AS_REQUIRED	a failed TLS load leaves no TLS settings behind
+no-storage-mountpoint-check	application-cluster-installation	FAILED_AS_REQUIRED	the run script refuses storage without the marker, or not mounted
+no-storage-entrypoint-guard	application-cluster-installation	FAILED_AS_REQUIRED	without the marker, Docker cannot start the cluster again, on any path
+no-valid-until	application-data-postgres	FAILED_AS_REQUIRED	a Project role logs in only through the relay, even with a password it set itself
+no-ledger-rls	application-data-postgres	FAILED_AS_REQUIRED	owner-rights views and rules give a runtime handler nothing of the migration ledger | a failed migration leaves the schema and ledger as they were
+runtime-gets-create	application-data-postgres	FAILED_AS_REQUIRED	Project A runtime reaches nothing of Project B and cannot change schema or roles
+schemas-open-to-public	application-data-postgres	FAILED_AS_REQUIRED	Project A runtime reaches nothing of Project B and cannot change schema or roles | a generated migration gains nothing beyond its own Project schema
+no-role-temp-file-limit	application-data-postgres	FAILED_AS_REQUIRED	a Project session cannot lift its temporary-file bound; statement_timeout it can | the Applications cluster bounds: where each is set and what a Project session can change
+no-role-transaction-timeout	application-data-postgres	FAILED_AS_REQUIRED	the Applications cluster bounds: where each is set and what a Project session can change
+no-language-startup-check	application-runner-sandbox	FAILED_AS_REQUIRED	the runner does not serve while a routine language is usable by PUBLIC or a Project role
+no-runtime-privilege-restore	application-runner-sandbox	FAILED_AS_REQUIRED	a migration cannot give the runtime role more than DML, directly or through PUBLIC
+no-relay-dir-files-check	application-runner-sandbox	FAILED_AS_REQUIRED	the runner reads relay TLS only from a private directory holding exactly its three files
+no-relay-dir-mode-check	application-runner-sandbox	FAILED_AS_REQUIRED	the runner reads relay TLS only from a private directory holding exactly its three files
+no-unshare-net	application-runner-sandbox	FAILED_AS_REQUIRED	with the Node permission layer off, the namespaces alone hide host files, processes and network
+no-relay-cancel	application-runner-sandbox	FAILED_AS_REQUIRED	a worker past its wall clock is killed and its database statement cancelled
+no-hub-cluster-refusal	application-data-postgres	FAILED_AS_REQUIRED	the Hub cluster holds no Project role and provisioning refuses to create one there

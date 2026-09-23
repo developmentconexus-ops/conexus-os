@@ -1,0 +1,109 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T13:42:09.377Z",
+  "finishedAt": "2026-09-23T13:47:26.340Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/follow-up-notes.json",
+  "gradeOnly": false,
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": "840c8630-eb50-435e-9adf-a6084930d2ae",
+  "projectId": "e39250ac-88e9-4905-99ad-7a9410ff90b1",
+  "projectName": "eval-q1-followup-3",
+  "conversationId": "26bb185b-8cd5-4112-a2ef-b32e0ff6d0e6",
+  "modelId": "google-ai-pro/gemini-3-flash",
+  "sourceRevisionBefore": "625b2592d3d27e22020978c9c03b20d00cf0b4ee",
+  "sourceRevisionAfter": "58d5ccb02a74af946ef47c682ff8f284ef742814",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "ADDED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/migrations/001_create_purchase_order_notes.sql",
+      "status": "ADDED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "5df508e8-2ab5-482e-ad88-b5bd81e0caeb",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "625b2592d3d27e22020978c9c03b20d00cf0b4ee",
+      "resultSourceRevision": "58d5ccb02a74af946ef47c682ff8f284ef742814",
+      "requestText": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 314798,
+  "previewUrl": "https://preview-9e5dc09b-a3fc-4fb4-bc3e-d3024238f5bd.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=1",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

@@ -1,0 +1,7 @@
+{
+  "request": "grade-only: reads the marked note through the run-2 Preview after the runner restarted",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "Q1.6 nota antes do reinicio do runner" }
+  ],
+  "reload": true
+}

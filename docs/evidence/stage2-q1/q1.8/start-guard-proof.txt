@@ -1,0 +1,13 @@
+# application-cluster-installation.test.mjs on the pilot host (WSL), head f52fe380, 2026-09-23T18:25:13Z
+# storage: an ordinary directory under the system temp dir holding an initialized pgdata, as an unmounted mountpoint would
+  ✔ the run script refuses storage without the marker, or not mounted (29.888539ms)
+  ✔ a failed TLS load leaves no TLS settings behind (10987.158507ms)
+  ✔ without the marker, Docker cannot start the cluster again, on any path (3210.682677ms)
+✔ the Applications cluster starts only on its own storage, and confinement undoes TLS it cannot verify (17219.299684ms)
+ℹ tests 4
+ℹ pass 4
+ℹ fail 0
+# guard mutations for these guards (docs/evidence/stage2-q1/guard-mutations.txt)
+no-tls-reset	application-cluster-installation	FAILED_AS_REQUIRED
+no-storage-mountpoint-check	application-cluster-installation	FAILED_AS_REQUIRED
+no-storage-entrypoint-guard	application-cluster-installation	FAILED_AS_REQUIRED

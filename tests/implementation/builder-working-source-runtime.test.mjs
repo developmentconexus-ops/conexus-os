@@ -34,3 +34,9 @@ test('the application tree the sandbox compiles is held to the compile input lim
   refuses([entry(10, 'app/index.html'), entry(10, 'app/link', '120000')].join('\n'), 'a symlink, which is not a blob mode this accepts')
   refuses('not a tree listing at all', 'output that is not a listing')
 })
+
+test('the server half of conexus/ is compiled with the app, and the rest of conexus/ is not', () => {
+  const entry = (path) => `100644 blob ${'a'.repeat(40)}     120\t${path}`
+  const listing = ['app/index.html', 'conexus/SERVER.md', 'conexus/check.sh', 'conexus/handlers/notes.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'].map(entry).join('\n')
+  assert.deepEqual(admitApplicationTree(listing), ['app/index.html', 'conexus/handlers/notes.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'])
+})

@@ -1,0 +1,54 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T13:51:37.585Z",
+  "finishedAt": "2026-09-23T13:51:38.985Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "docs/evidence/stage2-q1/q1.5/run-4-grade/case.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "f0d631f4-4684-446d-8d23-3057e3de154a",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "b36da41d2d0afbbea29a3dc4702560df1cd2b8d5",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-3508d66e-7d3c-45fc-85c5-23aa994b9503.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/carregar|buscar|consultar|pesquisar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

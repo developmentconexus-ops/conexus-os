@@ -59,10 +59,23 @@ type RegistryReader = (input: Readonly<{
   path: string
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
 
+// The admitted artifact's application API. The operation comes from the request path and must be one
+// the artifact's own manifest declares; the Project and artifact come from the Preview binding.
+type ApplicationInvoker = (input: Readonly<{
+  accountId: string
+  projectId: string
+  sourceRevision: string
+  artifactRevisionId: string
+  serverFiles: readonly string[]
+  operation: string
+  input: unknown
+}>) => Promise<Readonly<{ status: number; body: unknown }>>
+
 export type PreviewRouteDependencies = Readonly<{
   routes: Map<string, MarRoute>
   access: PreviewAccess
   registryReader: RegistryReader
+  invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
   previewPort: number
   now: () => number
@@ -78,9 +91,10 @@ const strictOrigin = (value: string | string[] | undefined, expected: string): b
   (Array.isArray(value) ? value[0] : value) === expected
 
 // allow-forms lets a submit event reach the app's own handler; form-action 'none' still refuses
-// any submission that would navigate or post somewhere.
+// any submission that would navigate or post somewhere. connect-src 'self' admits only the app's own
+// same-origin API under /__conexus/api/.
 export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
-  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
 
 const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
   reply.header('referrer-policy', 'no-referrer')
@@ -96,6 +110,10 @@ const sameBinding = (left: MarRoute, right: PreviewCookieBinding): boolean => (
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest &&
   left.exactHost === right.exactHost
 )
+
+const SERVER_ROOT = 'conexus-server/'
+const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
+const API_BODY_LIMIT = 64 * 1024
 
 const pathForRequest = (pathname: string): string | null => {
   if (pathname === '/') return 'index.html'
@@ -175,33 +193,44 @@ export const registerPreviewRoutes = async (
       .send()
   }))
 
-  const serve = async (request: { headers: { host?: string | undefined }; cookies: Record<string, string | undefined>; url: string }, reply: {
-    code(status: number): typeof reply
-    header(name: string, value: string): typeof reply
-    removeHeader(name: string): typeof reply
-    type(value: string): typeof reply
+  type PreviewRequest = { headers: { host?: string | undefined }; cookies: Record<string, string | undefined>; url: string }
+  type PreviewReply = {
+    code(status: number): PreviewReply
+    header(name: string, value: string): PreviewReply
+    removeHeader(name: string): PreviewReply
+    type(value: string): PreviewReply
     send(value?: unknown): unknown
-  }): Promise<unknown> => {
+  }
+  // The active route this request's cookie is bound to, or the status that refuses it.
+  const activeRoute = async (request: PreviewRequest): Promise<Readonly<{ route: MarRoute; binding: PreviewCookieBinding; cookie: string }> | number> => {
     const requestHost = request.headers.host
     const routeHost = typeof requestHost === 'string' && requestHost.endsWith(`:${dependencies.previewPort}`)
       ? requestHost.slice(0, -String(dependencies.previewPort).length - 1)
       : requestHost
-    securityHeaders(reply, dependencies.exactHubOrigin)
-    if (!routeHost) return reply.code(404).send()
+    if (!routeHost) return 404
     const cookie = request.cookies[PREVIEW_COOKIE]
-    if (!cookie) return reply.code(403).send()
+    if (!cookie) return 403
     let before: PreviewCookieBinding | null
     try {
       before = await dependencies.access.resolvePreviewCookie({ cookie, exactHost: routeHost })
     } catch {
-      return reply.code(503).send()
+      return 503
     }
     const route = before ? dependencies.routes.get(before.routeId) : undefined
-    if (!route || !before || !hostMatches(requestHost, route, dependencies.previewPort) || route.lifecycle !== 'ACTIVE' || route.expiresAt <= dependencies.now()) return reply.code(403).send()
+    if (!route || !before || !hostMatches(requestHost, route, dependencies.previewPort) || route.lifecycle !== 'ACTIVE' || route.expiresAt <= dependencies.now()) return 403
     const current = dependencies.routes.get(route.routeId)
-    if (current?.lifecycle !== 'ACTIVE' || !sameBinding(current, before)) return reply.code(403).send()
+    if (current?.lifecycle !== 'ACTIVE' || !sameBinding(current, before)) return 403
+    return { route: current, binding: before, cookie }
+  }
+
+  const serve = async (request: PreviewRequest, reply: PreviewReply): Promise<unknown> => {
+    securityHeaders(reply, dependencies.exactHubOrigin)
+    const active = await activeRoute(request)
+    if (typeof active === 'number') return reply.code(active).send()
+    const { route, binding: before, cookie } = active
     const path = pathForRequest(request.url.split('?', 1)[0] ?? '')
-    if (!path || !route.manifest.files.some((file) => file.path === path)) return reply.code(404).send()
+    // The server tree is retained with the artifact for the runner; the browser never receives it.
+    if (!path || path.startsWith(SERVER_ROOT) || !route.manifest.files.some((file) => file.path === path)) return reply.code(404).send()
     let file: Awaited<ReturnType<RegistryReader>>
     try {
       file = await dependencies.registryReader({
@@ -229,6 +258,31 @@ export const registerPreviewRoutes = async (
     return reply.type(file.mediaType).send(Buffer.from(file.bytes))
   }
 
+  type ApiRequest = FastifyRequest<{ Params: { operation: string }; Body: unknown }>
+  app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, tracked<ApiRequest>(async (request, reply) => {
+    securityHeaders(reply, dependencies.exactHubOrigin)
+    const refuse = (status: number, code: string): unknown => reply.code(status).type('application/json').send({ error: { code } })
+    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(415, 'CONTENT_TYPE_REFUSED')
+    const active = await activeRoute(request)
+    if (typeof active === 'number') return refuse(active, 'PREVIEW_REFUSED')
+    const { route, binding } = active
+    // Only the Preview's own page may call its API: a cross-site POST carries no Lax cookie, and a
+    // sibling Preview on the same site sends its own Origin.
+    if (!strictOrigin(request.headers.origin, `https://${route.exactHost}:${dependencies.previewPort}`)) return refuse(403, 'ORIGIN_REFUSED')
+    const serverFiles = route.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
+    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) return refuse(404, 'OPERATION_NOT_FOUND')
+    if (!dependencies.invokeApplication) return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
+    let result: Awaited<ReturnType<ApplicationInvoker>>
+    try {
+      result = await dependencies.invokeApplication({
+        accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision,
+        artifactRevisionId: binding.artifactRevisionId, serverFiles, operation: request.params.operation, input: request.body,
+      })
+    } catch {
+      return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
+    }
+    return reply.code(result.status).type('application/json').send(JSON.stringify(result.body))
+  }))
   app.get('/', tracked(serve))
   app.get('/*', tracked(serve))
   return ['MAR-Preview']

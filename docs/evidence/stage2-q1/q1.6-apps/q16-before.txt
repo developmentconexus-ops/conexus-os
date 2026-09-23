@@ -1,0 +1,21 @@
+  "outcome": "PASS",
+  "outcome": "PASS",
+  "previewUrl": "https://preview-da815f64-4016-466e-b3b9-1d78990c6e1f.conexus.localhost:3444/",
+  "outcome": "PASS",
+  "outcome": "PASS",
+  "previewUrl": "https://preview-65804464-bfb1-40fb-b06a-134cd822b0f8.conexus.localhost:3444/",
+== rows on the Applications cluster
+ERROR:  column "purchase_order_id" does not exist
+LINE 1: select 'run-1', id, purchase_order_id, note from p_0429fa8e3...
+                            ^
+ERROR:  relation "p_a700a0f2883b427f9f5289c1eb476be3_preview.purchase_order_notes" does not exist
+LINE 1: select 'run-2', id, purchase_order_id, note from p_a700a0f28...
+                                                         ^
+== the same marked notes on the Hub cluster (expect none)
+ERROR:  column "note" does not exist
+LINE 1: ...f5289c1eb476be3_preview.purchase_order_note where note like ...
+                                                             ^
+== runner SIGKILL
+killing 451907 at 2026-09-23T17:04:24.873582621Z
+runner gone: yes at 2026-09-23T17:04:24.890343690Z; hub answers 200
+runner state dir: /home/leandrotheodoro/.local/state/conexus-runner /home/leandrotheodoro/.local/state/conexus-runner/i /home/leandrotheodoro/.local/state/conexus-runner/runtime /home/leandrotheodoro/.local/state/conexus-runner/runtime/worker.js /home/leandrotheodoro/.local/state/conexus-runner/runtime/package.json /home/leandrotheodoro/.local/state/conexus-runner/runtime/node_modules /home/leandrotheodoro/.local/state/conexus-runner/runtime/data-plane.js

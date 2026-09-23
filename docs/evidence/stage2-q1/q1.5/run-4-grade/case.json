@@ -1,0 +1,9 @@
+{
+  "request": "grade-only: a fresh page load of the run-4 Preview, where notes are listed per order number, shows the note run-4 saved once the person enters that order number again",
+  "checks": [
+    { "action": "fill", "selector": "role=textbox >> nth=0", "value": "PC-4521" },
+    { "action": "click", "selector": "role=button[name=/carregar|buscar|consultar|pesquisar/i]" },
+    { "action": "expectText", "selector": "body", "text": "Ligar para o fornecedor na segunda" }
+  ],
+  "reload": false
+}

@@ -1,0 +1,15 @@
+total 65556
+-rw-r--r-- 1   0   0 67108864 Sep 23 17:09 ballast
+drwx------ 2   0   0    16384 Sep 23 16:36 lost+found
+drwx------ 2 999 999     4096 Sep 23 16:58 pgdata
+fill failed at round 5
+t+5s: running restarts=2 ready=no avail=196608
+t+20s: restarting restarts=7 ready=no avail=192512
+t+40s: running restarts=8 ready=no avail=188416
+t+60s: restarting restarts=9 ready=no avail=192512
+== delete ballast
+after ballast: running restarts=0 ready=yes avail=50515968
+INSERT 0 1
+42
+after drop: running restarts=0 ready=yes avail=473432064
+0

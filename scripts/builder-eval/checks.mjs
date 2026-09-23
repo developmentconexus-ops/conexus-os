@@ -2,8 +2,10 @@
 // iframe. This module owns the shape (what a step is, what counts as a valid one) and the pure
 // executor (given something with `.locator()`, run the steps and report what happened) so run.mjs
 // stays about orchestrating the Hub and the browser, not about interpreting JSON.
+import { expect } from '@playwright/test'
 
-const ACTIONS = new Set(['fill', 'click', 'expectText'])
+const ACTIONS = new Set(['fill', 'click', 'expectText', 'expectNoText'])
+const TEXT_ACTIONS = new Set(['expectText', 'expectNoText'])
 
 const fail = (message) => {
   throw new Error(`builder-eval case: ${message}`)
@@ -15,7 +17,7 @@ const validateStep = (step, index) => {
   if (!ACTIONS.has(action)) fail(`checks[${index}].action must be one of ${[...ACTIONS].join(', ')}, got ${JSON.stringify(action)}`)
   if (typeof selector !== 'string' || !selector.trim()) fail(`checks[${index}].selector must be a non-empty string`)
   if (action === 'fill' && typeof value !== 'string') fail(`checks[${index}].value is required for a fill step`)
-  if (action === 'expectText' && typeof text !== 'string') fail(`checks[${index}].text is required for an expectText step`)
+  if (TEXT_ACTIONS.has(action) && typeof text !== 'string') fail(`checks[${index}].text is required for an ${action} step`)
   return { action, selector, value: value ?? null, text: text ?? null }
 }
 
@@ -33,6 +35,13 @@ export function parseCase(raw) {
 
 const STEP_TIMEOUT_MS = 15_000
 
+// Playwright's assertion message spans several colored lines (expected, received, call log); the
+// record keeps the first ones, where the expected and received text live.
+const describeError = (error) => {
+  if (!(error instanceof Error)) return String(error)
+  return error.message.replace(/\u001b\[[0-9;]*m/g, '').split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 4).join(' | ').slice(0, 500)
+}
+
 /** Run one step against a Playwright FrameLocator (or Page). Never throws: failures are data. */
 async function runStep(target, step) {
   try {
@@ -41,13 +50,18 @@ async function runStep(target, step) {
       await locator.first().fill(step.value, { timeout: STEP_TIMEOUT_MS })
     } else if (step.action === 'click') {
       await locator.first().click({ timeout: STEP_TIMEOUT_MS })
+    } else if (step.action === 'expectText') {
+      // An app that saves through its API renders the result after the request returns, so the
+      // assertion retries until the text appears or the timeout passes.
+      await expect(locator.first()).toContainText(step.text, { timeout: STEP_TIMEOUT_MS })
     } else {
-      const actual = (await locator.first().innerText({ timeout: STEP_TIMEOUT_MS })).replace(/\s+/g, ' ').trim()
-      if (!actual.includes(step.text)) return { ...step, ok: false, error: `expected text ${JSON.stringify(step.text)}, found ${JSON.stringify(actual.slice(0, 200))}` }
+      // Absence passes at once on a page that has not rendered its data yet; a case proves the
+      // data loaded with an expectText step before this one.
+      await expect(locator.first()).not.toContainText(step.text, { timeout: STEP_TIMEOUT_MS })
     }
     return { ...step, ok: true, error: null }
   } catch (error) {
-    return { ...step, ok: false, error: error instanceof Error ? error.message.split('\n')[0] : String(error) }
+    return { ...step, ok: false, error: describeError(error) }
   }
 }
 

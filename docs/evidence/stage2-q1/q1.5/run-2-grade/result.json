@@ -1,0 +1,71 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T13:36:06.787Z",
+  "finishedAt": "2026-09-23T13:36:08.403Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/follow-up-notes.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "a700a0f2-883b-427f-9f52-89c1eb476be3",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "c6ae737eb891699cad6507888fef10e7ccaf6b80",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-65804464-bfb1-40fb-b06a-134cd822b0f8.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=0",
+        "value": "PC-4521",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox >> nth=1",
+        "value": "Ligar para o fornecedor na segunda",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Ligar para o fornecedor na segunda",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

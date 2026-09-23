@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
+import { createApplicationInvoker } from './application-invoker.js'
+import type { ApplicationFileReader, ApplicationRunnerInvoke } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { MarRouteInput, PreviewRouteDependencies } from './preview-routes.js'
 
@@ -29,12 +31,15 @@ type RegistryReader = PreviewRouteDependencies['registryReader']
 export const createMarModule = ({
   access,
   registryReader,
+  applicationRunner,
   exactHubOrigin,
   previewPort,
   now = () => Date.now(),
 }: Readonly<{
   access: PreviewAccess
   registryReader: RegistryReader
+  /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
+  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader }>
   exactHubOrigin: string
   previewPort: number
   now?: () => number
@@ -47,7 +52,10 @@ export const createMarModule = ({
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
-  const dependencies: PreviewRouteDependencies = { routes, access, registryReader, exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed }
+  const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
+  const dependencies: PreviewRouteDependencies = {
+    routes, access, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed,
+  }
   const prune = (): void => {
     const current = now()
     for (const [key, route] of routes) if (route.expiresAt <= current) routes.delete(key)

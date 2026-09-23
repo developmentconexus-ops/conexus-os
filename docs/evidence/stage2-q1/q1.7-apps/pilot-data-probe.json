@@ -1,0 +1,157 @@
+{
+  "probe": "Q1.7 database cases on the Applications cluster",
+  "at": "2026-09-23T17:07:02.858Z",
+  "results": [
+    {
+      "path": "runtime",
+      "name": "read another Project table",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "databases on this cluster",
+      "expected": "conexus_apps,postgres,template0,template1",
+      "observed": "conexus_apps,postgres,template0,template1"
+    },
+    {
+      "path": "runtime",
+      "name": "session identity",
+      "expected": "conexus_apps app_000000000000400080000000000000be_preview_rt",
+      "observed": "conexus_apps app_000000000000400080000000000000be_preview_rt"
+    },
+    {
+      "path": "runtime",
+      "name": "create a table",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "create a schema",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "create dblink",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "dblink to the Hub database",
+      "expected": "42883",
+      "observed": "42883"
+    },
+    {
+      "path": "runtime",
+      "name": "set role to the provisioner",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "set role to another Project",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "read pg_stat_statements",
+      "expected": "42P01",
+      "observed": "42P01"
+    },
+    {
+      "path": "runtime",
+      "name": "read a server file",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "copy to a program",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "lift temp_file_limit",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "runtime",
+      "name": "create a function",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "create dblink",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "create postgres_fdw",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "security definer function",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "do block",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "copy to a program",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "alter its runtime role",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "create a role",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "create a schema",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "write another Project schema",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "read another Project table",
+      "expected": "42501",
+      "observed": "42501"
+    },
+    {
+      "path": "migration",
+      "name": "create a foreign server",
+      "expected": "42704",
+      "observed": "42704"
+    }
+  ],
+  "breach": false
+}

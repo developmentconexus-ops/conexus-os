@@ -22,6 +22,8 @@ Options (`--help` prints the same list):
   creating one.
 - `--model <id>`: a model id from `GET /api/control/model-accounts/models`; default is the first
   model the signed-in account can actually use.
+- `--grade-only` (needs `--project`): send no request; grade the Project's current Preview with the
+  case's checks, including the reload when the case asks. Use it to regrade a run the tool misread.
 - `--project-name <name>`: name for a newly created Project; default `eval-<date>-<time>`.
 - `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a failed build
   before giving up and reading whatever Preview exists; default 2.
@@ -46,11 +48,14 @@ the database or Mastra storage directly, only the Hub's own HTTP API and the pro
 }
 ```
 
-`checks` run in order against the Preview iframe once the run settles. `selector` is any
-Playwright locator string (CSS, `text=`, `role=...`). `fill` needs `value`; `expectText` needs
-`text` and passes when the element's text contains it. A failing step is recorded, not thrown, so
+`checks` run in order against the Preview iframe once the run settles and the Preview names the
+final run's source revision (polled up to three minutes). `selector` is any Playwright locator
+string (CSS, `text=`, `role=...`). `fill` needs `value`; `expectText` needs `text` and passes when
+the element's text contains it within 15 seconds (Playwright's retrying `toContainText`).
+`expectNoText` needs `text` and passes when the text is absent; put an `expectText` for data the
+page must have loaded before it, or absence passes on a page that has not rendered yet. A failing step is recorded, not thrown, so
 every step still runs. `reload` (optional, default `false`): once every initial check passes,
-reload the Preview iframe in place and rerun the `expectText` checks against it, to prove the
+reload the Preview iframe in place and rerun the `expectText` and `expectNoText` checks against it, to prove the
 result persists across a refresh.
 
 ## Output
@@ -64,9 +69,10 @@ result persists across a refresh.
   `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
 - `repairIterations`: how many repair messages were actually sent.
 - `wallTimeToUsablePreviewMs`: from the request landing to the Preview's loading veil lifting.
-- `previewUrl`, `screenshotPath` (relative to `--out`), `checks.initial`, `checks.afterReload`.
+- `previewUrl`, `screenshotPath` (relative to `--out`; a reload also writes
+  `preview-after-reload.png`), `checks.initial`, `checks.afterReload`, `gradeOnly`.
 - `failure`: why no checks ran, when they did not. `FINAL_RUN_NOT_BUILT` means the last run did not
-  produce a built source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview on offer came from an
-  earlier build. Checks never grade a Preview the request did not produce.
+  produce a built source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview never named the final
+  run's revision within the bound; `NO_PREVIEW` (grade-only) means the Project has no Preview. Checks never grade a Preview the request did not produce.
 - `outcome`: `PASS`, `FAIL` (a check failed, `failure` is set, or no Preview became usable), or
   `ERROR` (the tool itself broke; see `error` and `failure.png`).

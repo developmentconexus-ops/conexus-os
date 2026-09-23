@@ -1,0 +1,10 @@
+{
+  "request": "grade-only: writes the run-1 Project's own note through its Preview, on the Applications cluster",
+  "checks": [
+    { "action": "fill", "selector": "role=textbox >> nth=0", "value": "PC-Q16B" },
+    { "action": "fill", "selector": "role=textbox >> nth=1", "value": "Q1.6 nota do projeto run-1" },
+    { "action": "click", "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]" },
+    { "action": "expectText", "selector": "body", "text": "Q1.6 nota do projeto run-1" }
+  ],
+  "reload": true
+}

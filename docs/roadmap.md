@@ -86,7 +86,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 | Gate | Protected question | Status |
 | --- | --- | --- |
-| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **NEXT / task amended 2026-09-23: separate Applications PostgreSQL, containment probe owed** |
+| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed on the amended task: Applications PostgreSQL separate and bounded on the pilot, containment proven structurally; independent review pending** ([evidence](evidence/stage2-q1/README.md)) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured Q1 evidence justify Kysely or a typed Data API? | WAITING FOR Q1 |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
@@ -183,9 +183,10 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Execute the amended Stage 2 Q1 Data Plane containment qualification on the candidate in pull request #196.**
+**Independently review the Stage 2 Q1 evidence on the amended task and its proposed verdict, ACCEPT_WITH_BOUNDARY.**
 
 [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
+([evidence and verdict](evidence/stage2-q1/README.md))
 
 Protected result:
 
@@ -193,16 +194,17 @@ Protected result:
 
 Q1 must prove the positive application flow, the adversarial boundary and Data Plane containment. A green unit suite alone cannot close it.
 
-After Q1 implementation and focused verification:
+The implementation, the live Builder runs, the Applications PostgreSQL on the pilot, restart
+persistence, the adversarial suites and the structural containment proof are committed and pushed.
+What remains:
 
 ```text
-commit + push
-→ STOP
-→ independent review
+independent review
 → ACCEPT / ACCEPT_WITH_BOUNDARY / REJECT / INSUFFICIENT_EVIDENCE
+→ if accepted, the Q2 task
 ```
 
-Do not start Q2 automatically.
+Do not start Q2 before the review accepts Q1.
 
 ## What the operator still owes
 
@@ -226,8 +228,11 @@ Stage 2. Before Conexus runs anywhere other than the pilot:
 - **Storage for the Applications PostgreSQL separate from the Hub's,** as a separate volume or disk
   or a managed plan, sized independently.
 
-The Stage 2 application runner is a separate question: generated code never runs as the Hub's
-user, wherever the Hub's secrets live (see the Q1 task).
+The Stage 2 application runner is a separate question. Generated code never runs in the Hub or in
+the runner process. It runs in a per-invocation worker under the runner's OS user, confined by
+unprivileged namespaces: no view of the host's files, processes or network, and no credential (see
+the Q1 evidence). On the pilot the runner shares the operator's user with the Hub. A production
+installation also gives the runner its own OS user, apart from the Hub's secrets.
 
 ## Merge gate
 

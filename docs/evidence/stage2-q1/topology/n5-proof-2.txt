@@ -1,0 +1,12 @@
+== 1. mismatched server key
+CONFINE_TLS_MATERIAL_REFUSED: server-key.pem is not the key of server.pem
+ssl after refusal: off; auto.conf ssl lines: 0
+after restart: running ready=yes ssl=off
+== 2. the TLS probe on a cluster that serves no TLS
+probe: psql: error: connection to server at "127.0.0.1", port 5432 failed: server does not support SSL, but SSL was required
+== 3. real key restored
+{"verdict":"CONFINED","container":"q1c-n5","database":"conexus_apps","authorityDir":"/home/leandrotheodoro/q1c/n5/authority","tlsDir":"/home/leandrotheodoro/q1c/n5/relay","changed":["server.pem","serv
+
+probe: psql: error: connection to server at "127.0.0.1", port 5432 failed: fe_sendauth: no password supplied
+after restart: running ready=yes ssl=on
+probe after restart: psql: error: connection to server at "127.0.0.1", port 5432 failed: fe_sendauth: no password supplied

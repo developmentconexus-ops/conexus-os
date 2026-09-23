@@ -155,3 +155,36 @@ cluster that refuses the connection outright (`ECONNREFUSED`, a timeout, no SQLS
 `unreachable`. A role whose password file cannot be read, or reads empty, is `unreadable`; that
 role is skipped and the rest of the census still runs, and the report never repeats the file's
 content or path, only the role.
+
+## Roles outside the Hub database: the application runner
+
+Stage 2 Q1 adds roles the Hub never connects as, so they are not rows of the register above and the
+Hub's census does not probe them. They live in the application database `conexus_apps` on the
+Applications PostgreSQL, a cluster apart from the Hub's with storage of its own
+(`scripts/run-application-cluster.sh`, `scripts/mount-application-cluster-storage.sh`). The Hub's
+cluster holds none of them.
+
+| Role | Created by | Connects from | Authority |
+| --- | --- | --- | --- |
+| `app_provisioner` | `scripts/provision-application-database.mjs`, an installation step | the application runner (`apps/hub/src/app-runner/main.ts`), password from `CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE` | `LOGIN CREATEROLE`, no superuser, database creation, replication or Hub authority; owns the application database and every Project Preview schema |
+| `app_<project>_preview_mig` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE, CREATE` on its own Preview schema only |
+| `app_<project>_preview_rt` | `app_provisioner`, per Project | the runner's sandboxed worker, through its pinned relay | `USAGE` on its own Preview schema and exactly DML on what its migration role created; the runner revokes anything more a migration grants it or PUBLIC, after every migration |
+
+A Project role has no usable password. Its password is `NULL` and its `VALID UNTIL` is
+`-infinity`. Postgres lets a role change its own password but not its `VALID UNTIL`, so a password
+that generated code sets for its own role is already expired. The cluster's `pg_hba.conf` admits a
+Project role name only over TLS, only to the application database, and only with the runner's
+client certificate (CN `conexus-app-relay`, mapped in `pg_ident.conf`). It rejects that name on
+every other line. `scripts/confine-application-cluster.mjs` installs those rules and the server's TLS
+files. The CA key and the server key stay in a separate authority directory. The runner reads its
+certificate from `CONEXUS_APP_RELAY_TLS_DIR`, which must hold exactly `ca.pem`, `relay.pem` and
+`relay-key.pem` and be closed to group and others, and presents it only from the per-invocation
+relay, outside the sandbox. At startup the runner checks its provisioner credential, refuses to serve
+while PUBLIC or a Project role can use a trusted routine language, and brings every Project role it
+administers under these rules.
+
+The installation step refuses a cluster that holds any registered Hub role, so application roles
+cannot land in the Hub's cluster. It revokes PUBLIC's `CONNECT` on the Applications cluster's
+`postgres`, and refuses to revoke while a role that holds `CONNECT` only through PUBLIC is connected.
+It grants `app_provisioner` the reserved connection slots (`pg_use_reserved_connections` with
+`INHERIT`), so Project sessions cannot take the runner's way in.
