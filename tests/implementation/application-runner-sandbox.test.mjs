@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import net from 'node:net'
+import { homedir, networkInterfaces, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
@@ -10,6 +11,7 @@ import { relayTls } from './application-cluster.mjs'
 import { adminConnection, createEmptyDatabase } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
 
 // The real runner path: a supervisor that provisions with app_provisioner, migrates and invokes
 // through the rootless bubblewrap worker and the pinned database relay. Needs unprivileged user
@@ -57,12 +59,6 @@ export const beyondBoundary = async () => {
     writeTmp: attempt(() => { fs.writeFileSync('/tmp/probe', 'x'); return true }),
     writeApp: attempt(() => { fs.writeFileSync('/app/probe', 'x'); return true }),
     spawnChild: await import('node:child_process').then((cp) => attempt(() => cp.execSync('id').toString())).catch((error) => String(error?.code ?? 'ERROR')),
-    tcpToDatabasePort: await import('node:net').then((net) => new Promise((resolve) => {
-      const socket = net.connect({ host: '127.0.0.1', port: 5432 })
-      socket.setTimeout(1500, () => { socket.destroy(); resolve('TIMEOUT') })
-      socket.once('connect', () => { socket.destroy(); resolve('CONNECTED') })
-      socket.once('error', (error) => resolve(String(error.code)))
-    })),
     root: attempt(() => fs.readdirSync('/').join(',')),
   }) }
 }
@@ -92,7 +88,7 @@ const serverTree = (migrations) => {
   return [file('manifest.json', JSON.stringify(manifest)), file('handlers/notes.mjs', NOTES_HANDLER), file('handlers/probe.mjs', PROBE_HANDLER)]
 }
 
-const setup = async (t) => {
+const setup = async (t, sandbox) => {
   await refuseProtectedCluster()
   assertUserNamespaces()
   const admin = adminConnection()
@@ -106,7 +102,7 @@ const setup = async (t) => {
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-runner-'))
   const supervisor = createSupervisor({
     stateDir, runtimeDir: stageWorkerRuntime(join(stateDir, 'runtime')), cluster: { host: admin.host, port: admin.port },
-    database, provisionerPassword, relayTls: relayTls(),
+    database, provisionerPassword, relayTls: relayTls(), ...(sandbox ? { sandbox } : {}),
   })
   const projects = [randomUUID(), randomUUID()]
   t.after(async () => {
@@ -121,7 +117,7 @@ const setup = async (t) => {
     }
     await superuser.end()
   })
-  return { admin, database, supervisor, projects }
+  return { admin, database, supervisor, projects, stateDir }
 }
 
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
@@ -171,7 +167,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).status, 200)
   })
 
-  await t.test('a handler cannot read host files, write, spawn, or open the network', async () => {
+  await t.test('a handler cannot read host files, write, spawn or list the root', async () => {
     const answer = await invoke(a, 'beyondBoundary')
     assert.equal(answer.status, 200)
     const seen = JSON.parse(answer.body.text)
@@ -180,7 +176,6 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal(seen.writeTmp, 'ERR_ACCESS_DENIED')
     assert.equal(seen.writeApp, 'ERR_ACCESS_DENIED')
     assert.equal(seen.spawnChild, 'ERR_ACCESS_DENIED')
-    assert.equal(seen.tcpToDatabasePort, 'ECONNREFUSED')
     // The permission model even refuses listing '/', which the namespace root would otherwise allow.
     assert.equal(seen.root, 'ERR_ACCESS_DENIED')
   })
@@ -213,6 +208,51 @@ test('the runner migrates and serves each Project through its own sandboxed work
     assert.equal(await withPassword.connect().then(() => { withPassword.end(); return 'connected' }, (error) => error.message), 'connected')
     await relay.close()
   })
+})
+
+// The arena's reviewed cases, run with Node's permission layer off, so what they report is what the
+// bubblewrap namespaces alone allow. The network targets are listeners the host provably reaches.
+test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
+  const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
+  const files = probeServerTree()
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  const run = async (name, input) => {
+    const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files })
+    assert.equal(answer.status, 200, JSON.stringify(answer.body))
+    return JSON.parse(answer.body.text)
+  }
+
+  const listener = net.createServer((socket) => socket.destroy())
+  await new Promise((resolve) => listener.listen(0, '0.0.0.0', resolve))
+  t.after(() => listener.close())
+  const port = listener.address().port
+  const hostAddress = Object.values(networkInterfaces()).flat().find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
+  assert.ok(hostAddress, 'the host has a non-loopback IPv4 address')
+  const targets = [{ host: '127.0.0.1', port }, { host: hostAddress, port }, { host: admin.host === 'localhost' ? '127.0.0.1' : admin.host, port: admin.port }]
+  const fromHost = (target) => new Promise((resolve) => {
+    const socket = net.connect(target)
+    socket.once('connect', () => { socket.destroy(); resolve('CONNECTED') })
+    socket.once('error', (error) => resolve(error.code))
+  })
+  assert.deepEqual(await Promise.all(targets.map(fromHost)), ['CONNECTED', 'CONNECTED', 'CONNECTED'], 'every target accepts the host')
+
+  const egress = await run('network_egress', { targets })
+  assert.equal(egress.BREACH, false, JSON.stringify(egress))
+  assert.deepEqual(Object.values(egress.results).map((result) => result.ok), [false, false, false, false, false])
+
+  const walk = await run('walk_fs', { home: homedir() })
+  assert.equal(typeof walk.probes['/'], 'number', 'the permission layer is off: the root lists')
+  assert.deepEqual({ ...walk.probes, '/': 'listed' }, { [homedir()]: 'ENOENT', '/home': 'ENOENT', '/root': 'ENOENT', '/etc': 'ENOENT', '/': 'listed' })
+
+  const secrets = [homedir(), '/etc/passwd', '/etc/shadow', `/proc/${process.pid}/environ`, `/proc/${process.pid}/cmdline`,
+    join(process.env.CONEXUS_TEST_APP_TLS_DIR, 'relay-key.pem'), stateDir, '/var/run/docker.sock']
+  const read = await run('read_secrets', { paths: secrets })
+  assert.equal(read.BREACH, false)
+  assert.deepEqual(read.results.map((entry) => [entry.path, entry.exists, entry.err]), secrets.map((path) => [path, false, 'ENOENT']))
+
+  const proc = await run('read_proc', {})
+  assert.equal(proc.sawForeignSecret, false)
+  assert.ok(proc.visiblePids <= 3, `the worker sees only its own pid namespace (${proc.visiblePids})`)
 })
 
 test('the runner refuses to start where the sandbox cannot be built', () => {

@@ -7,9 +7,10 @@ import type { WorkerJob, WorkerResult } from './worker.js'
  * The per-invocation boundary: a rootless bubblewrap sandbox with unprivileged user, pid, network,
  * ipc, uts and cgroup namespaces, no capabilities, an empty environment, an allowlisted root that
  * never contains the operator's home, and one unix socket as its only way to the database. The root
- * holds the shared libraries Node links against and no other executable than Node itself. Node's
- * permission model inside it refuses child processes, workers, addons and file writes; that is
- * defense in depth, not the boundary.
+ * holds /usr/lib (shared libraries, and the helper executables packages install there) and Node;
+ * no_new_privs keeps any setuid helper inert. Node's permission model inside it refuses child
+ * processes, workers, addons and file writes; that is defense in depth, not the boundary, and
+ * `nodePermission: false` turns it off so a probe can show what the namespaces alone allow.
  */
 export type SandboxConfig = Readonly<{
   bwrap: string
@@ -17,6 +18,7 @@ export type SandboxConfig = Readonly<{
   node: string
   heapMb: number
   addressSpaceMb: number
+  nodePermission: boolean
 }>
 
 export const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
@@ -27,6 +29,7 @@ export const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
   // Measured on the pilot host: V8 does not start at 1 GiB of address space and a SCRAM login aborts at
   // 1.25 GiB; 1.75 GiB serves the note flow and still refuses a 2 GiB Buffer.
   addressSpaceMb: 1792,
+  nodePermission: true,
 })
 
 export const SANDBOX_DATABASE_HOST = '/run/conexus/pg'
@@ -118,14 +121,14 @@ export const runWorker = (input: Readonly<{
 }>): Promise<WorkerOutcome> => {
   const config = input.config ?? DEFAULT_SANDBOX
   const started = performance.now()
-  const readable = ['--allow-fs-read=/runner/*', ...(input.appDir ? ['--allow-fs-read=/app/*'] : [])]
+  const permission = config.nodePermission ? ['--permission', '--allow-fs-read=/runner/*', ...(input.appDir ? ['--allow-fs-read=/app/*'] : [])] : []
   const args = [
     `--as=${config.addressSpaceMb * 1024 * 1024}`, '--core=0', '--nofile=256', '--',
     config.bwrap, ...isolation, ...rootFilesystem(config),
     '--ro-bind', input.runtimeDir, '/runner',
     ...(input.appDir ? ['--ro-bind', input.appDir, '/app'] : []),
     '--dir', SANDBOX_DATABASE_HOST, '--bind', input.databaseSocket, SANDBOX_SOCKET,
-    '/runtime/node', '--permission', ...readable, `--max-old-space-size=${config.heapMb}`, '/runner/worker.js',
+    '/runtime/node', ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/worker.js',
   ]
   return new Promise((resolve) => {
     const child = spawn(config.prlimit, args, { env: {}, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] })

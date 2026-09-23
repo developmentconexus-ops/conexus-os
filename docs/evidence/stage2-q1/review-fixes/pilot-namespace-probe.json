@@ -1,0 +1,420 @@
+{
+  "probe": "namespace root, Node permission layer off",
+  "at": "2026-09-23T14:46:13.106Z",
+  "permissionLayerOff": true,
+  "paths": [
+    {
+      "path": "~",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.config/conexus/secrets/e2b-api-key",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.config/conexus/secrets/factory-app-client-secret",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.config/conexus/secrets/factory-app.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.config/conexus/secrets/factory-secret-key",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.config/conexus/secrets/factory-state-secret",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/ca-key.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/ca.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/ca.srl",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/relay-key.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/relay.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/server-key.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-relay-tls/server.pem",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/app-runner-key",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/bootstrap-oidc-user-password",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-app-provisioner",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-builder-executor",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-builder-ingress",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-hub-factory",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-iam-runtime",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-model-connection",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-prj03-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-project-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-project-read",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-r2-connections",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-rb-executor",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-rb-ingress",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-root",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-s2-read",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-s3-read",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-s4-baseline-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-s4-baseline-read",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-s6-inception-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-workspace-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-workspace-read",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/db-ws01-command",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/keycloak-admin-password",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/oidc-client-secret",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/oidc-other-secret",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/.local/share/conexus/pilot/slice7/secrets/test-operator-password",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "~/wt-rmmc/.audit/slice7/hub.env",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/288606/environ",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/288606/cmdline",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/272526/environ",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/272526/cmdline",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/273075/environ",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/273075/cmdline",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/283286/environ",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    },
+    {
+      "path": "/proc/283286/cmdline",
+      "exists": false,
+      "readable": false,
+      "bytes": null,
+      "err": "ENOENT"
+    }
+  ],
+  "walk": {
+    "~": "ENOENT",
+    "/home": "ENOENT",
+    "/root": "ENOENT",
+    "/etc": "ENOENT",
+    "/": 10
+  },
+  "proc": {
+    "BREACH": false,
+    "visiblePids": 2,
+    "sawForeignSecret": false
+  },
+  "network": {
+    "exampleHttps": {
+      "ok": false,
+      "err": "EAI_AGAIN"
+    },
+    "127.0.0.1:3443": {
+      "ok": false,
+      "err": "ECONNREFUSED"
+    },
+    "172.31.172.62:3443": {
+      "ok": false,
+      "err": "ENETUNREACH"
+    },
+    "127.0.0.1:3444": {
+      "ok": false,
+      "err": "ECONNREFUSED"
+    },
+    "172.31.172.62:3444": {
+      "ok": false,
+      "err": "ENETUNREACH"
+    },
+    "127.0.0.1:5433": {
+      "ok": false,
+      "err": "ECONNREFUSED"
+    },
+    "172.31.172.62:5433": {
+      "ok": false,
+      "err": "ENETUNREACH"
+    },
+    "127.0.0.1:8443": {
+      "ok": false,
+      "err": "ECONNREFUSED"
+    },
+    "172.31.172.62:8443": {
+      "ok": false,
+      "err": "ENETUNREACH"
+    },
+    "127.0.0.1:55432": {
+      "ok": false,
+      "err": "ECONNREFUSED"
+    },
+    "172.31.172.62:55432": {
+      "ok": false,
+      "err": "ENETUNREACH"
+    },
+    "dockerSock": {
+      "ok": false,
+      "err": "ENOENT"
+    }
+  },
+  "breach": false
+}
