@@ -82,8 +82,6 @@ jobs:
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
-      - name: TEMP diagnostic - disk space before verify
-        run: df -h / "$RUNNER_TEMP" /tmp; du -sh /home/runner/work/conexus-os/conexus-os/node_modules 2>/dev/null || true
       - run: npm run verify
         env:
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}

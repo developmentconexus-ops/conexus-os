@@ -17,10 +17,11 @@ const repository = resolve(import.meta.dirname, '../..')
 const MARKER = '.conexus-apps-storage'
 const REFUSAL = 'APPLICATION_CLUSTER_STORAGE_UNMOUNTED'
 const MOUNT_SCRIPT = 'scripts/mount-application-cluster-storage.sh'
-const STORAGE_MIB = 256
-// $RUNNER_TEMP, where CI's own Applications test cluster lives (.github/workflows/verify.yml): CI's
-// /tmp is its own, much smaller filesystem, too small for these preallocated images.
-const scratchRoot = process.env.RUNNER_TEMP ?? tmpdir()
+// The mount script fallocates a 256 MiB recovery-ballast file inside the mounted filesystem
+// (scripts/mount-application-cluster-storage.sh), on top of the marker and pgdata. A filesystem
+// exactly 256 MiB cannot hold that ballast once ext4's own metadata is subtracted, so the test's
+// throwaway images need headroom past the script's 256 MiB minimum.
+const STORAGE_MIB = 512
 
 const docker = (...args) => spawnSync('docker', args, { encoding: 'utf8' })
 const sudo = (...args) => spawnSync('sudo', ['-n', ...args], { cwd: repository, encoding: 'utf8' })
@@ -52,7 +53,7 @@ const removeStorage = (image, mountpoint) => {
 }
 
 test('the Applications cluster starts only on its own storage, and confinement undoes TLS it cannot verify', async (t) => {
-  const secrets = mkdtempSync(join(scratchRoot, 'conexus-apps-install-'))
+  const secrets = mkdtempSync(join(tmpdir(), 'conexus-apps-install-'))
   const image = join(secrets, 'apps.img')
   const root = join(secrets, 'apps-storage')
   const passwordFile = join(secrets, 'password')
@@ -69,7 +70,7 @@ test('the Applications cluster starts only on its own storage, and confinement u
   })
 
   await t.test('the run script refuses storage without the marker, or not mounted', () => {
-    const bare = mkdtempSync(join(scratchRoot, 'conexus-apps-bare-'))
+    const bare = mkdtempSync(join(tmpdir(), 'conexus-apps-bare-'))
     const unmarked = run(container, port, bare, passwordFile)
     assert.equal(unmarked.status, 1)
     assert.equal(unmarked.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_MISSING: ${bare}`)
@@ -120,7 +121,7 @@ test('the Applications cluster starts only on its own storage, and confinement u
     const attackRoot = join(secrets, 'apps-attack-storage')
     const attackContainer = `conexus-install-attack-${randomBytes(4).toString('hex')}`
     const attackPort = await freePort()
-    const stage = mkdtempSync(join(scratchRoot, 'conexus-apps-stale-'))
+    const stage = mkdtempSync(join(tmpdir(), 'conexus-apps-stale-'))
     t2.after(() => {
       docker('rm', '-f', attackContainer)
       removeStorage(attackImage, attackRoot)
