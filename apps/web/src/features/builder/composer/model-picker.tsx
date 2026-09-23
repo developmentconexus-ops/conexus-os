@@ -57,13 +57,21 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
     if (next && next !== reasoning) onReasoningChange(next)
   }
   // Stop centers run from one thumb radius inside the pill to one thumb radius from its far end.
-  const onSliderPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (reasoningDisabled) return
+  const selectLevelAt = (event: PointerEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect()
     const inset = box.height / 2
     const fraction = Math.min(1, Math.max(0, (event.clientX - box.left - inset) / (box.width - 2 * inset)))
     const next = reasoningLevels[Math.round(fraction * (reasoningLevels.length - 1))]
     if (next && next !== reasoning) onReasoningChange(next)
+  }
+  // Capturing the pointer keeps a drag on the slider even when it leaves the pill.
+  const onSliderPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (reasoningDisabled) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    selectLevelAt(event)
+  }
+  const onSliderPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!reasoningDisabled && event.currentTarget.hasPointerCapture(event.pointerId)) selectLevelAt(event)
   }
 
   return <div className="cx-model-popover">
@@ -130,6 +138,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
         style={{ '--cx-effort-at': levelIndex / (reasoningLevels.length - 1) } as CSSProperties}
         onKeyDown={onSliderKeyDown}
         onPointerDown={onSliderPointerDown}
+        onPointerMove={onSliderPointerMove}
       >
         <span className="cx-effort-fill" aria-hidden="true" />
         {reasoningLevels.map((level, index) => <span
