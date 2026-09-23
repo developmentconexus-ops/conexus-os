@@ -1,0 +1,39 @@
+{
+  "fresh": {
+    "median": 861,
+    "p95": 2990,
+    "min": 723,
+    "max": 2990,
+    "values": [
+      723,
+      724,
+      732,
+      805,
+      861,
+      868,
+      879,
+      883,
+      895,
+      2990
+    ]
+  },
+  "warm": {
+    "median": 215,
+    "p95": 2232,
+    "min": 192,
+    "max": 2232,
+    "values": [
+      192,
+      197,
+      204,
+      208,
+      215,
+      222,
+      224,
+      228,
+      233,
+      2232
+    ]
+  },
+  "diskFootprint": "45M\t/usr/lib/postgresql\n39M\t/opt/conexus/pg-seed\n45516\t/usr/lib/postgresql\n39067\t/opt/conexus/pg-seed"
+}

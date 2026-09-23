@@ -1,0 +1,8 @@
+{
+  "buildName": "conexus-q2-sandbox-pg:recipe-dd713353195f4972",
+  "recipeSha256": "dd713353195f49721fc3e14264064065b4d036feaefa1cd663db03696d1468eb",
+  "templateId": "ah3sn2s2449ypl0ukosd",
+  "buildId": "bfa2486b-0ec8-45d7-9f35-8f0415decceb",
+  "runtimeTemplateRef": "ah3sn2s2449ypl0ukosd:bfa2486b-0ec8-45d7-9f35-8f0415decceb",
+  "buildMs": 35781
+}
