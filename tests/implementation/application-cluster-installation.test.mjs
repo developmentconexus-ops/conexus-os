@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -18,6 +18,9 @@ const MARKER = '.conexus-apps-storage'
 const REFUSAL = 'APPLICATION_CLUSTER_STORAGE_UNMOUNTED'
 const MOUNT_SCRIPT = 'scripts/mount-application-cluster-storage.sh'
 const STORAGE_MIB = 256
+// $RUNNER_TEMP, where CI's own Applications test cluster lives (.github/workflows/verify.yml): CI's
+// /tmp is its own, much smaller filesystem, too small for these preallocated images.
+const scratchRoot = process.env.RUNNER_TEMP ?? tmpdir()
 
 const docker = (...args) => spawnSync('docker', args, { encoding: 'utf8' })
 const sudo = (...args) => spawnSync('sudo', ['-n', ...args], { cwd: repository, encoding: 'utf8' })
@@ -49,7 +52,7 @@ const removeStorage = (image, mountpoint) => {
 }
 
 test('the Applications cluster starts only on its own storage, and confinement undoes TLS it cannot verify', async (t) => {
-  const secrets = mkdtempSync(join(tmpdir(), 'conexus-apps-install-'))
+  const secrets = mkdtempSync(join(scratchRoot, 'conexus-apps-install-'))
   const image = join(secrets, 'apps.img')
   const root = join(secrets, 'apps-storage')
   const passwordFile = join(secrets, 'password')
@@ -66,7 +69,7 @@ test('the Applications cluster starts only on its own storage, and confinement u
   })
 
   await t.test('the run script refuses storage without the marker, or not mounted', () => {
-    const bare = mkdtempSync(join(tmpdir(), 'conexus-apps-bare-'))
+    const bare = mkdtempSync(join(scratchRoot, 'conexus-apps-bare-'))
     const unmarked = run(container, port, bare, passwordFile)
     assert.equal(unmarked.status, 1)
     assert.equal(unmarked.stderr.trim(), `APPLICATION_CLUSTER_STORAGE_MISSING: ${bare}`)
@@ -93,7 +96,8 @@ test('the Applications cluster starts only on its own storage, and confinement u
   })
 
   await t.test('without the marker, Docker cannot start the cluster again, on any path', async () => {
-    unlinkSync(join(root, MARKER))
+    // The mount's root directory belongs to the image's mkfs, not to this process.
+    assert.equal(sudo('rm', '-f', join(root, MARKER)).status, 0)
     docker('exec', '-u', 'postgres', container, 'pg_ctl', 'stop', '-m', 'fast', '-D', '/var/lib/postgresql/data')
     await refusedAgain(container, 0, 'the restart policy\'s restart')
     assert.ok(Number(docker('inspect', '--format', '{{.RestartCount}}', container).stdout) >= 1)
@@ -116,7 +120,7 @@ test('the Applications cluster starts only on its own storage, and confinement u
     const attackRoot = join(secrets, 'apps-attack-storage')
     const attackContainer = `conexus-install-attack-${randomBytes(4).toString('hex')}`
     const attackPort = await freePort()
-    const stage = mkdtempSync(join(tmpdir(), 'conexus-apps-stale-'))
+    const stage = mkdtempSync(join(scratchRoot, 'conexus-apps-stale-'))
     t2.after(() => {
       docker('rm', '-f', attackContainer)
       removeStorage(attackImage, attackRoot)
