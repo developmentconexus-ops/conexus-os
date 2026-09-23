@@ -1080,6 +1080,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   const tasks = [
     { id: 'task_palette', content: 'Descobrir a paleta', status: 'completed', activeForm: 'Descobrindo a paleta' },
     { id: 'task_apply', content: 'Aplicar a cor escolhida', status: 'in_progress', activeForm: 'Aplicando a cor escolhida' },
+    { id: 'task_verify', content: 'Conferir o resultado no preview', status: 'pending', activeForm: 'Conferindo o resultado no preview' },
   ]
 
   const threadMessages = [userMessage('user-1', 'Destaque o título com uma cor')]
@@ -1114,7 +1115,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   // The task list is the AgentController's own display state, not a parsed tool-call row: the
   // task_write call above never shows as a conversation row, and the checklist counts and names
   // the in-progress task by its activeForm.
-  await page.getByText('Tarefas · 1 de 2', { exact: true }).waitFor()
+  await page.getByText('Tarefas · 1 de 3', { exact: true }).waitFor()
   await page.getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-tool-group').count(), 0, 'task_write drives the checklist, not a conversation row')
 
@@ -1132,5 +1133,55 @@ test('a suspended ask_user with options renders the options and submits the chos
   await suspensionSent
   assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-1', resumeData: 'Azul' }],
     'the chosen option label is sent as respondToToolSuspension\'s resumeData, unchanged')
+
+  // playground-ui's TaskList/AskUser hard-code their labels in English (no labels prop exists), so
+  // the Construir screen composes its own pt-BR wrappers around the same primitives; this pins the
+  // three task-list statuses the fixture now exercises plus the container/progress aria-labels.
+  assert.equal(await page.locator('[aria-label="Concluída"]').count(), 1, 'the completed task carries the pt-BR status icon label')
+  assert.equal(await page.locator('[aria-label="Em andamento"]').count(), 1, 'the in-progress task carries the pt-BR status icon label')
+  assert.equal(await page.locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
+  await page.locator('[aria-label="Lista de tarefas"]').waitFor()
+  await page.getByRole('progressbar', { name: 'Progresso das tarefas' }).waitFor()
+})
+
+// A free-text ask_user (no options on the suspend payload) drives AskUserPt's other branch: the
+// same pt-BR placeholder and submit label the fixture above never exercises.
+test('a suspended ask_user with no options renders the pt-BR free-text form', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000211'
+  const projectId = '70000000-0000-4000-8000-000000000212'
+  const runId = '70000000-0000-4000-8000-000000000213'
+  const conversationId = 'conversation-ask-user-freetext'
+  const sourceRevision = 'e'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const question = 'Qual nome você quer para o app?'
+  const threadMessages = [userMessage('user-1', 'Crie um app de lista de tarefas')]
+  const state = factoryState([conversation(conversationId, 'Lista de tarefas')], { [conversationId]: threadMessages })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Lista de tarefas', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/tool-suspension*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'tool_suspended', toolCallId: 'tool-ask-2', toolName: 'ask_user', args: { question }, suspendPayload: { question } },
+  )))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+
+  await page.getByPlaceholder('Digite sua resposta…').waitFor()
+  await page.getByRole('button', { name: 'Enviar resposta' }).waitFor()
 })
 

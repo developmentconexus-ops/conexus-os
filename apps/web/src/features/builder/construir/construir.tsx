@@ -1,6 +1,6 @@
 import './construir.css'
 import { Button } from '@mastra/playground-ui/components/Button'
-import { TaskList } from '@mastra/playground-ui/components/ai/task-list'
+import { TaskListPt as TaskList } from './task-list-pt'
 import { ChatShell } from '@mastra/playground-ui/components/ChatShell'
 import { Combobox } from '@mastra/playground-ui/components/Combobox'
 import { MessageScrollerItem } from '@mastra/playground-ui/components/MessageScroller'

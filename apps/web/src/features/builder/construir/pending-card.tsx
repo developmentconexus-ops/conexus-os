@@ -1,5 +1,6 @@
 import { Button } from '@mastra/playground-ui/components/Button'
-import { AskUser, type AskUserAnswer, type AskUserOption, type AskUserPayload } from '@mastra/playground-ui/components/ai/ask-user'
+import { type AskUserAnswer, type AskUserOption, type AskUserPayload } from '@mastra/playground-ui/components/ai/ask-user'
+import { AskUserPt as AskUser } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
 import type { PendingAnswer } from '../mastra-session'
