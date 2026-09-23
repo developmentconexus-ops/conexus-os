@@ -24,6 +24,9 @@
 # which any session may raise. Server logs rotate hourly into 24 files named by the hour, each
 # truncated when its hour comes round again, so they hold at most the last day, inside PGDATA. No
 # size-driven rotation: PostgreSQL truncates only on a time-driven one, and appends on the other.
+#
+# transaction_timeout and statement_timeout end any session that runs longer, a backup included.
+# Dump this cluster with PGOPTIONS='-c transaction_timeout=0 -c statement_timeout=0'.
 set -euo pipefail
 
 container="${1:?container}"
