@@ -132,20 +132,26 @@ export const openPgRelay = async (config: PgRelayConfig): Promise<PgRelay> => {
         // key; every byte is forwarded unchanged either way.
         let serverBytes = Buffer.alloc(0)
         let watching = true
+        // A large result stays in flight between Postgres and the worker, never in the relay: each
+        // side is paused when the other's socket is full and resumed on its drain. A worker that
+        // reads it all still meets its own heap cap; the relay's own memory does not grow with it.
         upstream.on('data', (data: Buffer) => {
-          client.write(data)
-          if (!watching) return
-          serverBytes = Buffer.concat([serverBytes, data])
-          while (serverBytes.length >= 5) {
-            const type = String.fromCharCode(serverBytes[0] as number)
-            const length = serverBytes.readInt32BE(1)
-            if (serverBytes.length < length + 1) break
-            if (type === 'K' && length === 12) keys.push(Buffer.from(serverBytes.subarray(5, 13)))
-            serverBytes = serverBytes.subarray(length + 1)
-            if (type === 'Z') { watching = false; serverBytes = Buffer.alloc(0); break }
+          if (!client.write(data)) upstream.pause()
+          if (watching) {
+            serverBytes = Buffer.concat([serverBytes, data])
+            while (serverBytes.length >= 5) {
+              const type = String.fromCharCode(serverBytes[0] as number)
+              const length = serverBytes.readInt32BE(1)
+              if (serverBytes.length < length + 1) break
+              if (type === 'K' && length === 12) keys.push(Buffer.from(serverBytes.subarray(5, 13)))
+              serverBytes = serverBytes.subarray(length + 1)
+              if (type === 'Z') { watching = false; serverBytes = Buffer.alloc(0); break }
+            }
           }
         })
-        client.on('data', (data: Buffer) => upstream.write(data))
+        client.on('drain', () => upstream.resume())
+        client.on('data', (data: Buffer) => { if (!upstream.write(data)) client.pause() })
+        upstream.on('drain', () => client.resume())
         client.resume()
       })
     }

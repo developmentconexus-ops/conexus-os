@@ -100,6 +100,9 @@ export const createSupervisor = (config: SupervisorConfig) => {
   provisioner.on('error', () => undefined)
   const credential = (role: string): string => roleCredential(config.credentialKey, role)
   const preparing = new Map<string, Promise<unknown>>()
+  // Every Project's migrations run through one chain, so a build storm cannot start many expensive
+  // migrations against the shared cluster at once. Invocations have their own bound below.
+  let migrationChain: Promise<unknown> = Promise.resolve()
   let running = 0
 
   // One sandboxed worker with its own directory and its own pinned database socket, removed after.
@@ -178,7 +181,11 @@ export const createSupervisor = (config: SupervisorConfig) => {
     const allocation = previewAllocation(input.projectId)
     const tree = admitServerTree(input.files)
     const previous = preparing.get(allocation.projectId) ?? Promise.resolve()
-    const current = previous.catch(() => undefined).then(() => migrate(allocation, tree.manifest))
+    const current = previous.catch(() => undefined).then(() => {
+      const migrated = migrationChain.catch(() => undefined).then(() => migrate(allocation, tree.manifest))
+      migrationChain = migrated.catch(() => undefined)
+      return migrated
+    })
     preparing.set(allocation.projectId, current)
     try {
       return await current
