@@ -88,7 +88,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | --- | --- | --- |
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
-| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **NEXT**, task to be prepared |
+| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **NEXT**, task prepared ([task](tasks/stage2-q3-application-identity-qualification.md)) |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
@@ -125,8 +125,8 @@ Existing repository dependencies are preferred when they are sufficient.
 Current baseline/challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
-- SQL/`pg`: baseline programming hypothesis for Q1/Q2;
-- Kysely: Q2 challenger only if the Q2 SQL baseline shows a named, repeated failure (Q1 named none);
+- SQL/`pg`: the data programming model, accepted by Q2;
+- Kysely: not qualified; Q1 and Q2 named no repeated SQL failure;
 - Prisma, Drizzle, Hono, oRPC: deferred without a current falsifier;
 - Nango/Pipedream/Composio: deferred until a real SaaS/OAuth or agent-tool Connector requires them;
 - Airbyte/Debezium: deferred until a real replication/CDC requirement;
@@ -183,7 +183,9 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Prepare the Stage 2 Q3 application identity task.**
+**Execute the Stage 2 Q3 task: prove an employee uses one application with their own identity and no Control Plane authority.**
+
+[Stage 2 Q3 — Application identity qualification](tasks/stage2-q3-application-identity-qualification.md)
 
 Protected question:
 
@@ -193,8 +195,7 @@ Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/R
 Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
 ([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 changes neither.
 
-The app-only Keycloak user for Q3 exists and is not a member of any Workspace. Do not start Q3
-before its task is written and granted.
+The app-only Keycloak user for Q3 exists and is not a member of any Workspace.
 
 ## What the operator still owes
 
