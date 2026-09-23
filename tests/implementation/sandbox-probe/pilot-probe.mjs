@@ -9,7 +9,7 @@ import { probeOperations, probeServerTree } from './server-tree.mjs'
 // operator home and the pilot's listeners. Prints, per path, only whether it exists, whether it
 // was readable and its size; the cases never return contents. Rerun:
 //
-//   CONEXUS_APP_DB_HOST=127.0.0.1 CONEXUS_APP_DB_PORT=5433 CONEXUS_APP_DB_NAME=conexus_apps \
+//   CONEXUS_APP_DB_HOST=127.0.0.1 CONEXUS_APP_DB_PORT=5434 CONEXUS_APP_DB_NAME=conexus_apps \
 //   CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE=... CONEXUS_APP_RELAY_TLS_DIR=... \
 //   CONEXUS_PROBE_PIDS="<runner pid> <hub pids>" node tests/implementation/sandbox-probe/pilot-probe.mjs
 //
@@ -17,6 +17,7 @@ import { probeOperations, probeServerTree } from './server-tree.mjs'
 
 const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js'))
 const { DEFAULT_SANDBOX, stageWorkerRuntime } = await import(hubModuleUrl('app-runner/sandbox.js'))
+const { readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 
 const PROBE_PROJECT = '00000000-0000-4000-8000-0000000000be'
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_CONFIG_${name}`) })()
@@ -33,7 +34,8 @@ const paths = [
   ...pids.flatMap((pid) => [`/proc/${pid}/environ`, `/proc/${pid}/cmdline`]),
 ]
 const hostAddress = Object.values(networkInterfaces()).flat().find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
-const targets = [3443, 3444, 5433, 8443, 55432].flatMap((port) => [{ host: '127.0.0.1', port }, ...(hostAddress ? [{ host: hostAddress, port }] : [])])
+// The Hub, Preview, both PostgreSQL clusters (Hub 5433, Applications 5434), Keycloak, a scratch cluster.
+const targets = [3443, 3444, 5433, 5434, 8443, 55432].flatMap((port) => [{ host: '127.0.0.1', port }, ...(hostAddress ? [{ host: hostAddress, port }] : [])])
 
 const stateDir = join(tmpdir(), 'conexus-sandbox-probe')
 const supervisor = createSupervisor({
@@ -42,7 +44,7 @@ const supervisor = createSupervisor({
   cluster: { host: required('CONEXUS_APP_DB_HOST'), port: Number(required('CONEXUS_APP_DB_PORT')) },
   database: required('CONEXUS_APP_DB_NAME'),
   provisionerPassword: readFileSync(required('CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE'), 'utf8').trim(),
-  relayTls: { ca: readFileSync(join(tlsDir, 'ca.pem'), 'utf8'), cert: readFileSync(join(tlsDir, 'relay.pem'), 'utf8'), key: readFileSync(join(tlsDir, 'relay-key.pem'), 'utf8') },
+  relayTls: readRelayTls(tlsDir),
   sandbox: { ...DEFAULT_SANDBOX, nodePermission: false },
 })
 try {

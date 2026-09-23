@@ -1,0 +1,10 @@
+{
+  "request": "grade-only: writes a marked note through the run-2 Preview, on the Applications cluster, before the runner restarts",
+  "checks": [
+    { "action": "fill", "selector": "role=textbox >> nth=0", "value": "PC-Q16A" },
+    { "action": "fill", "selector": "role=textbox >> nth=1", "value": "Q1.6 nota no cluster de aplicacoes antes do reinicio" },
+    { "action": "click", "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]" },
+    { "action": "expectText", "selector": "body", "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio" }
+  ],
+  "reload": true
+}

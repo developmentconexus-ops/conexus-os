@@ -1,0 +1,8 @@
+{
+  "request": "grade-only: the run-1 Project's Preview lists its own note and not the run-2 Project's marked note",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "Q1.6 nota do projeto run-1" },
+    { "action": "expectNoText", "selector": "body", "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio" }
+  ],
+  "reload": true
+}

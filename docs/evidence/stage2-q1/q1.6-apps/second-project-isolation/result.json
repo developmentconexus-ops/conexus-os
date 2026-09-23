@@ -1,0 +1,63 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T17:05:13.767Z",
+  "finishedAt": "2026-09-23T17:05:15.183Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "docs/evidence/stage2-q1/q1.6-apps/cases/second-project-isolation.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "0429fa8e-3432-4ae5-93f1-648b53cf07cf",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "d5197295fc39479afd8e3caabe70caa0550653cd",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-da815f64-4016-466e-b3b9-1d78990c6e1f.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota do projeto run-1",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectNoText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota do projeto run-1",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectNoText",
+        "selector": "body",
+        "value": null,
+        "text": "Q1.6 nota no cluster de aplicacoes antes do reinicio",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}
