@@ -10,7 +10,7 @@ import type { AccountId, ResolveCurrentSession } from '../identity-access/curren
 import { filterChatModels } from './chat-models.js'
 import { FACTORY_MEMORY_MODEL_ID, setFactoryMemoryModel } from './factory-provisioning.js'
 import { FACTORY_OPERATOR_ID } from './factory.js'
-import { GOOGLE_AI_PRO_CATALOG_PROVIDER, GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
+import { canonicalizeGoogleAiProModelId, GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 
@@ -54,7 +54,10 @@ export const FACTORY_CREDENTIAL_ROUTES: ReadonlySet<string> = new Set([
   'DELETE /web/config/providers/:provider/oauth',
 ])
 
-const toDefaults = (models: Readonly<{ build: string; fast: string }>): ModelDefaults => ({ build: models.build, fast: models.fast })
+// Canonicalizes on the way out: a pack saved before the Google AI Pro catalog fix can still carry
+// the old `mastracode/google-ai-pro/<model>` alias, which the picker would otherwise fail to match.
+const toDefaults = (models: Readonly<{ build: string; fast: string }>): ModelDefaults =>
+  ({ build: canonicalizeGoogleAiProModelId(models.build), fast: canonicalizeGoogleAiProModelId(models.fast) })
 const packModels = ({ build, fast }: ModelDefaults) => ({ build, plan: build, fast })
 
 export const readInstallationDefaults = async (modelPacks: ModelPacksStorage, orgId: string) =>
@@ -111,20 +114,15 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     return false
   }
 
-  // The Factory's own answer for the caller's credentials, user over org, from its route. Google AI
-  // Pro's credential id is not its catalog id, so the Factory leaves its models out, and the Hub,
-  // which hosts it (C-027), adds them for a caller who has that credential.
+  // The Factory's own answer for the caller's credentials, user over org, from its route. The
+  // Factory appends every custom-provider record (Google AI Pro included) to this answer itself,
+  // by the provider's own id, so the Hub only narrows it to chat models.
   app.get('/api/control/model-accounts/models', async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
     const answer = await app.inject({ method: 'GET', url: '/web/config/models', headers: { cookie: request.headers.cookie ?? '' } })
     if (answer.statusCode !== 200) return reply.code(answer.statusCode).type('application/json').send(answer.body)
-    const models = filterChatModels((answer.json() as Readonly<{ models: readonly OfferedModel[] }>).models)
-      .filter((model) => model.provider !== GOOGLE_AI_PRO_CATALOG_PROVIDER)
-    const connected = googleAiPro && (await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
-      await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER))
-    if (!connected) return { models }
-    return { models: [...models, ...GOOGLE_AI_PRO_MODELS.map((modelName) => ({ id: `${GOOGLE_AI_PRO_CATALOG_PROVIDER}/${modelName}`, provider: GOOGLE_AI_PRO_CATALOG_PROVIDER, modelName, hasApiKey: true }))] }
+    return { models: filterChatModels((answer.json() as Readonly<{ models: readonly OfferedModel[] }>).models) }
   })
   // Sharing moves the administrator's own account to the installation's row, and stopping moves it
   // back. One row per account keeps a rotating OAuth refresh token in one place.
@@ -253,7 +251,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     const caller = await admit(request, reply)
     if (!caller || !await requireAdministrator(caller, reply)) return reply
     const record = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
-    return { model: record?.observerModelId ?? null }
+    return { model: record?.observerModelId ? canonicalizeGoogleAiProModelId(record.observerModelId) : null }
   })
   app.put<{ Body: { model: string } }>('/api/control/installation/memory', { schema: { body: memoryBody } }, async (request, reply) => {
     const caller = await admit(request, reply)
