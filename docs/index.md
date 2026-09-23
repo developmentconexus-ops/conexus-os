@@ -10,7 +10,8 @@ owns status and the next action. Start there.
 | Status, what exists, what is next | [Roadmap](roadmap.md) |
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
-| The current task | [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md) |
+| The current task | [Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md) |
+| What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
 | The Stage 2 generated-application architecture and qualification map | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
 | Why the Factory-centered composition was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |

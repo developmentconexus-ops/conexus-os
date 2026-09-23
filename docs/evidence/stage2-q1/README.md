@@ -1,10 +1,10 @@
 # Stage 2 Q1 evidence
 
 **Task:** [`docs/tasks/stage2-q1-handler-runtime-data-qualification.md`](../../tasks/stage2-q1-handler-runtime-data-qualification.md)
-**Branch:** `feat/stage2-q1`
-**Status:** proposed verdict **ACCEPT_WITH_BOUNDARY** against the task as amended on 2026-09-23
-(two PostgreSQL clusters; Q1.8 proven structurally). See [Verdict](#verdict). The third independent
-review decides. Each unit below records what it proved and how to rerun it.
+**Branch:** `feat/stage2-q1`, merged to `main` as `b90c54f7` (#196)
+**Status:** final verdict **ACCEPT_WITH_BOUNDARY** against the task as amended on 2026-09-23
+(two PostgreSQL clusters; Q1.8 proven structurally). See [Verdict](#verdict). Each unit below
+records what it proved and how to rerun it.
 
 Two amendments changed the task after the first candidate. The first moved application data to an
 Applications PostgreSQL cluster of its own, apart from the Hub's. The second made Q1.8 a structural
@@ -801,9 +801,25 @@ agreed on the first two.
 
 ## Verdict
 
-**Proposed: ACCEPT_WITH_BOUNDARY on the task as amended on 2026-09-23.** The two REJECT reviews at
-`8ad7d5bf`, Sol's REJECT at `994a4fa0` and Sol's REJECT at `8b79b11d` each closed with a change and
-a test (above). Both protected statements held on the pilot path.
+**ACCEPT_WITH_BOUNDARY on the task as amended on 2026-09-23. Final.** The operator accepted it and
+merged #196 to `main` as `b90c54f7` on 2026-09-23.
+
+Three review rounds read the candidate, each by Claude (strongest-judgment role) and GPT-6 Sol. The
+tables above record how rounds 1 and 2 closed. In round 3, at `8b79b11d`, Claude returned
+ACCEPT_WITH_BOUNDARY and Sol returned REJECT on two blockers. Blocker A was that nothing enforced the
+unmounted-storage refusal of Q1.8 item 4. Blocker B was that a migration could widen the runtime
+role's grants. A focused re-review at `9b6e7d37` found B closed in both reviews. Claude found A
+closed. Sol kept A open, because a marker and a stale `pgdata` copied onto the unmounted directory
+passed the device-number check, and a CI opt-out skipped the mountpoint check on any host. Before
+the merge, the entrypoint guard began to read `/proc/self/mountinfo` and to require that the
+dedicated `ext4` source still covers the storage root. The opt-out was deleted, CI mounts a real
+image, and a test covers a stale `pgdata` plus a copied marker (see
+[the storage mechanism](#q10-step-4-the-storage-mechanism)). The operator accepted the result and
+merged. The round-3 review record is four files in the operator's checkout, outside Git:
+`scratchpad/q1-review-round3-claude.md`, `scratchpad/q1-review-round3-sol.md`,
+`scratchpad/q1-review-round3b-claude.md` and `scratchpad/q1-review-round3b-sol.md`.
+
+Both protected statements held on the pilot path.
 
 - A normal Builder request produced a server-backed Preview. Its generated handler runs outside the
   Hub and persists Preview data for exactly one Project, on the Applications cluster. It could not
@@ -813,8 +829,8 @@ a test (above). Both protected statements held on the pilot path.
   PostgreSQL did not restart. That holds structurally, as the amended Q1.8 requires. Active capacity
   and failure runs were not made.
 
-The claim rests on conditions that must stay durable, listed below. The next independent review
-decides.
+The claim rests on the boundaries listed below, which must stay durable, and reopens on the
+triggers after them.
 
 The positive completion proof of task section 12, step by step:
 
@@ -871,7 +887,9 @@ Boundaries that must become durable:
    applications (Q5) need a per-Project share.
 5. **Preview data is disposable.** An edited applied migration resets the Preview schema, and the
    conversation says so. A migration with `COMMIT` can escape its transaction inside its own schema.
-   Published data needs its own migration rule.
+   Between a migration's commit and the restore of runtime privileges, a handler that runs at that
+   moment can use the migration's extra grants on its own schema. No bound limits that window (Sol,
+   round 3b). Published data needs its own migration rule.
 6. **Project roles log in only through the relay, and the Applications cluster must keep that
    rule.** `confine-application-cluster.mjs` owns the TLS files and the `pg_hba`/`pg_ident` blocks; a
    cluster without them refuses the relay rather than admitting a password. The CA key and the
@@ -904,6 +922,27 @@ Boundaries that must become durable:
 12. **The Applications cluster's superuser password and TLS authority sit with the operator's
     secrets** (`db-apps-root`, `apps-cluster-authority`), in the Hub's trust domain like boundary 3.
     The runner reads neither.
+
+Reopen triggers. The first seven reopen a boundary through its own task. The last reopens this
+verdict.
+
+- **Fairness between Projects** (boundaries 4 and 9) reopens on the first of: a second Project with
+  real users, a Project that uses a material part of the Applications storage, or evidence of a
+  noisy neighbour (task section 17).
+- **Active capacity and failure runs** of the Applications cluster, with the Hub under continuous
+  reads and writes (boundary 11), run on the first of: a second Project with real users, the first
+  Publish, or evidence of a noisy neighbour (task section 17).
+- **Preview and Published placement** reopens at the first Publish. Q5 decides it (task section 17).
+- **Any use beyond Preview** requires a seccomp filter, a memory cgroup with a sized `/dev/shm`
+  (boundary 2), a per-Project share of the runner cap (boundary 4) and a migration rule for
+  Published data (boundary 5).
+- **A production installation** requires the runner's own OS user (boundary 3), a separate
+  Applications volume or a managed plan (boundary 10), and the Applications superuser and TLS
+  authority outside the Hub's trust domain (boundary 12).
+- **Sensitive object names** require per-Project databases or catalog hiding (boundary 7).
+- **An application profile that needs triggers or routines** reopens the language revoke
+  (boundary 6).
+- **Evidence that falsifies a boundary above** reopens this verdict.
 
 What Q1 did not prove. The Q1.7 probes ran through the committed suites against the real
 supervisor, sandbox and relay on the pilot host, with probe handlers and migrations. They did not
