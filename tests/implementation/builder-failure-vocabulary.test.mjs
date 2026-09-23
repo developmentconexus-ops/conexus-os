@@ -41,6 +41,11 @@ test('a source code carrying the git container suffix names the preparation fail
   assert.equal(builderFailureCategory('BUILDER_SOURCE_READ_PATH_NOT_FOUND'), 'ENVIRONMENT_PREPARATION_FAILED')
 })
 
+test('an unreachable application runner is the platform failing, not a build the author can repair', () => {
+  const unreachable = projectBuilderRun(run('FAILED', 'APPLICATION_RUNNER_UNAVAILABLE'))
+  assert.deepEqual([unreachable.failureCategory, unreachable.failureCode], ['ENVIRONMENT_PREPARATION_FAILED', 'APPLICATION_RUNNER_UNAVAILABLE'])
+})
+
 test('a code nobody declared and a raw provider message are both internal errors', () => {
   assert.equal(builderFailureCategory('SOMETHING_NOBODY_DECLARED'), 'INTERNAL_ERROR')
   // service.ts turns any message that is not an uppercase snake code into BUILDER_PREPARATION_FAILED,

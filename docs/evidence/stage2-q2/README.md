@@ -16,7 +16,9 @@ The guide keeps its Q1 content. `apps/hub/src/builder/application-starter.ts` wr
 
 `node --test tests/implementation/builder-application-starter.test.mjs` passed all 8 tests. A combined run with `builder-factory-provisioning.test.mjs` could not start its database-backed cases because `CONEXUS_TEST_DB_HOST` was not configured. The pilot clusters were not used by that suite.
 
-## Q2.1 runs
+## Q2.1 attempt 1 (voided by a pilot fault)
+
+**Verdict: INSUFFICIENT_EVIDENCE.** The pilot Hub ran without `CONEXUS_APP_RUNNER_SOCKET`, so it had no application runner and every server-backed build failed with `APPLICATION_RUNNER_UNAVAILABLE` (`apps/hub/src/builder/application-build.ts:80`). No step exercised SQL against the runner. See [task section 14](../../tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun) for the causal chain and the fixes made before the rerun. The data below stays as the record of that attempt; the rerun lands under [`attempt-2/`](attempt-2/).
 
 The live Builder used `google-ai-pro/gemini-3.8-flash-high`. Four distinct BuilderRuns happened before R3; R3 added one. The sequence spent **5 of 6 runs**. The grade-only calls and the no-send retry attempt created no BuilderRun. The first R2 retry created `30fb3419` even though its runner result misreported the older id. R4 was not run because the task's STOP law fired after data loss repeated in R2 and R3.
 
@@ -49,8 +51,3 @@ R2 and R3 each tried `sh conexus/check.sh` once without setting the workspace as
 
 The first polling step for a reused Project accepted any settled latest run, including one that existed before the new request. Commit `94657770` records the fix: capture the prior run id and ignore it while waiting for the new request. The authenticated Hub history and the R3 run confirm that polling selected the newly submitted BuilderRun.
 
-## Proposed verdict
-
-**CHALLENGER_REQUIRED — typed Data API.** The task's migration/data-loss failure class appeared in two change steps. The evidence does not show that parameterized SQL itself failed: R2 and R3 did not produce SQL handlers. It shows that the Builder twice changed the browser app without using the server skill and lost the saved note across Preview revisions. The typed Data API is the task's candidate for schema and migration failures; a planner must prepare and grant a same-sequence challenger probe before any challenger run. This proposal does not select the API or qualify SQL. R4 remains owed for a future granted probe.
-
-Do not start Q3 until the planner resolves the challenger result.

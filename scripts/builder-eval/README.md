@@ -25,8 +25,9 @@ Options (`--help` prints the same list):
 - `--grade-only` (needs `--project`): send no request; grade the Project's current Preview with the
   case's checks, including the reload when the case asks. Use it to regrade a run the tool misread.
 - `--project-name <name>`: name for a newly created Project; default `eval-<date>-<time>`.
-- `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a failed build
-  before giving up and reading whatever Preview exists; default 2.
+- `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a run whose failure
+  category is `APPLICATION_BUILD_FAILED`, the only failure the source can fix; default 2. A platform
+  failure (runner unavailable, Hub restart) is recorded and never repaired.
 - `--base-url <url>`: Hub origin; default `https://hub.conexus.localhost:3443`.
 - `--headed`: visible browser instead of headless, for debugging a run.
 
@@ -55,8 +56,9 @@ the element's text contains it within 15 seconds (Playwright's retrying `toConta
 `expectNoText` needs `text` and passes when the text is absent; put an `expectText` for data the
 page must have loaded before it, or absence passes on a page that has not rendered yet. A failing step is recorded, not thrown, so
 every step still runs. `reload` (optional, default `false`): once every initial check passes,
-reload the Preview iframe in place and rerun the `expectText` and `expectNoText` checks against it, to prove the
-result persists across a refresh.
+clear the Preview origin's browser storage (localStorage, sessionStorage, IndexedDB), reload the
+Preview iframe in place and rerun the `expectText` and `expectNoText` checks against it, to prove the
+result was saved outside the browser.
 
 ## Output
 

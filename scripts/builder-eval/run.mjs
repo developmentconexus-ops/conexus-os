@@ -147,7 +147,9 @@ async function pollForPreviewOf(page, projectId, sourceRevision) {
   return false
 }
 
-const needsRepair = (run) => run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' || run.state === 'FAILED' || run.state === 'INTERRUPTED'
+// Only a build the source broke is the author's to repair. A platform fault (runner down, Hub
+// restart) sent as "corrija" teaches the model to delete correct code until the fault goes away.
+const needsRepair = (run) => run.failureCategory === 'APPLICATION_BUILD_FAILED'
 
 const recordOf = (run, isRepair) => ({
   builderRunId: run.builderRunId, isRepair, state: run.state, resultKind: run.resultKind,
@@ -241,8 +243,14 @@ async function gradePreview(page, { out, caseFile, result }) {
   result.checks.initial = await runChecks(frame, caseFile.checks)
   if (caseFile.reload && checksPassed(result.checks.initial)) {
     // The Preview is cross-origin, so its window cannot be reloaded from the Hub page; the
-    // frame is navigated to its own URL instead, which reuses the Preview cookie.
+    // frame is navigated to its own URL instead, which reuses the Preview cookie. Its browser
+    // storage is cleared first: data that only lives in this browser is not saved data.
     const previewFrame = await (await iframe.elementHandle()).contentFrame()
+    await previewFrame.evaluate(async () => {
+      localStorage.clear()
+      sessionStorage.clear()
+      for (const database of await indexedDB.databases?.() ?? []) if (database.name) indexedDB.deleteDatabase(database.name)
+    })
     await previewFrame.goto(previewFrame.url(), { waitUntil: 'load' })
     await previewFrame.waitForFunction(() => (document.getElementById('root')?.children.length ?? 0) > 0, undefined, { timeout: 15_000 })
     const frameAfterReload = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)

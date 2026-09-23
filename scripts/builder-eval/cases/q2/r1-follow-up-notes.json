@@ -1,5 +1,5 @@
 {
-  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota, salvo e vejo as notas salvas depois de recarregar a página. Mantenha a interface simples.",
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota e salvo. As notas ficam guardadas para toda a equipe de compras: quem abrir o app, em qualquer computador, vê as mesmas notas, e elas continuam lá depois de recarregar a página. Mantenha a interface simples.",
   "checks": [
     { "action": "fill", "selector": "role=textbox >> nth=0", "value": "PC-4521" },
     { "action": "fill", "selector": "role=textbox >> nth=1", "value": "Ligar para o fornecedor na segunda" },

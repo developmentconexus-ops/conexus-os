@@ -67,9 +67,12 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // The source was admitted, but the Hub restarted before the Preview was built from it.
   BUILDER_PREVIEW_NOT_BUILT: 'PREVIEW_NOT_BUILT',
 
+  // The Hub could not reach its application runner. Nothing in the source can fix that, and naming
+  // it a build failure sends the author to delete the server code that was correct.
+  APPLICATION_RUNNER_UNAVAILABLE: 'ENVIRONMENT_PREPARATION_FAILED',
+
   APPLICATION_COMPILATION_FAILED: 'APPLICATION_BUILD_FAILED',
   APPLICATION_MIGRATION_FAILED: 'APPLICATION_BUILD_FAILED',
-  APPLICATION_RUNNER_UNAVAILABLE: 'APPLICATION_BUILD_FAILED',
   APPLICATION_SERVER_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_SOURCE_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_REQUEST_REFUSED: 'APPLICATION_BUILD_FAILED',

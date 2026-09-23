@@ -87,7 +87,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | Gate | Protected question | Status |
 | --- | --- | --- |
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
-| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **CHALLENGER_REQUIRED**. R2 and R3 repeated data loss across updates; prepare the typed Data API probe before resuming Q2. ([evidence](evidence/stage2-q2/README.md#proposed-verdict)) |
+| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **IN PROGRESS**. Q2.0 delivered the guide as the `conexus-server` skill. The first R1-R3 sequence was voided by a pilot fault (the Hub ran without its application runner); the rerun is owed ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
@@ -183,7 +183,7 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Prepare the Stage 2 Q2 typed Data API challenger under a separate planner grant, using the same R1-R4 sequence. The SQL-first baseline stopped after R3 because data loss repeated in R2 and R3; R4 was not run. Do not start Q3.**
+**Rerun the Stage 2 Q2 SQL baseline (R1 to R4, six fresh Builder runs) on a pilot Hub wired to its application runner, per task §14.**
 
 [Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md)
 
