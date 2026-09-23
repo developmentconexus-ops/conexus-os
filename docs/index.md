@@ -13,6 +13,7 @@ owns status and the next action. Start there.
 | The current task | [Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md) |
 | What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
 | The Stage 2 generated-application architecture and qualification map | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
+| Pre-implementation research, SDK/library candidates and superseded alternatives (not execution authority) | [Stage 2 research memory, R01–R13](research/stage2/README.md) |
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
 | Why the Factory-centered composition was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |
 | What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
