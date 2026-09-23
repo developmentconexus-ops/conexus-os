@@ -1,5 +1,6 @@
 import './construir.css'
 import { Button } from '@mastra/playground-ui/components/Button'
+import { TaskListPt } from './task-list-pt'
 import { ChatShell } from '@mastra/playground-ui/components/ChatShell'
 import { Combobox } from '@mastra/playground-ui/components/Combobox'
 import { MessageScrollerItem } from '@mastra/playground-ui/components/MessageScroller'
@@ -41,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -55,6 +56,14 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     createdAt: entry.createdAt,
     reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry.failureCategory) : null,
   }])
+}
+
+// "Tarefas" alone while the agent has not written a count yet (TaskList's own default title),
+// "n de m" once it has: the same counter Claude Code and Codex show above their own composer.
+const taskListTitle = (tasks: LiveTurn['tasks']): string => {
+  if (!tasks.length) return 'Tarefas'
+  const completed = tasks.filter((task) => task.status === 'completed').length
+  return `Tarefas · ${completed} de ${tasks.length}`
 }
 
 // Browser storage can be absent or refuse writes (private windows, blocked site data); the layout
@@ -313,6 +322,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
         </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
+        {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own
+            task_write/task_update/task_check/task_complete calls, never the settled result of a
+            run that has ended (hideWhenComplete, the primitive's own default) or a run with no
+            list yet (hideWhenEmpty). */}
+        {runHere && <TaskListPt className="cx-task-list" tasks={[...conversationTurn.tasks]} title={taskListTitle(conversationTurn.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
         {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
