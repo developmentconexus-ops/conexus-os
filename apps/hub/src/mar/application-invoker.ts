@@ -34,35 +34,19 @@ export type ApplicationAdmissionLimits = Readonly<{
   maxServerTreeBytes: number
 }>
 
-// The runner services at most `DEFAULT_LIMITS.concurrency` invocations at once, whatever Project they
-// come from, and refuses the rest with 429 once its own `running` counter is at that bound
-// (supervisor.ts, `running >= limits.concurrency`). `main.ts` starts the runner with no `limits`
-// override, so that constant is the real ceiling in force today. Admitting more concurrent work than
-// the runner can ever run only pays for reads, copies and base64 encodes whose outcome downstream is
-// already decided; the Hub's own admission ceiling matches it instead of guessing a separate number
-// that could drift from the runner's actual bound.
-//
-// A single Preview issuing a flood of same-origin requests is the scenario this closes (round-2
-// review, Claude N8 / Sol finding 2): it must not be able to occupy the whole shared budget by itself,
-// so no Project may hold more than half of the global ceiling at once.
 export const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
+  // Matches the runner's own DEFAULT_LIMITS.concurrency (main.ts starts it with no override), so the
+  // Hub never admits more work than the runner could ever service at once.
   globalConcurrency: DEFAULT_LIMITS.concurrency,
+  // Half the global bound: one flooding Preview cannot occupy the whole shared admission budget.
   perProjectConcurrency: Math.max(1, Math.ceil(DEFAULT_LIMITS.concurrency / 2)),
-  // Server trees are source code, not payloads: 8 MiB is generous for that, and stays far under the
-  // runner's own worst case per request (MAX_FILES * MAX_FILE_BYTES = 128 * 4 MiB = 512 MiB), which
-  // every concurrently admitted request would otherwise be free to approach at once in Hub memory.
+  // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
   maxServerTreeBytes: 8 * 1024 * 1024,
 })
 
 const refusal = (status: number, code: string): Readonly<{ status: number; body: unknown }> =>
   Object.freeze({ status, body: { error: { code } } })
 
-/**
- * Builds the Preview application API's `invokeApplication`. It bounds in-flight work and the total
- * server-tree size before any artifact file is read, so a request that is going to be refused never
- * first costs the Hub a full read, copy and base64 encode of the tree (round-2 review finding: the
- * Hub used to do that work for every request, ahead of the runner's own concurrency cap).
- */
 export const createApplicationInvoker = (dependencies: Readonly<{
   readFile: ApplicationFileReader
   invoke: ApplicationRunnerInvoke
@@ -79,19 +63,21 @@ export const createApplicationInvoker = (dependencies: Readonly<{
     globalInFlight += 1
     perProjectInFlight.set(input.projectId, projectInFlight + 1)
     try {
+      // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
+      // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
+      // tree.
       let totalBytes = 0
-      const reads = await Promise.all(input.serverFiles.map(async (path) => {
+      const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
+      for (const path of input.serverFiles) {
         const file = await dependencies.readFile({
           accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
           artifactRevisionId: input.artifactRevisionId, path,
         })
         if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
         totalBytes += file.bytes.byteLength
-        return { path, sha256: file.sha256, bytes: file.bytes }
-      }))
-      // Checked before any file is base64-encoded: encoding duplicates each buffer (~1.33x) and the
-      // result is what crosses the socket to the runner, so this is the step worth not paying for.
-      if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
+        if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
+        reads.push({ path, sha256: file.sha256, bytes: file.bytes })
+      }
       const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
       return await dependencies.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files })
     } finally {

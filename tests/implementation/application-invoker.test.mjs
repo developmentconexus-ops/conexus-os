@@ -97,7 +97,7 @@ test('an admission slot is freed for the next request once its call finishes', a
   assert.equal((await second).status, 200)
 })
 
-test('a server tree over the total byte limit is refused before any file is encoded, without reaching the runner', async () => {
+test('a server tree over the total byte limit is refused as soon as the running total crosses it, without reading the remaining files or reaching the runner', async () => {
   const reader = immediateReader(bytes(600))
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
@@ -106,9 +106,10 @@ test('a server tree over the total byte limit is refused before any file is enco
   })
   const result = await invoker({
     accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact',
-    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {},
+    // 600 bytes each: the running total crosses 1000 on the second file, so the third is never read.
+    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {},
   })
-  assert.equal(reader.calls.length, 2, 'the files were read to learn their size')
+  assert.equal(reader.calls.length, 2, 'the read stopped as soon as the total crossed the limit, not after the whole tree')
   assert.deepEqual(result, { status: 413, body: { error: { code: 'SERVER_TREE_TOO_LARGE' } } })
   assert.equal(runner.calls.length, 0, 'the runner never receives an over-limit tree')
 })
