@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { hubRoleNames, provisionApplicationDatabase } from '../../scripts/provision-application-database.mjs'
-import { applicationClusterAdmin, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
+import { applicationClusterAdmin, loginThroughRelay, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
 import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
@@ -226,6 +226,20 @@ test('the runner migrates and serves each Project through its own sandboxed work
       await superuser.end()
     }
     assert.deepEqual([...await supervisor.checkProvisioner()], converged)
+  })
+
+  await t.test('a migration cannot give the runtime role more than DML, directly or through PUBLIC', async (st) => {
+    const runtimeB = previewAllocation(b).runtimeRole
+    const extra = 'TRUNCATE, TRIGGER, REFERENCES, MAINTAIN'
+    const granting = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_grant_more.sql', `GRANT ${extra} ON follow_up_note TO ${runtimeB}; GRANT ALL ON follow_up_note TO PUBLIC`]])
+    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
+    const runtime = await loginThroughRelay(st, { host: admin.host, port: admin.port }, runtimeB, database)
+    const attempt = (sql) => runtime.query(sql).then(() => 'ok', (error) => error.code)
+    assert.deepEqual({
+      truncate: await attempt('TRUNCATE follow_up_note'),
+      createTrigger: await attempt('CREATE TRIGGER t BEFORE UPDATE ON follow_up_note FOR EACH ROW EXECUTE FUNCTION suppress_redundant_updates_trigger()'),
+      insert: await attempt("INSERT INTO follow_up_note (purchase_order_id, note) VALUES ('PO-9', 'n')"),
+    }, { truncate: '42501', createTrigger: '42501', insert: 'ok' })
   })
 })
 
