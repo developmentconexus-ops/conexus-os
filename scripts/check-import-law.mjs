@@ -10,6 +10,9 @@ const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
 // What a Conexus session is has one definition. Every owner needs it and none may fork it,
 // so it is admitted across owner boundaries the way the HTTP problem helper is.
 const SESSION_CONTRACT = 'apps/hub/src/identity-access/current-session.ts'
+// What a Project's application server manifest admits has one definition too: the Builder's build and
+// check and the application runner must refuse exactly the same manifests.
+const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
@@ -222,7 +225,7 @@ export function checkImportLaw(rootDirectory) {
 
       if (sourceLayer && targetLayer && sourceLayer !== targetLayer &&
           !TECHNICAL_HUB_LAYERS.has(sourceLayer) && !TECHNICAL_HUB_LAYERS.has(targetLayer) &&
-          target !== SESSION_CONTRACT) {
+          target !== SESSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT) {
         violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'semantic owners cannot deep-import one another'))
       }
 
@@ -236,6 +239,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = new Set([
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
+          'apps/hub/src/app-runner/module.ts',
           'apps/hub/src/builder/module.ts',
           'apps/hub/src/connections/module.ts',
           'apps/hub/src/gateway/module.ts',

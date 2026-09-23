@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
+import { serverBuildScriptSource } from './application-server-build.js'
 
 export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
 export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
@@ -20,6 +21,8 @@ const SMOKE_BUDGET_MS = 20_000
 const SMOKE_TIMEOUT_MS = SMOKE_BUDGET_MS + 10_000
 const SMOKE_SCRIPT_FILE = '.conexus-smoke.mjs'
 const SMOKE_HEREDOC = 'CONEXUS_SMOKE_SCRIPT_EOF'
+const SERVER_BUILD_SCRIPT_FILE = '.conexus-server-build.mjs'
+const SERVER_BUILD_HEREDOC = 'CONEXUS_SERVER_BUILD_EOF'
 
 export type CompiledApplicationFile = Readonly<{
   path: string
@@ -201,6 +204,21 @@ const ROOT_ID = ${JSON.stringify(SMOKE_ROOT_ID)}
 const BUDGET_MS = ${SMOKE_BUDGET_MS}
 const MEDIA_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' }
 
+// The app may call its own API while it mounts. The smoke has no database, so each declared
+// operation answers the smallest value its output schema admits; anything else is a 404.
+let serverManifest = null
+try { serverManifest = JSON.parse(await readFile(join(DIST_ROOT, 'conexus-server', 'manifest.json'), 'utf8')) } catch {}
+const emptyValue = (schema) => {
+  switch (schema?.type) {
+    case 'string': return 'x'.repeat(schema.minLength ?? 0)
+    case 'integer': case 'number': return schema.minimum ?? 0
+    case 'boolean': return false
+    case 'array': return []
+    case 'object': return Object.fromEntries((schema.required ?? []).map((key) => [key, emptyValue(schema.properties[key])]))
+    default: return null
+  }
+}
+
 let settled = false
 const output = (verdict) => {
   if (settled) return
@@ -214,7 +232,15 @@ timer.unref?.()
 const server = createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1')
+    if (requestUrl.pathname.startsWith('/__conexus/api/')) {
+      const operation = serverManifest?.operations?.[requestUrl.pathname.slice('/__conexus/api/'.length)]
+      if (req.method !== 'POST' || !operation) { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{"error":{"code":"OPERATION_NOT_FOUND"}}'); return }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(emptyValue(operation.output)))
+      return
+    }
     const relative = requestUrl.pathname === '/' ? 'index.html' : decodeURIComponent(requestUrl.pathname).replace(/^\\/+/, '')
+    if (relative.startsWith('conexus-server/')) { res.writeHead(404); res.end(); return }
     const resolved = normalize(join(DIST_ROOT, relative))
     if (resolved !== DIST_ROOT && !resolved.startsWith(DIST_ROOT + sep)) { res.writeHead(403); res.end(); return }
     const body = await readFile(resolved)
@@ -384,6 +410,25 @@ const smokeApplicationInSandbox = async (sandbox: Sandbox, place: BuildPlace, si
   if (!verdict.ok) throw new Error(verdict.reason ?? 'APPLICATION_SMOKE_FAILED')
 }
 
+// The server half reads <workRoot>/conexus and writes <workRoot>/dist/conexus-server. The script is the
+// Hub's own copy, written where only the build's user can reach it, never the checkout's.
+const buildServerInSandbox = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<void> => {
+  const script = `${place.workRoot}/${SERVER_BUILD_SCRIPT_FILE}`
+  let result: CommandResult
+  try {
+    result = await sandbox.commands.run([
+      `cat > ${script} <<'${SERVER_BUILD_HEREDOC}'`,
+      serverBuildScriptSource(),
+      SERVER_BUILD_HEREDOC,
+      `node ${script} '${place.workRoot}' '${distRoot(place)}'`,
+    ].join('\n'), { cwd: place.workRoot, timeoutMs: BUILD_TIMEOUT_MS, ...requestOptions(signal, place) })
+  } catch (error) {
+    if (signal?.aborted) throw cancellation()
+    throw new Error('APPLICATION_COMPILATION_FAILED', { cause: error })
+  }
+  if (result.exitCode !== 0) throw new Error('APPLICATION_COMPILATION_FAILED')
+}
+
 /** Builds an application tree already inside `sandbox`, sharing the agent sandbox instead of a second one. */
 export const buildApplicationInSandbox = async (
   sandbox: Sandbox,
@@ -408,6 +453,8 @@ export const buildApplicationInSandbox = async (
     throw new Error('APPLICATION_COMPILATION_FAILED', { cause: error })
   }
   if (result.exitCode !== 0) throw new Error('APPLICATION_COMPILATION_FAILED')
+  assertNotAborted(input.signal)
+  await buildServerInSandbox(sandbox, place, input.signal)
   assertNotAborted(input.signal)
   const output = await collectOutput(sandbox, place, input.signal)
   assertNotAborted(input.signal)

@@ -25,16 +25,19 @@ export type MarModule = Readonly<{
 
 type PreviewAccess = PreviewRouteDependencies['access']
 type RegistryReader = PreviewRouteDependencies['registryReader']
+type ApplicationInvoker = NonNullable<PreviewRouteDependencies['invokeApplication']>
 
 export const createMarModule = ({
   access,
   registryReader,
+  invokeApplication,
   exactHubOrigin,
   previewPort,
   now = () => Date.now(),
 }: Readonly<{
   access: PreviewAccess
   registryReader: RegistryReader
+  invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
   previewPort: number
   now?: () => number
@@ -47,7 +50,9 @@ export const createMarModule = ({
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
-  const dependencies: PreviewRouteDependencies = { routes, access, registryReader, exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed }
+  const dependencies: PreviewRouteDependencies = {
+    routes, access, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed,
+  }
   const prune = (): void => {
     const current = now()
     for (const [key, route] of routes) if (route.expiresAt <= current) routes.delete(key)

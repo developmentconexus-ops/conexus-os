@@ -13,7 +13,8 @@ import { ConexusFactoryE2BSandbox, customProvidersPrimer, FACTORY_OPERATOR_ID, F
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
 import { conversationBranch } from './factory-routes.js'
-import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSessionMessage } from './runtime.js'
+import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSessionMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
+import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
 import type { BuilderRunningPhase, BuilderStore, FactoryBindingRecord } from './store.js'
 
@@ -170,6 +171,15 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (pinned.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { step: 'checkout', exitCode: pinned.exitCode, stderr: commandEvidence(pinned.stderr) } })
 
       if (input.mode === 'BUILD') {
+        // The Project check runs the Hub's server build from a path only root can write, so the
+        // agent sees exactly the refusal the Conexus build would give.
+        const installed = await asRoot([
+          `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
+          serverBuildScriptSource(),
+          'CONEXUS_SERVER_BUILD_EOF',
+          `chmod 644 '${SERVER_BUILD_SCRIPT_PATH}.next' && mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}'`,
+        ].join('\n'))
+        if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
         await (ports.materializeStarter ?? materializeFactoryStarter)({
           repositoryRoot: workdir,
           directCommand: (command, args) => direct(command, [...args]),
@@ -238,16 +248,17 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         // The agent's processes can outlive its turn and keep writing the checkout, so the build
         // takes the result's own tree from the mirror into a directory only root can enter, once
         // every process of the agent's user is gone.
-        const listed = await asRoot(`${hubGit} ls-tree -r -l '${result}' app/`)
+        const listed = await asRoot(`${hubGit} ls-tree -r -l '${result}' app/ conexus/`)
         if (listed.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-        admitApplicationTree(listed.stdout)
+        const admitted = admitApplicationTree(listed.stdout)
+        const archived = ['app', ...SERVER_SOURCE_ROOTS.filter((root) => admitted.some((path) => path === root || path.startsWith(`${root}/`)))]
         await sh('kill -KILL -1 2>/dev/null; true')
         const buildRoot = `${BUILD_ROOT}/${input.executionId}`
         const snapshot = await asRoot([
           `rm -rf '${BUILD_ROOT}'`,
           `mkdir -p -m 700 '${BUILD_ROOT}'`,
           `mkdir -m 700 '${buildRoot}'`,
-          `${hubGit} archive --format=tar '${result}' app | tar -x -C '${buildRoot}'`,
+          `${hubGit} archive --format=tar '${result}' ${archived.map((path) => `'${path}'`).join(' ')} | tar -x -C '${buildRoot}'`,
           // The recipe's cache directory is in the agent's workspace; root must not follow what it left there.
           `rm -rf '${FACTORY_WORKING_DIRECTORY}/.vite'`,
         ].join(' && '))

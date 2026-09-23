@@ -22,7 +22,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -123,6 +123,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   }
   const service = createBuilderService({
     store,
+    ...(applicationServer ? { applicationServer } : {}),
     applicationArtifacts: {
       retainApplication: async ({ compiled }) => ({
         artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
@@ -198,6 +199,38 @@ test('a stop that lands after the compile is still refused the admission', async
   assert.equal(run.main(), BASE)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.equal(run.calls.some(([kind, phase]) => kind === 'candidate' || (kind === 'phase' && phase === 'SOURCE_ADMISSION')), false)
+})
+
+const withServerTree = async () => [
+  { path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' },
+  { path: 'conexus-server/manifest.json', mediaType: 'application/json', sha256: 'e'.repeat(64), bytes: '{}' },
+]
+
+test('an artifact with a server tree reaches its Preview only after its migrations apply', async (t) => {
+  const prepared = []
+  const ready = await harness(t, { build: withServerTree, applicationServer: { prepare: async (input) => { prepared.push(input); return { state: 'READY', reset: false, applied: ['001_notes.sql'] } } } })
+  await ready.start()
+  await ready.service.close()
+  assert.deepEqual(prepared, [{ projectId, files: [{ path: 'conexus-server/manifest.json', sha256: 'e'.repeat(64), content: Buffer.from('{}').toString('base64') }] }])
+  assert.deepEqual(ready.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, null]])
+  assert.deepEqual(ready.diagnostics, [])
+
+  const failed = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_FAILED', detail: '42P01 relation "missing_table" does not exist' }) } })
+  await failed.start()
+  await failed.service.close()
+  assert.deepEqual(failed.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, 'APPLICATION_MIGRATION_FAILED']])
+  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '42P01 relation "missing_table" does not exist']])
+
+  const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'READY', reset: true, applied: ['001_notes.sql'] }) } })
+  await reset.start()
+  await reset.service.close()
+  assert.deepEqual(reset.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, null]])
+  assert.deepEqual(reset.diagnostics.map(({ code, outcome }) => [code, outcome]), [['APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET']])
+
+  const unconfigured = await harness(t, { build: withServerTree })
+  await unconfigured.start()
+  await unconfigured.service.close()
+  assert.deepEqual(unconfigured.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, 'APPLICATION_RUNNER_UNAVAILABLE']])
 })
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -336,13 +369,13 @@ test('the build reads the result from the mirror into a root-only directory afte
   const buildRoot = `/var/lib/conexus-build/${runId}`
   assert.deepEqual(run.builtFrom, [buildRoot])
   const mirror = "git --git-dir='/var/lib/conexus-git/app.git'"
-  const listed = run.events.findIndex((event) => Array.isArray(event) && event[1] === `${mirror} ls-tree -r -l '${RESULT}' app/`)
+  const listed = run.events.findIndex((event) => Array.isArray(event) && event[1] === `${mirror} ls-tree -r -l '${RESULT}' app/ conexus/`)
   const killed = run.events.indexOf('sh -c kill -KILL -1 2>/dev/null; true')
   const snapshot = run.events.findIndex((event) => Array.isArray(event) && event[1] === [
     "rm -rf '/var/lib/conexus-build'",
     "mkdir -p -m 700 '/var/lib/conexus-build'",
     `mkdir -m 700 '${buildRoot}'`,
-    `${mirror} archive --format=tar '${RESULT}' app | tar -x -C '${buildRoot}'`,
+    `${mirror} archive --format=tar '${RESULT}' 'app' | tar -x -C '${buildRoot}'`,
     "rm -rf '/workspace/.vite'",
   ].join(' && '))
   assert.ok(run.events.indexOf('turn') < listed && listed < killed && killed < snapshot && snapshot < run.events.indexOf('build'), JSON.stringify([listed, killed, snapshot]))
@@ -387,12 +420,13 @@ test('a token rides only in the environment of root commands on the Hub mirror, 
     GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_fake_1').toString('base64')}`,
     GIT_TERMINAL_PROMPT: '0',
   }
-  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/--force-with-lease/.test(script) ? 'admit' : / push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : / ls-tree /.test(script) ? 'list' : / archive /.test(script) ? 'snapshot' : script, env]), [
-    ['fetch', header], ['push', header], ['list', {}], ['snapshot', {}], ['admit', header],
+  assert.deepEqual(run.rootInvocations.map(({ script, env }) => [/--force-with-lease/.test(script) ? 'admit' : / push /.test(script) ? 'push' : / fetch /.test(script) ? 'fetch' : / ls-tree /.test(script) ? 'list' : / archive /.test(script) ? 'snapshot' : /server-build\.mjs/.test(script) ? 'install' : script, env]), [
+    ['fetch', header], ['install', {}], ['push', header], ['list', {}], ['snapshot', {}], ['admit', header],
   ])
-  assert.ok(run.rootScripts().every((script) => script.includes("--git-dir='/var/lib/conexus-git/app.git'") && !script.includes("-C '/workspace/app'")), 'root git never reads the agent checkout')
+  const gitScripts = run.rootScripts().filter((script) => !script.includes('/opt/conexus/server-build.mjs'))
+  assert.ok(gitScripts.every((script) => script.includes("--git-dir='/var/lib/conexus-git/app.git'") && !script.includes("-C '/workspace/app'")), 'root git never reads the agent checkout')
   assert.deepEqual(run.invocations.filter(({ env }) => env === undefined || Object.keys(env).length > 0), [], 'every agent-user command states an empty environment')
-  assert.ok(run.rootScripts()[1].startsWith(`git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet '/workspace/.conexus-result.bundle' 'refs/heads/conexus/${conversationId}' && `), run.rootScripts()[1])
+  assert.ok(gitScripts[1].startsWith(`git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet '/workspace/.conexus-result.bundle' 'refs/heads/conexus/${conversationId}' && `), gitScripts[1])
   assert.ok(run.commands().includes(`sh -c git -C '/workspace/app' bundle create --quiet '/workspace/.conexus-result.bundle' 'refs/heads/conexus/${conversationId}'`))
 })
 

@@ -12,7 +12,7 @@ import { admitFactoryConversation, FACTORY_SESSION_ROUTE, openFactoryConversatio
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
-import type { ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform/config.js'
@@ -102,8 +102,10 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele começará da versão atual da fonte.`,
   RUN_NOT_FINISHED: ({ builderRunId, code, sourceRevision }) =>
     `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
-  BUILD_FAILED: ({ builderRunId, code }) =>
-    `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}. Corrija a solicitação para tentar novamente.`,
+  BUILD_FAILED: ({ builderRunId, code, detail }) =>
+    `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
+  PREVIEW_DATA_RESET: ({ builderRunId }) =>
+    `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
 
 const noteMessage = (note: RunNote, resourceId: string) => ({
@@ -244,7 +246,7 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, googleAiPro, applicationArtifacts, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -253,6 +255,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
   factory: FactoryRuntimeConfig
   googleAiPro?: GoogleAiProRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
+  applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
   origin: string
   resolveCurrentSession: ResolveCurrentSession
@@ -274,7 +277,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
     database, factory, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
     resolveCurrentSession, isInstallationAdministrator,
   })
-  const service = createBuilderService({ store, applicationArtifacts: boundApplicationArtifacts, factory: factoryComposition.run })
+  const service = createBuilderService({
+    store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), factory: factoryComposition.run,
+  })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

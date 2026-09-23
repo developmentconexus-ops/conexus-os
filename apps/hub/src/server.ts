@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
+import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -73,6 +74,7 @@ const project = config.project ? createConfiguredProjectModule({
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
+const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
 const mar = config.preview ? createMarModule({
   access: identityAccess.previewAccess,
   exactHubOrigin: config.origin,
@@ -84,6 +86,22 @@ const mar = config.preview ? createMarModule({
       artifactRevisionId: input.artifactRevisionId, path: input.path,
     })
   },
+  // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
+  ...(applicationRunner ? {
+    invokeApplication: async (input) => {
+      const reader = builder
+      if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+      const files = await Promise.all(input.serverFiles.map(async (path) => {
+        const file = await reader.readApplicationFileBySource({
+          accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
+          artifactRevisionId: input.artifactRevisionId, path,
+        })
+        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
+        return { path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }
+      }))
+      return applicationRunner.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files })
+    },
+  } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
   const opened = mar.openRoute({
@@ -125,6 +143,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   factory: config.factory,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
+  ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,

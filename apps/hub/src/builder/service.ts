@@ -1,8 +1,8 @@
 import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, FactorySourceReads } from './factory-source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore, FactoryBindingRecord } from './store.js'
-import { prepareBuilderRunApplicationArtifact } from './application-build.js'
-import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, BuilderApplicationArtifacts } from './application-build.js'
+import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
+import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 
 export type BuilderService = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
@@ -22,9 +22,11 @@ export type RunNote = Readonly<{
   conversationId: string
   builderRunId: string
   code: string
-  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED'
+  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED' | 'PREVIEW_DATA_RESET'
   // The revision the files are at after the run: its base when discarded, its result when admitted.
   sourceRevision: string
+  // The Project's own diagnostic, such as the database's error for its migration.
+  detail?: string
 }>
 
 type DiagnosticAppender = (note: RunNote) => Promise<void>
@@ -49,9 +51,10 @@ export type FactoryRunDependencies = Readonly<{
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
-export const createBuilderService = ({ store, applicationArtifacts, factory }: Readonly<{
+export const createBuilderService = ({ store, applicationArtifacts, applicationServer, factory }: Readonly<{
   store: BuilderStore
   applicationArtifacts: BuilderApplicationArtifacts
+  applicationServer?: ApplicationServerPort
   factory: FactoryRunDependencies
 }>): BuilderService => {
   const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
@@ -124,9 +127,11 @@ export const createBuilderService = ({ store, applicationArtifacts, factory }: R
       if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
       // The database refuses a phase once a stop is requested; an admitted run still settles.
       const finalizing = (): Promise<void> => setPhase('FINALIZING').catch(() => undefined)
-      const buildFailed = (code: string): Promise<void> => factory.appendDiagnostic({
-        projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome: 'BUILD_FAILED', sourceRevision: admitted,
+      const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => factory.appendDiagnostic({
+        projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome, sourceRevision: admitted,
+        ...(detail ? { detail: detail.slice(0, 400) } : {}),
       }).catch(() => undefined)
+      const buildFailed = (code: string, detail?: string): Promise<void> => note(code, 'BUILD_FAILED', detail)
       // The agent's sandbox already compiled (and smoked) the artifact. A build or smoke failure
       // there still admitted the source, so it settles as a build failure and the last good
       // Preview stays in place.
@@ -143,6 +148,8 @@ export const createBuilderService = ({ store, applicationArtifacts, factory }: R
           sourceRevision: admitted,
           compiledApplication: result.applicationBuild.compiledApplication,
         })
+        const server = await prepareApplicationServer(applicationServer, result.applicationBuild.compiledApplication)
+        if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
@@ -152,7 +159,7 @@ export const createBuilderService = ({ store, applicationArtifacts, factory }: R
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           failureCode: code }).catch(() => undefined)
-        await buildFailed(code)
+        await buildFailed(code, error instanceof Error && typeof error.cause === 'string' ? error.cause : undefined)
         throw error
       }
     })().catch(async (error) => {

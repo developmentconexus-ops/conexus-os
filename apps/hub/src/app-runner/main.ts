@@ -23,7 +23,7 @@ const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
 const socketPath = required('CONEXUS_APP_RUNNER_SOCKET')
 mkdirSync(stateDir, { recursive: true, mode: 0o700 })
 chmodSync(stateDir, 0o700)
-rmSync(join(stateDir, 'invocations'), { recursive: true, force: true })
+rmSync(join(stateDir, 'i'), { recursive: true, force: true })
 const credentialKey = Buffer.from(secret('CONEXUS_APP_RUNNER_KEY_FILE'), 'base64')
 const startedAt = performance.now()
 const supervisor = createSupervisor({

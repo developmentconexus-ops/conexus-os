@@ -102,6 +102,10 @@ export const isUserAuthoredMessage = (message: Readonly<{ role?: string; content
 }
 
 /** `git ls-tree -r -l HEAD app/` output, held to the limits the compile input has always had. */
+// The server half of the source a build compiles; the rest of conexus/ (its check) is not built.
+const SERVER_SOURCE = /^conexus\/(?:manifest\.json|handlers\/.+|migrations\/.+)$/
+export const SERVER_SOURCE_ROOTS = Object.freeze(['conexus/manifest.json', 'conexus/handlers', 'conexus/migrations'])
+
 export const admitApplicationTree = (listing: string): readonly string[] => {
   const paths: string[] = []
   let totalBytes = 0
@@ -109,6 +113,7 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
     const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
+    if (entry && !(entry[2] as string).startsWith('app/') && !SERVER_SOURCE.test(entry[2] as string)) continue
     if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     const bytes = Number(entry[1])
     if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')

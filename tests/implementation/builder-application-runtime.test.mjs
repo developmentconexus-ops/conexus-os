@@ -124,6 +124,46 @@ test('an app that imports a web font from an unreachable host still passes the s
   assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
 })
 
+test('an app that loads its data from its own API mounts in the smoke, and the server tree stays unserved', async (t) => {
+  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { chromium } = await import('@playwright/test')
+
+  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
+  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
+  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
+  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
+  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
+  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
+
+  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-api-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const dist = resolve(directory, 'dist')
+  makeDirectory(resolve(dist, 'conexus-server'), { recursive: true })
+  const note = { type: 'object', properties: { id: { type: 'integer', minimum: 1 }, note: { type: 'string', minLength: 2 } }, required: ['id', 'note'], additionalProperties: false }
+  writeFileSync(resolve(dist, 'conexus-server/manifest.json'), JSON.stringify({ version: 1, migrations: [], operations: {
+    listNotes: { module: 'handlers/notes.mjs', export: 'listNotes', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: note } },
+    lastNote: { module: 'handlers/notes.mjs', export: 'lastNote', input: { type: 'object', properties: {}, additionalProperties: false }, output: note },
+  } }))
+  // The page throws, which fails the smoke, unless every answer is the one the fixture owes it.
+  writeFileSync(resolve(dist, 'app.js'), `const post = (operation) => fetch('/__conexus/api/' + operation, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+const [list, last, unknown, tree] = await Promise.all([post('listNotes'), post('lastNote'), post('dropNotes'), fetch('/conexus-server/manifest.json')])
+const answers = JSON.stringify([list.status, await list.json(), last.status, await last.json(), unknown.status, tree.status])
+if (answers !== JSON.stringify([200, [], 200, { id: 1, note: 'xx' }, 404, 404])) throw new Error('fixture answered ' + answers)
+document.getElementById('root').append(document.createElement('main'))
+`)
+  writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>')
+  const bin = resolve(directory, 'bin')
+  makeDirectory(bin)
+  writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
+  chmodSync(resolve(bin, 'chromium'), 0o755)
+  const file = resolve(directory, 'smoke.mjs')
+  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
+    .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
+  const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
+  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
+})
+
 test('two smokes started at the same instant do not collide on a fixed port', async (t) => {
   const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
@@ -172,9 +212,11 @@ test('a build placed under a root-only directory runs, writes, smokes and reads 
   const { sandbox, calls } = fakeSandbox(new Map([[`${workRoot}/dist/index.html`, Buffer.from('<!doctype html>')]]))
   const files = await buildApplicationInSandbox(sandbox, { workRoot, appRoot: `${workRoot}/app`, user: 'root' })
   assert.deepEqual(files.map(({ path }) => path), ['index.html'])
-  assert.deepEqual(calls.map(({ kind, options }) => [kind, options?.user]), [['run', 'root'], ['run', 'root'], ['list', 'root'], ['read', 'root'], ['run', 'root']])
+  assert.deepEqual(calls.map(({ kind, options }) => [kind, options?.user]), [['run', 'root'], ['run', 'root'], ['run', 'root'], ['list', 'root'], ['read', 'root'], ['run', 'root']])
   const commands = calls.filter(({ kind }) => kind === 'run').map(({ command }) => String(command))
   assert.ok(commands[1].endsWith(`--outDir '${workRoot}/dist'`), commands[1])
+  assert.ok(commands[2].startsWith(`cat > ${workRoot}/.conexus-server-build.mjs `) && commands[2].endsWith(`node ${workRoot}/.conexus-server-build.mjs '${workRoot}' '${workRoot}/dist'`), commands[2])
+  commands.splice(2, 1)
   assert.ok(commands[2].startsWith(`cat > ${workRoot}/.conexus-smoke.mjs `) && commands[2].includes(`const DIST_ROOT = "${workRoot}/dist"`) && commands[2].includes(`const PROFILE = "${workRoot}/.conexus-smoke-profile"`))
   assert.equal(commands.some((command) => command.includes('/workspace')), false)
 })

@@ -28,6 +28,8 @@ export type HubConfig = Readonly<{
   }> | undefined
   factory: FactoryRuntimeConfig | undefined
   googleAiPro: GoogleAiProRuntimeConfig | undefined
+  // The application runner's socket; without it a Preview has no application API.
+  appRunner: Readonly<{ socketPath: string }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
 
@@ -205,6 +207,13 @@ const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAi
   return { binary, sha256 }
 }
 
+const appRunnerRuntime = (environment: NodeJS.ProcessEnv): HubConfig['appRunner'] => {
+  const socketPath = environment.CONEXUS_APP_RUNNER_SOCKET
+  if (!socketPath) return undefined
+  if (!socketPath.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_APP_RUNNER_SOCKET')
+  return { socketPath }
+}
+
 const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
   const portValue = environment.CONEXUS_PREVIEW_PORT
   const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
@@ -253,6 +262,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     builder: builderRuntime(environment),
     factory: factoryRuntime(environment),
     googleAiPro: googleAiProRuntime(environment),
+    appRunner: appRunnerRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),

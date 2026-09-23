@@ -109,7 +109,8 @@ export const createSupervisor = (config: SupervisorConfig) => {
     job: (login: WorkerJob['login']) => WorkerJob
     timeoutMs: number
   }>): Promise<Readonly<{ outcome: WorkerOutcome; refusedSessions: readonly string[] }>> => {
-    const directory = join(config.stateDir, 'invocations', randomUUID())
+    // A unix socket path is capped at 107 bytes, so the per-invocation directory is kept short.
+    const directory = join(config.stateDir, 'i', randomUUID())
     const appDir = join(directory, 'app')
     const socket = join(directory, 'pg.sock')
     await mkdir(directory, { recursive: true, mode: 0o700 })
