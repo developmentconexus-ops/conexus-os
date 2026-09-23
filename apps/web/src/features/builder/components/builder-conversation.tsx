@@ -11,7 +11,7 @@ import { humanizeModelName } from '../composer/model-display-name'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { clockLabel } from '../construir/run-state'
-import { toolSentence } from '../construir/tool-sentences'
+import { TASK_TOOL_NAMES, toolSentence } from '../construir/tool-sentences'
 
 export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
 type MessagePart = MastraDBMessage['content']['parts'][number]
@@ -151,7 +151,10 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
   return parts.flatMap((part, index): Piece[] => {
     const key = `${message.id}-${index}`
     const last = streaming && index === parts.length - 1
-    if (part.type === 'tool-invocation') return [{ kind: 'tool', key, part }]
+    // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
+    // display state), not a conversation row: rendering it here too would repeat what the
+    // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) ? [] : [{ kind: 'tool', key, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
     if (part.type === 'reasoning') return [{ kind: 'reasoning', key, part, streaming: last }]
     // The provider's own words name sandboxes, ids and stack frames. The category is what the

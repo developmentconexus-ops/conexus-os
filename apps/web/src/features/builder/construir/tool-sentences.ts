@@ -27,7 +27,14 @@ const sentences: Readonly<Record<string, Sentence>> = {
   mkdir: { running: 'Criando uma pasta', done: 'Criou uma pasta', ask: 'criar uma pasta' },
   ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' },
   task_write: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas' },
+  task_update: { running: 'Atualizando as tarefas', done: 'Atualizou as tarefas', ask: 'atualizar as tarefas' },
+  task_check: { running: 'Conferindo as tarefas', done: 'Conferiu as tarefas', ask: 'conferir as tarefas' },
+  task_complete: { running: 'Concluindo uma tarefa', done: 'Concluiu uma tarefa', ask: 'concluir uma tarefa' },
 }
+
+// The Mastra Code task tools (@mastra/core's built-in task-tools): task-checklist.tsx drives the
+// pinned checklist from their calls instead of the conversation rendering one row per call.
+export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set(['task_write', 'task_update', 'task_check', 'task_complete'])
 
 // Names the same underlying action under a different id (a shell alias, an older or provider-specific
 // spelling). Each maps onto one of the sentences above instead of duplicating it.
@@ -41,14 +48,19 @@ const aliases: Readonly<Record<string, string>> = {
 
 // A tool name this table has never seen at all: a keyword in its own id is still a better guess than
 // the fully generic sentence, so an unrecognized id still reads as a specific-sounding action.
+// Order matters: task/plan/todo is checked before the ask/approve/confirm heuristic. That heuristic
+// also matches the compound "ask_user", not the bare substring "ask" (real `\b` word-boundary regex
+// does not help here: every tool id in this table is snake_case, so "ask" in "legacy_ask_user_v2"
+// has no \w/\W boundary on either side). "ask" alone matched the "ask" inside "task", which is how
+// every task_write/task_update/task_check/task_complete call used to render as a question.
 const heuristics: readonly Readonly<{ test: RegExp; sentence: Sentence }>[] = [
   { test: /delete|remove|rm\b/i, sentence: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo' } },
   { test: /search|find|grep|lookup/i, sentence: { running: 'Buscando', done: 'Buscou', ask: 'buscar' } },
   { test: /write|edit|replace|patch|append|create/i, sentence: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo' } },
   { test: /read|view|get|list|inspect|stat/i, sentence: { running: 'Lendo um arquivo', done: 'Leu um arquivo', ask: 'ler um arquivo' } },
   { test: /run|exec|command|shell|bash|build|test|install/i, sentence: { running: 'Executando um comando', done: 'Executou um comando', ask: 'executar um comando' } },
-  { test: /ask|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' } },
   { test: /task|plan|todo/i, sentence: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas' } },
+  { test: /ask_user|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' } },
 ]
 
 const lookup = (toolName: string): Sentence | undefined =>

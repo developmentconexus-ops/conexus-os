@@ -1057,3 +1057,80 @@ test('a reply the Factory finalizes under a different id than its live stream is
   assert.deepEqual(legacyRequests, [], 'a Factory-hosted Project never reaches the Conexus mount')
 })
 
+// Regression for two problems the operator hit in the same real run: an ask_user suspension
+// rendered as a hand-made textarea that ignored the agent's own options/selectionMode, and every
+// task_write/task_update call rendered as its own row (one of them mislabeled "Perguntou a você").
+// This exercises both through the same native primitives: playground-ui's AskUser for the
+// suspension, and the AgentController's own display-state tasks for the pinned checklist.
+test('a suspended ask_user with options renders the options and submits the chosen one, and the task list drives a pinned checklist instead of conversation rows', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000201'
+  const projectId = '70000000-0000-4000-8000-000000000202'
+  const runId = '70000000-0000-4000-8000-000000000203'
+  const conversationId = 'conversation-ask-user'
+  const sourceRevision = 'f'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const question = 'Qual cor você prefere para o destaque?'
+  const options = [{ label: 'Azul' }, { label: 'Verde' }]
+  const taskWritePart = { type: 'tool-invocation', toolInvocation: { toolCallId: 'tool-task-write-1', toolName: 'task_write', state: 'result', args: { tasks: [] }, result: 'ok' } }
+  const liveMessage = { id: 'live-ask-1', role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [taskWritePart] } }
+  const tasks = [
+    { id: 'task_palette', content: 'Descobrir a paleta', status: 'completed', activeForm: 'Descobrindo a paleta' },
+    { id: 'task_apply', content: 'Aplicar a cor escolhida', status: 'in_progress', activeForm: 'Aplicando a cor escolhida' },
+  ]
+
+  const threadMessages = [userMessage('user-1', 'Destaque o título com uma cor')]
+  const state = factoryState([conversation(conversationId, 'Destaque colorido')], { [conversationId]: threadMessages })
+  const suspensionRequests = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Destaque colorido', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    suspensionRequests.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'message_start', message: liveMessage },
+    { type: 'display_state_changed', displayState: { activeTools: {}, tasks } },
+    { type: 'tool_suspended', toolCallId: 'tool-ask-1', toolName: 'ask_user', args: { question, options, selectionMode: 'single_select' }, suspendPayload: { question, options, selectionMode: 'single_select' } },
+  )))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+
+  // The task list is the AgentController's own display state, not a parsed tool-call row: the
+  // task_write call above never shows as a conversation row, and the checklist counts and names
+  // the in-progress task by its activeForm.
+  await page.getByText('Tarefas · 1 de 2', { exact: true }).waitFor()
+  await page.getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-tool-group').count(), 0, 'task_write drives the checklist, not a conversation row')
+
+  // AskUser renders the agent's own options as radio controls (single_select), not the old
+  // hand-made free-text textarea (that one lived in .cx-pending, gone with the swap; the
+  // composer keeps its own separate textarea, so the assertion is scoped past it).
+  await page.getByText(question, { exact: true }).waitFor()
+  const blue = page.getByRole('radio', { name: 'Azul' })
+  await blue.waitFor()
+  await page.getByRole('radio', { name: 'Verde' }).waitFor()
+  assert.equal(await page.locator('.cx-pending').count(), 0, 'the old hand-made pending-question card is gone')
+
+  const suspensionSent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await blue.click()
+  await suspensionSent
+  assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-1', resumeData: 'Azul' }],
+    'the chosen option label is sent as respondToToolSuspension\'s resumeData, unchanged')
+})
+
