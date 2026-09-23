@@ -1,5 +1,3 @@
-import { DEFAULT_LIMITS } from '../app-runner/supervisor.js'
-
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
 export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
 
@@ -35,11 +33,12 @@ export type ApplicationAdmissionLimits = Readonly<{
 }>
 
 export const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
-  // Matches the runner's own DEFAULT_LIMITS.concurrency (main.ts starts it with no override), so the
-  // Hub never admits more work than the runner could ever service at once.
-  globalConcurrency: DEFAULT_LIMITS.concurrency,
+  // The runner's own cap (DEFAULT_LIMITS.concurrency in app-runner/supervisor.ts, 4), so the Hub never
+  // admits more work than the runner could service at once. The import law keeps the MAR owner from
+  // importing the runner's supervisor, so the number is restated here.
+  globalConcurrency: 4,
   // Half the global bound: one flooding Preview cannot occupy the whole shared admission budget.
-  perProjectConcurrency: Math.max(1, Math.ceil(DEFAULT_LIMITS.concurrency / 2)),
+  perProjectConcurrency: 2,
   // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
   maxServerTreeBytes: 8 * 1024 * 1024,
 })

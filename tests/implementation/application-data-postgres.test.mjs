@@ -226,11 +226,19 @@ test('Project Preview data is confined to its own schema, roles and database', a
       const hubRoles = hubRoleNames({})
       const present = (await onHub.query('SELECT rolname FROM pg_roles WHERE rolname = ANY($1) ORDER BY rolname', [hubRoles])).rows.map((row) => row.rolname)
       assert.ok(present.length > 0, 'the Hub cluster holds the Hub roles')
-      await assert.rejects(provisionApplicationDatabase({
-        cluster: { host: hubCluster.host, port: hubCluster.port }, database: `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`, hubRoles,
-        installation: { user: hubCluster.user, password: hubCluster.password }, provisionerPassword: randomBytes(18).toString('base64url'),
-      }), { message: `APPLICATION_CLUSTER_HOLDS_HUB_ROLES: ${present.join(',')}` })
-      assert.deepEqual((await onHub.query("SELECT rolname FROM pg_roles WHERE rolname = 'app_provisioner'")).rows, [])
+      const refused = `conexus_apps_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+      assert.deepEqual((await onHub.query("SELECT rolname FROM pg_roles WHERE rolname = 'app_provisioner'")).rows, [], 'no provisioner before the attempt')
+      try {
+        await assert.rejects(provisionApplicationDatabase({
+          cluster: { host: hubCluster.host, port: hubCluster.port }, database: refused, hubRoles,
+          installation: { user: hubCluster.user, password: hubCluster.password }, provisionerPassword: randomBytes(18).toString('base64url'),
+        }), { message: `APPLICATION_CLUSTER_HOLDS_HUB_ROLES: ${present.join(',')}` })
+        assert.deepEqual((await onHub.query("SELECT rolname FROM pg_roles WHERE rolname = 'app_provisioner'")).rows, [])
+      } finally {
+        // Should provisioning ever succeed here, it must not leave the Hub test cluster holding it.
+        await onHub.query(`DROP DATABASE IF EXISTS ${refused} WITH (FORCE)`)
+        await onHub.query('DROP ROLE IF EXISTS app_provisioner')
+      }
     } finally {
       await onHub.end()
     }

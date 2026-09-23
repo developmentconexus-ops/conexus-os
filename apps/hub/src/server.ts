@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
-import { createApplicationInvoker } from './mar/application-invoker.js'
 import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
@@ -88,17 +87,17 @@ const mar = config.preview ? createMarModule({
     })
   },
   // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
-  // `createApplicationInvoker` bounds in-flight work and the tree's total size before any file is
-  // read, ahead of the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
+  // The MAR module bounds in-flight work and the tree's total size before any file is read, ahead of
+  // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
   ...(applicationRunner ? {
-    invokeApplication: createApplicationInvoker({
+    applicationRunner: {
       readFile: (input) => {
         const reader = builder
         if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
         return reader.readApplicationFileBySource(input)
       },
       invoke: applicationRunner.invoke,
-    }),
+    },
   } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {

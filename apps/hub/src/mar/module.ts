@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
+import { createApplicationInvoker } from './application-invoker.js'
+import type { ApplicationFileReader, ApplicationRunnerInvoke } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { MarRouteInput, PreviewRouteDependencies } from './preview-routes.js'
 
@@ -25,19 +27,19 @@ export type MarModule = Readonly<{
 
 type PreviewAccess = PreviewRouteDependencies['access']
 type RegistryReader = PreviewRouteDependencies['registryReader']
-type ApplicationInvoker = NonNullable<PreviewRouteDependencies['invokeApplication']>
 
 export const createMarModule = ({
   access,
   registryReader,
-  invokeApplication,
+  applicationRunner,
   exactHubOrigin,
   previewPort,
   now = () => Date.now(),
 }: Readonly<{
   access: PreviewAccess
   registryReader: RegistryReader
-  invokeApplication?: ApplicationInvoker
+  /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
+  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader }>
   exactHubOrigin: string
   previewPort: number
   now?: () => number
@@ -50,6 +52,7 @@ export const createMarModule = ({
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
+  const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
   const dependencies: PreviewRouteDependencies = {
     routes, access, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed,
   }

@@ -2,8 +2,15 @@
 
 **Task:** [`docs/tasks/stage2-q1-handler-runtime-data-qualification.md`](../../tasks/stage2-q1-handler-runtime-data-qualification.md)
 **Branch:** `feat/stage2-q1`
-**Status:** proposed verdict **ACCEPT_WITH_BOUNDARY** (see [Verdict](#verdict)), pending the
-independent review. Each unit below records what it proved and how to rerun it.
+**Status:** proposed verdict **ACCEPT_WITH_BOUNDARY** against the task as amended on 2026-09-23
+(two PostgreSQL clusters; Q1.8 proven structurally). See [Verdict](#verdict). The third independent
+review decides. Each unit below records what it proved and how to rerun it.
+
+Two amendments changed the task after the first candidate. The first moved application data to an
+Applications PostgreSQL cluster of its own, apart from the Hub's. The second made Q1.8 a structural
+proof. [The two-cluster topology](#the-two-cluster-topology-2026-09-23-amendment) records how the
+pilot realizes it. Q1.1, Q1.6 and the database cases of Q1.7 ran again against that cluster. The
+Builder runs of Q1.5 do not depend on where data lives and stand as recorded.
 
 ## Q1.0 exact dependency and API verification
 
@@ -51,12 +58,123 @@ cluster up (throwaway probes, kept outside the repository; the unit tests below 
 | Builder compile/smoke/Preview tests | CHANGE | `builder-application-runtime`, `builder-application-starter`, `preview-form-policy` follow the changed contracts. |
 | E2B template runtime assumptions | KEEP | Root runs the Conexus build; `conexus-agent` runs the check; both can import `/opt/conexus/compiler/node_modules/vite`. |
 
+## The two-cluster topology (2026-09-23 amendment)
+
+The Control Plane is the Hub and the Hub PostgreSQL (`conexus-s7-postgres`, 127.0.0.1:5433). The
+Data Plane is the application runner and the Applications PostgreSQL (`conexus-apps-postgres`,
+127.0.0.1:5434). They are two clusters in two containers, with different system identifiers
+([`q1.8/structural.txt`](q1.8/structural.txt)). The Hub cluster holds no application database,
+schema or Project role. The Applications cluster holds `conexus_apps`, with one schema per Project ×
+environment.
+
+### Q1.0 step 4: the storage mechanism
+
+The pilot uses a preallocated, fixed-size filesystem image for the Applications cluster:
+
+| Fact | Pilot value | Evidence |
+| --- | --- | --- |
+| Image | `/var/lib/conexus/applications-postgres.img`, 4,294,967,296 bytes, 8,388,616 × 512 bytes allocated (not sparse) | `stat`, [`q1.8/structural.txt`](q1.8/structural.txt) |
+| Filesystem | ext4 on `/dev/loop2`, mounted at `/var/lib/conexus/applications-postgres` by the systemd unit `var-lib-conexus-applications\x2dpostgres.mount` (`Before=docker.service`, `nodiscard,noatime`) | `findmnt`, `systemctl` |
+| What it holds | PGDATA, `pg_wal` (a directory, not a link), the server log (`logging_collector` into `PGDATA/log`) and temporary files (`temp_tablespaces` empty; the only tablespaces are `pg_default` and `pg_global`). Each path reports device `/dev/loop2` from inside the container. | [`q1.8/structural.txt`](q1.8/structural.txt) |
+| How the cluster reaches it | `--mount type=bind,source=/var/lib/conexus/applications-postgres/pgdata`, never `-v`, so a missing source is an error, not a new directory on the root filesystem | `docker inspect` |
+| Probe image for destructive proofs | `/var/lib/conexus/q1-storage-probe.img`, 1 GiB, 2,097,160 × 512 bytes allocated, on `/dev/loop0` | [`topology/storage-proof.txt`](topology/storage-proof.txt) |
+
+`scripts/mount-application-cluster-storage.sh` installs the image and
+`scripts/run-application-cluster.sh` starts the cluster. The operator ran the install with `sudo`.
+Its first version had two defects, both fixed in the script and repaired by hand on the pilot:
+`install -o 999` failed with "invalid user", so no `pgdata` directory existed; and each image came
+out about 1.56% sparse, because mke2fs and the ext4 lazy initializer zero ranges of a loop device by
+punching holes in the backing file. The script now initializes the inode tables and journal at
+mkfs time (`-E nodiscard,lazy_itable_init=0,lazy_journal_init=0`), allocates the image again after
+mkfs, rechecks the allocation after mounting and fails if it is sparse, and sets `pgdata` ownership
+by numeric id.
+
+The storage bound was proven on the 1 GiB probe filesystem, never the pilot's:
+
+- **A missing filesystem stops the cluster.** With `pgdata` absent, `run-application-cluster.sh`
+  refuses (`APPLICATION_CLUSTER_STORAGE_MISSING`) and Docker itself refuses the `--mount` (`bind
+  source path does not exist`). Nothing was created on the root filesystem. Stopping the systemd
+  unit needs `sudo`, so the proof uses a source path that does not exist.
+- **Filling it stays inside it.** A session wrote incompressible rows until the probe filesystem was
+  full (192 KiB left). That cluster then restarted in a loop, unable to write WAL. Throughout, the
+  Hub PostgreSQL kept its start time and served a write and read-back
+  ([`topology/storage-proof.txt`](topology/storage-proof.txt)).
+- **Writes into the image do not consume the host's root filesystem.** Writing 400 MiB into the probe
+  filesystem changed the WSL root filesystem's free space by 4 KiB
+  ([`topology/reserve-proof.txt`](topology/reserve-proof.txt)). The image's blocks are reserved when
+  it is allocated. On this Windows host the WSL disk file on D: still grows as the cluster writes, by
+  at most the image size (D: had about 100 GB free).
+- **A full cluster recovers.** A full cluster restarted nine times in 60 seconds and could not
+  recover alone. Deleting a 256 MiB root-owned `recovery-ballast` file beside `pgdata`, from a root
+  container and with no `sudo`, let it start. It then dropped the filling table and wrote and read
+  again ([`topology/recovery-proof.txt`](topology/recovery-proof.txt)). The install script now leaves
+  that file, and the pilot volume has one.
+
+**Carry-over.** On a VPS, a separate block volume mounted at the same path replaces the image. The
+run script and its `--mount` stay the same. On a managed PostgreSQL plan, the plan's storage size is
+the bound, and the settings below become the plan's parameters.
+
+**Container.** `postgres:17.10-bookworm` at the pinned digest. Published on 127.0.0.1:5434 only, with
+`--memory 1g --memory-swap 1g` (the container's cgroup reads `memory.max` 1073741824 and
+`memory.swap.max` 0 on cgroup v2), `--cpus 2`, `--pids-limit 512`, a read-only root, tmpfs
+`/var/run/postgresql` and `/tmp`, `no-new-privileges`, Docker logs capped at 2 × 10 MB, and restart
+`unless-stopped`. The host has 14.6 GB of memory and 10 CPUs. The Hub cluster's container has no
+memory limit.
+
+### The settings
+
+Cluster values come from `run-application-cluster.sh`, set on the server command line. Role values
+are set per Project role by the runner (`data-plane.ts`) and restored at every prepare. The last
+column is what a Project session can do, from the bounds test in `application-data-postgres.test.mjs`.
+
+| Setting | Cluster | Runtime role | Migration role | Can a Project session change it? |
+| --- | --- | --- | --- | --- |
+| `statement_timeout` | 60s | 5s | 30s | Yes: `SET`, and `ALTER ROLE` on itself. The invocation wall clock bounds it: the worker is killed at 5 s (30 s for a migration) and the relay cancels its backend. |
+| `transaction_timeout` | 120s | 6s | 30s | Yes, as above. |
+| `lock_timeout` | 10s | 2s | 5s | Yes, as above. |
+| `idle_in_transaction_session_timeout` | 30s | 10s | 10s | Yes, as above. The relay also closes every session when the invocation ends. |
+| `temp_file_limit` | 1GB | 256MB | 1GB | No. `42501` on `SET` and `ALTER ROLE`. It is a superuser setting, and only `app_provisioner` holds `SET` on it. |
+| Connection limit | `max_connections` 60, `reserved_connections` 4, `superuser_reserved_connections` 3 | 8 | 2 | No. `42501` on `ALTER ROLE ... CONNECTION LIMIT`, `ALTER SYSTEM` and `ALTER DATABASE`. The relay admits 2 sessions per invocation. `app_provisioner` holds `pg_use_reserved_connections` with `INHERIT`, so Project sessions cannot take the runner's last slots. |
+| `max_wal_size` / `min_wal_size` | 512MB / 80MB | | | No |
+| `work_mem` | 4MB (default) | | | Yes. Any session may raise it. The container's 1 GiB memory limit is the bound. The Data Plane contains that failure; the setting does not prevent it. |
+| `shared_preload_libraries` | `pg_stat_statements` | | | No |
+
+`pg_stat_statements` is loaded and its extension lives in `postgres`, never in `conexus_apps`. A
+Project role gets `42P01` for it. It serves measurement and diagnosis only. No bound depends on it.
+
+### The pilot switch
+
+Every step followed a backup under `~/.local/share/conexus/pilot/slice7/backups/`:
+
+1. `q1-apps-cluster-20260923T170144Z`: `conexus_s7` (95 table-data entries), `conexus_apps` (9),
+   the Hub cluster's globals, `pg_hba.conf`, `pg_ident.conf` and `postgresql.auto.conf`, and the Hub
+   env file. Then the Applications cluster started, was confined and was provisioned
+   ([`topology/pilot-apps-up.txt`](topology/pilot-apps-up.txt)).
+2. The runner now reads `CONEXUS_APP_DB_PORT=5434` and the relay directory `apps-relay-tls`. The
+   runner's own `prepare` recreated the four Previews on the new cluster from each Project's latest
+   artifact ([`topology/recreate-previews.txt`](topology/recreate-previews.txt)). Preview data is
+   disposable and was not copied.
+3. `q1-hub-remove-apps-20260923T171408Z`: the operator dropped `conexus_apps`, the ten Project roles
+   and `app_provisioner` from the Hub cluster.
+4. `q1-hub-unconfine-20260923T172210Z`: with the operator's approval, the application-role blocks
+   left `pg_hba.conf` and `pg_ident.conf`, and the four `ssl` settings were reset. That was a reload,
+   not a restart. The Hub cluster is back to its configuration before Q1
+   ([`q1.8/hub-cluster-unconfine.txt`](q1.8/hub-cluster-unconfine.txt)).
+
+The Hub PostgreSQL's start time stayed `2026-09-23 14:35:07.161635+00` through all four steps.
+
+CI runs the same shape. The verify job starts its own Applications cluster from
+`run-application-cluster.sh` on 5434, confines it, and runs the suites against both clusters.
+
 ## Q1.1 data isolation substrate
 
-The application database is separate from the Hub database and is owned by `app_provisioner`, a
-`CREATEROLE` role with no superuser, database-creation, replication or Hub authority.
-`scripts/provision-application-database.mjs` creates both with the installation credential and closes
-what PUBLIC holds there (`CONNECT`, `TEMPORARY`, the `public` schema). Per Project,
+The application database `conexus_apps` lives on the Applications cluster and is owned by
+`app_provisioner`, a `CREATEROLE` role with no superuser, database-creation, replication or Hub
+authority. `scripts/provision-application-database.mjs` creates both with the Applications cluster's
+installation credential (`CONEXUS_APP_DB_*`) and closes what PUBLIC holds there (`CONNECT`,
+`TEMPORARY`, the `public` schema). It refuses a cluster that holds any registered Hub role
+(`APPLICATION_CLUSTER_HOLDS_HUB_ROLES`), so it cannot put application data back into the Hub's
+cluster. Per Project,
 `apps/hub/src/app-runner/data-plane.ts` derives every name from the Project id alone:
 
 | Object | Name | Authority |
@@ -69,27 +187,32 @@ what PUBLIC holds there (`CONNECT`, `TEMPORARY`, the `public` schema). Per Proje
 A Project role has no usable password: `PASSWORD NULL VALID UNTIL '-infinity'`. The cluster admits
 Project role names only over TLS, only to the application database and only with the runner's client
 certificate (`scripts/confine-application-cluster.mjs`, see "Independent review at 8ad7d5bf" below).
-PUBLIC holds no `USAGE` on `LANGUAGE sql` or `plpgsql` in the application database, and no `CONNECT`
-on the Hub database or `postgres`. Migrations run in one transaction as the migration role. The
+PUBLIC holds no `USAGE` on any trusted routine language in the application database, and no
+`CONNECT` on it or on `postgres`. The runner refuses to serve while PUBLIC or a Project role can use
+a trusted language (round-2 N3). Migrations run in one transaction as the migration role. The
 applied history must be an exact prefix of the artifact's migrations; otherwise the Preview schema is
 dropped, every migration replays, and the caller says so.
 
 `tests/implementation/application-data-postgres.test.mjs` logs in as each Project role through the
-runner's relay with its client certificate and proves, on a throwaway application database plus a
-throwaway Hub database:
+runner's relay with its client certificate and proves, on a throwaway application database on the
+Applications test cluster plus a throwaway Hub database on the separate Hub test cluster:
 
 - Project A's runtime role reads and writes its own table. It gets `42501` for Project B's table,
   `SET ROLE` to B, to its own migration role or to the provisioner, any DDL, `TRUNCATE`, the ledger,
   `public`, `TEMP` and `CREATE SCHEMA`. Its `GRANT USAGE` on its own schema to B only warns and grants
   nothing.
 - A Project role that sets its own password (Postgres allows it) still logs in only through the
-  relay. A password login to the application, Hub or `postgres` database and a direct certificate
-  login to the Hub or `postgres` database each get `28000` from `pg_hba`. With the role renamed
+  relay. On the Applications cluster, a password login to the application or `postgres` database
+  and a direct certificate login to `postgres` each get `28000` from `pg_hba`. With the role renamed
   outside the `pg_hba` rules, the self-set password gets `28P01`, because it expired before it was
-  set. The role cannot change its own `VALID UNTIL` (`42501`).
-- A role with no grant cannot connect to the application, Hub or `postgres` database (`42501`).
+  set. The role cannot change its own `VALID UNTIL` (`42501`). On the Hub cluster the role does not
+  exist, so its password gets `28P01` for the Hub database.
+- The Hub cluster holds none of the Project roles. Provisioning pointed at it is refused with
+  `APPLICATION_CLUSTER_HOLDS_HUB_ROLES` and leaves no `app_provisioner` behind.
+- A role with no grant cannot connect to the application or `postgres` database (`42501`).
 - A Project session reads its `temp_file_limit` and cannot lift it with `SET` or `ALTER ROLE ... SET`
-  (`42501`). It can lift `statement_timeout`, so the relay's wall-clock cancel is the bound there.
+  (`42501`). The settings table above lists every bound, where it is set and what a session can do.
+  The test also asserts that `app_provisioner`, and no Project role, holds the reserved connections.
 - The migration role gets `42501` for `CREATE EXTENSION dblink` and `postgres_fdw`, `COPY ... TO
   PROGRAM`, `COPY ... TO '<file>'`, `pg_read_file`, `lo_import`, `ALTER ROLE` on its runtime role or on
   a foreign role, `CREATE ROLE`, `CREATE SCHEMA`, creating in `public` or in B's schema, reading B's
@@ -104,9 +227,13 @@ throwaway Hub database:
 - A failing second migration rolls back: no new column, one ledger row. An edited applied migration
   plans a reset; after it the table is empty and the ledger holds the new digest.
 
-Rerun with `CONEXUS_TEST_DB_*` pointing at a disposable cluster:
-`node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs`. CI runs it
-as the `application-data-postgres` step.
+Rerun with `CONEXUS_TEST_DB_*` pointing at a disposable Hub cluster and `CONEXUS_TEST_APP_DB_*` and
+`CONEXUS_TEST_APP_TLS_DIR` at a disposable Applications cluster that `run-application-cluster.sh`
+started and `confine-application-cluster.mjs` confined:
+`node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs`. The suite
+refuses a cluster that hosts `conexus_apps`. CI runs it as the `application-data-postgres` step.
+On the pilot, the four recreated Previews on the Applications cluster and the Q1.7 database probe
+below show the same substrate in place.
 
 ## Q1.2 runner boundary
 
@@ -179,7 +306,7 @@ throwaway application database. It proves each of these:
   all refuse the sandbox, and `https://example.com` does not resolve.
 - A runner whose `bwrap` cannot run refuses to start with `RUNNER_USER_NAMESPACES_UNAVAILABLE`.
 
-Rerun on the pilot host: `bash ~/q1/run.sh node --test --test-concurrency=1
+Rerun with the same two-cluster environment as Q1.1: `node --test --test-concurrency=1
 tests/implementation/application-runner-sandbox.test.mjs`. CI runs it as the
 `application-runner-sandbox` step. The workflow installs `bubblewrap` and lifts ubuntu-24.04's
 AppArmor restriction on unprivileged user namespaces for that job.
@@ -367,6 +494,23 @@ branch, with the rerunnable cases in [`q1.6/cases/`](q1.6/cases/).
 The data-plane suites already prove the database refuses cross-Project reads. This is the same
 claim on the path a person uses.
 
+### Rerun on the Applications cluster
+
+The same steps ran again after the switch, through the live Preview with the rerunnable cases in
+[`q1.6-apps/cases/`](q1.6-apps/cases/) (driver scripts `q16-before.sh` and `q16-after.sh`):
+
+1. `write-second-project.json` wrote "Q1.6 nota do projeto run-1" (`PC-Q16B`) through run-1's
+   Preview. `write-before-restart.json` wrote "Q1.6 nota no cluster de aplicacoes antes do reinicio"
+   (`PC-Q16A`) through run-2's. Both PASS. The rows are in
+   `p_0429fa8e34324ae593f1648b53cf07cf_preview.purchase_order_notes` and
+   `p_a700a0f2883b427f9f5289c1eb476be3_preview.purchase_order_note` on the Applications cluster
+   ([`q1.6-apps/rows-on-applications-cluster.txt`](q1.6-apps/rows-on-applications-cluster.txt)).
+2. The runner got `SIGKILL` at 17:04:24.873Z and was gone 17 ms later. The Hub answered `200`.
+3. The runner restarted and was ready in 260 ms
+   ([`q1.6-apps/runner-after-restart.txt`](q1.6-apps/runner-after-restart.txt)).
+4. `read-after-restart.json` read run-2's note after the restart, initially and after a reload. PASS.
+5. `second-project-isolation.json` showed run-1's own note and not run-2's. PASS.
+
 ## Measurements
 
 | Measurement | Value | Source |
@@ -413,12 +557,72 @@ code and refused. The proofs live in two rerunnable suites, not a one-off script
   through the real runner path on the pilot host, with the permission layer off. See
   [`review-fixes/pilot-namespace-probe.json`](review-fixes/pilot-namespace-probe.json).
 
+**Rerun against the Applications cluster.** Both suites now run on the two test clusters, locally and
+in CI. On the pilot, two probes ran through the real supervisor, relay and sandbox with the
+runner's own configuration ([`q1.7-apps/`](q1.7-apps/)):
+
+- `tests/implementation/sandbox-probe/pilot-data-probe.mjs` is new. Its runtime handler runs 14
+  statements as a probe Project's runtime role on the pilot's Applications cluster. Reading run-2's
+  table gets `42501`. `pg_database` lists only `conexus_apps`, `postgres`, `template0` and
+  `template1`: the Hub database is not in this cluster. A `dblink` call to it gets `42883`. `CREATE
+  TABLE`, `CREATE SCHEMA`, `CREATE EXTENSION dblink`, `SET ROLE` to the provisioner or to another
+  Project, `pg_read_file`, `COPY ... TO PROGRAM`, lifting `temp_file_limit` and `CREATE FUNCTION` all
+  get `42501`. `pg_stat_statements` gets `42P01`. Eleven probe migrations are refused as well:
+  `dblink`, `postgres_fdw`, a `SECURITY DEFINER` function, a `DO` block, `COPY ... TO PROGRAM`,
+  `ALTER ROLE` on its runtime role, `CREATE ROLE`, `CREATE SCHEMA`, a table in another Project's
+  schema and a read of another Project's table all get `42501`, and a foreign server gets `42704`.
+  25 of 25 match, `breach: false` ([`q1.7-apps/pilot-data-probe.json`](q1.7-apps/pilot-data-probe.json)).
+- `pilot-probe.mjs` also targets 5434 now, and it reads the relay TLS through the runner's own
+  reader. All 60 secret paths, including the new `apps-cluster-authority`, `apps-relay-tls` and
+  `db-apps-root`, are unreadable. All 12 listener probes are refused, both clusters included, and
+  the docker socket is `ENOENT`. `breach: false`
+  ([`q1.7-apps/pilot-namespace-probe.json`](q1.7-apps/pilot-namespace-probe.json)).
+
 The falsifier table after the review fixes is in "Independent review at 8ad7d5bf" below.
 
 Adversarial review by GPT-6 Sol (`scratchpad/q1-sol-runner-boundary-out.md`) found three shared-runner
 weaknesses, all fixed. The relay now honors backpressure so a large query result cannot buffer in the
 runner process; every Project's migrations run through one global chain so a build storm cannot start
 many at once; and the worker no longer holds any credential (see the section below).
+
+## Q1.8 Data Plane containment, structural proof
+
+The operator decided on 2026-09-23 (#200) that the first version proves containment structurally.
+Evidence from the pilot, rerunnable with [`q1.8/structural.sh`](q1.8/structural.sh) and
+[`q1.8/stop-proof.sh`](q1.8/stop-proof.sh):
+
+| # | Required | Observed |
+| --- | --- | --- |
+| 1 | Separate clusters in separate containers | `conexus-s7-postgres` (Docker volume, 127.0.0.1:5433, system identifier 7685719825529860133) and `conexus-apps-postgres` (bind mount on `/dev/loop2`, 127.0.0.1:5434, system identifier 7688777040721199149) |
+| 2 | The Hub cluster holds no application database, schema or Project role | Databases `conexus_s7`, `postgres`, `template0`, `template1`. Roles matching `^app_`: 0. Application schemas in every database: 0. |
+| 3 | All Applications storage on its own fixed-size, fully preallocated filesystem | See [the storage mechanism](#q10-step-4-the-storage-mechanism). PGDATA, `pg_wal`, `log` and `base` report `/dev/loop2` (device 1794; the host root is device 2128). The image is 4,294,967,296 bytes with 8,388,616 × 512 bytes allocated. |
+| 4 | The container refuses to start without that filesystem | The source is a bind `--mount`. A missing source is refused by the run script and by Docker ([`topology/storage-proof.txt`](topology/storage-proof.txt)). |
+| 5 | The container runtime enforces a memory limit | `HostConfig.Memory` 1073741824, `MemorySwap` 1073741824. Inside the container, cgroup v2 reads `memory.max` 1073741824 and `memory.swap.max` 0. |
+| 6 | One ordinary stop leaves the Hub serving | Below |
+
+Item 6 ([`q1.8/stop-proof.txt`](q1.8/stop-proof.txt)). The Hub heartbeat
+([`q1.8/hub-heartbeat.mjs`](q1.8/hub-heartbeat.mjs)) runs as the test operator in a browser session.
+It reads the IAM access context, reads the Workspace and lists its 13 Projects. It then writes the
+operator's personal model defaults, which live in the Hub PostgreSQL (`factory` schema), reads them
+back and restores them.
+
+- Before: heartbeat ok. A Preview read of run-2's note through the live Hub PASS.
+- `docker stop conexus-apps-postgres` took 0.33 s. Three heartbeats ran 6 s apart while the
+  container was down. Every step answered 2xx, every write read back and was restored. The Preview
+  read FAILED, as expected: the Data Plane is down.
+- `docker start`: ready 1.3 s later. The heartbeat was ok, and the Preview read PASSED again with the
+  runner untouched.
+- Throughout: the Hub PostgreSQL's start time stayed `2026-09-23 14:35:07.161635+00` with restart
+  count 0. The Hub process (pid 452828) and the runner (pid 454856) did not change.
+
+The operator's drop of application data from the Hub cluster started at 17:14:08Z, inside that
+stop window (its backup directory carries the timestamp). The Hub PostgreSQL did not restart for
+that either.
+
+The settings and `pg_stat_statements` are in [the settings table](#the-settings).
+Active capacity and failure runs are not part of this version. The task's section 17 returns them
+on the first of: a second Project with real users, the first Publish, or evidence of a noisy
+neighbour. What the structure does not prove is listed under the verdict.
 
 ## The worker holds no credential (Sol blocking finding 1, resolved)
 
@@ -443,7 +647,7 @@ removed. The mutation runs removed one protection each, ran the suite, and resto
 | --- | --- | --- |
 | Claude B1: a Project role sets its own password and logs in directly to the application, Hub or `postgres` database, outside the relay pin (falsifiers 3, 5, 11) | `64b70033`. Project roles are `PASSWORD NULL VALID UNTIL '-infinity'`; a role may change its password but not its `VALID UNTIL`. `confine-application-cluster.mjs` turns on TLS and puts a `pg_hba` block first: Project role names log in by certificate only (`pg_ident` maps CN `conexus-app-relay`), only to the application database, and are rejected on every other line. The relay logs in with that certificate; the SCRAM client and the per-Project derived password are deleted. PUBLIC loses `CONNECT` on the Hub database and `postgres` after explicit grants to the registered Hub roles. | `application-data-postgres`: self-set password then `28000` on every direct login, `28P01` with `pg_hba` out of the way, `42501` for PUBLIC `CONNECT`, relay still admits. Fails without `VALID UNTIL`, without the `pg_hba` reject line, and without the PUBLIC revoke. |
 | Both reviews: a generated `SECURITY DEFINER` function gives runtime code migration-role DDL (falsifier 3) | `385ff4b6`. PUBLIC loses `USAGE` on `LANGUAGE sql` and `plpgsql` in the application database. Chosen over an event trigger that refuses `SECURITY DEFINER`, because an invoker function also runs with owner rights through an owner-rights view, a rule or a foreign-key action, a `DO` block needs `plpgsql`, and none of the four Q1.5 migrations used a routine. Ownership stays with the migration role: without routines, an owner-rights path runs only DML and built-in functions, and the ledger, the one thing the migration role may write that the runtime may not, admits it only when `session_user` is the migration role. | `application-data-postgres`: every routine form `42501`, runtime call `42883`, owner-rights view and rule get 0 ledger rows and `42501`. Fails without the language revoke and without the ledger policy. |
-| Claude condition: shared-cluster exhaustion; `statement_timeout` is user-settable | `5501a6df`. `temp_file_limit` per Project role (runtime 256MB, migration 1GB), set by the provisioner through `GRANT SET ON PARAMETER`; a session cannot lift it. `statement_timeout`, `work_mem` and the other session settings stay settable, and the relay's cancel at the wall clock is the bound. | `application-data-postgres` reads the limit and gets `42501` lifting it; `application-runner-sandbox` lifts `statement_timeout` before `pg_sleep(60)` and still finds no active backend. Fails without the limit and without the relay's cancel. |
+| Claude condition: shared-cluster exhaustion; `statement_timeout` is user-settable | `5501a6df`. `temp_file_limit` per Project role (runtime 256MB, migration 1GB), set by the provisioner through `GRANT SET ON PARAMETER`; a session cannot lift it. `statement_timeout` and the other session timeouts stay settable, and the relay's cancel at the wall clock bounds them. **Corrected after round 2 (N1):** this row once named `work_mem` among the settings the wall clock bounds. A wall clock bounds time, not bytes, and any session may raise `work_mem`. Since the two-cluster topology, the Applications container's 1 GiB memory limit and its fixed-size filesystem bound memory, table and WAL growth. Their exhaustion stays in the Data Plane; nothing prevents it. | `application-data-postgres` reads the limit and gets `42501` lifting it; `application-runner-sandbox` lifts `statement_timeout` before `pg_sleep(60)` and still finds no active backend. Fails without the limit and without the relay's cancel. |
 | Claude N4 and Sol blocking 2: the namespace root and the pilot's real secret paths had no committed proof (falsifier 4) | `78964517`. `SandboxConfig.nodePermission`; the arena's reviewed cases vendored with only their paths made inputs; a permission-off suite; `pilot-probe.mjs` on the pilot. | `application-runner-sandbox` permission-off test. Fails with `--unshare-pid` removed, with `--unshare-net` removed, and with `/home` bound. Pilot: 50 secret paths, the runner's and Hub's `/proc` entries and the operator home all `ENOENT`, 2 pids visible, 12 listener probes refused ([`review-fixes/pilot-namespace-probe.json`](review-fixes/pilot-namespace-probe.json)). |
 | Claude N3: the network test hit `127.0.0.1:5432`, where nothing listens on the pilot | `78964517`. The test starts a listener on `0.0.0.0`, proves the host reaches it on loopback and on the non-loopback address, adds the Postgres cluster, and requires the sandbox to reach none. | Fails with `--unshare-net` removed: all three targets `CONNECTED`. |
 | Claude B1 fix item 4: the pilot cluster was published on `0.0.0.0:5433` | Operator-approved rebind, 2026-09-23. Backup `before-loopback-20260923T143503Z.sql` (`pg_dumpall`) and `.inspect.json`. The data lives in a Docker volume. The old container is kept stopped as `conexus-s7-postgres-old` with restart policy `no`. The new one has the same image digest, environment, volume, network and restart policy, published on `127.0.0.1:5433` only. | `ss -ltn` shows only `127.0.0.1:5433`. Accounts 2 = 2, Preview schemas 4 = 4, run-2 notes 3 = 3. TCP to the host's non-loopback address on 5433 gets `ECONNREFUSED`. Hub `200`, census `ok=8`, test operator session valid, run-2 Preview read `PASS`. |
@@ -459,6 +663,7 @@ Findings not fixed in this round, with their scope:
 - **Claude N7: catalogs are shared across Projects.** Any Project role can read other Projects'
   schema, table and column names in the one application database. Row data stays refused.
 - **Claude N8: the Hub sends and the runner stores the whole server tree before the cap check.**
+  Closed in round 2 by the Hub's admission bound (Sol 2, below).
 - **Sol: the adversarial cases did not run as Builder-generated code behind the live Preview.** The
   pilot probe runs them through the real supervisor, relay and sandbox on the pilot host, not
   through the Hub's ingress.
@@ -477,7 +682,7 @@ Falsifiers after the fixes:
 | --- | --- | --- |
 | 1 | not observed | Handlers run only in the sandboxed worker, outside the Hub. |
 | 2 | not observed | Cross-Project reads and writes `42501`; Q1.6 on the live path. |
-| 3 | not observed | Runtime DDL `42501`; no routine can exist to lend it migration authority; the self-set password opens nothing. |
+| 3 | not observed | Runtime DDL `42501`; no routine can exist to lend it migration authority; the self-set password opens nothing. A migration may still grant its runtime role more on its own tables (`TRUNCATE`, `TRIGGER` with a built-in trigger function). That authority stays inside the Project's own schema and never reaches roles or Hub data (round-2 N2). |
 | 4 | not observed | Permission-off suite and the pilot probe: no secret path, `/proc` entry or home reachable; the worker holds no credential. |
 | 5 | not observed | Project, operation and module come from the binding and manifest; the database identity is pinned by the relay and cannot be re-minted by a password. |
 | 6 | not observed | Empty network namespace; the test now targets listeners that accept the host. |
@@ -487,14 +692,59 @@ Falsifiers after the fixes:
 | 10 | not observed | Server source in Project Git. |
 | 11 | not observed | Migration attacks `42501`, including every routine form; a self-set password opens nothing. |
 
+## Round-2 reviews at 994a4fa0 and how each finding closed
+
+Claude proposed ACCEPT_WITH_BOUNDARY. GPT-6 Sol returned REJECT on two findings: generated SQL could
+fill storage the Hub shares, and the Hub did unbounded work before the runner's cap. The operator's
+topology decision answers the first. Lane B's admission bound answers the second.
+
+| Finding | Closed by | Evidence |
+| --- | --- | --- |
+| Sol 1 and Claude N1: persistent writes, WAL and `work_mem` can exhaust the cluster the Hub shares | The two-cluster topology: the Applications cluster on its own 4 GiB preallocated filesystem, with a 1 GiB container memory limit | Q1.8 above; the fill and recovery proofs. Exhaustion is now contained, not prevented. The corrected row above no longer names `work_mem`. |
+| Sol 2: the Hub reads and base64-encodes the whole server tree before any cap | `feat/stage2-q1-admission` (`4cd64b0f`, `8a1396ee`), merged here. The Hub admits at most 4 Preview application calls in flight, and 2 per Project, before it reads any artifact file. It limits a server tree to 8 MiB, reads it sequentially and answers `413` as soon as the limit is crossed. | `tests/implementation/application-invoker.test.mjs`, `preview-application-api.test.mjs` |
+| Claude N3: the language revoke named `sql` and `plpgsql` only | Provisioning revokes every trusted language. `checkProvisioner` refuses to serve while PUBLIC or a Project role can use one (`RUNNER_ROUTINE_LANGUAGE_USABLE`). | `application-runner-sandbox`: granting `plpgsql` to PUBLIC, or `sql` to a Project's migration role, stops the runner's census |
+| Claude N4: the CA key and the server key sat in the directory the runner reads | `confine-application-cluster.mjs` keeps them in an authority directory. The runner's directory holds exactly `ca.pem`, `relay.pem` and `relay-key.pem`, and `readRelayTls` refuses anything else or a directory open to group or others. | `application-runner-sandbox` relay-directory test; the pilot uses `apps-cluster-authority` and `apps-relay-tls` |
+| Claude N5: a failed TLS load left `ssl = on` persisted, which kills the next restart | Round 2's own fix did not work: it polled `SHOW ssl`, which reports the setting, not whether the certificate loaded. The same mismatched-key run left four `ssl` lines and a container that did not start again. Confinement now refuses a key that is not the certificate's, or a certificate the CA did not sign, before it changes anything. After each reload it requires a TLS handshake verified against the CA, and resets the settings if there is none. | `application-data-postgres` material test; [`topology/n5-proof-2.txt`](topology/n5-proof-2.txt): refused, `ssl` off, restarts; then loads and restarts with `ssl` on |
+| Claude N2 and N7: a migration may grant the runtime role more on its own tables; a source comment said otherwise | The `data-plane.ts` comment now says so. The claim is reworded: a migration's grants reach no schema but its own. Owed before Q5: a catalog check after each migration. | Boundary 5 |
+| Claude N6: the PUBLIC `CONNECT` revoke checks only roles connected now | On the Applications cluster it closes only `postgres`, where nothing but the superuser connects. The Hub database is no longer touched. | provisioning code |
+| New in this round: `pg_use_reserved_connections` never applied | The provisioner is `NOINHERIT`, so a plain grant gave it membership without the privilege, and Project sessions could take the runner's last slots. The grant now says `WITH INHERIT TRUE`. | The bounds test asserts the privilege. It failed before the fix. |
+
+**The guards are load-bearing.** [`tests/implementation/guard-mutations.mjs`](../../../tests/implementation/guard-mutations.mjs)
+removes one guard at a time, runs the suite that should catch it and restores the file. It ran on
+freshly created throwaway clusters:
+[`guard-mutations.txt`](guard-mutations.txt), driven by
+[`guard-mutations-fresh.sh`](guard-mutations-fresh.sh). All 16 mutations fail their suite, each
+naming the test that caught it: the language revoke and its startup check, the PUBLIC `CONNECT`
+revoke, the reserved-connection grant, the TLS key check, `VALID UNTIL`, the ledger policy, the
+runtime role's schema grants, the role `temp_file_limit` and `transaction_timeout`, both relay
+directory checks, `--unshare-net`, the relay's cancel and the Hub-cluster refusal. Two guards leave
+state in the cluster once any provisioning has run: PUBLIC's `CONNECT` on `postgres` and the
+provisioner's membership. Each of them only shows on a cluster nothing has provisioned yet, so each
+ran on its own fresh cluster. A first run on a shared cluster reported both as passing without their
+guard, for that reason.
+
+Falsifier 12, added by the amendment:
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 12 | not observed, structurally | Separate clusters and containers; no application data or Project role in the Hub cluster; bounded, preallocated storage and memory; the Hub wrote, read back and served IAM, Workspace and Project requests with the Applications container stopped, and the Hub PostgreSQL did not restart. The fill and recovery ran on the probe filesystem. |
+
 ## Verdict
 
-**Proposed: ACCEPT_WITH_BOUNDARY, after the fixes for the two REJECT reviews at `8ad7d5bf`.** The
-protected result held on the pilot path. A normal Builder
-request produced a server-backed Preview whose generated handler runs outside the Hub, persists
-Preview data for exactly one Project, and could not acquire another Project's data or privileged
-platform or network authority in any probe. The claim rests on conditions that must stay durable,
-listed below. The independent review decides.
+**Proposed: ACCEPT_WITH_BOUNDARY on the task as amended on 2026-09-23.** The two REJECT reviews at
+`8ad7d5bf` and Sol's REJECT at `994a4fa0` each closed with a change and a test (above). Both
+protected statements held on the pilot path.
+
+- A normal Builder request produced a server-backed Preview. Its generated handler runs outside the
+  Hub and persists Preview data for exactly one Project, on the Applications cluster. It could not
+  acquire another Project's data or privileged platform or network authority in any probe.
+- The Applications PostgreSQL is a separate cluster with bounded storage and memory. Stopping it
+  left the Hub writing, reading back and serving IAM, Workspace and Project requests, and the Hub
+  PostgreSQL did not restart. That holds structurally, as the amended Q1.8 requires. Active capacity
+  and failure runs were not made.
+
+The claim rests on conditions that must stay durable, listed below. The third independent review
+decides.
 
 The positive completion proof of task section 12, step by step:
 
@@ -508,6 +758,8 @@ The positive completion proof of task section 12, step by step:
 | Runner restart still reads it | Q1.6 steps 2 to 4, after `SIGKILL` |
 | Second Project cannot read it | Q1.6 step 5 on the live path; `application-data-postgres` and `application-runner-sandbox` at the database and runner |
 | Adversarial handler cannot acquire forbidden authority | Q1.7 suites, the permission-off suite and the pilot probe; no falsifier observed after the review fixes |
+| Applications PostgreSQL separated and bounded; stopping it leaves the Hub serving | Q1.8 items 1 to 6 |
+| (after the switch) Runner restart still reads it; second Project cannot read it | Q1.6 rerun on the Applications cluster |
 
 Identities captured for run-2, the Project used for Q1.6: source `c6ae737eb891699cad6507888fef10e7ccaf6b80`,
 artifact revision `65804464-bfb1-40fb-b06a-134cd822b0f8`, digest
@@ -517,7 +769,10 @@ artifact revision `65804464-bfb1-40fb-b06a-134cd822b0f8`, digest
 limit 2), neither superuser nor `CREATEROLE` nor `CREATEDB`. Runner code at `b2e6335e`, built and run
 by `~/q1/runner.sh` with the configuration in Q1.2. run-3: source `58d5ccb0`, artifact
 `9e5dc09b-a3fc-4fb4-bc3e-d3024238f5bd`. run-4: source `b36da41d`, artifact
-`3508d66e-7d3c-45fc-85c5-23aa994b9503`.
+`3508d66e-7d3c-45fc-85c5-23aa994b9503`. Since the switch, run-2's schema and roles have the same
+names on the Applications cluster (`conexus-apps-postgres`, 127.0.0.1:5434, database
+`conexus_apps`). The runner is built and run by `~/q1c/runner.sh` from this branch, and its log
+records the head it built.
 
 Boundaries that must become durable:
 
@@ -543,19 +798,41 @@ Boundaries that must become durable:
 5. **Preview data is disposable.** An edited applied migration resets the Preview schema, and the
    conversation says so. A migration with `COMMIT` can escape its transaction inside its own schema.
    Published data needs its own migration rule.
-6. **Project roles log in only through the relay, and the cluster must keep that rule.**
-   `confine-application-cluster.mjs` owns the TLS files and the `pg_hba`/`pg_ident` blocks; a cluster
-   without them refuses the relay rather than admitting a password. The application database grants
-   no routine language to PUBLIC; a future profile that needs triggers must reopen this.
+6. **Project roles log in only through the relay, and the Applications cluster must keep that
+   rule.** `confine-application-cluster.mjs` owns the TLS files and the `pg_hba`/`pg_ident` blocks; a
+   cluster without them refuses the relay rather than admitting a password. The CA key and the
+   server key stay out of the directory the runner reads. The application database grants no
+   routine language to PUBLIC, and the runner refuses to serve if one becomes usable; a future
+   profile that needs triggers must reopen this.
 7. **One application database shares its catalogs.** Project roles see other Projects' object names,
    not their rows. Per-Project databases or catalog hiding are owed before names are sensitive.
-8. **The pilot cluster listens on loopback only** since the operator-approved rebind.
+8. **Both clusters listen on loopback only.** This is defense in depth. The `pg_hba` confinement of
+   boundary 6 carries the claim (round-2 review).
+9. **Containment, not resistance.** Preview code can still fill the Applications cluster's 4 GiB
+   filesystem, raise `work_mem` up to the container's 1 GiB, or hold connections up to its roles'
+   limits. That takes every Preview down until an operator recovers it: a full cluster restarts in a
+   loop until the `recovery-ballast` file is deleted. The Hub stays up. Fairness between Projects
+   returns on the triggers of the task's section 17.
+10. **The Applications storage must stay a separate, fixed-size volume.** On the pilot it is a
+    preallocated image on the WSL disk. That disk's file on D: still grows as the cluster writes, by
+    at most the image size. A production installation needs a separate volume or a managed plan
+    sized apart from the Hub's (already on the roadmap's production list). The Hub cluster's
+    container has no memory limit. The Applications container is capped at 1 GiB of the host's
+    14.6 GB.
+11. **Q1.8 is structural.** No active capacity or failure run was made against the pilot's
+    Applications cluster. The fill and recovery ran once, on the 1 GiB probe filesystem. The run
+    returns on the section 17 triggers.
+12. **The Applications cluster's superuser password and TLS authority sit with the operator's
+    secrets** (`db-apps-root`, `apps-cluster-authority`), in the Hub's trust domain like boundary 3.
+    The runner reads neither.
 
 What Q1 did not prove. The Q1.7 probes ran through the committed suites against the real
 supervisor, sandbox and relay on the pilot host, with probe handlers and migrations. They did not
 run as Builder-generated code behind the live Preview. A standalone attack script for the live path
 was not authored, because a safety classifier stopped it. Only the existing reviewed suites were
-reused.
+reused. Q1.8 proved containment by structure and by one ordinary stop, not by exhaustion runs against
+the pilot. The missing-filesystem refusal used a source path that does not exist: stopping the
+systemd mount unit needs `sudo`.
 
 Found on the way, outside Q1's claim, each owed its own fix:
 
