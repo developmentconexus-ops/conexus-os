@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
+import { createApplicationInvoker } from './mar/application-invoker.js'
 import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
@@ -87,20 +88,17 @@ const mar = config.preview ? createMarModule({
     })
   },
   // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
+  // `createApplicationInvoker` bounds in-flight work and the tree's total size before any file is
+  // read, ahead of the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
   ...(applicationRunner ? {
-    invokeApplication: async (input) => {
-      const reader = builder
-      if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
-      const files = await Promise.all(input.serverFiles.map(async (path) => {
-        const file = await reader.readApplicationFileBySource({
-          accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
-          artifactRevisionId: input.artifactRevisionId, path,
-        })
-        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
-        return { path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }
-      }))
-      return applicationRunner.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files })
-    },
+    invokeApplication: createApplicationInvoker({
+      readFile: (input) => {
+        const reader = builder
+        if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+        return reader.readApplicationFileBySource(input)
+      },
+      invoke: applicationRunner.invoke,
+    }),
   } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
