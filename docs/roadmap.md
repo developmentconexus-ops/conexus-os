@@ -86,7 +86,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 
 | Gate | Protected question | Status |
 | --- | --- | --- |
-| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **NEXT / task amended 2026-09-23: separate Applications PostgreSQL, containment probe owed** |
+| **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY proposed on the amended task: Applications PostgreSQL separate and bounded on the pilot, containment proven structurally; independent review pending** ([evidence](evidence/stage2-q1/README.md)) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured Q1 evidence justify Kysely or a typed Data API? | WAITING FOR Q1 |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
 | **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
@@ -183,7 +183,7 @@ These return only through a named real consumer and their own qualification.
 
 ## Exact next action
 
-**Execute the amended Stage 2 Q1 Data Plane containment qualification on the candidate in pull request #196.**
+**Independently review the Stage 2 Q1 evidence on the amended task and its proposed verdict, ACCEPT_WITH_BOUNDARY.**
 
 [Stage 2 Q1 — Handler runtime + persistent Preview data qualification](tasks/stage2-q1-handler-runtime-data-qualification.md)
 ([evidence and verdict](evidence/stage2-q1/README.md))
@@ -194,8 +194,9 @@ Protected result:
 
 Q1 must prove the positive application flow, the adversarial boundary and Data Plane containment. A green unit suite alone cannot close it.
 
-The implementation, the live Builder runs, restart persistence and the adversarial suites are
-committed and pushed. What remains:
+The implementation, the live Builder runs, the Applications PostgreSQL on the pilot, restart
+persistence, the adversarial suites and the structural containment proof are committed and pushed.
+What remains:
 
 ```text
 independent review
