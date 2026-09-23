@@ -10,9 +10,9 @@
 # install allocates every block of the image (never a sparse file), makes an ext4 filesystem on it
 # that initialises its inode tables and journal now rather than lazily after mount, mounts it through
 # a systemd mount unit that survives reboot, and creates <mountpoint>/pgdata owned by the postgres
-# image's uid. The cluster binds only that directory; if the filesystem is not mounted the directory
-# does not exist and the container refuses to start rather than write to the root filesystem. Reruns
-# converge.
+# image's uid, and a marker file at the filesystem's root. scripts/run-application-cluster.sh and the
+# container's own entrypoint refuse to start the cluster without that marker, so an unmounted
+# filesystem leaves the cluster stopped rather than writing to the root filesystem. Reruns converge.
 #
 # mke2fs and the kernel zero ranges of a loop device by punching holes in its backing file, so an image
 # that was fully allocated before mkfs comes out sparse. The image is allocated again after mkfs and
@@ -73,6 +73,7 @@ UNIT
   systemctl enable --now "$unit"
   findmnt -n "$mountpoint" > /dev/null || fail "STORAGE_NOT_MOUNTED"
   require_allocated "$image" "$wanted" "after mount"
+  install -m 444 /dev/null "$mountpoint/.conexus-apps-storage"
   # Numeric ids: the host has no user named after the postgres image's uid.
   install -d -m 700 "$mountpoint/pgdata"
   chown "$POSTGRES_UID:$POSTGRES_UID" "$mountpoint/pgdata"

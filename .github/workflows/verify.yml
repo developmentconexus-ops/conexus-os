@@ -69,13 +69,15 @@ jobs:
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The service container's own pg_dump always is, so no client is installed here.
       # Application data lives on its own PostgreSQL cluster, apart from the Hub's. The test
-      # Applications cluster starts from the installation's own script, with its settings.
+      # Applications cluster starts from the installation's own script, with its settings. The runner
+      # has no loop mount, so its storage is an ordinary directory carrying the storage marker.
       - name: Start the Applications PostgreSQL test cluster
         run: |
           install -d -m 700 "$RUNNER_TEMP/conexus-apps/pgdata"
           sudo chown 999:999 "$RUNNER_TEMP/conexus-apps/pgdata"
+          touch "$RUNNER_TEMP/conexus-apps/.conexus-apps-storage"
           printf '%s' s6-ci-test-only > "$RUNNER_TEMP/conexus-apps-password"
-          bash scripts/run-application-cluster.sh conexus-ci-apps 5434 "$RUNNER_TEMP/conexus-apps/pgdata" "$RUNNER_TEMP/conexus-apps-password"
+          CONEXUS_APP_CLUSTER_UNMOUNTED_STORAGE=ci bash scripts/run-application-cluster.sh conexus-ci-apps 5434 "$RUNNER_TEMP/conexus-apps" "$RUNNER_TEMP/conexus-apps-password"
           for attempt in $(seq 1 60); do docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1 && break; sleep 1; done
           docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1
       # Project roles log in only with the application runner's certificate. The test cluster gets the

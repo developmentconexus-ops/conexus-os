@@ -11,6 +11,8 @@ import { join, resolve } from 'node:path'
 const repository = resolve(import.meta.dirname, '../..')
 const DATA = 'application-data-postgres'
 const SANDBOX = 'application-runner-sandbox'
+const INSTALL = 'application-cluster-installation'
+const RUN_CLUSTER = 'scripts/run-application-cluster.sh'
 const PROVISION = 'scripts/provision-application-database.mjs'
 const CONFINE = 'scripts/confine-application-cluster.mjs'
 const DATA_PLANE = 'apps/hub/src/app-runner/data-plane.ts'
@@ -25,6 +27,9 @@ const MUTATIONS = [
   ['no-reserved-connections-inherit', PROVISION, ' WITH INHERIT TRUE', '', DATA],
   ['no-language-revoke', PROVISION, /^ +for \(const \{ lanname \} of rows\)[^\n]*\n/m, '', DATA],
   ['no-tls-key-check', CONFINE, /^ +if \(!server\.checkPrivateKey[^\n]*\n/m, '', DATA],
+  ['no-tls-reset', CONFINE, /^ +for \(const name of Object\.keys\(settings\)\) sql\(`ALTER SYSTEM RESET[^\n]*\n/m, '', INSTALL],
+  ['no-storage-mountpoint-check', RUN_CLUSTER, /^ +mountpoint -q [^\n]*\n/m, '', INSTALL],
+  ['no-storage-entrypoint-guard', RUN_CLUSTER, 'echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1;', 'true;', INSTALL],
   ['no-valid-until', DATA_PLANE, "VALID UNTIL '-infinity'", "VALID UNTIL 'infinity'", DATA],
   ['no-ledger-rls', DATA_PLANE, 'ENABLE ROW LEVEL SECURITY', 'DISABLE ROW LEVEL SECURITY', DATA],
   ['runtime-gets-create', DATA_PLANE, /GRANT USAGE ON SCHEMA \$\{schema\} TO \$\{runtime\}/, (grant) => grant.replace('USAGE', 'USAGE, CREATE'), DATA],
