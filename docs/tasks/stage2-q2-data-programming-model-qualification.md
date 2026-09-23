@@ -215,7 +215,8 @@ Before the rerun:
   browser storage first, so browser-only storage cannot pass as saved data;
 - R1's request states the real need: the whole purchasing team sees the same notes from any
   computer;
-- the pilot Hub runs with the runner socket, and one server-backed invocation is proven before R1.
+- the pilot Hub runs with the runner socket. R1's first server-backed build proves the wiring; a
+  platform failure there stops the sequence without spending a repair.
 
 The operator granted a fresh budget of six Builder runs for R1 to R4. Sections 5 to 13 apply
 unchanged. Record the rerun as attempt 2 under `docs/evidence/stage2-q2/attempt-2/`.
