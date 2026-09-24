@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { createApplicationRunnerClient } from './app-runner/module.js'
+import { assertFactoryGlobalSkillsAvailable } from './builder/factory-skills-guard.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -130,6 +131,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     throw error
   }
 } : undefined
+if (config.builder && config.project && config.factory) assertFactoryGlobalSkillsAvailable()
 builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
