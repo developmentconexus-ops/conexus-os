@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Bet or idea
+    url: https://github.com/developmentconexus-ops/conexus-hq/issues/new
+    about: Bets and ideas live in the private conexus-hq repository. Units of work live here.

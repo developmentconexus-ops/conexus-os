@@ -49,7 +49,8 @@ owns status and the next action. Start there.
 | Need | Owner |
 | --- | --- |
 | Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
-| Repository, Git, documentation and CI | [Repository method](development/repository-method.md) and [engineering rules](development/engineering-rules.md) |
+| Lanes, approval, proof, merge, Git and CI | [Delivery rules](development/delivery.md) |
+| What a reviewer checks on a pull request | [Review checklist](development/review-checklist.md) |
 | Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.

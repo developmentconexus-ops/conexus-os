@@ -85,7 +85,7 @@ authority + explicit grant
 → STOP
 ```
 
-Use affected checks during implementation and `npm run verify` when the task requires the complete current graph. Command success is technical Evidence. It does not declare Product acceptance.
+Use affected checks during implementation. CI runs the complete current graph at your head SHA. Command success is technical Evidence. It does not declare Product acceptance.
 
 ## Review a completed slice
 
