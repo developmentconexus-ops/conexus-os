@@ -272,6 +272,14 @@ encrypted custody of client id, client secret and X-Token. The Connection stores
 password and its schema has no field for one. **Check:** unit tests show a stored Connection holds
 only ciphertext, and no Hub operation returns a credential field.
 
+The installation administrator creates the Connection in the Hub's **Integrações** screen, which is
+today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
+Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
+write-only fields that are never shown back), test it, and grant an operation to a Project. The test
+button calls the allow-listed authentication only, and only after G0. **Check:** a browser test
+creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
+page, the network responses or the Hub logs.
+
 ### Q4.3 — Project Grant
 
 A Workspace Owner grants and revokes one operation of a Connection to one Project and environment.
@@ -297,8 +305,8 @@ credential or gateway URL (P11).
 
 After G0, the executor reads purchase order 22790 once through the broker on the pilot, using the
 Connection the operator loaded. **Check:** the broker returns the order; the evidence records the
-fields returned, the call count, the duration and a response digest. Business values appear only as
-the operator allows (section 11, point 5).
+fields returned, the call count, the duration and a response digest. The repository is private, and
+the operator allows business values of order 22790 in the evidence (section 11, point 5).
 
 ### Q4.7 — Builder end to end (the main case)
 
@@ -410,15 +418,14 @@ STOP and return to the planner on:
 
 1. **G0.** Decided on 2026-09-24: proceed on the broker's read allow-list (section 7). The operator
    watches the first real call.
-2. **Operation and fields.** 22790 is the document number. Confirm what the app shows for an
-   order: which header and item fields.
-3. **Loading the credential.** The operator moves the credential from the operator's credentials
-   file into the Workspace Connection, by a Hub form or a shell command the design provides. The
-   executor never handles it.
-4. **Who administers.** Whether a Workspace Owner or an installation administrator creates the
-   Connection. The Grant stays with the Workspace Owner unless the operator says otherwise.
-5. **Business values in a public repository.** Whether the evidence may show order 22790's values
-   (supplier, prices, quantities), or only field names, counts and digests.
+2. **Operation and fields.** Decided on 2026-09-24: document number 22790. The app shows the
+   order's number, date, supplier, status, total and items.
+3. **Loading the credential.** Decided on 2026-09-24: the operator types client id, client secret
+   and X-Token into the Integrações screen (Q4.2). The executor never handles them.
+4. **Who administers.** Decided on 2026-09-24: the installation administrator creates the
+   Connection. The Grant stays with the Workspace Owner.
+5. **Business values.** Decided on 2026-09-24: the repository is private, and the evidence may show
+   order 22790's values.
 6. **The verdict.**
 
 ## 12. Evidence layout
