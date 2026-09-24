@@ -1,6 +1,9 @@
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
 export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
 
+/** The person a request acts for, resolved by the platform from a session. It never comes from input. */
+export type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
+
 export type ApplicationFileReader = (input: Readonly<{
   accountId: string
   projectId: string
@@ -14,6 +17,7 @@ export type ApplicationRunnerInvoke = (input: Readonly<{
   operation: string
   input: unknown
   files: readonly ServerFile[]
+  caller: ApplicationCaller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationInvoker = (input: Readonly<{
@@ -24,6 +28,7 @@ export type ApplicationInvoker = (input: Readonly<{
   serverFiles: readonly string[]
   operation: string
   input: unknown
+  caller: ApplicationCaller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationAdmissionLimits = Readonly<{
@@ -78,7 +83,7 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })
       }
       const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
-      return await dependencies.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files })
+      return await dependencies.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files, caller: input.caller })
     } finally {
       globalInFlight -= 1
       const remaining = (perProjectInFlight.get(input.projectId) ?? 1) - 1

@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { hubModuleUrl } from '../hub-build.mjs'
 import { probeOperations, probeServerTree } from './server-tree.mjs'
 
+const PROBE_CALLER = Object.freeze({ accountId: '00000000-0000-4000-8000-000000000000', email: null, displayName: 'probe' })
+
 // Runs the reviewed arena cases through the real runner path on a pilot host, with Node's permission
 // layer off, against the pilot's actual secret paths, the runner's and Hub's /proc entries, the
 // operator home and the pilot's listeners. Prints, per path, only whether it exists, whether it
@@ -52,7 +54,7 @@ try {
   const prepared = await supervisor.prepare({ projectId: PROBE_PROJECT, files })
   if (prepared.state !== 'READY') throw new Error(`PROBE_PREPARE_FAILED: ${JSON.stringify(prepared)}`)
   const run = async (name, input) => {
-    const answer = await supervisor.invoke({ projectId: PROBE_PROJECT, operation: probeOperations[name], input, files })
+    const answer = await supervisor.invoke({ projectId: PROBE_PROJECT, operation: probeOperations[name], input, files, caller: PROBE_CALLER })
     if (answer.status !== 200) throw new Error(`PROBE_${name}_FAILED: ${JSON.stringify(answer.body)}`)
     return JSON.parse(answer.body.text)
   }

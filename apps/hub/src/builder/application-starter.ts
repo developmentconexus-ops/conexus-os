@@ -101,13 +101,24 @@ not match its schema exactly, including an undeclared field, is refused.
 
 \`\`\`ts
 type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
+type Caller = { accountId: string; email: string | null; displayName: string }
 
 export async function listItems(input: { category: string }, { db }: { db: Db }) {
   const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
   return rows
 }
+
+export async function addItem(input: { name: string }, { db, caller }: { db: Db; caller: Caller }) {
+  const { rows } = await db.query(
+    'INSERT INTO item (name, created_by_account_id, created_by_name) VALUES ($1, $2, $3) RETURNING id',
+    [input.name, caller.accountId, caller.displayName])
+  return rows[0]
+}
 \`\`\`
 
+- \`caller\` is the person using the app, set by Conexus from their sign-in. The browser cannot change
+  it. To record who did something, read \`caller\`; never add a name or author field to the input. In
+  the Preview, \`caller\` is you.
 - Always pass values as parameters (\`$1\`, \`$2\`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
 - A handler may import only files inside \`conexus/\` and \`node:\` built-ins. There are no npm packages,
@@ -125,6 +136,8 @@ export async function listItems(input: { category: string }, { db }: { db: Db })
 CREATE TABLE item (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name text NOT NULL,
+  created_by_account_id uuid NOT NULL,
+  created_by_name text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 \`\`\`

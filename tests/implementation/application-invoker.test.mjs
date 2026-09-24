@@ -31,9 +31,11 @@ const spyInvoke = (result = { status: 200, body: { ok: true } }) => {
   return { invoke, calls }
 }
 
+const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444', email: 'ana@example.com', displayName: 'Ana' })
+
 const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs') => invoker({
   accountId: 'acct', projectId, sourceRevision: 'rev', artifactRevisionId: 'artifact',
-  serverFiles: [path], operation: 'op', input: {},
+  serverFiles: [path], operation: 'op', input: {}, caller: CALLER,
 })
 
 test('the global bound admits up to its limit and refuses the rest with 429, without reading their files', async () => {
@@ -107,7 +109,7 @@ test('a server tree over the total byte limit is refused as soon as the running 
   const result = await invoker({
     accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact',
     // 600 bytes each: the running total crosses 1000 on the second file, so the third is never read.
-    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {},
+    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {}, caller: CALLER,
   })
   assert.equal(reader.calls.length, 2, 'the read stopped as soon as the total crossed the limit, not after the whole tree')
   assert.deepEqual(result, { status: 413, body: { error: { code: 'SERVER_TREE_TOO_LARGE' } } })
@@ -123,11 +125,12 @@ test('a server tree at or under the total byte limit reaches the runner', async 
   })
   const result = await invoker({
     accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact',
-    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {},
+    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {}, caller: CALLER,
   })
   assert.equal(result.status, 200)
   assert.equal(runner.calls.length, 1)
   assert.deepEqual(runner.calls[0].files.map((file) => file.path), ['conexus-server/a.mjs', 'conexus-server/b.mjs'])
+  assert.deepEqual(runner.calls[0].caller, { accountId: '44444444-4444-4444-8444-444444444444', email: 'ana@example.com', displayName: 'Ana' })
 })
 
 test('a missing file still refuses by throwing, as the Preview API layer expects', async () => {

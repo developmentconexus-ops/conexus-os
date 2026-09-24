@@ -26,6 +26,8 @@ export type PreviewRouteBinding = Readonly<{
 export type PreviewCookieBinding = PreviewRouteBinding & Readonly<{
   issuer: string
   subject: string
+  /** The developer behind the Hub session: a Preview's handlers see its own author as the caller. */
+  caller: Readonly<{ accountId: string; email: string | null; displayName: string }>
 }>
 
 export type PreviewAccess = Readonly<{
@@ -67,6 +69,9 @@ type CookieRecord = Readonly<{
 
 const sha256 = (value: string): Buffer => createHash('sha256').update(value).digest()
 const secret = (): string => randomBytes(32).toString('base64url')
+const callerOf = (session: CurrentSession): PreviewCookieBinding['caller'] => Object.freeze({
+  accountId: session.account.accountId, email: session.account.email ?? null, displayName: session.account.displayName,
+})
 
 const validRoute = (route: PreviewRouteBinding): void => {
   if (!route.routeId || !route.generation || !route.attemptId || !route.accountId ||
@@ -163,7 +168,7 @@ export const createPreviewAccess = ({
     cookies.set(sha256(cookie).toString('hex'), cookieRecord)
     return Object.freeze({
       cookie,
-      binding: Object.freeze({ ...cookieRecord.route, issuer: session.issuer, subject: session.subject }),
+      binding: Object.freeze({ ...cookieRecord.route, issuer: session.issuer, subject: session.subject, caller: callerOf(session) }),
     })
   }
 
@@ -183,7 +188,7 @@ export const createPreviewAccess = ({
     if (closed || currentRecord !== record || record.expiresAt <= now() ||
       !session || session.account.accountId !== record.route.accountId ||
       session.issuer !== record.issuer || session.subject !== record.subject) return null
-    return Object.freeze({ ...record.route, issuer: session.issuer, subject: session.subject })
+    return Object.freeze({ ...record.route, issuer: session.issuer, subject: session.subject, caller: callerOf(session) })
   }
 
   const discardEntryGrant = (entryGrant: string): void => {

@@ -12,8 +12,10 @@ import type { MigrationPlan } from './data-plane.js'
 // No password: the worker reaches the database only through the relay socket, which authenticates
 // upstream itself. Nothing in the sandbox holds a usable credential.
 export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
+/** The person using the app, as the Hub resolved them from a session. Never read from the input. */
+export type WorkerCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
 export type WorkerJob =
-  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; responseLimit: number }>
+  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: WorkerCaller; responseLimit: number }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>
 export type WorkerResult =
   | Readonly<{ ok: true; value: unknown }>
@@ -81,9 +83,10 @@ const run = async (): Promise<never> => {
       return { rows: result.rows }
     },
   })
+  const caller = Object.freeze({ accountId: job.caller.accountId, email: job.caller.email, displayName: job.caller.displayName })
   let value: unknown
   try {
-    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db }))
+    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller }))
   } catch (error) {
     return finish({ ok: false, code: 'HANDLER_FAILED', detail: detail(error) })
   }

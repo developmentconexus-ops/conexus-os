@@ -39,6 +39,7 @@ type PreviewCookieBinding = Readonly<{
   expiresAt: number
   issuer: string
   subject: string
+  caller: ApplicationCaller
 }>
 
 type PreviewAccess = Readonly<{
@@ -59,8 +60,10 @@ type RegistryReader = (input: Readonly<{
   path: string
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
 
+type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
+
 // The admitted artifact's application API. The operation comes from the request path and must be one
-// the artifact's own manifest declares; the Project and artifact come from the Preview binding.
+// the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
 type ApplicationInvoker = (input: Readonly<{
   accountId: string
   projectId: string
@@ -69,6 +72,7 @@ type ApplicationInvoker = (input: Readonly<{
   serverFiles: readonly string[]
   operation: string
   input: unknown
+  caller: ApplicationCaller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type PreviewRouteDependencies = Readonly<{
@@ -276,7 +280,7 @@ export const registerPreviewRoutes = async (
     try {
       result = await dependencies.invokeApplication({
         accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision,
-        artifactRevisionId: binding.artifactRevisionId, serverFiles, operation: request.params.operation, input: request.body,
+        artifactRevisionId: binding.artifactRevisionId, serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')

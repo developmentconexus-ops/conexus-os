@@ -10,7 +10,7 @@ import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
 import { admitManifest, SERVER_MANIFEST_PATH, SERVER_ROOT, schemaViolation } from './server-manifest.js'
 import type { ServerManifest } from './server-manifest.js'
-import type { WorkerJob } from './worker.js'
+import type { WorkerCaller, WorkerJob } from './worker.js'
 
 /** One file of the admitted artifact's `conexus-server/` tree, as the Hub read it from the registry. */
 export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
@@ -45,6 +45,8 @@ export type SupervisorConfig = Readonly<{
 }>
 
 export type Reply = Readonly<{ status: number; body: unknown }>
+
+export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: WorkerCaller }>
 
 export type PrepareResult =
   | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
@@ -195,7 +197,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     }
   }
 
-  const invoke = async (input: Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[] }>): Promise<Reply> => {
+  const invoke = async (input: InvokeInput): Promise<Reply> => {
     const allocation = previewAllocation(input.projectId)
     let tree: ServerTree
     try {
@@ -214,7 +216,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
       const { outcome } = await inSandbox({
         role: allocation.runtimeRole,
         modules: tree.modules,
-        job: (login) => ({ kind: 'invoke', login, module: `/app/${operation.module}`, export: operation.export, input: input.input, responseLimit: limits.responseBytes }),
+        job: (login) => ({ kind: 'invoke', login, module: `/app/${operation.module}`, export: operation.export, input: input.input, caller: input.caller, responseLimit: limits.responseBytes }),
         timeoutMs: limits.invokeTimeoutMs,
       })
       if (outcome.kind === 'CRASHED') return refusal(500, 'HANDLER_CRASHED', outcome.signal ?? `exit ${outcome.exitCode}`)

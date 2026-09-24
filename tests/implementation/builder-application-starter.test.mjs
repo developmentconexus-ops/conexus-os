@@ -122,6 +122,10 @@ test('the application check builds app/ and then the server half into /tmp/conex
   assert.match(guide, /fetch\('\/__conexus\/api\/listItems'/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
+  // The handler contract names the caller beside db and tells the Builder never to take it from input.
+  assert.match(guide, /type Caller = \{ accountId: string; email: string \| null; displayName: string \}/)
+  assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
+  assert.match(guide, /never add a name or author field to the input/)
   assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
 })
 
