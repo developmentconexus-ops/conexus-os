@@ -38,7 +38,7 @@ test('local OIDC transport is admitted narrowly and closes with its adapter', as
     return {}
   }
   const adapter = await createOidcAdapter({
-    issuer: 'https://hub.conexus.localhost:8443/realms/r1f',
+    issuer: 'https://hub.conexus.localhost:8443/realms/conexus',
     clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`,
   }, { discovery })
   assert.equal(Object.hasOwn(captured, openidClient.customFetch), true)

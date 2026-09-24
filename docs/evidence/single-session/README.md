@@ -66,6 +66,14 @@ realm.
 once), and the original token stopped working. That is the problem the claim protocol of migration 0024 was built
 around, and it is gone with rotation.
 
+**On the new realm.** The operator replaced the pilot's `r1f` realm with one named `conexus`, built from
+[`realm-conexus.json`](../../../infra/keycloak/realm-conexus.json), which holds only what differs from Keycloak's
+defaults. Diffing the pilot's realm against a default realm of the same image showed that `r1f` differed in the
+theme and locale settings, Q3's rotation, `sslRequired: none` and a duplicate client. The probe was rerun on a
+scratch container provisioned by [`provision.sh`](../../../infra/keycloak/provision.sh) (import, then the Hub
+client's secret): the same five cases held, in [`probe-scratch-conexus-realm.json`](probe-scratch-conexus-realm.json).
+The same script imported the four pilot people with their ids and password hashes.
+
 Records: [`probe-scratch-rotation-off.json`](probe-scratch-rotation-off.json),
 [`probe-scratch-rotation-on-control.json`](probe-scratch-rotation-on-control.json). In the control file
 `"held": false` is the expected outcome, not a failure of the probe.

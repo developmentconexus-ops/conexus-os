@@ -10,12 +10,12 @@
 # temporary: Keycloak asks for a new one at the first sign-in. With --hub-env, the new user's id
 # replaces CONEXUS_BOOTSTRAP_SUBJECT there; restart the Hub afterwards.
 #
-# Environment: KEYCLOAK_CONTAINER (default conexus-s7-keycloak), KEYCLOAK_REALM (default r1f).
+# Environment: KEYCLOAK_CONTAINER (default conexus-keycloak), KEYCLOAK_REALM (default conexus).
 
 set -euo pipefail
 
-CONTAINER="${KEYCLOAK_CONTAINER:-conexus-s7-keycloak}"
-REALM="${KEYCLOAK_REALM:-r1f}"
+CONTAINER="${KEYCLOAK_CONTAINER:-conexus-keycloak}"
+REALM="${KEYCLOAK_REALM:-conexus}"
 email=""
 name=""
 hub_env=""

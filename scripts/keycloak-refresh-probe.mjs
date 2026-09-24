@@ -5,7 +5,7 @@
 //   PROBE_CLIENT_SECRET=… PROBE_USER_PASSWORD=… PROBE_ADMIN_PASSWORD=… \
 //   node scripts/keycloak-refresh-probe.mjs --issuer <realm issuer URL> --username <probe user> \
 //     --admin-user <admin> --sso-idle-seconds <realm ssoSessionIdleTimeout> --out <file.json>
-//     [--client-id r1f-primary] [--redirect-uri <the client's registered redirect URI>]
+//     [--client-id conexus-hub] [--redirect-uri <the client's registered redirect URI>]
 //     [--loopback-host hub.conexus.localhost]   resolves this name to 127.0.0.1, as the Hub does
 //     [--case concurrent,disabled,logout,idle,clients]   default: all
 //
@@ -33,7 +33,7 @@ const { values } = parseArgs({
     'admin-user': { type: 'string' },
     'sso-idle-seconds': { type: 'string' },
     out: { type: 'string' },
-    'client-id': { type: 'string', default: 'r1f-primary' },
+    'client-id': { type: 'string', default: 'conexus-hub' },
     'redirect-uri': { type: 'string' },
     'loopback-host': { type: 'string' },
     case: { type: 'string', default: 'concurrent,disabled,logout,idle,clients' },

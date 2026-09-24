@@ -1,6 +1,6 @@
 BEGIN;
 
--- Keycloak no longer rotates refresh tokens (revokeRefreshToken is false in realm r1f), so a token
+-- Keycloak no longer rotates refresh tokens (revokeRefreshToken is false in the Conexus realm), so a token
 -- works any number of times and two requests may refresh at once. The claim protocol 0024 built
 -- for rotation, and the clock correction of 0025, go. A due check is answered by whichever
 -- request finds it: each asks Keycloak, each is served, and the first to record it stores its token.

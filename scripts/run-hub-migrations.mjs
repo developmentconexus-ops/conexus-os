@@ -35,7 +35,7 @@ const applicationAccessDigest = 'aab11d37b619ce81df07c292336b7bcff31b9b260245343
 const applicationSessionDigest = 'e3efcd8b1a7ad067d336f7466011870792521f57c1464b0c5ed5db3172914e40'
 const applicationAccessReviewDigest = 'c8d5f024ce4e83f66cfe6c6f304060d45ef7fd68b9a6d05101b03e1e4868a8e8'
 const applicationAccessVerificationDigest = '5c31112ec06e7d69bd43ad40b4a4cdb77405ec92dd7bff3060def078672d7f62'
-const providerCheckCompareAndSetDigest = '7099040c3778a1b7c4223333f97897636637e1ecde28fef8cf130f07fcdd32b7'
+const providerCheckCompareAndSetDigest = '36f9da08d53af5df645b8a3c4d3bda122c47fb1379f6601c81b961efdc00adbc'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
