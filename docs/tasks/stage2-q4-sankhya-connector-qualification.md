@@ -57,9 +57,11 @@ These bind Q4 and are not reopened by the executor.
    No path, host or value of it appears in this repository, an issue, a pull request, the evidence
    or the generated application. The executor never reads that file; the operator moves the
    credential into the Workspace Connection (section 11, point 3).
-3. **Sample.** The sample purchase order is 22790.
-4. **Read-only.** Before any Sankhya call, including a test call, the operator confirms that the
-   gateway credential is read-only. This is gate G0.
+3. **Sample.** The sample purchase order is document number 22790.
+4. **Read authority.** The design never relies on the scope of the gateway credential. The broker
+   calls only the read services on its allow-list and refuses any other before it reaches Sankhya.
+   The operator recorded this decision on 2026-09-24 and watches the first real calls. This is
+   gate G0.
 5. **No leak.** The credential never appears in logs, issues, evidence or the generated application.
    The generated application never sees it.
 6. **Build the authority layer.** Conexus builds the Connection, the per-operation Project Grant,
@@ -196,12 +198,24 @@ proves it.
 
 Each step ends in a check that passes before the next starts.
 
-### G0 — Read-only confirmation (STOP gate)
+### G0 — Read allow-list (STOP gate)
+
+The operator decided on 2026-09-24 that Q4 proceeds without relying on the scope of the gateway
+credential. The barrier is the broker: it holds an allow-list of the Sankhya read services the
+operations use, and it refuses any other service or path before a request leaves the Hub.
 
 No Sankhya call of any kind, including a test call, an authentication or a call from a spike,
-happens before the operator confirms in writing that the gateway credential is read-only. The
-evidence records the confirmation and its date, never the credential. **Check:** the confirmation is
-in `docs/evidence/stage2-q4/README.md` before Q4.6.
+happens before all of these hold:
+
+- the allow-list names only read services, and each entry cites the Sankhya documentation that
+  shows it reads;
+- a test proves that the broker refuses a service outside the allow-list without any network call;
+- the adapter's source has no write-capable service name;
+- the evidence records the decision and its date, never the credential.
+
+Every real Sankhya call during Q4 is logged in the evidence with the service name, time and status,
+never a value. The operator watches the first real call. **Check:** the four items are in
+`docs/evidence/stage2-q4/README.md` before Q4.6.
 
 Steps Q4.0 to Q4.5 make no Sankhya call and may run before G0.
 
@@ -378,8 +392,8 @@ Any one rejects the hypothesis:
 
 STOP and return to the planner on:
 
-- **any Sankhya call, including a test call, before G0.** This rule comes first and has no
-  exception;
+- **any Sankhya call, including a test call, before G0, or to a service outside the allow-list.**
+  This rule comes first and has no exception;
 - a need for the MGE user or password, or for a second credential;
 - the credential, an access token or a value from the operator's credentials file seen anywhere
   outside the broker, even once. Stop, tell the operator so they can rotate it, and write no value
@@ -394,9 +408,10 @@ STOP and return to the planner on:
 
 ## 11. Points reserved for the operator
 
-1. **G0.** Confirm the gateway credential is read-only before any Sankhya call.
-2. **Operation and fields.** Confirm what the app shows for an order: which header and item fields,
-   and whether 22790 is the order's unique number or its document number.
+1. **G0.** Decided on 2026-09-24: proceed on the broker's read allow-list (section 7). The operator
+   watches the first real call.
+2. **Operation and fields.** 22790 is the document number. Confirm what the app shows for an
+   order: which header and item fields.
 3. **Loading the credential.** The operator moves the credential from the operator's credentials
    file into the Workspace Connection, by a Hub form or a shell command the design provides. The
    executor never handles it.
