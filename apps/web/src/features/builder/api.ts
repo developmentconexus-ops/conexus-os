@@ -47,10 +47,27 @@ export type BuilderRun = Readonly<{
   cancellationRequested?: boolean
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
+export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
+export type BuilderTraceSpan = Readonly<{
+  spanId: string
+  parentSpanId: string | null
+  spanType: string
+  name: string
+  startedAt: string
+  durationMs: number | null
+  error: boolean
+  model: string | null
+  usage: BuilderTraceUsage | null
+}>
+export type BuilderTraceScore = Readonly<{ scorer: string; score: number; reason: string | null }>
 export type BuilderTraceSummary = Readonly<{
   available: boolean
   traceId: string | null
-  spans: readonly Readonly<{ spanType: string; name: string; startedAt: string; durationMs: number | null; error: boolean }>[]
+  spans: readonly BuilderTraceSpan[]
+  usage: BuilderTraceUsage | null
+  modelCalls: number
+  toolCalls: number
+  scores: readonly BuilderTraceScore[]
 }>
 
 export class BuilderRequestError extends Error {
