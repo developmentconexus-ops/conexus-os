@@ -4,10 +4,12 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
-const { registerApplicationHostRoutes, parseApplicationHost } = await import(hubModuleUrl('mar/application-host-routes.js'))
+const { registerApplicationHostRoutes } = await import(hubModuleUrl('mar/application-host-routes.js'))
+const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
 const HUB = 'https://hub.conexus.localhost:3443'
 const PORT = 3445
+const APPLICATION = Object.freeze({ port: PORT, domain: 'conexus.localhost' })
 const HOST_A = `caderno-de-compras.conexus.localhost:${PORT}`
 const HOST_B = `outro-app.conexus.localhost:${PORT}`
 const ORIGIN_A = `https://${HOST_A}`
@@ -25,7 +27,7 @@ const files = {
   'conexus-server/manifest.json': { mediaType: 'application/json; charset=utf-8', text: '{}' },
 }
 
-const harness = async (t, { authorityFor } = {}) => {
+const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
   const calls = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
   const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
@@ -33,7 +35,7 @@ const harness = async (t, { authorityFor } = {}) => {
     staticRoot: null,
     registerRoutes: (server) => registerApplicationHostRoutes(server, {
       exactHubOrigin: HUB,
-      applicationPort: PORT,
+      application,
       sessions: {
         async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
         async authority({ sessionToken, projectId }) {
@@ -71,11 +73,77 @@ const api = (operation, { host = HOST_A, origin = ORIGIN_A, cookies = signedIn.c
   headers: { host, 'content-type': 'application/json', ...(origin ? { origin } : {}), ...headers },
 })
 
-test('only an exact application host label on the application port selects an application', () => {
-  assert.equal(parseApplicationHost(HOST_A, PORT), 'caderno-de-compras')
+test('only an exact application host label on the configured domain and port selects an application', () => {
+  assert.equal(applicationSlugOfHost(APPLICATION, HOST_A), 'caderno-de-compras')
   for (const host of [undefined, 'caderno-de-compras.conexus.localhost', 'caderno-de-compras.conexus.localhost:3444', 'hub.evil.test:3445', 'a.b.conexus.localhost:3445', 'Caps.conexus.localhost:3445', 'a--b.conexus.localhost:3445']) {
-    assert.equal(parseApplicationHost(host, PORT), null, String(host))
+    assert.equal(applicationSlugOfHost(APPLICATION, host), null, String(host))
   }
+  const company = { port: 443, domain: 'apps.empresa.com.br' }
+  assert.equal(applicationOrigin(company, 'caderno'), 'https://caderno.apps.empresa.com.br', 'the default port is not part of an origin')
+  assert.equal(applicationSlugOfHost(company, 'caderno.apps.empresa.com.br'), 'caderno')
+  assert.equal(applicationSlugOfHost(company, 'caderno.apps.empresa.com.br:443'), null)
+  assert.equal(applicationOrigin(APPLICATION, 'caderno'), 'https://caderno.conexus.localhost:3445')
+})
+
+const configEnvironment = {
+  NODE_ENV: 'test',
+  CONEXUS_ORIGIN: 'https://hub.conexus.localhost:3443',
+  CONEXUS_PORT: '3443',
+  CONEXUS_BOOTSTRAP_SUBJECT: 'bootstrap-subject',
+  CONEXUS_DB_HOST: '127.0.0.1',
+  CONEXUS_DB_PORT: '5433',
+  CONEXUS_DB_NAME: 'conexus_s7',
+  CONEXUS_DB_USER: 'hub_bootstrap',
+  CONEXUS_DB_PASSWORD_FILE: '/secrets/db',
+  CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/ws-command',
+  CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/ws-read',
+  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
+  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
+  CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
+  CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
+  CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
+  CONEXUS_PREVIEW_PORT: '3444',
+  CONEXUS_PREVIEW_CERT_FILE: '/tls/cert.pem',
+  CONEXUS_PREVIEW_KEY_FILE: '/tls/key.pem',
+}
+const builderEnvironment = {
+  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/builder-ingress',
+  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/builder-executor',
+  CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
+  CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
+  CONEXUS_FACTORY_ORG_ID: 'conexus-installation',
+  CONEXUS_FACTORY_GITHUB_APP_ID: '5015512',
+  CONEXUS_FACTORY_GITHUB_CLIENT_ID: 'Iv23-client',
+  CONEXUS_FACTORY_GITHUB_APP_SLUG: 'conexus-app',
+  CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: '/secrets/factory.pem',
+  CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: '/secrets/factory-client',
+  CONEXUS_FACTORY_STATE_SECRET_FILE: '/secrets/factory-state',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
+  CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
+}
+
+test('the application host is configured by port and domain together, and only with the runtime its listener serves from', () => {
+  const application = { CONEXUS_APPLICATION_PORT: '3445', CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }
+  assert.deepEqual(readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application }).application, { port: 3445, domain: 'conexus.localhost' })
+  assert.equal(readHubConfig({ ...configEnvironment, ...builderEnvironment }).application, undefined)
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_PORT: '3445' }), { message: 'MISSING_CONFIG_CONEXUS_APPLICATION_DOMAIN' })
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }), { message: 'MISSING_CONFIG_CONEXUS_APPLICATION_PORT' })
+  for (const domain of ['Conexus.Localhost', '.conexus.localhost', 'conexus..localhost', 'conexus.localhost:3445', 'https://conexus.localhost']) {
+    assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), { message: 'INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN' }, domain)
+  }
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), { message: 'APPLICATION_BUILDER_RUNTIME_REQUIRED' },
+    'the application host reads the served artifact as the Builder executor, so it refuses to start without it')
+})
+
+test('the application host answers on its configured domain, and its API admits exactly that origin', async (t) => {
+  const company = { port: PORT, domain: 'apps.empresa.test' }
+  const host = `caderno-de-compras.apps.empresa.test:${PORT}`
+  const { app } = await harness(t, { application: company })
+  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host }, ...signedIn })).statusCode, 200)
+  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
+  assert.equal((await app.inject(api('listNotes', { host, origin: `https://${host}` }))).statusCode, 200)
+  const foreign = await app.inject(api('listNotes', { host, origin: ORIGIN_A }))
+  assert.deepEqual([foreign.statusCode, foreign.json().error.code], [403, 'ORIGIN_REFUSED'])
 })
 
 test('a browser without a session is sent to the Hub sign-in with the application and a binding only it holds', async (t) => {
