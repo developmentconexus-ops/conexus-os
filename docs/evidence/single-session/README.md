@@ -106,3 +106,31 @@ node scripts/keycloak-refresh-probe.mjs --issuer <realm issuer URL> --username <
 
 `--loopback-host hub.conexus.localhost` resolves the pilot's `.localhost` name to 127.0.0.1 and
 `NODE_EXTRA_CA_CERTS` trusts the local CA, as in the Q3 rerun.
+
+## Independent review
+
+Two challengers read the frozen candidate against the task and the owners, without the author's
+summary and without each other's report: Codex (`gpt-6-astra`, read-only) and a fresh Claude Opus
+subagent. A first Claude challenger on Fable was stopped before it finished, since the operator
+excludes that model for cost, and its partial result was not used. Every finding was classified
+against the task and the owners; the table says how each was resolved.
+
+| Round, reviewer | Finding | Resolution |
+| --- | --- | --- |
+| 1, Codex (`b3dd88db`) | `export-users.sh` left the database copy and its directories world-writable. | `umask 077`; the throwaway container runs as this user (`0f015c91`). |
+| 1, Codex | A Hub without the Builder and Factory no longer started: the sealing key came from the Factory runtime. | The credential key is `HubConfig.secretKey` for every Hub (`0f015c91`). |
+| 1, Codex | The launch response's `expiresAt` became the 30 s entry deadline. | `iam.open_preview` answers the Preview's own end (`0f015c91`). |
+| 1, Codex | The evidence held S0 only, and no upgrade of a populated database. | A test upgrades a 0025 database with an open Hub session, an open application session and a handoff (`0f015c91`). S6 below. |
+| 2, Opus (`0f015c91`) | `workspace-http` built a Hub configuration without the key. | Fixture fixed (`880ab936`); CI caught it too. |
+| 2, Opus | Hub sign-out failed with 503 while a due check found Keycloak down, and the session stayed open. | `iam.end_hub_session` ends the session on its CSRF digest and never asks Keycloak; tested with Keycloak down (`ec4b09dc`). |
+| 2, Opus | Factory routes answered 503, not the 401 recorded for D4. | Kept 503 and corrected the record: the Hub's preHandler runs before Mastra's auth, and 503 says the truth (nobody signed out). The error handler matches the error's code, not any 503. Tested on a Factory route (`ec4b09dc`). |
+| 2, Opus | Keycloak's 1800 s SSO idle limit could sign a Hub user out after about 26 idle minutes, since the token is refreshed only when the five-minute check is due. | Realm `ssoSessionIdleTimeout` 2400 in `realm-conexus.json` (`ec4b09dc`); the pilot realm takes it with the operator's go-ahead. |
+| 2, Opus | `iam.preview` and ended Preview sessions grew without bound (the memory map was capped at 4,096). | The next launch removes every ended Preview and its sessions; tested (`ec4b09dc`). |
+| 2, Opus and Codex | `export-users.sh` kept the mode of an existing output file. | It refuses an existing file and writes with `flag: 'wx'` (`ec4b09dc`). |
+| 2, Codex | A Preview request could be served on a due check when a concurrent refusal ended its Hub session between the first check and the token query. | The token query repeats the Hub session's liveness in the same statement (`ec4b09dc`). |
+
+Both reviewers found no defect in the atomic handoff redemption, in the removal of the other session
+mechanisms, in cookies, lifetimes, CSRF, authority or caller, or in the import-law change, which admits
+exactly the three `platform/` helpers S5 made the owners.
+
+Migrations 0027, 0028 and 0029 were corrected in place: no database had applied them.
