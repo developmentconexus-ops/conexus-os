@@ -135,6 +135,19 @@ test('the application host is configured by port and domain together, and only w
     'the application host reads the served artifact as the Builder executor, so it refuses to start without it')
 })
 
+test('the application host is a standalone top-level site: no Preview sandbox, never framed, no CORS, and Preview keeps its own policy', async (t) => {
+  const { previewContentSecurityPolicy } = await import(hubModuleUrl('mar/preview-routes.js'))
+  const { app } = await harness(t)
+  const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, origin: HUB }, ...signedIn })
+  assert.equal(index.headers['content-security-policy'],
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'")
+  assert.equal(index.headers['x-frame-options'], 'DENY')
+  assert.equal(index.headers['access-control-allow-origin'], undefined)
+  assert.equal(previewContentSecurityPolicy('https://hub.conexus.localhost:3443'),
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://hub.conexus.localhost:3443; sandbox allow-scripts allow-same-origin allow-forms",
+    'the Preview policy is unchanged byte for byte')
+})
+
 test('the application host answers on its configured domain, and its API admits exactly that origin', async (t) => {
   const company = { port: PORT, domain: 'apps.empresa.test' }
   const host = `caderno-de-compras.apps.empresa.test:${PORT}`
