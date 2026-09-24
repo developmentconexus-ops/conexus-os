@@ -35,7 +35,3 @@ Rerun review only when a correction materially changes the reviewed property
 or the reliability of its proof. Otherwise apply the valid correction, verify
 it and continue. A timeout or missing report is incomplete review, not a pass.
 
-The existing `conexus:review` wrapper retains historical Fable/Gemini
-reproduction support. It is not the default delegation route and must not be
-executed under the current Luna-only instruction. No review call grants live
-Product-model, E2B, Sankhya, production, publication or merge effects.
