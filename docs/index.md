@@ -43,6 +43,7 @@ owns status and the next action. Start there.
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 | How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
+| Future idea: composing and testing AI work systems, including creative workflows | [AI work studio](research/ai-work-studio.md), exploratory research only; no implementation grant |
 
 ## Method
 
