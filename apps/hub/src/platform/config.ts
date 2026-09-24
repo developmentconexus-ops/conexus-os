@@ -1,3 +1,5 @@
+import { parseApplicationSlug } from './application-slug.js'
+
 export type ProjectRuntimeConfig = Readonly<{
   commandPasswordFile: string
   readPasswordFile: string
@@ -39,7 +41,6 @@ export type HubConfig = Readonly<{
 /** Where applications are served: `<slug>.<domain>` on one port. */
 export type ApplicationAddress = Readonly<{ port: number; domain: string }>
 
-const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
 const DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 
 // A browser leaves the default port out of both Host and Origin.
@@ -54,10 +55,6 @@ export const applicationSlugOfHost = (address: ApplicationAddress, host: string 
   if (typeof host !== 'string' || !host.endsWith(suffix)) return null
   return parseApplicationSlug(host.slice(0, -suffix.length))
 }
-
-/** An application's host label, as the CHECK on iam.application admits it (which also refuses the reserved labels). */
-export const parseApplicationSlug = (value: unknown): string | null =>
-  typeof value === 'string' && SLUG.test(value) && !value.includes('--') ? value : null
 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>

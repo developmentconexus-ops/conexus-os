@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { parseCaller } from '../platform/caller.js'
-import { parseApplicationSlug } from '../platform/config.js'
+import { parseApplicationSlug } from '../platform/application-slug.js'
 import { digest, opaqueToken as opaque, parseOpaqueToken } from '../platform/opaque-token.js'
 import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
