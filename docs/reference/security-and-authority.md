@@ -169,7 +169,8 @@ installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the Factory's 
 envelope); the database refuses any unsealed value. After a key rotation,
 `CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` names the retired keys, which only decrypt, for these
 tokens and the Factory's credentials alike. A token no named key opens ends the session
-(`CUSTODY_CHANGED`). The realm rotates refresh tokens
+(`CUSTODY_CHANGED`). The list is comma-separated with no spaces, and it must not repeat the
+current key's file: the Factory throws `Duplicate key id` at start if it does. The realm rotates refresh tokens
 (`revokeRefreshToken`, `refreshTokenMaxReuse: 0`), so a token works once. At most every five
 minutes one request claims the check in the database, on whichever Hub it arrives, spends the
 token and stores the rotated one in the statement that releases the claim. The claim ages by the
