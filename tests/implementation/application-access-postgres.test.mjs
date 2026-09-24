@@ -218,6 +218,16 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject IN ('stranger-sub', 'unverified-sub')")).rows[0].n, 0)
   })
 
+  await t.test('two first sign-ins of one identity that race both get in, as one Account', async () => {
+    await grantAccess(projectId, 'corrida@application.test')
+    const racer = identity('race-sub', 'corrida@application.test', 'Corrida')
+    // Both callbacks looked the identity up before either provisioned it, so both pass no Account.
+    const first = await signIn(racer)
+    const second = await signIn(racer)
+    assert.deepEqual([first.kind, second.kind], ['HANDOFF', 'HANDOFF'])
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject = 'race-sub'")).rows[0].n, 1)
+  })
+
   await t.test('a handoff dies on first use, on the wrong binding, on another application and after sixty seconds', async () => {
     const redeem = async (handoff, overrides = {}) => sessions.redeem({ handoff, projectId, binding, now: at(1_000), ...overrides })
     const fresh = async () => (await signIn(employee, employeeId)).handoff
