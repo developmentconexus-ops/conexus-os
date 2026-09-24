@@ -66,9 +66,10 @@
     "wire:identity-workspace": "node scripts/check-wire-identity-workspace.mjs",
     "wire:project": "node scripts/check-wire-project.mjs",
     "wire:builder": "node scripts/check-wire-builder.mjs",
+    "wire:connector": "node scripts/check-wire-connector.mjs",
     "wire:technical-lint": "npx --yes @redocly/cli@2.47.0 lint contracts/api/technical/openapi.yaml --extends=recommended",
     "wire:technical-ingress": "node scripts/check-wire-technical-ingress.mjs",
-    "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:technical-lint && npm run wire:technical-ingress",
+    "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:connector && npm run wire:technical-lint && npm run wire:technical-ingress",
     "repository:check:local": "npm run repository:check",
     "verify:local": "npm run verify",
     "verify": "npm run conexus:verify -- --scope candidate"

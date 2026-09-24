@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { createApplicationRunnerClient } from './app-runner/module.js'
+import { createConnectorModule } from './connectors/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -46,6 +47,16 @@ const identityAccessDependencies = {
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
+// The Connector Connection's credential is sealed with the same installation key as an application
+// session's refresh token; the module needs no login role of its own (connector.* functions are
+// executable by hub_iam_runtime, like Q3's application-access functions).
+const connectors = config.factory ? createConnectorModule({
+  pool,
+  envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
+  origin: config.origin,
+  resolveCurrentSession: identityAccess.resolveCurrentSession,
+  isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+}) : undefined
 const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
   commandPool: createPostgresPool({
     host: config.database.host,
@@ -164,6 +175,7 @@ const app = await createHttpApp({
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
+    ...(connectors ? await connectors.registerConnectorRoutes(server) : []),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
   ...(config.preview ? {

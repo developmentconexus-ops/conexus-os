@@ -1,0 +1,275 @@
+openapi: 3.1.2
+info:
+  title: Conexus Product API Connector Path Items
+  version: 4b-candidate
+paths:
+  /api/control/workspaces/{workspaceId}/connections:
+    parameters:
+      - $ref: './identity-workspace-paths.yaml#/components/parameters/WorkspaceId'
+    get:
+      summary: ListWorkspaceConnections
+      operationId: ListWorkspaceConnections
+      x-conexus-4a-id: CON-01
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: The Workspace's Connections. Never a credential field, sealed or otherwise.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConnectorConnection'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+    post:
+      summary: CreateWorkspaceConnection
+      operationId: CreateWorkspaceConnection
+      x-conexus-4a-id: CON-02
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceConnectionRequest'
+      responses:
+        '200':
+          description: The Connection a previous request with the same client-chosen id already created. Never a credential field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorConnection'
+        '201':
+          description: One new Connection of the Workspace, under the id the client chose. Never a credential field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorConnection'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
+  /api/control/workspaces/{workspaceId}/connections/{connectionId}/authentication-check:
+    parameters:
+      - $ref: './identity-workspace-paths.yaml#/components/parameters/WorkspaceId'
+      - name: connectionId
+        in: path
+        required: true
+        description: Untrusted reference only; current containment and authority are resolved server-side.
+        schema: { type: string, minLength: 1 }
+    post:
+      summary: CheckWorkspaceConnection
+      operationId: CheckWorkspaceConnection
+      x-conexus-4a-id: CON-03
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      description: >-
+        Runs only the Connector's allow-listed authentication, and only after the read allow-list
+        gate the connector's evidence records. Never a credential or provider value in the response.
+      responses:
+        '200':
+          description: The outcome of one allow-listed authentication attempt against the Connection's own gateway. A refused credential is a normal outcome, not a wire error.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [outcome]
+                properties:
+                  outcome:
+                    type: string
+                    enum: [OK, CREDENTIAL_REFUSED, CONNECTOR_UNCONFIGURED, PROVIDER_UNAVAILABLE, PROVIDER_TIMEOUT, PROVIDER_ERROR]
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+  /api/control/workspaces/{workspaceId}/connections/{connectionId}:
+    parameters:
+      - $ref: './identity-workspace-paths.yaml#/components/parameters/WorkspaceId'
+      - name: connectionId
+        in: path
+        required: true
+        description: Untrusted reference only; current containment and authority are resolved server-side.
+        schema: { type: string, minLength: 1 }
+    delete:
+      summary: DisableWorkspaceConnection
+      operationId: DisableWorkspaceConnection
+      x-conexus-4a-id: CON-04
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '204': { description: "The Connection is disabled. The row stays as the record, and every Project's next call through it is refused." }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+  /api/control/projects/{projectId}/connector-grants:
+    parameters:
+      - $ref: './identity-workspace-paths.yaml#/components/parameters/ProjectId'
+    get:
+      summary: ListProjectConnectorGrants
+      operationId: ListProjectConnectorGrants
+      x-conexus-4a-id: CON-05
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: The Project's open grants, and beside them the operations of the Workspace's Connections it could still be granted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConnectorGrantEntry'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+    post:
+      summary: GrantProjectConnectorOperation
+      operationId: GrantProjectConnectorOperation
+      x-conexus-4a-id: CON-06
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      description: The server fixes the environment to preview; Q5 admits a second environment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [connectionId, operationId]
+              properties:
+                connectionId:
+                  type: string
+                  minLength: 1
+                  description: Untrusted reference to a Connection of this Project's own Workspace; resolved and checked server-side.
+                operationId:
+                  type: string
+                  minLength: 1
+                  description: One operation id the granting Connector's Definition admits. An id it does not admit is refused as a 422, never forwarded.
+      responses:
+        '200':
+          description: The Project's current open grant of this exact capability. A capability already granted through another Connection is unaffected; the answer is the grant that already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorOpenGrant'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
+  /api/control/projects/{projectId}/connector-grants/{grantId}:
+    parameters:
+      - $ref: './identity-workspace-paths.yaml#/components/parameters/ProjectId'
+      - name: grantId
+        in: path
+        required: true
+        description: Untrusted reference only; current containment and authority are resolved server-side.
+        schema: { type: string, minLength: 1 }
+    delete:
+      summary: RevokeProjectConnectorGrant
+      operationId: RevokeProjectConnectorGrant
+      x-conexus-4a-id: CON-07
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '204': { description: "The grant is revoked. The next call through it, from a handler or an agent tool, is refused." }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
+components:
+  schemas:
+    ConnectorConnection:
+      type: object
+      additionalProperties: false
+      required: [connectionId, connectorId, label, createdAt]
+      description: Never a credential field, sealed or otherwise; CON-02 is the only operation that accepts one, and it is writeOnly there.
+      properties:
+        connectionId: { type: string, minLength: 1 }
+        connectorId:
+          type: string
+          enum: [sankhya]
+        label: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        disabledAt: { type: string, format: date-time }
+    CreateWorkspaceConnectionRequest:
+      type: object
+      additionalProperties: false
+      required: [connectionId, connectorId, label, credential]
+      properties:
+        connectionId:
+          type: string
+          minLength: 1
+          description: Client-chosen identity of the Connection. A retry with this same id and the same fields answers the same row; a retry with different fields is a conflict.
+        connectorId:
+          type: string
+          enum: [sankhya]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Installation-administrator-chosen human label; never authorization.
+        credential:
+          $ref: '#/components/schemas/SankhyaCredential'
+    SankhyaCredential:
+      type: object
+      additionalProperties: false
+      required: [clientId, clientSecret, xToken]
+      description: The Sankhya gateway API credential. No MGE user or password field exists here, and none is ever accepted. Every field is writeOnly; no response schema in this file ever carries one.
+      properties:
+        clientId: { type: string, minLength: 1, maxLength: 200, writeOnly: true }
+        clientSecret: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
+        xToken: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
+    ConnectorOpenGrant:
+      type: object
+      additionalProperties: false
+      required: [kind, grantId, connectionId, connectorId, capabilityId, grantedAt]
+      properties:
+        kind: { const: grant }
+        grantId: { type: string, minLength: 1 }
+        connectionId: { type: string, minLength: 1 }
+        connectorId:
+          type: string
+          enum: [sankhya]
+        capabilityId: { type: string, minLength: 1 }
+        grantedAt: { type: string, format: date-time }
+    ConnectorGrantableCapability:
+      type: object
+      additionalProperties: false
+      required: [kind, connectionId, connectorId, capabilityId]
+      description: An operation of one of the Project's Workspace's enabled Connections that is not yet granted to this Project.
+      properties:
+        kind: { const: grantable }
+        connectionId: { type: string, minLength: 1 }
+        connectorId:
+          type: string
+          enum: [sankhya]
+        capabilityId: { type: string, minLength: 1 }
+    ConnectorGrantEntry:
+      oneOf:
+        - $ref: '#/components/schemas/ConnectorOpenGrant'
+        - $ref: '#/components/schemas/ConnectorGrantableCapability'

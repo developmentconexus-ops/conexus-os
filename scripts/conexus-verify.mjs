@@ -61,6 +61,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('installation-settings-routes', 'node --test tests/implementation/installation-settings-routes.test.mjs'),
   candidateStep('iam-grant-surface-excision', 'node --test --test-concurrency=1 tests/implementation/grant-surface-excision-postgres.test.mjs', 'postgres'),
   candidateStep('hub-call-site-privileges', 'node --test --test-concurrency=1 tests/implementation/hub-call-site-privileges-postgres.test.mjs && npx --no-install biome check tests/implementation/hub-call-site-privileges-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-postgres.test.mjs && npx --no-install biome check tests/implementation/connector-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-routes', 'node --test tests/implementation/connector-routes.test.mjs && npx --no-install biome check tests/implementation/connector-routes.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('factory-binding-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-binding-postgres.test.mjs', 'postgres'),
@@ -100,6 +102,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
+  candidateStep('contract-projection-check-connector', 'node scripts/generate-r1-connector-contracts.mjs --check'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages tests/implementation/brand-tokens.test.mjs scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/implementation/installation-settings-routes.test.mjs tests/repository/conexus-verify.test.mjs'),
 
@@ -129,6 +132,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
   candidateStep('wire-project', 'npm run wire:project'),
   candidateStep('wire-builder', 'npm run wire:builder'),
+  candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
 
