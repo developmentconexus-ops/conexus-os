@@ -45,8 +45,9 @@ table, SQL function, module, cookie, provider setting or exported helper. Use
       requirement it serves. Otherwise the setting and the code go.
 - [ ] One model per concept: session, handoff, invitation, caller, Origin check, opaque token. A
       second variant says why the first cannot serve.
-- [ ] External data is parsed once at the boundary with `zod`, and the TypeScript type derives from
-      that schema.
+- [ ] External data is parsed once at the boundary with the validator that boundary already uses:
+      the OpenAPI and JSON Schema contract through AJV on control-plane HTTP routes, `zod`
+      elsewhere. The TypeScript type derives from that schema, not from a hand-written parser.
 - [ ] A rule PostgreSQL enforces (CHECK, `SECURITY DEFINER` function, partial index) is not
       re-implemented in TypeScript beyond boundary parsing.
 - [ ] When two fixes in one review share a premise, the premise is questioned before a third fix.
