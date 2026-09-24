@@ -330,6 +330,19 @@ test('the runner socket admits an invocation only with an exact platform caller 
     { ...body, caller: { accountId: CALLER.accountId, displayName: CALLER.displayName } },
     { ...body, caller: { ...CALLER, accountId: 'not-a-uuid' } },
     { ...body, caller: { ...CALLER, displayName: '' } },
-    { ...body, caller: { ...CALLER, email: 'not-an-email' } },
+    { ...body, caller: { ...CALLER, email: '' } },
+    { ...body, caller: { ...CALLER, email: 42 } },
   ]) assert.equal(invokeBody.safeParse(refused).success, false, JSON.stringify(refused.caller))
+})
+
+test('the runner admits every caller the platform resolves: a long display name and any address Keycloak verified', async () => {
+  const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
+  const caller = { accountId: CALLER.accountId, email: 'compras&fiscal@empresa.com.br', displayName: `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim() }
+  assert.ok(caller.displayName.length > 200)
+  const body = { projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller }
+  assert.deepEqual(invokeBody.safeParse(body).data?.caller, {
+    accountId: '55555555-5555-4555-8555-555555555555',
+    email: 'compras&fiscal@empresa.com.br',
+    displayName: `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim(),
+  })
 })
