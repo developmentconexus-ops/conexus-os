@@ -1,17 +1,20 @@
-import { z } from 'zod'
 import type { OperationId } from '../model.js'
-import { operationId } from '../model.js'
+import type { ConnectorDefinition } from '../operation.js'
+import type { SankhyaSession } from './gateway.js'
+import { sankhyaCredentialSchema } from './credential.js'
+import type { SankhyaCredential } from './credential.js'
+import { purchaseOrderRead } from './purchase-order.js'
 
-// The gateway credential Q4 admits: client id, client secret and X-Token (the Sankhya gateway API).
-// Strict and non-empty: no MGE user or password field exists here, and none is ever accepted. Bounded
-// so a caller cannot post an unbounded body through this one endpoint.
-export const sankhyaCredentialSchema = z.strictObject({
-  clientId: z.string().min(1).max(200),
-  clientSecret: z.string().min(1).max(500),
-  xToken: z.string().min(1).max(500),
+export { sankhyaCredentialSchema } from './credential.js'
+export type { SankhyaCredential } from './credential.js'
+
+export const sankhyaDefinition: ConnectorDefinition<SankhyaCredential, SankhyaSession> = Object.freeze({
+  id: 'sankhya',
+  credential: sankhyaCredentialSchema,
+  operations: Object.freeze([purchaseOrderRead]),
+  events: Object.freeze([]),
+  // Placeholder: task Q4.5 writes the Sankhya Skill in product language from the checked sources.
+  builderSkill: 'Sankhya Skill pending (task Q4.5).',
 })
 
-export type SankhyaCredential = z.infer<typeof sankhyaCredentialSchema>
-
-/** Unit B fills each operation's run and contract; this unit only needs the id a Grant can name. */
-export const SANKHYA_OPERATION_IDS: readonly OperationId[] = [operationId('sankhya.purchase-order.read')]
+export const SANKHYA_OPERATION_IDS: readonly OperationId[] = Object.freeze(sankhyaDefinition.operations.map((operation) => operation.id))

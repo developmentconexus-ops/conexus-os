@@ -2,7 +2,7 @@ import type { QueryResultRow } from 'pg'
 import type { AccountId } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { Connection, ConnectionId, ConnectorId, GrantId, OpenGrant, OperationId, ProjectGrantEntry } from './model.js'
+import type { CapabilityKind, Connection, ConnectionId, ConnectorId, Environment, GrantId, OpenGrant, OperationId, ProjectGrantEntry } from './model.js'
 import { connectionId as toConnectionId, grantId as toGrantId, operationId as toOperationId } from './model.js'
 
 type ConnectionRow = QueryResultRow & {
@@ -62,6 +62,34 @@ export type ConnectorStore = Readonly<{
   grantCapability(input: Readonly<{ actor: AccountId; projectId: string; connectionId: ConnectionId; operationId: OperationId }>): Promise<OpenGrant>
   revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: GrantId }>): Promise<boolean>
 }>
+
+/** The broker's three reads (design.md section 7). Only the sealed envelope leaves PostgreSQL. */
+export type BrokerStore = Readonly<{
+  /** An open grant on an enabled Connection of a Project that is not archived, or null. */
+  resolveGrant(input: Readonly<{ projectId: string; environment: Environment; capabilityKind: CapabilityKind; capabilityId: OperationId }>): Promise<Readonly<{ grantId: GrantId; connectionId: ConnectionId }> | null>
+  /** The sealed credential of an enabled Connection, or null. */
+  readConnectionCredential(connectionId: ConnectionId): Promise<string | null>
+  listGrantedCapabilities(input: Readonly<{ projectId: string; environment: Environment }>): Promise<readonly Readonly<{ capabilityKind: CapabilityKind; capabilityId: OperationId }>[]>
+}>
+
+export const createBrokerStore = (pool: PostgresPool): BrokerStore => Object.freeze({
+  async resolveGrant({ projectId, environment, capabilityKind, capabilityId }) {
+    const result = await pool.query<QueryResultRow & { grant_id: string; connection_id: string }>(
+      'SELECT grant_id, connection_id FROM connector.resolve_grant($1, $2, $3, $4)', [projectId, environment, capabilityKind, capabilityId])
+    const row = result.rows[0]
+    return row ? { grantId: toGrantId(row.grant_id), connectionId: toConnectionId(row.connection_id) } : null
+  },
+  async readConnectionCredential(connectionId) {
+    const result = await pool.query<QueryResultRow & { sealed: string | null }>(
+      'SELECT connector.read_connection_credential($1) AS sealed', [connectionId])
+    return result.rows[0]?.sealed ?? null
+  },
+  async listGrantedCapabilities({ projectId, environment }) {
+    const result = await pool.query<QueryResultRow & { capability_kind: CapabilityKind; capability_id: string }>(
+      'SELECT capability_kind, capability_id FROM connector.list_granted_capabilities($1, $2)', [projectId, environment])
+    return result.rows.map((row) => ({ capabilityKind: row.capability_kind, capabilityId: toOperationId(row.capability_id) }))
+  },
+})
 
 export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: PostgresPool; envelope: SecretEnvelope }>): ConnectorStore => Object.freeze({
   async listConnections({ actor, workspaceId }) {
