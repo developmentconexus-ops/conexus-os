@@ -1,0 +1,45 @@
+name: Bug
+description: Something in Conexus OS does not work as the product contract says.
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+      description: The observed behavior, with the exact error text or a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+      description: The expected behavior, and the document that says so when there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps from a known starting state.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Laptop pilot
+        - CI
+        - Local development
+        - Other (say where in the steps)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: The commit SHA or pull request where you saw it.

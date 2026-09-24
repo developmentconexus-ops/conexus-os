@@ -10,6 +10,10 @@ repository consolidation. It removes
 stage-based review cadence and universal historical custody from this repository.
 It does not amend other repositories or weaken current Product proof.
 
+On 2026-09-24 the operator ratified decision D7: delivery, independent-review
+procedure and verification rules moved to [`delivery.md`](delivery.md), which
+replaced the repository method and the engineering rules.
+
 ## Objective
 
 Find the **smallest sustainable solution** that preserves essential complexity, removes accidental complexity, resolves the root cause, and avoids foreseeable structural dead ends.
@@ -161,10 +165,7 @@ Planning is sufficient when remaining implementation choices are mechanical.
 Additional planning, abstraction, Evidence machinery or review requires a named
 material unknown, contradiction, dependency or falsifier.
 
-An approved increment includes routine reversible implementation and verification
-steps. Do not request approval for each file, command, part or checklist item.
-New Product scope, external effects and irreversible actions still require their
-own authority. Record progress in the current task, not a new process artifact.
+Lanes, approval, proof, merge and Git rules live in [`delivery.md`](delivery.md).
 
 Progress means realizing a protected Product/system property or removing a real
 blocker to it. Plans, gates, receipts, review rounds and automation are not
@@ -186,31 +187,13 @@ is necessary for the deciding verdict. A further independent round is required
 only when a correction materially changes the protected property or the
 reliability of its deciding proof.
 
-### Periodic independent assurance
+### Independent assurance
 
-Independent review is risk-triggered. Require two fresh isolated challengers
-when a change creates or moves authority or a
-trust boundary, changes a structural runtime/database/service boundary, has an
-external or hard-to-reverse effect, or presents a material contradiction or
-Global-Maximum question. The Lead MUST
-freeze the candidate, protected-claim census, blocker census, falsifiers and
-deciding-proof route before the lanes start. Neither lane may receive the other
-lane's output before both complete.
-
-This assurance floor does not make reviewer output authority and does not
-permit recursive review expansion. The Lead adjudicates every finding against
-current owners. Apply `DEFER SAFELY` to valid non-blockers with why-safe, revisit
-trigger and later owner. After corrections, run another independent round only
-when a surviving material correction invalidated a protected property or the
-reliability of deciding proof; otherwise terminate the review cycle and resume
-delivery.
-
-Verification must be a flat graph of leaf checks. A targeted local check may
-prove the affected boundary; a candidate gate runs each applicable leaf once;
-publication/CI adds clean-install and clean-checkout checks. Historical custody
-checks apply only when the work invokes their named historical claims. A suite must not invoke a
-whole prior suite recursively, and duplicate execution may be removed only
-after confirming equivalent claim and environment coverage.
+Independent review is risk-triggered: it runs in the qualification lane, whose
+Q triggers match the material conditions in this method. The procedure, the
+adjudication of findings and the verification graph live in
+[`delivery.md`](delivery.md#proof-and-verification). Reviewer output is
+evidence, never authority, and never permits recursive review expansion.
 
 ### Adversarial challenge and findings
 

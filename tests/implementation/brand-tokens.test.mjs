@@ -22,7 +22,7 @@ test('brand tokens define every color token in light, OS dark and chosen dark', 
   const names = Object.keys(light).sort()
   assert.deepEqual(names, [
     '--cx-accent', '--cx-accent-soft', '--cx-accent-text', '--cx-canvas', '--cx-danger', '--cx-ink', '--cx-line',
-    '--cx-line-strong', '--cx-mark', '--cx-on-ink', '--cx-success', '--cx-surface', '--cx-surface-3', '--cx-surface-4',
+    '--cx-line-strong', '--cx-mark', '--cx-on-accent', '--cx-on-ink', '--cx-preview-paper', '--cx-success', '--cx-surface', '--cx-surface-3', '--cx-surface-4',
     '--cx-text', '--cx-text-2', '--cx-warning',
   ])
   assert.deepEqual(Object.keys(darkByPreference).sort(), names)
@@ -41,6 +41,10 @@ test('brand tokens carry the approved Grafite e Ipê values', () => {
   assert.equal(darkByPreference['--cx-accent'], '#F2B53A')
   assert.equal(darkByPreference['--cx-accent-soft'], '#3A2E12')
   assert.equal(darkByPreference['--cx-mark'], '#F2B53A')
+  for (const theme of [light, darkByPreference]) {
+    assert.equal(theme['--cx-preview-paper'], '#FFFFFF')
+    assert.equal(theme['--cx-on-accent'], '#FFFFFF')
+  }
 })
 
 test('brand fonts are self-hosted files next to the tokens', () => {
