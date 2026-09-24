@@ -1,0 +1,55 @@
+name: Change
+description: A unit of work on Conexus OS. Bets and ideas go to conexus-hq.
+labels: ["type:change"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One change, sized to ship. The answers below pick the lane in
+        [the delivery rules](https://github.com/developmentconexus-ops/conexus-os/blob/main/docs/development/delivery.md#pick-the-lane-by-risk).
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What changes, and for whom.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why now. Links to the bet, the owning document, or the code involved.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: What must not change, and what is out of scope.
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: The check on the real artifact that proves the change works.
+    validations:
+      required: true
+  - type: checkboxes
+    id: q-triggers
+    attributes:
+      label: Q triggers
+      description: Any checked box puts the change in the qualification lane.
+      options:
+        - label: "Q-a: the roadmap names this work as a program gate with a verdict."
+        - label: "Q-b: it creates or moves authority or a trust boundary, changes a structural runtime, database or service boundary, or has an external effect that is hard to undo."
+        - label: "Q-c: its proof must outlive the pull request (a real Builder run, a pilot run, or files in docs/evidence)."
+        - label: "Q-d: a new dependency or framework enters."
+  - type: dropdown
+    id: aprovo
+    attributes:
+      label: Needs "Aprovo"?
+      description: Yes for a migration that touches real data, a security or authentication change, or a screen the operator asked to see.
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true

@@ -46,6 +46,7 @@ export const crash = async () => { process.abort() }
 export const huge = async () => ({ text: 'x'.repeat(2 * 1024 * 1024) })
 export const wrongShape = async () => ({ id: '1', purchaseOrderId: 'PO-1', note: 'n', createdAt: 'now' })
 export const environment = async () => ({ text: JSON.stringify(process.env) })
+export const whoAmI = async (input, context) => ({ caller: context.caller, frozen: Object.isFrozen(context.caller) && Object.isFrozen(context) })
 export const hogMemory = async () => { const kept = []; for (;;) kept.push(new Array(1e6).fill(Math.random())) }
 export const hogBuffers = async () => { const kept = []; for (;;) kept.push(Buffer.alloc(256 * 1024 * 1024, 1)) }
 // A handler asking the sandbox for authority it must not have. Each attempt reports the refusal
@@ -66,6 +67,8 @@ export const beyondBoundary = async () => {
 const byPurchaseOrder = { type: 'object', properties: { purchaseOrderId: { type: 'string', minLength: 1, maxLength: 40 } }, required: ['purchaseOrderId'], additionalProperties: false }
 const empty = { type: 'object', properties: {}, additionalProperties: false }
 const text = { type: 'object', properties: { text: { type: 'string' } }, additionalProperties: false }
+const CALLER_SCHEMA = { type: 'object', properties: { accountId: { type: 'string' }, email: { type: 'string' }, displayName: { type: 'string' } }, required: ['accountId', 'displayName'], additionalProperties: false }
+const CALLER = Object.freeze({ accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' })
 
 const serverTree = (migrations) => {
   const manifest = {
@@ -82,6 +85,7 @@ const serverTree = (migrations) => {
       hogMemory: { module: 'handlers/probe.mjs', export: 'hogMemory', input: empty, output: empty },
       hogBuffers: { module: 'handlers/probe.mjs', export: 'hogBuffers', input: empty, output: empty },
       beyondBoundary: { module: 'handlers/probe.mjs', export: 'beyondBoundary', input: empty, output: text },
+      whoAmI: { module: 'handlers/probe.mjs', export: 'whoAmI', input: { type: 'object', properties: { caller: CALLER_SCHEMA }, additionalProperties: false }, output: { type: 'object', properties: { caller: CALLER_SCHEMA, frozen: { type: 'boolean' } }, required: ['caller', 'frozen'], additionalProperties: false } },
     },
     migrations: migrations.map(([name, sql]) => ({ name, sha256: sha(sql), sql })),
   }
@@ -123,7 +127,7 @@ const setup = async (t, sandbox) => {
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
   const { admin, database, supervisor, projects: [a, b] } = await setup(t)
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
-  const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files })
+  const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files, caller: CALLER })
 
   assert.deepEqual(await supervisor.prepare({ projectId: a, files }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
   assert.deepEqual(await supervisor.prepare({ projectId: a, files }), { state: 'READY', reset: false, applied: [] })
@@ -137,6 +141,9 @@ test('the runner migrates and serves each Project through its own sandboxed work
   assert.deepEqual((await invoke(b, 'listNotes', { purchaseOrderId: 'PO-7' })).body, [])
 
   assert.deepEqual(await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7', projectId: b }), { status: 400, body: { error: { code: 'INPUT_REFUSED', detail: '/projectId: not declared' } } })
+  // The handler sees the platform's caller, frozen, even when the input declares and carries one.
+  assert.deepEqual(await invoke(a, 'whoAmI'), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
+  assert.deepEqual(await invoke(a, 'whoAmI', { caller: { accountId: 'forged', displayName: 'Chefe' } }), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
   assert.deepEqual(await invoke(a, 'dropEverything'), { status: 404, body: { error: { code: 'OPERATION_NOT_FOUND' } } })
   assert.deepEqual(await invoke(a, 'wrongShape'), { status: 502, body: { error: { code: 'HANDLER_OUTPUT_REFUSED', detail: '/id: expected integer' } } })
   assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: { error: { code: 'RESPONSE_TOO_LARGE' } } })
@@ -267,7 +274,7 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
   const files = probeServerTree()
   assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
   const run = async (name, input) => {
-    const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files })
+    const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
     assert.equal(answer.status, 200, JSON.stringify(answer.body))
     return JSON.parse(answer.body.text)
   }
@@ -309,4 +316,42 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
 
 test('the runner refuses to start where the sandbox cannot be built', () => {
   assert.throws(() => assertUserNamespaces({ ...DEFAULT_SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
+})
+
+test('the runner socket admits an invocation only with an exact platform caller beside the input', async () => {
+  const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
+  const body = { projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller: CALLER }
+  assert.deepEqual(invokeBody.parse(body).caller, { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' })
+  assert.equal(invokeBody.safeParse({ ...body, caller: { ...CALLER, email: null } }).success, true)
+  const { caller: _omitted, ...withoutCaller } = body
+  for (const refused of [
+    withoutCaller,
+    { ...body, caller: { ...CALLER, role: 'owner' } },
+    { ...body, caller: { accountId: CALLER.accountId, displayName: CALLER.displayName } },
+    { ...body, caller: { ...CALLER, accountId: 'not-a-uuid' } },
+    { ...body, caller: { ...CALLER, displayName: '' } },
+    { ...body, caller: { ...CALLER, email: '' } },
+    { ...body, caller: { ...CALLER, email: 42 } },
+  ]) assert.equal(invokeBody.safeParse(refused).success, false, JSON.stringify(refused.caller))
+})
+
+test('the runner admits every caller the platform resolves: a long display name and any address Keycloak verified', async () => {
+  const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
+  const { createPreviewAccess } = await import(hubModuleUrl('identity-access/preview-access.js'))
+  const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
+  assert.ok(displayName.length > 200)
+  const expected = { accountId: '55555555-5555-4555-8555-555555555555', email: 'compras&fiscal@empresa.com.br', displayName }
+  const admitted = (caller) => invokeBody.safeParse({ projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller }).data?.caller
+
+  // Preview: the caller is the developer behind the Hub session.
+  const session = { account: { accountId: expected.accountId, email: expected.email, displayName }, issuer: 'https://issuer.test', subject: 'subject' }
+  const previewAccess = createPreviewAccess({ readSession: async () => session })
+  const route = {
+    routeId: 'r', generation: 'g', attemptId: 'a', accountId: expected.accountId, projectId: randomUUID(), changeId: 'c', subjectDigest: 's',
+    sourceRevision: 'v', artifactRevisionId: randomUUID(), artifactDigest: 'd', exactHost: 'preview-x.conexus.localhost', expiresAt: Date.now() + 60_000,
+  }
+  const { entryGrant } = await previewAccess.issueEntryGrant({ sessionToken: 'hub-session', route })
+  const { binding } = await previewAccess.consumeEntryGrant({ entryGrant, exactHost: route.exactHost })
+  await previewAccess.close()
+  assert.deepEqual(admitted(binding.caller), expected)
 })

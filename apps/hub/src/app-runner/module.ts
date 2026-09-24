@@ -1,12 +1,12 @@
 import { request } from 'node:http'
-import type { PrepareResult, Reply, ServerFile } from './supervisor.js'
+import type { InvokeInput, PrepareResult, Reply, ServerFile } from './supervisor.js'
 
 export type { ServerFile } from './supervisor.js'
 
 /** The Hub's only way to the application runner: HTTP over its owner-only unix socket. */
 export type ApplicationRunnerClient = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[] }>): Promise<PrepareResult>
-  invoke(input: Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[] }>): Promise<Reply>
+  invoke(input: InvokeInput): Promise<Reply>
 }>
 
 const call = (socketPath: string, path: string, body: unknown, timeoutMs: number): Promise<Reply> => new Promise((resolve, reject) => {

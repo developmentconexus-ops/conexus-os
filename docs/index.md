@@ -10,7 +10,6 @@ owns status and the next action. Start there.
 | Status, what exists, what is next | [Roadmap](roadmap.md) |
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
-| The current task | [Stage 2 Q3 — Application identity qualification](tasks/stage2-q3-application-identity-qualification.md) |
 | What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
 | The Stage 2 generated-application architecture and qualification map | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
@@ -51,8 +50,9 @@ owns status and the next action. Start there.
 | Need | Owner |
 | --- | --- |
 | Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
-| Repository, Git, documentation and CI | [Repository method](development/repository-method.md) and [engineering rules](development/engineering-rules.md) |
-| Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
+| Lanes, approval, proof, merge, Git and CI | [Delivery rules](development/delivery.md) |
+| What a reviewer checks on a pull request | [Review checklist](development/review-checklist.md) |
+| Frontend design, copy, verification and new surfaces | [`conexus-frontend` skill](../.agents/skills/conexus-frontend/SKILL.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.
 They do not silently replace the product contract or the roadmap.

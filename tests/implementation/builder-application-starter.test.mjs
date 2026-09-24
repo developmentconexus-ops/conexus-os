@@ -128,6 +128,10 @@ test('the global conexus-server skill matches the check it documents', () => {
   assert.match(guide, /fetch\('\/__conexus\/api\/listItems'/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
+  // The handler contract names the caller beside db and tells the Builder never to take it from input.
+  assert.match(guide, /type Caller = \{ accountId: string; email: string \| null; displayName: string \}/)
+  assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
+  assert.match(guide, /never add a name or author field to the input/)
 })
 
 test('writes only the application check files a checkout lacks, and never over a symlink', async () => {

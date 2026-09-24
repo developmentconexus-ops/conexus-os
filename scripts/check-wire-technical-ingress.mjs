@@ -22,6 +22,9 @@ const byId = new Map(operations.map(value => [value.operation['x-conexus-technic
 const ti01 = byId.get('TI-01');
 if (JSON.stringify(ti01.operation.security ?? null) !== '[]' || ti01.operation['x-conexus-oidc-flow'] !== 'AUTHORIZATION_CODE_PKCE_S256') throw new Error('TI-01 must be the server-owned public PKCE login protocol');
 if (!ti01.operation.responses?.['302']?.headers?.Location) throw new Error('TI-01 must return a server-derived redirect Location');
+const loginParameters = (ti01.operation.parameters ?? []).filter(parameter => parameter.in === 'query');
+if (JSON.stringify(loginParameters.map(parameter => parameter.name).sort()) !== JSON.stringify(['application', 'binding'])) throw new Error('TI-01 must accept only the optional application and binding query values');
+if (loginParameters.some(parameter => parameter.required !== false || parameter.schema?.type !== 'string' || !parameter.schema?.pattern)) throw new Error('TI-01 application/binding must be optional, patterned values');
 const ti02 = byId.get('TI-02');
 if (JSON.stringify(ti02.operation.security ?? null) !== '[]') throw new Error('TI-02 must be the public OIDC callback protocol');
 const callbackParameters = (ti02.operation.parameters ?? []).filter(parameter => parameter.in === 'query');

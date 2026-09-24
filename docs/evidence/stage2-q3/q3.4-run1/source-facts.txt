@@ -1,0 +1,8 @@
+revision 32df403dadab49f11e39cff7e1308d6c843fd5dc
+--- conexus/manifest.json operations.addNote.input
+{"type": "object", "properties": {"orderNumber": {"type": "string", "minLength": 1, "maxLength": 100}, "note": {"type": "string", "minLength": 1, "maxLength": 5000}, "status": {"type": "string", "maxLength": 50}}, "required": ["orderNumber", "note"], "additionalProperties": false}
+--- conexus/handlers/notes.ts lines naming the caller
+42:  { db, caller }: { db: Db; caller: Caller },
+46:  const author = (caller?.displayName || caller?.email || caller?.accountId || 'Usuário').trim().slice(0, 100)
+--- trace route for run bef679c7 (before PR #211)
+200 {"available":false,"traceId":null,"spans":[]}

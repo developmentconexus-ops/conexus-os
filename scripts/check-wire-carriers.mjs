@@ -18,6 +18,7 @@ const carriers = new Map([...operations].filter(([, entry]) => entry.operation['
 const expected = new Map([
   ['IAM-02', 'OWNER_CURRENT'], ['IAM-03', 'IDEMPOTENCY_KEY'], ['WS-01', 'IDEMPOTENCY_KEY'],
   ['IAM-05', 'OWNER_CURRENT'], ['IAM-06', 'OWNER_CURRENT'], ['IAM-10', 'OWNER_CURRENT'],
+  ['IAM-12', 'OWNER_CURRENT'], ['IAM-13', 'OWNER_CURRENT'],
   ['PRJ-03', 'IDEMPOTENCY_KEY'], ['BLD-24', 'IDEMPOTENCY_KEY'],
 ]);
 if (JSON.stringify([...carriers].sort()) !== JSON.stringify([...expected].sort())) throw new Error(`current carrier set mismatch: ${JSON.stringify([...carriers])}`);

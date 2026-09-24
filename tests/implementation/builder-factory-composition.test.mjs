@@ -190,6 +190,7 @@ test('a complete Factory configuration is read, and a partial one names the miss
     githubClientSecretFile: '/secrets/factory-app-client-secret',
     stateSecretFile: '/secrets/factory-state-secret',
     secretKeyFile: '/secrets/factory-secret-key',
+    previousSecretKeyFiles: [],
     databasePasswordFile: '/secrets/factory-db',
   })
   const { CONEXUS_FACTORY_STATE_SECRET_FILE: _omitted, ...partial } = factoryEnvironment
@@ -214,6 +215,25 @@ test('a secret key that is not 64 hex characters is refused before the Factory s
   for (const key of ['', 'f'.repeat(63), 'F'.repeat(64), 'g'.repeat(64), 'f'.repeat(65)]) {
     assert.throws(() => createFactorySecretKeyEncryption(key), /^Error: FACTORY_SECRET_KEY_REFUSED$/)
   }
+})
+
+test('after a key rotation a secret sealed under a previous key still opens, and only through the keys the installation names', async () => {
+  const { createSecretEnvelope } = await import(built('platform/secrets.js'))
+  const previous = 'c3'.repeat(32)
+  const current = 'd4'.repeat(32)
+  const sealedBefore = await createSecretEnvelope(previous).seal('refresh-before-rotation')
+  assert.equal(await createSecretEnvelope(current, [previous]).open(sealedBefore), 'refresh-before-rotation')
+  await assert.rejects(createSecretEnvelope(current).open(sealedBefore))
+  const credential = await createFactorySecretKeyEncryption(previous).encrypt({ apiKey: 'sk-before-rotation' })
+  assert.deepEqual(await createFactorySecretKeyEncryption(current, [previous]).decrypt(credential), { value: { apiKey: 'sk-before-rotation' }, needsReencryption: true })
+})
+
+test('previous credential keys are named by absolute paths, separated by commas', () => {
+  const complete = { ...baseEnvironment, ...factoryEnvironment }
+  assert.deepEqual(readHubConfig(complete).factory.previousSecretKeyFiles, [])
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).factory.previousSecretKeyFiles,
+    ['/secrets/key-2025', '/secrets/key-2026'])
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), /^Error: INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES$/)
 })
 
 test('a Hub composing the Factory refuses Mastra Platform credentials', () => {

@@ -1,15 +1,15 @@
 import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import Fastify from 'fastify'
-import { z } from 'zod'
 import { readRelayTls } from './pg-relay.js'
+import { invokeBody, prepareBody } from './requests.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
 import { createSupervisor } from './supervisor.js'
 
 /**
  * The application runner: a process of its own, outside the Hub, that owns the application data
  * plane. The Hub reaches it only through a unix socket only their shared OS user can open, and sends
- * it platform-issued facts (Project id, admitted server tree, operation, input); generated code runs
+ * it platform-issued facts (Project id, admitted server tree, operation, input, caller); generated code runs
  * only in the per-invocation sandbox this process starts.
  */
 const required = (name: string): string => {
@@ -36,10 +36,6 @@ const supervisor = createSupervisor({
 })
 
 await supervisor.checkProvisioner()
-
-const serverFile = z.object({ path: z.string().max(512), sha256: z.string().regex(/^[0-9a-f]{64}$/), content: z.string() }).strict()
-const prepareBody = z.object({ projectId: z.uuid(), files: z.array(serverFile).min(1).max(128) }).strict()
-const invokeBody = z.object({ projectId: z.uuid(), operation: z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/), input: z.unknown(), files: z.array(serverFile).min(1).max(128) }).strict()
 
 const app = Fastify({ bodyLimit: 16 * 1024 * 1024, logger: false })
 app.get('/v1/health', async () => ({ ok: true }))

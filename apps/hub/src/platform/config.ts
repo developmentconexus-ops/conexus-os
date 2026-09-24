@@ -7,6 +7,9 @@ export type HubConfig = Readonly<{
   origin: string
   port: number
   preview: Readonly<{ port: number; certFile: string; keyFile: string }> | undefined
+  // Each Project's application is served at applicationOrigin(application, slug), with the Preview's
+  // certificate. Its own listener keeps it apart from the Preview's frame and CORS policy.
+  application: ApplicationAddress | undefined
   bootstrapSubject: string
   database: Readonly<{
     host: string
@@ -33,6 +36,26 @@ export type HubConfig = Readonly<{
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
 
+/** Where applications are served: `<slug>.<domain>` on one port. */
+export type ApplicationAddress = Readonly<{ port: number; domain: string }>
+
+const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
+const DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
+
+// A browser leaves the default port out of both Host and Origin.
+const authority = ({ port, domain }: ApplicationAddress, slug: string): string => port === 443 ? `${slug}.${domain}` : `${slug}.${domain}:${port}`
+
+/** The one origin of an application: its sign-in return, its address in the Hub and its API's only admitted Origin. */
+export const applicationOrigin = (address: ApplicationAddress, slug: string): string => `https://${authority(address, slug)}`
+
+/** The Host header is the only application selector, and it must be exactly one application's authority. */
+export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): string | null => {
+  const suffix = authority(address, '')
+  if (typeof host !== 'string' || !host.endsWith(suffix)) return null
+  const slug = host.slice(0, -suffix.length)
+  return SLUG.test(slug) && !slug.includes('--') ? slug : null
+}
+
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
 
@@ -46,8 +69,17 @@ export type FactoryRuntimeConfig = Readonly<{
   stateSecretFile: string
   // 64 hex characters: the AES-256 key the Factory encrypts stored credentials with.
   secretKeyFile: string
+  // The keys it replaced, decrypt-only, until every value sealed under them has been rewritten.
+  previousSecretKeyFiles: readonly string[]
   databasePasswordFile: string
 }>
+
+/** CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
+export const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
+  const files = (environment.CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
+  if (files.some((file) => !file.startsWith('/'))) throw new Error('INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES')
+  return files
+}
 
 const required = (environment: NodeJS.ProcessEnv, name: string): string => {
   const value = environment[name]
@@ -182,7 +214,7 @@ const FACTORY_VARIABLES = {
   stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
   secretKeyFile: 'CONEXUS_FACTORY_SECRET_KEY_FILE',
   databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
-} as const satisfies Record<keyof FactoryRuntimeConfig, string>
+} as const satisfies Record<Exclude<keyof FactoryRuntimeConfig, 'previousSecretKeyFiles'>, string>
 
 // The Mastra Factory adds Mastra Platform integrations on its own whenever it sees Platform
 // credentials in the process, so a Hub composing it must not carry any.
@@ -193,7 +225,8 @@ const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] =>
   for (const name of Object.keys(environment)) {
     if (name.startsWith('MASTRA_PLATFORM_') && environment[name]) throw new Error(`FACTORY_REFUSES_CONFIG_${name}`)
   }
-  return Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as FactoryRuntimeConfig
+  const variables = Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as Record<keyof typeof FACTORY_VARIABLES, string>
+  return { ...variables, previousSecretKeyFiles: previousSecretKeyFiles(environment) }
 }
 
 const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAiPro'] => {
@@ -232,6 +265,19 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
   return { port: previewPort, certFile, keyFile }
 }
 
+const applicationRuntime = (environment: NodeJS.ProcessEnv, hubPort: number, preview: HubConfig['preview']): HubConfig['application'] => {
+  const portValue = environment.CONEXUS_APPLICATION_PORT
+  const domain = environment.CONEXUS_APPLICATION_DOMAIN
+  if (!portValue && !domain) return undefined
+  if (!portValue) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_PORT')
+  if (!domain) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_DOMAIN')
+  if (!DOMAIN.test(domain)) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN')
+  if (!preview) throw new Error('APPLICATION_PREVIEW_RUNTIME_REQUIRED')
+  const applicationPort = port(portValue, 'CONEXUS_APPLICATION_PORT')
+  if (applicationPort === hubPort || applicationPort === preview.port) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_PORT')
+  return { port: applicationPort, domain }
+}
+
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
   for (const name of [
     ...RETIRED_BRAIN_CONNECTIONS_VARIABLES,
@@ -245,10 +291,12 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   }
   const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
   const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')
+  const preview = previewRuntime(environment, hubOrigin, hubPort)
   const config: HubConfig = {
     origin: hubOrigin,
     port: hubPort,
-    preview: previewRuntime(environment, hubOrigin, hubPort),
+    preview,
+    application: applicationRuntime(environment, hubPort, preview),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),
@@ -273,6 +321,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
   if (config.googleAiPro && !config.factory) throw new Error('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED')
+  // The application host reads what it serves as the Builder executor; without it the listener never starts.
+  if (config.application && !config.builder) throw new Error('APPLICATION_BUILDER_RUNTIME_REQUIRED')
   // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   return config

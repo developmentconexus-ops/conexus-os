@@ -57,8 +57,29 @@ database whose catalog is not the one the committed snapshot
 created before the baseline, the pilot, was adopted onto it on 2026-09-19; no
 database on the older ledger exists any more, so the runner only ever applies
 pending migrations from a ledger that starts at `0001`.
-`docs/development/engineering-rules.md` holds the rule for when the baseline
-itself may be regenerated.
+
+### Baseline and forward migrations
+
+Every migration is four-digit, applied once, pinned by SHA-256 in
+`scripts/run-hub-migrations.mjs`, and recorded in `iam.schema_migration`. A
+migration that has been applied anywhere is never edited: correct it with the
+next number.
+
+The baseline is regenerated only by an explicit squash decision by the
+operator, and only when every real installation can be carried across it. The
+decision carries two things. The first is a digest-equality proof: a database
+built from the new baseline alone produces the same `scripts/hub-catalog.mjs`
+digest as a database built the old way, with any difference named and
+justified. The second is an adoption path for every installation that is behind
+the new baseline, which replaces its ledger in one transaction and refuses
+unless its catalog already equals the baseline's. Both were done for the
+2026-09-19 squash of migrations 001 to 059; the record is in that pull request.
+
+`scripts/generate-hub-baseline.mjs` is the only writer of the baseline file. It
+applies the committed file to a throwaway database, reads the schema back with
+`pg_dump --schema-only` and re-renders it, so the committed bytes are a fixed
+point of their own generator. Run `npm run db:baseline:check` after touching
+it, and never edit the file by hand.
 
 ## 5.4 Project Database
 

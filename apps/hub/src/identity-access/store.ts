@@ -35,7 +35,14 @@ type OidcTransactionRow = QueryResultRow & {
   nonce: string
   expires_at: Date
   consumed_at: Date | null
+  application_project_id: string | null
+  sign_in_binding_digest: Buffer | null
 }
+
+/** Where a sign-in returns. Stored with the OIDC transaction and never read from the callback. */
+export type SignInReturn =
+  | Readonly<{ kind: 'HUB' }>
+  | Readonly<{ kind: 'APPLICATION'; projectId: string; bindingDigest: Buffer }>
 
 type BootstrapRow = QueryResultRow & {
   issuer: string
@@ -46,6 +53,7 @@ type BootstrapRow = QueryResultRow & {
 }
 
 type SessionRow = AccountRow & {
+  access_scope: string | null
   csrf_digest: Buffer
   idle_expires_at: Date
   absolute_expires_at: Date
@@ -70,8 +78,8 @@ const accountSummary = (row: AccountRow): AccountSummary => ({
 })
 
 export type IdentityAccessStore = Readonly<{
-  createOidcTransaction(input: OidcTransaction & Readonly<{ now?: Date }>): Promise<void>
-  consumeOidcTransaction(input: Readonly<{ state: string; now?: Date }>): Promise<Readonly<{ pkceVerifier: string; nonce: string }> | null>
+  createOidcTransaction(input: OidcTransaction & Readonly<{ signInReturn?: SignInReturn; now?: Date }>): Promise<void>
+  consumeOidcTransaction(input: Readonly<{ state: string; now?: Date }>): Promise<Readonly<{ pkceVerifier: string; nonce: string; signInReturn: SignInReturn }> | null>
   resolveIdentity(identity: OidcIdentity): Promise<AccountSummary | null>
   createProvisioningContext(input: VerifiedIdentity & Readonly<{ configuredIssuer: string; configuredSubject: string; now?: Date }>): Promise<string>
   claimInvitations(input: Readonly<{ accountId: AccountId; verifiedEmail: EmailAddress | null }>): Promise<number>
@@ -116,22 +124,26 @@ export const createIdentityAccessStore = ({
   }
 
   return Object.freeze({
-    async createOidcTransaction({ state, pkceVerifier, nonce, now = new Date() }): Promise<void> {
+    async createOidcTransaction({ state, pkceVerifier, nonce, signInReturn = { kind: 'HUB' }, now = new Date() }): Promise<void> {
+      const application = signInReturn.kind === 'APPLICATION' ? signInReturn : null
       await pool.query(`
-        INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at)
-        VALUES ($1, $2, $3, $4)
-      `, [digest(state), pkceVerifier, nonce, new Date(now.getTime() + OIDC_MS)])
+        INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, application_project_id, sign_in_binding_digest)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [digest(state), pkceVerifier, nonce, new Date(now.getTime() + OIDC_MS), application?.projectId ?? null, application?.bindingDigest ?? null])
     },
     consumeOidcTransaction({ state, now = new Date() }) {
       return transaction(async (client) => {
         const found = await client.query<OidcTransactionRow>(`
-          SELECT pkce_verifier, nonce, expires_at, consumed_at
+          SELECT pkce_verifier, nonce, expires_at, consumed_at, application_project_id, sign_in_binding_digest
           FROM iam.oidc_transaction WHERE state_digest = $1 FOR UPDATE
         `, [digest(state)])
         const row = found.rows[0]
         if (!row || row.consumed_at || now >= row.expires_at) return null
         await client.query('UPDATE iam.oidc_transaction SET consumed_at = $2 WHERE state_digest = $1', [digest(state), now])
-        return { pkceVerifier: row.pkce_verifier, nonce: row.nonce }
+        const signInReturn: SignInReturn = row.application_project_id && row.sign_in_binding_digest
+          ? { kind: 'APPLICATION', projectId: row.application_project_id, bindingDigest: row.sign_in_binding_digest }
+          : { kind: 'HUB' }
+        return { pkceVerifier: row.pkce_verifier, nonce: row.nonce, signInReturn }
       })
     },
     async resolveIdentity({ issuer, subject }) {
@@ -215,6 +227,9 @@ export const createIdentityAccessStore = ({
       return transaction(async (client) => {
         const account = await client.query<QueryResultRow & { active: boolean }>('SELECT active FROM iam.account WHERE account_id = $1 FOR UPDATE', [accountId])
         if (account.rowCount !== 1 || !account.rows[0]?.active) throw identityAccessError('ACCOUNT_INACTIVE')
+        // An Account born from an application invitation, and in no Workspace, never holds a Hub session.
+        const scope = await client.query<QueryResultRow & { scope: string }>('SELECT iam.account_access_scope($1) AS scope', [accountId])
+        if (scope.rows[0]?.scope !== 'CONTROL_PLANE') throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
         const sessionToken = token()
         const csrfToken = token()
         await client.query(`
@@ -228,12 +243,13 @@ export const createIdentityAccessStore = ({
       return transaction(async (client) => {
         const found = await client.query<SessionRow>(`
           SELECT s.account_id, s.csrf_digest, s.idle_expires_at, s.absolute_expires_at, s.revoked_at,
-            a.issuer, a.external_subject, a.display_name, a.email, a.active
+            a.issuer, a.external_subject, a.display_name, a.email, a.active, iam.account_access_scope(a.account_id) AS access_scope
           FROM iam.session s JOIN iam.account a USING (account_id)
           WHERE s.token_digest = $1 FOR UPDATE OF s
         `, [digest(sessionToken)])
         const row = found.rows[0]
-        if (!row || row.revoked_at || !row.active || now >= row.idle_expires_at || now >= row.absolute_expires_at) return null
+        if (!row || row.revoked_at || !row.active || row.access_scope !== 'CONTROL_PLANE' ||
+          now >= row.idle_expires_at || now >= row.absolute_expires_at) return null
         if (requireCsrf && (!csrfToken || !digest(csrfToken).equals(row.csrf_digest))) return null
         const idle = new Date(Math.min(now.getTime() + IDLE_MS, row.absolute_expires_at.getTime()))
         await client.query('UPDATE iam.session SET last_seen_at = $2, idle_expires_at = $3 WHERE token_digest = $1', [digest(sessionToken), now, idle])
@@ -244,13 +260,14 @@ export const createIdentityAccessStore = ({
       if ((sessionToken ? 1 : 0) + (sessionDigest ? 1 : 0) !== 1) return null
       const result = await pool.query<SessionRow>(`
         SELECT s.account_id, s.csrf_digest, s.idle_expires_at, s.absolute_expires_at, s.revoked_at,
-          a.issuer, a.external_subject, a.display_name, a.email, a.active
+          a.issuer, a.external_subject, a.display_name, a.email, a.active, iam.account_access_scope(a.account_id) AS access_scope
         FROM iam.session s JOIN iam.account a USING (account_id)
         WHERE s.token_digest = $1
       `, [sessionDigest ?? digest(sessionToken ?? '')])
       const row = result.rows[0]
       const current = now ?? new Date()
-      if (!row || row.revoked_at || !row.active || current >= row.idle_expires_at || current >= row.absolute_expires_at) return null
+      if (!row || row.revoked_at || !row.active || row.access_scope !== 'CONTROL_PLANE' ||
+        current >= row.idle_expires_at || current >= row.absolute_expires_at) return null
       return { account: accountSummary(row), issuer: row.issuer, subject: row.external_subject }
     },
     async listAccessibleWorkspaces(accountId) {

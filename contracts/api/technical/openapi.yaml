@@ -29,7 +29,25 @@ paths:
         Begins the exact server-configured Keycloak OIDC Authorization Code + PKCE S256 flow.
         Conexus creates the authorization transaction, state and PKCE verifier server-side;
         the caller cannot select issuer, realm, client, redirect URI or authorization scope.
+        An application host starts its own sign-in with its address label and the digest of a
+        binding its browser holds, both or neither; the callback then returns there with a
+        one-use handoff instead of a Conexus Hub session.
       security: []
+      parameters:
+        - name: application
+          in: query
+          required: false
+          description: Address label of the application whose host started this sign-in. Never authority.
+          schema:
+            type: string
+            pattern: '^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$'
+        - name: binding
+          in: query
+          required: false
+          description: Base64url SHA-256 of the sign-in binding the application host set in the browser.
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{43}$'
       responses:
         '302':
           description: Redirect to the exact server-configured Keycloak authorization endpoint.

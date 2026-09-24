@@ -8,11 +8,33 @@ import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
+/** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
+export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
+/**
+ * Why Keycloak refused a refresh, as far as its answer says: the user is disabled, the SSO session
+ * ended (idle or maximum lifetime, or signed out in Keycloak), or anything else (a stale or reused
+ * token, another subject). Keycloak says so only in error_description, so this names the ending and
+ * never decides authority.
+ */
+export type ProviderRefusal = 'USER_DISABLED' | 'SESSION_ENDED' | 'REFUSED'
+/** Keycloak's answer to a refresh: the person is still signed in, was refused, or could not be asked. */
+export type ProviderCheck =
+  | Readonly<{ kind: 'ACTIVE'; refreshToken: string }>
+  | Readonly<{ kind: 'REFUSED'; reason: ProviderRefusal }>
+  | Readonly<{ kind: 'UNAVAILABLE' }>
+
+// Keycloak 26.7 TokenManager's descriptions for an invalid_grant refresh.
+export const providerRefusal = (description: string | undefined): ProviderRefusal => {
+  if (description === 'User disabled') return 'USER_DISABLED'
+  if (description === 'Session not active' || description === 'Offline session not active' || description === 'Client session not active') return 'SESSION_ENDED'
+  return 'REFUSED'
+}
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
-  complete(input: OidcCompletion): Promise<VerifiedIdentity>
+  complete(input: OidcCompletion): Promise<CompletedSignIn>
+  refresh(input: Readonly<{ refreshToken: string; expectedSubject: string }>): Promise<ProviderCheck>
   close(): Promise<void>
 }>
 type OidcDiscovery = typeof oidc.discovery
@@ -97,7 +119,7 @@ export const createOidcAdapter = async ({
       })
       return { state, nonce, pkceVerifier, location: location.href }
     },
-    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<VerifiedIdentity> {
+    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<CompletedSignIn> {
       const tokens = await oidc.authorizationCodeGrant(configuration, new URL(currentUrl), {
         pkceCodeVerifier: pkceVerifier,
         expectedState,
@@ -109,7 +131,23 @@ export const createOidcAdapter = async ({
       // An unverified address, or a realm that asserts no address at all, is not an error.
       // It only means this identity can claim no invitation.
       const verifiedEmail = resolveVerifiedEmail(claims)
-      return { issuer: claims.iss, subject: claims.sub, verifiedEmail }
+      const name = typeof claims.name === 'string' && /\S/.test(claims.name) ? claims.name.trim().slice(0, 200) : null
+      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, displayName: name, refreshToken: tokens.refresh_token ?? null }
+    },
+    // Keycloak answers invalid_grant for a disabled user, an ended SSO session or a stale token.
+    // Anything that is not an answer from Keycloak leaves the person's standing unknown.
+    async refresh({ refreshToken, expectedSubject }): Promise<ProviderCheck> {
+      let tokens: Awaited<ReturnType<typeof oidc.refreshTokenGrant>>
+      try {
+        tokens = await oidc.refreshTokenGrant(configuration, refreshToken)
+      } catch (error) {
+        return error instanceof oidc.ResponseBodyError && error.error === 'invalid_grant'
+          ? { kind: 'REFUSED', reason: providerRefusal(error.error_description) }
+          : { kind: 'UNAVAILABLE' }
+      }
+      const subject = tokens.claims()?.sub
+      if (subject !== undefined && subject !== expectedSubject) return { kind: 'REFUSED', reason: 'REFUSED' }
+      return { kind: 'ACTIVE', refreshToken: tokens.refresh_token ?? refreshToken }
     },
     close: () => {
       closePromise ??= localIssuerTransport?.close() ?? Promise.resolve()

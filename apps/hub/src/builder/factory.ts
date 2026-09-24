@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Mastra } from '@mastra/core/mastra'
@@ -7,7 +6,7 @@ import { MastraCompositeStore } from '@mastra/core/storage'
 import type { RetentionConfig, StorageDomains } from '@mastra/core/storage'
 import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
-import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
+import { MastraFactory } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import type { VersionControl } from '@mastra/factory/capabilities/version-control'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
@@ -20,6 +19,7 @@ import type { Observability } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { factorySecretEncryption } from '../platform/secrets.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import type { HubSessionAuthProvider } from './hub-session-auth.js'
 import type { BuilderAgentController } from './runtime.js'
@@ -204,10 +204,8 @@ const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
 // key. Rows written before it existed hold the plaintext encryptor's JSON text, which the Factory's
 // decryptor returns as a string and its startup migration would re-encrypt as one; they are parsed
 // here, so that migration encrypts the credential itself.
-export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretEncryption => {
-  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
-  const key = Buffer.from(hexKey, 'hex')
-  const encryption = createFactorySecretEncryption({ primary: { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key } })
+export const createFactorySecretKeyEncryption = (hexKey: string, previousHexKeys: readonly string[] = []): FactorySecretEncryption => {
+  const encryption = factorySecretEncryption(hexKey, previousHexKeys)
   return {
     encrypt: (value) => encryption.encrypt(value),
     decrypt: async (value) => typeof value === 'string' && !value.startsWith(ENVELOPE_PREFIX)
@@ -273,7 +271,7 @@ class ConexusGithubIntegration extends GithubIntegration {
   }
 }
 
-export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
+export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, previousSecretKeys = [], publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
   pool: PostgresPool
   orgId: string
   // The Hub session, the only sign-in (docs/reference/single-owner-map.md).
@@ -281,6 +279,7 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
   github: FactoryGithubApp
   stateSecret: string
   secretKey: string
+  previousSecretKeys?: readonly string[]
   publicUrl: string
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
@@ -294,7 +293,7 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
     integrations: [integration],
     sandbox,
     stateSecret,
-    secretEncryption: createFactorySecretKeyEncryption(secretKey),
+    secretEncryption: createFactorySecretKeyEncryption(secretKey, previousSecretKeys),
     includeDefaultBoards: false,
     publicUrl,
   })

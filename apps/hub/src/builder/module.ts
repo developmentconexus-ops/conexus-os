@@ -199,6 +199,7 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   }
   const stateSecret = readSecretFile(factory.stateSecretFile)
   const secretKey = readSecretFile(factory.secretKeyFile)
+  const previousSecretKeys = factory.previousSecretKeyFiles.map(readSecretFile)
   const observability = createBuilderObservability('conexus-builder-factory')
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
@@ -217,7 +218,7 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   googleAiPro.catch(() => undefined)
   const auth = new HubSessionAuthProvider({ orgId: factory.orgId, resolveCurrentSession, isInstallationAdministrator })
   const ready: Promise<FactoryComposition> = googleAiPro.then((started) => composeFactory({
-    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, publicUrl: origin, observability,
+    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, previousSecretKeys, publicUrl: origin, observability,
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
     ...(started ? { googleAiProUrl: started.url } : {}),
   }))

@@ -41,7 +41,7 @@ npm run conexus:verify -- --scope <scope>
 ```
 
 The final candidate profile includes real PostgreSQL leaves and does not
-silently skip them. Before `scope final` or root `npm run verify`, provide one
+silently skip them. Before `scope final`, provide one
 complete `CONEXUS_TEST_DB_*` set or run the disposable PostgreSQL service pinned
 in `.github/workflows/verify.yml`; a partial set fails before execution.
 

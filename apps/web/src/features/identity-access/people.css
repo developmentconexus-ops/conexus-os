@@ -26,3 +26,10 @@
 .cx-invite-form { display: grid; grid-template-columns: minmax(0, 1fr) 9rem auto; align-items: end; gap: .75rem; margin: 1rem 0 .5rem; }
 .cx-invite-role { width: 100%; }
 @media (max-width: 36rem) { .cx-invite-form { grid-template-columns: 1fr; } }
+
+.cx-app-address { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: 1rem 1.15rem; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); }
+.cx-app-address code { overflow-wrap: anywhere; font-family: var(--cx-font-mono); font-size: .875rem; }
+.cx-app-address-empty { color: var(--cx-text-2); }
+.cx-app-note { margin-top: 1.5rem; }
+.cx-grant-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem; margin: 1rem 0 .5rem; }
+@media (max-width: 36rem) { .cx-grant-form { grid-template-columns: 1fr; } }
