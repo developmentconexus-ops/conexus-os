@@ -13,7 +13,7 @@ first. The new file carries none of that spike's export.
 | Setting | Value | Why |
 | --- | --- | --- |
 | `revokeRefreshToken` | `false` | The Hub asks Keycloak at most every five minutes with a stored refresh token, for the Hub, each application and each Preview. Rotation would make two concurrent requests spend one token. The single session qualification proved on 26.7.2 that without rotation a disabled person and a signed-out session are still refused ([evidence](../../docs/evidence/single-session/README.md)). |
-| `ssoSessionIdleTimeout` | 1800 | A person active in the Hub or an application refreshes at least every five minutes, which resets this timer. Someone idle for 30 minutes signs in again. |
+| `ssoSessionIdleTimeout` | 2400 | A refresh resets this timer, and the Hub refreshes only when a request finds its five-minute check due. The Hub's own idle limit is 30 minutes, so Keycloak's must outlast 30 plus 5 minutes, or a person active at minute 4 and back at minute 31 would be signed out before the Hub's limit. 40 minutes leaves a margin. |
 | `ssoSessionMaxLifespan` | 36000 | Ten hours, above the eight hours the Hub allows a session. |
 | `accessTokenLifespan` | 300 | Keycloak's default, stated because the check interval was chosen against it. |
 | `loginTheme`, `internationalizationEnabled`, `supportedLocales`, `defaultLocale` | `conexus`, `true`, `["pt-BR"]`, `pt-BR` | The Conexus sign-in page, in Portuguese only. |

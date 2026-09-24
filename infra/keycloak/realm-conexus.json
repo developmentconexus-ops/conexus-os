@@ -6,7 +6,7 @@
   "supportedLocales": ["pt-BR"],
   "defaultLocale": "pt-BR",
   "revokeRefreshToken": false,
-  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionIdleTimeout": 2400,
   "ssoSessionMaxLifespan": 36000,
   "accessTokenLifespan": 300,
   "clients": [

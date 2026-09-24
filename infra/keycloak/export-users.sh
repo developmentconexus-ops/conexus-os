@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$from_container" ] && [ -n "$from_realm" ] && [ -n "$out" ] || { echo "usage: $0 --from-container <name> --from-realm <realm> --out <file>" >&2; exit 2; }
+[ ! -e "$out" ] || { echo "error: $out exists; the export holds password hashes and is only ever written as a new file" >&2; exit 1; }
 case "$(cd "$(dirname "$out")" && pwd)/" in
   "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"/*) echo "error: --out must be outside the repository" >&2; exit 1 ;;
 esac
@@ -49,6 +50,6 @@ CX_OLD="$from_realm" CX_NEW="$NEW_REALM" node -e '
     ...user,
     realmRoles: [`default-roles-${process.env.CX_NEW}`],
   }))
-  fs.writeFileSync(process.argv[2], JSON.stringify(users), { mode: 0o600 })
+  fs.writeFileSync(process.argv[2], JSON.stringify(users), { mode: 0o600, flag: 'wx' })
   console.log(`Exported ${users.length} people from ${process.env.CX_OLD}: ${users.map((user) => user.username).join(", ")}`)
 ' "$work/export/realm.json" "$out"

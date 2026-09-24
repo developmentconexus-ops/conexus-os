@@ -56,8 +56,8 @@ export type HostSessions = Readonly<{
   openHub(input: Readonly<{ accountId: string; refreshToken: string | null; now?: Date }>): Promise<HubSessionTokens>
   /** A Hub request's session; with a CSRF token, the request must carry the session's own. Slides the idle limit. */
   resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; requireCsrf?: boolean; now?: Date }>): Promise<CurrentSession | null>
-  /** Signs out of the Hub, and ends the Previews this session opened. */
-  endHub(sessionToken: string): Promise<void>
+  /** Signs out of the Hub with the session's own CSRF token, and ends the Previews it opened. Never asks Keycloak. */
+  endHub(input: Readonly<{ sessionToken: string; csrfToken: string }>): Promise<boolean>
   applicationBySlug(slug: string): Promise<string | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
@@ -78,7 +78,7 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
 type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
 /** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
-export const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503 })
+export const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
 
 type ApplicationRow = QueryResultRow & {
   account_id: string
@@ -209,9 +209,10 @@ export const createHostSessions = ({
       }
     },
 
-    async endHub(sessionToken) {
-      if (!parseOpaqueToken(sessionToken)) return
-      await end(digest(sessionToken), 'SIGNED_OUT')
+    async endHub({ sessionToken, csrfToken }) {
+      if (!parseOpaqueToken(sessionToken) || !parseOpaqueToken(csrfToken)) return false
+      const ended = await pool.query<QueryResultRow & { ended: boolean }>('SELECT iam.end_hub_session($1, $2) AS ended', [digest(sessionToken), digest(csrfToken)])
+      return ended.rows[0]?.ended === true
     },
 
     async applicationBySlug(slug) {

@@ -540,6 +540,14 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: unreachable.preview.sessionToken, exactHost: unreachable.exactHost, now: due }), { kind: 'PROVIDER_UNAVAILABLE' })
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-reachable' }
     assert.ok(await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), 'the session was kept and Keycloak is asked again')
+
+    const signingOut = await openWithPreview('refresh-signing-out')
+    providerAnswer = { kind: 'UNAVAILABLE' }
+    refreshes.length = 0
+    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), true, 'a sign-out while Keycloak is down still ends the session')
+    assert.deepEqual(refreshes, [], 'and never asks Keycloak')
+    assert.deepEqual(await ended(signingOut.hub.sessionToken), { ended_reason: 'SIGNED_OUT', provider_refresh_token: null })
+    assert.deepEqual(await ended(signingOut.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null })
   })
 
   await t.test('a Preview lives in the database: another Hub serves it, it dies with the Hub session that opened it, and its handoff survives the wrong host', async () => {
@@ -578,11 +586,30 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
     const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
     assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
-    await sessions.endHub(hub.sessionToken)
+    assert.equal(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), true)
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
     assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
       [{ ended_reason: 'PARENT_ENDED' }])
     assert.equal(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(8_000) }), null, 'an ended Hub session opens nothing')
+  })
+
+  await t.test('nothing of a Preview is kept after it ends: the next launch removes it and its sessions', async () => {
+    const launch = () => {
+      const artifactRevisionId = randomUUID()
+      return { accountId: owner, projectId, sourceRevision: 'e'.repeat(40), artifactRevisionId, artifactDigest: 'f'.repeat(64),
+        exactHost: `preview-${artifactRevisionId}.conexus.localhost`, manifest: { entryPath: 'index.html', files: [] } }
+    }
+    const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-retention', now: new Date() })
+    const first = launch()
+    const old = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: first, now: new Date() })
+    const entered = await sessions.redeem({ handoff: old.entryGrant, target: { kind: 'PREVIEW', exactHost: first.exactHost }, now: new Date() })
+    assert.ok(entered)
+    await client.query("UPDATE iam.preview SET opened_at = opened_at - interval '16 minutes', expires_at = expires_at - interval '16 minutes' WHERE artifact_revision_id = $1", [first.artifactRevisionId])
+    await client.query("UPDATE iam.host_session SET started_at = started_at - interval '16 minutes', absolute_expires_at = absolute_expires_at - interval '16 minutes' WHERE token_digest = $1",
+      [createHash('sha256').update(entered.sessionToken).digest()])
+    assert.ok(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: launch(), now: new Date() }))
+    assert.deepEqual((await client.query('SELECT (SELECT count(*) FROM iam.preview WHERE artifact_revision_id = $1)::int AS previews, (SELECT count(*) FROM iam.host_session WHERE token_digest = $2)::int AS sessions',
+      [first.artifactRevisionId, createHash('sha256').update(entered.sessionToken).digest()])).rows, [{ previews: 0, sessions: 0 }])
   })
 
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {

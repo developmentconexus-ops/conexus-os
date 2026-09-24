@@ -56,7 +56,10 @@ BEGIN
     hub.token_digest, hub.provider_checked_at,
     CASE WHEN hub.provider_checked_at <= p_now - interval '5 minutes' THEN hub.provider_refresh_token END
   FROM iam.account AS person, iam.host_session AS hub
-  WHERE person.account_id = found_session.account_id AND hub.token_digest = found_session.parent_digest;
+  -- Checked again in the query that hands out the token: a Hub session a concurrent refusal ended after the
+  -- check above has no token left, and must not read as a check that is not due.
+  WHERE person.account_id = found_session.account_id AND hub.token_digest = found_session.parent_digest
+    AND hub.ended_at IS NULL AND iam.hub_session_live(hub.token_digest, person.account_id, p_now);
 END;
 $$;
 

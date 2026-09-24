@@ -134,11 +134,11 @@ export const registerIdentityAccessRoutes = async (
       if (!requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'csrf-denied', 'Request authenticity denied')
       }
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      // Signing out never waits on Keycloak: the session and its own CSRF token are enough.
       const sessionToken = request.cookies[SESSION_COOKIE]
-      if (!sessionToken) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      await hubSessions.endHub(sessionToken)
+      if (!sessionToken || !await hubSessions.endHub({ sessionToken, csrfToken: requestCsrf })) {
+        return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      }
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)
         .clearCookie(CSRF_COOKIE, clearCookieOptions)

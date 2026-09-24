@@ -156,6 +156,11 @@ DECLARE
   opened uuid := gen_random_uuid();
 BEGIN
   DELETE FROM iam.handoff AS stale WHERE stale.expires_at <= clock_timestamp();
+  -- A Preview ends fifteen minutes after launch, and its sessions with it: nothing of it is kept after that.
+  DELETE FROM iam.host_session AS ended USING iam.preview AS stale
+  WHERE ended.preview_id = stale.preview_id AND stale.expires_at <= clock_timestamp();
+  DELETE FROM iam.preview AS stale WHERE stale.expires_at <= clock_timestamp()
+    AND NOT EXISTS (SELECT 1 FROM iam.handoff AS pending WHERE pending.preview_id = stale.preview_id);
   IF NOT iam.hub_session_live(p_hub_session_digest, p_account_id, p_now) THEN
     RETURN NULL;
   END IF;

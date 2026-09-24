@@ -139,4 +139,26 @@ CREATE OR REPLACE FUNCTION iam.end_host_session(p_session_digest bytea, p_reason
   WHERE (session.token_digest = p_session_digest OR session.parent_digest = p_session_digest) AND session.ended_at IS NULL;
 $$;
 
+-- Signing out of the Hub needs only the session and its CSRF token, never Keycloak: a sign-out asked while
+-- Keycloak is unreachable still ends the session and its Previews. True when an open Hub session ended.
+CREATE FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM iam.host_session AS session
+    WHERE session.token_digest = p_session_digest AND session.kind = 'HUB' AND session.ended_at IS NULL
+      AND session.csrf_digest = p_csrf_digest) THEN
+    RETURN false;
+  END IF;
+  PERFORM iam.end_host_session(p_session_digest, 'SIGNED_OUT');
+  RETURN true;
+END;
+$$;
+
+ALTER FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) TO hub_iam_runtime;
+
 COMMIT;

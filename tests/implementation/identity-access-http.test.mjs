@@ -95,7 +95,11 @@ const makeStore = ({ eligible = true } = {}) => {
     },
     async openHub({ accountId, refreshToken }) { state.opened.push({ accountId, refreshToken }); const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
     async resolveHub({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
-    async endHub(value) { state.sessions.delete(value); state.ended.push(value) },
+    async endHub({ sessionToken, csrfToken }) {
+      const value = state.sessions.get(sessionToken)
+      if (!value || value.csrfToken !== csrfToken) return false
+      state.sessions.delete(sessionToken); state.ended.push(sessionToken); return true
+    },
   }
 }
 
