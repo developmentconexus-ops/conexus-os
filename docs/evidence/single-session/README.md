@@ -78,7 +78,14 @@ The same script imported the four pilot people with their ids and password hashe
 `conexus-s7-keycloak-r1f`, and `provision.sh` created `conexus-keycloak` on the pilot port with the `conexus`
 realm and the pilot's people. On it, with the Conexus login theme and a disposable user that was deleted
 afterwards ([`probe-pilot-conexus-realm.json`](probe-pilot-conexus-realm.json)), `concurrent`, `disabled`, `logout` and
-`clients` held at the realm's real 1800 s idle limit. The probe needed one change for the themed page: the
+`clients` held at the realm's real 1800 s idle limit. The `idle` case then ran in real time on the same
+realm ([`probe-pilot-conexus-realm-idle.json`](probe-pilot-conexus-realm-idle.json)): a session refreshed at 20 minutes
+was still alive at 40 minutes, and a session never refreshed was refused at 40 minutes. All five cases hold on the
+pilot's Keycloak 26.7.2 with rotation off.
+
+The Hub follows the new realm: the pilot env names issuer `…/realms/conexus` and client `conexus-hub`, and the four
+Accounts' issuer was updated in one transaction (backup `conexus_s7-before-realm-conexus-20260924T201926.dump`). The
+old container and the scratch containers and volumes were removed by the operator. The probe needed one change for the themed page: the
 Keycloakify theme embeds the form action as `loginAction` instead of rendering the stock form.
 
 Records: [`probe-scratch-rotation-off.json`](probe-scratch-rotation-off.json),
