@@ -288,8 +288,95 @@ paths:
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
+  /api/control/projects/{projectId}/application-access:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      summary: ListApplicationAccess
+      operationId: ListApplicationAccess
+      x-conexus-4a-id: IAM-11
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '200':
+          description: Who may use the Project's application besides the members of its Workspace. Open grants and pending invitations are one server-resolved projection. Only an Owner of the Project's Workspace reads it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationAccess'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+    post:
+      summary: GrantApplicationAccess
+      operationId: GrantApplicationAccess
+      x-conexus-4a-id: IAM-12
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  minLength: 3
+                  description: Verified-email address the person must sign in with. With the Project it is the natural key of the invitation, and it is never Account identity or authorization.
+      responses:
+        '200':
+          description: Current application invitation for this exact Project and email. The first grant also fixes the application's address, derived from the Project name. Repeating the same request answers the same invitation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationInvitationEntry'
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+
+  /api/control/projects/{projectId}/application-access/{entryKind}/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - name: entryKind
+        in: path
+        required: true
+        description: Which kind of application access entry this request withdraws.
+        schema:
+          type: string
+          enum: [grant, invitation]
+      - name: entryId
+        in: path
+        required: true
+        description: Untrusted reference to the exact access entry; containment and authority are resolved server-side.
+        schema: { type: string, minLength: 1 }
+    delete:
+      summary: RevokeApplicationAccessEntry
+      operationId: RevokeApplicationAccessEntry
+      x-conexus-4a-id: IAM-13
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: OWNER_CURRENT
+      x-conexus-contract-state: SCHEMA_CLOSED
+      responses:
+        '204': { description: The access entry is gone. A revoked grant stops the person at their next request to the application. }
+        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
+        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
+        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
+
 components:
   parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: Untrusted Project reference only; current containment and authority are resolved server-side.
+      schema: { type: string, minLength: 1 }
     WorkspaceId:
       name: workspaceId
       in: path
@@ -354,6 +441,52 @@ components:
             oneOf:
               - $ref: '#/components/schemas/WorkspaceMemberEntry'
               - $ref: '#/components/schemas/WorkspaceInvitationEntry'
+    ApplicationInvitationEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, invitationId, email, invitedAt, expiresAt]
+      properties:
+        kind: { const: invitation }
+        invitationId: { type: string, minLength: 1 }
+        email:
+          type: string
+          format: email
+          description: Address the person must sign in with, verified by the identity provider. It is never Account identity or authorization.
+        invitedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ApplicationGrantEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, grantId, accountId, displayName, grantedAt]
+      properties:
+        kind: { const: grant }
+        grantId: { type: string, minLength: 1 }
+        accountId: { type: string, minLength: 1 }
+        displayName:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: I&A-owned human presentation; never authentication or authorization.
+        email:
+          type: string
+          format: email
+          description: Optional presentation/contact data; never Account identity or authorization.
+        grantedAt: { type: string, format: date-time }
+    ApplicationAccess:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        address:
+          type: string
+          format: uri
+          description: The application's own address. Absent until the first grant fixes it.
+        entries:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/ApplicationGrantEntry'
+              - $ref: '#/components/schemas/ApplicationInvitationEntry'
     BootstrapProvisionAccountRequest:
       type: object
       additionalProperties: false

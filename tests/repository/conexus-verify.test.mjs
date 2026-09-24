@@ -39,7 +39,7 @@ const packageScripts = Object.freeze({
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-hub-typecheck',
   'hub-baseline',
-  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
+  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'application-data-postgres', 'application-runner-sandbox', 'application-server',
@@ -50,7 +50,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'repository-check', 'repository-import-law',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
   'repository-contract-checks', 'biome-current',
-  'identity-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
+  'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'protected-cluster-coverage',

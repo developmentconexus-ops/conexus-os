@@ -54,6 +54,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
   candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
   candidateStep('iam-membership-authority', 'node --test --test-concurrency=1 tests/implementation/membership-authority-postgres.test.mjs', 'postgres'),
+  candidateStep('iam-application-access', 'node --test --test-concurrency=1 tests/implementation/application-access-postgres.test.mjs && npx --no-install biome check tests/implementation/application-access-postgres.test.mjs', 'postgres'),
   candidateStep('iam-installation-administrator', 'node --test --test-concurrency=1 tests/implementation/installation-administrator-postgres.test.mjs && npx --no-install biome check tests/implementation/installation-administrator-postgres.test.mjs scripts/bootstrap-installation-administrator.mjs', 'postgres'),
   candidateStep('installation-settings-routes', 'node --test tests/implementation/installation-settings-routes.test.mjs'),
   candidateStep('iam-grant-surface-excision', 'node --test --test-concurrency=1 tests/implementation/grant-surface-excision-postgres.test.mjs', 'postgres'),
@@ -98,6 +99,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages/canonical-json/src packages/brand/src tests/implementation/brand-tokens.test.mjs scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/implementation/installation-settings-routes.test.mjs tests/repository/conexus-verify.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
+  candidateStep('application-access-http', 'node --test tests/implementation/application-access-http.test.mjs && npx --no-install biome check tests/implementation/application-access-http.test.mjs'),
   candidateStep('workspace-membership-http', 'node --test tests/implementation/workspace-membership-http.test.mjs && npx --no-install biome check tests/implementation/workspace-membership-http.test.mjs'),
   candidateStep('workspace-http', 'node --test tests/implementation/workspace-http.test.mjs'),
   candidateStep('workspace-reads', 'node --test --test-concurrency=1 tests/implementation/workspace-reads.test.mjs', 'postgres'),

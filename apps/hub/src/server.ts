@@ -40,6 +40,7 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
+  applicationPort: config.application?.port,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)

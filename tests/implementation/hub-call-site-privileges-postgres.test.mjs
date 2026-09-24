@@ -77,6 +77,12 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.bind_factory_project': 'hub_builder_executor',
     'builder.read_factory_binding_for_project': 'hub_builder_executor',
   }),
+  'identity-access/application-access.ts': Object.freeze({
+    'iam.list_application_access': 'hub_iam_runtime',
+    'iam.grant_application_access': 'hub_iam_runtime',
+    'iam.cancel_application_invitation': 'hub_iam_runtime',
+    'iam.revoke_application_grant': 'hub_iam_runtime',
+  }),
   'identity-access/installation-administration.ts': Object.freeze({
     'iam.is_installation_administrator': 'hub_iam_runtime',
     'iam.grant_installation_administrator': 'hub_iam_runtime',

@@ -7,6 +7,9 @@ export type HubConfig = Readonly<{
   origin: string
   port: number
   preview: Readonly<{ port: number; certFile: string; keyFile: string }> | undefined
+  // Each Project's application is served at https://<slug>.conexus.localhost:<port>, with the Preview's
+  // certificate. Its own listener keeps it apart from the Preview's frame and CORS policy.
+  application: Readonly<{ port: number }> | undefined
   bootstrapSubject: string
   database: Readonly<{
     host: string
@@ -232,6 +235,15 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
   return { port: previewPort, certFile, keyFile }
 }
 
+const applicationRuntime = (environment: NodeJS.ProcessEnv, hubPort: number, preview: HubConfig['preview']): HubConfig['application'] => {
+  const portValue = environment.CONEXUS_APPLICATION_PORT
+  if (!portValue) return undefined
+  if (!preview) throw new Error('APPLICATION_PREVIEW_RUNTIME_REQUIRED')
+  const applicationPort = port(portValue, 'CONEXUS_APPLICATION_PORT')
+  if (applicationPort === hubPort || applicationPort === preview.port) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_PORT')
+  return { port: applicationPort }
+}
+
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
   for (const name of [
     ...RETIRED_BRAIN_CONNECTIONS_VARIABLES,
@@ -245,10 +257,12 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   }
   const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
   const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')
+  const preview = previewRuntime(environment, hubOrigin, hubPort)
   const config: HubConfig = {
     origin: hubOrigin,
     port: hubPort,
-    preview: previewRuntime(environment, hubOrigin, hubPort),
+    preview,
+    application: applicationRuntime(environment, hubPort, preview),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),

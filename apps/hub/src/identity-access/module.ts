@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
 import { createInstallationAdministration } from './installation-administration.js'
 import type { InstallationAdministration } from './installation-administration.js'
 import { registerInstallationRoutes } from './installation-routes.js'
@@ -30,6 +31,7 @@ export const createIdentityAccessModule = async ({
   clientId,
   clientSecret,
   bootstrapSubject,
+  applicationPort,
   allowInsecureForTest = false,
 }: Readonly<{
   pool: PostgresPool
@@ -39,10 +41,12 @@ export const createIdentityAccessModule = async ({
   clientId: string
   clientSecret: string
   bootstrapSubject: string
+  applicationPort: number | undefined
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
   const membership = createMembershipStore({ pool })
+  const applicationAccess = createApplicationAccessStore({ pool })
   const previewAccess = createPreviewAccess({
     readSession: ({ sessionDigest }) => store.readSession({ sessionDigest }),
   })
@@ -75,6 +79,14 @@ export const createIdentityAccessModule = async ({
           store: membership,
           resolveCurrentSession,
           config: { origin },
+        }),
+        ...await registerApplicationAccessRoutes(app, {
+          store: applicationAccess,
+          resolveCurrentSession,
+          config: {
+            origin,
+            applicationAddress: (slug) => applicationPort ? `https://${slug}.conexus.localhost:${applicationPort}` : null,
+          },
         }),
       ]
       await registerInstallationRoutes(app, { origin, resolveCurrentSession, installationAdministration })

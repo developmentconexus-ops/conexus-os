@@ -10,7 +10,7 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 18
+fixed Product operations = 24
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
@@ -19,7 +19,9 @@ and the Project Baseline left the product. It became 26 later that day, when a m
 connection stopped being a Claude account and `CLA-08` added an API key connection for
 any provider the model router's registry knows. It became 18 on 2026-09-21, when the eight
 `CLA` Model Connection operations left with the subsystem: Mastra owns model credentials
-and selection (C-022).
+and selection (C-022). `BLD-27` to `BLD-29` then raised the table to 21 while this line still read
+18. It became 24 on 2026-09-23, when Stage 2 Q3 let a Workspace Owner grant one person the use of
+a Project's application (`IAM-11` to `IAM-13`).
 
 ---
 
@@ -74,6 +76,9 @@ must agree exactly.
 | `IAM-05` | `InviteWorkspaceMember` | I&A | exact Workspace + verified email the invited person must sign in with; the pair is the natural key | command |
 | `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing, and removing a member withdraws every derived right | narrowing command |
 | `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
+| `IAM-11` | `ListApplicationAccess` | I&A | exact Project's application: its address, open grants and pending invitations in one projection; Owner of the Project's Workspace only | read |
+| `IAM-12` | `GrantApplicationAccess` | I&A | exact Project + verified email the person must sign in with; the pair is the natural key; the first grant fixes the application's address; Owner of the Project's Workspace only | command |
+| `IAM-13` | `RevokeApplicationAccessEntry` | I&A | exact Project access entry (grant or invitation); narrowing, and a revoked grant stops the person at their next request | narrowing command |
 | `WS-01` | `CreateWorkspace` | Workspace | any authenticated Account; the creator becomes its owner | command |
 | `WS-02` | `GetWorkspace` | Workspace | current Workspace disclosure flow | read |
 | `PRJ-01` | `ListProjects` | Project | current Workspace Projects selection flow | read |
