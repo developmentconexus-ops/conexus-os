@@ -52,6 +52,31 @@ These were taken by the operator for Q3 and are not reopened by the executor.
    person in Keycloak ends their application session within five minutes. An application session
    lasts at most eight hours before the person signs in again.
 
+### Operator answers, 2026-09-23
+
+The operator answered the design's open questions. These bind Q3 like the decisions above.
+
+1. **Display name.** An app-only Account's display name is the ID token `name` claim. When the claim
+   is absent, it is the verified email. There is no name form.
+2. **Access list.** Only Owners of the Project's Workspace see an application's access list.
+3. **Address.** The address label is derived from the Project name at the first grant and never
+   changes.
+4. **Archived Project.** The application of an archived Project is refused.
+5. **Workspace creation.** WS-01 is unchanged. Only an Account born from an application invitation
+   is app-only.
+6. **Sign-out.** Signing out of an application ends only that application session. The Keycloak
+   session stays.
+7. **Invitation lifetime.** An application invitation expires in 14 days, like a Workspace
+   invitation.
+8. **Workspace members.** A member of the Project's Workspace, in any role, may use the application
+   without a grant. Authority on the application host is an active grant for this Account and
+   application, or current membership in the Project's Workspace. The grant stays the only way for
+   anyone else. An app-only employee never gains membership or a Hub session. Authority is resolved
+   per request, so removing a membership takes effect at the next request, like revoking a grant.
+
+Answer 8 changes one Q3.6 case: the control is a member of **another** Workspace with no grant, not
+a member of the Project's Workspace.
+
 ## 4. Preserve
 
 - C-015: Keycloak roles, groups and claims grant nothing in Conexus.
@@ -104,7 +129,8 @@ first.
 - **Employee:** the Keycloak r1f user `funcionario-teste@gmail.com`, verified email, member of no
   Workspace. Never add it to a Workspace.
 - **Application:** the Q2 purchasing notebook, Project `2b9d2bbb-6336-4957-bb55-78e5fdd228cd`.
-- **Control:** the existing test operator, a Workspace member with no application grant.
+- **Control:** an Account that is a member of another Workspace, not the Project's, and holds no
+  application grant (operator answer 8).
 
 ## 7. Steps
 
@@ -159,7 +185,7 @@ Each of these must fail, and the evidence records the request and the refusal:
 - a handoff is redeemed twice, after it expires, or on another application's host;
 - a session value chosen before sign-in is still valid after sign-in;
 - a state-changing request from another origin succeeds;
-- the control Workspace member, who has no grant, uses the application;
+- the control, a member of another Workspace with no grant, uses the application;
 - after the Owner revokes the grant, the employee's next request succeeds;
 - after the employee is disabled in Keycloak, the session survives more than five minutes;
 - a session survives more than eight hours.
@@ -181,7 +207,9 @@ Any one rejects the hypothesis:
 - no groups, roles or per-row data policy inside an application;
 - no Keycloak client per application and no token exchange unless the hypothesis falls;
 - no custom domains;
-- no change to Workspace invitations or the Hub session.
+- no change to Workspace invitations or the Hub session;
+- no self-registration. Nobody uses an application without a grant or a membership. The operator
+  wants self-registration later for some applications, for example one for partner architects.
 
 ## 10. STOP law
 
@@ -215,4 +243,5 @@ After the verdict, reconcile only what Q3 proved:
 
 - a real need for groups, roles or row policy inside applications;
 - a second identity provider, SSO federation or SCIM;
-- Published applications (Q5) needing a session model different from this one.
+- Published applications (Q5) needing a session model different from this one;
+- an application that must admit people who register themselves, such as partner architects.
