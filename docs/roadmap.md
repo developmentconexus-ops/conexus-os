@@ -97,7 +97,8 @@ Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their
 The sequence is a commitment order, not a dependency chain. Q3 does not depend on Q2, the Sankhya business input for Q4 needs no code, and Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate, under two rules:
 
 - a spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites;
-- only the current gate's task changes `main`.
+- among Stage 2 gate work, only the current gate's task changes `main`. Other lanes follow the
+  [work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
 
 Alongside Q1:
 
@@ -105,24 +106,10 @@ Alongside Q1:
 - a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, is delivered as its own pull request;
 - the Sankhya business input for Q4: gateway, read-only credential, the open-purchase-order read and its fields, owned by the operator.
 
-## Technology qualification rule
+## Technology baseline
 
-Research does not select a dependency.
-
-A dependency or framework enters the Stage 2 stack only when:
-
-```text
-current consumer
-+ named limitation/problem
-+ exact API/version examined
-+ falsifiable probe
-+ evidence against credible alternative
-→ decision
-```
-
-Existing repository dependencies are preferred when they are sufficient.
-
-Current baseline/challenger state:
+A dependency enters only under the [technology rule](development/delivery.md#technology-rule).
+Current baseline and challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
 - SQL/`pg`: the data programming model, accepted by Q2;
@@ -134,23 +121,8 @@ Current baseline/challenger state:
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
 
-## Builder is part of every application-architecture proof
-
-Hand-written examples can prove a platform mechanism but cannot close an application architecture gate.
-
-Where a gate concerns the generated application programming model, deciding proof includes:
-
-1. a real Project;
-2. a normal product-language request to the Builder;
-3. current real model path;
-4. Builder discovery of the paved-road guidance;
-5. Builder-generated or materially Builder-modified source;
-6. its own Project check;
-7. Conexus build/Preview;
-8. browser interaction;
-9. the gate's negative proof.
-
-Record repair iterations and failures. The goal is not only to make the platform capable; the Builder must be able to use it reliably without the operator dictating filenames or implementation.
+Every application-architecture gate follows the
+[Builder proof rule](development/delivery.md#builder-proof-rule).
 
 ## Stage 2 lie detector
 
@@ -186,7 +158,7 @@ These return only through a named real consumer and their own qualification.
 Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
 operator agreed this order on 2026-09-23 as a plan, not a grant. Each step becomes a task only
 after the step before it has a verdict, and each technology enters only under the
-[technology qualification rule](#technology-qualification-rule), with its own consumer.
+[technology rule](development/delivery.md#technology-rule), with its own consumer.
 
 "Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
 profile. The general software-development harness of the
@@ -255,8 +227,5 @@ installation also gives the runner its own OS user, apart from the Hub's secrets
 
 ## Merge gate
 
-A pull request is ready only when CI `verify` is green on its exact head SHA and the coordinator has read the diff.
-
-For a material runtime/database trust-boundary slice, independent review is required by the Engineering Method after the candidate is frozen.
-
-Never treat the existence of a plan, artifact or Preview grant as Product acceptance.
+The [merge gate](development/delivery.md#merge-gate) and the lanes that add to it live in the
+delivery rules.
