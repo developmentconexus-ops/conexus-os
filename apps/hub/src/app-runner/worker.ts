@@ -2,6 +2,7 @@ import { writeSync } from 'node:fs'
 import pg from 'pg'
 import { applyPendingMigrations } from './data-plane.js'
 import type { MigrationPlan } from './data-plane.js'
+import type { Caller } from '../platform/caller.js'
 
 /**
  * Runs inside one invocation's sandbox and nowhere else. The supervisor writes the job to stdin and
@@ -12,10 +13,8 @@ import type { MigrationPlan } from './data-plane.js'
 // No password: the worker reaches the database only through the relay socket, which authenticates
 // upstream itself. Nothing in the sandbox holds a usable credential.
 export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
-/** The person using the app, as the Hub resolved them from a session. Never read from the input. */
-export type WorkerCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
 export type WorkerJob =
-  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: WorkerCaller; responseLimit: number }>
+  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>
 export type WorkerResult =
   | Readonly<{ ok: true; value: unknown }>

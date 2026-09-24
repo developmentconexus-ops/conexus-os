@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { parseCaller } from '../platform/caller.js'
+import type { Caller } from '../platform/caller.js'
 import type { CurrentSession } from './current-session.js'
 
 const ENTRY_MS = 30_000
@@ -27,7 +29,7 @@ export type PreviewCookieBinding = PreviewRouteBinding & Readonly<{
   issuer: string
   subject: string
   /** The developer behind the Hub session: a Preview's handlers see its own author as the caller. */
-  caller: Readonly<{ accountId: string; email: string | null; displayName: string }>
+  caller: Caller
 }>
 
 export type PreviewAccess = Readonly<{
@@ -69,9 +71,11 @@ type CookieRecord = Readonly<{
 
 const sha256 = (value: string): Buffer => createHash('sha256').update(value).digest()
 const secret = (): string => randomBytes(32).toString('base64url')
-const callerOf = (session: CurrentSession): PreviewCookieBinding['caller'] => Object.freeze({
-  accountId: session.account.accountId, email: session.account.email ?? null, displayName: session.account.displayName,
-})
+const callerOf = (session: CurrentSession): Caller => {
+  const caller = parseCaller({ accountId: session.account.accountId, email: session.account.email ?? null, displayName: session.account.displayName })
+  if (!caller) throw new Error('PREVIEW_CALLER_UNRESOLVABLE')
+  return caller
+}
 
 const validRoute = (route: PreviewRouteBinding): void => {
   if (!route.routeId || !route.generation || !route.attemptId || !route.accountId ||

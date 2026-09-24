@@ -310,6 +310,19 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await openGrants(personId), 0, 'the next sign-in claimed nothing')
   })
 
+  await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
+    const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
+    const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
+    await grantAccess(projectId, 'compras&fiscal@empresa.com.br')
+    const handoff = (await signIn(identity('fiscal-sub', 'compras&fiscal@empresa.com.br', displayName))).handoff
+    const sessionToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    const authority = await sessions.authority({ sessionToken, projectId, now: at(2_000) })
+    const accountId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'fiscal-sub'")).rows[0].account_id
+    assert.deepEqual(authority, { kind: 'SIGNED_IN', caller: { accountId, email: 'compras&fiscal@empresa.com.br', displayName } })
+    const parsed = invokeBody.safeParse({ projectId, operation: 'listNotes', input: {}, files: [{ path: 'conexus-server/manifest.json', sha256: '0'.repeat(64), content: '' }], caller: authority.caller })
+    assert.deepEqual(parsed.data?.caller, { accountId, email: 'compras&fiscal@empresa.com.br', displayName })
+  })
+
   await t.test('a member of the Workspace uses the application without a grant; a member of another Workspace does not', async () => {
     assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
     const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff

@@ -1,13 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
+import { parseCaller } from '../platform/caller.js'
+import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { CompletedSignIn, ProviderCheck } from './oidc.js'
 
-/** The only identity a handler ever sees. Built from a resolved session, never from input. */
-export type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
-
 export type ApplicationAuthority =
-  | Readonly<{ kind: 'SIGNED_IN'; caller: ApplicationCaller }>
+  | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
   // No session, an ended or expired one, one for another application, or access withdrawn.
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
   // The Keycloak check was due and Keycloak could not answer: refuse, and keep the session.
@@ -126,7 +125,9 @@ export const createApplicationSessions = ({
         // A concurrent request that shared this check records the same answer; one write wins.
         await pool.query('SELECT iam.record_provider_check($1, $2, $3, $4)', [sessionDigest, row.provider_checked_at, check.refreshToken, now])
       }
-      return { kind: 'SIGNED_IN', caller: Object.freeze({ accountId: row.account_id, email: row.email, displayName: row.display_name }) }
+      const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
+      if (!caller) throw new Error('APPLICATION_CALLER_UNRESOLVABLE')
+      return { kind: 'SIGNED_IN', caller }
     },
 
     async signOut(sessionToken) {

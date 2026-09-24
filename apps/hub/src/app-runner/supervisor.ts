@@ -10,7 +10,8 @@ import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
 import { admitManifest, SERVER_MANIFEST_PATH, SERVER_ROOT, schemaViolation } from './server-manifest.js'
 import type { ServerManifest } from './server-manifest.js'
-import type { WorkerCaller, WorkerJob } from './worker.js'
+import type { WorkerJob } from './worker.js'
+import type { Caller } from '../platform/caller.js'
 
 /** One file of the admitted artifact's `conexus-server/` tree, as the Hub read it from the registry. */
 export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
@@ -46,7 +47,7 @@ export type SupervisorConfig = Readonly<{
 
 export type Reply = Readonly<{ status: number; body: unknown }>
 
-export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: WorkerCaller }>
+export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller }>
 
 export type PrepareResult =
   | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>

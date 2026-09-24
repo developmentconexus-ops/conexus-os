@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { Caller } from '../platform/caller.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { API_BODY_LIMIT, applicationContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT, strictOrigin } from './preview-routes.js'
 
@@ -8,7 +9,6 @@ const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
 const SIGN_IN_SECONDS = 600
 const HANDOFF = /^[A-Za-z0-9_-]{43}$/
 
-type Caller = Readonly<{ accountId: string; email: string | null; displayName: string }>
 type Authority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>

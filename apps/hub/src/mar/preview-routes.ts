@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { createHash } from 'node:crypto'
+import type { Caller } from '../platform/caller.js'
 
 const PREVIEW_COOKIE = '__Host-conexus_preview'
 
@@ -39,7 +40,7 @@ type PreviewCookieBinding = Readonly<{
   expiresAt: number
   issuer: string
   subject: string
-  caller: ApplicationCaller
+  caller: Caller
 }>
 
 type PreviewAccess = Readonly<{
@@ -60,8 +61,6 @@ type RegistryReader = (input: Readonly<{
   path: string
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
 
-type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
-
 // The admitted artifact's application API. The operation comes from the request path and must be one
 // the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
 type ApplicationInvoker = (input: Readonly<{
@@ -69,7 +68,7 @@ type ApplicationInvoker = (input: Readonly<{
   serverFiles: readonly string[]
   operation: string
   input: unknown
-  caller: ApplicationCaller
+  caller: Caller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type PreviewRouteDependencies = Readonly<{

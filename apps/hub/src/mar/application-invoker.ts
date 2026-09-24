@@ -1,8 +1,7 @@
+import type { Caller } from '../platform/caller.js'
+
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
 export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
-
-/** The person a request acts for, resolved by the platform from a session. It never comes from input. */
-export type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
 
 /**
  * Which artifact a request's server tree is read from, and on whose authority: a developer's Preview
@@ -21,7 +20,7 @@ export type ApplicationRunnerInvoke = (input: Readonly<{
   operation: string
   input: unknown
   files: readonly ServerFile[]
-  caller: ApplicationCaller
+  caller: Caller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationInvoker = (input: Readonly<{
@@ -29,7 +28,7 @@ export type ApplicationInvoker = (input: Readonly<{
   serverFiles: readonly string[]
   operation: string
   input: unknown
-  caller: ApplicationCaller
+  caller: Caller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationAdmissionLimits = Readonly<{
