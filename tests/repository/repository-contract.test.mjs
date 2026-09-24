@@ -27,9 +27,10 @@ const gitFixture = (context, files) => {
 const currentFiles = () => Object.fromEntries([
   'AGENTS.md', 'README.md', 'docs/index.md', 'docs/roadmap.md',
   'docs/product/contract.md', 'docs/decisions/index.md',
-  'docs/development/engineering-method.md', 'docs/development/repository-method.md',
+  'docs/development/engineering-method.md', 'docs/development/delivery.md',
+  'docs/development/review-checklist.md',
   '.agents/skills/conexus-frontend/SKILL.md',
-  'docs/development/engineering-rules.md', 'contracts/api/product/openapi.yaml',
+  'contracts/api/product/openapi.yaml',
 ].map(path => [path, '# fixture\n']).concat([
   ['package.json', '{"name":"conexus-os","private":true}\n'],
   ['.github/workflows/verify.yml', 'on: [push]\npermissions:\n  contents: read\n'],
