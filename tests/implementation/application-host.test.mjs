@@ -19,6 +19,7 @@ const ARTIFACT = '33333333-3333-4333-8333-333333333333'
 const EMPLOYEE = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444', email: 'funcionaria@example.test', displayName: 'Funcionária' })
 const TOKEN_A = 't'.repeat(43)
 const HANDOFF = 'h'.repeat(43)
+const SECOND_HANDOFF = 'k'.repeat(43)
 const sha = (value) => createHash('sha256').update(value).digest()
 
 const files = {
@@ -31,7 +32,7 @@ const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
   const calls = []
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
-  const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
+  const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }], [SECOND_HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
   const app = await createHttpApp({
     staticRoot: null,
     registerRoutes: (server) => registerApplicationHostRoutes(server, {
@@ -196,7 +197,22 @@ test('only a document navigation starts a sign-in; any other request without a s
   assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...NAVIGATION } })).statusCode, 303)
 })
 
-test('a sign-in in progress keeps its binding, so parallel navigations share one and every handoff redeems', async (t) => {
+test('parallel navigations share one binding, and every handoff they bring back redeems, even after one fails', async (t) => {
+  const { app } = await harness(t)
+  // The browser's cookie jar for the application host, updated from each answer.
+  const jar = new Map([['__Host-conexus_app_signin', 'binding-1']])
+  const complete = async (handoff) => {
+    const response = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${handoff}`, headers: { host: HOST_A }, cookies: Object.fromEntries(jar) })
+    for (const cookie of response.cookies) {
+      if (cookie.value === '') jar.delete(cookie.name)
+      else jar.set(cookie.name, cookie.value)
+    }
+    return response.statusCode
+  }
+  assert.deepEqual([await complete('z'.repeat(43)), await complete(HANDOFF), await complete(SECOND_HANDOFF)], [403, 303, 303])
+})
+
+test('a sign-in in progress keeps its binding', async (t) => {
   const { app } = await harness(t)
   const held = 'b'.repeat(43)
   const response = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, ...NAVIGATION }, cookies: { '__Host-conexus_app_signin': held } })
@@ -230,7 +246,7 @@ test('a redeemed handoff sets a host-only session cookie that replaces any value
   assert.notEqual(session.value, 'x'.repeat(43))
   assert.equal(session.httpOnly && session.secure && session.path === '/' && session.domain === undefined, true)
   assert.equal(session.maxAge, 28_800)
-  assert.equal(response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin').value, '')
+  assert.equal(response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin'), undefined, 'the binding stays for the other handoffs in flight')
   const replay = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A }, cookies: { '__Host-conexus_app_signin': 'binding-1' } })
   assert.equal(replay.statusCode, 403)
 })
