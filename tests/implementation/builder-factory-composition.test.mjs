@@ -10,7 +10,7 @@ import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -239,6 +239,12 @@ test('the Factory refuses to boot where Mastra Code would load .mastracode or .e
   assert.throws(() => assertFactoryHost({ cwd, home }), { message: `FACTORY_HOST_REFUSED:${join(cwd, '.env')}` })
 })
 
+test('requireObservabilityStore resolves the store the Factory storage carries, and refuses to compose without one', async () => {
+  await assert.rejects(requireObservabilityStore({ getStore: async () => undefined }), /^Error: FACTORY_OBSERVABILITY_STORE_UNAVAILABLE$/)
+  const store = { listTraces: async () => ({ spans: [] }) }
+  assert.equal(await requireObservabilityStore({ getStore: async (name) => (name === 'observability' ? store : undefined) }), store)
+})
+
 test('the Factory pool connects as hub_factory with its search_path pinned to factory', async () => {
   const pool = createFactoryPool({ host: '127.0.0.1', port: 1, database: 'unreachable' }, 'unused')
   assert.equal(pool.options.user, 'hub_factory')
@@ -356,4 +362,87 @@ test('prepare() registers the controller as code and lands every table in factor
   assert.equal(typeof keyless, 'string')
   assert.ok(keyless.startsWith('mastra:factory-secret:v1:'), keyless)
   assert.equal(keyless.includes('sk-probe-at-rest'), false)
+})
+
+test('composeFactory routes the observability domain back onto the Factory\'s own Postgres store: spans persist and 30-day retention prunes only stale spans, never memory', async (t) => {
+  const { admin, connection, onCleanup } = await createEmptyDatabase(t, 'conexus_factory_tracing')
+  const role = `factory_probe_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+  const password = randomUUID()
+  await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`)
+  onCleanup(() => admin.query(`DROP ROLE IF EXISTS ${role}`))
+  const owner = new pg.Client(connection)
+  await owner.connect()
+  await owner.query(`CREATE SCHEMA factory AUTHORIZATION ${role}`)
+  await owner.end()
+  onCleanup(async () => {
+    const dropper = new pg.Client(connection)
+    await dropper.connect()
+    await dropper.query('DROP SCHEMA IF EXISTS factory CASCADE')
+    await dropper.end()
+  })
+
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const pool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
+  const composition = await composeFactory({
+    pool,
+    github: { appId: '1', clientId: 'client', clientSecret: 'secret', slug: 'conexus-probe', privateKey: privateKey.export({ type: 'pkcs1', format: 'pem' }) },
+    stateSecret: 'state-secret-for-the-probe-only-0123456789',
+    secretKey: 'a1'.repeat(32),
+    publicUrl: 'https://hub.test',
+    sandbox: createFactorySandbox({ apiKey: 'unused', templateId: 'conexus:tpl' }),
+  })
+  onCleanup(() => composition.close())
+
+  // The bug this PR fixes: Code SDK forces the observability domain of the storage it hands
+  // Mastra to `false` (mastra-capabilities-study.md §4.1), so this used to resolve undefined
+  // and every span the run produced was silently dropped.
+  const observabilityStore = await composition.mastra.getStorage()?.getStore('observability')
+  assert.ok(observabilityStore, 'the composed Mastra carries a real observability store')
+
+  const traceId = randomUUID().replaceAll('-', '')
+  const rootSpanId = randomUUID().replaceAll('-', '').slice(0, 16)
+  const staleSpanId = randomUUID().replaceAll('-', '').slice(0, 16)
+  const now = new Date()
+  const stale = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000)
+  await observabilityStore.batchCreateSpans({
+    records: [
+      {
+        traceId, spanId: rootSpanId, name: 'agent run', spanType: 'agent_run', isEvent: false, startedAt: now, endedAt: now,
+        metadata: { conexusBuilderProjectId: 'project-1', conexusBuilderRunId: 'run-1' },
+      },
+      {
+        traceId, spanId: staleSpanId, parentSpanId: rootSpanId, name: 'old model call', spanType: 'model_generation', isEvent: false,
+        startedAt: stale, endedAt: stale, attributes: { model: 'anthropic/claude', usage: { inputTokens: 10, outputTokens: 5 } },
+      },
+    ],
+  })
+
+  // Persistence, read back through the exact metadata filter the Hub's trace route uses.
+  const found = await observabilityStore.listTraces({
+    filters: { metadata: { conexusBuilderProjectId: 'project-1', conexusBuilderRunId: 'run-1' } },
+    pagination: { page: 0, perPage: 1 },
+  })
+  assert.equal(found.spans.at(0)?.traceId, traceId)
+  const trace = await observabilityStore.getTrace({ traceId })
+  assert.deepEqual(trace.spans.map((span) => span.spanId).sort(), [rootSpanId, staleSpanId].sort())
+
+  // A message must survive retention: Builder evidence is rebuilt from mastra_messages, and the
+  // 30-day policy this PR declares names only observability.spans (factory.ts, OBSERVABILITY_SPAN_RETENTION).
+  const memory = await composition.mastra.getStorage()?.getStore('memory')
+  await memory.saveThread({ thread: { id: 'thread-1', resourceId: 'thread-1', title: 'probe thread', createdAt: now, updatedAt: now } })
+  const messageId = randomUUID()
+  await memory.saveMessages({
+    messages: [{ id: messageId, role: 'user', createdAt: now, threadId: 'thread-1', resourceId: 'thread-1', content: { format: 2, parts: [{ type: 'text', text: 'hi' }] } }],
+  })
+
+  // Retention: prune() (wired on a schedule in module.ts) removes only the stale span.
+  const results = await composition.storage.getMastraStorage().prune()
+  assert.deepEqual(results.map((result) => ({ domain: result.domain, table: result.table, deleted: result.deleted })), [
+    { domain: 'observability', table: 'mastra_ai_spans', deleted: 1 },
+  ])
+
+  const survivors = await observabilityStore.getTrace({ traceId })
+  assert.deepEqual(survivors.spans.map((span) => span.spanId), [rootSpanId])
+  const messages = await memory.listMessagesById({ messageIds: [messageId] })
+  assert.equal(messages.messages.length, 1)
 })
