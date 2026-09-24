@@ -44,7 +44,7 @@ const tokens = readFileSync(resolve(repositoryRoot, 'packages/brand/src/tokens.c
     hasInlineStyle: element.hasAttribute('style'),
   })))
   assert.deepEqual(sizes, [
-    { size: '19px', hasInlineStyle: false },
+    { size: '18px', hasInlineStyle: false },
     { size: '20px', hasInlineStyle: false },
     { size: '26px', hasInlineStyle: false },
     { size: '32px', hasInlineStyle: false },

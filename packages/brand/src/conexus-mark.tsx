@@ -30,7 +30,7 @@ export function ConexusWordmark({ size = 'sm', markSize, working = false, arrive
   working?: boolean
   arrive?: boolean
 }>) {
-  const sizeInPixels = { xs: 19, sm: 20, md: 26, lg: 32 }[size]
+  const sizeInPixels = { xs: 18, sm: 20, md: 26, lg: 32 }[size]
   return <span className={`cx-wordmark cx-wordmark--${size}`} role="img" aria-label="Conexus">
     <ConexusMark size={markSize ?? sizeInPixels} working={working} arrive={arrive} />
     <span aria-hidden="true">Co<em>nexus</em></span>
