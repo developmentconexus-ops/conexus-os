@@ -104,6 +104,7 @@ const configEnvironment = {
   CONEXUS_DB_NAME: 'conexus_s7',
   CONEXUS_DB_USER: 'hub_bootstrap',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/db',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/ws-command',
   CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/ws-read',
   CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',

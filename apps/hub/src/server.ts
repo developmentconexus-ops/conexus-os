@@ -40,11 +40,8 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
-  // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's
-  // credential key, the Factory's (readHubConfig refuses an application host without the Factory).
-  envelope: config.factory
-    ? createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile))
-    : (() => { throw new Error('IDENTITY_SECRET_KEY_REQUIRED') })(),
+  // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's credential key.
+  envelope: createSecretEnvelope(readSecretFile(config.secretKey.file), config.secretKey.previousFiles.map(readSecretFile)),
   application: config.application ? { address: config.application } : undefined,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
@@ -152,6 +149,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   },
   builder: config.builder,
   factory: config.factory,
+  secretKey: config.secretKey,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
   ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),

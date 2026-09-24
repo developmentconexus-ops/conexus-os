@@ -61,7 +61,7 @@ export type HostSessions = Readonly<{
   applicationBySlug(slug: string): Promise<string | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
-  /** Opens a Preview for the developer behind a live Hub session; the answer is the entry handoff the Hub page posts to the Preview host. */
+  /** Opens a Preview for the developer behind a live Hub session: the entry handoff the Hub page posts to the Preview host, and when the Preview ends. */
   openPreview(input: Readonly<{ hubSessionToken: string; launch: PreviewLaunch; now?: Date }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }> | null>
   redeem(input: Readonly<{ handoff: string; target: HandoffTarget; now?: Date }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   applicationAuthority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<ApplicationAuthority>

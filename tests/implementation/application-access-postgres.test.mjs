@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
@@ -176,6 +176,30 @@ test('upgrading withdraws the invitations a revoke left open before 0024, and ke
   await runHubMigrations({ connectionString: url })
   assert.deepEqual((await client.query('SELECT email FROM iam.application_invitation WHERE project_id = $1 ORDER BY email', [projectId])).rows.map((row) => row.email),
     ['pendente@application.test', 'regranted-l@application.test'])
+})
+
+test('upgrading a database at 0025 with open sessions ends every Hub and application session and keeps the Accounts and grants', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { client, url, account, workspace, project } = await applicationDatabase(t, 'single_session_upgrade', {
+    migrate: (connectionString) => runMigrations({ connectionString, migrations: loadHubMigrationFiles().filter((migration) => migration.version <= '0025'), catalogSnapshot: null }),
+  })
+  const owner = await account('owner-u')
+  const projectId = await project(await workspace('u', [[owner, 'owner']]), 'Atualizada')
+  await client.query('SELECT iam.grant_application_access($1,$2,$3,$4,$5)', [owner, projectId, randomUUID(), 'convidada-u@application.test', inTwoWeeks()])
+  await client.query(`INSERT INTO iam.session(token_digest, csrf_digest, account_id, created_at, last_seen_at, idle_expires_at, absolute_expires_at)
+    VALUES ($1, $2, $3, now(), now(), now() + interval '30 minutes', now() + interval '8 hours')`, [randomBytes(32), randomBytes(32), owner])
+  await client.query(`INSERT INTO iam.application_session(token_digest, account_id, project_id, provider_refresh_token, authenticated_at, absolute_expires_at, provider_checked_at)
+    VALUES ($1, $2, $3, 'mastra:factory-secret:v1:sealed', now(), now() + interval '8 hours', now())`, [randomBytes(32), owner, projectId])
+  await client.query(`INSERT INTO iam.application_handoff(handoff_digest, account_id, project_id, sign_in_binding_digest, provider_refresh_token, authenticated_at, expires_at)
+    VALUES ($1, $2, $3, $4, 'mastra:factory-secret:v1:sealed', now(), now() + interval '60 seconds')`, [randomBytes(32), owner, projectId, randomBytes(32)])
+  const before = (await client.query("SELECT (SELECT count(*) FROM iam.account)::int AS accounts, (SELECT count(*) FROM iam.application_invitation)::int AS invitations, (SELECT count(*) FROM iam.workspace_membership)::int AS members")).rows[0]
+
+  await runHubMigrations({ connectionString: url })
+  assert.deepEqual((await client.query("SELECT to_regclass('iam.session') AS hub, to_regclass('iam.application_session') AS app, to_regclass('iam.application_handoff') AS handoff")).rows,
+    [{ hub: null, app: null, handoff: null }], 'the old session and handoff tables are gone')
+  assert.deepEqual((await client.query('SELECT count(*)::int AS open FROM iam.host_session WHERE ended_at IS NULL')).rows, [{ open: 0 }], 'every person signs in once again')
+  assert.deepEqual((await client.query('SELECT count(*)::int AS handoffs FROM iam.handoff')).rows, [{ handoffs: 0 }])
+  assert.deepEqual((await client.query("SELECT (SELECT count(*) FROM iam.account)::int AS accounts, (SELECT count(*) FROM iam.application_invitation)::int AS invitations, (SELECT count(*) FROM iam.workspace_membership)::int AS members")).rows[0],
+    before, 'Accounts, invitations and memberships are untouched')
 })
 
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
@@ -530,7 +554,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await sessions.openPreview({ hubSessionToken: other.sessionToken, launch, now: T0 }), null, 'a Hub session opens Previews only for its own Account')
 
     const opened = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
-    assert.equal(opened.expiresAt, T0.getTime() + 30_000, 'the entry handoff lives thirty seconds')
+    assert.equal(opened.expiresAt, T0.getTime() + 15 * 60 * 1000, 'the answer is when the Preview ends')
+    assert.deepEqual((await client.query('SELECT expires_at - minted_at AS lifetime FROM iam.handoff WHERE handoff_digest = $1', [createHash('sha256').update(opened.entryGrant).digest()])).rows.map((row) => row.lifetime.seconds), [30],
+      'the entry handoff lives thirty seconds')
     const enter = (host, now = at(1_000)) => sessions.redeem({ handoff: opened.entryGrant, target: { kind: 'PREVIEW', exactHost: host }, now })
     assert.equal(await enter(`preview-${randomUUID()}.conexus.localhost`), null, 'another Preview host')
     const entered = await enter(exactHost)

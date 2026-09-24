@@ -145,8 +145,9 @@ ALTER FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid
 REVOKE ALL ON FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid, p_handoff_digest bytea, p_binding_digest bytea, p_refresh_token text, p_authenticated_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid, p_handoff_digest bytea, p_binding_digest bytea, p_refresh_token text, p_authenticated_at timestamp with time zone) TO hub_iam_runtime;
 
--- Opens a Preview for the developer behind a live Hub session and mints its entry handoff. NULL when the
--- Hub session cannot open it. The Hub has already checked the developer may see the artifact.
+-- Opens a Preview for the developer behind a live Hub session and mints its 30-second entry handoff. The
+-- answer is when the Preview ends, or NULL when the Hub session cannot open it. The Hub has already checked
+-- the developer may see the artifact.
 CREATE FUNCTION iam.open_preview(p_hub_session_digest bytea, p_account_id uuid, p_project_id uuid, p_source_revision text, p_artifact_revision_id uuid, p_artifact_digest text, p_exact_host text, p_manifest jsonb, p_handoff_digest bytea, p_now timestamp with time zone) RETURNS timestamp with time zone
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -162,7 +163,7 @@ BEGIN
   VALUES (opened, p_account_id, p_project_id, p_source_revision, p_artifact_revision_id, p_artifact_digest, p_exact_host, p_manifest, p_now, p_now + interval '15 minutes');
   INSERT INTO iam.handoff (handoff_digest, kind, account_id, preview_id, parent_digest, minted_at, expires_at)
   VALUES (p_handoff_digest, 'PREVIEW', p_account_id, opened, p_hub_session_digest, p_now, p_now + interval '30 seconds');
-  RETURN p_now + interval '30 seconds';
+  RETURN p_now + interval '15 minutes';
 END;
 $$;
 

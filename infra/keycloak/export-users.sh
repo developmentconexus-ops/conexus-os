@@ -31,18 +31,17 @@ case "$(cd "$(dirname "$out")" && pwd)/" in
   "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"/*) echo "error: --out must be outside the repository" >&2; exit 1 ;;
 esac
 
+# The copy of the database and the export hold password hashes: they stay private to this user, and the
+# throwaway container runs as this user (group 0, which the Keycloak image grants its own directories).
+umask 077
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-chmod 777 "$work"
 mkdir "$work/h2" "$work/export"
-chmod 777 "$work/h2" "$work/export"
 docker cp "$from_container:/opt/keycloak/data/h2/keycloakdb.mv.db" "$work/h2/keycloakdb.mv.db"
-chmod 666 "$work/h2/keycloakdb.mv.db"
 
-docker run --rm -v "$work/h2:/opt/keycloak/data/h2" -v "$work/export:/export" "$IMAGE" \
+docker run --rm --user "$(id -u):0" -v "$work/h2:/opt/keycloak/data/h2" -v "$work/export:/export" "$IMAGE" \
   export --realm "$from_realm" --users same_file --file /export/realm.json >/dev/null
 
-umask 077
 CX_OLD="$from_realm" CX_NEW="$NEW_REALM" node -e '
   const fs = require("node:fs")
   const realm = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
