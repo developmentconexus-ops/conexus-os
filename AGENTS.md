@@ -16,8 +16,12 @@ Before relying on chat, a handoff, or remembered state:
 For Mastra-sensitive work, also load `.agents/skills/mastra/SKILL.md`.
 
 ```bash
-source "$HOME/.nvm/nvm.sh"
-nvm use
+if [ -f "$HOME/.nvm/nvm.sh" ]; then source "$HOME/.nvm/nvm.sh"; nvm use; fi
+case "$(command -v node):$(command -v npm)" in *"/mnt/"*|*".exe"*) echo "Use Linux Node/npm" >&2; exit 1;; esac
+test "$(node -p 'process.platform')" = linux || exit 1
+test "$(node --version)" = "v$(tr -d '\r\n' < .nvmrc)" || exit 1
+expected_npm=$(node -p "require('./package.json').engines.npm")
+test "$(npm --version)" = "$expected_npm" || exit 1
 npm run conexus:preflight
 ```
 
