@@ -83,18 +83,18 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.cancel_application_invitation': 'hub_iam_runtime',
     'iam.revoke_application_grant': 'hub_iam_runtime',
   }),
-  'identity-access/application-session.ts': Object.freeze({
+  'identity-access/host-sessions.ts': Object.freeze({
     'iam.application_slug': 'hub_iam_runtime',
     'iam.application_by_slug': 'hub_iam_runtime',
     'iam.provision_application_account': 'hub_iam_runtime',
     'iam.claim_application_invitations': 'hub_iam_runtime',
     'iam.mint_application_handoff': 'hub_iam_runtime',
-    'iam.redeem_application_handoff': 'hub_iam_runtime',
+    'iam.open_preview': 'hub_iam_runtime',
+    'iam.redeem_handoff': 'hub_iam_runtime',
     'iam.resolve_application_session': 'hub_iam_runtime',
-    'iam.end_application_session': 'hub_iam_runtime',
-    'iam.claim_provider_check': 'hub_iam_runtime',
+    'iam.resolve_preview_session': 'hub_iam_runtime',
+    'iam.end_host_session': 'hub_iam_runtime',
     'iam.record_provider_check': 'hub_iam_runtime',
-    'iam.release_provider_check': 'hub_iam_runtime',
   }),
   'identity-access/installation-administration.ts': Object.freeze({
     'iam.is_installation_administrator': 'hub_iam_runtime',

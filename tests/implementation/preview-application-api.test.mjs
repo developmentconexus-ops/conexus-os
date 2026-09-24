@@ -10,14 +10,11 @@ const PORT = 3444
 const HOST = 'preview-11111111-1111-4111-8111-111111111111.conexus.localhost'
 const ORIGIN = `https://${HOST}:${PORT}`
 const binding = Object.freeze({
-  routeId: 'route-1', generation: 'g', attemptId: 'a', accountId: '22222222-2222-4222-8222-222222222222',
-  projectId: '33333333-3333-4333-8333-333333333333', changeId: 'c', subjectDigest: 'd', sourceRevision: 'e'.repeat(40),
+  accountId: '22222222-2222-4222-8222-222222222222',
+  projectId: '33333333-3333-4333-8333-333333333333', sourceRevision: 'e'.repeat(40),
   artifactRevisionId: '11111111-1111-4111-8111-111111111111', artifactDigest: 'f'.repeat(64), exactHost: HOST,
-  expiresAt: Date.now() + 600_000, issuer: 'i', subject: 's',
+  expiresAt: Date.now() + 600_000,
   caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },
-})
-const route = Object.freeze({
-  ...binding, lifecycle: 'ACTIVE',
   manifest: { entryPath: 'index.html', files: [
     { path: 'index.html', mediaType: 'text/html; charset=utf-8' },
     { path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8' },
@@ -30,17 +27,14 @@ const preview = async (t, invokeApplication) => {
   const app = Fastify()
   await app.register(cookie)
   await registerPreviewRoutes(app, {
-    routes: new Map([[route.routeId, route]]),
-    access: {
-      consumeEntryGrant: async () => null,
-      resolvePreviewCookie: async ({ cookie: value }) => (value === 'valid' ? binding : null),
-      discardCookie: () => undefined,
+    sessions: {
+      redeem: async () => null,
+      previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
     },
-    registryReader: async ({ path }) => ({ path, mediaType: route.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
+    registryReader: async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
     ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { calls.push(input); return invokeApplication(input) } }),
     exactHubOrigin: 'https://hub.conexus.localhost:3443',
     previewPort: PORT,
-    now: () => Date.now(),
     pendingRequests: new Set(),
     isClosed: () => false,
   })

@@ -3,8 +3,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
-import { parseApplicationSlug, parseOpaqueToken } from './application-session.js'
-import type { ApplicationSessions } from './application-session.js'
+import { parseApplicationSlug, parseOpaqueToken } from './host-sessions.js'
+import type { HostSessions } from './host-sessions.js'
 import type { ResolveCurrentSession } from './current-session.js'
 import { identityAccessErrorCode } from './errors.js'
 import type { OidcAdapter } from './oidc.js'
@@ -28,7 +28,7 @@ export type IdentityAccessRouteDependencies = Readonly<{
   config: Readonly<{ origin: string; bootstrapIssuer: string; bootstrapSubject: string }>
   resolveCurrentSession: ResolveCurrentSession
   /** Present when the installation serves applications: sign-ins that begin at an application host. */
-  applications?: Readonly<{ sessions: ApplicationSessions; origin: (slug: string) => string }>
+  applications?: Readonly<{ sessions: HostSessions; origin: (slug: string) => string }>
 }>
 
 export const registerIdentityAccessRoutes = async (

@@ -5,15 +5,13 @@ import type { ApplicationAddress } from '../platform/config.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
-import { createApplicationSessions } from './application-session.js'
-import type { ApplicationSessions } from './application-session.js'
+import { createHostSessions } from './host-sessions.js'
+import type { HostSessions, PreviewLaunch } from './host-sessions.js'
 import { createInstallationAdministration } from './installation-administration.js'
 import type { InstallationAdministration } from './installation-administration.js'
 import { registerInstallationRoutes } from './installation-routes.js'
 import { createMembershipStore, registerMembershipRoutes } from './membership.js'
 import { createOidcAdapter } from './oidc.js'
-import { createPreviewAccess } from './preview-access.js'
-import type { PreviewAccess, PreviewRouteBinding } from './preview-access.js'
 import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
@@ -22,11 +20,11 @@ import type { ResolveCurrentSession, SessionRequest } from './current-session.js
 export type IdentityAccessModule = Readonly<{
   registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly S1OwnerId[]>
   resolveCurrentSession: ResolveCurrentSession
-  issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
-  previewAccess: PreviewAccess
+  /** Opens a Preview for the developer behind the request's Hub session and mints its entry handoff. */
+  openPreview(request: FastifyRequest, launch: PreviewLaunch): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   installationAdministration: InstallationAdministration
-  /** Present when the installation serves applications on their own hosts. */
-  applicationSessions: ApplicationSessions | undefined
+  /** The sessions of application and Preview hosts. */
+  hostSessions: HostSessions
   close(): Promise<void>
 }>
 
@@ -55,9 +53,6 @@ export const createIdentityAccessModule = async ({
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
   const membership = createMembershipStore({ pool })
   const applicationAccess = createApplicationAccessStore({ pool })
-  const previewAccess = createPreviewAccess({
-    readSession: ({ sessionDigest }) => store.readSession({ sessionDigest }),
-  })
   const oidc = await createOidcAdapter({
     issuer,
     clientId,
@@ -66,7 +61,7 @@ export const createIdentityAccessModule = async ({
     allowInsecureForTest,
   })
   const originOf = application ? (slug: string): string => applicationOrigin(application.address, slug) : undefined
-  const applicationSessions = application ? createApplicationSessions({ pool, refresh: oidc.refresh, envelope: application.envelope }) : undefined
+  const hostSessions = createHostSessions({ pool, refresh: oidc.refresh, envelope: application?.envelope })
   const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null
@@ -84,7 +79,7 @@ export const createIdentityAccessModule = async ({
           oidc,
           config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
           resolveCurrentSession,
-          ...(applicationSessions && originOf ? { applications: { sessions: applicationSessions, origin: originOf } } : {}),
+          ...(originOf ? { applications: { sessions: hostSessions, origin: originOf } } : {}),
         }),
         ...await registerMembershipRoutes(app, {
           store: membership,
@@ -104,16 +99,16 @@ export const createIdentityAccessModule = async ({
       return owners
     },
     resolveCurrentSession,
-    issuePreviewEntry: async (request, input) => {
-      const sessionToken = request.cookies['__Host-conexus_session']
-      if (!sessionToken || input.route.accountId !== input.accountId) throw new Error('PREVIEW_ACCESS_UNAVAILABLE')
-      return previewAccess.issueEntryGrant({ sessionToken, route: input.route })
+    openPreview: async (request, launch) => {
+      const hubSessionToken = request.cookies['__Host-conexus_session']
+      const opened = hubSessionToken ? await hostSessions.openPreview({ hubSessionToken, launch }) : null
+      if (!opened) throw new Error('PREVIEW_ACCESS_UNAVAILABLE')
+      return opened
     },
-    previewAccess,
     installationAdministration,
-    applicationSessions,
+    hostSessions,
     close: async () => {
-      await Promise.all([previewAccess.close(), oidc.close(), store.close()])
+      await Promise.all([oidc.close(), store.close()])
     },
   })
 }

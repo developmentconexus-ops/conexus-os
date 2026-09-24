@@ -256,15 +256,20 @@ try {
         return { handoffUrl, handoffLanded, binding: cookieHeader(await context.storageState(), APP) }
       }
       if (OTHER) {
+        // Operator requirement of the single session task: a handoff presented where it does not belong is
+        // refused and not consumed, and still redeems on its own host, in its own browser, inside 60 s.
         const brief = (answer) => answer && { status: answer.status, location: answer.location, setCookie: answer.setCookie }
-        const stolen = await freshHandoff()
-        const elsewhere = stolen.handoffUrl ? await call('GET', stolen.handoffUrl.replace(APP, OTHER), { cookie: stolen.binding }) : null
-        const burned = stolen.handoffUrl ? await call('GET', stolen.handoffUrl, { cookie: stolen.binding }) : null
-        const control = await freshHandoff()
-        const redeemed = control.handoffUrl ? await call('GET', control.handoffUrl, { cookie: control.binding }) : null
-        record('handoff-on-other-host', { url: '<handoff for the first application> on the other host, then on its own host; a second fresh handoff on its own host as control' },
-          { otherHost: brief(elsewhere), sameHandoffOnOwnHostAfterwards: brief(burned), freshHandoffOnOwnHost: brief(redeemed), landed: [stolen.handoffLanded, control.handoffLanded] },
-          elsewhere?.status === 403 && burned?.status === 403 && redeemed?.status === 303 && redeemed.setCookie.includes('__Host-conexus_app'))
+        const minted = await freshHandoff()
+        const mintedAt = Date.now()
+        const elsewhere = minted.handoffUrl ? await call('GET', minted.handoffUrl.replace(APP, OTHER), { cookie: minted.binding }) : null
+        const anotherBrowser = minted.handoffUrl ? await call('GET', minted.handoffUrl) : null
+        const ownHost = minted.handoffUrl ? await call('GET', minted.handoffUrl, { cookie: minted.binding }) : null
+        const redeemedAfterMs = Date.now() - mintedAt
+        const replay = minted.handoffUrl ? await call('GET', minted.handoffUrl, { cookie: minted.binding }) : null
+        record('handoff-on-other-host', { url: '<one handoff> on the other application host, then on its own host without the binding, then on its own host with it, then again' },
+          { otherHost: brief(elsewhere), anotherBrowser: brief(anotherBrowser), ownHost: brief(ownHost), redeemedAfterMs, replay: brief(replay), landed: minted.handoffLanded },
+          elsewhere?.status === 403 && anotherBrowser?.status === 403 && ownHost?.status === 303 && ownHost.setCookie.includes('__Host-conexus_app') &&
+          redeemedAfterMs < 60_000 && replay?.status === 403)
       }
       {
         const { handoffUrl, handoffLanded, binding } = await freshHandoff()
@@ -357,9 +362,9 @@ try {
     const cookie = cookieHeader(state, APP)
     const digestHex = sessionDigest(state)
     const before = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
-    const limit = sql(`SELECT absolute_expires_at - authenticated_at FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`)
+    const limit = sql(`SELECT absolute_expires_at - started_at FROM iam.host_session WHERE token_digest = decode('${digestHex}', 'hex')`)
     // Age the session as if eight hours and one minute had passed since sign-in.
-    const aged = sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '8 hours 1 minute', absolute_expires_at = absolute_expires_at - interval '8 hours 1 minute' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING absolute_expires_at < now()`)
+    const aged = sql(`UPDATE iam.host_session SET started_at = started_at - interval '8 hours 1 minute', absolute_expires_at = absolute_expires_at - interval '8 hours 1 minute' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING absolute_expires_at < now()`)
     const after = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
     record('session-older-than-eight-hours', { url: ANY_OPERATION, as: 'a live application session aged by 8 hours 1 minute in the database' },
       { limit, before: before.status, agedPastLimit: aged === 't', after: after.status, afterBody: after.body },
@@ -371,7 +376,7 @@ try {
     if (Number.isNaN(disabledAt)) throw new Error('--disabled-at is required for the disabled phase')
     const employee = readState(statePath.employee)
     const polled = await pollUntilRefused(cookieHeader(employee, APP), { everyMs: 20_000, untilMs: disabledAt + 8 * 60_000 })
-    const ended = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.application_session WHERE token_digest = decode('${sessionDigest(employee)}', 'hex')`)
+    const ended = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.host_session WHERE token_digest = decode('${sessionDigest(employee)}', 'hex')`)
     const refusedAfterSeconds = polled.firstRefused ? Math.round((Date.parse(polled.firstRefused.startedAt) - disabledAt) / 1000) : null
     record('disabled-in-keycloak-within-five-minutes', { url: ANY_OPERATION, as: 'employee, polled every 20 s after being disabled in Keycloak', disabledAt: new Date(disabledAt).toISOString() },
       { ...polled, refusedAfterSeconds, sessionEnded: ended },
@@ -422,15 +427,15 @@ try {
         { page: response.status, serverTree: tree.status, missing: missing.status }, response.status === 200 && tree.status === 404 && missing.status === 404)
     }
     {
-      const row = () => sql(`SELECT coalesce(ended_reason, 'open') || '|' || provider_checked_at || '|' || (provider_refresh_token LIKE 'mastra:factory-secret:v1:%') FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+      const row = () => sql(`SELECT coalesce(ended_reason, 'open') || '|' || provider_checked_at || '|' || (provider_refresh_token LIKE 'mastra:factory-secret:v1:%') FROM iam.host_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
       // Age the session so the Keycloak check is due: six minutes since sign-in and since the last check.
-      const age = () => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+      const age = () => sql(`UPDATE iam.host_session SET started_at = started_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
       const [, checkedBefore, sealedBefore] = row()
       const aged = age()
       const [, checkedAged] = row()
       const concurrent = await Promise.all([1, 2, 3, 4].map(() => call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })))
       const [endedAfter, checkedAfter, sealedAfter] = row()
-      const unsealed = sql("SELECT (SELECT count(*) FROM iam.application_session WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%') + (SELECT count(*) FROM iam.application_handoff WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%')")
+      const unsealed = sql("SELECT (SELECT count(*) FROM iam.host_session WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%') + (SELECT count(*) FROM iam.handoff WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%')")
       record('concurrent-due-check', { url: ANY_OPERATION, as: 'member, four requests at once when the Keycloak check is due' },
         { aged: aged === '1', statuses: concurrent.map((answer) => answer.status), session: endedAfter, checkedBefore, checkedAged, checkedAfter, sealed: sealedBefore === 'true' && sealedAfter === 'true', unsealedTokens: unsealed },
         // Past authority the runner answers 404 for the undeclared operation, or 429 when the Project's
@@ -452,8 +457,8 @@ try {
       await context.close()
       return { cookie: cookieHeader(jar, APP), digestHex: sessionDigest(jar) }
     }
-    const row = (digestHex) => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(coalesce(provider_refresh_token, '')) || '|' || provider_checked_at FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
-    const makeDue = (digestHex) => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+    const row = (digestHex) => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(coalesce(provider_refresh_token, '')) || '|' || provider_checked_at FROM iam.host_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+    const makeDue = (digestHex) => sql(`UPDATE iam.host_session SET started_at = started_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
     {
       const context = await contextFor(statePath.member)
       const first = await signInToApplication(context, APP, { stopAtHandoff: true })
@@ -475,7 +480,7 @@ try {
       const { cookie, digestHex } = await session()
       const foreign = createFactorySecretEncryption({ primary: { id: 'not-this-installation', key: randomBytes(32) } })
       const sealed = await foreign.encrypt('a refresh token under a key the Hub does not hold')
-      const replaced = sql(`UPDATE iam.application_session SET provider_refresh_token = '${sealed}' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+      const replaced = sql(`UPDATE iam.host_session SET provider_refresh_token = '${sealed}' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
       const aged = makeDue(digestHex)
       const first = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
       const second = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
@@ -494,9 +499,9 @@ try {
     const state = readState(statePath.session)
     const cookie = cookieHeader(state, APP)
     const digestHex = sessionDigest(state)
-    const aged = sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+    const aged = sql(`UPDATE iam.host_session SET started_at = started_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
     const after = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
-    const ended = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`)
+    const ended = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.host_session WHERE token_digest = decode('${digestHex}', 'hex')`)
     record('provider-refusal-names-disable', { url: ANY_OPERATION, as: 'a person disabled in Keycloak, with the check made due' }, { aged: aged === '1', after: after.status, afterCode: after.body?.error?.code ?? null, ended },
       aged === '1' && after.status === 401 && ended === 'PROVIDER_USER_DISABLED')
   }

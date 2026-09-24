@@ -179,7 +179,7 @@ test('upgrading withdraws the invitations a revoke left open before 0024, and ke
 })
 
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { createApplicationSessions } = await import(hubModuleUrl('identity-access/application-session.js'))
+  const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
   const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
@@ -190,7 +190,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   let providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-2' }
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer }, envelope })
+  const sessions = createHostSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer }, envelope })
   const hubStore = createIdentityAccessStore({ pool })
 
   const owner = await account('owner-s')
@@ -229,7 +229,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await assert.rejects(hubStore.createSession({ accountId: employeeId }), /IDENTITY_NOT_ELIGIBLE/)
     assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.session WHERE account_id = $1', [employeeId])).rows[0].n, 0)
 
-    const redeemed = await sessions.redeem({ handoff: outcome.handoff, projectId, binding, now: at(1_000) })
+    const redeemed = await sessions.redeem({ handoff: outcome.handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })
     assert.equal(redeemed.maxAgeSeconds, 8 * 60 * 60 - 1)
     token = redeemed.sessionToken
   })
@@ -284,59 +284,67 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     }
   })
 
-  await t.test('a handoff dies on first use, on the wrong binding, on another application and after sixty seconds', async () => {
-    const redeem = async (handoff, overrides = {}) => sessions.redeem({ handoff, projectId, binding, now: at(1_000), ...overrides })
+  await t.test('a handoff presented on another host or by another browser is refused and not consumed; it redeems once on its own host inside sixty seconds', async () => {
+    const redeem = async (handoff, { projectId: target = projectId, binding: held = binding, now = at(1_000) } = {}) =>
+      sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId: target, binding: held }, now })
     const fresh = async () => (await signIn(employee, employeeId)).handoff
-    const once = await fresh()
-    assert.ok(await redeem(once))
-    assert.equal(await redeem(once), null, 'second redemption')
-    const wrongBinding = await fresh()
-    assert.equal(await redeem(wrongBinding, { binding: 'another-browser' }), null)
-    assert.equal(await redeem(wrongBinding), null, 'the wrong binding burnt it')
-    const wrongApplication = await fresh()
-    assert.equal(await redeem(wrongApplication, { projectId: otherProject }), null)
+    const stored = async (handoff) => (await client.query('SELECT count(*)::int AS n FROM iam.handoff WHERE handoff_digest = $1', [createHash('sha256').update(handoff).digest()])).rows[0].n
+
+    const presented = await fresh()
+    assert.equal(await redeem(presented, { projectId: otherProject }), null, 'another application host')
+    assert.equal(await redeem(presented, { binding: 'another-browser' }), null, 'another browser, without the binding')
+    assert.equal(await redeem(presented, { projectId: otherProject, binding: 'another-browser' }), null)
+    assert.equal(await stored(presented), 1, 'no refused presentation consumed it')
+    assert.ok(await redeem(presented, { now: at(59_000) }), 'it redeems on its own host inside its lifetime')
+    assert.equal(await stored(presented), 0, 'redemption consumed it')
+    assert.equal(await redeem(presented), null, 'second redemption')
+
     const late = await fresh()
     assert.equal(await redeem(late, { now: at(60_000) }), null, 'sixty seconds after the sign-in')
+
+    const raced = await fresh()
+    const answers = await Promise.all([redeem(raced), redeem(raced), redeem(raced), redeem(raced)])
+    assert.equal(answers.filter(Boolean).length, 1, 'four concurrent redemptions open one session')
   })
 
   await t.test('a session resolves to its caller only on its own application and before eight hours', async () => {
-    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(60_000) }),
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId, now: at(60_000) }),
       { kind: 'SIGNED_IN', caller: { accountId: employeeId, email: 'funcionaria@application.test', displayName: 'Funcionária Teste' } })
-    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId: otherProject, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual(await sessions.authority({ sessionToken: 'x'.repeat(43), projectId, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId: otherProject, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: 'x'.repeat(43), projectId, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(refreshes, [], 'no Keycloak check inside five minutes')
     const eight = (await signIn(employee, employeeId)).handoff
-    const long = (await sessions.redeem({ handoff: eight, projectId, binding, now: at(1_000) })).sessionToken
+    const long = (await sessions.redeem({ handoff: eight, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-long' }
-    assert.equal((await sessions.authority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000 - 1) })).kind, 'SIGNED_IN')
-    assert.deepEqual(await sessions.authority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE ended_reason = 'EXPIRED'")).rows,
+    assert.equal((await sessions.applicationAuthority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000 - 1) })).kind, 'SIGNED_IN')
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.host_session WHERE ended_reason = 'EXPIRED'")).rows,
       [{ ended_reason: 'EXPIRED', provider_refresh_token: null }])
-    assert.deepEqual(await refusal(() => client.query("UPDATE iam.application_session SET absolute_expires_at = absolute_expires_at + interval '1 minute'")),
-      { code: '23514', message: 'new row for relation "application_session" violates check constraint "application_session_absolute_check"' })
+    assert.deepEqual(await refusal(() => client.query("UPDATE iam.host_session SET absolute_expires_at = absolute_expires_at + interval '1 minute'")),
+      { code: '23514', message: 'new row for relation "host_session" violates check constraint "host_session_application_check"' })
   })
 
   await t.test('after five minutes Keycloak is asked again: unreachable refuses, active stores the answered token, refused ends the session', async () => {
     providerAnswer = { kind: 'UNAVAILABLE' }
     refreshes.length = 0
-    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 1_000) }), { kind: 'PROVIDER_UNAVAILABLE' })
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 1_000) }), { kind: 'PROVIDER_UNAVAILABLE' })
     assert.deepEqual(refreshes, [{ refreshToken: 'refresh-employee-sub', expectedSubject: 'employee-sub' }])
-    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n > 0, true)
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.host_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n > 0, true)
 
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-rotated' }
     const [first, second] = await Promise.all([
-      sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
-      sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
+      sessions.applicationAuthority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
+      sessions.applicationAuthority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
     ])
     assert.equal(first.kind, 'SIGNED_IN')
     assert.equal(second.kind, 'SIGNED_IN')
-    const checked = (await client.query('SELECT provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows[0]
+    const checked = (await client.query('SELECT provider_refresh_token FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows[0]
     assert.equal(await envelope.open(checked.provider_refresh_token), 'refresh-rotated')
 
     providerAnswer = { kind: 'REFUSED', reason: 'USER_DISABLED' }
-    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 3_000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 4_000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows,
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 3_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 4_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows,
       [{ ended_reason: 'PROVIDER_USER_DISABLED', provider_refresh_token: null }], 'the ending names a disable')
   })
 
@@ -349,19 +357,19 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       await new Promise((resolve) => setTimeout(resolve, 25))
       return { kind: 'ACTIVE', refreshToken: `refresh-answer-${++issued}` }
     }
-    const hubA = createApplicationSessions({ pool, refresh, envelope })
-    const hubB = createApplicationSessions({ pool, refresh, envelope })
+    const hubA = createHostSessions({ pool, refresh, envelope })
+    const hubB = createHostSessions({ pool, refresh, envelope })
     const sealed = (value) => typeof value === 'string' && value.startsWith('mastra:factory-secret:v1:') && !value.includes('refresh-')
 
     await grantAccess(projectId, 'concorrencia@application.test')
     const outcome = await hubA.signIn({ identity: identity('concurrent-sub', 'concorrencia@application.test', 'Concorrência'), existingAccountId: null, projectId, bindingDigest, now: T0 })
-    assert.equal(sealed((await client.query('SELECT provider_refresh_token FROM iam.application_handoff')).rows.at(-1).provider_refresh_token), true, 'the handoff holds the refresh token sealed')
-    const sessionToken = (await hubB.redeem({ handoff: outcome.handoff, projectId, binding, now: at(1_000) })).sessionToken
-    const stored = async () => (await client.query('SELECT provider_checked_at, provider_refresh_token FROM iam.application_session s JOIN iam.account a ON a.account_id = s.account_id WHERE a.external_subject = $1', ['concurrent-sub'])).rows[0]
+    assert.equal(sealed((await client.query('SELECT provider_refresh_token FROM iam.handoff')).rows.at(-1).provider_refresh_token), true, 'the handoff holds the refresh token sealed')
+    const sessionToken = (await hubB.redeem({ handoff: outcome.handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
+    const stored = async () => (await client.query('SELECT provider_checked_at, provider_refresh_token FROM iam.host_session s JOIN iam.account a ON a.account_id = s.account_id WHERE a.external_subject = $1', ['concurrent-sub'])).rows[0]
     assert.equal(sealed((await stored()).provider_refresh_token), true, 'the session holds the refresh token sealed')
 
     const due = at(5 * 60 * 1000 + 1_000)
-    const answers = await Promise.all([hubA, hubB, hubA, hubB].map((hub) => hub.authority({ sessionToken, projectId, now: due })))
+    const answers = await Promise.all([hubA, hubB, hubA, hubB].map((hub) => hub.applicationAuthority({ sessionToken, projectId, now: due })))
     assert.deepEqual(answers.map((answer) => answer.kind), ['SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN'])
     assert.ok(refreshCalls >= 1 && refreshCalls <= 4, `Keycloak was asked ${refreshCalls} times`)
     const after = await stored()
@@ -370,16 +378,16 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.match(await envelope.open(after.provider_refresh_token), /^refresh-answer-\d+$/, 'the stored token is one Keycloak answered with')
 
     const asked = refreshCalls
-    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(5 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
+    assert.equal((await hubB.applicationAuthority({ sessionToken, projectId, now: at(5 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
     assert.equal(refreshCalls, asked, 'a request after the check was recorded does not ask again')
-    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(10 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
+    assert.equal((await hubB.applicationAuthority({ sessionToken, projectId, now: at(10 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
     assert.equal(refreshCalls, asked + 1, 'the next check falls due five minutes later')
   })
 
   const openSession = async (subject, email) => {
     await grantAccess(projectId, email)
     const handoff = (await signIn(identity(subject, email, subject))).handoff
-    const sessionToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    const sessionToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
     return { sessionToken, sessionDigest: createHash('sha256').update(sessionToken).digest() }
   }
   const outcomeOf = (answer) => answer.then((settled) => settled.kind, (error) => `THREW ${error.message}`)
@@ -388,19 +396,19 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   await t.test('a refresh token the installation cannot open ends the session, for this request and every later one', async () => {
     const { sessionToken, sessionDigest } = await openSession('custody-sub', 'custodia@application.test')
     const foreign = createSecretEnvelope('cd'.repeat(32))
-    await client.query('UPDATE iam.application_session SET provider_refresh_token = $2 WHERE token_digest = $1', [sessionDigest, await foreign.seal('refresh-custody-sub')])
+    await client.query('UPDATE iam.host_session SET provider_refresh_token = $2 WHERE token_digest = $1', [sessionDigest, await foreign.seal('refresh-custody-sub')])
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-custody-2' }
-    const first = await outcomeOf(sessions.authority({ sessionToken, projectId, now: checkDue }))
-    const second = await outcomeOf(sessions.authority({ sessionToken, projectId, now: checkDue }))
+    const first = await outcomeOf(sessions.applicationAuthority({ sessionToken, projectId, now: checkDue }))
+    const second = await outcomeOf(sessions.applicationAuthority({ sessionToken, projectId, now: checkDue }))
     assert.deepEqual([first, second], ['SIGN_IN_REQUIRED', 'SIGN_IN_REQUIRED'])
-    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
+    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.host_session WHERE token_digest = $1', [sessionDigest])).rows,
       [{ ended_reason: 'CUSTODY_CHANGED', provider_refresh_token: null }])
   })
 
   await t.test('an error while Keycloak is asked leaves the check due, so the next request checks instead of skipping', async () => {
     const { sessionToken, sessionDigest } = await openSession('fault-sub', 'falha@application.test')
     let calls = 0
-    const faulty = createApplicationSessions({
+    const faulty = createHostSessions({
       pool, envelope,
       refresh: async () => {
         calls += 1
@@ -408,36 +416,77 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
         return { kind: 'ACTIVE', refreshToken: 'refresh-fault-2' }
       },
     })
-    assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'THREW KEYCLOAK_CLIENT_FAULT')
-    assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'SIGNED_IN')
+    assert.equal(await outcomeOf(faulty.applicationAuthority({ sessionToken, projectId, now: checkDue })), 'THREW KEYCLOAK_CLIENT_FAULT')
+    assert.equal(await outcomeOf(faulty.applicationAuthority({ sessionToken, projectId, now: checkDue })), 'SIGNED_IN')
     assert.equal(calls, 2, 'the second request asked Keycloak itself')
-    assert.deepEqual((await client.query('SELECT provider_checked_at FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
+    assert.deepEqual((await client.query('SELECT provider_checked_at FROM iam.host_session WHERE token_digest = $1', [sessionDigest])).rows,
       [{ provider_checked_at: checkDue }])
   })
 
   await t.test('a request whose Keycloak answer arrives after the session ended follows the session instead of serving it', async () => {
     const { sessionToken, sessionDigest } = await openSession('lost-sub', 'perdida@application.test')
-    const hub = createApplicationSessions({
+    const hub = createHostSessions({
       pool, envelope,
       refresh: async () => {
         // The person signs out on another tab while this request waits for Keycloak.
-        await client.query("SELECT iam.end_application_session($1, 'SIGNED_OUT')", [sessionDigest])
+        await client.query("SELECT iam.end_host_session($1, 'SIGNED_OUT')", [sessionDigest])
         return { kind: 'ACTIVE', refreshToken: 'refresh-lost-2' }
       },
     })
-    assert.equal(await outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
+    assert.equal(await outcomeOf(hub.applicationAuthority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
+  })
+
+  await t.test('a Preview lives in the database: another Hub serves it, it dies with the Hub session that opened it, and its handoff survives the wrong host', async () => {
+    const artifactRevisionId = randomUUID()
+    const exactHost = `preview-${artifactRevisionId}.conexus.localhost`
+    const launch = {
+      accountId: owner, projectId, sourceRevision: 'a'.repeat(40), artifactRevisionId, artifactDigest: 'b'.repeat(64), exactHost,
+      manifest: { entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] },
+    }
+    const hub = await hubStore.createSession({ accountId: owner, now: T0 })
+    const other = await hubStore.createSession({ accountId: control, now: T0 })
+    assert.equal(await sessions.openPreview({ hubSessionToken: other.sessionToken, launch, now: T0 }), null, 'a Hub session opens Previews only for its own Account')
+
+    const opened = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
+    assert.equal(opened.expiresAt, T0.getTime() + 30_000, 'the entry handoff lives thirty seconds')
+    const enter = (host, now = at(1_000)) => sessions.redeem({ handoff: opened.entryGrant, target: { kind: 'PREVIEW', exactHost: host }, now })
+    assert.equal(await enter(`preview-${randomUUID()}.conexus.localhost`), null, 'another Preview host')
+    const entered = await enter(exactHost)
+    assert.equal(entered.maxAgeSeconds, 15 * 60 - 1, 'the Preview session ends with its launch, fifteen minutes after the Hub opened it')
+    assert.equal(await enter(exactHost), null, 'redeemed once')
+
+    const restarted = createHostSessions({ pool, refresh: async () => ({ kind: 'UNAVAILABLE' }), envelope })
+    const served = await restarted.previewAuthority({ sessionToken: entered.sessionToken, exactHost, now: at(2_000) })
+    assert.equal(served.kind, 'SIGNED_IN', 'a Hub that never saw the launch serves it')
+    assert.deepEqual({ ...served.binding, caller: { ...served.binding.caller } }, {
+      ...launch, expiresAt: T0.getTime() + 15 * 60 * 1000,
+      caller: { accountId: owner, email: 'owner-s@application.test', displayName: 'owner-s' },
+    })
+    assert.deepEqual(await restarted.previewAuthority({ sessionToken: entered.sessionToken, exactHost: `preview-${randomUUID()}.conexus.localhost`, now: at(2_000) }),
+      { kind: 'SIGN_IN_REQUIRED' }, 'the cookie is no session on another Preview host')
+    assert.deepEqual(await restarted.previewAuthority({ sessionToken: entered.sessionToken, exactHost, now: at(15 * 60 * 1000 + 1_000) }),
+      { kind: 'SIGN_IN_REQUIRED' }, 'fifteen minutes after launch')
+
+    const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
+    const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
+    assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
+    assert.equal(await hubStore.endSession(hub.sessionToken, at(6_000)), true)
+    assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
+    assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
+      [{ ended_reason: 'PARENT_ENDED' }])
+    assert.equal(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(8_000) }), null, 'an ended Hub session opens nothing')
   })
 
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-3' }
     const handoff = (await signIn(employee, employeeId)).handoff
-    const live = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
-    assert.equal((await sessions.authority({ sessionToken: live, projectId, now: at(2_000) })).kind, 'SIGNED_IN')
+    const live = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
+    assert.equal((await sessions.applicationAuthority({ sessionToken: live, projectId, now: at(2_000) })).kind, 'SIGNED_IN')
     const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE account_id = $1 AND revoked_at IS NULL', [employeeId])).rows[0].grant_id
     assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
-    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n, 0,
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.host_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n, 0,
       'revocation ended every open session of the person for this application')
-    assert.deepEqual(await sessions.authority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
   })
 
@@ -500,8 +549,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
     await grantAccess(projectId, 'compras&fiscal@empresa.com.br')
     const handoff = (await signIn(identity('fiscal-sub', 'compras&fiscal@empresa.com.br', displayName))).handoff
-    const sessionToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
-    const authority = await sessions.authority({ sessionToken, projectId, now: at(2_000) })
+    const sessionToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
+    const authority = await sessions.applicationAuthority({ sessionToken, projectId, now: at(2_000) })
     const accountId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'fiscal-sub'")).rows[0].account_id
     assert.deepEqual(authority, { kind: 'SIGNED_IN', caller: { accountId, email: 'compras&fiscal@empresa.com.br', displayName } })
     const parsed = invokeBody.safeParse({ projectId, operation: 'listNotes', input: {}, files: [{ path: 'conexus-server/manifest.json', sha256: '0'.repeat(64), content: '' }], caller: authority.caller })
@@ -511,11 +560,11 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   await t.test('a member of the Workspace uses the application without a grant; a member of another Workspace does not', async () => {
     assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
     const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
-    const ownerToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
-    assert.equal((await sessions.authority({ sessionToken: ownerToken, projectId, now: at(2_000) })).caller.accountId, owner)
+    const ownerToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
+    assert.equal((await sessions.applicationAuthority({ sessionToken: ownerToken, projectId, now: at(2_000) })).caller.accountId, owner)
 
     await client.query('UPDATE project.project SET archived = true WHERE project_id = $1', [projectId])
-    assert.deepEqual(await sessions.authority({ sessionToken: ownerToken, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'an archived Project serves no application')
+    assert.deepEqual(await sessions.applicationAuthority({ sessionToken: ownerToken, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'an archived Project serves no application')
     await client.query('UPDATE project.project SET archived = false WHERE project_id = $1', [projectId])
   })
 
@@ -530,14 +579,14 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
   await t.test('resolving a session takes no row lock: a request is not held behind another that locks the session', async () => {
     const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
-    const ownerToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    const ownerToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
     const holder = new pg.Client(connection)
     await holder.connect()
     try {
       await holder.query('BEGIN')
-      await holder.query('SELECT 1 FROM iam.application_session WHERE token_digest = $1 FOR UPDATE', [createHash('sha256').update(ownerToken).digest()])
+      await holder.query('SELECT 1 FROM iam.host_session WHERE token_digest = $1 FOR UPDATE', [createHash('sha256').update(ownerToken).digest()])
       const answer = await Promise.race([
-        sessions.authority({ sessionToken: ownerToken, projectId, now: at(2_000) }),
+        sessions.applicationAuthority({ sessionToken: ownerToken, projectId, now: at(2_000) }),
         new Promise((resolve) => setTimeout(() => resolve({ kind: 'BLOCKED' }), 2_000)),
       ])
       assert.equal(answer.kind, 'SIGNED_IN')

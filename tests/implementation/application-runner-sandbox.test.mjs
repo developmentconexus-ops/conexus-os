@@ -334,24 +334,3 @@ test('the runner socket admits an invocation only with an exact platform caller 
     { ...body, caller: { ...CALLER, email: 42 } },
   ]) assert.equal(invokeBody.safeParse(refused).success, false, JSON.stringify(refused.caller))
 })
-
-test('the runner admits every caller the platform resolves: a long display name and any address Keycloak verified', async () => {
-  const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
-  const { createPreviewAccess } = await import(hubModuleUrl('identity-access/preview-access.js'))
-  const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
-  assert.ok(displayName.length > 200)
-  const expected = { accountId: '55555555-5555-4555-8555-555555555555', email: 'compras&fiscal@empresa.com.br', displayName }
-  const admitted = (caller) => invokeBody.safeParse({ projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller }).data?.caller
-
-  // Preview: the caller is the developer behind the Hub session.
-  const session = { account: { accountId: expected.accountId, email: expected.email, displayName }, issuer: 'https://issuer.test', subject: 'subject' }
-  const previewAccess = createPreviewAccess({ readSession: async () => session })
-  const route = {
-    routeId: 'r', generation: 'g', attemptId: 'a', accountId: expected.accountId, projectId: randomUUID(), changeId: 'c', subjectDigest: 's',
-    sourceRevision: 'v', artifactRevisionId: randomUUID(), artifactDigest: 'd', exactHost: 'preview-x.conexus.localhost', expiresAt: Date.now() + 60_000,
-  }
-  const { entryGrant } = await previewAccess.issueEntryGrant({ sessionToken: 'hub-session', route })
-  const { binding } = await previewAccess.consumeEntryGrant({ entryGrant, exactHost: route.exactHost })
-  await previewAccess.close()
-  assert.deepEqual(admitted(binding.caller), expected)
-})

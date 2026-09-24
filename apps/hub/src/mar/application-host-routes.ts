@@ -19,8 +19,8 @@ type Authority =
 // The ports this host needs, declared structurally: the MAR owner does not import identity-access.
 export type ApplicationHostSessions = Readonly<{
   applicationBySlug(slug: string): Promise<string | null>
-  authority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<Authority>
-  redeem(input: Readonly<{ handoff: string; projectId: string; binding: string; now?: Date }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
+  applicationAuthority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<Authority>
+  redeem(input: Readonly<{ handoff: string; target: Readonly<{ kind: 'APPLICATION'; projectId: string; binding: string }>; now?: Date }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   signOut(sessionToken: string): Promise<void>
 }>
 
@@ -103,8 +103,9 @@ export const registerApplicationHostRoutes = async (
     const handoff = request.query.handoff
     const binding = request.cookies[SIGN_IN_COOKIE]
     if (typeof handoff !== 'string' || !OPAQUE.test(handoff) || !binding) return html(reply, 403, SIGN_IN_FAILED)
-    // The binding cookie is left to expire: other navigations may still be bringing handoffs back.
-    const redeemed = await dependencies.sessions.redeem({ handoff, projectId: target.projectId, binding, now: now() })
+    // A handoff that fails here (another host, no binding, expired) is not consumed. The binding cookie is
+    // left to expire: other navigations may still be bringing handoffs back.
+    const redeemed = await dependencies.sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId: target.projectId, binding }, now: now() })
     if (!redeemed) return html(reply, 403, SIGN_IN_FAILED)
     return reply
       .setCookie(SESSION_COOKIE, redeemed.sessionToken, { ...cookieOptions, maxAge: redeemed.maxAgeSeconds })
@@ -137,7 +138,7 @@ export const registerApplicationHostRoutes = async (
     // application's POST. The exact Origin of this application's own host is the only admission.
     if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(reply, 415, 'CONTENT_TYPE_REFUSED')
-    const authority = await dependencies.sessions.authority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
+    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return refuse(reply, 503, 'IDENTITY_PROVIDER_UNAVAILABLE')
     if (authority.kind === 'SIGN_IN_REQUIRED') return refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
     const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
@@ -163,7 +164,7 @@ export const registerApplicationHostRoutes = async (
   const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    const authority = await dependencies.sessions.authority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
+    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return html(reply, 503, UNAVAILABLE)
     if (authority.kind === 'SIGN_IN_REQUIRED') {
       // Only the page itself goes to sign in. A script, image or fetch without a session is refused,

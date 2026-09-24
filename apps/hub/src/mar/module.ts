@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
@@ -6,112 +5,61 @@ import type { ApplicationHostReader, ApplicationHostSessions } from './applicati
 import { createApplicationInvoker } from './application-invoker.js'
 import type { ApplicationFileReader, ApplicationRunnerInvoke } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
-import type { MarRouteInput, PreviewRouteDependencies } from './preview-routes.js'
-
-type ArtifactManifest = Readonly<{
-  entryPath: 'index.html'
-  files: readonly Readonly<{ path: string; mediaType: string }>[]
-}>
+import type { PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 
 export type MarModule = Readonly<{
-  openRoute(input: Readonly<Omit<MarRouteInput, 'routeId' | 'generation' | 'exactHost' | 'expiresAt' | 'manifest'> & {
-    manifest: ArtifactManifest
-    now?: number
-  }>): Readonly<{
-    route: MarRouteInput
-    entryUrl: string
-    previewUrl: string
-  }>
-  closeRoute(routeId: string): void
-  isRouteOpening(input: Readonly<{ routeId: string; generation: string; attemptId: string }>): boolean
+  /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
+  previewAddress(artifactRevisionId: string): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
   registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
   /** Each application on its own host; absent when the installation serves no applications. */
   registerApplicationHostRoutes: ((app: FastifyInstance) => Promise<readonly ['MAR-Application']>) | undefined
   close(): Promise<void>
 }>
 
-type PreviewAccess = PreviewRouteDependencies['access']
 type RegistryReader = PreviewRouteDependencies['registryReader']
 
 export const createMarModule = ({
-  access,
+  sessions,
   registryReader,
   applicationRunner,
   exactHubOrigin,
   previewPort,
   applicationHost,
-  now = () => Date.now(),
 }: Readonly<{
-  access: PreviewAccess
+  sessions: PreviewSessions
   registryReader: RegistryReader
   /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader }>
   exactHubOrigin: string
   previewPort: number
   applicationHost?: Readonly<{ sessions: ApplicationHostSessions; reader: ApplicationHostReader; application: ApplicationAddress }>
-  now?: () => number
 }>): MarModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
     throw new Error('MAR_CONFIG_REFUSED')
   }
-  const routes = new Map<string, MarRouteInput & Readonly<{ lifecycle: 'OPENING' | 'ACTIVE' }>>()
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
   // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
   const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
   const dependencies: PreviewRouteDependencies = {
-    routes, access, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed,
+    sessions, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, pendingRequests, isClosed: () => closed,
   }
-  const prune = (): void => {
-    const current = now()
-    for (const [key, route] of routes) if (route.expiresAt <= current) routes.delete(key)
-  }
-  const openRoute = (input: Readonly<Omit<MarRouteInput, 'routeId' | 'generation' | 'exactHost' | 'expiresAt' | 'manifest'> & {
-    manifest: ArtifactManifest
-    now?: number
-  }>) => {
-    if (closed) throw new Error('MAR_CLOSED')
-    prune()
-    if (routes.size >= 4_096) throw new Error('MAR_ROUTE_CAPACITY')
-    const routeId = randomUUID()
-    const generation = randomUUID()
-    const exactHost = `preview-${input.artifactRevisionId}.conexus.localhost`
-    const expiresAt = input.now === undefined ? now() + 15 * 60 * 1000 : input.now + 15 * 60 * 1000
-    const route: MarRouteInput & Readonly<{ lifecycle: 'OPENING' | 'ACTIVE' }> = Object.freeze({
-      ...input,
-      routeId,
-      generation,
-      exactHost,
-      expiresAt,
-      manifest: Object.freeze({
-        entryPath: input.manifest.entryPath,
-        files: Object.freeze(input.manifest.files.map((file) => Object.freeze({ ...file }))),
-      }),
-      lifecycle: 'OPENING',
-    })
-    routes.set(routeId, route)
+  const previewAddress = (artifactRevisionId: string) => {
+    const exactHost = `preview-${artifactRevisionId}.conexus.localhost`
     const origin = `https://${exactHost}:${previewPort}`
-    return Object.freeze({ route, entryUrl: `${origin}/__conexus/preview-entry`, previewUrl: `${origin}/` })
-  }
-  const closeRoute = (routeId: string): void => { routes.delete(routeId) }
-  const isRouteOpening = ({ routeId, generation, attemptId }: Readonly<{ routeId: string; generation: string; attemptId: string }>): boolean => {
-    const route = routes.get(routeId)
-    return !closed && route?.lifecycle === 'OPENING' && route.generation === generation && route.attemptId === attemptId && route.expiresAt > now()
+    return Object.freeze({ exactHost, entryUrl: `${origin}/__conexus/preview-entry`, previewUrl: `${origin}/` })
   }
   const close = async (): Promise<void> => {
     if (closing !== null) return closing
     if (closed) return
     closed = true
-    routes.clear()
     closing = Promise.resolve().then(async () => { await Promise.allSettled([...pendingRequests]); pendingRequests.clear() })
     await closing
   }
   return Object.freeze({
-    openRoute,
-    closeRoute,
-    isRouteOpening,
+    previewAddress,
     registerPreviewRoutes: (app: FastifyInstance) => registerPreviewRoutes(app, dependencies),
     registerApplicationHostRoutes: applicationHost
       ? (app: FastifyInstance) => registerApplicationHostRoutes(app, {
