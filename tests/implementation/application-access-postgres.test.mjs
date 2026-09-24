@@ -316,7 +316,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       { code: '23514', message: 'new row for relation "application_session" violates check constraint "application_session_absolute_check"' })
   })
 
-  await t.test('after five minutes Keycloak is asked again: unreachable refuses, active rotates the token, refused ends the session', async () => {
+  await t.test('after five minutes Keycloak is asked again: unreachable refuses, active stores the answered token, refused ends the session', async () => {
     providerAnswer = { kind: 'UNAVAILABLE' }
     refreshes.length = 0
     assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 1_000) }), { kind: 'PROVIDER_UNAVAILABLE' })
@@ -340,39 +340,40 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       [{ ended_reason: 'PROVIDER_USER_DISABLED', provider_refresh_token: null }], 'the ending names a disable')
   })
 
-  await t.test('under Keycloak rotation, concurrent requests on two Hubs refresh once, keep the person signed in, and store only sealed tokens', async () => {
-    const live = new Map()
+  await t.test('four concurrent requests on two Hubs with the check due are all served, Keycloak is asked at most four times, and only sealed tokens are stored', async () => {
     let issued = 0
     let refreshCalls = 0
-    const issue = () => { const token = `rotating-${++issued}`; live.set(token, true); return token }
-    // Keycloak with revokeRefreshToken and refreshTokenMaxReuse 0: a token works once, and reusing it is refused.
-    const rotatingRefresh = async ({ refreshToken }) => {
+    // Keycloak without rotation: a refresh token works any number of times and each answer names a new one.
+    const refresh = async () => {
       refreshCalls += 1
       await new Promise((resolve) => setTimeout(resolve, 25))
-      if (!live.get(refreshToken)) return { kind: 'REFUSED', reason: 'REFUSED' }
-      live.set(refreshToken, false)
-      return { kind: 'ACTIVE', refreshToken: issue() }
+      return { kind: 'ACTIVE', refreshToken: `refresh-answer-${++issued}` }
     }
-    const hubA = createApplicationSessions({ pool, refresh: rotatingRefresh, envelope })
-    const hubB = createApplicationSessions({ pool, refresh: rotatingRefresh, envelope })
-    const sealed = (value) => typeof value === 'string' && value.startsWith('mastra:factory-secret:v1:') && !value.includes('rotating-')
+    const hubA = createApplicationSessions({ pool, refresh, envelope })
+    const hubB = createApplicationSessions({ pool, refresh, envelope })
+    const sealed = (value) => typeof value === 'string' && value.startsWith('mastra:factory-secret:v1:') && !value.includes('refresh-')
 
-    await grantAccess(projectId, 'rotacao@application.test')
-    const outcome = await hubA.signIn({ identity: { ...identity('rotation-sub', 'rotacao@application.test', 'Rotação'), refreshToken: issue() }, existingAccountId: null, projectId, bindingDigest, now: T0 })
+    await grantAccess(projectId, 'concorrencia@application.test')
+    const outcome = await hubA.signIn({ identity: identity('concurrent-sub', 'concorrencia@application.test', 'Concorrência'), existingAccountId: null, projectId, bindingDigest, now: T0 })
     assert.equal(sealed((await client.query('SELECT provider_refresh_token FROM iam.application_handoff')).rows.at(-1).provider_refresh_token), true, 'the handoff holds the refresh token sealed')
     const sessionToken = (await hubB.redeem({ handoff: outcome.handoff, projectId, binding, now: at(1_000) })).sessionToken
-    const stored = async () => (await client.query('SELECT s.provider_refresh_token FROM iam.application_session s JOIN iam.account a ON a.account_id = s.account_id WHERE a.external_subject = $1', ['rotation-sub'])).rows[0].provider_refresh_token
-    assert.equal(sealed(await stored()), true, 'the session holds the refresh token sealed')
+    const stored = async () => (await client.query('SELECT provider_checked_at, provider_refresh_token FROM iam.application_session s JOIN iam.account a ON a.account_id = s.account_id WHERE a.external_subject = $1', ['concurrent-sub'])).rows[0]
+    assert.equal(sealed((await stored()).provider_refresh_token), true, 'the session holds the refresh token sealed')
 
     const due = at(5 * 60 * 1000 + 1_000)
     const answers = await Promise.all([hubA, hubB, hubA, hubB].map((hub) => hub.authority({ sessionToken, projectId, now: due })))
     assert.deepEqual(answers.map((answer) => answer.kind), ['SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN'])
-    assert.equal(refreshCalls, 1, 'one refresh for the session, whichever Hub asked')
-    assert.equal(sealed(await stored()), true)
-    assert.equal(await envelope.open(await stored()), 'rotating-2', 'the rotated token was stored before anyone could refresh again')
+    assert.ok(refreshCalls >= 1 && refreshCalls <= 4, `Keycloak was asked ${refreshCalls} times`)
+    const after = await stored()
+    assert.equal(sealed(after.provider_refresh_token), true)
+    assert.equal(after.provider_checked_at.getTime(), due.getTime(), 'the check was recorded once, at the time the requests saw')
+    assert.match(await envelope.open(after.provider_refresh_token), /^refresh-answer-\d+$/, 'the stored token is one Keycloak answered with')
 
-    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(10 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN', 'the next check spends the rotated token')
-    assert.equal(refreshCalls, 2)
+    const asked = refreshCalls
+    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(5 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
+    assert.equal(refreshCalls, asked, 'a request after the check was recorded does not ask again')
+    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(10 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN')
+    assert.equal(refreshCalls, asked + 1, 'the next check falls due five minutes later')
   })
 
   const openSession = async (subject, email) => {
@@ -396,7 +397,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       [{ ended_reason: 'CUSTODY_CHANGED', provider_refresh_token: null }])
   })
 
-  await t.test('an error while a request holds the check releases it, so the next request checks instead of skipping', async () => {
+  await t.test('an error while Keycloak is asked leaves the check due, so the next request checks instead of skipping', async () => {
     const { sessionToken, sessionDigest } = await openSession('fault-sub', 'falha@application.test')
     let calls = 0
     const faulty = createApplicationSessions({
@@ -410,23 +411,11 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'THREW KEYCLOAK_CLIENT_FAULT')
     assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'SIGNED_IN')
     assert.equal(calls, 2, 'the second request asked Keycloak itself')
-    assert.deepEqual((await client.query('SELECT provider_check_claim, provider_checked_at FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
-      [{ provider_check_claim: null, provider_checked_at: checkDue }])
+    assert.deepEqual((await client.query('SELECT provider_checked_at FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
+      [{ provider_checked_at: checkDue }])
   })
 
-  await t.test('a request that finds the check held by another request is not served unchecked, and does not wait forever', async () => {
-    const { sessionToken, sessionDigest } = await openSession('held-sub', 'retida@application.test')
-    const asked = []
-    const hub = createApplicationSessions({ pool, envelope, refresh: async (input) => { asked.push(input); return { kind: 'ACTIVE', refreshToken: 'refresh-held-2' } } })
-    // Another Hub claimed the check a moment ago and has not answered.
-    await client.query('UPDATE iam.application_session SET provider_check_claim = $2, provider_check_claimed_at = clock_timestamp() WHERE token_digest = $1', [sessionDigest, randomUUID()])
-    const started = Date.now()
-    assert.equal(await outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue })), 'PROVIDER_UNAVAILABLE')
-    assert.deepEqual(asked, [])
-    assert.ok(Date.now() - started < 10_000, 'the wait is bounded')
-  })
-
-  await t.test('a request whose claim was lost while Keycloak answered follows the session instead of serving it', async () => {
+  await t.test('a request whose Keycloak answer arrives after the session ended follows the session instead of serving it', async () => {
     const { sessionToken, sessionDigest } = await openSession('lost-sub', 'perdida@application.test')
     const hub = createApplicationSessions({
       pool, envelope,
@@ -437,33 +426,6 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       },
     })
     assert.equal(await outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
-  })
-
-  await t.test('a claim ages by the database clock: a Hub whose clock runs ahead does not take over a claim still in flight', async () => {
-    const { sessionToken } = await openSession('skew-sub', 'relogio@application.test')
-    let open
-    const gate = new Promise((resolve) => { open = resolve })
-    let entered
-    const inside = new Promise((resolve) => { entered = resolve })
-    const spent = new Set()
-    let calls = 0
-    // Keycloak with rotation: a refresh token works once.
-    const refresh = async ({ refreshToken }) => {
-      calls += 1
-      entered()
-      await gate
-      if (spent.has(refreshToken)) return { kind: 'REFUSED', reason: 'REFUSED' }
-      spent.add(refreshToken)
-      return { kind: 'ACTIVE', refreshToken: `${refreshToken}-rotated` }
-    }
-    const hub = createApplicationSessions({ pool, envelope, refresh })
-    const first = outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue }))
-    await inside
-    const ahead = outcomeOf(hub.authority({ sessionToken, projectId, now: new Date(checkDue.getTime() + 2 * 60 * 1000) }))
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    open()
-    assert.deepEqual([await first, await ahead], ['SIGNED_IN', 'SIGNED_IN'])
-    assert.equal(calls, 1, 'the token was spent once')
   })
 
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {

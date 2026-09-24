@@ -1,5 +1,4 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { setTimeout } from 'node:timers/promises'
 import type { QueryResultRow } from 'pg'
 import { parseCaller } from '../platform/caller.js'
 import type { Caller } from '../platform/caller.js'
@@ -11,29 +10,16 @@ export type ApplicationAuthority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
   // No session, an ended or expired one, one for another application, or access withdrawn.
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
-  // The Keycloak check was due and was not settled: Keycloak could not answer, or another request
-  // held the check too long. Refuse, and keep the session.
+  // The Keycloak check was due and Keycloak could not answer. Refuse, and keep the session.
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
 export type ApplicationSignIn =
   | Readonly<{ kind: 'HANDOFF'; slug: string; handoff: string }>
   | Readonly<{ kind: 'NO_ACCESS'; slug: string }>
 
-// A due check is settled by this request (CHECKED), is held by another request (HELD), or refuses.
-type ProviderCheckOutcome =
-  | Readonly<{ kind: 'CHECKED' }>
-  | Readonly<{ kind: 'HELD' }>
-  | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
-  | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
-
-export const PROVIDER_RECHECK_MS = 5 * 60 * 1000
-// A request that finds the check held re-reads the session for up to five seconds, then answers 503.
-const HELD_CHECK_READS = 50
-const HELD_CHECK_INTERVAL_MS = 100
 const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
 const OPAQUE = /^[A-Za-z0-9_-]{43}$/
 
-export const providerCheckDue = (checkedAt: Date, now: Date): boolean => now.getTime() - checkedAt.getTime() >= PROVIDER_RECHECK_MS
 export const parseApplicationSlug = (value: unknown): string | null => typeof value === 'string' && SLUG.test(value) && !value.includes('--') ? value : null
 export const parseOpaqueToken = (value: unknown): string | null => typeof value === 'string' && OPAQUE.test(value) ? value : null
 
@@ -46,6 +32,8 @@ type ResolvedRow = QueryResultRow & {
   display_name: string
   subject: string
   provider_checked_at: Date
+  /** The sealed refresh token, present only when the five-minute Keycloak check is due. */
+  due_provider_refresh_token: string | null
 }
 
 export type ApplicationSessions = Readonly<{
@@ -73,15 +61,9 @@ export const createApplicationSessions = ({
   /** Seals the Keycloak refresh token for the handoff and the session; the database refuses any other value. */
   envelope: SecretEnvelope
 }>): ApplicationSessions => {
-  // Keycloak rotates the refresh token and refuses a reused one. The database hands the sealed token
-  // to the one request that claims the due check, on any Hub, and that request stores the rotated
-  // token in the statement that releases the claim. A request that finds the check held by another
-  // reads the session again until the holder settles it, and is refused if it does not settle soon.
-  const checkProvider = async (sessionDigest: Buffer, subject: string, now: Date): Promise<ProviderCheckOutcome> => {
-    const claim = randomUUID()
-    const claimed = await pool.query<QueryResultRow & { token: string | null }>('SELECT iam.claim_provider_check($1, $2, $3) AS token', [sessionDigest, claim, now])
-    const sealed = claimed.rows[0]?.token
-    if (!sealed) return { kind: 'HELD' }
+  // Keycloak does not rotate refresh tokens, so requests that find the same check due may all refresh
+  // at once. Each is served on its own answer, and the first to record the check stores its token.
+  const checkProvider = async (sessionDigest: Buffer, projectId: string, row: ResolvedRow, sealed: string, now: Date): Promise<ApplicationAuthority | null> => {
     let refreshToken: string
     try {
       refreshToken = await envelope.open(sealed)
@@ -90,30 +72,23 @@ export const createApplicationSessions = ({
       await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, 'CUSTODY_CHANGED'])
       return { kind: 'SIGN_IN_REQUIRED' }
     }
-    try {
-      const check = await refresh({ refreshToken, expectedSubject: subject })
-      if (check.kind === 'UNAVAILABLE') {
-        await pool.query('SELECT iam.release_provider_check($1, $2)', [sessionDigest, claim])
-        return { kind: 'PROVIDER_UNAVAILABLE' }
-      }
-      if (check.kind === 'REFUSED') {
-        await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, ENDED_BY[check.reason]])
-        return { kind: 'SIGN_IN_REQUIRED' }
-      }
-      const recorded = await pool.query<QueryResultRow & { recorded: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS recorded',
-        [sessionDigest, claim, await envelope.seal(check.refreshToken), now])
-      // False: the session ended or another request took the claim over while Keycloak answered.
-      // Either way the session in the database is the truth, so the request reads it again.
-      return recorded.rows[0]?.recorded ? { kind: 'CHECKED' } : { kind: 'HELD' }
-    } catch (error) {
-      await pool.query('SELECT iam.release_provider_check($1, $2)', [sessionDigest, claim]).catch(() => undefined)
-      throw error
+    const check = await refresh({ refreshToken, expectedSubject: row.subject })
+    if (check.kind === 'UNAVAILABLE') return { kind: 'PROVIDER_UNAVAILABLE' }
+    if (check.kind === 'REFUSED') {
+      await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, ENDED_BY[check.reason]])
+      return { kind: 'SIGN_IN_REQUIRED' }
     }
+    const recorded = await pool.query<QueryResultRow & { recorded: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS recorded',
+      [sessionDigest, row.provider_checked_at, await envelope.seal(check.refreshToken), now])
+    // False: the session ended while Keycloak answered, or another request recorded this check first.
+    // The loser of that race is still served, so only the session in the database decides.
+    if (!recorded.rows[0]?.recorded && !await resolve(sessionDigest, projectId, now)) return { kind: 'SIGN_IN_REQUIRED' }
+    return null
   }
 
   const resolve = async (sessionDigest: Buffer, projectId: string, now: Date): Promise<ResolvedRow | undefined> => {
     const resolved = await pool.query<ResolvedRow>(
-      'SELECT account_id, email, display_name, subject, provider_checked_at FROM iam.resolve_application_session($1, $2, $3)',
+      'SELECT account_id, email, display_name, subject, provider_checked_at, due_provider_refresh_token FROM iam.resolve_application_session($1, $2, $3)',
       [sessionDigest, projectId, now])
     return resolved.rows[0]
   }
@@ -165,21 +140,15 @@ export const createApplicationSessions = ({
     async authority({ sessionToken, projectId, now = new Date() }) {
       if (!sessionToken || !parseOpaqueToken(sessionToken)) return { kind: 'SIGN_IN_REQUIRED' }
       const sessionDigest = digest(sessionToken)
-      for (let attempt = 1; ; attempt += 1) {
-        const row = await resolve(sessionDigest, projectId, now)
-        if (!row) return { kind: 'SIGN_IN_REQUIRED' }
-        const check: ProviderCheckOutcome = providerCheckDue(row.provider_checked_at, now)
-          ? await checkProvider(sessionDigest, row.subject, now)
-          : { kind: 'CHECKED' }
-        if (check.kind === 'CHECKED') {
-          const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
-          if (!caller) throw new Error('APPLICATION_CALLER_UNRESOLVABLE')
-          return { kind: 'SIGNED_IN', caller }
-        }
-        if (check.kind !== 'HELD') return check
-        if (attempt >= HELD_CHECK_READS) return { kind: 'PROVIDER_UNAVAILABLE' }
-        await setTimeout(HELD_CHECK_INTERVAL_MS)
+      const row = await resolve(sessionDigest, projectId, now)
+      if (!row) return { kind: 'SIGN_IN_REQUIRED' }
+      if (row.due_provider_refresh_token) {
+        const refused = await checkProvider(sessionDigest, projectId, row, row.due_provider_refresh_token, now)
+        if (refused) return refused
       }
+      const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
+      if (!caller) throw new Error('APPLICATION_CALLER_UNRESOLVABLE')
+      return { kind: 'SIGNED_IN', caller }
     },
 
     async signOut(sessionToken) {

@@ -379,7 +379,7 @@ try {
   }
 
   // The review fixes on the live pilot, as the member: navigation-only sign-in, the standalone CSP, one
-  // read per file, and the Keycloak recheck under rotation with concurrent requests.
+  // read per file, and the Keycloak check with concurrent requests.
   if (phase === 'review') {
     if (!statePath.member) throw new Error('--member-state is required for the review phase')
     const brief = (answer) => ({ status: answer.status, location: answer.location, setCookie: answer.setCookie, code: answer.body?.error?.code ?? null })
@@ -422,29 +422,26 @@ try {
         { page: response.status, serverTree: tree.status, missing: missing.status }, response.status === 200 && tree.status === 404 && missing.status === 404)
     }
     {
-      const row = () => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(provider_refresh_token) || '|' || (provider_refresh_token LIKE 'mastra:factory-secret:v1:%') || '|' || (provider_check_claim IS NULL) FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+      const row = () => sql(`SELECT coalesce(ended_reason, 'open') || '|' || provider_checked_at || '|' || (provider_refresh_token LIKE 'mastra:factory-secret:v1:%') FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
       // Age the session so the Keycloak check is due: six minutes since sign-in and since the last check.
       const age = () => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
-      const [, tokenBefore, sealedBefore] = row()
+      const [, checkedBefore, sealedBefore] = row()
       const aged = age()
+      const [, checkedAged] = row()
       const concurrent = await Promise.all([1, 2, 3, 4].map(() => call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })))
-      const [endedAfter, tokenAfter, sealedAfter, claimReleased] = row()
-      const agedAgain = age()
-      const next = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
-      const [endedLast, tokenLast] = row()
+      const [endedAfter, checkedAfter, sealedAfter] = row()
       const unsealed = sql("SELECT (SELECT count(*) FROM iam.application_session WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%') + (SELECT count(*) FROM iam.application_handoff WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%')")
-      record('rotation-concurrent-recheck', { url: ANY_OPERATION, as: 'member, four requests at once when the Keycloak check is due, then one more after the next check is due' },
-        { aged: aged === '1' && agedAgain === '1', statuses: concurrent.map((answer) => answer.status), session: endedAfter, rotated: tokenAfter !== tokenBefore, sealed: sealedBefore === 'true' && sealedAfter === 'true', claimReleased: claimReleased === 'true', next: next.status, rotatedAgain: tokenLast !== tokenAfter, sessionAtEnd: endedLast, unsealedTokens: unsealed },
+      record('concurrent-due-check', { url: ANY_OPERATION, as: 'member, four requests at once when the Keycloak check is due' },
+        { aged: aged === '1', statuses: concurrent.map((answer) => answer.status), session: endedAfter, checkedBefore, checkedAged, checkedAfter, sealed: sealedBefore === 'true' && sealedAfter === 'true', unsealedTokens: unsealed },
         // Past authority the runner answers 404 for the undeclared operation, or 429 when the Project's
         // admission bound (two at a time) is full; 401 would be a sign-out and 503 an unanswered check.
-        aged === '1' && concurrent.every((answer) => answer.status === 404 || answer.status === 429) && endedAfter === 'open' && tokenAfter !== tokenBefore &&
-        sealedBefore === 'true' && sealedAfter === 'true' && claimReleased === 'true' && next.status === 404 && tokenLast !== tokenAfter && endedLast === 'open' && unsealed === '0')
+        aged === '1' && concurrent.every((answer) => answer.status === 404 || answer.status === 429) && endedAfter === 'open' && checkedAfter !== checkedAged &&
+        sealedBefore === 'true' && sealedAfter === 'true' && unsealed === '0')
     }
   }
 
   // The fixes from verifying the review, as the member: every handoff of two sign-ins sharing a binding
-  // redeems, a token no installation key opens ends the session, and a check held by a Hub that never
-  // answers is refused, not skipped, until the database clock lets the next request take it over.
+  // redeems, and a token no installation key opens ends the session.
   if (phase === 'verification') {
     if (!statePath.member) throw new Error('--member-state is required for the verification phase')
     const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
@@ -455,7 +452,7 @@ try {
       await context.close()
       return { cookie: cookieHeader(jar, APP), digestHex: sessionDigest(jar) }
     }
-    const row = (digestHex) => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(coalesce(provider_refresh_token, '')) || '|' || (provider_check_claim IS NULL) || '|' || provider_checked_at FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+    const row = (digestHex) => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(coalesce(provider_refresh_token, '')) || '|' || provider_checked_at FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
     const makeDue = (digestHex) => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
     {
       const context = await contextFor(statePath.member)
@@ -486,23 +483,6 @@ try {
       record('custody-changed-ends-session', { url: ANY_OPERATION, as: 'member, whose stored refresh token was sealed under a foreign key, with the check made due' },
         { replaced: replaced === '1', aged: aged === '1', first: first.status, firstCode: first.body?.error?.code ?? null, second: second.status, ended, tokenDropped: tokenMd5 === createHash('md5').update('').digest('hex') },
         replaced === '1' && aged === '1' && first.status === 401 && second.status === 401 && ended === 'CUSTODY_CHANGED' && tokenMd5 === createHash('md5').update('').digest('hex'))
-    }
-    {
-      const { cookie, digestHex } = await session()
-      const aged = makeDue(digestHex)
-      const [, tokenBefore, , checkedBefore] = row(digestHex)
-      // A Hub claimed the check a moment ago and died before answering.
-      const held = sql(`UPDATE iam.application_session SET provider_check_claim = gen_random_uuid(), provider_check_claimed_at = clock_timestamp() WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
-      const started = Date.now()
-      const whileHeld = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
-      const waitedMs = Date.now() - started
-      await sleep(61_000)
-      const takenOver = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
-      const [ended, tokenAfter, claimReleased, checkedAfter] = row(digestHex)
-      record('held-check-refused-then-taken-over', { url: ANY_OPERATION, as: 'member, the check due and claimed by a Hub that never answers; again 61 s later' },
-        { aged: aged === '1', held: held === '1', whileHeld: whileHeld.status, whileHeldCode: whileHeld.body?.error?.code ?? null, waitedMs, takenOver: takenOver.status, session: ended, rotated: tokenAfter !== tokenBefore, claimReleased: claimReleased === 'true', checkedAdvanced: checkedAfter !== checkedBefore },
-        aged === '1' && held === '1' && whileHeld.status === 503 && whileHeld.body?.error?.code === 'IDENTITY_PROVIDER_UNAVAILABLE' && waitedMs >= 4_000 && waitedMs < 15_000 &&
-        takenOver.status === 404 && ended === 'open' && tokenAfter !== tokenBefore && claimReleased === 'true' && checkedAfter !== checkedBefore)
     }
   }
 
