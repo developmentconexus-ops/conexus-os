@@ -4,7 +4,7 @@ import type { Caller } from '../platform/caller.js'
 import { applicationOrigin, applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
-import { API_BODY_LIMIT, applicationContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT, strictOrigin } from './preview-routes.js'
+import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT, strictOrigin } from './preview-routes.js'
 
 const SESSION_COOKIE = '__Host-conexus_app'
 const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
@@ -65,7 +65,7 @@ export const registerApplicationHostRoutes = async (
 
   // Every answer: never framed, never cached, no referrer, and no CORS grant to anyone.
   app.addHook('onRequest', async (_request, reply) => {
-    reply.header('content-security-policy', applicationContentSecurityPolicy("'none'"))
+    reply.header('content-security-policy', applicationHostContentSecurityPolicy)
     reply.header('referrer-policy', 'no-referrer')
     reply.header('cache-control', 'no-store')
     reply.header('x-frame-options', 'DENY')

@@ -206,7 +206,7 @@ test('a signed-in person gets the served files, never the server tree, and the p
   const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, origin: HUB }, ...signedIn })
   assert.equal(index.statusCode, 200)
   assert.equal(index.body, files['index.html'].text)
-  assert.match(index.headers['content-security-policy'], /frame-ancestors 'none';/)
+  assert.match(index.headers['content-security-policy'], /frame-ancestors 'none'$/)
   assert.equal(index.headers['access-control-allow-origin'], undefined)
   assert.equal(index.headers['referrer-policy'], 'no-referrer')
   assert.equal(index.headers['cache-control'], 'no-store')
