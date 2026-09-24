@@ -3,10 +3,12 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
+import { parseApplicationSlug, parseOpaqueToken } from './application-session.js'
+import type { ApplicationSessions } from './application-session.js'
 import type { ResolveCurrentSession } from './current-session.js'
 import { identityAccessErrorCode } from './errors.js'
 import type { OidcAdapter } from './oidc.js'
-import type { IdentityAccessStore } from './store.js'
+import type { IdentityAccessStore, SignInReturn } from './store.js'
 
 const SESSION_COOKIE = '__Host-conexus_session'
 const BOOTSTRAP_COOKIE = '__Host-conexus_bootstrap'
@@ -25,16 +27,32 @@ export type IdentityAccessRouteDependencies = Readonly<{
   oidc: OidcAdapter
   config: Readonly<{ origin: string; bootstrapIssuer: string; bootstrapSubject: string }>
   resolveCurrentSession: ResolveCurrentSession
+  /** Present when the installation serves applications: sign-ins that begin at an application host. */
+  applications?: Readonly<{ sessions: ApplicationSessions; origin: (slug: string) => string }>
 }>
 
 export const registerIdentityAccessRoutes = async (
   app: FastifyInstance,
-  { store, workspaceReader, oidc, config, resolveCurrentSession }: IdentityAccessRouteDependencies,
+  { store, workspaceReader, oidc, config, resolveCurrentSession, applications }: IdentityAccessRouteDependencies,
 ): Promise<readonly S1OwnerId[]> => {
-  app.get('/protocol/oidc/login', async (_request, reply) => {
+  // An application host starts a sign-in with its slug and the digest of a binding only that browser
+  // holds. Both or neither: the Hub's own sign-in takes no parameter.
+  app.get<{ Querystring: Record<string, unknown> }>('/protocol/oidc/login', async (request, reply) => {
+    const { application, binding } = request.query
+    let signInReturn: SignInReturn = { kind: 'HUB' }
+    if (application !== undefined || binding !== undefined) {
+      const slug = parseApplicationSlug(application)
+      const bindingText = parseOpaqueToken(binding)
+      const bindingDigest = bindingText ? Buffer.from(bindingText, 'base64url') : null
+      // Only the canonical encoding of a 32-byte digest, so one binding has exactly one spelling.
+      if (!slug || !bindingDigest || bindingDigest.toString('base64url') !== bindingText || !applications) return reply.code(400).send()
+      const projectId = await applications.sessions.applicationBySlug(slug)
+      if (!projectId) return reply.code(404).send()
+      signInReturn = { kind: 'APPLICATION', projectId, bindingDigest }
+    }
     try {
       const transaction = await oidc.begin()
-      await store.createOidcTransaction(transaction)
+      await store.createOidcTransaction({ ...transaction, signInReturn })
       return reply.setCookie(OIDC_STATE_COOKIE, transaction.state, cookieOptions).redirect(transaction.location, 302)
     } catch {
       return reply.code(503).send()
@@ -55,6 +73,23 @@ export const registerIdentityAccessRoutes = async (
       })
       const account = await store.resolveIdentity(identity)
       reply.clearCookie(OIDC_STATE_COOKIE, clearCookieOptions)
+      const signInReturn = transaction.signInReturn
+      if (signInReturn.kind === 'APPLICATION') {
+        // This branch never sets the Hub session or its CSRF cookie: the person leaves with a
+        // one-use handoff for the application's own host, or with no access at all.
+        if (!applications) return reply.code(503).send()
+        const outcome = await applications.sessions.signIn({
+          identity,
+          existingAccountId: account?.accountId ?? null,
+          projectId: signInReturn.projectId,
+          bindingDigest: signInReturn.bindingDigest,
+        })
+        const origin = applications.origin(outcome.slug)
+        const location = outcome.kind === 'HANDOFF'
+          ? `${origin}/__conexus/sign-in/complete?handoff=${outcome.handoff}`
+          : `${origin}/__conexus/no-access`
+        return reply.header('referrer-policy', 'no-referrer').redirect(location, 303)
+      }
       if (account) {
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         const established = await store.createSession({ accountId: account.accountId })

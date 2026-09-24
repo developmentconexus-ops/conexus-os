@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { S1OwnerId } from '../generated/s1-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
+import { createApplicationSessions } from './application-session.js'
+import type { ApplicationSessions } from './application-session.js'
 import { createInstallationAdministration } from './installation-administration.js'
 import type { InstallationAdministration } from './installation-administration.js'
 import { registerInstallationRoutes } from './installation-routes.js'
@@ -20,6 +22,8 @@ export type IdentityAccessModule = Readonly<{
   issuePreviewEntry(request: FastifyRequest, input: Readonly<{ accountId: string; route: PreviewRouteBinding }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   previewAccess: PreviewAccess
   installationAdministration: InstallationAdministration
+  /** Present when the installation serves applications on their own hosts. */
+  applicationSessions: ApplicationSessions | undefined
   close(): Promise<void>
 }>
 
@@ -57,6 +61,8 @@ export const createIdentityAccessModule = async ({
     redirectUri: new URL('/protocol/oidc/callback', origin).href,
     allowInsecureForTest,
   })
+  const applicationOrigin = (slug: string): string => `https://${slug}.conexus.localhost:${applicationPort}`
+  const applicationSessions = applicationPort ? createApplicationSessions({ pool, refresh: oidc.refresh }) : undefined
   const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null
@@ -74,6 +80,7 @@ export const createIdentityAccessModule = async ({
           oidc,
           config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
           resolveCurrentSession,
+          ...(applicationSessions ? { applications: { sessions: applicationSessions, origin: applicationOrigin } } : {}),
         }),
         ...await registerMembershipRoutes(app, {
           store: membership,
@@ -85,7 +92,7 @@ export const createIdentityAccessModule = async ({
           resolveCurrentSession,
           config: {
             origin,
-            applicationAddress: (slug) => applicationPort ? `https://${slug}.conexus.localhost:${applicationPort}` : null,
+            applicationAddress: (slug) => applicationPort ? applicationOrigin(slug) : null,
           },
         }),
       ]
@@ -100,6 +107,7 @@ export const createIdentityAccessModule = async ({
     },
     previewAccess,
     installationAdministration,
+    applicationSessions,
     close: async () => {
       await Promise.all([previewAccess.close(), oidc.close(), store.close()])
     },

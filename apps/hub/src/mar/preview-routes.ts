@@ -65,10 +65,7 @@ type ApplicationCaller = Readonly<{ accountId: string; email: string | null; dis
 // The admitted artifact's application API. The operation comes from the request path and must be one
 // the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
 type ApplicationInvoker = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
+  source: Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
   serverFiles: readonly string[]
   operation: string
   input: unknown
@@ -91,14 +88,16 @@ const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes)
 const expectedHost = (route: Readonly<{ exactHost: string }>, port: number): readonly string[] => [route.exactHost, `${route.exactHost}:${port}`]
 const hostMatches = (requestHost: string | undefined, route: Readonly<{ exactHost: string }>, port: number): boolean =>
   typeof requestHost === 'string' && expectedHost(route, port).includes(requestHost)
-const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
+export const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
   (Array.isArray(value) ? value[0] : value) === expected
 
 // allow-forms lets a submit event reach the app's own handler; form-action 'none' still refuses
 // any submission that would navigate or post somewhere. connect-src 'self' admits only the app's own
 // same-origin API under /__conexus/api/.
-export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
-  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+export const applicationContentSecurityPolicy = (frameAncestors: string): string =>
+  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${frameAncestors}; sandbox allow-scripts allow-same-origin allow-forms`
+
+export const previewContentSecurityPolicy = (exactHubOrigin: string): string => applicationContentSecurityPolicy(exactHubOrigin)
 
 const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
   reply.header('referrer-policy', 'no-referrer')
@@ -115,11 +114,11 @@ const sameBinding = (left: MarRoute, right: PreviewCookieBinding): boolean => (
   left.exactHost === right.exactHost
 )
 
-const SERVER_ROOT = 'conexus-server/'
-const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
-const API_BODY_LIMIT = 64 * 1024
+export const SERVER_ROOT = 'conexus-server/'
+export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
+export const API_BODY_LIMIT = 64 * 1024
 
-const pathForRequest = (pathname: string): string | null => {
+export const pathForRequest = (pathname: string): string | null => {
   if (pathname === '/') return 'index.html'
   try {
     const path = decodeURIComponent(pathname.slice(1))
@@ -279,8 +278,11 @@ export const registerPreviewRoutes = async (
     let result: Awaited<ReturnType<ApplicationInvoker>>
     try {
       result = await dependencies.invokeApplication({
-        accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision,
-        artifactRevisionId: binding.artifactRevisionId, serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
+        source: {
+          via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
+          sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
+        },
+        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')

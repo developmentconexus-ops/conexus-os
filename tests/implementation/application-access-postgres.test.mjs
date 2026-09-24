@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
@@ -16,13 +17,15 @@ const refusal = async (run) => {
   return { code: null, message: null }
 }
 
-const applicationDatabase =async (t, label) => {
+const applicationDatabase = async (t, label) => {
   const admin = { host: process.env.CONEXUS_TEST_DB_HOST, port: Number(process.env.CONEXUS_TEST_DB_PORT), database: process.env.CONEXUS_TEST_DB_NAME, user: process.env.CONEXUS_TEST_DB_USER, password: process.env.CONEXUS_TEST_DB_PASSWORD }
   const database = `conexus_${label}_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
   const rootClient = await connect(admin)
   await rootClient.query(`CREATE DATABASE "${database}"`)
   let client
+  const closeFirst = []
   t.after(async () => {
+    for (const close of closeFirst) await close()
     await client?.end()
     await rootClient.query(`DROP DATABASE "${database}" WITH (FORCE)`)
     await rootClient.end()
@@ -55,7 +58,7 @@ const applicationDatabase =async (t, label) => {
       [projectId, workspaceId, name, 'a'.repeat(40), name])
     return projectId
   }
-  return { client, account, workspace, project }
+  return { client, connection: { ...admin, database }, closeFirst: (close) => closeFirst.push(close), account, workspace, project }
 }
 
 const inTwoWeeks = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -147,5 +150,162 @@ test('application access: Owners grant, list and narrow it, and nobody else lear
     for (const slug of ['hub', 'preview-abc', 'Caps', 'a--b', '-a', 'a'.repeat(41)]) {
       assert.equal((await refusal(() => client.query('INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1,$2,$3)', [projectId, slug, owner]))).code, '23514', slug)
     }
+  })
+})
+
+test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createApplicationSessions } = await import(hubModuleUrl('identity-access/application-session.js'))
+  const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
+  const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
+  const pool = new pg.Pool({ ...connection, max: 4 })
+  closeFirst(() => pool.end())
+  const refreshes = []
+  let providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-2' }
+  const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer } })
+  const hubStore = createIdentityAccessStore({ pool })
+
+  const owner = await account('owner-s')
+  const control = await account('control-s')
+  const workspaceId = await workspace('purchasing-s', [[owner, 'owner']])
+  await workspace('elsewhere-s', [[control, 'owner']])
+  const projectId = await project(workspaceId, 'Caderno de Compras')
+  const otherProject = await project(workspaceId, 'Outro')
+  const grantAccess = (projectRef, email) => client.query('SELECT iam.grant_application_access($1,$2,$3,$4,$5)', [owner, projectRef, randomUUID(), email, inTwoWeeks()])
+  await grantAccess(projectId, 'funcionaria@application.test')
+  await grantAccess(otherProject, 'ninguem@application.test')
+
+  const identity = (subject, email, displayName = null) => ({ issuer: 'https://application.test', subject, verifiedEmail: email, displayName, refreshToken: `refresh-${subject}` })
+  const binding = 'binding-secret'
+  const bindingDigest = createHash('sha256').update(binding).digest()
+  const T0 = new Date('2026-09-23T12:00:00.000Z')
+  const at = (ms) => new Date(T0.getTime() + ms)
+  const signIn = (who, existingAccountId = null, projectRef = projectId, now = T0) =>
+    sessions.signIn({ identity: who, existingAccountId, projectId: projectRef, bindingDigest, now })
+  const sessionRow = async (accountId) => (await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE account_id = $1 ORDER BY authenticated_at DESC, ended_at DESC NULLS FIRST LIMIT 1', [accountId])).rows[0]
+
+  const employee = identity('employee-sub', 'Funcionaria@Application.test', 'Funcionária Teste')
+  let employeeId
+  let token
+
+  await t.test('an invited email gets an app-only Account named by the provider, and the Hub refuses it a session', async () => {
+    const outcome = await signIn(employee)
+    assert.equal(outcome.kind, 'HANDOFF')
+    assert.equal(outcome.slug, 'caderno-de-compras')
+    const created = (await client.query("SELECT account_id, display_name, email, origin FROM iam.account WHERE external_subject = 'employee-sub'")).rows[0]
+    employeeId = created.account_id
+    assert.deepEqual({ displayName: created.display_name, email: created.email, origin: created.origin },
+      { displayName: 'Funcionária Teste', email: 'funcionaria@application.test', origin: 'APPLICATION_INVITATION' })
+    assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'APPLICATION_ONLY')
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE account_id = $1 AND revoked_at IS NULL', [employeeId])).rows[0].n, 1)
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.workspace_membership WHERE account_id = $1', [employeeId])).rows[0].n, 0)
+    await assert.rejects(hubStore.createSession({ accountId: employeeId }), /IDENTITY_NOT_ELIGIBLE/)
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.session WHERE account_id = $1', [employeeId])).rows[0].n, 0)
+
+    const redeemed = await sessions.redeem({ handoff: outcome.handoff, projectId, binding, now: at(1_000) })
+    assert.equal(redeemed.maxAgeSeconds, 8 * 60 * 60 - 1)
+    token = redeemed.sessionToken
+  })
+
+  await t.test('without a provider name the display name is the verified email, and a stranger gets no Account', async () => {
+    await grantAccess(projectId, 'sem-nome@application.test')
+    assert.equal((await signIn(identity('no-name-sub', 'sem-nome@application.test'))).kind, 'HANDOFF')
+    assert.equal((await client.query("SELECT display_name FROM iam.account WHERE external_subject = 'no-name-sub'")).rows[0].display_name, 'sem-nome@application.test')
+    assert.deepEqual(await signIn(identity('stranger-sub', 'stranger@application.test')), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.deepEqual(await signIn(identity('unverified-sub', null)), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject IN ('stranger-sub', 'unverified-sub')")).rows[0].n, 0)
+  })
+
+  await t.test('a handoff dies on first use, on the wrong binding, on another application and after sixty seconds', async () => {
+    const redeem = async (handoff, overrides = {}) => sessions.redeem({ handoff, projectId, binding, now: at(1_000), ...overrides })
+    const fresh = async () => (await signIn(employee, employeeId)).handoff
+    const once = await fresh()
+    assert.ok(await redeem(once))
+    assert.equal(await redeem(once), null, 'second redemption')
+    const wrongBinding = await fresh()
+    assert.equal(await redeem(wrongBinding, { binding: 'another-browser' }), null)
+    assert.equal(await redeem(wrongBinding), null, 'the wrong binding burnt it')
+    const wrongApplication = await fresh()
+    assert.equal(await redeem(wrongApplication, { projectId: otherProject }), null)
+    const late = await fresh()
+    assert.equal(await redeem(late, { now: at(60_000) }), null, 'sixty seconds after the sign-in')
+  })
+
+  await t.test('a session resolves to its caller only on its own application and before eight hours', async () => {
+    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(60_000) }),
+      { kind: 'SIGNED_IN', caller: { accountId: employeeId, email: 'funcionaria@application.test', displayName: 'Funcionária Teste' } })
+    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId: otherProject, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.authority({ sessionToken: 'x'.repeat(43), projectId, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(refreshes, [], 'no Keycloak check inside five minutes')
+    const eight = (await signIn(employee, employeeId)).handoff
+    const long = (await sessions.redeem({ handoff: eight, projectId, binding, now: at(1_000) })).sessionToken
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-long' }
+    assert.equal((await sessions.authority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000 - 1) })).kind, 'SIGNED_IN')
+    assert.deepEqual(await sessions.authority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE ended_reason = 'EXPIRED'")).rows,
+      [{ ended_reason: 'EXPIRED', provider_refresh_token: null }])
+    assert.deepEqual(await refusal(() => client.query("UPDATE iam.application_session SET absolute_expires_at = absolute_expires_at + interval '1 minute'")),
+      { code: '23514', message: 'new row for relation "application_session" violates check constraint "application_session_absolute_check"' })
+  })
+
+  await t.test('after five minutes Keycloak is asked again: unreachable refuses, active rotates the token, refused ends the session', async () => {
+    providerAnswer = { kind: 'UNAVAILABLE' }
+    refreshes.length = 0
+    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 1_000) }), { kind: 'PROVIDER_UNAVAILABLE' })
+    assert.deepEqual(refreshes, [{ refreshToken: 'refresh-employee-sub', expectedSubject: 'employee-sub' }])
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n > 0, true)
+
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-rotated' }
+    const [first, second] = await Promise.all([
+      sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
+      sessions.authority({ sessionToken: token, projectId, now: at(5 * 60 * 1000 + 2_000) }),
+    ])
+    assert.equal(first.kind, 'SIGNED_IN')
+    assert.equal(second.kind, 'SIGNED_IN')
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE provider_refresh_token = $1', ['refresh-rotated'])).rows[0].n, 1)
+
+    providerAnswer = { kind: 'REFUSED' }
+    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 3_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 4_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE ended_reason = 'PROVIDER_REFUSED'")).rows,
+      [{ ended_reason: 'PROVIDER_REFUSED', provider_refresh_token: null }])
+  })
+
+  await t.test('revoking the grant stops the next request and drops the refresh token', async () => {
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-3' }
+    const handoff = (await signIn(employee, employeeId)).handoff
+    const live = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    assert.equal((await sessions.authority({ sessionToken: live, projectId, now: at(2_000) })).kind, 'SIGNED_IN')
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE account_id = $1 AND revoked_at IS NULL', [employeeId])).rows[0].grant_id
+    assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n, 0,
+      'revocation ended every open session of the person for this application')
+    assert.deepEqual(await sessions.authority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
+    assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+  })
+
+  await t.test('a member of the Workspace uses the application without a grant; a member of another Workspace does not', async () => {
+    assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
+    const ownerToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    assert.equal((await sessions.authority({ sessionToken: ownerToken, projectId, now: at(2_000) })).caller.accountId, owner)
+
+    await client.query('UPDATE project.project SET archived = true WHERE project_id = $1', [projectId])
+    assert.deepEqual(await sessions.authority({ sessionToken: ownerToken, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'an archived Project serves no application')
+    await client.query('UPDATE project.project SET archived = false WHERE project_id = $1', [projectId])
+  })
+
+  await t.test('an app-only Account that joins a Workspace becomes a Control Plane Account, and drops back when removed', async () => {
+    await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [employeeId, workspaceId, 'member'])
+    assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'CONTROL_PLANE')
+    const hubSession = await hubStore.createSession({ accountId: employeeId })
+    assert.ok(await hubStore.validateSession({ sessionToken: hubSession.sessionToken }))
+    await client.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [employeeId])
+    assert.equal(await hubStore.validateSession({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
+  })
+
+  await t.test('the served artifact is read only through application access', async () => {
+    const reads = async (accountId) => (await client.query('SELECT * FROM reg.get_served_application($1,$2)', [accountId, otherProject])).rows
+    assert.deepEqual(await reads(control), [])
+    assert.deepEqual(await reads(owner), [], 'no Preview has been built, so nothing is served')
   })
 })

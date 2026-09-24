@@ -8,7 +8,7 @@ import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
-import { createApplicationArtifactStore } from './registry/module.js'
+import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
@@ -76,6 +76,15 @@ const project = config.project ? createConfiguredProjectModule({
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
+// The application host reads only the artifact an application serves, gated by access to it.
+const servedPool = config.application && config.builder ? createPostgresPool({
+  host: config.database.host,
+  port: config.database.port,
+  database: config.database.database,
+  user: 'hub_builder_executor',
+  password: readSecretFile(config.builder.executorPasswordFile),
+}) : undefined
+const servedApplications = servedPool ? createServedApplicationReader(servedPool) : undefined
 const mar = config.preview ? createMarModule({
   access: identityAccess.previewAccess,
   exactHubOrigin: config.origin,
@@ -92,13 +101,22 @@ const mar = config.preview ? createMarModule({
   // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
   ...(applicationRunner ? {
     applicationRunner: {
-      readFile: (input) => {
+      readFile: ({ source, path }) => {
+        if (source.via === 'APPLICATION') {
+          if (!servedApplications) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+          return servedApplications.readFile({ accountId: source.accountId, projectId: source.projectId, artifactRevisionId: source.artifactRevisionId, path })
+        }
         const reader = builder
         if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
-        return reader.readApplicationFileBySource(input)
+        return reader.readApplicationFileBySource({
+          accountId: source.accountId, projectId: source.projectId, sourceRevision: source.sourceRevision, artifactRevisionId: source.artifactRevisionId, path,
+        })
       },
       invoke: applicationRunner.invoke,
     },
+  } : {}),
+  ...(config.application && identityAccess.applicationSessions && servedApplications ? {
+    applicationHost: { sessions: identityAccess.applicationSessions, reader: servedApplications, applicationPort: config.application.port },
   } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
@@ -171,6 +189,14 @@ const previewApp = mar && config.preview ? await createHttpApp({
     key: readFileSync(config.preview.keyFile),
   },
 }) : undefined
+const applicationApp = mar?.registerApplicationHostRoutes && config.preview && config.application ? await createHttpApp({
+  registerRoutes: mar.registerApplicationHostRoutes,
+  staticRoot: null,
+  https: {
+    cert: readFileSync(config.preview.certFile),
+    key: readFileSync(config.preview.keyFile),
+  },
+}) : undefined
 await builder?.recover()
 
 // Read-only, and it never stops the Hub. One capability holding a bad credential must not
@@ -183,14 +209,15 @@ reportConnectionCensus(
 
 await app.listen({ host: '127.0.0.1', port: config.port })
 if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
+if (applicationApp && config.application) await applicationApp.listen({ host: '127.0.0.1', port: config.application.port })
 
 let closed = false
 const close = async (): Promise<void> => {
   if (closed) return
   closed = true
-  await Promise.all([app.close(), previewApp?.close()])
+  await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
   await mar?.close()
-  await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close()])
+  await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close(), servedPool?.end()])
 }
 process.once('SIGINT', close)
 process.once('SIGTERM', close)

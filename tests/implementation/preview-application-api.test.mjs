@@ -64,7 +64,7 @@ test('the Preview API passes the binding identity, the developer as caller and t
   assert.deepEqual(answered.json(), [{ id: 1 }])
   assert.match(answered.headers['content-security-policy'], /connect-src 'self';/)
   assert.deepEqual(calls, [{
-    accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
+    source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
     serverFiles: ['conexus-server/manifest.json', 'conexus-server/handlers/notes.mjs'], operation: 'listNotes',
     input: { purchaseOrderId: 'PO-1', projectId: 'someone-else', caller: { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Someone else' } },
     caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },

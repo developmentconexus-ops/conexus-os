@@ -32,6 +32,7 @@ a Project's application (`IAM-11` to `IAM-13`).
 | `HUMAN_ACCOUNT_SESSION` | an authenticated human mapped to one Conexus Account and one opaque Conexus session |
 | `TRUSTED_BOOTSTRAP_CONTEXT` | the transient pre-Account context for the one server-preconfigured OIDC subject; it may self-provision only that Account through `IAM-03` and is invalid afterwards |
 | `SYSTEM_OWNER_TRANSITION` | an owner-internal transition after an admitted command; it has no public operation and no Permission |
+| `APPLICATION_SESSION` | a human Account acting in exactly one application through one opaque application session on that application's own host; it reaches no Product operation |
 
 These are never principals:
 
@@ -50,6 +51,11 @@ any role, project or id supplied by the browser
 | --- | --- |
 | `CONTROL_PLANE` | an authenticated Control Plane interaction; every current operation uses this |
 | `SYSTEM` | an owner-internal transition; not a Product operation |
+| `APPLICATION_HOST` | a request to one application's own host: its files, its sign-in handoff, its sign-out and its manifest-declared operations; mechanics, not a Product operation |
+
+An application's operations belong to its own manifest, not to this census. They run as
+`POST /__conexus/api/{operation}` on the application's host, the same executor shape section 4
+refuses as a Product operation, and the Preview listener's routes follow the same rule.
 
 An OIDC callback, a provider token refresh, a model provider call, an E2B call, Git
 transport and static byte transport are mechanics. They are not Product operations

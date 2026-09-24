@@ -33,9 +33,10 @@ const spyInvoke = (result = { status: 200, body: { ok: true } }) => {
 
 const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444', email: 'ana@example.com', displayName: 'Ana' })
 
+const source = (projectId) => ({ via: 'PREVIEW', accountId: 'acct', projectId, sourceRevision: 'rev', artifactRevisionId: 'artifact' })
+
 const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs') => invoker({
-  accountId: 'acct', projectId, sourceRevision: 'rev', artifactRevisionId: 'artifact',
-  serverFiles: [path], operation: 'op', input: {}, caller: CALLER,
+  source: source(projectId), serverFiles: [path], operation: 'op', input: {}, caller: CALLER,
 })
 
 test('the global bound admits up to its limit and refuses the rest with 429, without reading their files', async () => {
@@ -107,7 +108,7 @@ test('a server tree over the total byte limit is refused as soon as the running 
     limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
   })
   const result = await invoker({
-    accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact',
+    source: source('p1'),
     // 600 bytes each: the running total crosses 1000 on the second file, so the third is never read.
     serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {}, caller: CALLER,
   })
@@ -124,7 +125,7 @@ test('a server tree at or under the total byte limit reaches the runner', async 
     limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
   })
   const result = await invoker({
-    accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact',
+    source: source('p1'),
     serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {}, caller: CALLER,
   })
   assert.equal(result.status, 200)
@@ -140,7 +141,7 @@ test('a missing file still refuses by throwing, as the Preview API layer expects
     limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
   })
   await assert.rejects(
-    () => invoker({ accountId: 'acct', projectId: 'p1', sourceRevision: 'rev', artifactRevisionId: 'artifact', serverFiles: ['x'], operation: 'op', input: {} }),
+    () => invoker({ source: source('p1'), serverFiles: ['x'], operation: 'op', input: {}, caller: CALLER }),
     /APPLICATION_SERVER_FILE_MISSING/,
   )
 })

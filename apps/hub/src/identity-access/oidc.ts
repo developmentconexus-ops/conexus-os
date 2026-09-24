@@ -8,11 +8,19 @@ import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
+/** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
+export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
+/** Keycloak's answer to a refresh: the person is still signed in, was refused, or could not be asked. */
+export type ProviderCheck =
+  | Readonly<{ kind: 'ACTIVE'; refreshToken: string }>
+  | Readonly<{ kind: 'REFUSED' }>
+  | Readonly<{ kind: 'UNAVAILABLE' }>
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
-  complete(input: OidcCompletion): Promise<VerifiedIdentity>
+  complete(input: OidcCompletion): Promise<CompletedSignIn>
+  refresh(input: Readonly<{ refreshToken: string; expectedSubject: string }>): Promise<ProviderCheck>
   close(): Promise<void>
 }>
 type OidcDiscovery = typeof oidc.discovery
@@ -97,7 +105,7 @@ export const createOidcAdapter = async ({
       })
       return { state, nonce, pkceVerifier, location: location.href }
     },
-    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<VerifiedIdentity> {
+    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<CompletedSignIn> {
       const tokens = await oidc.authorizationCodeGrant(configuration, new URL(currentUrl), {
         pkceCodeVerifier: pkceVerifier,
         expectedState,
@@ -109,7 +117,21 @@ export const createOidcAdapter = async ({
       // An unverified address, or a realm that asserts no address at all, is not an error.
       // It only means this identity can claim no invitation.
       const verifiedEmail = resolveVerifiedEmail(claims)
-      return { issuer: claims.iss, subject: claims.sub, verifiedEmail }
+      const name = typeof claims.name === 'string' && /\S/.test(claims.name) ? claims.name.trim().slice(0, 200) : null
+      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, displayName: name, refreshToken: tokens.refresh_token ?? null }
+    },
+    // Keycloak answers invalid_grant for a disabled user, an ended SSO session or a stale token.
+    // Anything that is not an answer from Keycloak leaves the person's standing unknown.
+    async refresh({ refreshToken, expectedSubject }): Promise<ProviderCheck> {
+      let tokens: Awaited<ReturnType<typeof oidc.refreshTokenGrant>>
+      try {
+        tokens = await oidc.refreshTokenGrant(configuration, refreshToken)
+      } catch (error) {
+        return error instanceof oidc.ResponseBodyError && error.error === 'invalid_grant' ? { kind: 'REFUSED' } : { kind: 'UNAVAILABLE' }
+      }
+      const subject = tokens.claims()?.sub
+      if (subject !== undefined && subject !== expectedSubject) return { kind: 'REFUSED' }
+      return { kind: 'ACTIVE', refreshToken: tokens.refresh_token ?? refreshToken }
     },
     close: () => {
       closePromise ??= localIssuerTransport?.close() ?? Promise.resolve()

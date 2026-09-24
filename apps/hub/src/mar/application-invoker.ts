@@ -4,13 +4,17 @@ export type ServerFile = Readonly<{ path: string; sha256: string; content: strin
 /** The person a request acts for, resolved by the platform from a session. It never comes from input. */
 export type ApplicationCaller = Readonly<{ accountId: string; email: string | null; displayName: string }>
 
-export type ApplicationFileReader = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  path: string
-}>) => Promise<Readonly<{ path: string; sha256: string; bytes: Uint8Array }> | null>
+/**
+ * Which artifact a request's server tree is read from, and on whose authority: a developer's Preview
+ * (Project visibility, exact source revision) or an application host (access to the application, the
+ * artifact it serves).
+ */
+export type ArtifactSource =
+  | Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
+  | Readonly<{ via: 'APPLICATION'; accountId: string; projectId: string; artifactRevisionId: string }>
+
+export type ApplicationFileReader = (input: Readonly<{ source: ArtifactSource; path: string }>) =>
+  Promise<Readonly<{ path: string; sha256: string; bytes: Uint8Array }> | null>
 
 export type ApplicationRunnerInvoke = (input: Readonly<{
   projectId: string
@@ -21,10 +25,7 @@ export type ApplicationRunnerInvoke = (input: Readonly<{
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationInvoker = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
+  source: ArtifactSource
   serverFiles: readonly string[]
   operation: string
   input: unknown
@@ -61,11 +62,12 @@ export const createApplicationInvoker = (dependencies: Readonly<{
   const perProjectInFlight = new Map<string, number>()
 
   return async (input) => {
+    const { projectId } = input.source
     if (globalInFlight >= limits.globalConcurrency) return refusal(429, 'APPLICATION_RUNNER_BUSY')
-    const projectInFlight = perProjectInFlight.get(input.projectId) ?? 0
+    const projectInFlight = perProjectInFlight.get(projectId) ?? 0
     if (projectInFlight >= limits.perProjectConcurrency) return refusal(429, 'APPLICATION_PROJECT_BUSY')
     globalInFlight += 1
-    perProjectInFlight.set(input.projectId, projectInFlight + 1)
+    perProjectInFlight.set(projectId, projectInFlight + 1)
     try {
       // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
       // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
@@ -73,22 +75,19 @@ export const createApplicationInvoker = (dependencies: Readonly<{
       let totalBytes = 0
       const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
       for (const path of input.serverFiles) {
-        const file = await dependencies.readFile({
-          accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
-          artifactRevisionId: input.artifactRevisionId, path,
-        })
+        const file = await dependencies.readFile({ source: input.source, path })
         if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
         totalBytes += file.bytes.byteLength
         if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })
       }
       const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
-      return await dependencies.invoke({ projectId: input.projectId, operation: input.operation, input: input.input, files, caller: input.caller })
+      return await dependencies.invoke({ projectId, operation: input.operation, input: input.input, files, caller: input.caller })
     } finally {
       globalInFlight -= 1
-      const remaining = (perProjectInFlight.get(input.projectId) ?? 1) - 1
-      if (remaining <= 0) perProjectInFlight.delete(input.projectId)
-      else perProjectInFlight.set(input.projectId, remaining)
+      const remaining = (perProjectInFlight.get(projectId) ?? 1) - 1
+      if (remaining <= 0) perProjectInFlight.delete(projectId)
+      else perProjectInFlight.set(projectId, remaining)
     }
   }
 }
