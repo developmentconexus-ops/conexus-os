@@ -52,6 +52,13 @@ try {
       if (request.url().startsWith(`${origin}/__conexus/sign-in/complete?`)) record.handoffUrl = request.url()
     })
     await page.goto(`${origin}/`)
+    // The context holds no Keycloak session, so Keycloak must ask for a password. Prove it before handing over.
+    await page.locator('input[name="password"]').waitFor({ timeout: 15_000 }).catch(() => {})
+    const form ={ username: await page.locator('input[name="username"]').count(), password: await page.locator('input[name="password"]').count() }
+    if (argument('--form-shot')) await page.screenshot({ path: argument('--form-shot') })
+    record.passwordFormShown = form.username === 1 && form.password === 1
+    console.log(`KEYCLOAK FORM ${JSON.stringify({ ...form, at: page.url().split('?')[0], cookiesBeforeSignIn: (await context.cookies()).map((cookie) => `${cookie.domain}:${cookie.name}`) })}`)
+    if (!record.passwordFormShown) throw new Error('PASSWORD_FORM_NOT_SHOWN')
     console.log(`SIGN IN AS THE EMPLOYEE HERE: ${page.url().split('?')[0]}`)
     await page.waitForURL((url) => url.origin === origin && !url.pathname.startsWith('/__conexus/'), { timeout: WAIT_MS })
     const session = (await context.cookies(`${origin}/`)).find((cookie) => cookie.name === '__Host-conexus_app')
