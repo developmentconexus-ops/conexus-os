@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
@@ -17,7 +17,7 @@ const refusal = async (run) => {
   return { code: null, message: null }
 }
 
-const applicationDatabase = async (t, label) => {
+const applicationDatabase = async (t, label, { migrate = (connectionString) => runHubMigrations({ connectionString }) } = {}) => {
   const admin = { host: process.env.CONEXUS_TEST_DB_HOST, port: Number(process.env.CONEXUS_TEST_DB_PORT), database: process.env.CONEXUS_TEST_DB_NAME, user: process.env.CONEXUS_TEST_DB_USER, password: process.env.CONEXUS_TEST_DB_PASSWORD }
   const database = `conexus_${label}_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
   const rootClient = await connect(admin)
@@ -36,7 +36,7 @@ const applicationDatabase = async (t, label) => {
   url.pathname = `/${database}`
   url.username = admin.user
   url.password = admin.password
-  await runHubMigrations({ connectionString: url.toString() })
+  await migrate(url.toString())
   client = await connect({ ...admin, database })
   const account = async (label, { active = true } = {}) => {
     const accountId = randomUUID()
@@ -58,7 +58,7 @@ const applicationDatabase = async (t, label) => {
       [projectId, workspaceId, name, 'a'.repeat(40), name])
     return projectId
   }
-  return { client, connection: { ...admin, database }, closeFirst: (close) => closeFirst.push(close), account, workspace, project }
+  return { client, url: url.toString(), connection: { ...admin, database }, closeFirst: (close) => closeFirst.push(close), account, workspace, project }
 }
 
 const inTwoWeeks = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -151,6 +151,31 @@ test('application access: Owners grant, list and narrow it, and nobody else lear
       assert.equal((await refusal(() => client.query('INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1,$2,$3)', [projectId, slug, owner]))).code, '23514', slug)
     }
   })
+})
+
+test('upgrading withdraws the invitations a revoke left open before 0024, and keeps one an Owner issued after the revoke', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { client, url, account, workspace, project } = await applicationDatabase(t, 'leftover_invitations', {
+    migrate: (connectionString) => runMigrations({ connectionString, migrations: loadHubMigrationFiles().filter((migration) => migration.version <= '0024'), catalogSnapshot: null }),
+  })
+  const owner = await account('owner-l')
+  const left = await account('left-l')
+  const regranted = await account('regranted-l')
+  const projectId = await project(await workspace('l', [[owner, 'owner']]), 'Sobras')
+  await client.query('SELECT iam.grant_application_access($1,$2,$3,$4,$5)', [owner, projectId, randomUUID(), 'pendente@application.test', inTwoWeeks()])
+  for (const person of [left, regranted]) {
+    await client.query("INSERT INTO iam.application_grant(project_id, account_id, granted_by, granted_at, revoked_at, revoked_by) VALUES ($1, $2, $3, now() - interval '3 days', now() - interval '1 day', $3)",
+      [projectId, person, owner])
+  }
+  // A re-grant before 0024 opened this one while the grant was held, and the revoke left it open.
+  await client.query("INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, created_at, expires_at) VALUES ($1, $2, 'left-l@application.test', $3, now() - interval '2 days', now() + interval '12 days')",
+    [randomUUID(), projectId, owner])
+  // An Owner granted this person again after the revoke.
+  await client.query("INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1, $2, 'regranted-l@application.test', $3, now() + interval '14 days')",
+    [randomUUID(), projectId, owner])
+
+  await runHubMigrations({ connectionString: url })
+  assert.deepEqual((await client.query('SELECT email FROM iam.application_invitation WHERE project_id = $1 ORDER BY email', [projectId])).rows.map((row) => row.email),
+    ['pendente@application.test', 'regranted-l@application.test'])
 })
 
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
