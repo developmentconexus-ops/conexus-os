@@ -1,6 +1,7 @@
 # Conexus OS roadmap
 
-This file owns mutable status, current grant and the exact next action.
+This file owns the status of the stage gates and names the current gate. Bets live in the private
+`conexus-hq` repository, and this file never names them.
 
 ## What Conexus is
 
@@ -88,23 +89,13 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | --- | --- | --- |
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
-| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24. An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
-| **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | **NEXT**, task to prepare |
+| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
+| **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | **CURRENT GATE**, task to prepare |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
 
-The sequence is a commitment order, not a dependency chain. Q3 does not depend on Q2, the Sankhya business input for Q4 needs no code, and Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate, under two rules:
-
-- a spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites;
-- among Stage 2 gate work, only the current gate's task changes `main`. Other lanes follow the
-  [work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
-
-Alongside Q1:
-
-- the runner arena (`spike/q1-runner-arena`) is done: both isolation mechanisms passed its 24-case suite, and the Q1 task records the selection;
-- a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, is delivered as its own pull request;
-- the Sankhya business input for Q4: gateway, read-only credential, the open-purchase-order read and its fields, owned by the operator.
+The sequence is a commitment order, not a dependency chain. Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate. A spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites. Work outside the gates follows the [lanes and work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
 
 ## Technology baseline
 
@@ -156,7 +147,7 @@ These return only through a named real consumer and their own qualification.
 ## After Stage 2: planned order
 
 Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
-operator agreed this order on 2026-09-23 as a plan, not a grant. Each step becomes a task only
+operator agreed this order on 2026-09-23 as a plan, not a commitment. Each step becomes a task only
 after the step before it has a verdict, and each technology enters only under the
 [technology rule](development/delivery.md#technology-rule), with its own consumer.
 
@@ -167,7 +158,6 @@ application profile with a backend per Project, is a different thing and stays f
 
 | Order | Step | Candidates from the [technology queue](reference/stage2-managed-application-platform.md#7-technology-qualification-queue) | Enters when |
 | --- | --- | --- | --- |
-| Alongside Q3 | Builder tracing and evals on `main`: every Builder run recorded and comparable | Mastra AI tracing, scorers and datasets. An OpenTelemetry backend stays deferred | A study of what Mastra already ships decides the exact scope |
 | 1 | Code harness: events, React UI library, auth, roles and users, audit, telemetry, an implementation guide, and a set of global Conexus skills (server, identity, connectors, frontend) | Fastify, Zod and `pg` already selected. oRPC if handlers need end-to-end typed procedures. Drizzle or Prisma only if SQL-first fails | Stage 2 closes |
 | 2 | Application templates built from the harness | None new | The harness has its first pieces |
 | 3 | Server installation and operation: backups, Published operation, `conexus.fun` | Cloud Run or Fly only for the future second profile | The laptop pilot validates the journey |
@@ -194,7 +184,7 @@ Protected question:
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
 Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
 ([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 closed with
-ACCEPT_WITH_BOUNDARY: an application has its own host, an app-only Account reaches it through a
+ACCEPT_WITH_BOUNDARY in #210 (`7f3dc0b7`): an application has its own host, an app-only Account reaches it through a
 one-use handoff from the Hub sign-in, and handlers receive the caller
 ([evidence and verdict](evidence/stage2-q3/README.md)). The Q4 task starts from the notebook
 application Q3 left, whose handlers already know who is calling.
