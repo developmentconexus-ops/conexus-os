@@ -1,0 +1,169 @@
+Missão: construir o "Playground" — BI generativo por chat (Generative UI) num projeto Mitra
+
+O produto
+
+Seção "Playground" no portal: cada usuário cria N "estudos". Estudo = CANVAS HTML
+(a análise visual) + CHAT com um agente analista, lado a lado (grid 1fr 400px,
+altura calc(100vh - ~120px)). O usuário pergunta sobre os dados; o agente
+investiga o banco via SQL, NARRA o raciocínio em tempo real e, AO FINAL, desenha
+uma tela HTML impecável no canvas e RENOMEIA o estudo com um título da análise.
+Tudo persistente (thread + conversa rica + HTML + versões) e compartilhável por
+link público. Lista de estudos com criar/renomear/excluir, cards com hover.
+
+Stack agêntica Mitra (mitra-interactions-sdk) — verdades operacionais
+
+•
+getAgentTaskMitra({create:true, agentType:'claudecode', modelId}) → sessão.
+  Reabrir: getAgentTaskMitra({taskId}) (reconecta inclusive stream ativa).
+  modelId ex.: 'subscription:anthropic:claude-fable-5:medium'.
+
+•
+Eventos: taskCreated (SALVE task.id no estudo imediatamente), turnStart,
+  delta ({delta,kind}) — use SÓ kind==='text', tool ({tool,input}),
+  turnEnd ({content}), error, statusChange. send(), cancel(),
+  loadHistory().
+
+•
+⚠️ O WS agêntico SÓ aceita sessão de usuário logado (token de integração →
+  "conexão fechada"). Em app publicada, agentWsUrl vem de window.__mitraEnv;
+  fora, passe em configureSdkMitra({agentWsUrl}).
+
+•
+⚠️ O input do evento tool chega TRUNCADO. NUNCA use JSON.parse nele —
+  extraia campos por regex tolerante: '"campo"\\s:\\s"((?:[^"\\\\]|\\\\.){1,400})'.
+
+•
+Credencial do usuário: manageAgentCredentialMitra({action:'auth',target:'claude'})
+  → {authUrl, state} → usuário cola o código → {action:'connect', code, state}.
+  Ofereça esse fluxo DENTRO do chat quando error mencionar credencial.
+
+Fundação backend (server functions + tabelas)
+
+1.
+consulta_livre — SELECT livre com guardas: só SELECT, 1 statement (rejeite
+   ;), blocklist DML/DDL, LIMIT 200 forçado. Input:
+   {"consulta":"SELECT ...","titulo":"<frase humana do que busca>"} — a SF
+   destructura só consulta; o titulo existe para a UI (veja Chat).
+   ⚠️ ARMADILHA: SF dentro de template literal JS em script de setup — \s
+   vira s; regexes precisam de \\s NO ARQUIVO. Valide com suíte: SELECT ok,
+   minúsculo ok, UPDATE bloqueado, multi-statement bloqueado, LIMIT aplicado.
+
+2.
+schema_resumo — INFORMATION_SCHEMA: TABELA + GROUP_CONCAT(colunas).
+3.
+Tabela PLAYGROUND (ID, USUARIO, NOME, HTML MEDIUMTEXT, TASK_ID,
+   SHARE_TOKEN, CONVERSA MEDIUMTEXT, timestamps) + PLAYGROUND_VERSAO.
+
+4.
+SFs: criar/listar/get (inclua CONVERSA no get)/renomear/excluir(soft)/
+   salvar_html (versiona o anterior)/salvar_conversa/set_task/
+   compartilhar (token hex)/publico (por token; marque PÚBLICA — rota sem
+   login nos DOIS branches do router)/versoes/restaurar.
+
+Contexto injetado na 1ª mensagem da thread (a alma da velocidade)
+
+Sem isso o agente gasta minutos explorando (getProjects/ToolSearch/etc.).
+Prepend na primeira send():
+
+•
+Contratos EXATOS com serverFunctionId numérico e nome da chave de input, via
+  mcp__mitra-business__executeServerFunction. Inclua: consulta_livre (com o
+  campo titulo OBRIGATÓRIO em toda chamada — "ele aparece ao vivo para o
+  usuário"), schema_resumo, playground_salvar_html {playgroundId, html},
+  playground_renomear {id, nome}.
+
+•
+Schema inline: tabelas-núcleo COM colunas; demais só nomes.
+•
+Convenções (formato de datas, enums).
+•
+DESIGN TOKENS do produto (cores hex, fonte, radius, KPIs, tabelas, SVG) —
+  a tela gerada deve sair no design system, não genérica.
+
+•
+REGRAS: (1) narre TUDO em pt-BR em tempo real — o que vai investigar, o que
+  cada consulta revelou, insights com números; (2) investigue fundo antes de
+  concluir; (3) a tela é o GRANDE FINAL — salvar_html UMA vez, HTML
+  self-contained, SVG inline com valores reais, zero placeholder; (4) SEMPRE
+  renomeie o estudo ao final (título 3-6 palavras específico; renomeie de novo
+  a cada nova análise); (5) feche com conclusão de 2-3 frases.
+Nas mensagens seguintes: sufixo curto relembrando playgroundId + "narre,
+inclua titulo em cada consulta, regenere a tela e renomeie".
+
+O chat — modelo de SEGMENTOS (onde mora a qualidade percebida)
+
+•
+Turno = lista ordenada {t:'md',c} | {t:'tool',label,n?,det?,t0?} — a tool
+  aparece ENTRE as falas, no ponto exato. Ao chegar tool, DESCARREGUE o buffer
+  de texto pendente ANTES de inserir o passo (senão a ordem mente).
+
+•
+CHAMADAS REPETIDAS da mesma tool: NÃO empilhe linhas — funda no mesmo passo
+  com contador ×N (pulse com animação pop a cada incremento, re-keye o ícone),
+  det = detalhe da chamada ATUAL trocando com fade, t0 = agora. Sem isso, 6
+  consultas seguidas parecem travamento.
+
+•
+Detalhe do passo ativo: prefira o titulo humano (itálico, fonte natural);
+  fallback = SQL truncado (fonte mono). Extraia AMBOS por regex (input truncado!).
+
+•
+Cronômetro no passo ativo a partir de ~3s (tick de 1s enquanto streaming).
+•
+Streaming suave: chunks são GRANDES — bufferize e drene ~max(2, len/14) chars
+  a cada 24ms no último segmento md.
+
+•
+Markdown leve nas falas (negrito/itálico/código/listas/quebras), HTML escapado
+  ANTES das transformações. Fala do usuário fica texto puro à direita.
+
+•
+Tool→label amigável mapeado por serverFunctionId extraído do input (mapa
+  construído do registry de SFs, NUNCA IDs hardcoded); desconhecidas = nome
+  limpo (strip mcp__*__). Spinner na ativa, check nas concluídas.
+
+Persistência e F5 (thread + conversa rica)
+
+•
+taskCreated → salve TASK_ID no estudo.
+•
+Persista a CONVERSA RICA (JSON das últimas ~60 msgs com segmentos; tool guarda
+  só o LABEL string — ícone resolve no render) a cada turnEnd E a cada mensagem
+  do usuário.
+
+•
+No MOUNT do estudo (não só no 1º send!): se TASK_ID existe, reconecte a sessão
+  e carregue a conversa: 1º a CONVERSA rica; fallback = loadHistory() da
+  plataforma — que devolve tool calls como TEXTO CRU (mcp__...{json}):
+  detecte-os (type ~ /tool/ ou conteúdo ~ /^(mcp_[\w-]+_)?[\w-]+\s*\{"/) e
+  converta em segmentos de tool, JAMAIS renderize como fala. Indicador
+  "recuperando a conversa…" enquanto carrega.
+
+•
+turnEnd final usa os SEGMENTOS acumulados (não o content da plataforma).
+Canvas e acabamento
+
+•
+iframe sandbox="" + srcDoc, key para re-render com fade; "chrome" de
+  janela com status vivo (trabalhando/atualizado HH:MM/aguardando); recarregue o
+  canvas ao ver o tool de salvar_html ou renomear (delay ~2,5s) e no turnEnd
+  (recarregar também atualiza o NOME no header/lista — o agente renomeia).
+
+•
+Estado vazio desenhado em CSS (sem emoji). Microinterações: hover lift,
+  skeleton, caret pulsante, 3 pontinhos "pensando", sugestões clicáveis de
+  perguntas no estado vazio.
+
+•
+Compartilhar → copia link público; rota pública registrada nos dois branches.
+•
+HashRouter? Todas as URLs são /#/rota.
+•
+Telas internas SEM max-width artificial (largura total do layout).
+Validação antes de entregar
+
+Suíte dos guardas da consulta_livre; primeira consulta do agente em <15s (se
+explorar antes, o contexto está incompleto); título humano trocando a cada
+consulta e ×N pulsando em chamadas repetidas; F5 no meio E depois do turno
+(conversa idêntica, sem linhas mcp__ cruas); tela final nos design tokens;
+estudo renomeado sozinho ao final.
