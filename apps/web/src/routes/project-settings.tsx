@@ -2,7 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useQuery } from '@tanstack/react-query'
 import { createRoute, Link } from '@tanstack/react-router'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, KeyRound } from 'lucide-react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { getProject, getProjectRepository, ProjectRequestError, projectQueryKey, projectRepositoryQueryKey } from '../features/project/api'
@@ -47,6 +47,9 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
         <h1>Sobre o Projeto</h1>
         <p>O que o Conexus sabe sobre {project.name} e onde o código dele mora.</p>
       </div>
+      <Button as={Link} to={`/projects/${project.projectId}/settings/access`} variant="outline">
+        <KeyRound size={16} aria-hidden /> Acesso ao aplicativo
+      </Button>
     </div>
     <dl className="cx-facts">
       <div>
