@@ -9,6 +9,8 @@ const providerNames: Readonly<Record<string, string>> = {
   'github-copilot': 'GitHub Copilot',
   groq: 'Groq',
   openrouter: 'OpenRouter',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
 }
 
 export const providerName = (provider: string): string => providerNames[provider] ?? provider
