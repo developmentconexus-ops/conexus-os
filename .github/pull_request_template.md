@@ -1,19 +1,10 @@
-## Outcome
+## Linked issue
 
-## Authority and boundaries
+## What changes, for whom
 
-## Proof / falsifier
+## Proof
 
-## Verification
+## Needs "Aprovo"?
 
-```text
-npm ci
-npm run verify
-```
-
-## Material findings or deferred obligations
-
-- [ ] Canonical authority remains singular.
-- [ ] No Product requirement, owner, or trust boundary changed silently.
-- [ ] Temporary review/migration artifacts are absent.
-- [ ] Current roadmap state remains explicit.
+- [ ] Yes
+- [ ] No
