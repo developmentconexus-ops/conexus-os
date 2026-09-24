@@ -58,116 +58,6 @@ body {
   }),
 ] as const)
 
-// The paved road for server logic and saved data, kept in the Project's own source so the Builder
-// reads it when the request needs it and the check enforces the same shape.
-const SERVER_GUIDE = `---
-name: conexus-server
-description: Use when an app needs server logic, saved data, or browser calls to Project operations.
----
-
-# Server logic and saved data
-
-Read this only when the app must save data or run logic on the server. The browser app stays in \`app/\`.
-
-Everything server-side lives under \`conexus/\`:
-
-- \`manifest.json\` declares each operation the browser may call.
-- \`handlers/*.ts\` implement them.
-- \`migrations/NNN_name.sql\` create and change tables, applied in name order before the Preview opens.
-  Never edit a migration that has already run; add the next one. Editing one erases this Project's
-  Preview data and replays every migration.
-
-## manifest.json
-
-\`\`\`json
-{
-  "operations": {
-    "listItems": {
-      "handler": "handlers/items.ts",
-      "export": "listItems",
-      "input": { "type": "object", "properties": { "category": { "type": "string", "maxLength": 80 } }, "required": ["category"], "additionalProperties": false },
-      "output": { "type": "array", "maxItems": 500, "items": { "type": "object", "properties": { "id": { "type": "integer" }, "name": { "type": "string" } }, "required": ["id", "name"], "additionalProperties": false } }
-    }
-  }
-}
-\`\`\`
-
-A schema uses only these types: \`string\` (\`minLength\`, \`maxLength\`), \`integer\` and \`number\`
-(\`minimum\`, \`maximum\`), \`boolean\`, \`object\` (\`properties\`, \`required\`, and \`"additionalProperties": false\`,
-which is mandatory) and \`array\` (\`items\`, \`maxItems\`). Input is always an object. A value that does
-not match its schema exactly, including an undeclared field, is refused.
-
-## Handlers
-
-\`\`\`ts
-type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
-type Caller = { accountId: string; email: string | null; displayName: string }
-
-export async function listItems(input: { category: string }, { db }: { db: Db }) {
-  const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
-  return rows
-}
-
-export async function addItem(input: { name: string }, { db, caller }: { db: Db; caller: Caller }) {
-  const { rows } = await db.query(
-    'INSERT INTO item (name, created_by_account_id, created_by_name) VALUES ($1, $2, $3) RETURNING id',
-    [input.name, caller.accountId, caller.displayName])
-  return rows[0]
-}
-\`\`\`
-
-- \`caller\` is the person using the app, set by Conexus from their sign-in. The browser cannot change
-  it. To record who did something, read \`caller\`; never add a name or author field to the input. In
-  the Preview, \`caller\` is you.
-- Always pass values as parameters (\`$1\`, \`$2\`). Tables live in this Project's own schema: do not
-  prefix them with a schema name.
-- A handler may import only files inside \`conexus/\` and \`node:\` built-ins. There are no npm packages,
-  no network, no file system and no environment variables. Each call runs isolated for at most 5
-  seconds and answers at most 1 MiB.
-- Postgres \`integer\` arrives as a number; \`bigint\` and \`numeric\` arrive as strings; \`timestamptz\`
-  arrives as an ISO string. Alias columns to the names the output schema declares, for example
-  \`created_at AS "createdAt"\`.
-
-## Migrations
-
-\`conexus/migrations/001_create_item.sql\`:
-
-\`\`\`sql
-CREATE TABLE item (
-  id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name text NOT NULL,
-  created_by_account_id uuid NOT NULL,
-  created_by_name text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-\`\`\`
-
-A migration may create and alter tables, indexes, constraints and views in this Project's schema
-only: no functions, procedures, triggers, DO blocks, extensions, roles, grants or other schemas.
-
-## Calling an operation from the browser
-
-\`\`\`ts
-const response = await fetch('/__conexus/api/listItems', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ category: 'a' }),
-})
-if (!response.ok) {
-  const { error } = await response.json() // { code, detail? }
-  // show the failure; the app must keep rendering
-} else {
-  const items = await response.json()
-}
-\`\`\`
-
-The build check answers every operation with the smallest value its output schema admits, so the
-app must render with empty data as well as when a call fails.
-
-\`sh conexus/check.sh\` builds \`app/\`, then validates \`manifest.json\`, bundles the handlers and lists
-the migrations. Fix whatever it reports.
-`
-
 // A repository-hosted Project carries its own check: the template's compiler, bound in place, with
 // its output kept out of /workspace/dist, where Conexus's own compile writes the Preview.
 export const APPLICATION_CHECK_FILES = Object.freeze([
@@ -186,7 +76,6 @@ export const APPLICATION_CHECK_FILES = Object.freeze([
       '',
     ].join('\n'),
   }),
-  Object.freeze({ path: '.agents/skills/conexus-server/SKILL.md', content: SERVER_GUIDE }),
 ] as const)
 
 // The check links the compiler's dependencies into app/, and that link must never reach the tree.
@@ -277,4 +166,29 @@ export const materializeApplicationCheck = async ({
     if (entry === 'ABSENT') missing.push({ path, content: file.content })
   }
   if (missing.length > 0) await writeFiles(missing)
+}
+
+const STALE_SERVER_SKILL_PATH = '.agents/skills/conexus-server'
+
+/**
+ * Deletes a checkout's own copy of the server/data guide, which earlier BUILD runs wrote as
+ * `.agents/skills/conexus-server/SKILL.md`. The guide is now a Hub-global Factory skill (served
+ * from the local `factory-skills/` mount), so a leftover Project copy is a platform-owned path,
+ * like the other generated owner files, and must never shadow the global one.
+ */
+export const removeStaleServerSkill = async ({
+  repositoryRoot,
+  directCommand,
+}: Readonly<{
+  repositoryRoot: string
+  directCommand: FixedApplicationStarterWorkspace['directCommand']
+}>): Promise<void> => {
+  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Error('BUILDER_STARTER_ROOT_REFUSED')
+  const target = join(repositoryRoot, STALE_SERVER_SKILL_PATH)
+  const result = await directCommand('sh', ['-c', 'rm -rf -- "$1"', 'conexus-fixed-application-starter', target])
+  if (result.exitCode !== 0) {
+    throw new Error('BUILDER_STARTER_STALE_SKILL_REMOVAL_FAILED', {
+      cause: { exitCode: result.exitCode, stdout: commandEvidence(result.stdout), stderr: commandEvidence(result.stderr) },
+    })
+  }
 }

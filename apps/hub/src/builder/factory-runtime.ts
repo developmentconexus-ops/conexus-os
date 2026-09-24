@@ -8,7 +8,7 @@ import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/cus
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
-import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter } from './application-starter.js'
+import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { ConexusFactoryE2BSandbox, customProvidersPrimer, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import type { GithubApp } from './factory-github.js'
@@ -88,6 +88,7 @@ export const factoryAgentInstructions = (workdir: string): string => [
 
 const materializeFactoryStarter: NonNullable<FactoryRunPorts['materializeStarter']> = async (input) => {
   await materializeFixedApplicationStarter(input)
+  await removeStaleServerSkill(input)
   await materializeApplicationCheck(input)
 }
 

@@ -182,10 +182,13 @@ the pilot:
 - **Source shape.** Without hints, the Builder wrote the server half in the places its guide names:
   `conexus/manifest.json`, one handler under `conexus/handlers/` and forward SQL under
   `conexus/migrations/`, beside its `app/` changes. It needed no `conexus.json`. The guide is
-  the Mastra skill `.agents/skills/conexus-server/SKILL.md`, which every BUILD run writes into the
-  checkout (Q2.0 moved it from `conexus/SERVER.md`), and `conexus/check.sh` runs
-  the same server build the Conexus build runs. Q2 accepted these names and the handler contract
-  as the durable programming model: parameterized SQL through `pg` and forward SQL migrations.
+  the Mastra skill `conexus-server`, served as a Hub-global Factory skill from
+  `factory-skills/conexus-server/SKILL.md` at the repository root rather than written into each
+  Project's own checkout (Q2.0 moved it from `conexus/SERVER.md` to a per-Project
+  `.agents/skills/conexus-server/SKILL.md`; a later slice moved it again, out of the checkout, so
+  every Project shares one copy and none can go stale). `conexus/check.sh` runs the same server
+  build the Conexus build runs. Q2 accepted these names and the handler contract as the durable
+  programming model: parameterized SQL through `pg` and forward SQL migrations.
 - **Runtime.** One application runner outside the Hub owns the application database. It runs each
   migration and each invocation in a fresh rootless bubblewrap worker with an empty network
   namespace, no host files, no credential and wall-clock, memory, input and output bounds. The worker

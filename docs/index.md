@@ -42,6 +42,7 @@ owns status and the next action. Start there.
 | Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra-boundary.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
+| How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
 
 ## Method
 
