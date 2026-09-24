@@ -3,9 +3,10 @@
 //
 //   node scripts/q3-negative-proof.mjs --app <slug> --other-app <slug> --project <id> --out <file.json>
 //     --employee-state <state.json>    the app-only employee, from scripts/q3-sign-in.mjs
-//     [--phase main|caller|expired|disabled|revoke]   default main
+//     [--phase main|caller|control|expired|disabled|revoke]   default main
 //   main:     --member-state <state.json> (a member of the Project's Workspace, no grant)
 //             --workspace <id> --preview-url <url>
+//   control:  --member-state <state.json> --control-app <slug of an application in another Workspace>
 //   caller:   --employee-name <display name> --order <order number> [--shot <file.png>]
 //   expired:  --session-state <state.json> (a live application session this run may age by 8 hours)
 //   disabled: --disabled-at <ISO time the employee was disabled in Keycloak>
@@ -40,7 +41,7 @@ const projectId = argument('--project')
 const out = argument('--out')
 const phase = argument('--phase') ?? 'main'
 const statePath = { member: argument('--member-state'), employee: argument('--employee-state'), session: argument('--session-state') }
-if (!slug || !/^[0-9a-f-]{36}$/.test(projectId ?? '') || !out || !statePath.employee || (phase === 'main' && !statePath.member)) {
+if (!slug || !/^[0-9a-f-]{36}$/.test(projectId ?? '') || !out || (phase !== 'control' && !statePath.employee) || (phase === 'main' && !statePath.member)) {
   console.error('usage: see the header of scripts/q3-negative-proof.mjs')
   process.exit(2)
 }
@@ -305,6 +306,22 @@ try {
       const stored = await authorOf(text)
       record('identifiers-in-url-and-headers', { url, headers: Object.keys(headers), body: { orderNumber, note: text } }, { status: answer.status, storedAuthor: stored }, stored === name)
     }
+  }
+
+  if (phase === 'control') {
+    const controlSlug = argument('--control-app')
+    if (!controlSlug || !statePath.member) throw new Error('--control-app and --member-state are required for the control phase')
+    const CONTROL = `https://${controlSlug}.conexus.localhost:${PORT}`
+    const context = await contextFor(statePath.member)
+    const own = await signInToApplication(context, APP)
+    const refused = await signInToApplication(context, CONTROL)
+    const jar = await context.storageState()
+    const ownApi = await call('POST', ANY_OPERATION, { cookie: cookieHeader(jar, APP), origin: APP, body: {} })
+    const controlApi = await call('POST', `${CONTROL}/__conexus/api/anyOperation`, { cookie: cookieHeader(jar, CONTROL), origin: CONTROL, body: {} })
+    record('control-member-of-another-workspace', { url: `${CONTROL}/`, as: 'member of the Project Workspace of the first application only, no grant on the control application' },
+      { ownApplication: { landed: own.landed, api: ownApi.status }, controlApplication: { landed: refused.landed, api: controlApi.status, code: controlApi.body?.error?.code ?? null, cookies: cookieNames(cookieHeader(jar, CONTROL)) } },
+      own.landed === `${APP}/` && ownApi.status === 404 && refused.landed === `${CONTROL}/__conexus/no-access` && controlApi.status === 401)
+    await context.close()
   }
 
   if (phase === 'expired') {
