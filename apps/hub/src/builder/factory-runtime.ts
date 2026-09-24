@@ -52,6 +52,8 @@ export type FactoryRunPorts = Readonly<{
   github: Pick<GithubApp, 'repositoryToken' | 'branchContains'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
+  /** The run's Project's connector brief (design.md section 9); absent or empty adds nothing. */
+  connectorBrief?(projectId: string): Promise<string>
   log(line: string): void
 }>
 
@@ -80,10 +82,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SLUG = /^[\w.-]+\/[\w.-]+$/
 const BRANCH = /^[A-Za-z0-9_./-]+$/
 
-export const factoryAgentInstructions = (workdir: string): string => [
+export const factoryAgentInstructions = (workdir: string, connectorBrief = ''): string => [
   ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
   'The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history.',
   APPLICATION_CHECK_INSTRUCTION,
+  ...(connectorBrief ? [connectorBrief] : []),
 ].join(' ')
 
 const materializeFactoryStarter: NonNullable<FactoryRunPorts['materializeStarter']> = async (input) => {
@@ -187,7 +190,8 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
           writeFiles: (files) => sandbox.writeFiles(files),
         })
       }
-      await session.configure({ mode: input.mode, instructions: factoryAgentInstructions(workdir) })
+      const connectorBrief = ports.connectorBrief ? await ports.connectorBrief(input.projectId) : ''
+      await session.configure({ mode: input.mode, instructions: factoryAgentInstructions(workdir, connectorBrief) })
       if (!session.hasModelSelection()) throw new Error('BUILDER_MODEL_NOT_SELECTED')
 
       await input.setPhase('AGENT')

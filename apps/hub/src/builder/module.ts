@@ -177,7 +177,7 @@ const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) =>
 
 // The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
 // the Builder's traces.
-const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
   secretKey: InstallationSecretKey
@@ -188,6 +188,8 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  /** The Connector owner's per-run brief for a Project (design.md section 9); absent without a Connector module. */
+  connectorBrief?: (projectId: string) => Promise<string>
 }>) => {
   assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
   const pool = createFactoryPool(database, readSecretFile(factory.databasePasswordFile))
@@ -230,7 +232,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     composition, orgId: factory.orgId, log: (line) => { process.stderr.write(`${line}\n`) },
   }))
   portsReady.catch(() => undefined)
-  const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp }))
+  const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp, ...(connectorBrief ? { connectorBrief } : {}) }))
   runtime.catch(() => undefined)
   const records = ready.then((composition) => openFactoryRecords(composition.storage))
   records.catch(() => undefined)
@@ -278,7 +280,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -293,6 +295,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  /** The Connector owner's per-run brief for a Project (design.md section 9); absent without a Connector module. */
+  connectorBrief?: (projectId: string) => Promise<string>
 }>) => {
   assertFactoryGlobalSkillsAvailable()
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
@@ -309,7 +313,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const factoryComposition = startFactoryComposition({
     database, factory, secretKey, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
-    resolveCurrentSession, isInstallationAdministrator,
+    resolveCurrentSession, isInstallationAdministrator, ...(connectorBrief ? { connectorBrief } : {}),
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), factory: factoryComposition.run,

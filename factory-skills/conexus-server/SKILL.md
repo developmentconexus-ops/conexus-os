@@ -57,6 +57,12 @@ export async function addItem(input: { name: string }, { db, caller }: { db: Db;
 - `caller` is the person using the app, set by Conexus from their sign-in. The browser cannot change
   it. To record who did something, read `caller`; never add a name or author field to the input. In
   the Preview, `caller` is you.
+- `connectors` may be a third context field: `await connectors.call(operationId, input)` calls one
+  operation of an external system this Project has been granted, and never throws. It answers
+  `{ ok: true, value }` or `{ ok: false, code }` with a code from a closed list; handle both. The
+  operations this Project may call, if any, are named with their id and their input and output shape
+  in this run's own instructions. No operation listed there means none exists to call, whatever the
+  request asks for.
 - Always pass values as parameters (`$1`, `$2`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
 - A handler may import only files inside `conexus/` and `node:` built-ins. There are no npm packages,
