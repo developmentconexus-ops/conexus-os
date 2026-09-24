@@ -70,22 +70,39 @@ test('granting access shows the new invitation, and revoking a grant removes it'
   let entries = [
     { kind: 'grant', grantId: 'g1', accountId: 'acc-1', displayName: 'Diego Fonseca', email: 'diego@example.com', grantedAt: '2026-09-01T00:00:00.000Z' },
   ]
-  await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, (route) => {
+  let grantSubmitted = false
+  let holdRefresh
+  const refreshStarted = new Promise((resolve) => { holdRefresh = resolve })
+  let releaseRefresh
+  const refreshGate = new Promise((resolve) => { releaseRefresh = resolve })
+  await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, async (route) => {
     if (route.request().method() === 'POST') {
+      grantSubmitted = true
       const invitation = { kind: 'invitation', invitationId: 'inv-2', email: route.request().postDataJSON().email, invitedAt: '2026-09-20T00:00:00.000Z', expiresAt: '2026-10-20T00:00:00.000Z' }
       entries = [...entries, invitation]
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(invitation) })
     }
+    if (grantSubmitted && holdRefresh) {
+      holdRefresh()
+      holdRefresh = null
+      await refreshGate
+    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ address: 'https://faturamento.apps.conexus.example', entries }) })
   })
+
   await page.route(`**/api/control/projects/${PROJECT_ID}/application-access/grant/g1`, (route) => {
     entries = entries.filter((entry) => entry.kind !== 'grant' || entry.grantId !== 'g1')
     return route.fulfill({ status: 204 })
   })
 
   await page.goto(`${origin}/projects/${PROJECT_ID}/settings/access`)
+  await page.getByText('Diego Fonseca').waitFor()
   await page.getByLabel('Email').fill('nova.pessoa@example.com')
   await page.getByRole('button', { name: 'Convidar' }).click()
+  await refreshStarted
+  assert.equal(await page.getByText('Convite criado para nova.pessoa@example.com.').count(), 0)
+  assert.equal(await page.getByText('nova.pessoa@example.com', { exact: true }).count(), 0)
+  releaseRefresh()
   await page.getByText('Convite criado para nova.pessoa@example.com.').waitFor()
   await page.getByText('nova.pessoa@example.com', { exact: true }).waitFor()
 
