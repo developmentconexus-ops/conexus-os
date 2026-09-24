@@ -50,7 +50,7 @@ owns status and the next action. Start there.
 | --- | --- |
 | Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
 | Repository, Git, documentation and CI | [Repository method](development/repository-method.md) and [engineering rules](development/engineering-rules.md) |
-| Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
+| Frontend design, copy, verification and new surfaces | [`conexus-frontend` skill](../.agents/skills/conexus-frontend/SKILL.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.
 They do not silently replace the product contract or the roadmap.

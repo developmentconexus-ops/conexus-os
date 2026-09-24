@@ -11,7 +11,7 @@ Before relying on chat, a handoff, or remembered state:
 5. load only the method that applies:
    - [`engineering-method.md`](docs/development/engineering-method.md) for material engineering decisions;
    - [`repository-method.md`](docs/development/repository-method.md) for repository, Git, documentation and CI;
-   - [`frontend-product-experience-planning-method.md`](docs/development/frontend-product-experience-planning-method.md) for frontend work.
+   - the [`conexus-frontend`](.agents/skills/conexus-frontend/SKILL.md) skill for frontend work.
 
 For Mastra-sensitive work, also load `.agents/skills/mastra/SKILL.md`.
 

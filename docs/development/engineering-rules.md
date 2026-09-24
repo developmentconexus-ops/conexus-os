@@ -7,12 +7,13 @@
 Conexus OS consumes these repository-local operating method copies:
 
 - [`engineering-method.md`](engineering-method.md) — DevelopmentConexus Engineering Method v1.3.0 (operator ratified);
-- [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.1.0 (operator ratified);
-- [`frontend-product-experience-planning-method.md`](frontend-product-experience-planning-method.md) — Frontend Product Experience Planning Method v2.3.
+- [`repository-method.md`](repository-method.md) — DevelopmentConexus Repository Method v1.1.0 (operator ratified).
 
 The operator approved the Conexus OS local amendment dated 2026-09-12 in
 both methods. Do not propagate it to other repositories without authorization.
 Normal Product work does not silently reinterpret methods.
+
+Frontend work follows the [`conexus-frontend`](../../.agents/skills/conexus-frontend/SKILL.md) skill, which replaced the Frontend Product Experience Planning Method on 2026-09-24.
 
 ## Local execution environment
 
@@ -24,7 +25,7 @@ Current stage and implementation authorization are owned only by [`../roadmap.md
 
 Stop and return to the smallest owning decision when work would create/change a Product requirement, semantic owner, trust boundary, structural runtime/database/service/module, delete accepted semantics without a destination, require unauthorized production effects/secrets, or otherwise contradict accepted authority required for correctness.
 
-A downstream finding may reopen the smallest upstream owner according to the adopted Engineering/Frontend methods. Do not preserve a local maximum merely to avoid reopening accepted planning, and do not silently invent new authority to make a downstream artifact work.
+A downstream finding may reopen the smallest upstream owner according to the adopted Engineering method and the `conexus-frontend` skill. Do not preserve a local maximum merely to avoid reopening accepted planning, and do not silently invent new authority to make a downstream artifact work.
 
 ## Framework-sensitive work
 
