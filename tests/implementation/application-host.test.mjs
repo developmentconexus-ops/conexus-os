@@ -68,6 +68,7 @@ const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
 }
 
 const signedIn = { cookies: { '__Host-conexus_app': TOKEN_A } }
+const NAVIGATION = Object.freeze({ 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' })
 const api = (operation, { host = HOST_A, origin = ORIGIN_A, cookies = signedIn.cookies, headers = {}, payload = {} } = {}) => ({
   method: 'POST', url: `/__conexus/api/${operation}`, cookies, payload,
   headers: { host, 'content-type': 'application/json', ...(origin ? { origin } : {}), ...headers },
@@ -161,7 +162,7 @@ test('the application host answers on its configured domain, and its API admits 
 
 test('a browser without a session is sent to the Hub sign-in with the application and a binding only it holds', async (t) => {
   const { app } = await harness(t)
-  const response = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A } })
+  const response = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, ...NAVIGATION } })
   assert.equal(response.statusCode, 303)
   const location = new URL(response.headers.location)
   assert.equal(`${location.origin}${location.pathname}`, `${HUB}/protocol/oidc/login`)
@@ -172,6 +173,33 @@ test('a browser without a session is sent to the Hub sign-in with the applicatio
   assert.equal(binding.sameSite, 'Lax')
   assert.equal(binding.domain, undefined)
   assert.equal(location.searchParams.get('binding'), sha(binding.value).toString('base64url'))
+})
+
+test('only a document navigation starts a sign-in; any other request without a session answers 401 and sets nothing', async (t) => {
+  const { app } = await harness(t)
+  for (const headers of [
+    { 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'script' },
+    { 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' },
+    { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' },
+    { 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'image' },
+    {},
+  ]) {
+    const response = await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...headers } })
+    assert.deepEqual([response.statusCode, response.json(), response.headers['set-cookie']], [401, { error: { code: 'APPLICATION_SIGN_IN_REQUIRED' } }, undefined], JSON.stringify(headers))
+  }
+  assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...NAVIGATION } })).statusCode, 303)
+})
+
+test('a sign-in in progress keeps its binding, so parallel navigations share one and every handoff redeems', async (t) => {
+  const { app } = await harness(t)
+  const held = 'b'.repeat(43)
+  const response = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, ...NAVIGATION }, cookies: { '__Host-conexus_app_signin': held } })
+  assert.equal(response.statusCode, 303)
+  assert.equal(new URL(response.headers.location).searchParams.get('binding'), sha(held).toString('base64url'))
+  const binding = response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin')
+  assert.deepEqual([binding.value, binding.maxAge], [held, 600], 'the same value, with its lifetime renewed')
+  const malformed = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, ...NAVIGATION }, cookies: { '__Host-conexus_app_signin': 'short' } })
+  assert.notEqual(malformed.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin').value, 'short')
 })
 
 test('a handoff is redeemed once, only with its binding and on its own host, and the session value is minted then', async (t) => {
@@ -218,7 +246,7 @@ test('a signed-in person gets the served files, never the server tree, and the p
 
 test('a session for one application is no session on another application host', async (t) => {
   const { app } = await harness(t)
-  const other = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_B }, ...signedIn })
+  const other = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_B, ...NAVIGATION }, ...signedIn })
   assert.equal(other.statusCode, 303)
   assert.equal(new URL(other.headers.location).searchParams.get('application'), 'outro-app')
   const otherApi = await app.inject(api('addNote', { host: HOST_B, origin: `https://${HOST_B}` }))
