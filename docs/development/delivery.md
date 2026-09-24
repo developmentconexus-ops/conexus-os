@@ -20,13 +20,13 @@ A change is in the qualification lane when any Q trigger is true:
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite S | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex comments triaged; diff read | operator |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Codex comments triaged; diff read; from PR B, Factory review `approve` | operator |
 | `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates on each pull request, and the bet's "done when" checked on the real artifact | operator |
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
-The operator approved decision D1: the manager auto-merges `lane:fast` pull requests without
-`needs:aprovo`. That power starts only after CI enforces the lane guard (migration step M9). Until
-then, the operator merges every lane.
+PR B is the dev Factory change that adds the Conexus review. Until it merges, no pull request gets a
+Factory verdict. The operator approved decision D1: the manager auto-merges `lane:fast` pull requests
+without `needs:aprovo`, only once CI enforces the lane guard (step M9). Until then, the operator merges.
 
 Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
 
@@ -55,9 +55,9 @@ manager reshapes the bet.
 
 ## Size work by appetite and limit work in progress
 
-- **S**: up to 1 calendar day.
-- **M**: up to 1 week.
-- **L**: up to 2 weeks. Split anything larger.
+- **P** (pequeno): up to 1 calendar day.
+- **M** (médio): up to 1 week.
+- **G** (grande): up to 2 weeks. Split anything larger.
 
 A bet that passes its appetite stops. The manager records what was learned on the issue and returns
 it, reshaped, to the queue. It gets more time only through a new bet.
@@ -69,10 +69,10 @@ most 5 open pull requests.
 
 - **Lean delivery.** A pull request merges on CI green plus a read of the diff. The operator does
   not test each pull request on the pilot. CI runs once per ready head.
-- **Mastra first.** Prefer a Mastra primitive (agents, workflows, memory, scorers, datasets,
-  experiments, tracing) over a Conexus-built mechanism. Every subagent prompt for Conexus work loads
-  [`.agents/skills/mastra/SKILL.md`](../../.agents/skills/mastra/SKILL.md). The engineering method's
-  "Authority and mechanism" section sets the bar for a Conexus-owned mechanism.
+- **Mastra first.** Prefer a Mastra, Keycloak or PostgreSQL primitive over a Conexus-built
+  mechanism. A pull request that adds a mechanism carries the native census in
+  [the review checklist](review-checklist.md#mastra-first-no-parallel-logic). Every subagent prompt
+  for Conexus work loads [`.agents/skills/mastra/SKILL.md`](../../.agents/skills/mastra/SKILL.md).
 - **Best evidence over past decisions.** Code that exists is not a reason to keep it. When you see a
   better alternative than what is implemented or decided, bring it to the operator with evidence.
   Reopen the owner. Do not work around it.
@@ -116,7 +116,8 @@ operator dictating filenames or implementation.
   coverage stay equivalent.
 - Independent review is required in the qualification lane only. Freeze the candidate, the
   protected claims and the deciding-proof route first. Run two fresh challengers, at least one on
-  another model, and give neither the other's output. The lead adjudicates every finding against
+  another model, and give neither the other's output. Run Codex read-only from the Windows checkout:
+  `codex exec -m gpt-6-astra -s read-only`. The lead adjudicates every finding against
   current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
   only when a correction invalidated a protected property or the deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
@@ -140,11 +141,10 @@ If no run exists at your head, merge `main` into your branch and push again.
   approval of each mechanical step.
 - One coherent increment per pull request. Link the issue. Use conventional commits.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and
-  commit the snapshot. The baseline rules live in
-  [data and persistence](../reference/data-and-persistence.md#baseline-and-forward-migrations).
+  commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one
   commit. `npm run wire:bijection` gates on an exact count.
-- Review follows [the review checklist](review-checklist.md). The Factory reads it from the base
-  ref, so a pull request cannot edit the rules that judge it.
+- Review follows [the review checklist](review-checklist.md). From PR B, the Factory reads it from
+  the base ref, so a pull request cannot edit the rules that judge it.
 - `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can
   check in these documents: cited scripts exist, links resolve, the trunk is `main`, line caps.
