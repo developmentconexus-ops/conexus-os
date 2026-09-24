@@ -181,6 +181,35 @@ The first gate does not need Sankhya or employee app identity. It proves only th
 
 These return only through a named real consumer and their own qualification.
 
+## After Stage 2: planned order
+
+Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
+operator agreed this order on 2026-09-23 as a plan, not a grant. Each step becomes a task only
+after the step before it has a verdict, and each technology enters only under the
+[technology qualification rule](#technology-qualification-rule), with its own consumer.
+
+"Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
+profile. The general software-development harness of the
+[Stage 2 reference](reference/stage2-managed-application-platform.md#1-why-this-exists), a second
+application profile with a backend per Project, is a different thing and stays future.
+
+| Order | Step | Candidates from the [technology queue](reference/stage2-managed-application-platform.md#7-technology-qualification-queue) | Enters when |
+| --- | --- | --- | --- |
+| Alongside Q3 | Builder tracing and evals on `main`: every Builder run recorded and comparable | Mastra AI tracing, scorers and datasets. An OpenTelemetry backend stays deferred | A study of what Mastra already ships decides the exact scope |
+| 1 | Code harness: events, React UI library, auth, roles and users, audit, telemetry, an implementation guide, and a set of global Conexus skills (server, identity, connectors, frontend) | Fastify, Zod and `pg` already selected. oRPC if handlers need end-to-end typed procedures. Drizzle or Prisma only if SQL-first fails | Stage 2 closes |
+| 2 | Application templates built from the harness | None new | The harness has its first pieces |
+| 3 | Server installation and operation: backups, Published operation, `conexus.fun` | Cloud Run or Fly only for the future second profile | The laptop pilot validates the journey |
+| 4 | More integrations | Nango (OAuth SaaS), Pipedream or Composio (agent tool catalog), Airbyte or Debezium (sync, CDC) | The first Connector that needs each |
+| 5 | Jobs and automations | pg-boss first, then Mastra Workflows, Inngest, Trigger.dev or Temporal | The first durable background job |
+| 6 | Notifications | Novu or Knock | The first multichannel notification |
+| 7 | Agent Studio: agents per Workspace or Project, copilot or active | Mastra agents and memory | A named agent consumer |
+| 8 | Brain: the company's own knowledge, started fresh | Mastra memory and retrieval | A named knowledge consumer |
+| 9 | Problem reports that become Factory issues, triaged and reviewed through the Factory skills | Mastra Factory work items and skills | A reporting flow is requested |
+| 10 | Self-registration in chosen applications, for example a partners' app | Conexus-owned sign-up policy over Keycloak | A named external audience |
+
+Steps 4 to 10 may reorder by real demand. Step 1 comes first because it shapes how everything after
+it is built.
+
 ## Exact next action
 
 **Execute the Stage 2 Q3 task: prove an employee uses one application with their own identity and no Control Plane authority.**
