@@ -205,6 +205,47 @@ ALTER FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project
 REVOKE ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) TO hub_iam_runtime;
 
+-- Provisioning answers the Account of the identity. Two callbacks for one new identity may both have
+-- looked it up before either provisioned it; the one that finds it provisioned, and its invitation
+-- already claimed, gets that Account instead of no access.
+DROP FUNCTION iam.provision_application_account(p_account_id uuid, p_issuer text, p_subject text, p_verified_email text, p_display_name text);
+
+CREATE FUNCTION iam.provision_application_account(p_account_id uuid, p_issuer text, p_subject text, p_verified_email text, p_display_name text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  normalized_email text := lower(btrim(p_verified_email));
+  provisioned uuid;
+BEGIN
+  SELECT existing.account_id INTO provisioned FROM iam.account AS existing
+  WHERE existing.issuer = p_issuer AND existing.external_subject = p_subject;
+  IF FOUND THEN
+    RETURN provisioned;
+  END IF;
+  IF p_verified_email IS NULL OR NOT EXISTS (
+    SELECT 1 FROM iam.application_invitation AS invitation
+    WHERE invitation.email = normalized_email AND invitation.expires_at > clock_timestamp())
+  THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO iam.account (account_id, issuer, external_subject, display_name, email, origin)
+  VALUES (p_account_id, p_issuer, p_subject, coalesce(nullif(btrim(p_display_name), ''), normalized_email), normalized_email, 'APPLICATION_INVITATION')
+  ON CONFLICT (issuer, external_subject) DO NOTHING
+  RETURNING iam.account.account_id INTO provisioned;
+  IF provisioned IS NULL THEN
+    SELECT existing.account_id INTO provisioned FROM iam.account AS existing
+    WHERE existing.issuer = p_issuer AND existing.external_subject = p_subject;
+  END IF;
+  RETURN provisioned;
+END;
+$$;
+
+ALTER FUNCTION iam.provision_application_account(p_account_id uuid, p_issuer text, p_subject text, p_verified_email text, p_display_name text) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.provision_application_account(p_account_id uuid, p_issuer text, p_subject text, p_verified_email text, p_display_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.provision_application_account(p_account_id uuid, p_issuer text, p_subject text, p_verified_email text, p_display_name text) TO hub_iam_runtime;
+
 -- One statement reads one file of the served artifact: it resolves the served revision, checks
 -- access, and takes only the requested element of the payload. A NULL revision means whatever is
 -- served now (a page or asset); a revision pins the server tree one API request reads file by file.

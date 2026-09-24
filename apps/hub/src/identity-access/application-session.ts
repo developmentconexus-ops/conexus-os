@@ -103,11 +103,11 @@ export const createApplicationSessions = ({
       let accountId = existingAccountId
       if (!accountId) {
         const candidate = randomUUID()
-        const provisioned = await pool.query<QueryResultRow & { provisioned: boolean }>(
-          'SELECT iam.provision_application_account($1, $2, $3, $4, $5) AS provisioned',
+        const provisioned = await pool.query<QueryResultRow & { account_id: string | null }>(
+          'SELECT iam.provision_application_account($1, $2, $3, $4, $5) AS account_id',
           [candidate, identity.issuer, identity.subject, identity.verifiedEmail, identity.displayName])
-        if (!provisioned.rows[0]?.provisioned) return { kind: 'NO_ACCESS', slug }
-        accountId = candidate
+        accountId = provisioned.rows[0]?.account_id ?? null
+        if (!accountId) return { kind: 'NO_ACCESS', slug }
       }
       await pool.query('SELECT iam.claim_application_invitations($1, $2)', [accountId, identity.verifiedEmail])
       const handoff = opaque()

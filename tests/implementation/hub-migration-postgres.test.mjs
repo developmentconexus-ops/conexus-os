@@ -134,7 +134,7 @@ test('the committed snapshot is the catalog the baseline and forward migration b
   const snapshot = readCommittedSnapshot()
   assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), '762be5e9e54ecc3734e1ddbaaa3a350663d7fe698b5f6ca09321fbb1c9888a43')
+  assert.equal(catalogDigest(snapshot.catalog), 'baaed67a13cbfb294f6439d695f4681fc99990f6d1173e82db7ef811c8c3836d')
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
