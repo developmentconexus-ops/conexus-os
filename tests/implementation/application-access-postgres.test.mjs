@@ -709,3 +709,17 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await reads(owner), [], 'no Preview has been built, so nothing is served')
   })
 })
+
+test('the installed Factory seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
+  const { client } = await applicationDatabase(t, 'envelope')
+  const sealed = await createFactorySecretEncryption({ primary: { id: 'installation', key: Buffer.alloc(32, 7) } }).encrypt('a refresh token')
+  const checks = (await client.query(`
+    SELECT conrelid::regclass::text AS relation, pg_get_constraintdef(oid) AS definition FROM pg_constraint
+    WHERE contype = 'c' AND pg_get_constraintdef(oid) LIKE '%mastra:factory-secret:%' ORDER BY 1`)).rows
+  assert.deepEqual(checks.map((check) => check.relation), ['iam.handoff', 'iam.host_session'])
+  for (const { relation, definition } of checks) {
+    const prefix = /'(mastra:factory-secret:[^%']*)%'/.exec(definition)?.[1]
+    assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Factory seals ${sealed.slice(0, 32)}…: reopen when the Factory changes its envelope`)
+  }
+})

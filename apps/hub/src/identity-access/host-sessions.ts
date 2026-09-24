@@ -1,6 +1,8 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { parseCaller } from '../platform/caller.js'
+import { parseApplicationSlug } from '../platform/config.js'
+import { digest, opaqueToken as opaque, parseOpaqueToken } from '../platform/opaque-token.js'
 import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
@@ -45,14 +47,6 @@ export type HandoffTarget =
   | Readonly<{ kind: 'APPLICATION'; projectId: string; binding: string }>
   | Readonly<{ kind: 'PREVIEW'; exactHost: string }>
 
-const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
-const OPAQUE = /^[A-Za-z0-9_-]{43}$/
-
-export const parseApplicationSlug = (value: unknown): string | null => typeof value === 'string' && SLUG.test(value) && !value.includes('--') ? value : null
-export const parseOpaqueToken = (value: unknown): string | null => typeof value === 'string' && OPAQUE.test(value) ? value : null
-
-const digest = (value: string): Buffer => createHash('sha256').update(value).digest()
-const opaque = (): string => randomBytes(32).toString('base64url')
 const secondsUntil = (end: Date, now: Date): number => Math.max(1, Math.floor((end.getTime() - now.getTime()) / 1000))
 
 export type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>

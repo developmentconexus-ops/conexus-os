@@ -52,9 +52,12 @@ export const applicationOrigin = (address: ApplicationAddress, slug: string): st
 export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): string | null => {
   const suffix = authority(address, '')
   if (typeof host !== 'string' || !host.endsWith(suffix)) return null
-  const slug = host.slice(0, -suffix.length)
-  return SLUG.test(slug) && !slug.includes('--') ? slug : null
+  return parseApplicationSlug(host.slice(0, -suffix.length))
 }
+
+/** An application's host label, as the CHECK on iam.application admits it (which also refuses the reserved labels). */
+export const parseApplicationSlug = (value: unknown): string | null =>
+  typeof value === 'string' && SLUG.test(value) && !value.includes('--') ? value : null
 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>

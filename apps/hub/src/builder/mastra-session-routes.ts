@@ -5,6 +5,7 @@ import { SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 export const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -90,7 +91,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
       if (request.method !== 'GET') {
         const csrf = header(request.headers['x-conexus-csrf'])
-        if (request.headers.origin !== mount.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        if (!isExactOrigin(request.headers.origin, mount.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
           return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         }
       }
@@ -159,7 +160,7 @@ export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, r
     scope.addHook('preHandler', async (request, reply) => {
       if (request.method !== 'GET') {
         const csrf = header(request.headers['x-conexus-csrf'])
-        if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
           return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         }
       }

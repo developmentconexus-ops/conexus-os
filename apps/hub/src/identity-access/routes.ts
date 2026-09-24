@@ -1,9 +1,10 @@
-import { randomBytes } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
-import { parseApplicationSlug, parseOpaqueToken } from './host-sessions.js'
+import { parseApplicationSlug } from '../platform/config.js'
+import { opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
+import { isExactOrigin } from '../platform/origin.js'
 import type { HostSessions } from './host-sessions.js'
 import type { ResolveCurrentSession } from './current-session.js'
 import { identityAccessErrorCode } from './errors.js'
@@ -17,8 +18,6 @@ const OIDC_STATE_COOKIE = '__Host-conexus_oidc_state'
 const cookieOptions = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const }
 const visibleCookieOptions = { ...cookieOptions, httpOnly: false }
 const clearCookieOptions = { path: '/', secure: true, sameSite: 'lax' as const }
-const csrf = (): string => randomBytes(32).toString('base64url')
-const exactOrigin = (request: FastifyRequest, configuredOrigin: string): boolean => request.headers.origin === configuredOrigin
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
 export type IdentityAccessRouteDependencies = Readonly<{
@@ -106,7 +105,7 @@ export const registerIdentityAccessRoutes = async (
         configuredIssuer: config.bootstrapIssuer,
         configuredSubject: config.bootstrapSubject,
       })
-      const csrfToken = csrf()
+      const csrfToken = opaqueToken()
       return reply
         .setCookie(BOOTSTRAP_COOKIE, bootstrapToken, cookieOptions)
         .setCookie(CSRF_COOKIE, csrfToken, visibleCookieOptions)
@@ -130,7 +129,7 @@ export const registerIdentityAccessRoutes = async (
   app.route({
     ...S1_GENERATED_ROUTES['IAM-02'],
     handler: async (request, reply) => {
-      if (!exactOrigin(request, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
+      if (!isExactOrigin(request.headers.origin, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'csrf-denied', 'Request authenticity denied')
@@ -151,7 +150,7 @@ export const registerIdentityAccessRoutes = async (
     ...S1_GENERATED_ROUTES['IAM-03'],
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
-      if (!exactOrigin(request, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       }
       const idempotencyKey = header(request.headers['idempotency-key'])

@@ -1,15 +1,15 @@
-import { createHash, randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
 import { applicationOrigin, applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
-import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT, strictOrigin } from './preview-routes.js'
+import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
+import { isExactOrigin } from '../platform/origin.js'
+import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT } from './preview-routes.js'
 
 const SESSION_COOKIE = '__Host-conexus_app'
 const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
 const SIGN_IN_SECONDS = 600
-const OPAQUE = /^[A-Za-z0-9_-]{43}$/
 
 type Authority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
@@ -44,8 +44,6 @@ export type ApplicationHostDependencies = Readonly<{
   application: ApplicationAddress
   now?: () => Date
 }>
-
-const sha256 = (value: string | Uint8Array): Buffer => createHash('sha256').update(value).digest()
 
 const page = (title: string, text: string): string =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`
@@ -87,10 +85,10 @@ export const registerApplicationHostRoutes = async (
   // they bring back redeems.
   const startSignIn = (request: FastifyRequest, reply: FastifyReply, slug: string): unknown => {
     const held = request.cookies[SIGN_IN_COOKIE]
-    const binding = held && OPAQUE.test(held) ? held : randomBytes(32).toString('base64url')
+    const binding = parseOpaqueToken(held) ?? opaqueToken()
     const login = new URL('/protocol/oidc/login', dependencies.exactHubOrigin)
     login.searchParams.set('application', slug)
-    login.searchParams.set('binding', sha256(binding).toString('base64url'))
+    login.searchParams.set('binding', digest(binding).toString('base64url'))
     return reply
       .setCookie(SIGN_IN_COOKIE, binding, { ...cookieOptions, maxAge: SIGN_IN_SECONDS })
       .clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
@@ -100,9 +98,9 @@ export const registerApplicationHostRoutes = async (
   app.get<{ Querystring: Record<string, unknown> }>('/__conexus/sign-in/complete', async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    const handoff = request.query.handoff
+    const handoff = parseOpaqueToken(request.query.handoff)
     const binding = request.cookies[SIGN_IN_COOKIE]
-    if (typeof handoff !== 'string' || !OPAQUE.test(handoff) || !binding) return html(reply, 403, SIGN_IN_FAILED)
+    if (!handoff || !binding) return html(reply, 403, SIGN_IN_FAILED)
     // A handoff that fails here (another host, no binding, expired) is not consumed. The binding cookie is
     // left to expire: other navigations may still be bringing handoffs back.
     const redeemed = await dependencies.sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId: target.projectId, binding }, now: now() })
@@ -120,7 +118,7 @@ export const registerApplicationHostRoutes = async (
   app.post('/__conexus/sign-out', async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
+    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     const sessionToken = request.cookies[SESSION_COOKIE]
     if (sessionToken) await dependencies.sessions.signOut(sessionToken)
     // A sign-in that started before this sign-out must not redeem afterward: its binding cookie
@@ -136,7 +134,7 @@ export const registerApplicationHostRoutes = async (
     if (!target) return refuse(reply, 404, 'APPLICATION_NOT_FOUND')
     // Every application host under the domain is one site, so SameSite does not stop a sibling
     // application's POST. The exact Origin of this application's own host is the only admission.
-    if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
+    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(reply, 415, 'CONTENT_TYPE_REFUSED')
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return refuse(reply, 503, 'IDENTITY_PROVIDER_UNAVAILABLE')
@@ -177,7 +175,7 @@ export const registerApplicationHostRoutes = async (
     if (!path || path.startsWith(SERVER_ROOT)) return reply.code(404).send()
     const read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path })
     if (read.kind === 'NOT_SERVED') return html(reply, 503, NOT_READY)
-    if (read.kind === 'NOT_FOUND' || read.file.path !== path || sha256(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
+    if (read.kind === 'NOT_FOUND' || read.file.path !== path || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
     return reply.type(read.file.mediaType).send(Buffer.from(read.file.bytes))
   }
   app.get('/', serve)

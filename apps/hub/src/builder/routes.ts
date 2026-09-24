@@ -6,6 +6,7 @@ import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -113,7 +114,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     const idempotencyKey = header(request.headers['idempotency-key'])
@@ -141,7 +142,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     try {
@@ -177,7 +178,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')

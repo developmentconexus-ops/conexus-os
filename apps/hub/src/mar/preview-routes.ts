@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { createHash } from 'node:crypto'
 import type { Caller } from '../platform/caller.js'
+import { digest } from '../platform/opaque-token.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const PREVIEW_COOKIE = '__Host-conexus_preview'
 
@@ -56,9 +57,6 @@ export type PreviewRouteDependencies = Readonly<{
   isClosed: () => boolean
 }>
 
-const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
-export const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
-  (Array.isArray(value) ? value[0] : value) === expected
 
 // What an application's page may load, on a Preview host and on its own host alike. form-action
 // 'none' refuses any submission that would navigate or post somewhere; connect-src 'self' admits only
@@ -107,7 +105,7 @@ export const registerPreviewRoutes = async (
 ): Promise<readonly ['MAR-Preview']> => {
   app.addHook('onRequest', async (request, reply) => {
     securityHeaders(reply, dependencies.exactHubOrigin)
-    if ((request.method === 'GET' || request.method === 'HEAD') && request.headers.origin === dependencies.exactHubOrigin) {
+    if ((request.method === 'GET' || request.method === 'HEAD') && isExactOrigin(request.headers.origin, dependencies.exactHubOrigin)) {
       reply.header('access-control-allow-origin', dependencies.exactHubOrigin)
       reply.header('access-control-allow-credentials', 'true')
       reply.header('vary', 'Origin')
@@ -145,7 +143,7 @@ export const registerPreviewRoutes = async (
     securityHeaders(reply, dependencies.exactHubOrigin)
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/x-www-form-urlencoded') return reply.code(415).send()
     const routeHost = routeHostOf(request.headers.host)
-    if (!routeHost || !strictOrigin(request.headers.origin, dependencies.exactHubOrigin)) return reply.code(403).send()
+    if (!routeHost || !isExactOrigin(request.headers.origin, dependencies.exactHubOrigin)) return reply.code(403).send()
     let redeemed: Awaited<ReturnType<PreviewSessions['redeem']>>
     try {
       redeemed = await dependencies.sessions.redeem({ handoff: request.body.entryGrant, target: { kind: 'PREVIEW', exactHost: routeHost } })
@@ -214,7 +212,7 @@ export const registerPreviewRoutes = async (
       return reply.code(503).send()
     }
     if (!file || after.kind !== 'SIGNED_IN' || !sameBinding(before, after.binding) ||
-      file.path !== path || file.mediaType !== declared.mediaType || sha256(file.bytes) !== file.sha256) return reply.code(403).send()
+      file.path !== path || file.mediaType !== declared.mediaType || digest(file.bytes).toString('hex') !== file.sha256) return reply.code(403).send()
     return reply.type(file.mediaType).send(Buffer.from(file.bytes))
   }
 
@@ -228,7 +226,7 @@ export const registerPreviewRoutes = async (
     const { binding } = active
     // Only the Preview's own page may call its API: a cross-site POST carries no Lax cookie, and a
     // sibling Preview on the same site sends its own Origin.
-    if (!strictOrigin(request.headers.origin, `https://${binding.exactHost}:${dependencies.previewPort}`)) return refuse(403, 'ORIGIN_REFUSED')
+    if (!isExactOrigin(request.headers.origin, `https://${binding.exactHost}:${dependencies.previewPort}`)) return refuse(403, 'ORIGIN_REFUSED')
     const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) return refuse(404, 'OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')

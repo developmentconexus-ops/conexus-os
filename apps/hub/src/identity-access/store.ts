@@ -1,7 +1,7 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import type { BinaryLike } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
+import { digest, opaqueToken as token } from '../platform/opaque-token.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { AccountId, AccountSummary, CurrentSession, EmailAddress } from './current-session.js'
@@ -12,8 +12,6 @@ export type { AccountSummary, CurrentSession }
 
 const BOOTSTRAP_MS = 10 * 60 * 1000
 const OIDC_MS = 10 * 60 * 1000
-const digest = (value: BinaryLike): Buffer => createHash('sha256').update(value).digest()
-const token = (): string => randomBytes(32).toString('base64url')
 
 export type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 export type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
