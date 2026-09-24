@@ -337,6 +337,24 @@ test('sign-out from the application ends its session and clears its cookie', asy
   assert.equal((await app.inject(api('addNote'))).statusCode, 401)
 })
 
+test('sign-out clears the sign-in binding too, so a handoff still in flight cannot sign the person back in', async (t) => {
+  const { app, sessions } = await harness(t)
+  const jar = new Map([['__Host-conexus_app', TOKEN_A], ['__Host-conexus_app_signin', 'binding-1']])
+  const replay = (response) => {
+    for (const cookie of response.cookies) {
+      if (cookie.value === '') jar.delete(cookie.name)
+      else jar.set(cookie.name, cookie.value)
+    }
+  }
+  const signOut = await app.inject({ method: 'POST', url: '/__conexus/sign-out', headers: { host: HOST_A, origin: ORIGIN_A }, cookies: Object.fromEntries(jar) })
+  assert.equal(signOut.statusCode, 204)
+  replay(signOut)
+  assert.equal(jar.has('__Host-conexus_app_signin'), false, 'the binding cookie is gone from the jar after sign-out')
+  const redeemed = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A }, cookies: Object.fromEntries(jar) })
+  assert.equal(redeemed.statusCode, 403, 'a handoff redeemed with no binding cookie must not sign the person back in')
+  assert.equal(sessions.has(TOKEN_A), false, 'no new session was minted for the old, signed-out token')
+})
+
 test('a person without access lands on a plain no-access page on the application host', async (t) => {
   const { app } = await harness(t)
   const response = await app.inject({ method: 'GET', url: '/__conexus/no-access', headers: { host: HOST_A } })
