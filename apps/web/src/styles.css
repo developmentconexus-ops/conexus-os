@@ -250,8 +250,6 @@ code { overflow-wrap: anywhere; }
 .connection-state[data-state="FAILED"], .connection-state[data-state="INDETERMINATE"] { border-color: var(--cx-danger); }
 .connection-state[data-state="NEEDS_RETEST"] { border-color: var(--cx-warning); }
 .connection-state span { color: var(--cx-text-2); font-size: .85rem; }
-.surface-overlay { position: fixed; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgb(14 16 18 / .5); }
-.surface-dialog { width: min(34rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.5rem; border-radius: .9rem; background: var(--cx-surface); box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.24); }
 .connection-overlay { justify-content: flex-end; padding: 0; }
 .connection-panel { width: min(38rem, 100%); height: 100%; overflow: auto; padding: clamp(1.25rem, 4vw, 2rem); background: var(--cx-surface); box-shadow: -1rem 0 3rem rgb(0 0 0 / 0.2); }
 .panel-heading, .work-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
