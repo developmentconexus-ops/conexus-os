@@ -348,3 +348,19 @@ test('an app-only Account signing in at the Hub is refused with no session cooki
   assert.equal(callback.statusCode, 403)
   assert.equal(callback.cookies.some((item) => item.name === '__Host-conexus_session' || item.name === '__Host-conexus_csrf'), false)
 })
+
+test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 503, not signed out', async (t) => {
+  const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const app = await createHttpApp({
+    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
+      store: makeStore(), workspaceReader: makeStore(), oidc: makeOidc(), config, hubSessions: makeStore(),
+      resolveCurrentSession: async () => { throw providerUnavailable() },
+    }),
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  const answer = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 's'.repeat(43) } })
+  assert.equal(answer.statusCode, 503)
+  assert.equal(answer.json().type.endsWith('identity-provider-unavailable'), true)
+  assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
+})

@@ -460,6 +460,64 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       { code: '23514', message: 'new row for relation "host_session" violates check constraint "host_session_hub_check"' })
   })
 
+  await t.test('the Hub and its Previews follow Keycloak within five minutes: a disable or a Keycloak logout ends them, an unreachable Keycloak answers 503 and keeps them', async () => {
+    const launchFor = () => {
+      const artifactRevisionId = randomUUID()
+      return { accountId: owner, projectId, sourceRevision: 'c'.repeat(40), artifactRevisionId, artifactDigest: 'd'.repeat(64),
+        exactHost: `preview-${artifactRevisionId}.conexus.localhost`, manifest: { entryPath: 'index.html', files: [] } }
+    }
+    const openWithPreview = async (refreshToken) => {
+      const hub = await sessions.openHub({ accountId: owner, refreshToken, now: T0 })
+      const launch = launchFor()
+      const { entryGrant } = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
+      const preview = await sessions.redeem({ handoff: entryGrant, target: { kind: 'PREVIEW', exactHost: launch.exactHost }, now: at(1_000) })
+      return { hub, preview, exactHost: launch.exactHost }
+    }
+    const ended = async (token) => (await client.query('SELECT ended_reason, provider_refresh_token FROM iam.host_session WHERE token_digest = $1',
+      [createHash('sha256').update(token).digest()])).rows[0]
+    const due = at(5 * 60 * 1000)
+
+    refreshes.length = 0
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-hub-2' }
+    const active = await openWithPreview('refresh-hub-1')
+    assert.ok(await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: at(4 * 60 * 1000) }))
+    assert.deepEqual(refreshes, [], 'not due before five minutes')
+    assert.ok(await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: due }))
+    assert.deepEqual(refreshes, [{ refreshToken: 'refresh-hub-1', expectedSubject: owner }], 'due at five minutes, with the Hub session token')
+    assert.equal(await envelope.open((await client.query('SELECT provider_refresh_token FROM iam.host_session WHERE token_digest = $1',
+      [createHash('sha256').update(active.hub.sessionToken).digest()])).rows[0].provider_refresh_token), 'refresh-hub-2')
+
+    refreshes.length = 0
+    const concurrent = await openWithPreview('refresh-hub-3')
+    const answers = await Promise.all([1, 2, 3, 4].map(() => sessions.resolveHub({ sessionToken: concurrent.hub.sessionToken, now: due })))
+    assert.equal(answers.filter(Boolean).length, 4, 'four concurrent Hub requests with the check due are all served')
+    assert.ok(refreshes.length >= 1 && refreshes.length <= 4, `Keycloak was asked ${refreshes.length} times`)
+
+    for (const [reason, endedReason] of [['USER_DISABLED', 'PROVIDER_USER_DISABLED'], ['SESSION_ENDED', 'PROVIDER_SESSION_ENDED']]) {
+      const refused = await openWithPreview(`refresh-${reason}`)
+      providerAnswer = { kind: 'REFUSED', reason }
+      assert.equal(await sessions.resolveHub({ sessionToken: refused.hub.sessionToken, now: due }), null, `${reason}: the Hub session ends`)
+      assert.deepEqual(await ended(refused.hub.sessionToken), { ended_reason: endedReason, provider_refresh_token: null })
+      assert.deepEqual(await ended(refused.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null }, `${reason}: its Preview ends with it`)
+      assert.deepEqual(await sessions.previewAuthority({ sessionToken: refused.preview.sessionToken, exactHost: refused.exactHost, now: due }), { kind: 'SIGN_IN_REQUIRED' })
+    }
+
+    const fromPreview = await openWithPreview('refresh-preview-only')
+    providerAnswer = { kind: 'REFUSED', reason: 'USER_DISABLED' }
+    refreshes.length = 0
+    assert.deepEqual(await sessions.previewAuthority({ sessionToken: fromPreview.preview.sessionToken, exactHost: fromPreview.exactHost, now: due }),
+      { kind: 'SIGN_IN_REQUIRED' }, 'a Preview request makes the check of the Hub session behind it')
+    assert.deepEqual(refreshes, [{ refreshToken: 'refresh-preview-only', expectedSubject: owner }])
+    assert.deepEqual(await ended(fromPreview.hub.sessionToken), { ended_reason: 'PROVIDER_USER_DISABLED', provider_refresh_token: null }, 'and the Hub session ends too')
+
+    const unreachable = await openWithPreview('refresh-unreachable')
+    providerAnswer = { kind: 'UNAVAILABLE' }
+    await assert.rejects(sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), (error) => error.statusCode === 503)
+    assert.deepEqual(await sessions.previewAuthority({ sessionToken: unreachable.preview.sessionToken, exactHost: unreachable.exactHost, now: due }), { kind: 'PROVIDER_UNAVAILABLE' })
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-reachable' }
+    assert.ok(await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), 'the session was kept and Keycloak is asked again')
+  })
+
   await t.test('a Preview lives in the database: another Hub serves it, it dies with the Hub session that opened it, and its handoff survives the wrong host', async () => {
     const artifactRevisionId = randomUUID()
     const exactHost = `preview-${artifactRevisionId}.conexus.localhost`

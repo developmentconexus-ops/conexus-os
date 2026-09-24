@@ -43,7 +43,9 @@ export const createHttpApp = async ({
   })
   app.setErrorHandler((error, _request, reply) => {
     const reportedStatus = errorStatus(error)
-    const status = reportedStatus >= 400 && reportedStatus < 500 ? reportedStatus : 500
+    // 503 is the one server status a route passes on: Keycloak could not be asked about a session due for its check.
+    const status = (reportedStatus >= 400 && reportedStatus < 500) || reportedStatus === 503 ? reportedStatus : 500
+    if (status === 503) return sendProblem(reply, status, 'identity-provider-unavailable', 'Identity provider unavailable')
     if (status === 400) return sendProblem(reply, status, 'request-invalid', 'Request invalid')
     if (status === 401) return sendProblem(reply, status, 'authentication-required', 'Authentication required')
     if (status === 403) return sendProblem(reply, status, 'access-denied', 'Access denied')

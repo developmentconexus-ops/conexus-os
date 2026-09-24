@@ -81,6 +81,11 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
   REFUSED: 'PROVIDER_REFUSED',
 })
 
+type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
+
+/** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
+export const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503 })
+
 type ApplicationRow = QueryResultRow & {
   account_id: string
   email: string | null
@@ -105,12 +110,17 @@ type PreviewRow = QueryResultRow & {
   account_id: string
   email: string | null
   display_name: string
+  subject: string
   project_id: string
   source_revision: string
   artifact_revision_id: string
   artifact_digest: string
   manifest: PreviewManifest
   expires_at: Date
+  hub_digest: Buffer
+  hub_checked_at: Date
+  /** The Hub session's sealed refresh token, present only when its five-minute Keycloak check is due. */
+  due_hub_refresh_token: string | null
 }
 
 const callerOf = (row: Readonly<{ account_id: string; email: string | null; display_name: string }>): Caller => {
@@ -138,29 +148,30 @@ export const createHostSessions = ({
     return resolved.rows[0]
   }
 
-  // Keycloak does not rotate refresh tokens, so requests that find the same check due may all refresh at
-  // once. Each is served on its own answer, and the first to record the check stores its token.
-  const checkProvider = async (sessionDigest: Buffer, projectId: string, row: ApplicationRow, sealed: string, now: Date): Promise<ApplicationAuthority | null> => {
+  // The one Keycloak check for every kind of session: at most every five minutes, a request refreshes the
+  // sealed token of the session that holds it (a Preview's is its Hub session's). Keycloak does not rotate
+  // refresh tokens, so requests that find the same check due may all refresh at once; each is served on its
+  // own answer, and the first to record the check stores its token. A refusal ends the session, and with
+  // it the Previews it opened. Null: the person is still signed in.
+  const checkProvider = async (check: Readonly<{ sessionDigest: Buffer; subject: string; checkedAt: Date; sealed: string; now: Date }>): Promise<Refusal | null> => {
     let refreshToken: string
     try {
-      refreshToken = await envelope.open(sealed)
+      refreshToken = await envelope.open(check.sealed)
     } catch {
       // Sealed under a key this installation no longer holds: the token left its custody.
-      await end(sessionDigest, 'CUSTODY_CHANGED')
+      await end(check.sessionDigest, 'CUSTODY_CHANGED')
       return { kind: 'SIGN_IN_REQUIRED' }
     }
-    const check = await refresh({ refreshToken, expectedSubject: row.subject })
-    if (check.kind === 'UNAVAILABLE') return { kind: 'PROVIDER_UNAVAILABLE' }
-    if (check.kind === 'REFUSED') {
-      await end(sessionDigest, ENDED_BY[check.reason])
+    const answer = await refresh({ refreshToken, expectedSubject: check.subject })
+    if (answer.kind === 'UNAVAILABLE') return { kind: 'PROVIDER_UNAVAILABLE' }
+    if (answer.kind === 'REFUSED') {
+      await end(check.sessionDigest, ENDED_BY[answer.reason])
       return { kind: 'SIGN_IN_REQUIRED' }
     }
-    const recorded = await pool.query<QueryResultRow & { recorded: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS recorded',
-      [sessionDigest, row.provider_checked_at, await envelope.seal(check.refreshToken), now])
-    // False: the session ended while Keycloak answered, or another request recorded this check first.
-    // The loser of that race is still served, so only the session in the database decides.
-    if (!recorded.rows[0]?.recorded && !await resolveApplication(sessionDigest, projectId, now)) return { kind: 'SIGN_IN_REQUIRED' }
-    return null
+    const recorded = await pool.query<QueryResultRow & { open: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS open',
+      [check.sessionDigest, check.checkedAt, await envelope.seal(answer.refreshToken), check.now])
+    // The session ended while Keycloak answered: only the session in the database decides.
+    return recorded.rows[0]?.open ? null : { kind: 'SIGN_IN_REQUIRED' }
   }
 
   const slugOf = async (projectId: string): Promise<string> => {
@@ -186,11 +197,17 @@ export const createHostSessions = ({
     async resolveHub({ sessionToken, csrfToken, requireCsrf = false, now = new Date() }) {
       if (!parseOpaqueToken(sessionToken)) return null
       if (requireCsrf && !parseOpaqueToken(csrfToken)) return null
+      const sessionDigest = digest(sessionToken)
       const resolved = await pool.query<HubRow>(
         'SELECT account_id, issuer, subject, display_name, email, provider_checked_at, due_provider_refresh_token FROM iam.resolve_hub_session($1, $2, $3)',
-        [digest(sessionToken), requireCsrf && csrfToken ? digest(csrfToken) : null, now])
+        [sessionDigest, requireCsrf && csrfToken ? digest(csrfToken) : null, now])
       const row = resolved.rows[0]
       if (!row) return null
+      if (row.due_provider_refresh_token) {
+        const refused = await checkProvider({ sessionDigest, subject: row.subject, checkedAt: row.provider_checked_at, sealed: row.due_provider_refresh_token, now })
+        if (refused?.kind === 'PROVIDER_UNAVAILABLE') throw providerUnavailable()
+        if (refused) return null
+      }
       return {
         account: { accountId: brandAccountId(row.account_id), displayName: row.display_name, ...(row.email ? { email: row.email } : {}) },
         issuer: row.issuer,
@@ -257,7 +274,7 @@ export const createHostSessions = ({
       const row = await resolveApplication(sessionDigest, projectId, now)
       if (!row) return { kind: 'SIGN_IN_REQUIRED' }
       if (row.due_provider_refresh_token) {
-        const refused = await checkProvider(sessionDigest, projectId, row, row.due_provider_refresh_token, now)
+        const refused = await checkProvider({ sessionDigest, subject: row.subject, checkedAt: row.provider_checked_at, sealed: row.due_provider_refresh_token, now })
         if (refused) return refused
       }
       return { kind: 'SIGNED_IN', caller: callerOf(row) }
@@ -266,10 +283,15 @@ export const createHostSessions = ({
     async previewAuthority({ sessionToken, exactHost, now = new Date() }) {
       if (!sessionToken || !parseOpaqueToken(sessionToken)) return { kind: 'SIGN_IN_REQUIRED' }
       const resolved = await pool.query<PreviewRow>(
-        'SELECT account_id, email, display_name, project_id, source_revision, artifact_revision_id, artifact_digest, manifest, expires_at FROM iam.resolve_preview_session($1, $2, $3)',
+        `SELECT account_id, email, display_name, subject, project_id, source_revision, artifact_revision_id, artifact_digest, manifest, expires_at,
+          hub_digest, hub_checked_at, due_hub_refresh_token FROM iam.resolve_preview_session($1, $2, $3)`,
         [digest(sessionToken), exactHost, now])
       const row = resolved.rows[0]
       if (!row) return { kind: 'SIGN_IN_REQUIRED' }
+      if (row.due_hub_refresh_token) {
+        const refused = await checkProvider({ sessionDigest: row.hub_digest, subject: row.subject, checkedAt: row.hub_checked_at, sealed: row.due_hub_refresh_token, now })
+        if (refused) return refused
+      }
       return {
         kind: 'SIGNED_IN',
         binding: Object.freeze({
