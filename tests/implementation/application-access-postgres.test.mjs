@@ -319,6 +319,57 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(refreshCalls, 2)
   })
 
+  const openSession = async (subject, email) => {
+    await grantAccess(projectId, email)
+    const handoff = (await signIn(identity(subject, email, subject))).handoff
+    const sessionToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    return { sessionToken, sessionDigest: createHash('sha256').update(sessionToken).digest() }
+  }
+  const outcomeOf = (answer) => answer.then((settled) => settled.kind, (error) => `THREW ${error.message}`)
+  const checkDue = at(5 * 60 * 1000 + 1_000)
+
+  await t.test('a refresh token the installation cannot open ends the session, for this request and every later one', async () => {
+    const { sessionToken, sessionDigest } = await openSession('custody-sub', 'custodia@application.test')
+    const foreign = createSecretEnvelope('cd'.repeat(32))
+    await client.query('UPDATE iam.application_session SET provider_refresh_token = $2 WHERE token_digest = $1', [sessionDigest, await foreign.seal('refresh-custody-sub')])
+    providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-custody-2' }
+    const first = await outcomeOf(sessions.authority({ sessionToken, projectId, now: checkDue }))
+    const second = await outcomeOf(sessions.authority({ sessionToken, projectId, now: checkDue }))
+    assert.deepEqual([first, second], ['SIGN_IN_REQUIRED', 'SIGN_IN_REQUIRED'])
+    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
+      [{ ended_reason: 'CUSTODY_CHANGED', provider_refresh_token: null }])
+  })
+
+  await t.test('an error while a request holds the check releases it, so the next request checks instead of skipping', async () => {
+    const { sessionToken, sessionDigest } = await openSession('fault-sub', 'falha@application.test')
+    let calls = 0
+    const faulty = createApplicationSessions({
+      pool, envelope,
+      refresh: async () => {
+        calls += 1
+        if (calls === 1) throw new Error('KEYCLOAK_CLIENT_FAULT')
+        return { kind: 'ACTIVE', refreshToken: 'refresh-fault-2' }
+      },
+    })
+    assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'THREW KEYCLOAK_CLIENT_FAULT')
+    assert.equal(await outcomeOf(faulty.authority({ sessionToken, projectId, now: checkDue })), 'SIGNED_IN')
+    assert.equal(calls, 2, 'the second request asked Keycloak itself')
+    assert.deepEqual((await client.query('SELECT provider_check_claim, provider_checked_at FROM iam.application_session WHERE token_digest = $1', [sessionDigest])).rows,
+      [{ provider_check_claim: null, provider_checked_at: checkDue }])
+  })
+
+  await t.test('a request that finds the check held by another request is not served unchecked, and does not wait forever', async () => {
+    const { sessionToken, sessionDigest } = await openSession('held-sub', 'retida@application.test')
+    const asked = []
+    const hub = createApplicationSessions({ pool, envelope, refresh: async (input) => { asked.push(input); return { kind: 'ACTIVE', refreshToken: 'refresh-held-2' } } })
+    // Another Hub claimed the check a moment ago and has not answered.
+    await client.query('UPDATE iam.application_session SET provider_check_claim = $2, provider_check_claimed_at = clock_timestamp() WHERE token_digest = $1', [sessionDigest, randomUUID()])
+    const started = Date.now()
+    assert.equal(await outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue })), 'PROVIDER_UNAVAILABLE')
+    assert.deepEqual(asked, [])
+    assert.ok(Date.now() - started < 10_000, 'the wait is bounded')
+  })
+
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-3' }
     const handoff = (await signIn(employee, employeeId)).handoff
