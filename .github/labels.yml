@@ -5,7 +5,7 @@
 # Lanes and operator attention: docs/development/delivery.md.
 - name: "lane:fast"
   color: "0e8a16"
-  description: "No Q trigger, one pull request, appetite S. See docs/development/delivery.md"
+  description: "No Q trigger, one pull request, appetite P (up to 1 day). See docs/development/delivery.md"
 - name: "lane:shaped"
   color: "1d76db"
   description: "A shaped bet: across modules or more than one pull request, no Q trigger"

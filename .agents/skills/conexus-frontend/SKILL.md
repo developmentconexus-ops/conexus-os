@@ -7,7 +7,7 @@ description: This skill should be used for any change under `apps/web`, `package
 
 This skill is how Conexus screens are designed, written, built and verified. It covers the web app (`apps/web`), the brand package (`packages/brand`) and the Keycloak sign-in theme (`apps/keycloak-theme`).
 
-Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap, grant and delivery rules. This skill adds only the frontend layer.
+Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap and the route of each lane. This skill adds only the frontend layer.
 
 ## The repository is the source of truth
 

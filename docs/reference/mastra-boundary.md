@@ -31,6 +31,7 @@ embedded doc page.
 | 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
 | 6a | Classifying model errors | A, plus B for one message | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Planned |
+| 7 | Mounting the Mastra Code agent controller | A, with four traps | Implemented |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -270,6 +271,44 @@ that produced the note sends it with `sendSignalToThread` as a `notification` si
 without waking the agent. The web conversation renders notification signals as run notes. The hand-built
 message and the storage write are deleted. Retries rely on the signal id. Until then, the storage write
 stays.
+
+## 7. Mounting the Mastra Code agent controller
+
+**Current code.** `apps/hub/src/builder/factory.ts` builds its own `new Mastra(...)` from the mount's
+arguments, `apps/hub/src/builder/mastra-session-routes.ts` serves the controller's session routes, and
+`apps/hub/src/builder/model-accounts.ts` (`applyModelDefaults`) seeds a model when a thread opens.
+
+**What Mastra offers.** `prepareAgentControllerMount(config)` returns `{ base, mastraArgs, finalize }`
+(`code-sdk/dist/index.js:954`). A host that needs its own observability builds
+`new Mastra({ ...mastraArgs })` and then awaits `finalize()`. Checked against `@mastra/code-sdk` 1.7.2
+and `@mastra/core` 1.67.0, the mount has four traps:
+
+- **The controller id is not the registry key.** The controller is always built with
+  `id: "mastra-code"` (`code-sdk/dist/index.js:637`). `config.controllerId` is only the key it is
+  registered under (`code-sdk/dist/index.js:920,935`). A route guard compares the registry key, as
+  `mastra-session-routes.ts` does with `mount.controllerId`. Passing an existing `mastra` instead of
+  building one registers the controller without putting it in `agentControllers`
+  (`code-sdk/dist/index.js:888`), so the `:controllerId` routes cannot find it.
+- **A mounted session has no model.** `SessionModel` starts with an empty id, so `hasSelection()` is
+  false (`core/dist/agent-controller-CKgKFyMR.js:2203`). The resolved mode defaults are `{}` on a host
+  with no saved Mastra Code settings, and a host that passes its own `modes` gets no model from them.
+  Conexus seeds one with `applyModelDefaults`.
+- **A model choice belongs to one thread.** `session.model.switch()` persists only when `scope` is
+  `"thread"` (`core/dist/agent-controller-CKgKFyMR.js:2296`). `scope: "global"` persists nothing.
+  `saveForMode` writes the thread's settings without moving the live session, which also needs
+  `set()` (`core/dist/agent-controller-CKgKFyMR.js:2251`). `thread.switch` loads the new thread's
+  model, but when that thread has none it keeps the previous model in memory
+  (`core/dist/agent-controller-CKgKFyMR.js:1739`). A UI that reads the live session then shows a model
+  the next run will not use.
+- **`thread.getById` is not scoped to the resource.** It returns any resource's thread row
+  (`core/dist/agent-controller-CKgKFyMR.js:1386`). `listMessages` checks ownership and throws
+  `Thread not found` (`core/dist/agent-controller-CKgKFyMR.js:1409`). Never expose `getById` on a
+  route that serves more than one resource. No Hub route calls it.
+
+The `agent-controller-*.js` chunk name carries a build hash. After an upgrade, find the same code by
+searching for `hasSelection`, `saveForMode` and `requireOwnedThread`.
+
+**Decision.** A. The traps are behaviors of public APIs, not missing APIs.
 
 ## Upstream proposals
 

@@ -22,7 +22,6 @@ export function inScope(path) {
 export const LINE_CAPS = Object.freeze([
   { match: path => path === 'AGENTS.md', max: 60, severity: 'warn', until: 'M6 rewrites the root AGENTS.md' },
   { match: path => path.endsWith('/AGENTS.md'), max: 30, severity: 'error' },
-  { match: path => path === '.agents/skills/conexus-development/SKILL.md', max: 90, severity: 'warn', until: 'M7 rewrites this skill' },
   { match: path => path.endsWith('/SKILL.md'), max: 90, severity: 'error' },
   { match: path => path === 'docs/development/delivery.md', max: 150, severity: 'error' },
 ])
