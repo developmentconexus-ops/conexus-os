@@ -84,6 +84,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.revoke_application_grant': 'hub_iam_runtime',
   }),
   'identity-access/host-sessions.ts': Object.freeze({
+    'iam.open_hub_session': 'hub_iam_runtime',
+    'iam.resolve_hub_session': 'hub_iam_runtime',
     'iam.application_slug': 'hub_iam_runtime',
     'iam.application_by_slug': 'hub_iam_runtime',
     'iam.provision_application_account': 'hub_iam_runtime',
@@ -114,7 +116,6 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.email_has_open_invitation': 'hub_iam_runtime',
     'iam.claim_invitations': 'hub_iam_runtime',
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
-    'iam.account_access_scope': 'hub_iam_runtime',
     'workspace.list_visible_workspace_summaries': 'hub_workspace_read',
   }),
   'project/store.ts': Object.freeze({

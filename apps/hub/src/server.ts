@@ -40,12 +40,12 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
-  // The application host requires the Builder, and so the Factory, whose credential key seals the
-  // application sessions' refresh tokens (readHubConfig refuses one without the other).
-  application: config.application && config.factory ? {
-    address: config.application,
-    envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
-  } : undefined,
+  // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's
+  // credential key, the Factory's (readHubConfig refuses an application host without the Factory).
+  envelope: config.factory
+    ? createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile))
+    : (() => { throw new Error('IDENTITY_SECRET_KEY_REQUIRED') })(),
+  application: config.application ? { address: config.application } : undefined,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)

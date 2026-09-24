@@ -75,7 +75,7 @@ test('a refused refresh names why Keycloak refused it: a disabled user, an ended
 })
 
 const makeStore = ({ eligible = true } = {}) => {
-  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [] }
+  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [], opened: [] }
   return {
     state,
     async createOidcTransaction(value) { state.oidc.set(value.state, value) },
@@ -93,9 +93,9 @@ const makeStore = ({ eligible = true } = {}) => {
       state.bootstrap.delete(bootstrapToken)
       return { accountId: 'account-1', displayName, ...(email ? { email } : {}), replayed: false }
     },
-    async createSession({ accountId }) { const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
-    async validateSession({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
-    async endSession(value) { state.sessions.delete(value); state.ended.push(value); return true },
+    async openHub({ accountId, refreshToken }) { state.opened.push({ accountId, refreshToken }); const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
+    async resolveHub({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
+    async endHub(value) { state.sessions.delete(value); state.ended.push(value) },
   }
 }
 
@@ -109,13 +109,14 @@ const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) 
     store,
     oidc,
     config,
+    hubSessions: store,
     ...(applications ? { applications } : {}),
     resolveCurrentSession: async (request, requireCsrf = false) => {
       const sessionToken = request.cookies['__Host-conexus_session']
       if (!sessionToken) return null
       const value = request.headers['x-conexus-csrf']
       const csrfToken = Array.isArray(value) ? value[0] : value
-      return store.validateSession({ sessionToken, csrfToken, requireCsrf })
+      return store.resolveHub({ sessionToken, csrfToken, requireCsrf })
     },
   }),
   staticRoot,
@@ -138,13 +139,14 @@ test('S1 exposes only generated IAM-01..03 through one sealed validator', async 
 test('an existing account claims its invitations before its session starts', async (t) => {
   const store = makeStore()
   store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'account-1', displayName: 'Leandro' })
-  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test' }), config })
+  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test', refreshToken: 'keycloak-refresh-1' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 303)
   assert.equal(callback.headers.location, '/')
   assert.deepEqual(store.state.claimed, [{ accountId: 'account-1', verifiedEmail: 'leandro@example.test' }])
+  assert.deepEqual(store.state.opened, [{ accountId: 'account-1', refreshToken: 'keycloak-refresh-1' }], 'the Hub session keeps the sign-in refresh token')
 })
 
 test('an unknown identity that is neither first nor invited is refused', async (t) => {
@@ -338,7 +340,7 @@ test('TI-02 sends a person without access to the application host no-access page
 test('an app-only Account signing in at the Hub is refused with no session cookie', async (t) => {
   const store = makeStore()
   store.state.accounts.set(`${config.bootstrapIssuer}|app-only`, { accountId: 'account-app', displayName: 'Funcionária' })
-  store.createSession = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
+  store.openHub = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
   const app = await createHubApp({ store, oidc: makeOidc({ subject: 'app-only', verifiedEmail: 'funcionaria@example.test' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })

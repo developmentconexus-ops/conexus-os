@@ -36,6 +36,7 @@ export const createIdentityAccessModule = async ({
   clientId,
   clientSecret,
   bootstrapSubject,
+  envelope,
   application,
   allowInsecureForTest = false,
 }: Readonly<{
@@ -46,8 +47,10 @@ export const createIdentityAccessModule = async ({
   clientId: string
   clientSecret: string
   bootstrapSubject: string
-  /** Where applications are served, and the envelope that seals their sessions' Keycloak refresh tokens. */
-  application: Readonly<{ address: ApplicationAddress; envelope: SecretEnvelope }> | undefined
+  /** Seals the Keycloak refresh token every Hub and application session keeps, with the installation's credential key. */
+  envelope: SecretEnvelope
+  /** Where applications are served. */
+  application: Readonly<{ address: ApplicationAddress }> | undefined
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
@@ -61,13 +64,13 @@ export const createIdentityAccessModule = async ({
     allowInsecureForTest,
   })
   const originOf = application ? (slug: string): string => applicationOrigin(application.address, slug) : undefined
-  const hostSessions = createHostSessions({ pool, refresh: oidc.refresh, envelope: application?.envelope })
+  const hostSessions = createHostSessions({ pool, refresh: oidc.refresh, envelope })
   const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null
     const csrfHeader = request.headers['x-conexus-csrf']
     const csrfToken = Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader
-    return store.validateSession({ sessionToken, ...(csrfToken ? { csrfToken } : {}), requireCsrf })
+    return hostSessions.resolveHub({ sessionToken, ...(csrfToken ? { csrfToken } : {}), requireCsrf })
   }
   const installationAdministration = createInstallationAdministration({ pool })
   return Object.freeze({
@@ -79,6 +82,7 @@ export const createIdentityAccessModule = async ({
           oidc,
           config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
           resolveCurrentSession,
+          hubSessions: hostSessions,
           ...(originOf ? { applications: { sessions: hostSessions, origin: originOf } } : {}),
         }),
         ...await registerMembershipRoutes(app, {

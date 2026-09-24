@@ -180,7 +180,6 @@ test('upgrading withdraws the invitations a revoke left open before 0024, and ke
 
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
-  const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
   const pool = new pg.Pool({ ...connection, max: 4 })
@@ -191,7 +190,6 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
   const envelope = createSecretEnvelope('ab'.repeat(32))
   const sessions = createHostSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer }, envelope })
-  const hubStore = createIdentityAccessStore({ pool })
 
   const owner = await account('owner-s')
   const control = await account('control-s')
@@ -226,8 +224,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'APPLICATION_ONLY')
     assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE account_id = $1 AND revoked_at IS NULL', [employeeId])).rows[0].n, 1)
     assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.workspace_membership WHERE account_id = $1', [employeeId])).rows[0].n, 0)
-    await assert.rejects(hubStore.createSession({ accountId: employeeId }), /IDENTITY_NOT_ELIGIBLE/)
-    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.session WHERE account_id = $1', [employeeId])).rows[0].n, 0)
+    await assert.rejects(sessions.openHub({ accountId: employeeId, refreshToken: 'refresh-hub' }), /IDENTITY_NOT_ELIGIBLE/)
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.host_session WHERE kind = 'HUB' AND account_id = $1", [employeeId])).rows[0].n, 0)
 
     const redeemed = await sessions.redeem({ handoff: outcome.handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })
     assert.equal(redeemed.maxAgeSeconds, 8 * 60 * 60 - 1)
@@ -436,6 +434,32 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await outcomeOf(hub.applicationAuthority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
   })
 
+  await t.test('a Hub session keeps the sealed refresh token, slides its thirty-minute idle limit inside eight hours, and checks CSRF', async () => {
+    const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-hub-owner', now: T0 })
+    const row = async () => (await client.query('SELECT provider_refresh_token, idle_expires_at, absolute_expires_at, ended_reason FROM iam.host_session WHERE token_digest = $1',
+      [createHash('sha256').update(hub.sessionToken).digest()])).rows[0]
+    const opened = await row()
+    assert.match(opened.provider_refresh_token, /^mastra:factory-secret:v1:/)
+    assert.equal(await envelope.open(opened.provider_refresh_token), 'refresh-hub-owner')
+    assert.equal(opened.idle_expires_at.getTime(), at(30 * 60 * 1000).getTime())
+    assert.equal(opened.absolute_expires_at.getTime(), at(8 * 60 * 60 * 1000).getTime())
+
+    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: 'w'.repeat(43), requireCsrf: true, now: at(60_000) }), null, 'a wrong CSRF token')
+    assert.equal((await row()).idle_expires_at.getTime(), at(30 * 60 * 1000).getTime(), 'a refused request does not slide the idle limit')
+    const current = await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken, requireCsrf: true, now: at(20 * 60 * 1000) })
+    assert.deepEqual(current.account.accountId, owner)
+    assert.equal((await row()).idle_expires_at.getTime(), at(50 * 60 * 1000).getTime(), 'a request slides the idle limit')
+    for (let minute = 45; minute < 8 * 60; minute += 25) assert.ok(await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(minute * 60 * 1000) }), `minute ${minute}`)
+    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(8 * 60 * 60 * 1000) }), null, 'eight hours, however active')
+    assert.deepEqual({ ...(await row()), idle_expires_at: undefined, absolute_expires_at: undefined },
+      { provider_refresh_token: null, ended_reason: 'EXPIRED', idle_expires_at: undefined, absolute_expires_at: undefined })
+
+    const idle = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-hub-idle', now: T0 })
+    assert.equal(await sessions.resolveHub({ sessionToken: idle.sessionToken, now: at(30 * 60 * 1000) }), null, 'thirty minutes without a request')
+    assert.deepEqual(await refusal(() => client.query("UPDATE iam.host_session SET idle_expires_at = absolute_expires_at + interval '1 second' WHERE kind = 'HUB'")),
+      { code: '23514', message: 'new row for relation "host_session" violates check constraint "host_session_hub_check"' })
+  })
+
   await t.test('a Preview lives in the database: another Hub serves it, it dies with the Hub session that opened it, and its handoff survives the wrong host', async () => {
     const artifactRevisionId = randomUUID()
     const exactHost = `preview-${artifactRevisionId}.conexus.localhost`
@@ -443,8 +467,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       accountId: owner, projectId, sourceRevision: 'a'.repeat(40), artifactRevisionId, artifactDigest: 'b'.repeat(64), exactHost,
       manifest: { entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] },
     }
-    const hub = await hubStore.createSession({ accountId: owner, now: T0 })
-    const other = await hubStore.createSession({ accountId: control, now: T0 })
+    const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-owner', now: T0 })
+    const other = await sessions.openHub({ accountId: control, refreshToken: 'refresh-control', now: T0 })
     assert.equal(await sessions.openPreview({ hubSessionToken: other.sessionToken, launch, now: T0 }), null, 'a Hub session opens Previews only for its own Account')
 
     const opened = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
@@ -470,7 +494,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
     const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
     assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
-    assert.equal(await hubStore.endSession(hub.sessionToken, at(6_000)), true)
+    await sessions.endHub(hub.sessionToken)
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
     assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
       [{ ended_reason: 'PARENT_ENDED' }])
@@ -571,10 +595,10 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   await t.test('an app-only Account that joins a Workspace becomes a Control Plane Account, and drops back when removed', async () => {
     await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [employeeId, workspaceId, 'member'])
     assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'CONTROL_PLANE')
-    const hubSession = await hubStore.createSession({ accountId: employeeId })
-    assert.ok(await hubStore.validateSession({ sessionToken: hubSession.sessionToken }))
+    const hubSession = await sessions.openHub({ accountId: employeeId, refreshToken: 'refresh-member' })
+    assert.ok(await sessions.resolveHub({ sessionToken: hubSession.sessionToken }))
     await client.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [employeeId])
-    assert.equal(await hubStore.validateSession({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
+    assert.equal(await sessions.resolveHub({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
   })
 
   await t.test('resolving a session takes no row lock: a request is not held behind another that locks the session', async () => {

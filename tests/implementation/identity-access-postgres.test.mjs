@@ -9,6 +9,8 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 const { Client } = pg
 const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
 const { createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
+const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const required = (name) => {
   const value = process.env[name]
   if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
@@ -72,7 +74,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   const administrators = async () => (await installedAdmin.query('SELECT account_id, granted_via FROM iam.installation_administrator')).rows
   assert.deepEqual(await administrators(), [{ account_id: replacement.accountId, granted_via: 'OPERATOR_BOOTSTRAP' }])
   await installedAdmin.query('DELETE FROM iam.installation_administrator')
-  await installedAdmin.query('DELETE FROM iam.session')
+  await installedAdmin.query('DELETE FROM iam.host_session')
   await installedAdmin.query('DELETE FROM iam.account')
   await installedAdmin.end()
   const bootstrapToken = await store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'subject-1', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' })
@@ -105,16 +107,21 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
     store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'uninvited', verifiedEmail: 'uninvited@example.test', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
     (error) => error.code === 'IDENTITY_NOT_ELIGIBLE',
   )
-  const established = await store.createSession({ accountId: first.accountId })
-  assert.ok(await store.validateSession({ sessionToken: established.sessionToken }))
-  assert.equal(await store.validateSession({ sessionToken: established.sessionToken, csrfToken: 'wrong', requireCsrf: true }), null)
-  assert.ok(await store.validateSession({ sessionToken: established.sessionToken, csrfToken: established.csrfToken, requireCsrf: true }))
+  const envelope = createSecretEnvelope('ab'.repeat(32))
+  const hubPool = createPostgresPool(runtimeConnection)
+  let hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
+  const established = await hub.openHub({ accountId: first.accountId, refreshToken: 'refresh-1' })
+  assert.ok(await hub.resolveHub({ sessionToken: established.sessionToken }))
+  assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken, csrfToken: 'w'.repeat(43), requireCsrf: true }), null)
+  assert.ok(await hub.resolveHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken, requireCsrf: true }))
   await store.close()
 
   store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
-  assert.ok(await store.validateSession({ sessionToken: established.sessionToken }))
-  assert.equal(await store.endSession(established.sessionToken), true)
-  assert.equal(await store.validateSession({ sessionToken: established.sessionToken }), null)
+  hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
+  assert.ok(await hub.resolveHub({ sessionToken: established.sessionToken }))
+  await hub.endHub(established.sessionToken)
+  assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken }), null)
+  await hubPool.end()
 
   const denied = new Client(runtimeConnection)
   await denied.connect()

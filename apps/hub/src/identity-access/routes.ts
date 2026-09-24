@@ -27,13 +27,15 @@ export type IdentityAccessRouteDependencies = Readonly<{
   oidc: OidcAdapter
   config: Readonly<{ origin: string; bootstrapIssuer: string; bootstrapSubject: string }>
   resolveCurrentSession: ResolveCurrentSession
+  /** Opens a Hub session at sign-in and ends it at sign-out. */
+  hubSessions: Pick<HostSessions, 'openHub' | 'endHub'>
   /** Present when the installation serves applications: sign-ins that begin at an application host. */
-  applications?: Readonly<{ sessions: HostSessions; origin: (slug: string) => string }>
+  applications?: Readonly<{ sessions: Pick<HostSessions, 'applicationBySlug' | 'signIn'>; origin: (slug: string) => string }>
 }>
 
 export const registerIdentityAccessRoutes = async (
   app: FastifyInstance,
-  { store, workspaceReader, oidc, config, resolveCurrentSession, applications }: IdentityAccessRouteDependencies,
+  { store, workspaceReader, oidc, config, resolveCurrentSession, hubSessions, applications }: IdentityAccessRouteDependencies,
 ): Promise<readonly S1OwnerId[]> => {
   // An application host starts a sign-in with its slug and the digest of a binding only that browser
   // holds. Both or neither: the Hub's own sign-in takes no parameter.
@@ -92,7 +94,8 @@ export const registerIdentityAccessRoutes = async (
       }
       if (account) {
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
-        const established = await store.createSession({ accountId: account.accountId })
+        // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
+        const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
         return reply
           .setCookie(SESSION_COOKIE, established.sessionToken, cookieOptions)
           .setCookie(CSRF_COOKIE, established.csrfToken, visibleCookieOptions)
@@ -136,7 +139,7 @@ export const registerIdentityAccessRoutes = async (
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
       const sessionToken = request.cookies[SESSION_COOKIE]
       if (!sessionToken) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      await store.endSession(sessionToken)
+      await hubSessions.endHub(sessionToken)
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)
         .clearCookie(CSRF_COOKIE, clearCookieOptions)

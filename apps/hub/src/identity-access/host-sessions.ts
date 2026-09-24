@@ -4,6 +4,9 @@ import { parseCaller } from '../platform/caller.js'
 import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
+import { accountId as brandAccountId } from './current-session.js'
+import type { CurrentSession } from './current-session.js'
+import { identityAccessError } from './errors.js'
 import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
 /** A request on an application or Preview host: signed in, sent to sign in, or refused because Keycloak could not be asked. */
@@ -52,7 +55,15 @@ const digest = (value: string): Buffer => createHash('sha256').update(value).dig
 const opaque = (): string => randomBytes(32).toString('base64url')
 const secondsUntil = (end: Date, now: Date): number => Math.max(1, Math.floor((end.getTime() - now.getTime()) / 1000))
 
+export type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>
+
 export type HostSessions = Readonly<{
+  /** Opens a Hub session for an active Control Plane Account, keeping the sign-in's Keycloak refresh token sealed. */
+  openHub(input: Readonly<{ accountId: string; refreshToken: string | null; now?: Date }>): Promise<HubSessionTokens>
+  /** A Hub request's session; with a CSRF token, the request must carry the session's own. Slides the idle limit. */
+  resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; requireCsrf?: boolean; now?: Date }>): Promise<CurrentSession | null>
+  /** Signs out of the Hub, and ends the Previews this session opened. */
+  endHub(sessionToken: string): Promise<void>
   applicationBySlug(slug: string): Promise<string | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
@@ -77,6 +88,16 @@ type ApplicationRow = QueryResultRow & {
   subject: string
   provider_checked_at: Date
   /** The sealed refresh token, present only when the five-minute Keycloak check is due. */
+  due_provider_refresh_token: string | null
+}
+
+type HubRow = QueryResultRow & {
+  account_id: string
+  issuer: string
+  subject: string
+  display_name: string
+  email: string | null
+  provider_checked_at: Date
   due_provider_refresh_token: string | null
 }
 
@@ -105,16 +126,9 @@ export const createHostSessions = ({
 }: Readonly<{
   pool: PostgresPool
   refresh: (input: Readonly<{ refreshToken: string; expectedSubject: string }>) => Promise<ProviderCheck>
-  /**
-   * Seals the Keycloak refresh token of an application sign-in; the database refuses any other value.
-   * Absent when the installation serves no applications, and then only Previews are opened.
-   */
-  envelope: SecretEnvelope | undefined
+  /** Seals the Keycloak refresh token of a sign-in for the handoff and the session; the database refuses any other value. */
+  envelope: SecretEnvelope
 }>): HostSessions => {
-  const sealer = (): SecretEnvelope => {
-    if (!envelope) throw new Error('APPLICATION_ENVELOPE_MISSING')
-    return envelope
-  }
   const end = (sessionDigest: Buffer, reason: string) => pool.query('SELECT iam.end_host_session($1, $2)', [sessionDigest, reason])
 
   const resolveApplication = async (sessionDigest: Buffer, projectId: string, now: Date): Promise<ApplicationRow | undefined> => {
@@ -129,7 +143,7 @@ export const createHostSessions = ({
   const checkProvider = async (sessionDigest: Buffer, projectId: string, row: ApplicationRow, sealed: string, now: Date): Promise<ApplicationAuthority | null> => {
     let refreshToken: string
     try {
-      refreshToken = await sealer().open(sealed)
+      refreshToken = await envelope.open(sealed)
     } catch {
       // Sealed under a key this installation no longer holds: the token left its custody.
       await end(sessionDigest, 'CUSTODY_CHANGED')
@@ -142,7 +156,7 @@ export const createHostSessions = ({
       return { kind: 'SIGN_IN_REQUIRED' }
     }
     const recorded = await pool.query<QueryResultRow & { recorded: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS recorded',
-      [sessionDigest, row.provider_checked_at, await sealer().seal(check.refreshToken), now])
+      [sessionDigest, row.provider_checked_at, await envelope.seal(check.refreshToken), now])
     // False: the session ended while Keycloak answered, or another request recorded this check first.
     // The loser of that race is still served, so only the session in the database decides.
     if (!recorded.rows[0]?.recorded && !await resolveApplication(sessionDigest, projectId, now)) return { kind: 'SIGN_IN_REQUIRED' }
@@ -157,6 +171,38 @@ export const createHostSessions = ({
   }
 
   return Object.freeze({
+    async openHub({ accountId, refreshToken, now = new Date() }) {
+      if (!refreshToken) throw new Error('HUB_REFRESH_TOKEN_MISSING')
+      const sessionToken = opaque()
+      const csrfToken = opaque()
+      const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4, $5) AS outcome',
+        [digest(sessionToken), digest(csrfToken), accountId, await envelope.seal(refreshToken), now])
+      const outcome = opened.rows[0]?.outcome
+      if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw identityAccessError(outcome)
+      if (outcome !== 'OPENED') throw new Error('HUB_SESSION_NOT_OPENED')
+      return { sessionToken, csrfToken }
+    },
+
+    async resolveHub({ sessionToken, csrfToken, requireCsrf = false, now = new Date() }) {
+      if (!parseOpaqueToken(sessionToken)) return null
+      if (requireCsrf && !parseOpaqueToken(csrfToken)) return null
+      const resolved = await pool.query<HubRow>(
+        'SELECT account_id, issuer, subject, display_name, email, provider_checked_at, due_provider_refresh_token FROM iam.resolve_hub_session($1, $2, $3)',
+        [digest(sessionToken), requireCsrf && csrfToken ? digest(csrfToken) : null, now])
+      const row = resolved.rows[0]
+      if (!row) return null
+      return {
+        account: { accountId: brandAccountId(row.account_id), displayName: row.display_name, ...(row.email ? { email: row.email } : {}) },
+        issuer: row.issuer,
+        subject: row.subject,
+      }
+    },
+
+    async endHub(sessionToken) {
+      if (!parseOpaqueToken(sessionToken)) return
+      await end(digest(sessionToken), 'SIGNED_OUT')
+    },
+
     async applicationBySlug(slug) {
       if (!parseApplicationSlug(slug)) return null
       const result = await pool.query<QueryResultRow & { project_id: string | null }>('SELECT iam.application_by_slug($1) AS project_id', [slug])
@@ -178,7 +224,7 @@ export const createHostSessions = ({
       const handoff = opaque()
       const minted = await pool.query<QueryResultRow & { minted: boolean }>(
         'SELECT iam.mint_application_handoff($1, $2, $3, $4, $5, $6) AS minted',
-        [accountId, projectId, digest(handoff), bindingDigest, await sealer().seal(identity.refreshToken), now])
+        [accountId, projectId, digest(handoff), bindingDigest, await envelope.seal(identity.refreshToken), now])
       return minted.rows[0]?.minted ? { kind: 'HANDOFF', slug, handoff } : { kind: 'NO_ACCESS', slug }
     },
 

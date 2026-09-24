@@ -37,6 +37,7 @@ const applicationAccessReviewDigest = 'c8d5f024ce4e83f66cfe6c6f304060d45ef7fd68b
 const applicationAccessVerificationDigest = '5c31112ec06e7d69bd43ad40b4a4cdb77405ec92dd7bff3060def078672d7f62'
 const providerCheckCompareAndSetDigest = '36f9da08d53af5df645b8a3c4d3bda122c47fb1379f6601c81b961efdc00adbc'
 const oneHandoffHostSessionsDigest = '4209718538a3779342f3afcfc4b5ccc815de26cf0bf225d916f0d96f3cbb7b32'
+const hubHostSessionDigest = '574b2331fb26f34305749b14d2ac14c9fb5dbbf4b38f19a327b156112ce2033f'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -66,6 +67,7 @@ const migrationDigests = new Map([
   ['0025_application_access_verification.sql', applicationAccessVerificationDigest],
   ['0026_provider_check_compare_and_set.sql', providerCheckCompareAndSetDigest],
   ['0027_one_handoff_host_sessions.sql', oneHandoffHostSessionsDigest],
+  ['0028_hub_host_session.sql', hubHostSessionDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
