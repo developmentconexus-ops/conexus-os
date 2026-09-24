@@ -54,5 +54,9 @@ export const isConnectorConnectionNotAvailable = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
   'message' in error && error.message === 'CONNECTOR_CONNECTION_NOT_AVAILABLE'
 
+// A retry that differs from the stored row, or a second open Connection of the same Connector in one
+// Workspace (the partial unique index connection_open_key).
 export const isConnectorConnectionConflict = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && 'message' in error && error.message === 'CONNECTOR_CONNECTION_CONFLICT'
+  typeof error === 'object' && error !== null && (
+    ('message' in error && error.message === 'CONNECTOR_CONNECTION_CONFLICT') ||
+    ('code' in error && error.code === '23505' && 'constraint' in error && error.constraint === 'connection_open_key'))

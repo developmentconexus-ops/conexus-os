@@ -97,6 +97,19 @@ test('an installation administrator lists, creates and disables a Workspace Conn
   assert.deepEqual(store.calls.at(-1), { name: 'disableConnection', input: { actor: adminAccountId, workspaceId, connectionId } })
 })
 
+test('a second open Connection of the same Connector in the Workspace answers 409, not a server error', async (t) => {
+  const openExists = () => Object.assign(new Error('duplicate key value violates unique constraint "connection_open_key"'), { code: '23505', constraint: 'connection_open_key' })
+  const app = await makeApp(makeStore({ async createConnection() { throw openExists() } }))
+  t.after(() => app.close())
+  const created = await app.inject({
+    method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
+    payload: { connectionId, connectorId: 'sankhya', label: 'Segunda', credential },
+  })
+  assert.equal(created.statusCode, 409)
+  assert.equal(created.json().type.endsWith('connector-connection-conflict'), true)
+  bodyHasNoCredential(created.json())
+})
+
 test('the credential fields are writeOnly: a malformed credential is refused before the store, and every field name stays out of every response', async (t) => {
   const store = makeStore()
   const app = await makeApp(store)

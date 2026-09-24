@@ -80,7 +80,11 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
         ))}
       </ul>
     )}
-    <CreateConnectionForm workspaceId={workspaceId} onCreated={refresh} />
+    {connections.data.some((connection) => connection.connectorId === 'sankhya' && !connection.disabledAt) ? (
+      <p className="cx-field-hint">Para trocar a credencial, desative a conexão ativa e adicione outra.</p>
+    ) : (
+      <CreateConnectionForm workspaceId={workspaceId} onCreated={refresh} />
+    )}
   </section>
 }
 

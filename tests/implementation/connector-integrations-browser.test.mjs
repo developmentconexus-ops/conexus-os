@@ -192,11 +192,10 @@ test('an installation administrator and Owner adds a Connection and grants an op
   await page.getByLabel('Client secret').fill(CREDENTIAL.clientSecret)
   await page.getByLabel('X-Token').fill(CREDENTIAL.xToken)
   await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
-  await page.getByText('Conexão adicionada.').waitFor()
   await page.getByText('ERP de teste').waitFor()
-
-  const clearedValues = await page.$$eval('input[name="clientId"], input[name="clientSecret"], input[name="xToken"]', (inputs) => inputs.map((input) => input.value))
-  assert.deepEqual(clearedValues, ['', '', ''], 'the credential fields are cleared right after submit')
+  await page.getByText('Para trocar a credencial, desative a conexão ativa e adicione outra.').waitFor()
+  assert.equal(await page.locator('input[name="clientId"], input[name="clientSecret"], input[name="xToken"]').count(), 0,
+    'with a Connection open, the credential form is gone, so no field can hold a value')
 
   await page.getByRole('button', { name: 'Testar' }).click()
   await page.getByText('O conector ainda não está configurado no servidor.').waitFor()

@@ -94,7 +94,7 @@ export function isConnectorAdminRequired(error: unknown): boolean {
 
 export function workspaceConnectionsMessage(error: unknown): string {
   if (!(error instanceof ConnectorRequestError)) return 'A alteração não foi confirmada.'
-  if (error.status === 409) return 'Já existe uma conexão com este identificador e outros dados.'
+  if (error.status === 409) return 'Este Workspace já tem uma conexão Sankhya ativa.'
   if (error.status === 422) return 'As credenciais informadas não foram aceitas.'
   return 'A alteração não foi confirmada.'
 }
