@@ -228,6 +228,37 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject = 'race-sub'")).rows[0].n, 1)
   })
 
+  await t.test('a first sign-in that loses the race between looking the identity up and reading its invitation still gets the Account', async () => {
+    await grantAccess(projectId, 'intercalada@application.test')
+    const provision = (connection) => connection.query('SELECT iam.provision_application_account($1, $2, $3, $4, $5) AS account_id',
+      [randomUUID(), 'https://application.test', 'interleave-sub', 'intercalada@application.test', 'Intercalada'])
+    const winner = new pg.Client(connection)
+    const loser = new pg.Client(connection)
+    await winner.connect()
+    await loser.connect()
+    try {
+      // The winner holds the invitations, so the loser looks the identity up, finds no Account, and
+      // then waits to read its invitation while the winner provisions the Account and claims it.
+      await winner.query('BEGIN')
+      await winner.query('LOCK TABLE iam.application_invitation IN ACCESS EXCLUSIVE MODE')
+      const loserPid = (await loser.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const lost = provision(loser)
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [loserPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the loser never reached the invitation read')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      const accountId = (await provision(winner)).rows[0].account_id
+      await winner.query('SELECT iam.claim_application_invitations($1, $2)', [accountId, 'intercalada@application.test'])
+      await winner.query('COMMIT')
+      assert.equal((await lost).rows[0].account_id, accountId)
+    } finally {
+      await winner.end()
+      await loser.end()
+    }
+  })
+
   await t.test('a handoff dies on first use, on the wrong binding, on another application and after sixty seconds', async () => {
     const redeem = async (handoff, overrides = {}) => sessions.redeem({ handoff, projectId, binding, now: at(1_000), ...overrides })
     const fresh = async () => (await signIn(employee, employeeId)).handoff
