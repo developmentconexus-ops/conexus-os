@@ -100,6 +100,14 @@ test('a nested AGENTS.md over 30 lines fails; the root AGENTS.md over 60 lines o
   assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 31 lines exceeds the cap of 30\n')
 })
 
+test('a skill over 90 lines fails, the conexus-development skill included', context => {
+  const skill = '.agents/skills/conexus-development/SKILL.md'
+  const candidate = fixture(context, { [skill]: lines(91) })
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${skill}: 91 lines exceeds the cap of 90\n`)
+})
+
 test('the vendored Mastra skill is not checked against this package.json', context => {
   const candidate = fixture(context, { '.agents/skills/mastra/SKILL.md': 'Run `npm run dev` in your Mastra project.\n' })
   const result = run(candidate)
