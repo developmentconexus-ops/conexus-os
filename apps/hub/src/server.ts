@@ -40,7 +40,7 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
-  applicationPort: config.application?.port,
+  application: config.application,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
@@ -116,7 +116,7 @@ const mar = config.preview ? createMarModule({
     },
   } : {}),
   ...(config.application && identityAccess.applicationSessions && servedApplications ? {
-    applicationHost: { sessions: identityAccess.applicationSessions, reader: servedApplications, applicationPort: config.application.port },
+    applicationHost: { sessions: identityAccess.applicationSessions, reader: servedApplications, application: config.application },
   } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {

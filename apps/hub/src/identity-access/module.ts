@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { S1OwnerId } from '../generated/s1-routes.js'
+import { applicationOrigin } from '../platform/config.js'
+import type { ApplicationAddress } from '../platform/config.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
 import { createApplicationSessions } from './application-session.js'
@@ -35,7 +37,7 @@ export const createIdentityAccessModule = async ({
   clientId,
   clientSecret,
   bootstrapSubject,
-  applicationPort,
+  application,
   allowInsecureForTest = false,
 }: Readonly<{
   pool: PostgresPool
@@ -45,7 +47,7 @@ export const createIdentityAccessModule = async ({
   clientId: string
   clientSecret: string
   bootstrapSubject: string
-  applicationPort: number | undefined
+  application: ApplicationAddress | undefined
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
@@ -61,8 +63,8 @@ export const createIdentityAccessModule = async ({
     redirectUri: new URL('/protocol/oidc/callback', origin).href,
     allowInsecureForTest,
   })
-  const applicationOrigin = (slug: string): string => `https://${slug}.conexus.localhost:${applicationPort}`
-  const applicationSessions = applicationPort ? createApplicationSessions({ pool, refresh: oidc.refresh }) : undefined
+  const originOf = application ? (slug: string): string => applicationOrigin(application, slug) : undefined
+  const applicationSessions = application ? createApplicationSessions({ pool, refresh: oidc.refresh }) : undefined
   const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null
@@ -80,7 +82,7 @@ export const createIdentityAccessModule = async ({
           oidc,
           config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
           resolveCurrentSession,
-          ...(applicationSessions ? { applications: { sessions: applicationSessions, origin: applicationOrigin } } : {}),
+          ...(applicationSessions && originOf ? { applications: { sessions: applicationSessions, origin: originOf } } : {}),
         }),
         ...await registerMembershipRoutes(app, {
           store: membership,
@@ -92,7 +94,7 @@ export const createIdentityAccessModule = async ({
           resolveCurrentSession,
           config: {
             origin,
-            applicationAddress: (slug) => applicationPort ? applicationOrigin(slug) : null,
+            applicationAddress: (slug) => originOf?.(slug) ?? null,
           },
         }),
       ]

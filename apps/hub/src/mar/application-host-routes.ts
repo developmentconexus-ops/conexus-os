@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
+import { applicationOrigin, applicationSlugOfHost } from '../platform/config.js'
+import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { API_BODY_LIMIT, applicationContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT, strictOrigin } from './preview-routes.js'
 
@@ -40,20 +42,11 @@ export type ApplicationHostDependencies = Readonly<{
   reader: ApplicationHostReader
   invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
-  applicationPort: number
+  application: ApplicationAddress
   now?: () => Date
 }>
 
-const DOMAIN = 'conexus.localhost'
 const sha256 = (value: string | Uint8Array): Buffer => createHash('sha256').update(value).digest()
-
-/** The host header is the only application selector: `<slug>.conexus.localhost:<port>`, exactly. */
-export const parseApplicationHost = (host: string | undefined, port: number): string | null => {
-  const suffix = `.${DOMAIN}:${port}`
-  if (typeof host !== 'string' || !host.endsWith(suffix)) return null
-  const slug = host.slice(0, -suffix.length)
-  return /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/.test(slug) && !slug.includes('--') ? slug : null
-}
 
 const page = (title: string, text: string): string =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`
@@ -68,7 +61,6 @@ export const registerApplicationHostRoutes = async (
   dependencies: ApplicationHostDependencies,
 ): Promise<readonly ['MAR-Application']> => {
   const now = dependencies.now ?? (() => new Date())
-  const originOf = (slug: string): string => `https://${slug}.${DOMAIN}:${dependencies.applicationPort}`
   const cookieOptions = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const }
 
   // Every answer: never framed, never cached, no referrer, and no CORS grant to anyone.
@@ -81,7 +73,7 @@ export const registerApplicationHostRoutes = async (
 
   type Resolved = Readonly<{ slug: string; projectId: string }>
   const application = async (request: FastifyRequest): Promise<Resolved | null> => {
-    const slug = parseApplicationHost(request.headers.host, dependencies.applicationPort)
+    const slug = applicationSlugOfHost(dependencies.application, request.headers.host)
     if (!slug) return null
     const projectId = await dependencies.sessions.applicationBySlug(slug)
     return projectId ? { slug, projectId } : null
@@ -118,14 +110,14 @@ export const registerApplicationHostRoutes = async (
   })
 
   app.get('/__conexus/no-access', async (request, reply) => {
-    if (!parseApplicationHost(request.headers.host, dependencies.applicationPort)) return reply.code(404).send()
+    if (!applicationSlugOfHost(dependencies.application, request.headers.host)) return reply.code(404).send()
     return html(reply, 403, NO_ACCESS)
   })
 
   app.post('/__conexus/sign-out', async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    if (!strictOrigin(request.headers.origin, originOf(target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
+    if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     const sessionToken = request.cookies[SESSION_COOKIE]
     if (sessionToken) await dependencies.sessions.signOut(sessionToken)
     return reply.clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' }).code(204).send()
@@ -134,9 +126,9 @@ export const registerApplicationHostRoutes = async (
   app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, async (request, reply) => {
     const target = await application(request)
     if (!target) return refuse(reply, 404, 'APPLICATION_NOT_FOUND')
-    // Every *.conexus.localhost host is one site, so SameSite does not stop a sibling application's
+    // Every application host under the domain is one site, so SameSite does not stop a sibling application's
     // POST. The exact Origin of this application's own host is the only admission.
-    if (!strictOrigin(request.headers.origin, originOf(target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
+    if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(reply, 415, 'CONTENT_TYPE_REFUSED')
     const authority = await dependencies.sessions.authority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return refuse(reply, 503, 'IDENTITY_PROVIDER_UNAVAILABLE')

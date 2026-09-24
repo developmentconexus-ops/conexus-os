@@ -7,9 +7,9 @@ export type HubConfig = Readonly<{
   origin: string
   port: number
   preview: Readonly<{ port: number; certFile: string; keyFile: string }> | undefined
-  // Each Project's application is served at https://<slug>.conexus.localhost:<port>, with the Preview's
+  // Each Project's application is served at applicationOrigin(application, slug), with the Preview's
   // certificate. Its own listener keeps it apart from the Preview's frame and CORS policy.
-  application: Readonly<{ port: number }> | undefined
+  application: ApplicationAddress | undefined
   bootstrapSubject: string
   database: Readonly<{
     host: string
@@ -35,6 +35,26 @@ export type HubConfig = Readonly<{
   appRunner: Readonly<{ socketPath: string }> | undefined
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
+
+/** Where applications are served: `<slug>.<domain>` on one port. */
+export type ApplicationAddress = Readonly<{ port: number; domain: string }>
+
+const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
+const DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
+
+// A browser leaves the default port out of both Host and Origin.
+const authority = ({ port, domain }: ApplicationAddress, slug: string): string => port === 443 ? `${slug}.${domain}` : `${slug}.${domain}:${port}`
+
+/** The one origin of an application: its sign-in return, its address in the Hub and its API's only admitted Origin. */
+export const applicationOrigin = (address: ApplicationAddress, slug: string): string => `https://${authority(address, slug)}`
+
+/** The Host header is the only application selector, and it must be exactly one application's authority. */
+export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): string | null => {
+  const suffix = authority(address, '')
+  if (typeof host !== 'string' || !host.endsWith(suffix)) return null
+  const slug = host.slice(0, -suffix.length)
+  return SLUG.test(slug) && !slug.includes('--') ? slug : null
+}
 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
@@ -237,11 +257,15 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
 
 const applicationRuntime = (environment: NodeJS.ProcessEnv, hubPort: number, preview: HubConfig['preview']): HubConfig['application'] => {
   const portValue = environment.CONEXUS_APPLICATION_PORT
-  if (!portValue) return undefined
+  const domain = environment.CONEXUS_APPLICATION_DOMAIN
+  if (!portValue && !domain) return undefined
+  if (!portValue) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_PORT')
+  if (!domain) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_DOMAIN')
+  if (!DOMAIN.test(domain)) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN')
   if (!preview) throw new Error('APPLICATION_PREVIEW_RUNTIME_REQUIRED')
   const applicationPort = port(portValue, 'CONEXUS_APPLICATION_PORT')
   if (applicationPort === hubPort || applicationPort === preview.port) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_PORT')
-  return { port: applicationPort }
+  return { port: applicationPort, domain }
 }
 
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
@@ -287,6 +311,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw new Error('FACTORY_BUILDER_RUNTIME_REQUIRED')
   if (config.googleAiPro && !config.factory) throw new Error('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED')
+  // The application host reads what it serves as the Builder executor; without it the listener never starts.
+  if (config.application && !config.builder) throw new Error('APPLICATION_BUILDER_RUNTIME_REQUIRED')
   // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   return config
