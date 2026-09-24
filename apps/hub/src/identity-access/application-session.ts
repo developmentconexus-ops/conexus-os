@@ -3,7 +3,8 @@ import type { QueryResultRow } from 'pg'
 import { parseCaller } from '../platform/caller.js'
 import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
-import type { CompletedSignIn, ProviderCheck } from './oidc.js'
+import type { SecretEnvelope } from '../platform/secrets.js'
+import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
 export type ApplicationAuthority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
@@ -33,7 +34,6 @@ type ResolvedRow = QueryResultRow & {
   display_name: string
   subject: string
   provider_checked_at: Date
-  provider_refresh_token: string
 }
 
 export type ApplicationSessions = Readonly<{
@@ -45,22 +45,42 @@ export type ApplicationSessions = Readonly<{
   signOut(sessionToken: string): Promise<void>
 }>
 
+const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
+  USER_DISABLED: 'PROVIDER_USER_DISABLED',
+  SESSION_ENDED: 'PROVIDER_SESSION_ENDED',
+  REFUSED: 'PROVIDER_REFUSED',
+})
+
 export const createApplicationSessions = ({
   pool,
   refresh,
+  envelope,
 }: Readonly<{
   pool: PostgresPool
   refresh: (input: Readonly<{ refreshToken: string; expectedSubject: string }>) => Promise<ProviderCheck>
+  /** Seals the Keycloak refresh token for the handoff and the session; the database refuses any other value. */
+  envelope: SecretEnvelope
 }>): ApplicationSessions => {
-  // One Keycloak refresh per session at a time: two requests that find the check due share it, so a
-  // rotated refresh token is never spent twice.
-  const checks = new Map<string, Promise<ProviderCheck>>()
-  const checkOnce = (key: string, run: () => Promise<ProviderCheck>): Promise<ProviderCheck> => {
-    const pending = checks.get(key)
-    if (pending) return pending
-    const started = run().finally(() => checks.delete(key))
-    checks.set(key, started)
-    return started
+  // Keycloak rotates the refresh token and refuses a reused one. The database hands the sealed token
+  // to the one request that claims the due check, on any Hub, and that request stores the rotated
+  // token in the statement that releases the claim. Every other request that finds the check due
+  // meanwhile proceeds on the session it resolved.
+  const checkProvider = async (sessionDigest: Buffer, subject: string, now: Date): Promise<ApplicationAuthority | null> => {
+    const claim = randomUUID()
+    const claimed = await pool.query<QueryResultRow & { token: string | null }>('SELECT iam.claim_provider_check($1, $2, $3) AS token', [sessionDigest, claim, now])
+    const sealed = claimed.rows[0]?.token
+    if (!sealed) return null
+    const check = await refresh({ refreshToken: await envelope.open(sealed), expectedSubject: subject })
+    if (check.kind === 'UNAVAILABLE') {
+      await pool.query('SELECT iam.release_provider_check($1, $2)', [sessionDigest, claim])
+      return { kind: 'PROVIDER_UNAVAILABLE' }
+    }
+    if (check.kind === 'REFUSED') {
+      await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, ENDED_BY[check.reason]])
+      return { kind: 'SIGN_IN_REQUIRED' }
+    }
+    await pool.query('SELECT iam.record_provider_check($1, $2, $3, $4)', [sessionDigest, claim, await envelope.seal(check.refreshToken), now])
+    return null
   }
 
   const slugOf = async (projectId: string): Promise<string> => {
@@ -93,7 +113,7 @@ export const createApplicationSessions = ({
       const handoff = opaque()
       const minted = await pool.query<QueryResultRow & { minted: boolean }>(
         'SELECT iam.mint_application_handoff($1, $2, $3, $4, $5, $6) AS minted',
-        [accountId, projectId, digest(handoff), bindingDigest, identity.refreshToken, now])
+        [accountId, projectId, digest(handoff), bindingDigest, await envelope.seal(identity.refreshToken), now])
       return minted.rows[0]?.minted ? { kind: 'HANDOFF', slug, handoff } : { kind: 'NO_ACCESS', slug }
     },
 
@@ -111,19 +131,13 @@ export const createApplicationSessions = ({
       if (!sessionToken || !parseOpaqueToken(sessionToken)) return { kind: 'SIGN_IN_REQUIRED' }
       const sessionDigest = digest(sessionToken)
       const resolved = await pool.query<ResolvedRow>(
-        'SELECT account_id, email, display_name, subject, provider_checked_at, provider_refresh_token FROM iam.resolve_application_session($1, $2, $3)',
+        'SELECT account_id, email, display_name, subject, provider_checked_at FROM iam.resolve_application_session($1, $2, $3)',
         [sessionDigest, projectId, now])
       const row = resolved.rows[0]
       if (!row) return { kind: 'SIGN_IN_REQUIRED' }
       if (providerCheckDue(row.provider_checked_at, now)) {
-        const check = await checkOnce(sessionDigest.toString('hex'), () => refresh({ refreshToken: row.provider_refresh_token, expectedSubject: row.subject }))
-        if (check.kind === 'UNAVAILABLE') return { kind: 'PROVIDER_UNAVAILABLE' }
-        if (check.kind === 'REFUSED') {
-          await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, 'PROVIDER_REFUSED'])
-          return { kind: 'SIGN_IN_REQUIRED' }
-        }
-        // A concurrent request that shared this check records the same answer; one write wins.
-        await pool.query('SELECT iam.record_provider_check($1, $2, $3, $4)', [sessionDigest, row.provider_checked_at, check.refreshToken, now])
+        const refused = await checkProvider(sessionDigest, row.subject, now)
+        if (refused) return refused
       }
       const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
       if (!caller) throw new Error('APPLICATION_CALLER_UNRESOLVABLE')

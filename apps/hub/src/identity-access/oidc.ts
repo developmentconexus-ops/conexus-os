@@ -10,11 +10,25 @@ export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
 /** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
 export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
+/**
+ * Why Keycloak refused a refresh, as far as its answer says: the user is disabled, the SSO session
+ * ended (idle or maximum lifetime, or signed out in Keycloak), or anything else (a stale or reused
+ * token, another subject). Keycloak says so only in error_description, so this names the ending and
+ * never decides authority.
+ */
+export type ProviderRefusal = 'USER_DISABLED' | 'SESSION_ENDED' | 'REFUSED'
 /** Keycloak's answer to a refresh: the person is still signed in, was refused, or could not be asked. */
 export type ProviderCheck =
   | Readonly<{ kind: 'ACTIVE'; refreshToken: string }>
-  | Readonly<{ kind: 'REFUSED' }>
+  | Readonly<{ kind: 'REFUSED'; reason: ProviderRefusal }>
   | Readonly<{ kind: 'UNAVAILABLE' }>
+
+// Keycloak 26.7 TokenManager's descriptions for an invalid_grant refresh.
+export const providerRefusal = (description: string | undefined): ProviderRefusal => {
+  if (description === 'User disabled') return 'USER_DISABLED'
+  if (description === 'Session not active' || description === 'Offline session not active' || description === 'Client session not active') return 'SESSION_ENDED'
+  return 'REFUSED'
+}
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
@@ -127,10 +141,12 @@ export const createOidcAdapter = async ({
       try {
         tokens = await oidc.refreshTokenGrant(configuration, refreshToken)
       } catch (error) {
-        return error instanceof oidc.ResponseBodyError && error.error === 'invalid_grant' ? { kind: 'REFUSED' } : { kind: 'UNAVAILABLE' }
+        return error instanceof oidc.ResponseBodyError && error.error === 'invalid_grant'
+          ? { kind: 'REFUSED', reason: providerRefusal(error.error_description) }
+          : { kind: 'UNAVAILABLE' }
       }
       const subject = tokens.claims()?.sub
-      if (subject !== undefined && subject !== expectedSubject) return { kind: 'REFUSED' }
+      if (subject !== undefined && subject !== expectedSubject) return { kind: 'REFUSED', reason: 'REFUSED' }
       return { kind: 'ACTIVE', refreshToken: tokens.refresh_token ?? refreshToken }
     },
     close: () => {

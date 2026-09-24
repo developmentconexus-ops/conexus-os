@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { test } from 'node:test'
 import * as openidClient from 'openid-client'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -43,6 +44,34 @@ test('local OIDC transport is admitted narrowly and closes with its adapter', as
   assert.equal(Object.hasOwn(captured, openidClient.customFetch), true)
   await adapter.close()
   await adapter.close()
+})
+
+test('a refused refresh names why Keycloak refused it: a disabled user, an ended SSO session, or anything else', async (t) => {
+  const descriptions = { 'disabled-token': 'User disabled', 'idle-token': 'Session not active', 'reused-token': 'Maximum allowed refresh token reuse exceeded' }
+  const tokenEndpoint = createServer((request, response) => {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      response.writeHead(400, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'invalid_grant', error_description: descriptions[new URLSearchParams(body).get('refresh_token')] }))
+    })
+  })
+  await new Promise((resolve) => tokenEndpoint.listen(0, '127.0.0.1', resolve))
+  t.after(() => tokenEndpoint.close())
+  const discovery = async (issuer, clientId, clientSecret, _authentication, options) => {
+    const configuration = new openidClient.Configuration({ issuer: issuer.href, token_endpoint: `http://127.0.0.1:${tokenEndpoint.address().port}/token` }, clientId, clientSecret)
+    for (const hook of options.execute) hook(configuration)
+    return configuration
+  }
+  const adapter = await createOidcAdapter({ issuer: 'http://identity.test/realms/r1', clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`, allowInsecureForTest: true }, { discovery })
+  t.after(() => adapter.close())
+  const reasons = []
+  for (const refreshToken of ['disabled-token', 'idle-token', 'reused-token']) reasons.push(await adapter.refresh({ refreshToken, expectedSubject: 'subject' }))
+  assert.deepEqual(reasons, [
+    { kind: 'REFUSED', reason: 'USER_DISABLED' },
+    { kind: 'REFUSED', reason: 'SESSION_ENDED' },
+    { kind: 'REFUSED', reason: 'REFUSED' },
+  ])
 })
 
 const makeStore = ({ eligible = true } = {}) => {

@@ -87,4 +87,121 @@ BEGIN
 END;
 $$;
 
+-- The Keycloak refresh token is sealed at rest with the installation's credential key (the
+-- Factory's AES-256-GCM envelope), in the handoff and in the session, and the database refuses any
+-- other value. Tokens written before 0024 are plaintext: their handoffs go and their sessions end, so
+-- the person signs in again.
+DELETE FROM iam.application_handoff;
+
+ALTER TABLE iam.application_session DROP CONSTRAINT application_session_reason_check;
+ALTER TABLE iam.application_session ADD CONSTRAINT application_session_reason_check CHECK (ended_reason IS NULL OR ended_reason = ANY (ARRAY[
+  'SIGNED_OUT'::text, 'ACCESS_ENDED'::text, 'EXPIRED'::text, 'CUSTODY_CHANGED'::text,
+  'PROVIDER_REFUSED'::text, 'PROVIDER_USER_DISABLED'::text, 'PROVIDER_SESSION_ENDED'::text]));
+
+UPDATE iam.application_session
+SET ended_at = clock_timestamp(), ended_reason = 'CUSTODY_CHANGED', provider_refresh_token = NULL
+WHERE ended_at IS NULL;
+
+ALTER TABLE iam.application_handoff ADD CONSTRAINT application_handoff_token_sealed_check CHECK (provider_refresh_token LIKE 'mastra:factory-secret:v1:%');
+ALTER TABLE iam.application_session ADD CONSTRAINT application_session_token_sealed_check CHECK (provider_refresh_token IS NULL OR provider_refresh_token LIKE 'mastra:factory-secret:v1:%');
+
+-- Keycloak rotates the refresh token and refuses a reused one, so exactly one request may spend a
+-- session's token at a time. A request claims the due check first; the claim is released by storing
+-- the rotated token, by ending the session, or by Keycloak being unreachable. A claim older than a
+-- minute is taken over, since no refresh takes that long.
+ALTER TABLE iam.application_session ADD COLUMN provider_check_claim uuid;
+ALTER TABLE iam.application_session ADD COLUMN provider_check_claimed_at timestamp with time zone;
+ALTER TABLE iam.application_session ADD CONSTRAINT application_session_claim_check CHECK ((provider_check_claim IS NULL) = (provider_check_claimed_at IS NULL));
+
+-- Returns the sealed refresh token to the one request that won the claim, and NULL to every other.
+CREATE FUNCTION iam.claim_provider_check(p_session_digest bytea, p_claim uuid, p_now timestamp with time zone) RETURNS text
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  UPDATE iam.application_session AS session
+  SET provider_check_claim = p_claim, provider_check_claimed_at = p_now
+  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
+    AND session.provider_checked_at <= p_now - interval '5 minutes'
+    AND (session.provider_check_claim IS NULL OR session.provider_check_claimed_at <= p_now - interval '1 minute')
+  RETURNING session.provider_refresh_token;
+$$;
+
+ALTER FUNCTION iam.claim_provider_check(p_session_digest bytea, p_claim uuid, p_now timestamp with time zone) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.claim_provider_check(p_session_digest bytea, p_claim uuid, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.claim_provider_check(p_session_digest bytea, p_claim uuid, p_now timestamp with time zone) TO hub_iam_runtime;
+
+-- The rotated token is stored in the same statement that releases the claim, and only by its holder.
+DROP FUNCTION iam.record_provider_check(p_session_digest bytea, p_previous_checked_at timestamp with time zone, p_refresh_token text, p_now timestamp with time zone);
+
+CREATE FUNCTION iam.record_provider_check(p_session_digest bytea, p_claim uuid, p_refresh_token text, p_now timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  UPDATE iam.application_session AS session
+  SET provider_checked_at = p_now, provider_refresh_token = p_refresh_token,
+    provider_check_claim = NULL, provider_check_claimed_at = NULL
+  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
+    AND session.provider_check_claim = p_claim;
+  RETURN FOUND;
+END;
+$$;
+
+ALTER FUNCTION iam.record_provider_check(p_session_digest bytea, p_claim uuid, p_refresh_token text, p_now timestamp with time zone) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.record_provider_check(p_session_digest bytea, p_claim uuid, p_refresh_token text, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.record_provider_check(p_session_digest bytea, p_claim uuid, p_refresh_token text, p_now timestamp with time zone) TO hub_iam_runtime;
+
+-- Keycloak could not be asked: the token was not spent, so the next request may try again.
+CREATE FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  UPDATE iam.application_session AS session
+  SET provider_check_claim = NULL, provider_check_claimed_at = NULL
+  WHERE session.token_digest = p_session_digest AND session.provider_check_claim = p_claim;
+$$;
+
+ALTER FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) TO hub_iam_runtime;
+
+-- Resolution no longer hands out the refresh token: only the holder of a claim receives it.
+DROP FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone);
+
+CREATE FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) RETURNS TABLE(account_id uuid, email text, display_name text, subject text, provider_checked_at timestamp with time zone, absolute_expires_at timestamp with time zone)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  found_session iam.application_session%ROWTYPE;
+BEGIN
+  SELECT session.* INTO found_session FROM iam.application_session AS session
+  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR found_session.project_id <> p_project_id THEN
+    RETURN;
+  END IF;
+  IF p_now >= found_session.absolute_expires_at THEN
+    PERFORM iam.end_application_session(p_session_digest, 'EXPIRED');
+    RETURN;
+  END IF;
+  IF NOT iam.has_application_access(found_session.account_id, found_session.project_id) THEN
+    PERFORM iam.end_application_session(p_session_digest, 'ACCESS_ENDED');
+    RETURN;
+  END IF;
+  RETURN QUERY
+  SELECT person.account_id, person.email, person.display_name, person.external_subject,
+    found_session.provider_checked_at, found_session.absolute_expires_at
+  FROM iam.account AS person WHERE person.account_id = found_session.account_id;
+END;
+$$;
+
+ALTER FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) TO hub_iam_runtime;
+
 COMMIT;

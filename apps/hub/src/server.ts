@@ -7,7 +7,7 @@ import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
-import { readSecretFile } from './platform/secrets.js'
+import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 
@@ -40,7 +40,12 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
-  application: config.application,
+  // The application host requires the Builder, and so the Factory, whose credential key seals the
+  // application sessions' refresh tokens (readHubConfig refuses one without the other).
+  application: config.application && config.factory ? {
+    address: config.application,
+    envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile)),
+  } : undefined,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)

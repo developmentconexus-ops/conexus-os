@@ -164,7 +164,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   const refreshes = []
   let providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-2' }
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const envelope = createSecretEnvelope?.('ab'.repeat(32)) ?? { open: async () => null }
+  const envelope = createSecretEnvelope('ab'.repeat(32))
   const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer }, envelope })
   const hubStore = createIdentityAccessStore({ pool })
 
@@ -185,7 +185,6 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   const at = (ms) => new Date(T0.getTime() + ms)
   const signIn = (who, existingAccountId = null, projectRef = projectId, now = T0) =>
     sessions.signIn({ identity: who, existingAccountId, projectId: projectRef, bindingDigest, now })
-  const sessionRow = async (accountId) => (await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE account_id = $1 ORDER BY authenticated_at DESC, ended_at DESC NULLS FIRST LIMIT 1', [accountId])).rows[0]
 
   const employee = identity('employee-sub', 'Funcionaria@Application.test', 'Funcionária Teste')
   let employeeId
@@ -265,13 +264,14 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     ])
     assert.equal(first.kind, 'SIGNED_IN')
     assert.equal(second.kind, 'SIGNED_IN')
-    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_session WHERE provider_refresh_token = $1', ['refresh-rotated'])).rows[0].n, 1)
+    const checked = (await client.query('SELECT provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows[0]
+    assert.equal(await envelope.open(checked.provider_refresh_token), 'refresh-rotated')
 
-    providerAnswer = { kind: 'REFUSED' }
+    providerAnswer = { kind: 'REFUSED', reason: 'USER_DISABLED' }
     assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 3_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 4_000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE ended_reason = 'PROVIDER_REFUSED'")).rows,
-      [{ ended_reason: 'PROVIDER_REFUSED', provider_refresh_token: null }])
+    assert.deepEqual((await client.query('SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE token_digest = $1', [createHash('sha256').update(token).digest()])).rows,
+      [{ ended_reason: 'PROVIDER_USER_DISABLED', provider_refresh_token: null }], 'the ending names a disable')
   })
 
   await t.test('under Keycloak rotation, concurrent requests on two Hubs refresh once, keep the person signed in, and store only sealed tokens', async () => {

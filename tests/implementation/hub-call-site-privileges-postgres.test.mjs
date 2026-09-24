@@ -92,7 +92,9 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.redeem_application_handoff': 'hub_iam_runtime',
     'iam.resolve_application_session': 'hub_iam_runtime',
     'iam.end_application_session': 'hub_iam_runtime',
+    'iam.claim_provider_check': 'hub_iam_runtime',
     'iam.record_provider_check': 'hub_iam_runtime',
+    'iam.release_provider_check': 'hub_iam_runtime',
   }),
   'identity-access/installation-administration.ts': Object.freeze({
     'iam.is_installation_administrator': 'hub_iam_runtime',

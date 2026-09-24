@@ -3,6 +3,7 @@ import type { S1OwnerId } from '../generated/s1-routes.js'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import type { SecretEnvelope } from '../platform/secrets.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
 import { createApplicationSessions } from './application-session.js'
 import type { ApplicationSessions } from './application-session.js'
@@ -47,7 +48,8 @@ export const createIdentityAccessModule = async ({
   clientId: string
   clientSecret: string
   bootstrapSubject: string
-  application: ApplicationAddress | undefined
+  /** Where applications are served, and the envelope that seals their sessions' Keycloak refresh tokens. */
+  application: Readonly<{ address: ApplicationAddress; envelope: SecretEnvelope }> | undefined
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
   const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
@@ -63,8 +65,8 @@ export const createIdentityAccessModule = async ({
     redirectUri: new URL('/protocol/oidc/callback', origin).href,
     allowInsecureForTest,
   })
-  const originOf = application ? (slug: string): string => applicationOrigin(application, slug) : undefined
-  const applicationSessions = application ? createApplicationSessions({ pool, refresh: oidc.refresh }) : undefined
+  const originOf = application ? (slug: string): string => applicationOrigin(application.address, slug) : undefined
+  const applicationSessions = application ? createApplicationSessions({ pool, refresh: oidc.refresh, envelope: application.envelope }) : undefined
   const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
     const sessionToken = request.cookies['__Host-conexus_session']
     if (!sessionToken) return null

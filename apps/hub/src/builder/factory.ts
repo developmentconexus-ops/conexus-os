@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Mastra } from '@mastra/core/mastra'
@@ -20,6 +19,7 @@ import type { Observability } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { factorySecretKey } from '../platform/secrets.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import type { HubSessionAuthProvider } from './hub-session-auth.js'
 import type { BuilderAgentController } from './runtime.js'
@@ -205,9 +205,7 @@ const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
 // decryptor returns as a string and its startup migration would re-encrypt as one; they are parsed
 // here, so that migration encrypts the credential itself.
 export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretEncryption => {
-  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
-  const key = Buffer.from(hexKey, 'hex')
-  const encryption = createFactorySecretEncryption({ primary: { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key } })
+  const encryption = createFactorySecretEncryption({ primary: factorySecretKey(hexKey) })
   return {
     encrypt: (value) => encryption.encrypt(value),
     decrypt: async (value) => typeof value === 'string' && !value.startsWith(ENVELOPE_PREFIX)

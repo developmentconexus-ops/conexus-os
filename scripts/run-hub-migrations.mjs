@@ -33,7 +33,7 @@ const installationAdministratorListDigest = '70071c23e385ecd843db32d57446f94c9e3
 const firstAccountInstallationAdministratorDigest = '0671c33652ea96da8cfad3437f79c9d4124ba84af7f1f9e0cae2ca6f356b519b'
 const applicationAccessDigest = 'aab11d37b619ce81df07c292336b7bcff31b9b260245343c9460012d3694bea4'
 const applicationSessionDigest = 'e3efcd8b1a7ad067d336f7466011870792521f57c1464b0c5ed5db3172914e40'
-const applicationAccessReviewDigest = '2435afcfb08a56b4a1045ebef9a70ec6b59a7c065d4f0eb9f3f3466e5eef0c40'
+const applicationAccessReviewDigest = '186c0a9160bb789b5bd62f87cc50b9ede8faab1849f76cf430d3e522621b3d0b'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
