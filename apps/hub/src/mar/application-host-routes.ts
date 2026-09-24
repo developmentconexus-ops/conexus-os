@@ -29,12 +29,11 @@ export type ApplicationHostReader = Readonly<{
     artifactRevisionId: string
     files: readonly Readonly<{ path: string; mediaType: string }>[]
   }> | null>
-  readFile(input: Readonly<{ accountId: string; projectId: string; artifactRevisionId: string; path: string }>): Promise<Readonly<{
-    path: string
-    mediaType: string
-    bytes: Uint8Array
-    sha256: string
-  }> | null>
+  readServedFile(input: Readonly<{ accountId: string; projectId: string; path: string }>): Promise<
+    | Readonly<{ kind: 'NOT_SERVED' }>
+    | Readonly<{ kind: 'NOT_FOUND'; artifactRevisionId: string }>
+    | Readonly<{ kind: 'FILE'; artifactRevisionId: string; file: Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> }>
+  >
 }>
 
 export type ApplicationHostDependencies = Readonly<{
@@ -167,15 +166,13 @@ export const registerApplicationHostRoutes = async (
       const navigation = request.headers['sec-fetch-mode'] === 'navigate' && request.headers['sec-fetch-dest'] === 'document'
       return navigation ? startSignIn(request, reply, target.slug) : refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
     }
-    const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
-    if (!served) return html(reply, 503, NOT_READY)
     const path = pathForRequest(request.url.split('?', 1)[0] ?? '')
     // The server tree is the runner's; the browser never receives it.
-    const entry = path && !path.startsWith(SERVER_ROOT) ? served.files.find((file) => file.path === path) : undefined
-    if (!path || !entry) return reply.code(404).send()
-    const file = await dependencies.reader.readFile({ accountId: authority.caller.accountId, projectId: target.projectId, artifactRevisionId: served.artifactRevisionId, path })
-    if (!file || file.path !== path || file.mediaType !== entry.mediaType || sha256(file.bytes).toString('hex') !== file.sha256) return reply.code(404).send()
-    return reply.type(file.mediaType).send(Buffer.from(file.bytes))
+    if (!path || path.startsWith(SERVER_ROOT)) return reply.code(404).send()
+    const read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path })
+    if (read.kind === 'NOT_SERVED') return html(reply, 503, NOT_READY)
+    if (read.kind === 'NOT_FOUND' || read.file.path !== path || sha256(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
+    return reply.type(read.file.mediaType).send(Buffer.from(read.file.bytes))
   }
   app.get('/', serve)
   app.get('/*', serve)

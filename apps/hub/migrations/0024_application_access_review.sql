@@ -168,7 +168,9 @@ ALTER FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) 
 REVOKE ALL ON FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid) TO hub_iam_runtime;
 
--- Resolution no longer hands out the refresh token: only the holder of a claim receives it.
+-- Resolution no longer hands out the refresh token: only the holder of a claim receives it. It
+-- takes no row lock either: every write to a session (ending it, claiming or recording a check) is
+-- a guarded update of its own, so a request never waits behind another on the same session.
 DROP FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone);
 
 CREATE FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) RETURNS TABLE(account_id uuid, email text, display_name text, subject text, provider_checked_at timestamp with time zone, absolute_expires_at timestamp with time zone)
@@ -179,8 +181,7 @@ DECLARE
   found_session iam.application_session%ROWTYPE;
 BEGIN
   SELECT session.* INTO found_session FROM iam.application_session AS session
-  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
-  FOR UPDATE;
+  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL;
   IF NOT FOUND OR found_session.project_id <> p_project_id THEN
     RETURN;
   END IF;
@@ -203,5 +204,33 @@ ALTER FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project
 
 REVOKE ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) TO hub_iam_runtime;
+
+-- One statement reads one file of the served artifact: it resolves the served revision, checks
+-- access, and takes only the requested element of the payload. A NULL revision means whatever is
+-- served now (a page or asset); a revision pins the server tree one API request reads file by file.
+-- A served artifact without the file answers its revision and no file; nothing served, no access or
+-- a pinned revision no longer served answers no row.
+DROP FUNCTION reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text);
+
+CREATE FUNCTION reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text) RETURNS TABLE(artifact_revision_id uuid, path text, media_type text, bytes bytea, sha256 text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  SELECT revision.artifact_revision_id, file->>'path', file->>'mediaType', decode(file->>'base64', 'base64'), file->>'sha256'
+  FROM builder.served_preview_revision(p_project_id) AS served
+  JOIN reg.artifact_revision AS revision ON revision.artifact_revision_id = served.artifact_revision_id
+  JOIN reg.artifact AS artifact ON artifact.artifact_id = revision.artifact_id
+  LEFT JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', p_path)) AS file ON true
+  WHERE iam.has_application_access(p_account_id, p_project_id)
+    AND artifact.project_id = p_project_id AND artifact.kind = 'application'
+    AND revision.source_revision = served.source_revision AND revision.digest = served.artifact_digest
+    AND revision.availability = 'AVAILABLE'
+    AND (p_artifact_revision_id IS NULL OR revision.artifact_revision_id = p_artifact_revision_id);
+$$;
+
+ALTER FUNCTION reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text) OWNER TO registry_owner;
+
+REVOKE ALL ON FUNCTION reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text) FROM PUBLIC;
+GRANT ALL ON FUNCTION reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text) TO hub_builder_executor;
 
 COMMIT;
