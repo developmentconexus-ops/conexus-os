@@ -15,6 +15,7 @@ const {
   materializeApplicationCheck,
   FIXED_APPLICATION_STARTER_FILES,
   materializeFixedApplicationStarter,
+  removeStaleServerSkill,
 } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const commandResult = (result) => ({
@@ -102,8 +103,8 @@ test('preserves every existing app entry, including a different source filename'
 })
 
 test('the application check builds app/ and then the server half into /tmp/conexus-check-dist', () => {
-  assert.deepEqual(APPLICATION_CHECK_FILES.map((file) => file.path), ['conexus.json', 'conexus/check.sh', '.agents/skills/conexus-server/SKILL.md'])
-  const [manifest, check, guide] = APPLICATION_CHECK_FILES.map((file) => file.content)
+  assert.deepEqual(APPLICATION_CHECK_FILES.map((file) => file.path), ['conexus.json', 'conexus/check.sh'])
+  const [manifest, check] = APPLICATION_CHECK_FILES.map((file) => file.content)
   assert.deepEqual(JSON.parse(manifest), { shape: 'REACT_VITE_V1', check: 'sh conexus/check.sh' })
   assert.equal(check, [
     '#!/bin/sh',
@@ -116,13 +117,17 @@ test('the application check builds app/ and then the server half into /tmp/conex
     'node /opt/conexus/server-build.mjs "$root" /tmp/conexus-check-dist',
     '',
   ].join('\n'))
+  assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
+})
+
+test('the global conexus-server skill matches the check it documents', () => {
+  const guide = readFileSync(resolve(repositoryRoot, 'factory-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
   assert.deepEqual(Object.keys(example.operations), ['listItems'])
   assert.match(guide, /fetch\('\/__conexus\/api\/listItems'/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
-  assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
 })
 
 test('writes only the application check files a checkout lacks, and never over a symlink', async () => {
@@ -132,16 +137,42 @@ test('writes only the application check files a checkout lacks, and never over a
     writeFileSync(join(root, 'conexus/check.sh'), 'echo edited by the agent\n')
     const writes = []
     await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.deepEqual(writes, [join(root, 'conexus.json'), join(root, '.agents/skills/conexus-server/SKILL.md')])
+    assert.deepEqual(writes, [join(root, 'conexus.json')])
     assert.equal(readFileSync(join(root, 'conexus/check.sh'), 'utf8'), 'echo edited by the agent\n')
 
     await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.equal(writes.length, 2)
+    assert.equal(writes.length, 1)
 
     rmSync(join(root, 'conexus.json'))
     symlinkSync('/etc/hostname', join(root, 'conexus.json'))
     await assert.rejects(materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
-    assert.equal(writes.length, 2)
+    assert.equal(writes.length, 1)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('removeStaleServerSkill deletes a checkout own copy of the skill the Builder now serves globally', async () => {
+  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-'))
+  try {
+    mkdirSync(join(root, '.agents/skills/conexus-server'), { recursive: true })
+    writeFileSync(join(root, '.agents/skills/conexus-server/SKILL.md'), 'a stale Project copy\n')
+    writeFileSync(join(root, '.agents/skills/conexus-server/extra.txt'), 'leftover\n')
+    const writes = []
+    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    assert.deepEqual(readdirSync(join(root, '.agents/skills')), [])
+    assert.deepEqual(writes, [])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('removeStaleServerSkill is a no-op when the checkout never carried the skill', async () => {
+  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-absent-'))
+  try {
+    const writes = []
+    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    assert.deepEqual(readdirSync(root), [])
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
