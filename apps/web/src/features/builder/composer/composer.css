@@ -84,7 +84,7 @@
 .cx-model-button svg { flex: none; color: var(--cx-text-2); }
 .cx-level-dot { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); }
 .cx-send-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--cx-ink); color: var(--cx-on-ink); }
-.cx-send-button:hover:not(:disabled), .cx-send-button:focus-visible:not(:disabled) { background: var(--cx-accent); color: var(--cx-accent-text); }
+.cx-send-button:hover:not(:disabled), .cx-send-button:focus-visible:not(:disabled) { background: var(--cx-accent); color: var(--cx-on-ink); }
 .cx-send-button:disabled { background: var(--cx-surface-4); color: var(--cx-text-2); cursor: default; }
 .cx-send-button[data-stop] { background: var(--cx-ink); color: var(--cx-on-ink); }
 .cx-composer-hint { margin: 0; color: var(--cx-text-2); font-size: .75rem; text-align: center; text-wrap: balance; }
