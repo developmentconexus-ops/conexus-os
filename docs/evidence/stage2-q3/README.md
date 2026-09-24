@@ -6,7 +6,9 @@
 
 **ACCEPT_WITH_BOUNDARY**. The independent review found seven defects and two small ones; each is
 fixed with a test that failed before and passes after, and the cases they touch were rerun on the
-pilot ([Independent review](#independent-review)).
+pilot ([Independent review](#independent-review)). Verifying those fixes found a Keycloak check
+that failed open and five smaller defects, fixed the same way
+([Verification of the fixes](#verification-of-the-fixes)).
 
 Every Q3.6 case was refused on the pilot as specified. The employee used the application under their own identity and gained no Control Plane authority. The boundary is the one section 5 of the task already names. Before Q5 there is no Release, so the application host serves the Project's last good Preview artifact and its Preview data. Q5 replaces that with the published pointer.
 
@@ -140,6 +142,35 @@ operator), which include the grant, re-grant and revoke of finding 1. Finding 1 
 real PostgreSQL. The employee's grant on `eval-20260923-224304` stays revoked, as the Q3 proof left
 it.
 
+### Verification of the fixes
+
+The verification of `c6e87c42` found the defects below. Each commit pair on `feat/stage2-q3`
+lands the failing test first and the fix on top. Migration `0025_application_access_verification.sql`
+carries every database change; 0024 was already on the pilot and is unchanged.
+
+| # | Finding | Resolution | Proof |
+| --- | --- | --- | --- |
+| 1 | The Keycloak check failed open. An error from `envelope.open`, `envelope.seal` or `record_provider_check` left the claim held for a minute, and every other request meanwhile was served unchecked. A token the key could not open failed every check, so the session went unchecked until its eight hours. | A token no installation key opens ends the session (`CUSTODY_CHANGED`). Any other error releases the claim before it propagates. A request that finds the check held reads the session again every 100 ms, is served once the holder settles it, and answers 503 after five seconds. `CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` gives the installation key its retired keys, decrypt-only, for the Hub's envelope and the Factory's credentials alike. | `application-access-postgres`: before, `[THREW Unknown key id, SIGNED_IN]`, one Keycloak call where two were due, and `SIGNED_IN` behind a held claim; after, `[SIGN_IN_REQUIRED, SIGN_IN_REQUIRED]`, two calls, and `PROVIDER_UNAVAILABLE`. `builder-factory-composition`: before, `Unknown key id`; after, a token sealed before a rotation opens. Live: `custody-changed-ends-session`, `held-check-refused-then-taken-over`. |
+| 2 | The claim aged by the Hub's clock, and a false answer from `record_provider_check` was ignored. | The claim time and the one-minute takeover use `clock_timestamp()`. A false answer means the session ended or the claim was taken over: the request reads the session again and follows it. | Before: a request whose session ended during the Keycloak call was `SIGNED_IN`, and a Hub two minutes ahead took over a claim in flight, giving `[SIGNED_IN, SIGN_IN_REQUIRED]` with the token spent twice. After: `SIGN_IN_REQUIRED`, and `[SIGNED_IN, SIGNED_IN]` with one refresh. Live: `held-check-refused-then-taken-over`, 503 after 5.06 s while held; 61 s later the next request took the claim over, rotated the token and was served. |
+| 3 | Finding 8 was partial. A first sign-in that read the invitation after the winner had claimed it still answered no Account. | `iam.provision_application_account` looks the Account up again before answering none. The winner commits the Account before it claims. | Two connections interleaved by a table lock: before, `actual: null`; after, the winner's Account. |
+| 4 | Revoke withdrew invitations by `iam.account.email`, which is written once and may differ from the verified address a sign-in claims with. | The key is the Account. `iam.claim_application_invitations` grants nothing from an invitation issued at or before a revocation of that Account's grant on that application, whatever address it names, and still consumes it. A repeat grant re-issues an open invitation with a fresh `created_at`, so granting again after a revoke is honoured. Writing the verified address into `iam.account.email` was rejected: a Control Plane Account's email is set at setup and shown in the Hub. | Before, the revoked person's next sign-in was `HANDOFF`; after, `NO_ACCESS`, and a grant issued after the revoke gives `HANDOFF`. |
+| 5 | Invitations a revoke left open before 0024 still granted access at the next sign-in. | Finding 4's rule stops them granting. 0025 also deletes each one issued at or before its grantee's revoke with no grant open now, so the Owner's list stops showing it. One issued after the revoke stays. The pilot had none. | Upgrading a database at 0024: before, all three invitations remained; after, the leftover is gone and the other two stay. |
+| 6 | The first redemption cleared the sign-in binding, so the handoff of a second sign-in sharing it landed on the 403 page. | Redemption leaves the binding cookie to expire after its ten minutes. Each handoff stays single-use, bound, and valid 60 seconds. | `application-host` with a cookie jar, for a stale handoff and two live ones: before `[403, 403, 403]`, after `[403, 303, 303]`. Live: `parallel-sign-ins-both-redeem`. |
+| 7 | An API call reads the served manifest, then each server file in its own statement. | Recorded as boundary 8 below, not changed. | Measured on the pilot. |
+
+On 2026-09-24 the pilot Hub and runner ran from `feat/stage2-q3` at `a001570a` with 0025 applied
+(backup `conexus_s7-before-0025-20260924T103043.dump`; 0025 deleted no invitation).
+[`review-proof.json`](review-proof.json) appends 19 cases marked `"round": "verification"`, all
+held, run as the test operator:
+
+- the three new cases in the table;
+- the review cases `sign-in-only-on-navigation`, `application-host-csp`, `served-files-one-read`,
+  `rotation-concurrent-recheck` and `provider-refusal-names-disable`;
+- the Q3.6 cases that need no employee, as in the earlier rerun.
+
+Findings 3, 4 and 5 need the employee signed in or a leftover row the pilot does not have. They
+are proved against real PostgreSQL only.
+
 ### Boundaries recorded, not implemented
 
 1. **Back-channel logout.** Keycloak can call the Hub when a person signs out in Keycloak, ending
@@ -155,8 +186,24 @@ it.
 5. **Keycloak's 30-minute SSO idle limit.** A person who makes no application request for about 30
    minutes is signed out at the next check (`PROVIDER_SESSION_ENDED`) and signs in again with their
    password.
-6. **A claim older than a minute is taken over.** If a Keycloak refresh took longer than that, a
-   second request would spend the same token and Keycloak would refuse it. No refresh comes close.
+6. **A claim older than a minute is taken over.** The minute is counted by the database clock. If
+   a Keycloak refresh took longer than that, a second request would spend the same token and
+   Keycloak would refuse it. No refresh comes close: the OIDC client gives up after 30 seconds.
+7. **A Hub that stops mid-check signs the person out once.** If the Hub stops between Keycloak's
+   answer and storing the rotated token, Keycloak has already revoked the stored one. The next
+   check gets `invalid_grant`, the session ends as `PROVIDER_REFUSED`, and the person signs in
+   again. An error sealing or storing the rotated token has the same effect.
+8. **An API call reads the server tree file by file.** One `reg.get_served_application` and then
+   one `reg.read_served_application_file` per server file, each reading the whole artifact
+   payload. On the pilot's `eval-20260923-224304` that is 5 statements per call, for 4 server
+   files, over a payload of 152 KB stored (294 KB as text). One statement for the tree would
+   change the invoker's contract, which the Preview shares and which bounds memory by reading
+   file by file. It is a cost, not an access gap. Revisit when Q5 replaces the served artifact.
+9. **Safari before 16.4 sends no Fetch Metadata.** A page navigation without a session gets the
+   401 JSON answer instead of a sign-in.
+10. **A dead invitation can stay listed.** When the revoked Account's stored email is not the
+    invited address, the revoke cannot find that invitation. It grants nothing (finding 4 of the
+    verification) and goes at the person's next sign-in, but the Owner's list shows it until then.
 
 ## Rerun
 
@@ -169,6 +216,6 @@ node scripts/q3-negative-proof.mjs --phase main --app eval-20260923-224304 --oth
   --employee-state ~/q3/states/employee-eval.json --out proof.json
 ```
 
-The `caller`, `control`, `expired`, `disabled`, `revoke`, `review` and `provider-refusal` phases take
+The `caller`, `control`, `expired`, `disabled`, `revoke`, `review`, `verification` and `provider-refusal` phases take
 the arguments in the script's header. Without `--employee-state`, the `main` phase runs its member
 cases only.

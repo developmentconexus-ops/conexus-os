@@ -152,6 +152,13 @@ document navigation at the application host, without an application session
 → the host sets its own opaque, host-only, Secure, HttpOnly, SameSite=Lax session cookie
 ```
 
+The binding cookie lives ten minutes and redemption leaves it in place, so every handoff of
+sign-ins that share it redeems.
+
+An invitation claims nothing for an Account whose grant on that application was revoked at or
+after the invitation was issued, whatever address it names; a revocation is keyed by the Account,
+not by an email.
+
 Only a top-level document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`)
 starts a sign-in. Any other request without a session answers 401 and sets nothing.
 
@@ -159,11 +166,17 @@ The application session is `iam.application_session`, separate from `iam.session
 one Account and one application and lasts at most eight hours from sign-in. It keeps the
 Keycloak refresh token server side, sealed at rest in the handoff and in the session with the
 installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the Factory's AES-256-GCM
-envelope); the database refuses any unsealed value. The realm rotates refresh tokens
+envelope); the database refuses any unsealed value. After a key rotation,
+`CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` names the retired keys, which only decrypt, for these
+tokens and the Factory's credentials alike. A token no named key opens ends the session
+(`CUSTODY_CHANGED`). The realm rotates refresh tokens
 (`revokeRefreshToken`, `refreshTokenMaxReuse: 0`), so a token works once. At most every five
 minutes one request claims the check in the database, on whichever Hub it arrives, spends the
-token and stores the rotated one in the statement that releases the claim. Other requests that
-find the check due meanwhile proceed on the session they resolved. A refused refresh ends the
+token and stores the rotated one in the statement that releases the claim. The claim ages by the
+database clock; one older than a minute is taken over. Any error while the claim is held
+releases it. A request that finds the check held by another reads the session again until the
+holder settles it and answers 503 after five seconds: no request is served on a due check that
+nobody settled. A refused refresh ends the
 session and records why, as far as Keycloak's answer says: `PROVIDER_USER_DISABLED`,
 `PROVIDER_SESSION_ENDED` (the Keycloak SSO session ended, including its 30-minute idle limit)
 or `PROVIDER_REFUSED`. An unreachable Keycloak refuses the request with 503 and releases the

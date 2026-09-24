@@ -3,7 +3,7 @@
 //
 //   node scripts/q3-negative-proof.mjs --app <slug> --other-app <slug> --project <id> --out <file.json>
 //     --employee-state <state.json>    the app-only employee, from scripts/q3-sign-in.mjs
-//     [--phase main|caller|control|expired|disabled|revoke|review|provider-refusal]   default main
+//     [--phase main|caller|control|expired|disabled|revoke|review|verification|provider-refusal]   default main
 //   main:     --member-state <state.json> (a member of the Project's Workspace, no grant)
 //             --workspace <id> --preview-url <url>
 //   control:  --member-state <state.json> --control-app <slug of an application in another Workspace>
@@ -12,6 +12,7 @@
 //   disabled: --disabled-at <ISO time the employee was disabled in Keycloak>
 //   revoke:   --employee-email <email>; polls while the Owner revokes the grant in the Hub
 //   review:   --member-state <state.json> [--save-state <file>]; the review fixes, as the member
+//   verification: --member-state <state.json>; the fixes from verifying the review, as the member
 //   provider-refusal: --session-state <state.json>, whose person the caller disabled in Keycloak
 //   main runs its employee cases only with --employee-state; control, expired, review and
 //   provider-refusal need none.
@@ -20,7 +21,7 @@
 // Keycloak session it already holds. The expired and revoke phases read or age one application session
 // row in the pilot database through `docker exec conexus-s7-postgres`.
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import dns from 'node:dns'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import https from 'node:https'
@@ -46,7 +47,7 @@ const projectId = argument('--project')
 const out = argument('--out')
 const phase = argument('--phase') ?? 'main'
 const statePath = { member: argument('--member-state'), employee: argument('--employee-state'), session: argument('--session-state') }
-const employeeOptional = ['main', 'control', 'review', 'provider-refusal', 'expired'].includes(phase)
+const employeeOptional = ['main', 'control', 'review', 'verification', 'provider-refusal', 'expired'].includes(phase)
 if (!slug || !/^[0-9a-f-]{36}$/.test(projectId ?? '') || !out || (!employeeOptional && !statePath.employee) || (phase === 'main' && !statePath.member)) {
   console.error('usage: see the header of scripts/q3-negative-proof.mjs')
   process.exit(2)
@@ -438,6 +439,70 @@ try {
         // admission bound (two at a time) is full; 401 would be a sign-out and 503 an unanswered check.
         aged === '1' && concurrent.every((answer) => answer.status === 404 || answer.status === 429) && endedAfter === 'open' && tokenAfter !== tokenBefore &&
         sealedBefore === 'true' && sealedAfter === 'true' && claimReleased === 'true' && next.status === 404 && tokenLast !== tokenAfter && endedLast === 'open' && unsealed === '0')
+    }
+  }
+
+  // The fixes from verifying the review, as the member: every handoff of two sign-ins sharing a binding
+  // redeems, a token no installation key opens ends the session, and a check held by a Hub that never
+  // answers is refused, not skipped, until the database clock lets the next request take it over.
+  if (phase === 'verification') {
+    if (!statePath.member) throw new Error('--member-state is required for the verification phase')
+    const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
+    const session = async () => {
+      const context = await contextFor(statePath.member)
+      await signInToApplication(context, APP)
+      const jar = await context.storageState()
+      await context.close()
+      return { cookie: cookieHeader(jar, APP), digestHex: sessionDigest(jar) }
+    }
+    const row = (digestHex) => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(coalesce(provider_refresh_token, '')) || '|' || (provider_check_claim IS NULL) || '|' || provider_checked_at FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+    const makeDue = (digestHex) => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+    {
+      const context = await contextFor(statePath.member)
+      const first = await signInToApplication(context, APP, { stopAtHandoff: true })
+      const second = await signInToApplication(context, APP, { stopAtHandoff: true })
+      const [one, two] = [first.handoffUrl, second.handoffUrl].map((url) => url ? new URL(url).searchParams.get('handoff') : null)
+      const distinct = Boolean(one && two && one !== two)
+      const page = await context.newPage()
+      const landings = []
+      for (const url of [first.handoffUrl, second.handoffUrl]) {
+        const response = url ? await page.goto(url).catch(() => null) : null
+        landings.push({ status: response?.status() ?? null, landed: page.url() })
+      }
+      await context.close()
+      record('parallel-sign-ins-both-redeem', { url: `${APP}/`, as: 'member, two sign-ins started in one browser before either handoff was redeemed' },
+        { distinctHandoffs: distinct, landings },
+        distinct && landings.every((landing) => landing.status === 200 && landing.landed === `${APP}/`))
+    }
+    {
+      const { cookie, digestHex } = await session()
+      const foreign = createFactorySecretEncryption({ primary: { id: 'not-this-installation', key: randomBytes(32) } })
+      const sealed = await foreign.encrypt('a refresh token under a key the Hub does not hold')
+      const replaced = sql(`UPDATE iam.application_session SET provider_refresh_token = '${sealed}' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+      const aged = makeDue(digestHex)
+      const first = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+      const second = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+      const [ended, tokenMd5] = row(digestHex)
+      record('custody-changed-ends-session', { url: ANY_OPERATION, as: 'member, whose stored refresh token was sealed under a foreign key, with the check made due' },
+        { replaced: replaced === '1', aged: aged === '1', first: first.status, firstCode: first.body?.error?.code ?? null, second: second.status, ended, tokenDropped: tokenMd5 === createHash('md5').update('').digest('hex') },
+        replaced === '1' && aged === '1' && first.status === 401 && second.status === 401 && ended === 'CUSTODY_CHANGED' && tokenMd5 === createHash('md5').update('').digest('hex'))
+    }
+    {
+      const { cookie, digestHex } = await session()
+      const aged = makeDue(digestHex)
+      const [, tokenBefore, , checkedBefore] = row(digestHex)
+      // A Hub claimed the check a moment ago and died before answering.
+      const held = sql(`UPDATE iam.application_session SET provider_check_claim = gen_random_uuid(), provider_check_claimed_at = clock_timestamp() WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+      const started = Date.now()
+      const whileHeld = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+      const waitedMs = Date.now() - started
+      await sleep(61_000)
+      const takenOver = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+      const [ended, tokenAfter, claimReleased, checkedAfter] = row(digestHex)
+      record('held-check-refused-then-taken-over', { url: ANY_OPERATION, as: 'member, the check due and claimed by a Hub that never answers; again 61 s later' },
+        { aged: aged === '1', held: held === '1', whileHeld: whileHeld.status, whileHeldCode: whileHeld.body?.error?.code ?? null, waitedMs, takenOver: takenOver.status, session: ended, rotated: tokenAfter !== tokenBefore, claimReleased: claimReleased === 'true', checkedAdvanced: checkedAfter !== checkedBefore },
+        aged === '1' && held === '1' && whileHeld.status === 503 && whileHeld.body?.error?.code === 'IDENTITY_PROVIDER_UNAVAILABLE' && waitedMs >= 4_000 && waitedMs < 15_000 &&
+        takenOver.status === 404 && ended === 'open' && tokenAfter !== tokenBefore && claimReleased === 'true' && checkedAfter !== checkedBefore)
     }
   }
 

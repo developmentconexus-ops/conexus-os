@@ -341,5 +341,425 @@
       "body": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Não foi possível entrar</title></head><body><main><h1>Não foi possível entrar</h1><p>O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de no"
     },
     "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "parallel-sign-ins-both-redeem",
+    "phase": "verification",
+    "at": "2026-09-24T13:38:31.254Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member, two sign-ins started in one browser before either handoff was redeemed"
+    },
+    "observed": {
+      "distinctHandoffs": true,
+      "landings": [
+        {
+          "status": 200,
+          "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+        },
+        {
+          "status": 200,
+          "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+        }
+      ]
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "custody-changed-ends-session",
+    "phase": "verification",
+    "at": "2026-09-24T13:38:32.492Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "member, whose stored refresh token was sealed under a foreign key, with the check made due"
+    },
+    "observed": {
+      "replaced": true,
+      "aged": true,
+      "first": 401,
+      "firstCode": "APPLICATION_SIGN_IN_REQUIRED",
+      "second": 401,
+      "ended": "CUSTODY_CHANGED",
+      "tokenDropped": true
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "held-check-refused-then-taken-over",
+    "phase": "verification",
+    "at": "2026-09-24T13:39:39.521Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "member, the check due and claimed by a Hub that never answers; again 61 s later"
+    },
+    "observed": {
+      "aged": true,
+      "held": true,
+      "whileHeld": 503,
+      "whileHeldCode": "IDENTITY_PROVIDER_UNAVAILABLE",
+      "waitedMs": 5063,
+      "takenOver": 404,
+      "session": "open",
+      "rotated": true,
+      "claimReleased": true,
+      "checkedAdvanced": true
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "sign-in-only-on-navigation",
+    "phase": "review",
+    "at": "2026-09-24T13:39:42.338Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "a browser without an application session"
+    },
+    "observed": {
+      "script": {
+        "status": 401,
+        "location": null,
+        "setCookie": [],
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "fetch": {
+        "status": 401,
+        "location": null,
+        "setCookie": [],
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "navigation": {
+        "status": 303,
+        "location": "https://hub.conexus.localhost:3443/protocol/oidc/login?application=eval-20260923-224304&binding=ciLVVmfO3qKjUH2nMX0BWexovLsy0l0LicgvUNXlbUE",
+        "setCookie": [
+          "__Host-conexus_app_signin",
+          "__Host-conexus_app"
+        ]
+      },
+      "secondNavigationKeepsBinding": true
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "application-host-csp",
+    "phase": "review",
+    "at": "2026-09-24T13:39:42.809Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "status": 200,
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'",
+      "frameOptions": "DENY",
+      "cors": null
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "served-files-one-read",
+    "phase": "review",
+    "at": "2026-09-24T13:39:42.819Z",
+    "request": {
+      "urls": [
+        "https://eval-20260923-224304.conexus.localhost:3445/",
+        "https://eval-20260923-224304.conexus.localhost:3445/conexus-server/manifest.json",
+        "https://eval-20260923-224304.conexus.localhost:3445/nao-existe.js"
+      ],
+      "as": "member"
+    },
+    "observed": {
+      "page": 200,
+      "serverTree": 404,
+      "missing": 404
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "rotation-concurrent-recheck",
+    "phase": "review",
+    "at": "2026-09-24T13:39:43.410Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "member, four requests at once when the Keycloak check is due, then one more after the next check is due"
+    },
+    "observed": {
+      "aged": true,
+      "statuses": [
+        404,
+        429,
+        404,
+        404
+      ],
+      "session": "open",
+      "rotated": true,
+      "sealed": true,
+      "claimReleased": true,
+      "next": 404,
+      "rotatedAgain": true,
+      "sessionAtEnd": "open",
+      "unsealedTokens": "0"
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "control-member-of-another-workspace",
+    "phase": "control",
+    "at": "2026-09-24T13:39:41.942Z",
+    "request": {
+      "url": "https://controle-q3.conexus.localhost:3445/",
+      "as": "member of the Project Workspace of the first application only, no grant on the control application"
+    },
+    "observed": {
+      "ownApplication": {
+        "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+        "api": 404
+      },
+      "controlApplication": {
+        "landed": "https://controle-q3.conexus.localhost:3445/__conexus/no-access",
+        "api": 401,
+        "code": "APPLICATION_SIGN_IN_REQUIRED",
+        "cookies": [
+          "__Host-conexus_app_signin"
+        ]
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "session-older-than-eight-hours",
+    "phase": "expired",
+    "at": "2026-09-24T13:39:43.949Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "a live application session aged by 8 hours 1 minute in the database"
+    },
+    "observed": {
+      "limit": "08:00:00",
+      "before": 404,
+      "agedPastLimit": true,
+      "after": 401,
+      "afterBody": {
+        "error": {
+          "code": "APPLICATION_SIGN_IN_REQUIRED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "provider-refusal-names-disable",
+    "phase": "provider-refusal",
+    "at": "2026-09-24T13:39:48.747Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "a person disabled in Keycloak, with the check made due"
+    },
+    "observed": {
+      "aged": true,
+      "after": 401,
+      "afterCode": "APPLICATION_SIGN_IN_REQUIRED",
+      "ended": "PROVIDER_USER_DISABLED"
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "member-enters-without-grant",
+    "phase": "main",
+    "at": "2026-09-24T13:40:09.358Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member of the Project Workspace, no grant"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "hub-cookie-on-application-host",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.129Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member with a Hub session"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "cookiesSentToApplication": [
+        "__Host-conexus_app_signin",
+        "__Host-conexus_app"
+      ],
+      "documentCookie": ""
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "same-origin-baseline",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.209Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://eval-20260923-224304.conexus.localhost:3445",
+      "as": "member"
+    },
+    "observed": {
+      "status": 404,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "OPERATION_NOT_FOUND"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "cross-origin-from-hub",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.215Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://hub.conexus.localhost:3443"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "cross-origin-from-other-application",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.219Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://pedidos-de-ferias.conexus.localhost:3445"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "cross-origin-missing",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.224Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": null
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "cross-origin-sign-out",
+    "phase": "main",
+    "at": "2026-09-24T13:40:11.229Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/sign-out",
+      "origin": "https://hub.conexus.localhost:3443"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "handoff-on-other-host",
+    "phase": "main",
+    "at": "2026-09-24T13:40:13.552Z",
+    "request": {
+      "url": "<handoff for the first application> on the other host, then on its own host; a second fresh handoff on its own host as control"
+    },
+    "observed": {
+      "otherHost": {
+        "status": 403,
+        "location": null,
+        "setCookie": []
+      },
+      "sameHandoffOnOwnHostAfterwards": {
+        "status": 403,
+        "location": null,
+        "setCookie": []
+      },
+      "freshHandoffOnOwnHost": {
+        "status": 303,
+        "location": "/",
+        "setCookie": [
+          "__Host-conexus_app"
+        ]
+      },
+      "landed": [
+        "about:blank",
+        "about:blank"
+      ]
+    },
+    "pass": true
+  },
+  {
+    "round": "verification",
+    "id": "handoff-after-expiry",
+    "phase": "main",
+    "at": "2026-09-24T13:41:15.678Z",
+    "request": {
+      "url": "<an unused handoff>",
+      "waitedSeconds": 61
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Não foi possível entrar</title></head><body><main><h1>Não foi possível entrar</h1><p>O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de no"
+    },
+    "pass": true
   }
 ]
