@@ -29,6 +29,7 @@ const files = {
 
 const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
   const calls = []
+  const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
   const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
   const app = await createHttpApp({
@@ -53,18 +54,23 @@ const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
       },
       reader: {
         async served({ projectId }) {
+          reads.push('served')
           return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
         },
-        async readFile({ path }) {
+        async readServedFile({ projectId, path }) {
+          reads.push(`readServedFile ${path}`)
+          if (projectId !== PROJECT_A) return { kind: 'NOT_SERVED' }
           const file = files[path]
-          return file ? { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } : null
+          return file
+            ? { kind: 'FILE', artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
+            : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
         },
       },
       invokeApplication: async (input) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } },
     }),
   })
   t.after(() => app.close())
-  return { app, calls, sessions }
+  return { app, calls, reads, sessions }
 }
 
 const signedIn = { cookies: { '__Host-conexus_app': TOKEN_A } }
@@ -227,6 +233,13 @@ test('a redeemed handoff sets a host-only session cookie that replaces any value
   assert.equal(response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin').value, '')
   const replay = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A }, cookies: { '__Host-conexus_app_signin': 'binding-1' } })
   assert.equal(replay.statusCode, 403)
+})
+
+test('a page or asset costs one read of the served artifact, and the server tree is never read for the browser', async (t) => {
+  const { app, reads } = await harness(t)
+  assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A }, ...signedIn })).body, files['assets/app.js'].text)
+  assert.equal((await app.inject({ method: 'GET', url: '/conexus-server/manifest.json', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
+  assert.deepEqual(reads, ['readServedFile assets/app.js'])
 })
 
 test('a signed-in person gets the served files, never the server tree, and the page is neither framed nor shared cross-origin', async (t) => {

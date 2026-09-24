@@ -380,6 +380,50 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await hubStore.validateSession({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
   })
 
+  await t.test('resolving a session takes no row lock: a request is not held behind another that locks the session', async () => {
+    const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
+    const ownerToken = (await sessions.redeem({ handoff, projectId, binding, now: at(1_000) })).sessionToken
+    const holder = new pg.Client(connection)
+    await holder.connect()
+    try {
+      await holder.query('BEGIN')
+      await holder.query('SELECT 1 FROM iam.application_session WHERE token_digest = $1 FOR UPDATE', [createHash('sha256').update(ownerToken).digest()])
+      const answer = await Promise.race([
+        sessions.authority({ sessionToken: ownerToken, projectId, now: at(2_000) }),
+        new Promise((resolve) => setTimeout(() => resolve({ kind: 'BLOCKED' }), 2_000)),
+      ])
+      assert.equal(answer.kind, 'SIGNED_IN')
+    } finally {
+      await holder.query('ROLLBACK')
+      await holder.end()
+    }
+  })
+
+  await t.test('one read serves a file of the served artifact, and reads only that file', async () => {
+    const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
+    const reader = createServedApplicationReader(pool)
+    const artifactId = randomUUID()
+    const revisionId = randomUUID()
+    const file = (path, mediaType, text) => ({ path, mediaType, base64: Buffer.from(text).toString('base64'), sha256: createHash('sha256').update(text).digest('hex') })
+    const payload = { entryPath: 'index.html', files: [file('index.html', 'text/html; charset=utf-8', '<!doctype html><title>Caderno</title>'), file('assets/app.js', 'text/javascript; charset=utf-8', 'console.log(1)')] }
+    await client.query("INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'caderno', $2)", [artifactId, projectId])
+    await client.query("INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, $5, 'AVAILABLE')",
+      [revisionId, artifactId, 'e'.repeat(40), 'f'.repeat(64), payload])
+    await client.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
+      VALUES ($1, $2, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
+
+    const served = await reader.readServedFile({ accountId: owner, projectId, path: 'assets/app.js' })
+    assert.deepEqual({ ...served, file: { ...served.file, bytes: Buffer.from(served.file.bytes).toString() } }, {
+      kind: 'FILE', artifactRevisionId: revisionId,
+      file: { path: 'assets/app.js', mediaType: 'text/javascript; charset=utf-8', bytes: 'console.log(1)', sha256: createHash('sha256').update('console.log(1)').digest('hex') },
+    })
+    assert.deepEqual(await reader.readServedFile({ accountId: owner, projectId, path: 'missing.js' }), { kind: 'NOT_FOUND', artifactRevisionId: revisionId })
+    assert.deepEqual(await reader.readServedFile({ accountId: control, projectId, path: 'index.html' }), { kind: 'NOT_SERVED' }, 'no access, nothing served')
+    assert.deepEqual(await reader.readServedFile({ accountId: owner, projectId: otherProject, path: 'index.html' }), { kind: 'NOT_SERVED' }, 'no Preview built')
+    assert.equal(Buffer.from((await reader.readFile({ accountId: owner, projectId, artifactRevisionId: revisionId, path: 'index.html' })).bytes).toString(), '<!doctype html><title>Caderno</title>')
+    assert.equal(await reader.readFile({ accountId: owner, projectId, artifactRevisionId: randomUUID(), path: 'index.html' }), null, 'a pinned revision that is no longer served reads nothing')
+  })
+
   await t.test('the served artifact is read only through application access', async () => {
     const reads = async (accountId) => (await client.query('SELECT * FROM reg.get_served_application($1,$2)', [accountId, otherProject])).rows
     assert.deepEqual(await reads(control), [])
