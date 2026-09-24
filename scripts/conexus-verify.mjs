@@ -107,6 +107,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs && npx --no-install biome check tests/implementation/project-name.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),
+  candidateStep('web-style', 'node scripts/check-web-style.mjs && node --test tests/repository/web-style.test.mjs && npx --no-install biome check scripts/check-web-style.mjs tests/repository/web-style.test.mjs'),
   candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
