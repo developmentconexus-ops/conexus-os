@@ -163,7 +163,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   const accessStore = createApplicationAccessStore({ pool })
   const refreshes = []
   let providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-2' }
-  const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer } })
+  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+  const envelope = createSecretEnvelope?.('ab'.repeat(32)) ?? { open: async () => null }
+  const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer }, envelope })
   const hubStore = createIdentityAccessStore({ pool })
 
   const owner = await account('owner-s')
@@ -270,6 +272,41 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await sessions.authority({ sessionToken: token, projectId, now: at(10 * 60 * 1000 + 4_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.application_session WHERE ended_reason = 'PROVIDER_REFUSED'")).rows,
       [{ ended_reason: 'PROVIDER_REFUSED', provider_refresh_token: null }])
+  })
+
+  await t.test('under Keycloak rotation, concurrent requests on two Hubs refresh once, keep the person signed in, and store only sealed tokens', async () => {
+    const live = new Map()
+    let issued = 0
+    let refreshCalls = 0
+    const issue = () => { const token = `rotating-${++issued}`; live.set(token, true); return token }
+    // Keycloak with revokeRefreshToken and refreshTokenMaxReuse 0: a token works once, and reusing it is refused.
+    const rotatingRefresh = async ({ refreshToken }) => {
+      refreshCalls += 1
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      if (!live.get(refreshToken)) return { kind: 'REFUSED', reason: 'REFUSED' }
+      live.set(refreshToken, false)
+      return { kind: 'ACTIVE', refreshToken: issue() }
+    }
+    const hubA = createApplicationSessions({ pool, refresh: rotatingRefresh, envelope })
+    const hubB = createApplicationSessions({ pool, refresh: rotatingRefresh, envelope })
+    const sealed = (value) => typeof value === 'string' && value.startsWith('mastra:factory-secret:v1:') && !value.includes('rotating-')
+
+    await grantAccess(projectId, 'rotacao@application.test')
+    const outcome = await hubA.signIn({ identity: { ...identity('rotation-sub', 'rotacao@application.test', 'Rotação'), refreshToken: issue() }, existingAccountId: null, projectId, bindingDigest, now: T0 })
+    assert.equal(sealed((await client.query('SELECT provider_refresh_token FROM iam.application_handoff')).rows.at(-1).provider_refresh_token), true, 'the handoff holds the refresh token sealed')
+    const sessionToken = (await hubB.redeem({ handoff: outcome.handoff, projectId, binding, now: at(1_000) })).sessionToken
+    const stored = async () => (await client.query('SELECT s.provider_refresh_token FROM iam.application_session s JOIN iam.account a ON a.account_id = s.account_id WHERE a.external_subject = $1', ['rotation-sub'])).rows[0].provider_refresh_token
+    assert.equal(sealed(await stored()), true, 'the session holds the refresh token sealed')
+
+    const due = at(5 * 60 * 1000 + 1_000)
+    const answers = await Promise.all([hubA, hubB, hubA, hubB].map((hub) => hub.authority({ sessionToken, projectId, now: due })))
+    assert.deepEqual(answers.map((answer) => answer.kind), ['SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN', 'SIGNED_IN'])
+    assert.equal(refreshCalls, 1, 'one refresh for the session, whichever Hub asked')
+    assert.equal(sealed(await stored()), true)
+    assert.equal(await envelope.open(await stored()), 'rotating-2', 'the rotated token was stored before anyone could refresh again')
+
+    assert.equal((await hubB.authority({ sessionToken, projectId, now: at(10 * 60 * 1000 + 2_000) })).kind, 'SIGNED_IN', 'the next check spends the rotated token')
+    assert.equal(refreshCalls, 2)
   })
 
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {
