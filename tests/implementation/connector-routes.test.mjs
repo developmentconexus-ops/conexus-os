@@ -131,14 +131,22 @@ test('a registered wire connectorId with no matching Definition schema is refuse
   assert.equal(store.calls.length, 0)
 })
 
-test('an authentication check runs no network call in this unit and never carries a provider value', async (t) => {
+test('an authentication check answers only a closed outcome and never carries a provider value', async (t) => {
   const seen = []
-  const app = await makeApp(makeStore(), { checkConnection: async (...args) => { seen.push(args); return 'CONNECTOR_UNCONFIGURED' } })
+  const app = await makeApp(makeStore(), { checkConnection: async (input) => { seen.push(input); return 'CONNECTOR_UNCONFIGURED' } })
   t.after(() => app.close())
   const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}/authentication-check`, ...authenticDelete })
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.json(), { outcome: 'CONNECTOR_UNCONFIGURED' })
-  assert.deepEqual(seen, [[workspaceId, connectionId]])
+  assert.deepEqual(seen, [{ actor: adminAccountId, workspaceId, connectionId }])
+})
+
+test('an authentication check of a Connection absent from the Workspace is a 404', async (t) => {
+  const app = await makeApp(makeStore(), { checkConnection: async () => 'NOT_FOUND' })
+  t.after(() => app.close())
+  const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}/authentication-check`, ...authenticDelete })
+  assert.equal(response.statusCode, 404)
+  assert.equal(response.json().type, 'urn:conexus:problem:connector-connection-not-found')
 })
 
 test('a non-administrator is refused every Connection operation', async (t) => {

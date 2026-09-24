@@ -16,10 +16,10 @@ import type { ConnectorStore } from './store.js'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
-/** The Connection's outcome, resolved without a network call in this unit (design.md section 6):
- * unit B replaces this port with the real allow-listed authentication. */
+/** The Connection's outcome through the allow-listed authentication alone (design.md section 6).
+ * `NOT_FOUND`: no open Connection with this id in this Workspace. */
 export type CheckConnectionOutcome = 'OK' | 'CREDENTIAL_REFUSED' | 'CONNECTOR_UNCONFIGURED' | 'PROVIDER_UNAVAILABLE' | 'PROVIDER_TIMEOUT' | 'PROVIDER_ERROR'
-export type CheckConnection = (workspaceId: string, connectionId: string) => Promise<CheckConnectionOutcome>
+export type CheckConnection = (input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: string }>) => Promise<CheckConnectionOutcome | 'NOT_FOUND'>
 
 export type ConnectorRouteDependencies = Readonly<{
   store: ConnectorStore
@@ -111,7 +111,8 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
-      const outcome = await checkConnection(request.params.workspaceId, request.params.connectionId)
+      const outcome = await checkConnection({ actor, workspaceId: request.params.workspaceId, connectionId: request.params.connectionId })
+      if (outcome === 'NOT_FOUND') return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
       return { outcome }
     },
   })
