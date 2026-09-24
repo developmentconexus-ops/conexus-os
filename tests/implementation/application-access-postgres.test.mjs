@@ -498,6 +498,14 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await grantAccess(projectId, 'atual@application.test')
     assert.equal((await signIn(person, personId)).kind, 'HANDOFF', 'an Owner granting again after the revoke is honoured')
     assert.equal(await openGrants(), 1)
+
+    // Revoked again while an invitation issued before the revoke is still open, then granted again
+    // before the person signs in: the repeat grant re-issues that invitation, and it is honoured.
+    await grantAccess(projectId, 'atual@application.test')
+    const again = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+    await client.query('SELECT iam.revoke_application_grant($1,$2,$3)', [owner, projectId, again])
+    await grantAccess(projectId, 'atual@application.test')
+    assert.equal((await signIn(person, personId)).kind, 'HANDOFF')
   })
 
   await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
