@@ -19,6 +19,7 @@ import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
+import { assertFactoryGlobalSkillsAvailable } from './factory-skills-guard.js'
 import { HubSessionAuthProvider } from './hub-session-auth.js'
 import { registerInstallationGithubRoutes } from './installation-github-routes.js'
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
@@ -263,6 +264,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>) => {
+  assertFactoryGlobalSkillsAvailable()
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
