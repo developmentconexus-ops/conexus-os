@@ -51,6 +51,7 @@ redirect, not a screen; it is labeled as one below.
 /projects/$projectId/c/$conversationId     the Build surface (33.6)
 /projects/$projectId/settings              About the Project: name, repository connection, archive state
 /projects/$projectId/settings/access       Acesso ao aplicativo: application-only invitations (contract.md 3.1)
+/projects/$projectId/integrations          Integrações: Workspace Connections and this Project's Connector Grants (Q4)
 /settings                                  redirect to /settings/account
 /settings/account                          the Account's details and its Workspaces
 /settings/models                           the person's own model accounts and personal model defaults
@@ -69,9 +70,12 @@ administrator roster under `/settings/installation/*`. Model sign-in itself,
 and credential storage, stay Mastra Code's, per [C-022](../decisions/index.md)
 and [C-025](../decisions/index.md). The five `/settings/installation/*` routes
 render for any signed-in person but refuse their content to a non-administrator.
-There is no Agents, Brain, Data, Capabilities, Integrations, Versions or
-Activity surface, and none is planned. Do not add navigation for one because a
-shell looks empty without it.
+There is no Agents, Brain, Data, Capabilities, Versions or Activity surface,
+and none is planned. Do not add navigation for one because a shell looks empty
+without it. Integrations is the one exception: Q4 turns it on as the Hub's
+**Integrações** screen, per
+[the Q4 task](../tasks/stage2-q4-sankhya-connector-qualification.md#q42--connector-definition-and-workspace-connection)
+and [its frozen design](../evidence/stage2-q4/design.md#8-product-operations).
 
 ## 33.6 Build surface
 

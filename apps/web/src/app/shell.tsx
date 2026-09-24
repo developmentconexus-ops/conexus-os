@@ -94,12 +94,14 @@ function ScopeRail({ scope }: Readonly<{ scope: ShellScope | undefined }>) {
         <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId/settings', params }))} label="Sobre">
           <Link to="/projects/$projectId/settings" params={params}><NavText icon={<Info size={16} aria-hidden />}>Sobre</NavText></Link>
         </NavItem>
+        <NavItem active={Boolean(matchRoute({ to: '/projects/$projectId/integrations', params }))} label="Integrações">
+          <Link to="/projects/$projectId/integrations" params={params}><NavText icon={<Plug size={16} aria-hidden />}>Integrações</NavText></Link>
+        </NavItem>
       </MainSidebar.NavList>
       <MainSidebar.NavHeader>Em breve</MainSidebar.NavHeader>
       <MainSidebar.NavList>
         <ComingSoonNavItem icon={<Database size={16} aria-hidden />} label="Dados" />
         <ComingSoonNavItem icon={<Sparkles size={16} aria-hidden />} label="Capacidades" />
-        <ComingSoonNavItem icon={<Plug size={16} aria-hidden />} label="Integrações" />
       </MainSidebar.NavList>
     </MainSidebar.NavSection>
   }
