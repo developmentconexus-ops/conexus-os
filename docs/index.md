@@ -43,6 +43,7 @@ owns status and the next action. Start there.
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 | How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
+| Functionality seen in other products, with a verdict for Conexus | [Functional references](research/functional-references/index.md), reference evidence only |
 
 ## Method
 
