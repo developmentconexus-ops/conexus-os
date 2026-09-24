@@ -370,6 +370,46 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.ok(Date.now() - started < 10_000, 'the wait is bounded')
   })
 
+  await t.test('a request whose claim was lost while Keycloak answered follows the session instead of serving it', async () => {
+    const { sessionToken, sessionDigest } = await openSession('lost-sub', 'perdida@application.test')
+    const hub = createApplicationSessions({
+      pool, envelope,
+      refresh: async () => {
+        // The person signs out on another tab while this request waits for Keycloak.
+        await client.query("SELECT iam.end_application_session($1, 'SIGNED_OUT')", [sessionDigest])
+        return { kind: 'ACTIVE', refreshToken: 'refresh-lost-2' }
+      },
+    })
+    assert.equal(await outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
+  })
+
+  await t.test('a claim ages by the database clock: a Hub whose clock runs ahead does not take over a claim still in flight', async () => {
+    const { sessionToken } = await openSession('skew-sub', 'relogio@application.test')
+    let open
+    const gate = new Promise((resolve) => { open = resolve })
+    let entered
+    const inside = new Promise((resolve) => { entered = resolve })
+    const spent = new Set()
+    let calls = 0
+    // Keycloak with rotation: a refresh token works once.
+    const refresh = async ({ refreshToken }) => {
+      calls += 1
+      entered()
+      await gate
+      if (spent.has(refreshToken)) return { kind: 'REFUSED', reason: 'REFUSED' }
+      spent.add(refreshToken)
+      return { kind: 'ACTIVE', refreshToken: `${refreshToken}-rotated` }
+    }
+    const hub = createApplicationSessions({ pool, envelope, refresh })
+    const first = outcomeOf(hub.authority({ sessionToken, projectId, now: checkDue }))
+    await inside
+    const ahead = outcomeOf(hub.authority({ sessionToken, projectId, now: new Date(checkDue.getTime() + 2 * 60 * 1000) }))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    open()
+    assert.deepEqual([await first, await ahead], ['SIGNED_IN', 'SIGNED_IN'])
+    assert.equal(calls, 1, 'the token was spent once')
+  })
+
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-3' }
     const handoff = (await signIn(employee, employeeId)).handoff
