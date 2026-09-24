@@ -204,7 +204,7 @@ Graphite neutrals carry the whole interface. One warm gold marks what is live.
 - **Success**, **Warning** and **Danger** mark status only. Their grounds are tints of 7 to 14% on the surface.
 
 ### Named Rules
-**The One Accent Rule.** Ipê marks focus, selection, the active lens and the agent at work. It is never a button fill, a heading color or decoration.
+**The One Accent Rule.** Ipê marks focus, selection, the active lens and the agent at work. It is never a resting button fill, a heading color or decoration. Only the composer's send button turns ipê, on hover.
 
 **The Word Beside the Color Rule.** Color never carries meaning alone. Every status pairs a word with a mark, so it survives color blindness and a grayscale screenshot.
 
@@ -239,7 +239,7 @@ The system is flat. Separation is a 1px hairline, and cards do not float. A shad
 - **Card lift** (`box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08)`): a hovered project card, which also rises 2px.
 - **Prompt** (`box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05)`): the home prompt composer.
 - **Popover** (`box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / .12)`): menus and popovers.
-- **Dialog** (`box-shadow: 0 1rem 3rem rgb(0 0 0 / .24)`): dialogs, over the overlay `rgb(14 16 18 / .5)`.
+- **Row lift** (`box-shadow: 0 .35rem 1rem rgb(0 0 0 / .06)`): a hovered Workspace list row, which also rises 1px.
 - **Thumb** (`box-shadow: 0 1px 3px rgb(0 0 0 / .3)`): the effort slider thumb.
 
 ### Named Rules
@@ -262,7 +262,7 @@ Production components are Mastra primitives restyled through tokens. The entries
 ### Cards / Containers
 - **Corner Style:** 10px for panels, notes and result cards; 14px for project cards.
 - **Background:** Surface, on the Canvas ground.
-- **Shadow Strategy:** none at rest. Only the project card lifts on hover.
+- **Shadow Strategy:** none at rest. Project cards and Workspace rows lift on hover.
 - **Border:** 1px hairline.
 - **Internal Padding:** 0.8 to 1.5rem.
 
@@ -298,7 +298,7 @@ Lucide only, at stroke 2 with round caps, drawn at 13 to 18px in `currentColor`.
 - **Do** write every string in pt-BR, sentence case, with verbs on buttons.
 
 ### Don't:
-- **Don't** use ipê as a button fill or as decoration.
+- **Don't** use ipê as a resting button fill or as decoration.
 - **Don't** use any font other than Bricolage Grotesque, Hanken Grotesk and JetBrains Mono.
 - **Don't** put a shadow on a card at rest.
 - **Don't** use violet or a purple-to-cyan gradient.

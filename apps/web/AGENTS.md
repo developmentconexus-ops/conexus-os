@@ -21,5 +21,5 @@ The browser suites serve this app through Vite and stub the API, so they need no
 
 - Every color is a `var(--cx-*)` token from `packages/brand/src/tokens.css`. Every font is a `--cx-font-*` token.
 - `src/main.tsx` loads `@mastra/playground-ui/style.css`, then the brand tokens, then `src/styles.css`. Keep that order.
-- Mastra is restyled only through `src/mastra-theme.css`, by re-pointing its custom properties at tokens.
+- Mastra's palette changes only in `src/mastra-theme.css`, by re-pointing its custom properties at tokens. Size and layout go in a `cx-*` class next to the screen.
 - The client shows server truth. It never decides authorization or invents a state the server did not report.

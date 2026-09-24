@@ -14,7 +14,7 @@ Mastra primitives in use today: `Button`, `Input`, `Textarea`, `Label`, `Select`
 
 To add UI:
 
-1. Use the Mastra primitive when one exists. Style it through `mastra-theme.css` (a property it reads) or a `cx-*` class next to the screen, never by forking the component.
+1. Use the Mastra primitive when one exists. Change its palette through `mastra-theme.css`, by re-pointing a property it reads. Change its size or layout through a `cx-*` class next to the screen. Never fork the component.
 2. When Mastra hardcodes English text, replace it in pt-BR. `apps/web/src/features/builder/construir/ask-user-pt.tsx` and `task-list-pt.tsx` show the pattern; `builder-copy.ts` holds the strings.
 3. Build a component of your own only when Mastra has nothing close. Keep it in the feature that uses it until a second feature needs the same behavior.
 

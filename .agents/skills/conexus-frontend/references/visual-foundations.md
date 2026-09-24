@@ -27,12 +27,12 @@ Reach every color through `var(--cx-*)`. `npm run web:style:check` fails on a ra
 
 Rules:
 
-- **One accent.** Ipê is reserved for the mark, focus, caret, selection, the active lens underline, hover tints on nav rows and round composer tools, the composer glow and the working chip. It is not a button color.
+- **One accent.** Ipê is reserved for the mark, focus, caret, selection, the active lens underline, hover tints on nav rows and round composer tools, the composer glow and the working chip. It is not a button fill. The one exception is the composer's send button, which turns ipê on hover with an `--cx-on-ink` glyph.
 - **Primary buttons are ink,** never ipê.
 - **Color never carries meaning alone.** Every status pairs a word with a mark (a dot, a square for done, a round mark for failed). A state must survive color blindness and a grayscale screenshot.
 - **Status grounds are tints:** `color-mix(in srgb, var(--cx-danger) 8%, var(--cx-surface))`, 7–14% of the status color on the surface. Do not invent a new soft token per status.
 - **Both themes are first class.** Light is the default; dark follows `prefers-color-scheme`, and the top-bar toggle overrides it per browser (`ThemeProvider`, storage key `conexus-theme`, sets `.light` or `.dark` on `<html>`). Every new rule must look right in both before it ships.
-- **Mastra follows the brand.** `apps/web/src/mastra-theme.css` re-points every Mastra custom property at a `--cx-*` token. When a Mastra component shows a color that is not in the palette (its green, its blue), fix it there by re-pointing the property. Never override it per component.
+- **Mastra follows the brand.** `apps/web/src/mastra-theme.css` re-points every Mastra custom property at a `--cx-*` token. When a Mastra component shows a color that is not in the palette (its green, its blue), fix it there by re-pointing the property, never with a per-component color override. Size and layout changes go in a `cx-*` class next to the screen.
 
 ## Type
 
@@ -44,7 +44,7 @@ Rules:
 
 - Prose is sans, facts are mono. Mono is never decoration.
 - Numerals are tabular everywhere (`font-variant-numeric: tabular-nums`).
-- Dense UI sits at 13–15px. Functional text never goes below 12px for prose or 11px for mono stamps.
+- Dense UI sits at 13–15px. Prose never goes below 12px. Mono stamps and uppercase group labels (such as `.cx-model-group-label`) go down to 11px. The "em breve" tag `.cx-nav-soon` at .65rem is below that floor: it is drift, so raise it when you touch it.
 - The scale in use: 11 (mono stamps, lens count), 12 (hints, levels), 13 (meta, buttons, tool rows), 14 (nav, crumbs, lens tabs, notes), 15 (chat body, composer input), 16 (card titles, page body), 1.05rem (section title), 1.25rem (status headings), `clamp(1.6rem, 3.2vw, 2.1rem)` (page `h1`), `clamp(1.75rem, 4.2vw, 2.6rem)` (home hero "O que vamos construir?").
 - The fonts are self-hosted from `packages/brand/fonts`. Never load a font from a CDN. `npm run web:style:check` fails on any `font-family` outside the three faces, `system-ui`, `ui-monospace` and `monospace`.
 
@@ -69,7 +69,7 @@ The frame (`apps/web/src/app/shell.tsx`, `apps/web/src/app/frame.css`):
 | `--cx-radius-control` (6px) | Buttons, inputs, nav rows, icon buttons. |
 | `--cx-radius-object` (10px) | Notes, result cards, panels, the Preview frame, popovers. |
 | `--cx-radius-composer` (16px) | The composer. |
-| `14px` | Project cards and the home prompt confirmation. |
+| `14px` | Project cards, Workspace list rows, the People and Project settings lists, and the home prompt confirmation. |
 | `999px` | Chips, pills, round icon buttons, the model button. |
 
 The code still carries older literals (`.5rem`, `.6rem`, `.7rem`, `8px`, `12px`). They are drift, not precedent. When a change touches one of those rules, move it to the nearest step above.
@@ -79,10 +79,13 @@ The code still carries older literals (`.5rem`, `.6rem`, `.7rem`, `8px`, `12px`)
 Hairlines do the work. Cards do not float. A shadow appears only on:
 
 - a hovered project card: lift 2px and `0 .6rem 1.6rem rgb(0 0 0 / .08)`;
+- a hovered Workspace list row: lift 1px and `0 .35rem 1rem rgb(0 0 0 / .06)`;
 - the home prompt composer, very soft: `0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05)`;
 - popovers and menus: `0 .5rem 1.5rem rgb(0 0 0 / .12)`;
-- dialogs: `0 1rem 3rem rgb(0 0 0 / .24)`, over the overlay `rgb(14 16 18 / .5)`;
-- the effort slider thumb and the selected segment of a segmented control.
+- the phone-size Preview frame: `0 .25rem 1rem rgb(0 0 0 / .15)`;
+- the effort slider thumb (`0 1px 3px rgb(0 0 0 / .3)`) and the selected segment of a segmented control (`0 1px 2px rgb(0 0 0 / .08)`).
+
+Shadows are black at low alpha in both themes. That black is the one color that is not a token. Dialogs and their overlay come from Mastra `AlertDialog` and have no Conexus specification yet; see the known gaps in `SKILL.md`.
 
 No glass. The only blur is the composer glow. No gradient surfaces, no textures. Two exceptions: the project thumbnail placeholder (135° hairline hatching with the mark at 70%) and the composer's conic ipê ring.
 
@@ -105,7 +108,7 @@ Do not add a second authored motif, a pulsing orb, a shimmer or a bounce.
 
 ## Hover, press and focus
 
-- **Hover.** Surfaces go to `--cx-surface-3` with `--cx-line-strong`. Ghost and square icon buttons go to `--cx-surface-3`. Round composer tools and nav rows go to `--cx-accent-soft` with `--cx-accent-text`. Ink buttons drop to `opacity: .88`. Text links turn `--cx-accent-text`.
+- **Hover.** Surfaces go to `--cx-surface-3` with `--cx-line-strong`. Ghost and square icon buttons go to `--cx-surface-3`. Round composer tools and nav rows go to `--cx-accent-soft` with `--cx-accent-text`. Ink buttons drop to `opacity: .88`, except the composer's send button, which turns ipê. Text links turn `--cx-accent-text`.
 - **Press.** No shrink. A pressed state shows as a fill (`aria-pressed` maps to `--cx-surface` or `--cx-surface-3`).
 - **Focus.** `:focus-visible` draws a 2px ipê outline with a 2px offset (`styles.css`). Inputs take an ipê border plus a 3px ring of ipê at 28% (`mastra-theme.css` re-points Mastra's focus ring to it). Never remove a focus style without replacing it.
 - **Disabled.** Opacity .45–.6 and `cursor: not-allowed` or `default`. Say why nearby when the reason is not obvious.

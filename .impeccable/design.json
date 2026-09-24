@@ -9,7 +9,7 @@
         "displayName": "Ipê",
         "canonical": "#B07A0C",
         "tonalRamp": ["#3A2E12", "#6B4A08", "#9A6A08", "#B07A0C", "#C08A12", "#F2B53A", "#F6CE7E", "#FBF1D9"],
-        "note": "The one accent. Focus, caret, selection, active lens underline, slider fill, composer glow, working state. Never a button fill. Dark theme value #F2B53A."
+        "note": "The one accent. Focus, caret, selection, active lens underline, slider fill, composer glow, working state. Never a resting button fill; only the send button turns ipê, on hover. Dark theme value #F2B53A."
       },
       "accent-text": { "role": "primary", "displayName": "Ipê Text", "canonical": "#9A6A08", "note": "Ipê as text on a surface. Dark theme value #F2B53A." },
       "accent-soft": { "role": "primary", "displayName": "Ipê Soft", "canonical": "#FBF1D9", "note": "Hover ground on nav rows and round tools, selection, working chip. Dark theme value #3A2E12." },
@@ -41,7 +41,7 @@
       { "name": "card-lift", "value": "0 .6rem 1.6rem rgb(0 0 0 / .08)", "purpose": "A hovered project card, which also rises 2px." },
       { "name": "prompt", "value": "0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05)", "purpose": "The home prompt composer." },
       { "name": "popover", "value": "0 .5rem 1.5rem rgb(0 0 0 / .12)", "purpose": "Menus and popovers." },
-      { "name": "dialog", "value": "0 1rem 3rem rgb(0 0 0 / .24)", "purpose": "Dialogs, over the overlay rgb(14 16 18 / .5)." },
+      { "name": "row-lift", "value": "0 .35rem 1rem rgb(0 0 0 / .06)", "purpose": "A hovered Workspace list row, which also rises 1px." },
       { "name": "thumb", "value": "0 1px 3px rgb(0 0 0 / .3)", "purpose": "The effort slider thumb." }
     ],
     "motion": [
@@ -104,7 +104,7 @@
       "name": "Project Card",
       "kind": "card",
       "refersTo": "project-card",
-      "description": "A Project in the Workspace home grid. The only card that lifts, and only on hover.",
+      "description": "A Project in the Workspace home grid. It lifts only on hover.",
       "html": "<a class=\"ds-project-card\" href=\"#\"><div class=\"ds-thumb\"></div><div class=\"ds-project-body\"><h3>Pedidos de férias</h3><span>Alterado há 2 h</span></div></a>",
       "css": ".ds-project-card { display: grid; grid-template-rows: 136px auto; overflow: hidden; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-surface); color: var(--cx-text); text-decoration: none; transition: transform .2s cubic-bezier(.22, 1, .36, 1), box-shadow .2s, border-color .2s; } .ds-project-card:hover { transform: translateY(-2px); border-color: var(--cx-line-strong); box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08); } .ds-thumb { border-bottom: 1px solid var(--cx-line); background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--cx-line) 45%, transparent) 14px 15px), var(--cx-surface-3); } .ds-project-body { display: grid; gap: .5rem; padding: .85rem 1rem 1rem; } .ds-project-body h3 { margin: 0; font: 600 1rem/1.3 var(--cx-font-display); letter-spacing: -0.01em; } .ds-project-body span { color: var(--cx-text-2); font-size: .8125rem; }"
     },
@@ -136,7 +136,7 @@
       "One authored motion, \"Encaixe\", and everything stops under reduced motion."
     ],
     "rules": [
-      { "name": "The One Accent Rule", "body": "Ipê marks focus, selection, the active lens and the agent at work. It is never a button fill, a heading color or decoration.", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "Ipê marks focus, selection, the active lens and the agent at work. It is never a resting button fill, a heading color or decoration. Only the composer's send button turns ipê, on hover.", "section": "colors" },
       { "name": "The Word Beside the Color Rule", "body": "Color never carries meaning alone. Every status pairs a word with a mark, so it survives color blindness and a grayscale screenshot.", "section": "colors" },
       { "name": "The Two Themes Rule", "body": "Light is the default and dark follows the operating system unless the person picks one. Neither is an afterthought: every change is checked in both.", "section": "colors" },
       { "name": "The Prose and Facts Rule", "body": "Everything a person reads as language is sans. Everything that is a fact is mono. Mono is never a costume.", "section": "typography" },
@@ -154,7 +154,7 @@
       "Do write every string in pt-BR, sentence case, with verbs on buttons."
     ],
     "donts": [
-      "Don't use ipê as a button fill or as decoration.",
+      "Don't use ipê as a resting button fill or as decoration.",
       "Don't use any font other than Bricolage Grotesque, Hanken Grotesk and JetBrains Mono.",
       "Don't put a shadow on a card at rest.",
       "Don't use violet or a purple-to-cyan gradient.",

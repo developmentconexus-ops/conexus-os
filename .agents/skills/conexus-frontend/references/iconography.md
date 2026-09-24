@@ -1,6 +1,6 @@
 # Iconography
 
-Lucide is the only icon set. Import each icon from `lucide-react`, which `apps/web` already depends on.
+Lucide is the only icon set. Import each icon from `lucide-react`. The package reaches the app through `@mastra/playground-ui`, not as a direct dependency in `package.json`, so a Mastra upgrade can change its version.
 
 ```tsx
 import { Hammer } from 'lucide-react'
@@ -59,7 +59,9 @@ Use the same icon for the same meaning everywhere. Before adding a new icon, che
 | `Monitor`, `Smartphone`, `RotateCw` | Preview toolbar: desktop, phone, reload. |
 | `AppWindow`, `MessageSquare` | Pane switch: App, Conversa. |
 | `KeyRound`, `User`, `ShieldCheck` | Model accounts, the person, administrators. |
-| `Code2`, `SlidersHorizontal`, `Brain` | Code, settings and model defaults, memory. |
+| `Code2`, `SlidersHorizontal` | Code, settings and model defaults. |
+| `Brain` | Two meanings today: installation memory, and "Raciocínio" in the conversation. Give one of them its own icon when you touch either. |
+| `Sparkle` | The fallback logo for a model provider without its own. |
 | `Moon`, `Sun` | Theme toggle. |
 | `Copy`, `ExternalLink`, `Link2` | Copy, open elsewhere, a repository link. |
 | `Database`, `Sparkles`, `Plug` | Surfaces marked "em breve". |

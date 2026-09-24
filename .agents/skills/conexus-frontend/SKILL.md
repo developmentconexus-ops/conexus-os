@@ -1,6 +1,6 @@
 ---
 name: conexus-frontend
-description: This skill should be used for any change under `apps/web`, `packages/brand` or `apps/keycloak-theme` in Conexus OS, and whenever work adds or changes a screen, interface copy, a color, a font, spacing, an icon, motion or any other visual. Triggers include "new screen", "nova tela", "redesign", "restyle", "texto da interface", "copy", "brand", "tema escuro", "dark mode", "sign-in page", "Keycloak theme", "tokens.css", "mastra-theme.css", "Encaixe", "Claude Design", and requests to review, polish or verify the web UI.
+description: This skill should be used for any change under `apps/web`, `packages/brand` or `apps/keycloak-theme` in Conexus OS, and whenever work adds or changes a screen, interface copy, a color, a font, spacing, layout, an icon, motion or any other visual. Triggers include "new screen", "nova tela", "tela de login", "sign-in page", "Keycloak theme", "redesign", "restyle", "layout", "cor", "ícone", "texto da interface", "copy", "brand", "tema escuro", "dark mode", "celular", "responsivo", "mobile", "acessibilidade", "screenshot", "print da tela", "Construir", "composer", "tokens.css", "mastra-theme.css", "Encaixe", "Claude Design", and requests to review, polish or verify the web UI.
 ---
 
 # Conexus frontend
@@ -13,8 +13,8 @@ Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap, grant an
 
 - `packages/brand/src/tokens.css` defines every color, font, radius and easing. When anything else disagrees with it, including this skill, `tokens.css` wins.
 - The screens in `apps/web/src` are the reference implementation. Read the nearest existing screen before building a new one.
-- The Claude Design project "Conexus Design System" is a mirror of `main`, made for prototyping. After a change to tokens, components or screens merges, re-sync Claude Design from `main`. Never copy its JSX kit into the repository: production composes Mastra `@mastra/playground-ui` components, restyled through `apps/web/src/mastra-theme.css`.
-- `DESIGN.md` and `.impeccable/design.json` summarize the visual system for the impeccable tools. Regenerate both when a token changes.
+- The Claude Design project "Conexus Design System" mirrors `main` for prototyping. Never copy its JSX kit into the repository: production composes Mastra `@mastra/playground-ui` components. When a pull request changes tokens, components or screens, say "Claude Design: re-sync from `main`" in its body. The operator re-syncs after merging.
+- `DESIGN.md` and `.impeccable/design.json` summarize the visual system for the impeccable tools. When a token changes, edit both by hand in the same pull request, or rerun `/impeccable document`.
 - `PRODUCT.md` owns the users and the product principles. `docs/reference/frontend-and-product-surfaces.md` owns what each surface means, including the Build surface's functional contract (section 33.6).
 
 ## Workflow
@@ -24,46 +24,33 @@ Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap, grant an
 3. **Write the copy** in pt-BR per `references/voice-and-copy.md`.
 4. **Build** with Mastra primitives, tokens and Lucide icons per `references/visual-foundations.md` and `references/iconography.md`.
 5. **Verify** in a real browser, in both themes and under reduced motion, with screenshots, per `references/verification.md`.
-6. **Sync.** If the change moved a token, update `DESIGN.md`, `.impeccable/design.json` and `tests/implementation/brand-tokens.test.mjs` in the same pull request. After merge, re-sync Claude Design.
+6. **Sync.** If the change moved a token, update `DESIGN.md`, `.impeccable/design.json` and `tests/implementation/brand-tokens.test.mjs` in the same pull request, and ask for the Claude Design re-sync.
 
 ## Rules that hold everywhere
 
-**Language.** The interface is pt-BR only. Sentence case. Actions are verbs. Failures name the reason and what was preserved. No emoji.
+`references/visual-foundations.md` carries the values. These are the rules:
 
-**Color.**
-
-- Every color is a `var(--cx-*)` token. No raw hex outside `tokens.css`; `npm run web:style:check` fails the build on one.
-- One accent, ipê. It marks focus, selection, the active lens, hover tints on nav rows and round tools, the composer glow and the working state. It is not a button color.
-- Primary buttons are ink (`--cx-ink` on `--cx-on-ink`).
-- Status color always travels with a word and usually a mark. Color never carries meaning alone.
-- Light and dark are both first class. Check every change in both.
-
-**Type.** Bricolage Grotesque for headings, Hanken Grotesk for everything a person reads as language, JetBrains Mono for facts only (ids, paths, commands, times, durations, revisions, error codes). Use the `--cx-font-*` tokens. Numerals are tabular. Prose never goes below 12px.
-
-**Shape and depth.** Hairlines separate; cards do not float. Radius comes from `--cx-radius-control` (6px), `--cx-radius-object` (10px) and `--cx-radius-composer` (16px), plus 14px for project cards and 999px for pills. Regions and panes take no radius. Shadows only on hovered project cards, the home composer, popovers, dialogs and the slider thumb.
-
-**Motion.** "Encaixe" (the mark's two pieces sliding apart and fitting back) is the only authored motif. Controls transition in .15s. Everything stops under `prefers-reduced-motion`.
-
-**Components.** Use the Mastra primitive when one exists and restyle it through tokens. Replace any English text a Mastra component brings. Build your own component only when Mastra has nothing close.
-
-**Honesty.** Show only what the server says. Keep loading, empty, failed and unknown distinct. Never fake progress, counts or actions; mark unbuilt things "em breve".
+- **pt-BR only.** Sentence case, verbs on buttons, failures that name the reason and what was preserved, no emoji.
+- **Tokens for color.** Every color is a `var(--cx-*)` token; `npm run web:style:check` fails on a raw hex outside `tokens.css`. The only exception is the black in shadows.
+- **One accent.** Ipê marks focus, selection, the active lens, hover tints and the agent at work. It is not a button fill, except the send button on hover.
+- **Ink primary buttons.** Fill `--cx-ink`, label `--cx-on-ink`.
+- **Color never alone.** Every status travels with a word and usually a mark.
+- **Both themes.** Light and dark are first class; check every change in both.
+- **Three faces.** Bricolage Grotesque for headings, Hanken Grotesk for language, JetBrains Mono for facts only, through the `--cx-font-*` tokens.
+- **Hairlines, not shadows.** Radius comes from the scale; regions and panes take none. Shadows only where `visual-foundations.md` lists them.
+- **Encaixe is the only authored motion.** Everything stops under `prefers-reduced-motion`.
+- **Mastra first.** Use the Mastra primitive when one exists. Change its palette through `apps/web/src/mastra-theme.css`, and its size or layout through a `cx-*` class next to the screen. Replace any English text it brings.
+- **Honest states.** Show only what the server says. Keep loading, empty, failed and unknown distinct. Never fake progress, counts or actions; mark unbuilt things "em breve".
 
 ## Checks
 
-```bash
-npm run web:style:check
-npm run r1:a0:web:typecheck
-npx --no-install biome check apps/web/src packages/brand/src
-node --test tests/implementation/brand-tokens.test.mjs
-```
-
-`references/verification.md` covers the browser suites, the live Hub, both themes, reduced motion, screenshots and accessibility. `apps/web/AGENTS.md` lists the same commands for a quick start.
+`references/verification.md` lists the checks for each kind of change: the style check, the typecheck, biome, the brand token test, `npm run keycloak-theme:check` for the sign-in theme, the browser suites, both themes, reduced motion, screenshots and accessibility. `apps/web/AGENTS.md` repeats the web app commands for a quick start.
 
 ## Known gaps: work to shape, not rules
 
 These have no settled design yet. Do not treat an existing one-off as the standard. When a task touches one, shape it with the operator per `references/product-surfaces.md`, then record the result in the matching reference file.
 
-- **Overlays.** Dropdown menu, popover, tooltip, dialog and combobox have no specification beyond the Mastra defaults, the shared shadows and `--cx-radius-object`.
+- **Overlays.** Dropdown menu, popover, tooltip, dialog and combobox have no specification beyond the Mastra defaults, the popover shadow and `--cx-radius-object`.
 - **Q3 access screens.** The no-access screen, the access-grant screen and the application sign-in screen for Stage 2 Q3 are not designed.
 - **Keycloak theme.** `apps/keycloak-theme` follows the tokens but has no reviewed layout, copy or state set of its own.
 - **Mobile.** The frame and Construir adapt below 768px, but no screen has a reviewed phone layout, and there is no mobile navigation standard.
