@@ -133,4 +133,19 @@ BEGIN
 END;
 $$;
 
+-- Before 0024 a revoke left open the invitations a repeat grant had opened. The claim above already
+-- grants nothing from them; they go, so the Owner's list no longer shows them as pending. An
+-- invitation issued after the revoke is an Owner granting again, and stays.
+DELETE FROM iam.application_invitation AS invitation
+USING iam.account AS person
+WHERE lower(btrim(person.email)) = invitation.email
+  AND EXISTS (
+    SELECT 1 FROM iam.application_grant AS revoked
+    WHERE revoked.project_id = invitation.project_id AND revoked.account_id = person.account_id
+      AND revoked.revoked_at >= invitation.created_at)
+  AND NOT EXISTS (
+    SELECT 1 FROM iam.application_grant AS held
+    WHERE held.project_id = invitation.project_id AND held.account_id = person.account_id
+      AND held.revoked_at IS NULL);
+
 COMMIT;
