@@ -56,7 +56,11 @@ const connectors = config.factory ? createConnectorModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+  gatewayOrigin: config.connectors.gatewayOrigin,
+  socketDirectory: config.connectors.socketDirectory,
 }) : undefined
+// A restarted Hub leaves no orphan handler socket answering (design.md section 5, M2).
+await connectors?.sweepHandlerPorts()
 const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
   commandPool: createPostgresPool({
     host: config.database.host,
@@ -126,6 +130,8 @@ const mar = config.preview ? createMarModule({
         })
       },
       invoke: applicationRunner.invoke,
+      // Each invocation gets its own connector port, minted by the Connector owner from the source.
+      ...(connectors ? { openConnectorPort: (source) => connectors.openHandlerPort(source) } : {}),
     },
   } : {}),
   ...(config.application && servedApplications ? {

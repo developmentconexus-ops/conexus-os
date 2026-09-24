@@ -40,6 +40,9 @@ export type HubConfig = Readonly<{
   googleAiPro: GoogleAiProRuntimeConfig | undefined
   // The application runner's socket; without it a Preview has no application API.
   appRunner: Readonly<{ socketPath: string }> | undefined
+  // The Connector broker's pinned gateway destination and the directory of its per-invocation
+  // handler sockets. Each absent leaves every connector call answering CONNECTOR_UNCONFIGURED.
+  connectors: Readonly<{ gatewayOrigin: string | undefined; socketDirectory: string | undefined }>
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
 
@@ -251,6 +254,16 @@ const appRunnerRuntime = (environment: NodeJS.ProcessEnv): HubConfig['appRunner'
   return { socketPath }
 }
 
+const connectorRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connectors'] => {
+  const gatewayOrigin = environment.CONEXUS_SANKHYA_GATEWAY_ORIGIN
+  const socketDirectory = environment.CONEXUS_CONNECTOR_SOCKET_DIR
+  if (socketDirectory !== undefined && !/^\/[^\0]*$/.test(socketDirectory)) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
+  // The exact published origins live with the adapter (connectors/sankhya/gateway.ts), which refuses
+  // any other value when the Hub composes it at startup; here only the shape is checked.
+  if (gatewayOrigin !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(gatewayOrigin)) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN')
+  return { gatewayOrigin, socketDirectory }
+}
+
 const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
   const portValue = environment.CONEXUS_PREVIEW_PORT
   const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
@@ -316,6 +329,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     factory: factoryRuntime(environment),
     googleAiPro: googleAiProRuntime(environment),
     appRunner: appRunnerRuntime(environment),
+    connectors: connectorRuntime(environment),
     oidc: {
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),
@@ -330,5 +344,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.application && !config.builder) throw new Error('APPLICATION_BUILDER_RUNTIME_REQUIRED')
   // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
+  // The broker opens credentials sealed with the Factory's key; without it a connector setting would be ignored silently.
+  if ((config.connectors.gatewayOrigin || config.connectors.socketDirectory) && !config.factory) throw new Error('CONNECTORS_FACTORY_RUNTIME_REQUIRED')
   return config
 }

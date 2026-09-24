@@ -21,7 +21,15 @@ export type ApplicationRunnerInvoke = (input: Readonly<{
   input: unknown
   files: readonly ServerFile[]
   caller: Caller
+  connectorSocket?: string
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
+
+/**
+ * Opens the Connector broker's port for one invocation, under a scope the Connector owner mints from
+ * this source; null when the installation serves no connector port. The port dies with the
+ * invocation.
+ */
+export type ConnectorPortOpener = (source: ArtifactSource) => Promise<Readonly<{ socketPath: string; close(): Promise<void> }> | null>
 
 export type ApplicationInvoker = (input: Readonly<{
   source: ArtifactSource
@@ -54,6 +62,7 @@ const refusal = (status: number, code: string): Readonly<{ status: number; body:
 export const createApplicationInvoker = (dependencies: Readonly<{
   readFile: ApplicationFileReader
   invoke: ApplicationRunnerInvoke
+  openConnectorPort?: ConnectorPortOpener
   limits?: ApplicationAdmissionLimits
 }>): ApplicationInvoker => {
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
@@ -81,7 +90,14 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })
       }
       const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
-      return await dependencies.invoke({ projectId, operation: input.operation, input: input.input, files, caller: input.caller })
+      const port = dependencies.openConnectorPort ? await dependencies.openConnectorPort(input.source) : null
+      try {
+        return await dependencies.invoke({
+          projectId, operation: input.operation, input: input.input, files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
+        })
+      } finally {
+        await port?.close()
+      }
     } finally {
       globalInFlight -= 1
       const remaining = (perProjectInFlight.get(projectId) ?? 1) - 1

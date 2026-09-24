@@ -3,7 +3,7 @@ import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
-import type { ApplicationFileReader, ApplicationRunnerInvoke } from './application-invoker.js'
+import type { ApplicationFileReader, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 
@@ -29,7 +29,7 @@ export const createMarModule = ({
   sessions: PreviewSessions
   registryReader: RegistryReader
   /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
-  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader }>
+  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
   applicationHost?: Readonly<{ sessions: ApplicationHostSessions; reader: ApplicationHostReader; application: ApplicationAddress }>

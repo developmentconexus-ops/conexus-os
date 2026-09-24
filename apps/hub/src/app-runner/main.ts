@@ -22,6 +22,8 @@ const secret = (name: string): string => readFileSync(required(name), 'utf8').tr
 assertUserNamespaces()
 const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
 const socketPath = required('CONEXUS_APP_RUNNER_SOCKET')
+const connectorSocketDir = process.env.CONEXUS_CONNECTOR_SOCKET_DIR
+if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
 mkdirSync(stateDir, { recursive: true, mode: 0o700 })
 chmodSync(stateDir, 0o700)
 rmSync(join(stateDir, 'i'), { recursive: true, force: true })
@@ -33,6 +35,7 @@ const supervisor = createSupervisor({
   database: required('CONEXUS_APP_DB_NAME'),
   provisionerPassword: secret('CONEXUS_DB_APP_PROVISIONER_PASSWORD_FILE'),
   relayTls: readRelayTls(required('CONEXUS_APP_RELAY_TLS_DIR')),
+  ...(connectorSocketDir ? { connectorSocketDir } : {}),
 })
 
 await supervisor.checkProvisioner()

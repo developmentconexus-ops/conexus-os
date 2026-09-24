@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
 import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
 import type { PreviewAllocation } from './data-plane.js'
@@ -43,11 +43,13 @@ export type SupervisorConfig = Readonly<{
   relayTls: RelayTls
   limits?: RunnerLimits
   sandbox?: SandboxConfig
+  /** The runner's own copy of CONEXUS_CONNECTOR_SOCKET_DIR; absent, no connector socket is admitted. */
+  connectorSocketDir?: string
 }>
 
 export type Reply = Readonly<{ status: number; body: unknown }>
 
-export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller }>
+export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string | undefined }>
 
 export type PrepareResult =
   | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
@@ -108,10 +110,19 @@ export const createSupervisor = (config: SupervisorConfig) => {
   let migrationChain: Promise<unknown> = Promise.resolve()
   let running = 0
 
+  // Only a socket directly inside the runner's configured directory, never a symlink or a file.
+  const admitConnectorSocket = async (path: string): Promise<boolean> => {
+    const directory = config.connectorSocketDir
+    if (!directory || resolve(path) !== path || dirname(path) !== resolve(directory) || basename(path).startsWith('.')) return false
+    const stat = await lstat(path).catch(() => null)
+    return stat?.isSocket() === true
+  }
+
   // One sandboxed worker with its own directory and its own pinned database socket, removed after.
   const inSandbox = async (input: Readonly<{
     role: string
     modules?: ReadonlyMap<string, Buffer>
+    connectorSocket?: string
     job: (login: WorkerJob['login']) => WorkerJob
     timeoutMs: number
   }>): Promise<Readonly<{ outcome: WorkerOutcome; refusedSessions: readonly string[] }>> => {
@@ -137,6 +148,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
           runtimeDir: config.runtimeDir,
           ...(input.modules ? { appDir } : {}),
           databaseSocket: socket,
+          ...(input.connectorSocket ? { connectorSocket: input.connectorSocket } : {}),
           job: input.job({ host: SANDBOX_DATABASE_HOST, user: input.role, database: config.database }),
           timeoutMs: input.timeoutMs,
           resultLimit: limits.responseBytes,
@@ -211,13 +223,15 @@ export const createSupervisor = (config: SupervisorConfig) => {
     if (Buffer.byteLength(JSON.stringify(input.input ?? null)) > limits.inputBytes) return refusal(413, 'INPUT_TOO_LARGE')
     const inputViolation = schemaViolation(operation.input, input.input)
     if (inputViolation) return refusal(400, 'INPUT_REFUSED', inputViolation)
+    if (input.connectorSocket !== undefined && !await admitConnectorSocket(input.connectorSocket)) return refusal(500, 'CONNECTOR_SOCKET_REFUSED')
     if (running >= limits.concurrency) return refusal(429, 'RUNNER_BUSY')
     running += 1
     try {
       const { outcome } = await inSandbox({
         role: allocation.runtimeRole,
         modules: tree.modules,
-        job: (login) => ({ kind: 'invoke', login, module: `/app/${operation.module}`, export: operation.export, input: input.input, caller: input.caller, responseLimit: limits.responseBytes }),
+        ...(input.connectorSocket ? { connectorSocket: input.connectorSocket } : {}),
+        job: (login) => ({ kind: 'invoke', login, module: `/app/${operation.module}`, export: operation.export, input: input.input, caller: input.caller, responseLimit: limits.responseBytes, connector: input.connectorSocket !== undefined }),
         timeoutMs: limits.invokeTimeoutMs,
       })
       if (outcome.kind === 'CRASHED') return refusal(500, 'HANDLER_CRASHED', outcome.signal ?? `exit ${outcome.exitCode}`)

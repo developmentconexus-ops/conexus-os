@@ -241,3 +241,26 @@ test('the broker lists only the granted operations of a minted scope', async (t)
   assert.deepEqual((await broker.granted(consumer.scope)).map((operation) => operation.id), [READ])
   assert.deepEqual(await broker.granted({ projectId: PROJECT, environment: 'preview' }), [])
 })
+
+test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {
+  const { SANKHYA_GATEWAY_ORIGINS, pinnedGatewayOrigin } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+  assert.equal(SANKHYA_GATEWAY_ORIGINS.length, 2)
+  for (const origin of SANKHYA_GATEWAY_ORIGINS) {
+    assert.equal(origin.startsWith('https://'), true)
+    assert.equal(pinnedGatewayOrigin(origin), origin)
+  }
+  for (const refusedOrigin of [`${SANKHYA_GATEWAY_ORIGINS[0]}/`, `${SANKHYA_GATEWAY_ORIGINS[0]}.example.test`, SANKHYA_GATEWAY_ORIGINS[0].replace('https:', 'http:'), 'http://127.0.0.1:8080', '']) {
+    assert.throws(() => pinnedGatewayOrigin(refusedOrigin), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' }, refusedOrigin)
+  }
+
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
+  const base = {
+    NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_BOOTSTRAP_SUBJECT: 'subject', CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432',
+    CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
+    CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret',
+  }
+  assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' })
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), { message: 'INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR' })
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }), { message: 'CONNECTORS_FACTORY_RUNTIME_REQUIRED' })
+})
