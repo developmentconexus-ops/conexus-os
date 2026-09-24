@@ -3,7 +3,7 @@
 //
 //   node scripts/q3-negative-proof.mjs --app <slug> --other-app <slug> --project <id> --out <file.json>
 //     --employee-state <state.json>    the app-only employee, from scripts/q3-sign-in.mjs
-//     [--phase main|caller|control|expired|disabled|revoke]   default main
+//     [--phase main|caller|control|expired|disabled|revoke|review|provider-refusal]   default main
 //   main:     --member-state <state.json> (a member of the Project's Workspace, no grant)
 //             --workspace <id> --preview-url <url>
 //   control:  --member-state <state.json> --control-app <slug of an application in another Workspace>
@@ -11,6 +11,10 @@
 //   expired:  --session-state <state.json> (a live application session this run may age by 8 hours)
 //   disabled: --disabled-at <ISO time the employee was disabled in Keycloak>
 //   revoke:   --employee-email <email>; polls while the Owner revokes the grant in the Hub
+//   review:   --member-state <state.json> [--save-state <file>]; the review fixes, as the member
+//   provider-refusal: --session-state <state.json>, whose person the caller disabled in Keycloak
+//   main runs its employee cases only with --employee-state; control, expired, review and
+//   provider-refusal need none.
 //
 // No password is typed or read here. Saved browser state reaches the application host through the
 // Keycloak session it already holds. The expired and revoke phases read or age one application session
@@ -19,6 +23,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import dns from 'node:dns'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import https from 'node:https'
 import { chromium } from '@playwright/test'
 
 // Chromium resolves every *.localhost name to loopback (RFC 6761); Node reads /etc/hosts only.
@@ -41,13 +46,16 @@ const projectId = argument('--project')
 const out = argument('--out')
 const phase = argument('--phase') ?? 'main'
 const statePath = { member: argument('--member-state'), employee: argument('--employee-state'), session: argument('--session-state') }
-if (!slug || !/^[0-9a-f-]{36}$/.test(projectId ?? '') || !out || (phase !== 'control' && !statePath.employee) || (phase === 'main' && !statePath.member)) {
+const employeeOptional = ['main', 'control', 'review', 'provider-refusal', 'expired'].includes(phase)
+if (!slug || !/^[0-9a-f-]{36}$/.test(projectId ?? '') || !out || (!employeeOptional && !statePath.employee) || (phase === 'main' && !statePath.member)) {
   console.error('usage: see the header of scripts/q3-negative-proof.mjs')
   process.exit(2)
 }
 const APP = `https://${slug}.conexus.localhost:${PORT}`
 const OTHER = otherSlug ? `https://${otherSlug}.conexus.localhost:${PORT}` : null
 const ANY_OPERATION = `${APP}/__conexus/api/anyOperation`
+// What a browser sends for a top-level page load; only this starts an application sign-in.
+const NAVIGATION = Object.freeze({ 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' })
 
 const readState = (path) => JSON.parse(readFileSync(path, 'utf8'))
 const cookieHeader = (state, origin) => {
@@ -83,6 +91,20 @@ const call = async (method, url, { cookie = '', origin, headers = {}, body } = {
   try { parsed = JSON.parse(text) } catch {}
   return { status: response.status, location: response.headers.get('location'), setCookie: cookieNames((response.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')), body: typeof parsed === 'string' ? parsed.slice(0, 300) : parsed }
 }
+// A top-level page load as a browser sends it. fetch() sets Sec-Fetch-Mode itself, so this goes
+// through node:https, which sends the headers as given.
+const navigate = (url, { cookie = '' } = {}) => new Promise((resolve, reject) => {
+  const request = https.request(url, { method: 'GET', headers: { ...NAVIGATION, ...(cookie ? { cookie } : {}) } }, (response) => {
+    response.resume()
+    response.on('end', () => resolve({
+      status: response.statusCode,
+      location: response.headers.location ?? null,
+      setCookie: (response.headers['set-cookie'] ?? []).map((line) => line.split(';')[0]),
+    }))
+  })
+  request.on('error', reject)
+  request.end()
+})
 // Polls one application request until it is refused; keeps the last allowed and first refused answer.
 const pollUntilRefused = async (cookie, { everyMs, untilMs }) => {
   let lastAllowed = null
@@ -126,69 +148,73 @@ const signInToApplication = async (context, origin, { stopAtHandoff = false } = 
 
 try {
   if (phase === 'main') {
-    const employee = readState(statePath.employee)
-    const employeeMeta = existsSync(`${statePath.employee}.meta.json`) ? JSON.parse(readFileSync(`${statePath.employee}.meta.json`, 'utf8')) : {}
-    const employeeApp = cookieHeader(employee, APP)
-    const workspaceId = argument('--workspace')
-    const previewUrl = argument('--preview-url')
+    // The employee's cases need an employee signed in by scripts/q3-sign-in.mjs; the member's run without them.
+    if (statePath.employee) {
+      const employee = readState(statePath.employee)
+      const employeeMeta = existsSync(`${statePath.employee}.meta.json`) ? JSON.parse(readFileSync(`${statePath.employee}.meta.json`, 'utf8')) : {}
+      const employeeApp = cookieHeader(employee, APP)
+      const workspaceId = argument('--workspace')
+      const previewUrl = argument('--preview-url')
 
-    // The employee's own browser at the Hub: Keycloak signs them in, the Hub refuses them a session.
-    {
-      const context = await contextFor(statePath.employee)
-      const page = await context.newPage()
-      const statuses = []
-      page.on('response', (response) => { if (response.url().startsWith(`${HUB}/protocol/oidc/callback`)) statuses.push(response.status()) })
-      await page.goto(`${HUB}/protocol/oidc/login`).catch(() => {})
-      await page.waitForTimeout(2_000)
-      const hubCookies = (await context.cookies(HUB)).map((cookie) => cookie.name).filter((name) => name.startsWith('__Host-conexus_session') || name.startsWith('__Host-conexus_csrf'))
-      record('employee-opens-hub', { method: 'GET', url: `${HUB}/protocol/oidc/login`, as: 'employee' }, { callbackStatuses: statuses, hubCookies }, statuses.includes(403) && hubCookies.length === 0)
-      if (previewUrl) {
-        const response = await page.goto(previewUrl).catch(() => null)
-        const status = response?.status() ?? null
-        record('employee-opens-preview-host', { method: 'GET', url: previewUrl, as: 'employee' }, { status, landed: page.url() }, status === 401 || status === 403)
+      // The employee's own browser at the Hub: Keycloak signs them in, the Hub refuses them a session.
+      {
+        const context = await contextFor(statePath.employee)
+        const page = await context.newPage()
+        const statuses = []
+        page.on('response', (response) => { if (response.url().startsWith(`${HUB}/protocol/oidc/callback`)) statuses.push(response.status()) })
+        await page.goto(`${HUB}/protocol/oidc/login`).catch(() => {})
+        await page.waitForTimeout(2_000)
+        const hubCookies = (await context.cookies(HUB)).map((cookie) => cookie.name).filter((name) => name.startsWith('__Host-conexus_session') || name.startsWith('__Host-conexus_csrf'))
+        record('employee-opens-hub', { method: 'GET', url: `${HUB}/protocol/oidc/login`, as: 'employee' }, { callbackStatuses: statuses, hubCookies }, statuses.includes(403) && hubCookies.length === 0)
+        if (previewUrl) {
+          const response = await page.goto(previewUrl).catch(() => null)
+          const status = response?.status() ?? null
+          record('employee-opens-preview-host', { method: 'GET', url: previewUrl, as: 'employee' }, { status, landed: page.url() }, status === 401 || status === 403)
+        }
+        await context.close()
       }
-      await context.close()
-    }
 
-    // Control Plane operations with everything the employee's browser holds for the Hub.
-    const hubCookie = cookieHeader(employee, HUB)
-    for (const [id, method, path, body] of [
-      ['employee-reads-access-context', 'GET', '/api/control/access-context'],
-      ['employee-creates-workspace', 'POST', '/api/control/workspaces', { name: 'Tentativa' }],
-      ...(workspaceId ? [['employee-lists-projects', 'GET', `/api/control/workspaces/${workspaceId}/projects`]] : []),
-      ['employee-reads-project', 'GET', `/api/control/projects/${projectId}`],
-      ['employee-opens-builder', 'GET', `/api/control/projects/${projectId}/builder-session`],
-      ['employee-launches-preview', 'POST', `/api/control/projects/${projectId}/builder-session/preview`, {}],
-      ['employee-reads-application-access', 'GET', `/api/control/projects/${projectId}/application-access`],
-    ]) {
-      const answer = await call(method, `${HUB}${path}`, { cookie: hubCookie, origin: HUB, headers: method === 'POST' ? { 'idempotency-key': crypto.randomUUID() } : {}, body })
-      record(id, { method, url: `${HUB}${path}`, as: 'employee', cookieNames: cookieNames(hubCookie) }, { status: answer.status, body: answer.body }, answer.status === 401 || answer.status === 403)
-    }
+      // Control Plane operations with everything the employee's browser holds for the Hub.
+      const hubCookie = cookieHeader(employee, HUB)
+      for (const [id, method, path, body] of [
+        ['employee-reads-access-context', 'GET', '/api/control/access-context'],
+        ['employee-creates-workspace', 'POST', '/api/control/workspaces', { name: 'Tentativa' }],
+        ...(workspaceId ? [['employee-lists-projects', 'GET', `/api/control/workspaces/${workspaceId}/projects`]] : []),
+        ['employee-reads-project', 'GET', `/api/control/projects/${projectId}`],
+        ['employee-opens-builder', 'GET', `/api/control/projects/${projectId}/builder-session`],
+        ['employee-launches-preview', 'POST', `/api/control/projects/${projectId}/builder-session/preview`, {}],
+        ['employee-reads-application-access', 'GET', `/api/control/projects/${projectId}/application-access`],
+      ]) {
+        const answer = await call(method, `${HUB}${path}`, { cookie: hubCookie, origin: HUB, headers: method === 'POST' ? { 'idempotency-key': crypto.randomUUID() } : {}, body })
+        record(id, { method, url: `${HUB}${path}`, as: 'employee', cookieNames: cookieNames(hubCookie) }, { status: answer.status, body: answer.body }, answer.status === 401 || answer.status === 403)
+      }
 
-    // Another application's host: signing in there lands on its no-access page.
-    if (OTHER) {
-      const context = await contextFor(statePath.employee)
-      const { landed } = await signInToApplication(context, OTHER)
-      record('employee-opens-other-application', { url: `${OTHER}/`, as: 'employee' }, { landed }, landed.startsWith(`${OTHER}/__conexus/no-access`))
-      const withCookieA = await call('POST', `${OTHER}/__conexus/api/anyOperation`, { cookie: employeeApp, origin: OTHER, body: {} })
-      record('employee-session-on-other-host', { url: `${OTHER}/__conexus/api/anyOperation`, cookie: 'the employee session of the first application' }, withCookieA, withCookieA.status === 401)
-      await context.close()
-    }
+      // Another application's host: signing in there lands on its no-access page.
+      if (OTHER) {
+        const context = await contextFor(statePath.employee)
+        const { landed } = await signInToApplication(context, OTHER)
+        record('employee-opens-other-application', { url: `${OTHER}/`, as: 'employee' }, { landed }, landed.startsWith(`${OTHER}/__conexus/no-access`))
+        const withCookieA = await call('POST', `${OTHER}/__conexus/api/anyOperation`, { cookie: employeeApp, origin: OTHER, body: {} })
+        record('employee-session-on-other-host', { url: `${OTHER}/__conexus/api/anyOperation`, cookie: 'the employee session of the first application' }, withCookieA, withCookieA.status === 401)
+        await context.close()
+      }
 
-    // The handoff the employee's browser already redeemed, replayed.
-    if (employeeMeta.handoffUrl) {
-      const replay = await call('GET', employeeMeta.handoffUrl, { cookie: employeeApp })
-      record('handoff-redeemed-twice', { url: '<the employee handoff URL>', as: 'employee' }, replay, replay.status === 403)
-    }
+      // The handoff the employee's browser already redeemed, replayed.
+      if (employeeMeta.handoffUrl) {
+        const replay = await call('GET', employeeMeta.handoffUrl, { cookie: employeeApp })
+        record('handoff-redeemed-twice', { url: '<the employee handoff URL>', as: 'employee' }, replay, replay.status === 403)
+      }
 
-    // The session value planted before sign-in: the redirect to sign in clears it, and it opens nothing.
-    if (employeeMeta.plantedSession) {
-      const plantedCookie = `__Host-conexus_app=${employeeMeta.plantedSession}`
-      const redirect = await call('GET', `${APP}/`, { cookie: plantedCookie })
-      const planted = await call('POST', ANY_OPERATION, { cookie: plantedCookie, origin: APP, body: {} })
-      record('pre-sign-in-session-value', { cookie: '__Host-conexus_app=<planted before sign-in>' },
-        { redirect: { status: redirect.status, setCookie: redirect.setCookie }, api: planted, replacedAtSignIn: employeeMeta.sessionReplaced },
-        redirect.status === 303 && redirect.setCookie.includes('__Host-conexus_app') && planted.status === 401 && employeeMeta.sessionReplaced === true)
+      // The session value planted before sign-in: the redirect to sign in clears it, and it opens nothing.
+      if (employeeMeta.plantedSession) {
+        const plantedCookie = `__Host-conexus_app=${employeeMeta.plantedSession}`
+        const redirect = await navigate(`${APP}/`, { cookie: plantedCookie })
+        redirect.setCookie = cookieNames(redirect.setCookie.join('; '))
+        const planted = await call('POST', ANY_OPERATION, { cookie: plantedCookie, origin: APP, body: {} })
+        record('pre-sign-in-session-value', { cookie: '__Host-conexus_app=<planted before sign-in>' },
+          { redirect: { status: redirect.status, setCookie: redirect.setCookie }, api: planted, replacedAtSignIn: employeeMeta.sessionReplaced },
+          redirect.status === 303 && redirect.setCookie.includes('__Host-conexus_app') && planted.status === 401 && employeeMeta.sessionReplaced === true)
+      }
     }
 
     // The member's browser: a member of the Project's Workspace enters without a grant (answer 8), the
@@ -348,7 +374,86 @@ try {
     const refusedAfterSeconds = polled.firstRefused ? Math.round((Date.parse(polled.firstRefused.startedAt) - disabledAt) / 1000) : null
     record('disabled-in-keycloak-within-five-minutes', { url: ANY_OPERATION, as: 'employee, polled every 20 s after being disabled in Keycloak', disabledAt: new Date(disabledAt).toISOString() },
       { ...polled, refusedAfterSeconds, sessionEnded: ended },
-      Boolean(polled.firstRefused) && (!polled.lastAllowed || Date.parse(polled.lastAllowed.startedAt) - disabledAt < 300_000) && ended === 'PROVIDER_REFUSED')
+      Boolean(polled.firstRefused) && (!polled.lastAllowed || Date.parse(polled.lastAllowed.startedAt) - disabledAt < 300_000) && ended === 'PROVIDER_USER_DISABLED')
+  }
+
+  // The review fixes on the live pilot, as the member: navigation-only sign-in, the standalone CSP, one
+  // read per file, and the Keycloak recheck under rotation with concurrent requests.
+  if (phase === 'review') {
+    if (!statePath.member) throw new Error('--member-state is required for the review phase')
+    const brief = (answer) => ({ status: answer.status, location: answer.location, setCookie: answer.setCookie, code: answer.body?.error?.code ?? null })
+    {
+      const script = await call('GET', `${APP}/assets/index.js`, { headers: { 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'script' } })
+      const fetched = await call('POST', ANY_OPERATION, { origin: APP, headers: { 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' }, body: {} })
+      const navigation = await navigate(`${APP}/`)
+      const binding = navigation.setCookie.find((pair) => pair.startsWith('__Host-conexus_app_signin='))
+      const again = binding ? await navigate(`${APP}/`, { cookie: binding }) : null
+      const digestOf = (location) => location ? new URL(location).searchParams.get('binding') : null
+      const heldDigest = binding ? createHash('sha256').update(binding.split('=')[1]).digest('base64url') : null
+      record('sign-in-only-on-navigation', { url: `${APP}/`, as: 'a browser without an application session' },
+        { script: brief(script), fetch: brief(fetched), navigation: { status: navigation.status, location: navigation.location, setCookie: cookieNames(navigation.setCookie.join('; ')) }, secondNavigationKeepsBinding: digestOf(again?.location) === heldDigest },
+        script.status === 401 && script.setCookie.length === 0 && fetched.status === 401 && fetched.setCookie.length === 0 &&
+        navigation.status === 303 && navigation.location?.startsWith(`${HUB}/protocol/oidc/login`) && Boolean(heldDigest) && digestOf(again?.location) === heldDigest)
+    }
+    const context = await contextFor(statePath.member)
+    const { landed } = await signInToApplication(context, APP)
+    const jar = await context.storageState()
+    const cookie = cookieHeader(jar, APP)
+    const digestHex = sessionDigest(jar)
+    await context.close()
+    if (argument('--save-state')) {
+      // A second application session for the provider-refusal phase, apart from the one aged below.
+      const second = await contextFor(statePath.member)
+      await signInToApplication(second, APP)
+      writeFileSync(argument('--save-state'), JSON.stringify(await second.storageState()), { mode: 0o600 })
+      await second.close()
+    }
+    {
+      const response = await fetch(`${APP}/`, { redirect: 'manual', headers: { cookie } })
+      const csp = response.headers.get('content-security-policy')
+      record('application-host-csp', { url: `${APP}/`, as: 'member' },
+        { landed, status: response.status, csp, frameOptions: response.headers.get('x-frame-options'), cors: response.headers.get('access-control-allow-origin') },
+        response.status === 200 && csp === "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'" &&
+        response.headers.get('x-frame-options') === 'DENY' && response.headers.get('access-control-allow-origin') === null)
+      const tree = await call('GET', `${APP}/conexus-server/manifest.json`, { cookie })
+      const missing = await call('GET', `${APP}/nao-existe.js`, { cookie })
+      record('served-files-one-read', { urls: [`${APP}/`, `${APP}/conexus-server/manifest.json`, `${APP}/nao-existe.js`], as: 'member' },
+        { page: response.status, serverTree: tree.status, missing: missing.status }, response.status === 200 && tree.status === 404 && missing.status === 404)
+    }
+    {
+      const row = () => sql(`SELECT coalesce(ended_reason, 'open') || '|' || md5(provider_refresh_token) || '|' || (provider_refresh_token LIKE 'mastra:factory-secret:v1:%') || '|' || (provider_check_claim IS NULL) FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`).split('|')
+      // Age the session so the Keycloak check is due: six minutes since sign-in and since the last check.
+      const age = () => sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+      const [, tokenBefore, sealedBefore] = row()
+      const aged = age()
+      const concurrent = await Promise.all([1, 2, 3, 4].map(() => call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })))
+      const [endedAfter, tokenAfter, sealedAfter, claimReleased] = row()
+      const agedAgain = age()
+      const next = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+      const [endedLast, tokenLast] = row()
+      const unsealed = sql("SELECT (SELECT count(*) FROM iam.application_session WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%') + (SELECT count(*) FROM iam.application_handoff WHERE provider_refresh_token NOT LIKE 'mastra:factory-secret:v1:%')")
+      record('rotation-concurrent-recheck', { url: ANY_OPERATION, as: 'member, four requests at once when the Keycloak check is due, then one more after the next check is due' },
+        { aged: aged === '1' && agedAgain === '1', statuses: concurrent.map((answer) => answer.status), session: endedAfter, rotated: tokenAfter !== tokenBefore, sealed: sealedBefore === 'true' && sealedAfter === 'true', claimReleased: claimReleased === 'true', next: next.status, rotatedAgain: tokenLast !== tokenAfter, sessionAtEnd: endedLast, unsealedTokens: unsealed },
+        // Past authority the runner answers 404 for the undeclared operation, or 429 when the Project's
+        // admission bound (two at a time) is full; 401 would be a sign-out and 503 an unanswered check.
+        aged === '1' && concurrent.every((answer) => answer.status === 404 || answer.status === 429) && endedAfter === 'open' && tokenAfter !== tokenBefore &&
+        sealedBefore === 'true' && sealedAfter === 'true' && claimReleased === 'true' && next.status === 404 && tokenLast !== tokenAfter && endedLast === 'open' && unsealed === '0')
+    }
+  }
+
+  // A refused Keycloak refresh names why. --session-state holds a live application session (the review
+  // phase saves one with --save-state); the caller disables that person in Keycloak before this phase
+  // and enables them again after. This phase makes the check due and sends one request.
+  if (phase === 'provider-refusal') {
+    if (!statePath.session) throw new Error('--session-state is required for the provider-refusal phase')
+    const state = readState(statePath.session)
+    const cookie = cookieHeader(state, APP)
+    const digestHex = sessionDigest(state)
+    const aged = sql(`UPDATE iam.application_session SET authenticated_at = authenticated_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${digestHex}', 'hex') AND ended_at IS NULL RETURNING 1`)
+    const after = await call('POST', ANY_OPERATION, { cookie, origin: APP, body: {} })
+    const ended = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.application_session WHERE token_digest = decode('${digestHex}', 'hex')`)
+    record('provider-refusal-names-disable', { url: ANY_OPERATION, as: 'a person disabled in Keycloak, with the check made due' }, { aged: aged === '1', after: after.status, afterCode: after.body?.error?.code ?? null, ended },
+      aged === '1' && after.status === 401 && ended === 'PROVIDER_USER_DISABLED')
   }
 
   if (phase === 'revoke') {

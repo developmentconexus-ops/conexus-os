@@ -2,9 +2,11 @@
 
 **Task:** [Stage 2 Q3 application identity qualification](../../tasks/stage2-q3-application-identity-qualification.md)
 
-## Proposed verdict
+## Verdict
 
-**ACCEPT_WITH_BOUNDARY**, pending the independent review.
+**ACCEPT_WITH_BOUNDARY**. The independent review found seven defects and two small ones; each is
+fixed with a test that failed before and passes after, and the cases they touch were rerun on the
+pilot ([Independent review](#independent-review)).
 
 Every Q3.6 case was refused on the pilot as specified. The employee used the application under their own identity and gained no Control Plane authority. The boundary is the one section 5 of the task already names. Before Q5 there is no Release, so the application host serves the Project's last good Preview artifact and its Preview data. Q5 replaces that with the published pointer.
 
@@ -100,7 +102,61 @@ Each span carries id, parent, type, name, start, duration, error, model and usag
 
 ## Independent review
 
-Pending. The coordinator runs it before merge.
+The review of `5652d1b4` found the defects below. The operator approved the fixes on 2026-09-24.
+Each commit pair on `feat/stage2-q3` lands the failing test first and the fix on top. Migration
+`0024_application_access_review.sql` carries every database change; 0022 and 0023 are unchanged.
+
+| # | Finding | Resolution | Proof |
+| --- | --- | --- | --- |
+| 1 | A revoke did not hold. A repeat grant to a person who already held a grant opened an invitation, revoking the grant kept it, and the next sign-in claimed it again. | A repeat grant answers the open grant and opens nothing; IAM-12 now answers the grant or the invitation (contract, ledger, clients). Revoking a grant deletes every invitation to the grantee's email on that application. | `application-access-postgres`: before, `re-granting ... is a no-op` failed with `actual: 1, expected: 0`; after, the revoked person's next sign-in is `NO_ACCESS` with no grant. |
+| 2 | Six local `Caller` types, and the runner judged the caller with its own email grammar and a 200-character name cap. | One `Caller` type and parser in `platform/caller.ts`, applied where the application session and Preview access build the caller. The runner applies the same parser: a uuid, a non-empty name, a non-empty email or null. | `application-runner-sandbox`: before, a name over 200 characters with `compras&fiscal@empresa.com.br` was refused (`actual: undefined`); after, it passes for the Preview caller and, in `application-access-postgres`, for a real application sign-in. |
+| 3 | `conexus.localhost` hard-coded in two owners, and an application port accepted without the runtime its listener needs. | `HubConfig.application` is `{ port, domain }` from `CONEXUS_APPLICATION_PORT` and `CONEXUS_APPLICATION_DOMAIN`, required together. `applicationOrigin` and `applicationSlugOfHost` are the one definition for the sign-in return, the IAM-11 address and the host's Origin check; port 443 is left out as browsers do. `readHubConfig` refuses an application host without the Builder (`APPLICATION_BUILDER_RUNTIME_REQUIRED`). | `application-host`: a host on `apps.empresa.test` serves and admits only its own Origin; the config refusals. |
+| 4 | The Keycloak refresh token was plaintext at rest, and with rotation two requests on two Hubs spent the same token and signed the person out. | The token is sealed in the handoff and the session with the installation's credential key through the Factory's AES-256-GCM envelope; CHECK constraints refuse any unsealed value; 0024 ended the 15 pilot sessions that held plaintext (`CUSTODY_CHANGED`). The realm rotates (`revokeRefreshToken: true`, `refreshTokenMaxReuse: 0`), in `infra/keycloak/realm-r1f.json` and on the pilot realm by kcadm. One request claims the due check in the database and stores the rotated token in the statement that releases the claim. | `application-access-postgres`: before, four concurrent requests on two Hubs gave `[SIGNED_IN, SIGN_IN_REQUIRED, SIGN_IN_REQUIRED, SIGN_IN_REQUIRED]`; after, all four are signed in, Keycloak is asked once, and the next check spends the rotated token. Live: `rotation-concurrent-recheck`. |
+| 5 | Every unauthenticated request, an image or script included, was redirected to sign in and minted a new binding, so parallel requests broke each other's sign-in. | Only a document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`) starts a sign-in; anything else answers 401 and sets nothing. A navigation keeps a well-formed binding already in progress. | `application-host`; live: `sign-in-only-on-navigation`. |
+| 6 | Session resolution took `FOR UPDATE`, and a page or asset read the served revision and detoasted the payload twice. | Resolution takes no lock; every session write is a guarded update. `reg.read_served_application_file` resolves the served revision, checks access and takes only the requested element with `jsonb_path_query_first` in one statement, so a page or asset is one read. | `application-access-postgres`: before, a resolution behind a row lock was `BLOCKED`; after, it answers at once. `application-host`: one reader call per file. Live: `served-files-one-read`. |
+| 7 | The application host sent the Preview's iframe `sandbox`, which blocks popups and downloads on a top-level site. | The host sends the application sources with `frame-ancestors 'none'` and no `sandbox`; the Preview policy is unchanged byte for byte. | `application-host` pins both policies; live: `application-host-csp`. |
+| 8 | A first sign-in that lost a provisioning race landed on no-access. | `iam.provision_application_account` answers the identity's Account id: the existing one, the new one, or none. | `application-access-postgres`: before `[HANDOFF, NO_ACCESS]`, after `[HANDOFF, HANDOFF]` with one Account. |
+| 9 | `ended_reason` could not tell a disable from an ended Keycloak session. | Keycloak 26.7's `error_description` tells them apart. A refused refresh now ends the session as `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDED` (including the 30-minute SSO idle limit) or `PROVIDER_REFUSED`. | `identity-access-http` against a token endpoint answering Keycloak's descriptions; live: `provider-refusal-names-disable`. |
+
+### Rerun on the pilot
+
+On 2026-09-24 the pilot Hub ran from `feat/stage2-q3` with 0024 applied (backup
+`conexus_s7-before-0024-20260924T093508.dump`), `CONEXUS_APPLICATION_DOMAIN=conexus.localhost` added
+to the pilot env, and rotation on in realm `r1f`. [`review-proof.json`](review-proof.json) holds 16
+cases, all held, run as the test operator, a member of the Project's Workspace:
+
+- the review cases: `sign-in-only-on-navigation`, `application-host-csp`, `served-files-one-read`,
+  `rotation-concurrent-recheck` (four requests at once when the check was due: 404, 404, 404 and one
+  429 from the Project's admission bound, never 401; the session stayed open, the token rotated and
+  stayed sealed, and the next check spent the rotated token), and `provider-refusal-names-disable`
+  (the test operator was disabled in Keycloak for that case only and enabled again);
+- the Q3.6 cases on changed code that need no employee: `member-enters-without-grant`,
+  `hub-cookie-on-application-host`, `same-origin-baseline`, the four cross-origin refusals,
+  `handoff-on-other-host`, `handoff-after-expiry`, `control-member-of-another-workspace` and
+  `session-older-than-eight-hours`.
+
+Not rerun live: the cases that need the employee signed in (their password is typed only by the
+operator), which include the grant, re-grant and revoke of finding 1. Finding 1 is proved against
+real PostgreSQL. The employee's grant on `eval-20260923-224304` stays revoked, as the Q3 proof left
+it.
+
+### Boundaries recorded, not implemented
+
+1. **Back-channel logout.** Keycloak can call the Hub when a person signs out in Keycloak, ending
+   their application sessions at once. It does not cover a disable, which the five-minute check
+   covers. It belongs to the server step.
+2. **Served code against a migrated schema.** Before Q5 the host serves the last good Preview. If a
+   build migrates the Preview data and then fails, the served code is older than the schema. Q5's
+   published pointer owns this.
+3. **Slug existence is observable.** A request to an application host answers differently for an
+   existing slug (a sign-in) and an unknown one (404). This is inherent to one host per application.
+4. **No-access copy for an unverified email.** Finding 1 under [Findings](#findings); deferred by
+   the operator.
+5. **Keycloak's 30-minute SSO idle limit.** A person who makes no application request for about 30
+   minutes is signed out at the next check (`PROVIDER_SESSION_ENDED`) and signs in again with their
+   password.
+6. **A claim older than a minute is taken over.** If a Keycloak refresh took longer than that, a
+   second request would spend the same token and Keycloak would refuse it. No refresh comes close.
 
 ## Rerun
 
@@ -113,4 +169,6 @@ node scripts/q3-negative-proof.mjs --phase main --app eval-20260923-224304 --oth
   --employee-state ~/q3/states/employee-eval.json --out proof.json
 ```
 
-The `caller`, `control`, `expired`, `disabled` and `revoke` phases take the arguments in the script's header.
+The `caller`, `control`, `expired`, `disabled`, `revoke`, `review` and `provider-refusal` phases take
+the arguments in the script's header. Without `--employee-state`, the `main` phase runs its member
+cases only.

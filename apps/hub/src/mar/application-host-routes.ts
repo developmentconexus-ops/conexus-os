@@ -128,8 +128,8 @@ export const registerApplicationHostRoutes = async (
   app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, async (request, reply) => {
     const target = await application(request)
     if (!target) return refuse(reply, 404, 'APPLICATION_NOT_FOUND')
-    // Every application host under the domain is one site, so SameSite does not stop a sibling application's
-    // POST. The exact Origin of this application's own host is the only admission.
+    // Every application host under the domain is one site, so SameSite does not stop a sibling
+    // application's POST. The exact Origin of this application's own host is the only admission.
     if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(reply, 415, 'CONTENT_TYPE_REFUSED')
     const authority = await dependencies.sessions.authority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
