@@ -62,7 +62,7 @@ Compare two or three structures only when the choice is real. Do not invent alte
 
 ## Let the operator operate it
 
-Only the operator approves the structure of a new surface. An agent proposes.
+Only the operator approves the structure of a new surface. An agent proposes. A pull request that ships a screen the operator asked to see carries `needs:aprovo`, per the [delivery rules](../../../../docs/development/delivery.md).
 
 When the surface has material interaction, the operator approves something they can use, not a picture of it: a clickable prototype (Claude Design, or plain HTML, CSS and JavaScript with local fixtures) or the real screen behind stubbed data. A screenshot, a static mockup or a written description cannot approve an interaction. The controls that could prove the structure wrong must work: open and close, tabs and lenses, drawers and dialogs, disclosure, selection, local forms, empty, error and conflict states, and the phone layout.
 

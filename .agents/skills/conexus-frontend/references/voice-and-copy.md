@@ -47,7 +47,7 @@ Cada ferramenta vira uma frase simples, com uma forma enquanto roda e outra quan
 - "Lendo um arquivo" → "Leu um arquivo"
 - "Executando um comando" → "Executou um comando"
 - As chamadas se agrupam como "4 ações concluídas". Um passo que falhou mantém o ponto redondo e a palavra "falhou".
-- Pedido de permissão: "O agente quer executar um comando: `npm run build`. Permitir?" A aprovação oferece só **Permitir** e **Recusar**. Nada que amplie a política.
+- Pedido de permissão: "O agente quer executar um comando: `npm install date-fns`. Permitir?" A aprovação oferece só **Permitir** e **Recusar**. Nada que amplie a política.
 
 Ao ligar uma ferramenta nova, adicione a frase dela em `tool-sentences.ts`. Não mostre o nome técnico da ferramenta no lugar da frase.
 
@@ -58,7 +58,7 @@ Ao ligar uma ferramenta nova, adicione a frase dela em `tool-sentences.ts`. Não
 
 ## Fatos em mono
 
-Prosa é sans. Fato é mono (`var(--cx-font-mono)`): id de modelo (`gemini-3.1-pro-low`), caminho (`app/pedidos.tsx`), comando (`npm run build`), hora (`12:10`), duração (`8,4 s`), revisão (`a3f9c21`), código de erro (`BUILD_TYPECHECK_FAILED`), contagem (`+3`). Números seguem o formato brasileiro: vírgula decimal, e unidade separada por espaço.
+Prosa é sans. Fato é mono (`var(--cx-font-mono)`): id de modelo (`gemini-3.1-pro-low`), caminho (`app/pedidos.tsx`), comando (`npm install date-fns`), hora (`12:10`), duração (`8,4 s`), revisão (`a3f9c21`), código de erro (`BUILD_TYPECHECK_FAILED`), contagem (`+3`). Números seguem o formato brasileiro: vírgula decimal, e unidade separada por espaço.
 
 ## Exemplos de ideia
 

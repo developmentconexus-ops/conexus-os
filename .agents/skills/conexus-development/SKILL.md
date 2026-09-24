@@ -14,7 +14,7 @@ Use this skill for every material Conexus OS development session.
 3. Run `npm run conexus:preflight`. Use `-- --no-network` only when network access is intentionally unavailable.
 4. Read `docs/roadmap.md`, then `docs/index.md` only as needed to locate the smallest current owner.
 5. Read `references/slice-lifecycle.md` for any planned slice, implementation, implementation review, or correction.
-6. Load the applicable engineering or repository method, `.agents/skills/conexus-frontend/SKILL.md` for frontend work, and the current task owner named by the roadmap.
+6. Load the engineering method or `docs/development/delivery.md` as the work requires, `.agents/skills/conexus-frontend/SKILL.md` for frontend work, and the current task owner named by the roadmap.
 7. For Mastra-sensitive work, read `.agents/skills/mastra/SKILL.md` before making version-specific claims.
 8. Load the Poteto Mode skill available in the session, the playbook that matches the
    work, and the leaf of every principle you apply. Read them where they are installed;
