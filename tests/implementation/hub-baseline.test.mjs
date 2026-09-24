@@ -34,7 +34,7 @@ test('the baseline creates the eight login roles and six owners it was cut with,
   const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
   const forward = readdirSync(migrationsRoot).filter((name) => name.endsWith('.sql') && name !== '0001_baseline.sql').sort()
   const createdForward = forward.flatMap((name) => createdRoles(readFileSync(resolve(migrationsRoot, name), 'utf8')))
-  assert.deepEqual(createdForward, ['hub_factory'])
+  assert.deepEqual(createdForward, ['hub_factory', 'connector_owner'])
   const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8')).roles
   for (const { role } of register) assert.ok([...created, ...createdForward].includes(role), `a migration creates the register role ${role}`)
 })
