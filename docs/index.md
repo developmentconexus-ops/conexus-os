@@ -23,6 +23,7 @@ owns status and the next action. Start there.
 | Need | Owner |
 | --- | --- |
 | Product meaning and journeys | [Product contract](product/contract.md) |
+| Future vision: apps, agents and AI processes sharing company capabilities (not execution authority) | [Integrated enterprise platform vision](research/integrated-enterprise-platform-vision.md) |
 | Who may do what | [Permission contract](product/permission-contract.md) |
 | The fixed operation census | [Operation ledger](product/operation-ledger.md) |
 | Wire shape and its rules | [Wire contract](product/wire-contract.md) |
