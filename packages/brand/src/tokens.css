@@ -131,6 +131,10 @@
 @keyframes cx-fit-b { from { transform: translate(3px, 3px); } to { transform: none; } }
 
 .cx-wordmark { display: inline-flex; align-items: center; gap: .3em; font: 600 1em/1 var(--cx-font-display); letter-spacing: -0.03em; color: var(--cx-text); white-space: nowrap; }
+.cx-wordmark--xs { font-size: 19px; }
+.cx-wordmark--sm { font-size: 20px; }
+.cx-wordmark--md { font-size: 26px; }
+.cx-wordmark--lg { font-size: 32px; }
 .cx-wordmark em { font-style: normal; color: var(--cx-mark); }
 
 @media (prefers-reduced-motion: reduce) {

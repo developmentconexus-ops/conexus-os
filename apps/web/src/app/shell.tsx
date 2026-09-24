@@ -235,7 +235,7 @@ function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessCon
     {/* The lockup and the breadcrumb trail are two separate top-bar regions, split by a plain
         1px divider, not a breadcrumb crumb of their own (the prototype: .lockup + .tb-div + .crumbs). */}
     <Link to="/" className="cx-lockup" aria-label="Conexus, início">
-      <span className="cx-lockup-wide"><ConexusWordmark size={19} markSize={22} arrive={arrive} /></span>
+      <span className="cx-lockup-wide"><ConexusWordmark size="xs" markSize={22} arrive={arrive} /></span>
       <span className="cx-lockup-narrow"><ConexusMark size={22} /></span>
     </Link>
     <span className="cx-topbar-divider" aria-hidden />
