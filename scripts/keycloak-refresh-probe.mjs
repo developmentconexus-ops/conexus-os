@@ -116,9 +116,12 @@ const signIn = async ({ clientId, secret, redirectUri, cookies = jar() }) => {
   }
   if (response.status !== 302) {
     const html = await response.text()
-    const action = /<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"/.exec(html)?.[1]
+    // The stock theme renders the form; the Conexus theme (Keycloakify) embeds the same action as loginAction.
+    const formAction = /<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"/.exec(html)?.[1]?.replaceAll('&amp;', '&')
+    const themedAction = /"loginAction":\s*("(?:[^"\\]|\\.)*")/.exec(html)?.[1]
+    const action = formAction ?? (themedAction ? JSON.parse(themedAction) : undefined)
     if (!action) throw new Error('LOGIN_FORM_NOT_FOUND')
-    response = await transport(action.replaceAll('&amp;', '&'), {
+    response = await transport(action, {
       method: 'POST',
       redirect: 'manual',
       headers: { cookie: cookies.header(), 'content-type': 'application/x-www-form-urlencoded' },

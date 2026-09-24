@@ -74,6 +74,13 @@ scratch container provisioned by [`provision.sh`](../../../infra/keycloak/provis
 client's secret): the same five cases held, in [`probe-scratch-conexus-realm.json`](probe-scratch-conexus-realm.json).
 The same script imported the four pilot people with their ids and password hashes.
 
+**On the pilot's own Keycloak.** The old container `conexus-s7-keycloak` was stopped and kept, renamed
+`conexus-s7-keycloak-r1f`, and `provision.sh` created `conexus-keycloak` on the pilot port with the `conexus`
+realm and the pilot's people. On it, with the Conexus login theme and a disposable user that was deleted
+afterwards ([`probe-pilot-conexus-realm.json`](probe-pilot-conexus-realm.json)), `concurrent`, `disabled`, `logout` and
+`clients` held at the realm's real 1800 s idle limit. The probe needed one change for the themed page: the
+Keycloakify theme embeds the form action as `loginAction` instead of rendering the stock form.
+
 Records: [`probe-scratch-rotation-off.json`](probe-scratch-rotation-off.json),
 [`probe-scratch-rotation-on-control.json`](probe-scratch-rotation-on-control.json). In the control file
 `"held": false` is the expected outcome, not a failure of the probe.
