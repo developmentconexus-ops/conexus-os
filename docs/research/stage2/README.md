@@ -16,6 +16,7 @@ O [roadmap](../../roadmap.md) continua sendo o dono da próxima ação. A [refer
 | Por que discutimos Prisma, Drizzle, Kysely, Hono, oRPC e migrations? | [Dados, runtime e autenticação](data-runtime-auth.md) |
 | Por que pg-boss, Dynamic Workflows, Inngest e Trigger.dev apareceram? | [Eventos, jobs e automações](events-and-automations.md) |
 | Como Sankhya, Oracle, MCP, Nango, notificações e sync se relacionavam? | [Connectors, notificações e dados externos](connectors-and-notifications.md) |
+| Construir a camada de conectores ou adotar Nango, Activepieces ou outra plataforma? | [Connectors: construir ou adotar](connectors-build-or-adopt.md), 2026-09-24 |
 | Por que chegamos a OCI/Cloud Run e depois recuamos para managed apps? | [Observabilidade, isolamento e publicação](operations-and-publish.md) |
 | Onde estavam as fontes e quais afirmações precisam ser verificadas? | [Fontes e pendências de verificação](sources-and-revalidation.md) |
 
