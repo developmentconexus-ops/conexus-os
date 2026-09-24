@@ -9,7 +9,7 @@ import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, OPERATION, pathFo
 const SESSION_COOKIE = '__Host-conexus_app'
 const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
 const SIGN_IN_SECONDS = 600
-const HANDOFF = /^[A-Za-z0-9_-]{43}$/
+const OPAQUE = /^[A-Za-z0-9_-]{43}$/
 
 type Authority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
@@ -83,9 +83,12 @@ export const registerApplicationHostRoutes = async (
   const refuse = (reply: FastifyReply, status: number, code: string): unknown =>
     reply.code(status).type('application/json').send({ error: { code } })
 
-  // A browser without a session is sent to sign in, bound to a secret only this browser holds.
-  const startSignIn = (reply: FastifyReply, slug: string): unknown => {
-    const binding = randomBytes(32).toString('base64url')
+  // A browser without a session is sent to sign in, bound to a secret only this browser holds. A
+  // sign-in already in progress keeps its binding, so parallel navigations share it and every handoff
+  // they bring back redeems.
+  const startSignIn = (request: FastifyRequest, reply: FastifyReply, slug: string): unknown => {
+    const held = request.cookies[SIGN_IN_COOKIE]
+    const binding = held && OPAQUE.test(held) ? held : randomBytes(32).toString('base64url')
     const login = new URL('/protocol/oidc/login', dependencies.exactHubOrigin)
     login.searchParams.set('application', slug)
     login.searchParams.set('binding', sha256(binding).toString('base64url'))
@@ -100,7 +103,7 @@ export const registerApplicationHostRoutes = async (
     if (!target) return reply.code(404).send()
     const handoff = request.query.handoff
     const binding = request.cookies[SIGN_IN_COOKIE]
-    if (typeof handoff !== 'string' || !HANDOFF.test(handoff) || !binding) return html(reply, 403, SIGN_IN_FAILED)
+    if (typeof handoff !== 'string' || !OPAQUE.test(handoff) || !binding) return html(reply, 403, SIGN_IN_FAILED)
     const redeemed = await dependencies.sessions.redeem({ handoff, projectId: target.projectId, binding, now: now() })
     reply.clearCookie(SIGN_IN_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
     if (!redeemed) return html(reply, 403, SIGN_IN_FAILED)
@@ -158,7 +161,12 @@ export const registerApplicationHostRoutes = async (
     if (!target) return reply.code(404).send()
     const authority = await dependencies.sessions.authority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return html(reply, 503, UNAVAILABLE)
-    if (authority.kind === 'SIGN_IN_REQUIRED') return startSignIn(reply, target.slug)
+    if (authority.kind === 'SIGN_IN_REQUIRED') {
+      // Only the page itself goes to sign in. A script, image or fetch without a session is refused,
+      // so it neither follows a redirect to the Hub nor replaces the binding of a sign-in in progress.
+      const navigation = request.headers['sec-fetch-mode'] === 'navigate' && request.headers['sec-fetch-dest'] === 'document'
+      return navigation ? startSignIn(request, reply, target.slug) : refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
+    }
     const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
     if (!served) return html(reply, 503, NOT_READY)
     const path = pathForRequest(request.url.split('?', 1)[0] ?? '')
