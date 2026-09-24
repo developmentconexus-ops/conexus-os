@@ -479,6 +479,27 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await openGrants(personId), 0, 'the next sign-in claimed nothing')
   })
 
+  await t.test('a revoke holds whatever email the Account carries: an invitation issued before it is never claimed, one issued after it is', async () => {
+    // An Account created elsewhere, whose stored email is not the address Keycloak verifies today.
+    const personId = randomUUID()
+    await client.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email) VALUES ($1, $2, $3, $4, $5)',
+      [personId, 'https://application.test', 'moved-sub', 'Mudou de Email', 'antigo@application.test'])
+    const person = identity('moved-sub', 'Atual@Application.test', 'Mudou de Email')
+    const openGrants = async () => (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].n
+
+    await grantAccess(projectId, 'atual@application.test')
+    assert.equal((await signIn(person, personId)).kind, 'HANDOFF')
+    await grantAccess(projectId, 'atual@application.test')
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+    assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
+
+    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' }, 'the invitation issued before the revoke is dead')
+    assert.equal(await openGrants(), 0)
+    await grantAccess(projectId, 'atual@application.test')
+    assert.equal((await signIn(person, personId)).kind, 'HANDOFF', 'an Owner granting again after the revoke is honoured')
+    assert.equal(await openGrants(), 1)
+  })
+
   await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
     const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
     const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
