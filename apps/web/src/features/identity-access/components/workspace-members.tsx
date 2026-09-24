@@ -207,8 +207,8 @@ function InviteForm({ workspaceId, onInvited }: Readonly<{ workspaceId: string; 
     mutationFn: (input: { email: string; role: Role }) => inviteWorkspaceMember(workspaceId, input),
     onSuccess: async (invitation, _input) => {
       setMessage('')
-      setInvited(invitation.email)
       await onInvited()
+      setInvited(invitation.email)
     },
     onError: (error) => setMessage(membershipMessage(error)),
   })
