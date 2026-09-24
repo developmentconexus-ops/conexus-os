@@ -15,7 +15,7 @@ const required = [
   'docs/development/engineering-method.md',
   'docs/development/delivery.md',
   'docs/development/review-checklist.md',
-  'docs/development/frontend-product-experience-planning-method.md',
+  '.agents/skills/conexus-frontend/SKILL.md',
   'contracts/api/product/openapi.yaml',
   'package.json'
 ]

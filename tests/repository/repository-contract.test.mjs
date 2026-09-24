@@ -29,7 +29,7 @@ const currentFiles = () => Object.fromEntries([
   'docs/product/contract.md', 'docs/decisions/index.md',
   'docs/development/engineering-method.md', 'docs/development/delivery.md',
   'docs/development/review-checklist.md',
-  'docs/development/frontend-product-experience-planning-method.md',
+  '.agents/skills/conexus-frontend/SKILL.md',
   'contracts/api/product/openapi.yaml',
 ].map(path => [path, '# fixture\n']).concat([
   ['package.json', '{"name":"conexus-os","private":true}\n'],

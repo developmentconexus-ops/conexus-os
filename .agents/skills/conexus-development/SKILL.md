@@ -14,7 +14,7 @@ Use this skill for every material Conexus OS development session.
 3. Run `npm run conexus:preflight`. Use `-- --no-network` only when network access is intentionally unavailable.
 4. Read `docs/roadmap.md`, then `docs/index.md` only as needed to locate the smallest current owner.
 5. Read `references/slice-lifecycle.md` for any planned slice, implementation, implementation review, or correction.
-6. Load the applicable engineering/repository/frontend method and the current task owner named by the roadmap.
+6. Load the engineering method or `docs/development/delivery.md` as the work requires, `.agents/skills/conexus-frontend/SKILL.md` for frontend work, and the current task owner named by the roadmap.
 7. For Mastra-sensitive work, read `.agents/skills/mastra/SKILL.md` before making version-specific claims.
 8. Load the Poteto Mode skill available in the session, the playbook that matches the
    work, and the leaf of every principle you apply. Read them where they are installed;
@@ -51,8 +51,9 @@ Do not silently combine roles because doing so is convenient.
 Before changing a web, Builder, or Preview surface:
 
 1. read the current grant in `docs/roadmap.md`;
-2. read `docs/reference/frontend-and-product-surfaces.md`, whose section 33.6 owns the Build surface's functional contract;
-3. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
+2. load `.agents/skills/conexus-frontend/SKILL.md`;
+3. read `docs/reference/frontend-and-product-surfaces.md`, whose section 33.6 owns the Build surface's functional contract;
+4. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
 
 That functional contract is an interaction contract, not a styling mandate. The roadmap controls deferred surfaces. If current Product Experience authority conflicts with requested implementation, stop at the smallest owner instead of inventing a replacement UI in code.
 

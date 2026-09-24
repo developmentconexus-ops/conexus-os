@@ -62,6 +62,10 @@
   --cx-success: #1A7F4B;
   --cx-warning: #B54708;
   --cx-danger: #C0283D;
+  /* White in both themes: the Preview shows the person's own app on paper, and the effort
+     slider's thumb sits on the ipê fill. */
+  --cx-on-accent: #FFFFFF;
+  --cx-preview-paper: #FFFFFF;
   color-scheme: light;
 }
 
@@ -84,6 +88,8 @@
     --cx-success: #6FD39A;
     --cx-warning: #F5A25B;
     --cx-danger: #F28B9A;
+    --cx-on-accent: #FFFFFF;
+    --cx-preview-paper: #FFFFFF;
     color-scheme: dark;
   }
 }
@@ -106,6 +112,8 @@
   --cx-success: #6FD39A;
   --cx-warning: #F5A25B;
   --cx-danger: #F28B9A;
+  --cx-on-accent: #FFFFFF;
+  --cx-preview-paper: #FFFFFF;
   color-scheme: dark;
 }
 

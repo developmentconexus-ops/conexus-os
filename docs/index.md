@@ -51,7 +51,7 @@ owns status and the next action. Start there.
 | Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
 | Lanes, approval, proof, merge, Git and CI | [Delivery rules](development/delivery.md) |
 | What a reviewer checks on a pull request | [Review checklist](development/review-checklist.md) |
-| Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
+| Frontend design, copy, verification and new surfaces | [`conexus-frontend` skill](../.agents/skills/conexus-frontend/SKILL.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.
 They do not silently replace the product contract or the roadmap.
