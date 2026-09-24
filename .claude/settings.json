@@ -24,12 +24,14 @@
       "PowerShell(git push * main *)",
       "Bash(git push *:main*)",
       "PowerShell(git push *:main*)",
-      "Bash(gh pr merge*)",
-      "PowerShell(gh pr merge*)",
       "Bash(docker rm *)",
       "PowerShell(docker rm *)",
       "Bash(docker container rm *)",
       "PowerShell(docker container rm *)"
+    ],
+    "ask": [
+      "Bash(gh pr merge*)",
+      "PowerShell(gh pr merge*)"
     ]
   }
 }
