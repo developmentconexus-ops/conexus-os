@@ -1,12 +1,12 @@
 # Stage 2 Q4 — Sankhya connector qualification
 
-**Status:** PREPARED on 2026-09-24. Not started. No Sankhya call before gate G0 of section 7.
+**Status:** PREPARED on 2026-09-24. Not started. No Sankhya call before gate G0 of section 7.\
 **Type:** enterprise-credential and trust-boundary qualification (Q-a: the roadmap names it as a
 gate; Q-b: it creates a new runtime authority over an enterprise credential; Q-c: the real read and
-the pilot proof outlive the pull request)
-**Execution owner:** executor named by the operator
+the pilot proof outlive the pull request)\
+**Execution owner:** executor named by the operator\
 **Review:** one independent review of the frozen candidate before merge, per
-`docs/development/delivery.md`
+`docs/development/delivery.md`\
 **Aprovo:** required. The change adds custody of a company credential and a new grant.
 
 ## 1. Authority route
