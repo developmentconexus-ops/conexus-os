@@ -122,7 +122,12 @@ export const registerApplicationHostRoutes = async (
     if (!strictOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
     const sessionToken = request.cookies[SESSION_COOKIE]
     if (sessionToken) await dependencies.sessions.signOut(sessionToken)
-    return reply.clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' }).code(204).send()
+    // A sign-in that started before this sign-out must not redeem afterward: its binding cookie
+    // goes with the session, or a handoff still in flight would sign the person back in.
+    return reply
+      .clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
+      .clearCookie(SIGN_IN_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
+      .code(204).send()
   })
 
   app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, async (request, reply) => {
