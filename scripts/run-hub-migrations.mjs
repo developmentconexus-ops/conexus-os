@@ -34,6 +34,7 @@ const firstAccountInstallationAdministratorDigest = '0671c33652ea96da8cfad3437f7
 const applicationAccessDigest = 'aab11d37b619ce81df07c292336b7bcff31b9b260245343c9460012d3694bea4'
 const applicationSessionDigest = 'e3efcd8b1a7ad067d336f7466011870792521f57c1464b0c5ed5db3172914e40'
 const applicationAccessReviewDigest = 'c8d5f024ce4e83f66cfe6c6f304060d45ef7fd68b9a6d05101b03e1e4868a8e8'
+const applicationAccessVerificationDigest = '361043ce95fa1dac97ce953851c025f384f1dcca2f31b876948aae4413d84ac5'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -60,6 +61,7 @@ const migrationDigests = new Map([
   ['0022_application_access.sql', applicationAccessDigest],
   ['0023_application_session.sql', applicationSessionDigest],
   ['0024_application_access_review.sql', applicationAccessReviewDigest],
+  ['0025_application_access_verification.sql', applicationAccessVerificationDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -100,8 +100,11 @@ export const createApplicationSessions = ({
         await pool.query('SELECT iam.end_application_session($1, $2)', [sessionDigest, ENDED_BY[check.reason]])
         return { kind: 'SIGN_IN_REQUIRED' }
       }
-      await pool.query('SELECT iam.record_provider_check($1, $2, $3, $4)', [sessionDigest, claim, await envelope.seal(check.refreshToken), now])
-      return { kind: 'CHECKED' }
+      const recorded = await pool.query<QueryResultRow & { recorded: boolean }>('SELECT iam.record_provider_check($1, $2, $3, $4) AS recorded',
+        [sessionDigest, claim, await envelope.seal(check.refreshToken), now])
+      // False: the session ended or another request took the claim over while Keycloak answered.
+      // Either way the session in the database is the truth, so the request reads it again.
+      return recorded.rows[0]?.recorded ? { kind: 'CHECKED' } : { kind: 'HELD' }
     } catch (error) {
       await pool.query('SELECT iam.release_provider_check($1, $2)', [sessionDigest, claim]).catch(() => undefined)
       throw error
