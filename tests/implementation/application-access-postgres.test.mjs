@@ -283,6 +283,29 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
   })
 
+  await t.test('a revoke holds: re-granting a person who holds a grant opens no invitation, and revoking withdraws any invitation left for them', async () => {
+    const person = identity('revoke-sub', 'revoga@application.test', 'Revogada')
+    const openInvitations = async () => (await client.query('SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = $2', [projectId, 'revoga@application.test'])).rows[0].n
+    const openGrants = async (accountId) => (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, accountId])).rows[0].n
+
+    await grantAccess(projectId, 'revoga@application.test')
+    assert.equal((await signIn(person)).kind, 'HANDOFF')
+    const personId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'revoke-sub'")).rows[0].account_id
+    assert.equal(await openGrants(personId), 1)
+
+    await grantAccess(projectId, ' Revoga@Application.test ')
+    assert.equal(await openInvitations(), 0, 're-granting a person who already holds a grant is a no-op')
+
+    await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',
+      [randomUUID(), projectId, 'revoga@application.test', owner, inTwoWeeks()])
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+    assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
+    assert.equal(await openInvitations(), 0, 'revoking withdrew the invitation a pre-fix re-grant left open')
+
+    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.equal(await openGrants(personId), 0, 'the next sign-in claimed nothing')
+  })
+
   await t.test('a member of the Workspace uses the application without a grant; a member of another Workspace does not', async () => {
     assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
     const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
