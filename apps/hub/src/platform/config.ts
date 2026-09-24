@@ -69,8 +69,17 @@ export type FactoryRuntimeConfig = Readonly<{
   stateSecretFile: string
   // 64 hex characters: the AES-256 key the Factory encrypts stored credentials with.
   secretKeyFile: string
+  // The keys it replaced, decrypt-only, until every value sealed under them has been rewritten.
+  previousSecretKeyFiles: readonly string[]
   databasePasswordFile: string
 }>
+
+/** CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
+export const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
+  const files = (environment.CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
+  if (files.some((file) => !file.startsWith('/'))) throw new Error('INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES')
+  return files
+}
 
 const required = (environment: NodeJS.ProcessEnv, name: string): string => {
   const value = environment[name]
@@ -205,7 +214,7 @@ const FACTORY_VARIABLES = {
   stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
   secretKeyFile: 'CONEXUS_FACTORY_SECRET_KEY_FILE',
   databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
-} as const satisfies Record<keyof FactoryRuntimeConfig, string>
+} as const satisfies Record<Exclude<keyof FactoryRuntimeConfig, 'previousSecretKeyFiles'>, string>
 
 // The Mastra Factory adds Mastra Platform integrations on its own whenever it sees Platform
 // credentials in the process, so a Hub composing it must not carry any.
@@ -216,7 +225,8 @@ const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] =>
   for (const name of Object.keys(environment)) {
     if (name.startsWith('MASTRA_PLATFORM_') && environment[name]) throw new Error(`FACTORY_REFUSES_CONFIG_${name}`)
   }
-  return Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as FactoryRuntimeConfig
+  const variables = Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as Record<keyof typeof FACTORY_VARIABLES, string>
+  return { ...variables, previousSecretKeyFiles: previousSecretKeyFiles(environment) }
 }
 
 const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAiPro'] => {

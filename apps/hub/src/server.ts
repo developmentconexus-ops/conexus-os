@@ -44,7 +44,7 @@ const identityAccessDependencies = {
   // application sessions' refresh tokens (readHubConfig refuses one without the other).
   application: config.application && config.factory ? {
     address: config.application,
-    envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile)),
+    envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
   } : undefined,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
