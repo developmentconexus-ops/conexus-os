@@ -4,7 +4,8 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
-import type { AuditSink, Broker } from './broker.js'
+import type { AuditSink, Broker, RegisteredConnector } from './broker.js'
+import { createConnectorBrief } from './builder-brief.js'
 import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
@@ -24,6 +25,9 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
+  /** The Builder's per-run brief for this Project's own open grants (design.md section 9, P11). Empty
+   * for a Project with no open grant. Never opens a credential and makes no network call. */
+  builderBrief(projectId: string): Promise<string>
   broker: Broker
 }>
 
@@ -61,12 +65,12 @@ export const createConnectorModule = ({
   audit?: AuditSink
 }>): ConnectorModule => {
   const store = createConnectorStore({ pool, envelope })
-  const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null }],
-    store: createBrokerStore(pool),
-    envelope,
-    audit,
-  })
+  const brokerStore = createBrokerStore(pool)
+  const registeredConnectors: readonly RegisteredConnector[] = [
+    { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
+  ]
+  const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, audit })
+  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {
@@ -100,6 +104,7 @@ export const createConnectorModule = ({
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
+    builderBrief: (projectId) => connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId })),
     broker,
   })
 }
