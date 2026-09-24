@@ -1,10 +1,12 @@
-import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { Mastra } from '@mastra/core/mastra'
+import { ConsoleLogger } from '@mastra/core/logger'
+import { MastraCompositeStore } from '@mastra/core/storage'
+import type { RetentionConfig, StorageDomains } from '@mastra/core/storage'
 import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
-import { createFactorySecretEncryption, MastraFactory } from '@mastra/factory'
+import { MastraFactory } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import type { VersionControl } from '@mastra/factory/capabilities/version-control'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
@@ -17,6 +19,7 @@ import type { Observability } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { factorySecretEncryption } from '../platform/secrets.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import type { HubSessionAuthProvider } from './hub-session-auth.js'
 import type { BuilderAgentController } from './runtime.js'
@@ -155,10 +158,28 @@ export const assertFactoryHost = ({ cwd, home }: Readonly<{ cwd: string; home: s
 export const createFactoryPool = (database: Readonly<{ host: string; port: number; database: string }>, password: string): PostgresPool =>
   createPostgresPool({ ...database, user: 'hub_factory', password, options: `-c search_path=${FACTORY_SCHEMA}` })
 
+// Spans hold prompts, tool I/O and source text (docs/reference/builder-c020-mastra-native.md §4.4;
+// scratchpad/mastra-capabilities-study.md §4.2). Bounding their age is the only retention this PR
+// adds. Builder evidence lives in mastra_messages/mastra_threads, so memory is never a retention key
+// here, and Code SDK's own 90-day DEFAULT_RETENTION preset (which prunes memory) is never wired in.
+export const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: { maxAge: '30d' } } }
+
 // PgFactoryStorage creates its tables under unqualified names, so the pool's search_path decides
 // where they land. It is pinned to factory on every connection rather than trusted to the role.
 export const createFactoryStorage = (pool: PostgresPool): PgFactoryStorage =>
-  new PgFactoryStorage({ store: new PostgresStore({ id: 'conexus-factory', pool, schemaName: FACTORY_SCHEMA }) })
+  new PgFactoryStorage({ store: new PostgresStore({ id: 'conexus-factory', pool, schemaName: FACTORY_SCHEMA, retention: OBSERVABILITY_SPAN_RETENTION }) })
+
+// Code SDK forces the observability domain of the storage it hands Mastra to `false`
+// (mastra-capabilities-study.md §4.1), so the exporter finds no store and silently drops every
+// span. This reads the Factory's own store, before Code SDK disables it, and refuses to compose
+// rather than boot with tracing silently broken again after a Mastra upgrade (study §7 trap 1).
+export const requireObservabilityStore = async (
+  storage: Pick<MastraCompositeStore, 'getStore'>,
+): Promise<NonNullable<StorageDomains['observability']>> => {
+  const observabilityStore = await storage.getStore('observability')
+  if (!observabilityStore) throw new Error('FACTORY_OBSERVABILITY_STORE_UNAVAILABLE')
+  return observabilityStore
+}
 
 export type FactoryGithubApp = Readonly<{
   appId: string
@@ -183,10 +204,8 @@ const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
 // key. Rows written before it existed hold the plaintext encryptor's JSON text, which the Factory's
 // decryptor returns as a string and its startup migration would re-encrypt as one; they are parsed
 // here, so that migration encrypts the credential itself.
-export const createFactorySecretKeyEncryption = (hexKey: string): FactorySecretEncryption => {
-  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
-  const key = Buffer.from(hexKey, 'hex')
-  const encryption = createFactorySecretEncryption({ primary: { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key } })
+export const createFactorySecretKeyEncryption = (hexKey: string, previousHexKeys: readonly string[] = []): FactorySecretEncryption => {
+  const encryption = factorySecretEncryption(hexKey, previousHexKeys)
   return {
     encrypt: (value) => encryption.encrypt(value),
     decrypt: async (value) => typeof value === 'string' && !value.startsWith(ENVELOPE_PREFIX)
@@ -252,7 +271,7 @@ class ConexusGithubIntegration extends GithubIntegration {
   }
 }
 
-export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
+export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, previousSecretKeys = [], publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
   pool: PostgresPool
   orgId: string
   // The Hub session, the only sign-in (docs/reference/single-owner-map.md).
@@ -260,6 +279,7 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
   github: FactoryGithubApp
   stateSecret: string
   secretKey: string
+  previousSecretKeys?: readonly string[]
   publicUrl: string
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
@@ -273,14 +293,26 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
     integrations: [integration],
     sandbox,
     stateSecret,
-    secretEncryption: createFactorySecretKeyEncryption(secretKey),
+    secretEncryption: createFactorySecretKeyEncryption(secretKey, previousSecretKeys),
     includeDefaultBoards: false,
     publicUrl,
   })
   // The Hub has no boards and opens no pull requests. The workers prepare() returns sweep GitHub on
   // a timer with installation tokens for state the Hub never creates, so they are not started.
   const { workers: _workers, ...args } = await factory.prepare()
-  const mastra = new Mastra({ ...args, ...(observability ? { observability } : {}), logger: false })
+  // Code SDK wraps args.storage in its own composite and forces its observability domain to
+  // `false` (mastra-capabilities-study.md §4.1), so every span the run produces is silently
+  // dropped. Route the domain back to the Factory's own Postgres store, which is what actually
+  // persists to factory.mastra_ai_spans.
+  const observabilityStore = await requireObservabilityStore(storage.getMastraStorage())
+  const mastra = new Mastra({
+    ...args,
+    storage: new MastraCompositeStore({ id: 'conexus-factory-mastra', default: args.storage as MastraCompositeStore, domains: { observability: observabilityStore } }),
+    ...(observability ? { observability } : {}),
+    // `logger: false` hid storage/exporter/scorer warnings, including the one the broken
+    // composition above used to log ("Traces will not be persisted"). A regression is now visible.
+    logger: new ConsoleLogger({ name: 'conexus-builder-factory', level: 'warn' }),
+  })
   await factory.finalize()
   await syncGoogleAiProProvider(storage.getDomain<CustomProvidersStorage>('custom-providers'), orgId, googleAiProUrl)
   const controllers = Object.entries(args.agentControllers ?? {})

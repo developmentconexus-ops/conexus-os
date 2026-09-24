@@ -14,6 +14,7 @@ const binding = Object.freeze({
   projectId: '33333333-3333-4333-8333-333333333333', changeId: 'c', subjectDigest: 'd', sourceRevision: 'e'.repeat(40),
   artifactRevisionId: '11111111-1111-4111-8111-111111111111', artifactDigest: 'f'.repeat(64), exactHost: HOST,
   expiresAt: Date.now() + 600_000, issuer: 'i', subject: 's',
+  caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },
 })
 const route = Object.freeze({
   ...binding, lifecycle: 'ACTIVE',
@@ -52,16 +53,21 @@ const preview = async (t, invokeApplication) => {
   return { app, call, calls }
 }
 
-test('the Preview API passes the binding identity and the operation to the runner, and nothing the page chose', async (t) => {
+test('the Preview API passes the binding identity, the developer as caller and the operation to the runner, and nothing the page chose', async (t) => {
   const { call, calls } = await preview(t, async () => ({ status: 200, body: [{ id: 1 }] }))
-  const answered = await call('listNotes', { payload: JSON.stringify({ purchaseOrderId: 'PO-1', projectId: 'someone-else' }) })
+  const forgedCaller = { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Someone else' }
+  const answered = await call('listNotes', {
+    headers: { 'x-conexus-caller': JSON.stringify(forgedCaller) },
+    payload: JSON.stringify({ purchaseOrderId: 'PO-1', projectId: 'someone-else', caller: forgedCaller }),
+  })
   assert.equal(answered.statusCode, 200)
   assert.deepEqual(answered.json(), [{ id: 1 }])
   assert.match(answered.headers['content-security-policy'], /connect-src 'self';/)
   assert.deepEqual(calls, [{
-    accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
+    source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
     serverFiles: ['conexus-server/manifest.json', 'conexus-server/handlers/notes.mjs'], operation: 'listNotes',
-    input: { purchaseOrderId: 'PO-1', projectId: 'someone-else' },
+    input: { purchaseOrderId: 'PO-1', projectId: 'someone-else', caller: { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Someone else' } },
+    caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },
   }])
 })
 

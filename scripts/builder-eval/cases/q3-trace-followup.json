@@ -1,0 +1,10 @@
+{
+  "request": "Na lista de pedidos de compra, mostre em cada pedido o nome de quem escreveu a nota mais recente.",
+  "checks": [
+    { "action": "fill", "selector": "role=textbox[name=/conteúdo da nota|nota|acompanhamento/i] >> nth=0", "value": "Nota para a lista de pedidos" },
+    { "action": "click", "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota/i]" },
+    { "action": "expectText", "selector": "body", "text": "Nota para a lista de pedidos" },
+    { "action": "expectText", "selector": "body", "text": "Operador de Teste" }
+  ],
+  "reload": true
+}

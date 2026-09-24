@@ -1,0 +1,98 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-24T02:02:17.425Z",
+  "finishedAt": "2026-09-24T02:07:33.513Z",
+  "outcome": "FAIL",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q3-caller-author.json",
+  "gradeOnly": false,
+  "request": "Cada nota passa a registrar automaticamente quem escreveu, pela pessoa que está usando o app.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": "757751dc-b167-46df-b838-f9bffd170a6b",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "1b4d23994b30db2d3341f2df47db92977da3e1ed",
+  "sourceRevisionAfter": "32df403dadab49f11e39cff7e1308d6c843fd5dc",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "MODIFIED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "bef679c7-88c3-4156-a369-f9cdd38d475d",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "1b4d23994b30db2d3341f2df47db92977da3e1ed",
+      "resultSourceRevision": "32df403dadab49f11e39cff7e1308d6c843fd5dc",
+      "requestText": "Cada nota passa a registrar automaticamente quem escreveu, pela pessoa que está usando o app."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 297663,
+  "previewUrl": "https://preview-e2f1e830-1f48-4b3d-86f6-90921a41f41e.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/pedido/i] >> nth=0",
+        "value": "PC-7730",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/nota|acompanhamento|observa/i] >> nth=0",
+        "value": "Autoria registrada pela plataforma",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/salvar|adicionar|registrar|gravar|enviar/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Autoria registrada pela plataforma",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Operador de Teste",
+        "ok": false,
+        "error": "expect(locator).toContainText(expected) failed | Locator: locator('iframe[title=\"Prévia do aplicativo\"]').contentFrame().locator('body').first() | Timeout: 15000ms | - Expected substring  - 1"
+      }
+    ],
+    "afterReload": null
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

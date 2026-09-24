@@ -135,8 +135,8 @@ Only one qualification task is actionable at a time. Later rows are roadmap gate
 | Gate | Question | Baseline / candidate | Deciding evidence |
 | --- | --- | --- | --- |
 | Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail; exhaustion or failure of the Applications PostgreSQL does not reach the Hub |
-| Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | Start SQL-first with parameterized `pg`. Q1 named no SQL problem, so Kysely or a typed Data API is qualified only against a named, repeated failure of the SQL baseline in Q2 | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
-| Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
+| Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | SQL-first with parameterized `pg`, accepted by Q2: no named SQL failure repeated, so neither Kysely nor a typed Data API was qualified | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
+| Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants, accepted by Q3: one host per application, a one-use handoff from the Hub sign-in, `iam.application_session`, and the caller passed to handlers | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
 | Q4 First Connector | Does Connector Definition -> Workspace Connection -> Project Grant work against a real enterprise system? | Direct narrow Sankhya read-only adapter first | Builder uses the authorized operation from the app; real Sankhya result; revoked grant fails; no credential or arbitrary URL reaches browser/handler |
 | Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? Where does Published data live: in the Applications cluster beside Preview data, or apart from it? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges; the Published data placement is decided with evidence, not assumed |
 
@@ -182,9 +182,13 @@ the pilot:
 - **Source shape.** Without hints, the Builder wrote the server half in the places its guide names:
   `conexus/manifest.json`, one handler under `conexus/handlers/` and forward SQL under
   `conexus/migrations/`, beside its `app/` changes. It needed no `conexus.json`. The guide is
-  `conexus/SERVER.md`, which every BUILD run writes into the checkout, and `conexus/check.sh` runs
-  the same server build the Conexus build runs. These names and the handler contract are
-  qualification-only. Q2 owns the durable programming model.
+  the Mastra skill `conexus-server`, served as a Hub-global Factory skill from
+  `factory-skills/conexus-server/SKILL.md` at the repository root rather than written into each
+  Project's own checkout (Q2.0 moved it from `conexus/SERVER.md` to a per-Project
+  `.agents/skills/conexus-server/SKILL.md`; a later slice moved it again, out of the checkout, so
+  every Project shares one copy and none can go stale). `conexus/check.sh` runs the same server
+  build the Conexus build runs. Q2 accepted these names and the handler contract as the durable
+  programming model: parameterized SQL through `pg` and forward SQL migrations.
 - **Runtime.** One application runner outside the Hub owns the application database. It runs each
   migration and each invocation in a fresh rootless bubblewrap worker with an empty network
   namespace, no host files, no credential and wall-clock, memory, input and output bounds. The worker
@@ -199,6 +203,20 @@ the pilot:
   invocation the runner logged during the live proof answered 200, or 429 at its concurrency cap.
   One run's manifest was refused by the check and repaired by the Builder in the same run. Q1
   names no SQL ergonomics problem.
+- **Q2 result.** The Builder built the purchasing notebook and changed it three times (add a field,
+  restructure into orders, filtered list) in six runs, with parameterized SQL only. The one SQL
+  failure, a migration refused with `42804`, happened once and the Builder repaired it from the
+  database's own diagnostic. Earlier data survived every change. No failure repeated, so neither
+  Kysely nor a typed Data API is qualified ([evidence](../evidence/stage2-q2/README.md#q21-attempt-2)).
+- **Q3 result.** The handler contract gained one field. A handler receives
+  `{ db, caller }`, where `caller` is `{ accountId, email, displayName }`. The runner builds it from
+  the resolved application session, never from the invocation input, and the `conexus-server`
+  skill teaches it. The Builder used the caller on the first run of its budget: the purchasing
+  notebook now records who wrote each note. An app-only employee signed in on the application's
+  own host, wrote a note under their own name, and every Q3.6 negative case run on the pilot was
+  refused. Before Q5 the application host serves the Project's last good Preview artifact and its
+  Preview data ([evidence](../evidence/stage2-q3/README.md)). The session model is in
+  [security and authority 4.3](security-and-authority.md#43-application-session).
 
 ## 7. Technology qualification queue
 
@@ -208,8 +226,8 @@ These technologies were researched but are **not selected by research alone**.
 | --- | --- | --- |
 | Fastify | Q1 platform-host baseline | Proven host limitation |
 | Zod | Q1 schema-boundary baseline | Proven contract/tooling limitation |
-| pg | Q1/Q2 SQL-first baseline | Repeated Builder type/query errors or unsafe repetition |
-| Kysely | Q2 challenger, only if the Q2 SQL baseline shows a named, repeated failure. Q1 named none | Q2 baseline evidence names the failure |
+| pg | Selected: the Q2 data programming model (ACCEPT) | Repeated Builder type/query errors or unsafe repetition |
+| Kysely | Not qualified. Q1 and Q2 named no repeated SQL failure | A later Builder sequence names a repeated query-shape or column-name failure |
 | Prisma | Deferred | Real need for its schema/migration/client model that smaller SQL tooling does not meet |
 | Drizzle | Deferred | Same; do not qualify merely because it is typed |
 | Hono | Deferred | Fastify becomes a real portability/host problem |

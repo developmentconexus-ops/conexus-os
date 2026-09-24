@@ -10,8 +10,8 @@ Before relying on chat, a handoff, or remembered state:
 4. for any Conexus planning, execution, review or handoff, read [`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md);
 5. load only the method that applies:
    - [`engineering-method.md`](docs/development/engineering-method.md) for material engineering decisions;
-   - [`repository-method.md`](docs/development/repository-method.md) for repository, Git, documentation and CI;
-   - [`frontend-product-experience-planning-method.md`](docs/development/frontend-product-experience-planning-method.md) for frontend work.
+   - [`delivery.md`](docs/development/delivery.md) for lanes, approval, proof, merge, Git and CI;
+   - the [`conexus-frontend`](.agents/skills/conexus-frontend/SKILL.md) skill for frontend work.
 
 For Mastra-sensitive work, also load `.agents/skills/mastra/SKILL.md`.
 
@@ -40,7 +40,7 @@ orientation only. **Global coverage does not require global context.**
 - One writer per worktree. Work in an Ubuntu WSL2 worktree on the Linux filesystem.
 - Stop on a material product requirement, an owner or trust-boundary contradiction, an unauthorized production effect, or missing authority needed for correctness.
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create.
-- Never merge. The operator merges.
+- Never merge. The operator merges. [`delivery.md`](docs/development/delivery.md) owns the lanes and the merge gate.
 - An approved increment includes its routine reversible implementation and checks. Do not seek approval for each mechanical step.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot.
 - A contract change and its [`docs/product/operation-ledger.md`](docs/product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.

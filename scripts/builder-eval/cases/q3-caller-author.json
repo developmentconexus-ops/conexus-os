@@ -1,0 +1,10 @@
+{
+  "request": "Cada nota passa a registrar automaticamente quem escreveu, pela pessoa que está usando o app.",
+  "checks": [
+    { "action": "fill", "selector": "role=textbox[name=/conteúdo da nota|nota|acompanhamento/i] >> nth=0", "value": "Autoria registrada pela plataforma" },
+    { "action": "click", "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota/i]" },
+    { "action": "expectText", "selector": "body", "text": "Autoria registrada pela plataforma" },
+    { "action": "expectText", "selector": "body", "text": "Operador de Teste" }
+  ],
+  "reload": true
+}

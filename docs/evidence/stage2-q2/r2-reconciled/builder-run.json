@@ -1,0 +1,18 @@
+{
+  "recordedVia": "authenticated Hub builder-session and source API",
+  "builderRunId": "30fb3419-8381-406f-b756-6fe1b90a3a46",
+  "conversationId": "0589b70e-2752-4ec4-893c-236e4cad093d",
+  "createdAt": "2026-09-23T21:39:38.379Z",
+  "state": "SUCCEEDED",
+  "resultKind": "SOURCE_CHANGED",
+  "failureCode": null,
+  "failureCategory": null,
+  "baseSourceRevision": "47319a568e57c265ba740bc54f18e1d675955d76",
+  "resultSourceRevision": "1e01aca47fa43422a80a3959cd83d7c6101a6327",
+  "requestText": "Na tela de acompanhamento, cada nota precisa ter um status fácil de atualizar entre Em aberto, Aguardando o fornecedor e Resolvida. As notas já cadastradas devem continuar disponíveis e começar como Em aberto. Mantenha a mesma forma simples de acompanhar os pedidos.",
+  "filesChanged": [
+    { "path": "app/src/main.tsx", "status": "MODIFIED" },
+    { "path": "app/src/style.css", "status": "MODIFIED" }
+  ],
+  "runnerReconciliation": "The R2 runner invocation returned the earlier interrupted run before this new run had appeared. Hub history ties this run to the R2 conversation. The runner then tried a repair while this run was active in another conversation; no repair BuilderRun was created."
+}

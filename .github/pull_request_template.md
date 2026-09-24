@@ -1,19 +1,14 @@
-## Outcome
+## Linked issue
 
-## Authority and boundaries
+## What changes, for whom
 
-## Proof / falsifier
+## Native census
 
-## Verification
+<!-- Only when the change adds a mechanism. See docs/development/review-checklist.md, "Mastra first, no parallel logic". -->
 
-```text
-npm ci
-npm run verify
-```
+## Proof
 
-## Material findings or deferred obligations
+## Needs "Aprovo"?
 
-- [ ] Canonical authority remains singular.
-- [ ] No Product requirement, owner, or trust boundary changed silently.
-- [ ] Temporary review/migration artifacts are absent.
-- [ ] Current roadmap state remains explicit.
+- [ ] Yes
+- [ ] No

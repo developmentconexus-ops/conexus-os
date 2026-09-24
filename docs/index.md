@@ -10,7 +10,6 @@ owns status and the next action. Start there.
 | Status, what exists, what is next | [Roadmap](roadmap.md) |
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
-| The current task | [Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md) |
 | What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
 | The Stage 2 generated-application architecture and qualification map | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
 | Pre-implementation research, SDK/library candidates and superseded alternatives (not execution authority) | [Stage 2 research memory, R01–R13](research/stage2/README.md) |
@@ -24,6 +23,7 @@ owns status and the next action. Start there.
 | Need | Owner |
 | --- | --- |
 | Product meaning and journeys | [Product contract](product/contract.md) |
+| Future vision: apps, agents and AI processes sharing company capabilities (not execution authority) | [Integrated enterprise platform vision](research/integrated-enterprise-platform-vision.md) |
 | Who may do what | [Permission contract](product/permission-contract.md) |
 | The fixed operation census | [Operation ledger](product/operation-ledger.md) |
 | Wire shape and its rules | [Wire contract](product/wire-contract.md) |
@@ -43,14 +43,17 @@ owns status and the next action. Start there.
 | Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra-boundary.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
+| How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
+| Functionality seen in other products, with a verdict for Conexus | [Functional references](research/functional-references/index.md), reference evidence only |
 
 ## Method
 
 | Need | Owner |
 | --- | --- |
 | Engineering decisions and claim-relative proof | [Engineering method](development/engineering-method.md) |
-| Repository, Git, documentation and CI | [Repository method](development/repository-method.md) and [engineering rules](development/engineering-rules.md) |
-| Frontend planning and operator approval | [Frontend method](development/frontend-product-experience-planning-method.md) |
+| Lanes, approval, proof, merge, Git and CI | [Delivery rules](development/delivery.md) |
+| What a reviewer checks on a pull request | [Review checklist](development/review-checklist.md) |
+| Frontend design, copy, verification and new surfaces | [`conexus-frontend` skill](../.agents/skills/conexus-frontend/SKILL.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.
 They do not silently replace the product contract or the roadmap.

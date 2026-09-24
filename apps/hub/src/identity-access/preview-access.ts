@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { parseCaller } from '../platform/caller.js'
+import type { Caller } from '../platform/caller.js'
 import type { CurrentSession } from './current-session.js'
 
 const ENTRY_MS = 30_000
@@ -26,6 +28,8 @@ export type PreviewRouteBinding = Readonly<{
 export type PreviewCookieBinding = PreviewRouteBinding & Readonly<{
   issuer: string
   subject: string
+  /** The developer behind the Hub session: a Preview's handlers see its own author as the caller. */
+  caller: Caller
 }>
 
 export type PreviewAccess = Readonly<{
@@ -67,6 +71,11 @@ type CookieRecord = Readonly<{
 
 const sha256 = (value: string): Buffer => createHash('sha256').update(value).digest()
 const secret = (): string => randomBytes(32).toString('base64url')
+const callerOf = (session: CurrentSession): Caller => {
+  const caller = parseCaller({ accountId: session.account.accountId, email: session.account.email ?? null, displayName: session.account.displayName })
+  if (!caller) throw new Error('PREVIEW_CALLER_UNRESOLVABLE')
+  return caller
+}
 
 const validRoute = (route: PreviewRouteBinding): void => {
   if (!route.routeId || !route.generation || !route.attemptId || !route.accountId ||
@@ -163,7 +172,7 @@ export const createPreviewAccess = ({
     cookies.set(sha256(cookie).toString('hex'), cookieRecord)
     return Object.freeze({
       cookie,
-      binding: Object.freeze({ ...cookieRecord.route, issuer: session.issuer, subject: session.subject }),
+      binding: Object.freeze({ ...cookieRecord.route, issuer: session.issuer, subject: session.subject, caller: callerOf(session) }),
     })
   }
 
@@ -183,7 +192,7 @@ export const createPreviewAccess = ({
     if (closed || currentRecord !== record || record.expiresAt <= now() ||
       !session || session.account.accountId !== record.route.accountId ||
       session.issuer !== record.issuer || session.subject !== record.subject) return null
-    return Object.freeze({ ...record.route, issuer: session.issuer, subject: session.subject })
+    return Object.freeze({ ...record.route, issuer: session.issuer, subject: session.subject, caller: callerOf(session) })
   }
 
   const discardEntryGrant = (entryGrant: string): void => {

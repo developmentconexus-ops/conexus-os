@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Bet or idea (Conexus team only)
+    url: https://github.com/developmentconexus-ops/conexus-hq/issues/new
+    about: For the Conexus team only. Bets and ideas live in a private repository, which returns 404 to anyone else.

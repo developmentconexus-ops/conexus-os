@@ -1,0 +1,107 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-24T02:46:53.279Z",
+  "finishedAt": "2026-09-24T02:53:54.766Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q3-trace-followup.json",
+  "gradeOnly": false,
+  "request": "Na lista de pedidos de compra, mostre em cada pedido o nome de quem escreveu a nota mais recente.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": "e334bc49-dde8-44bb-9df2-85defdad6121",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": "32df403dadab49f11e39cff7e1308d6c843fd5dc",
+  "sourceRevisionAfter": "1caed906f1d011862e67fbd22dc9b6bf40dfc65e",
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/orders.ts",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "MODIFIED",
+      "previousPath": null
+    }
+  ],
+  "runs": [
+    {
+      "builderRunId": "5f9a17bc-af7a-4181-8ca8-6e1419698045",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null,
+      "baseSourceRevision": "32df403dadab49f11e39cff7e1308d6c843fd5dc",
+      "resultSourceRevision": "1caed906f1d011862e67fbd22dc9b6bf40dfc65e",
+      "requestText": "Na lista de pedidos de compra, mostre em cada pedido o nome de quem escreveu a nota mais recente."
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 411373,
+  "previewUrl": "https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/conteúdo da nota|nota|acompanhamento/i] >> nth=0",
+        "value": "Nota para a lista de pedidos",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Nota para a lista de pedidos",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Operador de Teste",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Nota para a lista de pedidos",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Operador de Teste",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

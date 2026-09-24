@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { createHash } from 'node:crypto'
+import type { Caller } from '../platform/caller.js'
 
 const PREVIEW_COOKIE = '__Host-conexus_preview'
 
@@ -39,6 +40,7 @@ type PreviewCookieBinding = Readonly<{
   expiresAt: number
   issuer: string
   subject: string
+  caller: Caller
 }>
 
 type PreviewAccess = Readonly<{
@@ -60,15 +62,13 @@ type RegistryReader = (input: Readonly<{
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
 
 // The admitted artifact's application API. The operation comes from the request path and must be one
-// the artifact's own manifest declares; the Project and artifact come from the Preview binding.
+// the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
 type ApplicationInvoker = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
+  source: Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
   serverFiles: readonly string[]
   operation: string
   input: unknown
+  caller: Caller
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type PreviewRouteDependencies = Readonly<{
@@ -87,14 +87,22 @@ const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes)
 const expectedHost = (route: Readonly<{ exactHost: string }>, port: number): readonly string[] => [route.exactHost, `${route.exactHost}:${port}`]
 const hostMatches = (requestHost: string | undefined, route: Readonly<{ exactHost: string }>, port: number): boolean =>
   typeof requestHost === 'string' && expectedHost(route, port).includes(requestHost)
-const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
+export const strictOrigin = (value: string | string[] | undefined, expected: string): boolean =>
   (Array.isArray(value) ? value[0] : value) === expected
 
-// allow-forms lets a submit event reach the app's own handler; form-action 'none' still refuses
-// any submission that would navigate or post somewhere. connect-src 'self' admits only the app's own
-// same-origin API under /__conexus/api/.
+// What an application's page may load, on a Preview host and on its own host alike. form-action
+// 'none' refuses any submission that would navigate or post somewhere; connect-src 'self' admits only
+// the app's own same-origin API under /__conexus/api/.
+const APPLICATION_SOURCES = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'"
+
+// A Preview is framed by the Hub, and its sandbox keeps the frame from the Hub's own capabilities.
+// allow-forms lets a submit event reach the app's own handler.
 export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
-  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+  `${APPLICATION_SOURCES}; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+
+// An application host is a top-level site: never framed, and without the Preview's sandbox, so its
+// page opens popups and downloads like any other site.
+export const applicationHostContentSecurityPolicy = `${APPLICATION_SOURCES}; frame-ancestors 'none'`
 
 const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
   reply.header('referrer-policy', 'no-referrer')
@@ -111,11 +119,11 @@ const sameBinding = (left: MarRoute, right: PreviewCookieBinding): boolean => (
   left.exactHost === right.exactHost
 )
 
-const SERVER_ROOT = 'conexus-server/'
-const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
-const API_BODY_LIMIT = 64 * 1024
+export const SERVER_ROOT = 'conexus-server/'
+export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
+export const API_BODY_LIMIT = 64 * 1024
 
-const pathForRequest = (pathname: string): string | null => {
+export const pathForRequest = (pathname: string): string | null => {
   if (pathname === '/') return 'index.html'
   try {
     const path = decodeURIComponent(pathname.slice(1))
@@ -275,8 +283,11 @@ export const registerPreviewRoutes = async (
     let result: Awaited<ReturnType<ApplicationInvoker>>
     try {
       result = await dependencies.invokeApplication({
-        accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision,
-        artifactRevisionId: binding.artifactRevisionId, serverFiles, operation: request.params.operation, input: request.body,
+        source: {
+          via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
+          sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
+        },
+        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')

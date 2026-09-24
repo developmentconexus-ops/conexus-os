@@ -39,6 +39,10 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1invitations'
   /api/control/workspaces/{workspaceId}/roster/{entryKind}/{entryId}:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1roster~1{entryKind}~1{entryId}'
+  /api/control/projects/{projectId}/application-access:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1application-access'
+  /api/control/projects/{projectId}/application-access/{entryKind}/{entryId}:
+    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1application-access~1{entryKind}~1{entryId}'
   /api/control/workspaces/{workspaceId}/projects:
     $ref: './project-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1projects'
   /api/control/projects/{projectId}:

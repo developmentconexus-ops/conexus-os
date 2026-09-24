@@ -1,0 +1,9 @@
+{
+  "request": "Quero uma lista dos pedidos de compra que têm notas em aberto, com filtro por status e por pessoa responsável. O pedido mais atrasado em relação à data prevista aparece primeiro. As notas e os pedidos já cadastrados continuam como estão. Mantenha a interface simples.",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "PC-4521" },
+    { "action": "expectText", "selector": "body", "text": "Em aberto" },
+    { "action": "expectText", "selector": "body", "text": "Responsável" }
+  ],
+  "reload": true
+}

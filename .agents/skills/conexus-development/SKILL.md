@@ -1,131 +1,60 @@
 ---
 name: conexus-development
-description: Use when resuming, planning, implementing, verifying, reviewing, or handing off development in the Conexus OS repository.
+description: This skill should be used for any development session in the Conexus OS repository, when resuming, planning, building, verifying, reviewing, delegating or handing off work. Triggers include "pick up issue #N", "build this", "fix this bug", "review this PR", "prepare the gate task", "open a PR", "hand this off", "spawn a subagent", and any work in a conexus-os worktree.
 ---
 
-# Conexus Development
+# Conexus development
 
-Use this skill for every material Conexus OS development session.
+This skill routes Conexus OS work. It owns no rule. [`delivery.md`](../../../docs/development/delivery.md) owns lanes, gates, labels, proof and merge. The roadmap and GitHub own status. If this skill and `delivery.md` disagree, `delivery.md` wins and this skill has the bug.
 
-## Bootstrap from zero
+## Start from zero
 
-1. Read repository `AGENTS.md`. Do not trust chat or a handoff as authority.
-2. Read `references/wsl-environment.md`, enter the pinned WSL Ubuntu environment, source NVM, and confirm the exact Node/npm pins.
-3. Run `npm run conexus:preflight`. Use `-- --no-network` only when network access is intentionally unavailable.
-4. Read `docs/roadmap.md`, then `docs/index.md` only as needed to locate the smallest current owner.
-5. Read `references/slice-lifecycle.md` for any planned slice, implementation, implementation review, or correction.
-6. Load the applicable engineering/repository/frontend method and the current task owner named by the roadmap.
-7. For Mastra-sensitive work, read `.agents/skills/mastra/SKILL.md` before making version-specific claims.
-8. Load the Poteto Mode skill available in the session, the playbook that matches the
-   work, and the leaf of every principle you apply. Read them where they are installed;
-   this repository does not copy them, restate them or hold a second methodology. Name
-   the principles that changed a decision. If Poteto Mode is not available in the
-   session, say so rather than claiming to have followed it.
+1. Read the root `AGENTS.md`. Chat, handoffs and memory are orientation, never authority.
+2. Read [`references/wsl-environment.md`](references/wsl-environment.md). Work in a WSL Ubuntu worktree, source NVM, and confirm the Node and npm pins.
+3. Run `npm run conexus:preflight`.
+4. Read [`docs/roadmap.md`](../../../docs/roadmap.md) for the current gate. Use [`docs/index.md`](../../../docs/index.md) only to find the smallest owner of a question.
+5. Read `delivery.md` and pick the lane before any other decision.
+6. Load the Poteto Mode skill installed in the session, the playbook that matches the work, and the leaf of every principle applied. Name the principles that changed a decision. If Poteto Mode is not installed, say so. Keep it cheap: one targeted read beats a panel of subagents.
+7. For Mastra-sensitive work, read [`.agents/skills/mastra/SKILL.md`](../mastra/SKILL.md) before any version-specific claim. For frontend work, load [`.agents/skills/conexus-frontend/SKILL.md`](../conexus-frontend/SKILL.md).
 
-Preserve every unowned or pre-existing working-tree path. Never reset, clean, stash, force-update, or absorb unrelated state.
+## Pick the route by lane
 
-## One task per actionable slice
+The lane decides where the work starts. Its gates are in the [lane table](../../../docs/development/delivery.md#pick-the-lane-by-risk). [`references/work-routes.md`](references/work-routes.md) holds each route in full.
 
-A Product implementation slice does not start from chat or a long handoff. It starts from one dedicated `docs/tasks/*.md` owner.
+| Lane | Starts from | Work is tracked in |
+| --- | --- | --- |
+| `lane:fast` | an issue in this repository | the issue |
+| `lane:shaped` | a bet in the private `conexus-hq`, split into sub-issues here | each sub-issue |
+| `lane:qualification` | any Q trigger: the gate the roadmap names, or a bet that trips Q-b, Q-c or Q-d | one task in `docs/tasks` |
 
-The task must make implementation mechanical enough that the executor does not need to invent architecture. It names the protected result, relevant evidence and authority, code census, target shape, ordered implementation work, non-goals, falsifiers, proof, owner reconciliation, and stop law.
+Only the qualification lane writes a task in `docs/tasks`. A fast or shaped unit never waits for a task and never creates one.
 
-Do not create placeholder tasks for future slices whose exact contract depends on predecessor evidence. Create the task when that slice becomes the next actionable unit.
+If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The manager reshapes the bet.
 
-The roadmap owns status and grant. The task owns the bounded execution/review contract. Product, architecture, decisions, contracts, and technical references own durable meaning. Never copy the same decision into all three as independent prose.
+## Build a change
 
-## Role boundary
+- Confirm that the issue or task names the observable result, the non-goals and "done when". If a material item is missing, ask on the issue. Do not invent product meaning in code.
+- Before adding a mechanism, take the native census in the [review checklist](../../../docs/development/review-checklist.md#mastra-first-no-parallel-logic).
+- Stop on the conditions in [Stop, then escalate](../../../docs/development/delivery.md#stop-then-escalate).
+- Add `needs:aprovo` when the change is one of the [three kinds that need it](../../../docs/development/delivery.md#ask-for-aprovo-on-three-kinds-of-change).
+- Run the checks the change touches. Do not run `npm run verify` locally. CI runs the whole graph at the head SHA.
+- Preserve every path this session did not create. Never reset, clean, stash, force-push or prune worktrees. `.claude/settings.json` denies these commands, and the rule still holds where the denial does not reach, such as a WSL shell.
+- Use conventional commits. Push, open the pull request against `main`, link the issue, and confirm that `verify` ran at the exact head SHA. Never merge.
 
-Follow `references/slice-lifecycle.md`.
+## Review a change
 
-When the operator assigns different roles:
+Review the pushed head against its issue or task and the current owners, not against the author's summary. Use the [review checklist](../../../docs/development/review-checklist.md). Report the smallest failed rule. A review does not fix the code it reviews unless the operator asks.
 
-- the planner/verifier investigates, closes decisions, prepares the task, and reviews the result;
-- the executor implements the authorized task, verifies it, commits, pushes, and stops;
-- the reviewer compares the remote candidate to the task and current owners before any next slice or correction is authorized.
+## Delegate
 
-Do not silently combine roles because doing so is convenient.
+Code subagents run on Sonnet. Escalate one to Opus only for design across modules, concurrency or a subtle algorithm, and state the reason in the prompt and in the report. Rule text, skill text and review adjudication run on Opus. The operator's `~/.claude/pstack-models.md` overrides these defaults. Read [`references/review-and-delegation.md`](references/review-and-delegation.md) before spawning a subagent or an independent review.
 
-## Frontend and Builder wireframe
+## Keep state out of this skill
 
-Before changing a web, Builder, or Preview surface:
+Status, SHAs, dates and next actions live in `docs/roadmap.md` and GitHub. A handoff is a pointer: repository, branch, expected head, the issue or task, and "stop on its stop conditions". A fresh session still starts from zero.
 
-1. read the current grant in `docs/roadmap.md`;
-2. read `docs/reference/frontend-and-product-surfaces.md`, whose section 33.6 owns the Build surface's functional contract;
-3. preserve the app-first composition, contextual Conexus interaction, and read-only Code/Diff lenses unless current Product authority explicitly changes them.
+## References
 
-That functional contract is an interaction contract, not a styling mandate. The roadmap controls deferred surfaces. If current Product Experience authority conflicts with requested implementation, stop at the smallest owner instead of inventing a replacement UI in code.
-
-## Execute an authorized slice
-
-Before editing Product code, confirm that the task names:
-
-- the user- or system-observable result and target invariant;
-- exact owners and preserved decisions;
-- affected modules/files and relevant data/dependency boundaries;
-- KEEP, CHANGE, and DELETE candidates where applicable;
-- failure behavior and forbidden effects;
-- falsifiers, targeted proof, completion conditions, and explicit non-goals;
-- documentation/authority reconciliation required after proof;
-- an explicit STOP condition.
-
-If a material item is missing, return to planning. Do not invent Product meaning in code.
-
-Keep the implementation bounded:
-
-```text
-authority + explicit grant
-→ current task
-→ exact file/owner envelope
-→ failing proof or falsifier where applicable
-→ smallest sustainable implementation
-→ targeted verification
-→ broader verification required by the task
-→ commit + push when authorized
-→ STOP
-```
-
-Use affected checks during implementation and `npm run verify` when the task requires the complete current graph. Command success is technical Evidence. It does not declare Product acceptance.
-
-## Review a completed slice
-
-Review the remote candidate against the task, not against the implementer's summary.
-
-Check, in order:
-
-1. protected result and stated non-goals;
-2. current semantic/technical owners;
-3. actual remote diff and changed-file census;
-4. required falsifiers and proof output;
-5. accidental compatibility layers, duplicated authority, or new abstractions that did not earn their place;
-6. required owner reconciliation and roadmap transition.
-
-A review is read-only for Product implementation unless the operator explicitly authorizes a correction. Report the smallest failing invariant and route it back to the same slice task. Do not opportunistically fix the code while reviewing it.
-
-## Delegation and independent review
-
-Read `references/review-and-delegation.md` before delegating implementation or independent review. Use independent review when a material risk triggers it under the current Engineering Method. Collaborative design challenge and independent closure are different activities.
-
-## Evidence and status
-
-Keep durable Evidence only when it has a current or credible future consumer. Do not introduce a generic Evidence authority. Mutable stage/status/next-action truth lives only in `docs/roadmap.md`.
-
-When a slice changes durable Product or architecture meaning, reconcile the smallest semantic/technical owner after proof. Do not leave the accepted decision only in the task, roadmap, review output, or chat.
-
-## Handoff
-
-A handoff is a pointer, not a second plan.
-
-For an implementation handoff, prefer:
-
-```text
-repository + branch + expected HEAD
-current task path
-authority order
-preserve-working-tree warning
-execute only this task
-STOP on its named material conditions
-verify → commit → push → STOP
-```
-
-Add detail only when the repository cannot carry it. A fresh session still bootstraps from zero.
+- [`references/work-routes.md`](references/work-routes.md): each lane's route, the qualification task contract, roles, and frontend work.
+- [`references/review-and-delegation.md`](references/review-and-delegation.md): what a delegate prompt carries, and review by lane.
+- [`references/wsl-environment.md`](references/wsl-environment.md): WSL entry, worktrees, disk, calling WSL from Windows, and the pilot.

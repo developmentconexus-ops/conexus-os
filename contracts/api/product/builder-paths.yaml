@@ -366,26 +366,53 @@ components:
       type: object
       additionalProperties: false
       required: []
+    BuilderTraceUsage:
+      description: Token usage rolled up from native model-generation spans. Absent means unavailable, never zero.
+      type: object
+      additionalProperties: false
+      required: [inputTokens, outputTokens, totalTokens]
+      properties:
+        inputTokens: { type: [integer, 'null'], minimum: 0 }
+        outputTokens: { type: [integer, 'null'], minimum: 0 }
+        totalTokens: { type: [integer, 'null'], minimum: 0 }
     BuilderTraceSpan:
       type: object
       additionalProperties: false
-      required: [spanType, name, startedAt, durationMs, error]
+      required: [spanId, parentSpanId, spanType, name, startedAt, durationMs, error, model, usage]
       properties:
+        spanId: { type: string, minLength: 1 }
+        parentSpanId: { type: [string, 'null'], minLength: 1 }
         spanType: { type: string, minLength: 1 }
         name: { type: string, minLength: 1 }
         startedAt: { type: string, format: date-time }
         durationMs: { type: [integer, 'null'], minimum: 0 }
         error: { type: boolean }
+        model: { type: [string, 'null'], minLength: 1 }
+        usage: { oneOf: [{ $ref: '#/components/schemas/BuilderTraceUsage' }, { type: 'null' }] }
+    BuilderTraceScore:
+      type: object
+      additionalProperties: false
+      required: [scorer, score, reason]
+      properties:
+        scorer: { type: string, minLength: 1 }
+        score: { type: number }
+        reason: { type: [string, 'null'] }
     BuilderTraceSummary:
       type: object
       additionalProperties: false
-      required: [available, traceId, spans]
+      required: [available, traceId, spans, usage, modelCalls, toolCalls, scores]
       properties:
         available: { type: boolean }
         traceId: { type: [string, 'null'], minLength: 1 }
         spans:
           type: array
           items: { $ref: '#/components/schemas/BuilderTraceSpan' }
+        usage: { oneOf: [{ $ref: '#/components/schemas/BuilderTraceUsage' }, { type: 'null' }] }
+        modelCalls: { type: integer, minimum: 0 }
+        toolCalls: { type: integer, minimum: 0 }
+        scores:
+          type: array
+          items: { $ref: '#/components/schemas/BuilderTraceScore' }
     SendBuilderMessageRequest:
       type: object
       additionalProperties: false

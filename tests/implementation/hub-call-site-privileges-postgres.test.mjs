@@ -77,6 +77,25 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.bind_factory_project': 'hub_builder_executor',
     'builder.read_factory_binding_for_project': 'hub_builder_executor',
   }),
+  'identity-access/application-access.ts': Object.freeze({
+    'iam.list_application_access': 'hub_iam_runtime',
+    'iam.grant_application_access': 'hub_iam_runtime',
+    'iam.cancel_application_invitation': 'hub_iam_runtime',
+    'iam.revoke_application_grant': 'hub_iam_runtime',
+  }),
+  'identity-access/application-session.ts': Object.freeze({
+    'iam.application_slug': 'hub_iam_runtime',
+    'iam.application_by_slug': 'hub_iam_runtime',
+    'iam.provision_application_account': 'hub_iam_runtime',
+    'iam.claim_application_invitations': 'hub_iam_runtime',
+    'iam.mint_application_handoff': 'hub_iam_runtime',
+    'iam.redeem_application_handoff': 'hub_iam_runtime',
+    'iam.resolve_application_session': 'hub_iam_runtime',
+    'iam.end_application_session': 'hub_iam_runtime',
+    'iam.claim_provider_check': 'hub_iam_runtime',
+    'iam.record_provider_check': 'hub_iam_runtime',
+    'iam.release_provider_check': 'hub_iam_runtime',
+  }),
   'identity-access/installation-administration.ts': Object.freeze({
     'iam.is_installation_administrator': 'hub_iam_runtime',
     'iam.grant_installation_administrator': 'hub_iam_runtime',
@@ -95,6 +114,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.email_has_open_invitation': 'hub_iam_runtime',
     'iam.claim_invitations': 'hub_iam_runtime',
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
+    'iam.account_access_scope': 'hub_iam_runtime',
     'workspace.list_visible_workspace_summaries': 'hub_workspace_read',
   }),
   'project/store.ts': Object.freeze({
@@ -110,6 +130,10 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',
     'reg.get_application_by_source': 'hub_builder_executor',
     'reg.read_application_file_by_source': 'hub_builder_executor',
+  }),
+  'registry/served-application.ts': Object.freeze({
+    'reg.get_served_application': 'hub_builder_executor',
+    'reg.read_served_application_file': 'hub_builder_executor',
   }),
   'workspace/store.ts': Object.freeze({
     'workspace.reserve_or_replay_create_workspace': 'hub_workspace_command',

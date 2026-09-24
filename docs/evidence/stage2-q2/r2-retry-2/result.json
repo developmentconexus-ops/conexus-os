@@ -1,0 +1,29 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-23T21:41:55.049Z",
+  "finishedAt": "2026-09-23T21:42:18.421Z",
+  "outcome": "ERROR",
+  "error": "page.waitForFunction: Timeout 20000ms exceeded.",
+  "case": "scripts/builder-eval/cases/q2/r2-note-status.json",
+  "gradeOnly": false,
+  "request": "Na tela de acompanhamento, cada nota precisa ter um status fácil de atualizar entre Em aberto, Aguardando o fornecedor e Resolvida. As notas já cadastradas devem continuar disponíveis e começar como Em aberto. Mantenha a mesma forma simples de acompanhar os pedidos.",
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "af3f2874-a8e6-451c-9016-cd74240d9c19",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": null,
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": null,
+  "checks": {
+    "initial": [],
+    "afterReload": null
+  },
+  "screenshotPath": null,
+  "failure": null
+}

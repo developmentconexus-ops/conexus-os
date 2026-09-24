@@ -1,7 +1,7 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
 import { connectFlowReducer, initialConnectState } from '../connect-flow'
 import {
   apiKeySaveErrorMessage, oauthFailureMessage,
@@ -10,6 +10,7 @@ import {
   cancelOAuth, completeOAuth, type ModelAccountsRequestError, type ModelProvider, pollOAuth, saveApiKey, startOAuth,
 } from '../model-accounts-api'
 import { providerName } from '../provider-names'
+import { groupProviders } from '../provider-groups'
 import { StatusLine } from './states'
 
 export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs, onDone }: Readonly<{
@@ -87,6 +88,56 @@ function ApiKeyStep({ provider, onDone }: Readonly<{ provider: string; onDone: (
   </form>
 }
 
+function ProviderPicker({ providers, onChoose }: Readonly<{ providers: readonly ModelProvider[]; onChoose: (provider: string) => void }>) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const groups = groupProviders(providers, query)
+  const flat = 'matches' in groups ? groups.matches : [...groups.featured, ...groups.rest]
+  itemRefs.current = itemRefs.current.slice(0, flat.length)
+
+  const focusItem = (index: number) => { itemRefs.current[Math.max(0, Math.min(index, flat.length - 1))]?.focus() }
+
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' && flat.length > 0) { event.preventDefault(); focusItem(0) }
+    else if (event.key === 'Enter' && flat.length === 1 && flat[0]) { event.preventDefault(); onChoose(flat[0].provider) }
+  }
+
+  const onItemKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); index === flat.length - 1 ? inputRef.current?.focus() : focusItem(index + 1) }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); index === 0 ? inputRef.current?.focus() : focusItem(index - 1) }
+  }
+
+  const item = (provider: ModelProvider, index: number) => <li key={provider.provider}>
+    <button type="button" className="cxs-provider-item" ref={(node) => { itemRefs.current[index] = node }}
+      onKeyDown={(event) => onItemKeyDown(event, index)} onClick={() => onChoose(provider.provider)}>
+      <span>{providerName(provider.provider)}</span>
+      {provider.oauth?.supported && <span className="cxs-hint" aria-hidden="true">Entra com assinatura</span>}
+    </button>
+  </li>
+
+  return <div className="cxs-picker">
+    <Input ref={inputRef} type="text" value={query} onChange={(event) => setQuery(event.target.value)}
+      onKeyDown={onInputKeyDown} placeholder="Buscar provedor" aria-label="Buscar provedor" autoComplete="off" />
+    {'matches' in groups ? (
+      groups.matches.length === 0
+        ? <p className="cxs-empty">Nenhum provedor encontrado.</p>
+        : <ul className="cxs-provider-matches">{groups.matches.map((provider, index) => item(provider, index))}</ul>
+    ) : <>
+      {groups.featured.length > 0 && <div className="cxs-provider-group">
+        <h4>Principais</h4>
+        <ul className="cxs-provider-featured">{groups.featured.map((provider, index) => item(provider, index))}</ul>
+      </div>}
+      {groups.rest.length > 0 && <div className="cxs-provider-group">
+        <h4>Todos os provedores</h4>
+        <ul className="cxs-provider-all">{groups.rest.map((provider, index) => item(provider, groups.featured.length + index))}</ul>
+      </div>}
+    </>}
+  </div>
+}
+
 export function ConnectAccount({ providers, onConnected }: Readonly<{ providers: readonly ModelProvider[]; onConnected: () => void }>) {
   const [state, dispatch] = useReducer(connectFlowReducer, initialConnectState)
   const start = useMutation({
@@ -114,13 +165,7 @@ export function ConnectAccount({ providers, onConnected }: Readonly<{ providers:
   if (state.step === 'choose-provider') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
       <h3>Conectar uma conta</h3>
-      <ul className="cxs-provider-list">
-        {providers.map((provider) => <li key={provider.provider}>
-          <Button type="button" variant="outline" onClick={() => dispatch({ type: 'provider-chosen', provider: provider.provider })}>
-            {providerName(provider.provider)}
-          </Button>
-        </li>)}
-      </ul>
+      <ProviderPicker providers={providers} onChoose={(provider) => dispatch({ type: 'provider-chosen', provider })} />
     </section>
   }
 

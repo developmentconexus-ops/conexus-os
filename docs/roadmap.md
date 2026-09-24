@@ -1,6 +1,7 @@
 # Conexus OS roadmap
 
-This file owns mutable status, current grant and the exact next action.
+This file owns the status of the stage gates and names the current gate. Bets live in the private
+`conexus-hq` repository, and this file never names them.
 
 ## What Conexus is
 
@@ -87,46 +88,23 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | Gate | Protected question | Status |
 | --- | --- | --- |
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
-| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **NEXT**, task prepared ([task](tasks/stage2-q2-data-programming-model-qualification.md)) |
-| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | WAITING FOR Q2 |
-| **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | WAITING FOR Q3 |
+| **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
+| **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
+| **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | **CURRENT GATE**, task to prepare |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
 
-The sequence is a commitment order, not a dependency chain. Q3 does not depend on Q2, the Sankhya business input for Q4 needs no code, and Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate, under two rules:
+The sequence is a commitment order, not a dependency chain. Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate. A spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites. Work outside the gates follows the [lanes and work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
 
-- a spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites;
-- only the current gate's task changes `main`.
+## Technology baseline
 
-Alongside Q1:
-
-- the runner arena (`spike/q1-runner-arena`) is done: both isolation mechanisms passed its 24-case suite, and the Q1 task records the selection;
-- a rerunnable Builder eval (`scripts/builder-eval/`), the measuring tool every Builder proof in Stage 2 reuses, is delivered as its own pull request;
-- the Sankhya business input for Q4: gateway, read-only credential, the open-purchase-order read and its fields, owned by the operator.
-
-## Technology qualification rule
-
-Research does not select a dependency.
-
-A dependency or framework enters the Stage 2 stack only when:
-
-```text
-current consumer
-+ named limitation/problem
-+ exact API/version examined
-+ falsifiable probe
-+ evidence against credible alternative
-→ decision
-```
-
-Existing repository dependencies are preferred when they are sufficient.
-
-Current baseline/challenger state:
+A dependency enters only under the [technology rule](development/delivery.md#technology-rule).
+Current baseline and challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
-- SQL/`pg`: baseline programming hypothesis for Q1/Q2;
-- Kysely: Q2 challenger only if the Q2 SQL baseline shows a named, repeated failure (Q1 named none);
+- SQL/`pg`: the data programming model, accepted by Q2;
+- Kysely: not qualified; Q1 and Q2 named no repeated SQL failure;
 - Prisma, Drizzle, Hono, oRPC: deferred without a current falsifier;
 - Nango/Pipedream/Composio: deferred until a real SaaS/OAuth or agent-tool Connector requires them;
 - Airbyte/Debezium: deferred until a real replication/CDC requirement;
@@ -134,23 +112,8 @@ Current baseline/challenger state:
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
 
-## Builder is part of every application-architecture proof
-
-Hand-written examples can prove a platform mechanism but cannot close an application architecture gate.
-
-Where a gate concerns the generated application programming model, deciding proof includes:
-
-1. a real Project;
-2. a normal product-language request to the Builder;
-3. current real model path;
-4. Builder discovery of the paved-road guidance;
-5. Builder-generated or materially Builder-modified source;
-6. its own Project check;
-7. Conexus build/Preview;
-8. browser interaction;
-9. the gate's negative proof.
-
-Record repair iterations and failures. The goal is not only to make the platform capable; the Builder must be able to use it reliably without the operator dictating filenames or implementation.
+Every application-architecture gate follows the
+[Builder proof rule](development/delivery.md#builder-proof-rule).
 
 ## Stage 2 lie detector
 
@@ -181,32 +144,57 @@ The first gate does not need Sankhya or employee app identity. It proves only th
 
 These return only through a named real consumer and their own qualification.
 
+## After Stage 2: planned order
+
+Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
+operator agreed this order on 2026-09-23 as a plan, not a commitment. Each step becomes a task only
+after the step before it has a verdict, and each technology enters only under the
+[technology rule](development/delivery.md#technology-rule), with its own consumer.
+
+"Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
+profile. The general software-development harness of the
+[Stage 2 reference](reference/stage2-managed-application-platform.md#1-why-this-exists), a second
+application profile with a backend per Project, is a different thing and stays future.
+
+| Order | Step | Candidates from the [technology queue](reference/stage2-managed-application-platform.md#7-technology-qualification-queue) | Enters when |
+| --- | --- | --- | --- |
+| 1 | Code harness: events, React UI library, auth, roles and users, audit, telemetry, an implementation guide, and a set of global Conexus skills (server, identity, connectors, frontend) | Fastify, Zod and `pg` already selected. oRPC if handlers need end-to-end typed procedures. Drizzle or Prisma only if SQL-first fails | Stage 2 closes |
+| 2 | Application templates built from the harness | None new | The harness has its first pieces |
+| 3 | Server installation and operation: backups, Published operation, `conexus.fun` | Cloud Run or Fly only for the future second profile | The laptop pilot validates the journey |
+| 4 | More integrations | Nango (OAuth SaaS), Pipedream or Composio (agent tool catalog), Airbyte or Debezium (sync, CDC) | The first Connector that needs each |
+| 5 | Jobs and automations | pg-boss first, then Mastra Workflows, Inngest, Trigger.dev or Temporal | The first durable background job |
+| 6 | Notifications | Novu or Knock | The first multichannel notification |
+| 7 | Agent Studio: agents per Workspace or Project, copilot or active | Mastra agents and memory | A named agent consumer |
+| 8 | Brain: the company's own knowledge, started fresh | Mastra memory and retrieval | A named knowledge consumer |
+| 9 | Problem reports that become Factory issues, triaged and reviewed through the Factory skills | Mastra Factory work items and skills | A reporting flow is requested |
+| 10 | Self-registration in chosen applications, for example a partners' app | Conexus-owned sign-up policy over Keycloak | A named external audience |
+
+Steps 4 to 10 may reorder by real demand. Step 1 comes first because it shapes how everything after
+it is built.
+
 ## Exact next action
 
-**Execute the Stage 2 Q2 task: measure whether the Builder builds and changes a small data application with parameterized SQL, within six Builder runs.**
-
-[Stage 2 Q2 — Data programming model qualification](tasks/stage2-q2-data-programming-model-qualification.md)
+**Prepare the Stage 2 Q4 task: one real read-only Sankhya capability through Connector Definition, Workspace Connection and Project Grant.**
 
 Protected question:
 
-> Is parameterized SQL through `pg` sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API?
+> Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only
+> Sankhya capability without leaking credentials or generic provider authority?
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
-Q2 does not change its runtime boundary.
+Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
+([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 closed with
+ACCEPT_WITH_BOUNDARY in #210 (`7f3dc0b7`): an application has its own host, an app-only Account reaches it through a
+one-use handoff from the Hub sign-in, and handlers receive the caller
+([evidence and verdict](evidence/stage2-q3/README.md)). The Q4 task starts from the notebook
+application Q3 left, whose handlers already know who is calling.
 
-```text
-Q2.0 where the guidance lives (Mastra skill or conexus/SERVER.md)
-→ Q2.1 the Builder builds, then changes, the app on the SQL baseline
-→ ACCEPT / ACCEPT_WITH_BOUNDARY / CHALLENGER_REQUIRED / INSUFFICIENT_EVIDENCE
-```
-
-A challenger probe runs only if the baseline shows a named, repeated failure, and only after the
-planner prepares it. Do not start Q3 automatically. Its task is written after the Q2 verdict.
+Q3 left one pending item by operator choice: the no-access page names the wrong reason when
+Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#findings)).
 
 ## What the operator still owes
 
-- A second Keycloak user with a verified email address, for multi-account and for Q3's app-only user.
-- The Sankhya business input for Q4.
+- Confirmation that the Sankhya gateway credential is read-only, before Q4 calls it.
 
 ## Before a production installation
 
@@ -233,8 +221,5 @@ installation also gives the runner its own OS user, apart from the Hub's secrets
 
 ## Merge gate
 
-A pull request is ready only when CI `verify` is green on its exact head SHA and the coordinator has read the diff.
-
-For a material runtime/database trust-boundary slice, independent review is required by the Engineering Method after the candidate is frozen.
-
-Never treat the existence of a plan, artifact or Preview grant as Product acceptance.
+The [merge gate](development/delivery.md#merge-gate) and the lanes that add to it live in the
+delivery rules.

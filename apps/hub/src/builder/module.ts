@@ -14,11 +14,13 @@ import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
+import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
+import { assertFactoryGlobalSkillsAvailable } from './factory-skills-guard.js'
 import { HubSessionAuthProvider } from './hub-session-auth.js'
 import { registerInstallationGithubRoutes } from './installation-github-routes.js'
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
@@ -104,6 +106,8 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
   BUILD_FAILED: ({ builderRunId, code, detail }) =>
     `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
+  PLATFORM_FAILED: ({ builderRunId, code }) =>
+    `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
@@ -131,6 +135,30 @@ const createBuilderObservability = (serviceName: string): Observability => new O
     },
   },
 })
+
+const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
+
+// Mastra never runs prune() itself (reference-storage-retention.md). The Factory's PostgresStore
+// declares the `maxAge` policy (factory.ts, OBSERVABILITY_SPAN_RETENTION); this is the schedule
+// that actually deletes rows older than it. It prunes only what that policy names -- observability
+// spans -- never memory threads/messages, which Builder evidence depends on.
+type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
+
+const scheduleRetentionPrune = (
+  ready: Promise<Pick<FactoryComposition, 'storage'>>,
+  log: (line: string) => void,
+  intervalMs = RETENTION_PRUNE_INTERVAL_MS,
+): RetentionSchedule => {
+  const tick = async (): Promise<void> => {
+    const { storage } = await ready
+    for (const result of await storage.getMastraStorage().prune()) {
+      if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
+    }
+  }
+  const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
+  timer.unref()
+  return Object.freeze({ tick, close: () => clearInterval(timer) })
+}
 
 // Kills what a crashed Hub left running before the router takes calls.
 const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) => {
@@ -171,6 +199,7 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   }
   const stateSecret = readSecretFile(factory.stateSecretFile)
   const secretKey = readSecretFile(factory.secretKeyFile)
+  const previousSecretKeys = factory.previousSecretKeyFiles.map(readSecretFile)
   const observability = createBuilderObservability('conexus-builder-factory')
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
@@ -189,11 +218,12 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   googleAiPro.catch(() => undefined)
   const auth = new HubSessionAuthProvider({ orgId: factory.orgId, resolveCurrentSession, isInstallationAdministrator })
   const ready: Promise<FactoryComposition> = googleAiPro.then((started) => composeFactory({
-    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, publicUrl: origin, observability,
+    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, previousSecretKeys, publicUrl: origin, observability,
     sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
     ...(started ? { googleAiProUrl: started.url } : {}),
   }))
   ready.catch(() => undefined)
+  const retentionPrune = scheduleRetentionPrune(ready, (line) => { process.stderr.write(`${line}\n`) })
   const appendDiagnostic = createFactoryDiagnosticAppender(ready)
   const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
     composition, orgId: factory.orgId, log: (line) => { process.stderr.write(`${line}\n`) },
@@ -236,6 +266,7 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
     records,
     observabilityLifecycle,
     close: async () => {
+      retentionPrune.close()
       try {
         await ready.then((composition) => composition.close(), () => pool.end())
       } finally {
@@ -261,6 +292,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
 }>) => {
+  assertFactoryGlobalSkillsAvailable()
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
@@ -296,23 +328,29 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
     readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
-      const observabilityStore = await (await factoryComposition.ready).mastra.getStorage()?.getStore('observability')
-      if (!observabilityStore) return { available: false, traceId: null, spans: [] }
+      const mastraStorage = (await factoryComposition.ready).mastra.getStorage()
+      const observabilityStore = await mastraStorage?.getStore('observability')
+      if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
       const traces = await observabilityStore.listTraces({
         filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
         pagination: { page: 0, perPage: 1 },
       })
       const root = traces.spans.at(0)
-      if (!root) return { available: false, traceId: null, spans: [] }
+      if (!root) return UNAVAILABLE_TRACE_SUMMARY
       const trace = await observabilityStore.getTrace({ traceId: root.traceId })
-      const spans = (trace?.spans ?? []).map((span) => ({
-        spanType: span.spanType,
-        name: span.name,
-        startedAt: span.startedAt.toISOString(),
-        durationMs: span.endedAt ? Math.max(0, span.endedAt.getTime() - span.startedAt.getTime()) : null,
-        error: Boolean(span.error),
-      }))
-      return { available: true, traceId: root.traceId, spans }
+      // The mastracode-* scores already run on every Builder run (mastra_scorers) and attach to
+      // the trace's root span; nobody read them until this route. They overstate success because
+      // the Conexus build/Preview settle outside the agent's own tool calls -- said in the PR body,
+      // not hidden here.
+      const scoresStore = await mastraStorage?.getStore('scores')
+      const scoreRows = scoresStore
+        ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
+        : []
+      return buildTraceSummary({
+        traceId: root.traceId,
+        spans: trace?.spans ?? [],
+        scores: scoreRows,
+      })
     },
   })
   return Object.freeze({

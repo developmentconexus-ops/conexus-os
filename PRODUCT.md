@@ -42,7 +42,7 @@ Every Project is a private repository in the company's own GitHub organization, 
 
 ## Brand Commitments
 
-The name is Conexus (ecosystem domain `conexus.fun`). No logo, colors or visual identity exist yet; they are to be defined in the design phase.
+The name is Conexus (ecosystem domain `conexus.fun`). The visual identity is "Grafite e Ipê": the Conexus mark, graphite neutrals with one ipê gold accent, and Bricolage Grotesque, Hanken Grotesk and JetBrains Mono. `packages/brand` owns it and `DESIGN.md` describes it.
 
 ## Evidence on Hand
 

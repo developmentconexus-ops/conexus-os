@@ -18,6 +18,7 @@ import { workspaceNewRoute } from '../routes/workspace-new'
 import { workspaceProjectNewRoute } from '../routes/workspace-project-new'
 import { workspaceProjectsRoute } from '../routes/workspace-projects'
 import { noAccessRoute, signedOutRoute } from '../routes/entry-pages'
+import { projectSettingsAccessRoute } from '../routes/project-settings-access'
 import { projectSettingsRoute } from '../routes/project-settings'
 import { workspacesRoute } from '../routes/workspaces'
 
@@ -39,6 +40,7 @@ const routeTree = rootRoute.addChildren([
   noAccessRoute,
   workspacesRoute,
   projectSettingsRoute,
+  projectSettingsAccessRoute,
   settingsRouteWithChildren,
   workspaceNewRoute,
   workspaceProjectsRoute,

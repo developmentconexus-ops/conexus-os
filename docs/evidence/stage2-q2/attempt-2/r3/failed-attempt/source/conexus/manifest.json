@@ -1,0 +1,256 @@
+{
+  "operations": {
+    "listPurchaseOrders": {
+      "handler": "handlers/orders.ts",
+      "export": "listPurchaseOrders",
+      "input": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "array",
+        "maxItems": 500,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "orderNumber": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "assignee": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "expectedDeliveryDate": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "createdAt": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "required": ["id", "orderNumber", "assignee", "expectedDeliveryDate", "createdAt"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "upsertPurchaseOrder": {
+      "handler": "handlers/orders.ts",
+      "export": "upsertPurchaseOrder",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "assignee": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "expectedDeliveryDate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          }
+        },
+        "required": ["orderNumber", "assignee", "expectedDeliveryDate"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "orderNumber": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "assignee": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "expectedDeliveryDate": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "createdAt": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": ["id", "orderNumber", "assignee", "expectedDeliveryDate", "createdAt"],
+        "additionalProperties": false
+      }
+    },
+    "listNotes": {
+      "handler": "handlers/notes.ts",
+      "export": "listNotes",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": ["orderNumber"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "array",
+        "maxItems": 500,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "orderNumber": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 5000
+            },
+            "author": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "status": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "createdAt": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "required": ["id", "orderNumber", "note", "author", "status", "createdAt"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "addNote": {
+      "handler": "handlers/notes.ts",
+      "export": "addNote",
+      "input": {
+        "type": "object",
+        "properties": {
+          "orderNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "author": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 50
+          }
+        },
+        "required": ["orderNumber", "note", "author"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "orderNumber": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "author": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "createdAt": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": ["id", "orderNumber", "note", "author", "status", "createdAt"],
+        "additionalProperties": false
+      }
+    },
+    "updateNoteStatus": {
+      "handler": "handlers/notes.ts",
+      "export": "updateNoteStatus",
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 50
+          }
+        },
+        "required": ["id", "status"],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "orderNumber": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "author": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "createdAt": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": ["id", "orderNumber", "note", "author", "status", "createdAt"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 import { test } from 'node:test'
 import * as openidClient from 'openid-client'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -44,6 +46,34 @@ test('local OIDC transport is admitted narrowly and closes with its adapter', as
   await adapter.close()
 })
 
+test('a refused refresh names why Keycloak refused it: a disabled user, an ended SSO session, or anything else', async (t) => {
+  const descriptions = { 'disabled-token': 'User disabled', 'idle-token': 'Session not active', 'reused-token': 'Maximum allowed refresh token reuse exceeded' }
+  const tokenEndpoint = createServer((request, response) => {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      response.writeHead(400, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'invalid_grant', error_description: descriptions[new URLSearchParams(body).get('refresh_token')] }))
+    })
+  })
+  await new Promise((resolve) => tokenEndpoint.listen(0, '127.0.0.1', resolve))
+  t.after(() => tokenEndpoint.close())
+  const discovery = async (issuer, clientId, clientSecret, _authentication, options) => {
+    const configuration = new openidClient.Configuration({ issuer: issuer.href, token_endpoint: `http://127.0.0.1:${tokenEndpoint.address().port}/token` }, clientId, clientSecret)
+    for (const hook of options.execute) hook(configuration)
+    return configuration
+  }
+  const adapter = await createOidcAdapter({ issuer: 'http://identity.test/realms/r1', clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`, allowInsecureForTest: true }, { discovery })
+  t.after(() => adapter.close())
+  const reasons = []
+  for (const refreshToken of ['disabled-token', 'idle-token', 'reused-token']) reasons.push(await adapter.refresh({ refreshToken, expectedSubject: 'subject' }))
+  assert.deepEqual(reasons, [
+    { kind: 'REFUSED', reason: 'USER_DISABLED' },
+    { kind: 'REFUSED', reason: 'SESSION_ENDED' },
+    { kind: 'REFUSED', reason: 'REFUSED' },
+  ])
+})
+
 const makeStore = ({ eligible = true } = {}) => {
   const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [] }
   return {
@@ -74,11 +104,12 @@ const makeOidc = (identity = {}) => ({
   async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, ...identity } },
 })
 
-const createHubApp = ({ store, oidc, config, staticRoot = null }) => createHttpApp({
+const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) => createHttpApp({
   registerRoutes: (app) => registerIdentityAccessRoutes(app, {
     store,
     oidc,
     config,
+    ...(applications ? { applications } : {}),
     resolveCurrentSession: async (request, requireCsrf = false) => {
       const sessionToken = request.cookies['__Host-conexus_session']
       if (!sessionToken) return null
@@ -219,4 +250,99 @@ test('an email_verified claim that is not the strict boolean true is refused, an
 
   assert.equal(resolveVerifiedEmail({ email: 'ana@example.test' }, log), null)
   assert.deepEqual(logged.length, 2)
+})
+
+const PROJECT_ID = '66666666-6666-4666-8666-666666666666'
+const BINDING_DIGEST = createHash('sha256').update('binding-1').digest('base64url')
+const makeApplications = (outcome) => {
+  const calls = []
+  return {
+    calls,
+    applications: {
+      origin: (slug) => `https://${slug}.conexus.localhost:3445`,
+      sessions: {
+        async applicationBySlug(slug) { calls.push({ name: 'applicationBySlug', slug }); return slug === 'caderno-de-compras' ? PROJECT_ID : null },
+        async signIn(input) { calls.push({ name: 'signIn', input }); return outcome },
+      },
+    },
+  }
+}
+const loginUrl = (query) => `/protocol/oidc/login?${new URLSearchParams(query)}`
+
+test('TI-01 takes an application and its binding together, and refuses one alone, a malformed one or an unknown application', async (t) => {
+  const store = makeStore()
+  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+  const app = await createHubApp({ store, oidc: makeOidc(), config, applications })
+  const bare = await createHubApp({ store: makeStore(), oidc: makeOidc(), config })
+  t.after(() => Promise.all([app.close(), bare.close()]))
+
+  const started = await app.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })
+  assert.equal(started.statusCode, 302)
+  const stored = store.state.oidc.get('state-1')
+  assert.equal(stored.signInReturn.kind, 'APPLICATION')
+  assert.equal(stored.signInReturn.projectId, PROJECT_ID)
+  assert.equal(Buffer.from(stored.signInReturn.bindingDigest).toString('base64url'), BINDING_DIGEST)
+
+  const statuses = []
+  for (const query of [
+    { application: 'caderno-de-compras' },
+    { binding: BINDING_DIGEST },
+    { application: 'Caderno', binding: BINDING_DIGEST },
+    { application: 'caderno-de-compras', binding: 'short' },
+    { application: 'caderno-de-compras', binding: 'b'.repeat(43) },
+    { application: 'outro-app', binding: BINDING_DIGEST },
+  ]) statuses.push((await app.inject({ method: 'GET', url: loginUrl(query) })).statusCode)
+  assert.deepEqual(statuses, [400, 400, 400, 400, 400, 404])
+  assert.equal((await bare.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })).statusCode, 400)
+
+  const hub = await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  assert.equal(hub.statusCode, 302)
+  assert.deepEqual(store.state.oidc.get('state-1').signInReturn, { kind: 'HUB' })
+})
+
+test('TI-02 for an application sign-in returns to the application host with a handoff and sets no Hub cookie', async (t) => {
+  const store = makeStore()
+  store.state.accounts.set('https://issuer.test/realms/r1|employee', { accountId: 'account-9', displayName: 'Funcionária' })
+  const handoff = 'h'.repeat(43)
+  const { applications, calls } = makeApplications({ kind: 'HANDOFF', slug: 'caderno-de-compras', handoff })
+  const identity = { subject: 'employee', verifiedEmail: 'funcionaria@example.test', displayName: 'Funcionária', refreshToken: 'refresh-1' }
+  const app = await createHubApp({ store, oidc: makeOidc(identity), config, applications })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 303)
+  assert.equal(callback.headers.location, `https://caderno-de-compras.conexus.localhost:3445/__conexus/sign-in/complete?handoff=${handoff}`)
+  assert.equal(callback.headers['referrer-policy'], 'no-referrer')
+  assert.deepEqual(callback.cookies.map((item) => item.name), ['__Host-conexus_oidc_state'])
+  assert.equal(callback.cookies[0].value, '')
+  const signIn = calls.find((call) => call.name === 'signIn').input
+  assert.equal(signIn.existingAccountId, 'account-9')
+  assert.equal(signIn.projectId, PROJECT_ID)
+  assert.equal(signIn.identity.refreshToken, 'refresh-1')
+  assert.deepEqual(store.state.claimed, [], 'an application sign-in claims no Workspace invitation')
+  assert.equal(store.state.sessions.size, 0, 'no Hub session exists')
+})
+
+test('TI-02 sends a person without access to the application host no-access page', async (t) => {
+  const store = makeStore()
+  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+  const app = await createHubApp({ store, oidc: makeOidc({ subject: 'control', verifiedEmail: 'control@example.test', refreshToken: 'r' }), config, applications })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 303)
+  assert.equal(callback.headers.location, 'https://caderno-de-compras.conexus.localhost:3445/__conexus/no-access')
+  assert.equal(store.state.sessions.size, 0)
+})
+
+test('an app-only Account signing in at the Hub is refused with no session cookie', async (t) => {
+  const store = makeStore()
+  store.state.accounts.set(`${config.bootstrapIssuer}|app-only`, { accountId: 'account-app', displayName: 'Funcionária' })
+  store.createSession = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
+  const app = await createHubApp({ store, oidc: makeOidc({ subject: 'app-only', verifiedEmail: 'funcionaria@example.test' }), config })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 403)
+  assert.equal(callback.cookies.some((item) => item.name === '__Host-conexus_session' || item.name === '__Host-conexus_csrf'), false)
 })
