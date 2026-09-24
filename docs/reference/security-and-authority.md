@@ -71,10 +71,15 @@ Project Git        → the Git provider
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
-Browser egress is platform controlled. One bounded cross-origin path is admitted: Conexus
-may redirect the browser to the configured Keycloak authorization endpoint and receive
-the allowlisted callback. Any other cross-origin capability is a security contract change,
-not a configuration convenience.
+Browser egress is platform controlled. Two bounded cross-origin paths are admitted:
+
+1. Conexus may redirect the browser to the configured Keycloak authorization endpoint and
+   receive the allowlisted callback.
+2. An application host may send the browser to the Hub sign-in, and the Hub may return it to
+   that application host with a one-use handoff ([4.3](#43-application-session)).
+
+Any other cross-origin capability is a security contract change, not a configuration
+convenience.
 
 ## 4. Human authentication
 
@@ -124,6 +129,36 @@ signup or a permanent recovery bypass.
 The Conexus session is an opaque server-owned cookie. Possession of a Keycloak token
 never grants Conexus authority by itself. Ending the Conexus session ends that session;
 it does not claim a global Keycloak SSO logout.
+
+### 4.3 Application session
+
+Each application has its own host, `<app>.conexus.localhost` on the pilot. The host label is
+the only application selector. The Hub session cookie is host-only and never reaches an
+application host.
+
+```text
+browser at the application host, without an application session
+→ the host sets a sign-in binding cookie, clears any application session value, and sends
+  the browser to the Hub sign-in with the application and the binding's digest
+→ Keycloak authenticates through the ordinary Hub OIDC flow
+→ the Hub callback resolves the Account, or provisions an app-only Account only from an
+  open application invitation to that verified email; it never issues a Hub session to an
+  app-only Account
+→ the Hub mints a handoff bound to that Account, application and binding, valid 60 seconds
+→ the application host redeems it once; any presentation consumes it, even a refused one
+→ the host sets its own opaque, host-only, Secure, HttpOnly, SameSite=Lax session cookie
+```
+
+The application session is `iam.application_session`, separate from `iam.session`. It names
+one Account and one application and lasts at most eight hours from sign-in. It keeps the
+Keycloak refresh token server side. At most every five minutes a request refreshes it; a
+refused refresh ends the session, and an unreachable Keycloak refuses the request with 503.
+
+Every application request resolves authority again: an unrevoked grant for that Account and
+application, or current membership in the Project's Workspace. Every state-changing request
+must carry the application host's exact `Origin`. SameSite does not separate sibling
+application hosts, which share one site. Handlers receive the caller from the resolved session,
+never from the request.
 
 ## 5. Credentials
 

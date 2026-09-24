@@ -136,7 +136,7 @@ Only one qualification task is actionable at a time. Later rows are roadmap gate
 | --- | --- | --- | --- |
 | Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail; exhaustion or failure of the Applications PostgreSQL does not reach the Hub |
 | Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | SQL-first with parameterized `pg`, accepted by Q2: no named SQL failure repeated, so neither Kysely nor a typed Data API was qualified | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
-| Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
+| Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants, accepted by Q3: one host per application, a one-use handoff from the Hub sign-in, `iam.application_session`, and the caller passed to handlers | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
 | Q4 First Connector | Does Connector Definition -> Workspace Connection -> Project Grant work against a real enterprise system? | Direct narrow Sankhya read-only adapter first | Builder uses the authorized operation from the app; real Sankhya result; revoked grant fails; no credential or arbitrary URL reaches browser/handler |
 | Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? Where does Published data live: in the Applications cluster beside Preview data, or apart from it? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges; the Published data placement is decided with evidence, not assumed |
 
@@ -208,6 +208,15 @@ the pilot:
   failure, a migration refused with `42804`, happened once and the Builder repaired it from the
   database's own diagnostic. Earlier data survived every change. No failure repeated, so neither
   Kysely nor a typed Data API is qualified ([evidence](../evidence/stage2-q2/README.md#q21-attempt-2)).
+- **Q3 result.** The handler contract gained one field. A handler receives
+  `{ db, caller }`, where `caller` is `{ accountId, email, displayName }`. The runner builds it from
+  the resolved application session, never from the invocation input, and the `conexus-server`
+  skill teaches it. The Builder used the caller on the first run of its budget: the purchasing
+  notebook now records who wrote each note. An app-only employee signed in on the application's
+  own host, wrote a note under their own name, and every Q3.6 negative case run on the pilot was
+  refused. Before Q5 the application host serves the Project's last good Preview artifact and its
+  Preview data ([evidence](../evidence/stage2-q3/README.md)). The session model is in
+  [security and authority 4.3](security-and-authority.md#43-application-session).
 
 ## 7. Technology qualification queue
 

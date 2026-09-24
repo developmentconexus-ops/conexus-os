@@ -1,6 +1,6 @@
 # Stage 2 Q3 — Application identity qualification
 
-**Status:** PREPARED on 2026-09-23. Not started.  
+**Status:** CLOSED on 2026-09-24 with proposed verdict ACCEPT_WITH_BOUNDARY, pending the independent review ([evidence and verdict](../evidence/stage2-q3/README.md#proposed-verdict)). Kept as a record.  
 **Type:** material identity and trust-boundary qualification  
 **Execution owner:** executor named by the operator  
 **Review:** one independent review of the candidate before merge, because this slice creates a new
