@@ -103,8 +103,8 @@ export const registerApplicationHostRoutes = async (
     const handoff = request.query.handoff
     const binding = request.cookies[SIGN_IN_COOKIE]
     if (typeof handoff !== 'string' || !OPAQUE.test(handoff) || !binding) return html(reply, 403, SIGN_IN_FAILED)
+    // The binding cookie is left to expire: other navigations may still be bringing handoffs back.
     const redeemed = await dependencies.sessions.redeem({ handoff, projectId: target.projectId, binding, now: now() })
-    reply.clearCookie(SIGN_IN_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
     if (!redeemed) return html(reply, 403, SIGN_IN_FAILED)
     return reply
       .setCookie(SESSION_COOKIE, redeemed.sessionToken, { ...cookieOptions, maxAge: redeemed.maxAgeSeconds })
