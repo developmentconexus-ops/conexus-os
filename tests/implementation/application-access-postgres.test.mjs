@@ -66,7 +66,7 @@ const inTwoWeeks = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
 test('application access: Owners grant, list and narrow it, and nobody else learns it exists', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { client, account, workspace, project } = await applicationDatabase(t, 'application_access')
   const grantAccess = (actor, projectId, email, invitationId = randomUUID()) =>
-    client.query('SELECT iam.grant_application_access($1,$2,$3,$4,$5) AS invitation_id', [actor, projectId, invitationId, email, inTwoWeeks()])
+    client.query('SELECT entry_id AS invitation_id FROM iam.grant_application_access($1,$2,$3,$4,$5)', [actor, projectId, invitationId, email, inTwoWeeks()])
   const list = async (actor, projectId) =>
     (await client.query('SELECT kind, entry_id, account_id, display_name, email, slug FROM iam.list_application_access($1,$2) ORDER BY kind, email', [actor, projectId])).rows
 
@@ -156,9 +156,11 @@ test('application access: Owners grant, list and narrow it, and nobody else lear
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createApplicationSessions } = await import(hubModuleUrl('identity-access/application-session.js'))
   const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
+  const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
   const pool = new pg.Pool({ ...connection, max: 4 })
   closeFirst(() => pool.end())
+  const accessStore = createApplicationAccessStore({ pool })
   const refreshes = []
   let providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-2' }
   const sessions = createApplicationSessions({ pool, refresh: async (input) => { refreshes.push(input); return providerAnswer } })
@@ -293,7 +295,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const personId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'revoke-sub'")).rows[0].account_id
     assert.equal(await openGrants(personId), 1)
 
-    await grantAccess(projectId, ' Revoga@Application.test ')
+    const regranted = await accessStore.grant({ actor: owner, projectId, email: 'Revoga@Application.test' })
+    assert.deepEqual({ kind: regranted.kind, accountId: regranted.accountId, displayName: regranted.displayName },
+      { kind: 'grant', accountId: personId, displayName: 'Revogada' }, 're-granting answers the grant the person holds')
     assert.equal(await openInvitations(), 0, 're-granting a person who already holds a grant is a no-op')
 
     await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',

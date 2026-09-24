@@ -39,7 +39,8 @@ export type ApplicationAccess = Readonly<{ slug: string | null; entries: readonl
 /** Every refusal means the same two things to a caller: not told the Project exists, or not an Owner. */
 export type ApplicationAccessStore = Readonly<{
   list(input: Readonly<{ actor: AccountId; projectId: string }>): Promise<ApplicationAccess>
-  grant(input: Readonly<{ actor: AccountId; projectId: string; email: EmailAddress; now?: Date }>): Promise<ApplicationInvitationEntry>
+  /** The email's current access: a new or renewed invitation, or the open grant the person already holds. */
+  grant(input: Readonly<{ actor: AccountId; projectId: string; email: EmailAddress; now?: Date }>): Promise<ApplicationAccessEntry>
   cancelInvitation(input: Readonly<{ actor: AccountId; projectId: string; invitationId: string }>): Promise<boolean>
   revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: string }>): Promise<boolean>
 }>
@@ -93,13 +94,14 @@ export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: Postgres
     return accessOf((await pool.query<AccessRow>(LIST_SQL, [actor, projectId])).rows)
   },
   async grant({ actor, projectId, email, now = new Date() }) {
-    const settled = await pool.query<QueryResultRow & { invitation_id: string }>(
-      'SELECT iam.grant_application_access($1, $2, $3, $4, $5) AS invitation_id',
+    const settled = await pool.query<QueryResultRow & { kind: 'grant' | 'invitation'; entry_id: string }>(
+      'SELECT kind, entry_id FROM iam.grant_application_access($1, $2, $3, $4, $5)',
       [actor, projectId, randomUUID(), email, new Date(now.getTime() + APPLICATION_INVITATION_MS)])
-    const invitationId = settled.rows[0]?.invitation_id
+    const settledEntry = settled.rows[0]
     const entry = accessOf((await pool.query<AccessRow>(LIST_SQL, [actor, projectId])).rows).entries
-      .find((candidate) => candidate.kind === 'invitation' && candidate.invitationId === invitationId)
-    if (entry?.kind !== 'invitation') throw new Error('APPLICATION_INVITATION_NOT_READABLE')
+      .find((candidate) => candidate.kind === settledEntry?.kind &&
+        (candidate.kind === 'grant' ? candidate.grantId : candidate.invitationId) === settledEntry.entry_id)
+    if (!entry) throw new Error('APPLICATION_ACCESS_ENTRY_NOT_READABLE')
     return entry
   },
   async cancelInvitation({ actor, projectId, invitationId }) {

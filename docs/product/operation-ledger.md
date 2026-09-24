@@ -83,8 +83,8 @@ must agree exactly.
 | `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing, and removing a member withdraws every derived right | narrowing command |
 | `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
 | `IAM-11` | `ListApplicationAccess` | I&A | exact Project's application: its address, open grants and pending invitations in one projection; Owner of the Project's Workspace only | read |
-| `IAM-12` | `GrantApplicationAccess` | I&A | exact Project + verified email the person must sign in with; the pair is the natural key; the first grant fixes the application's address; Owner of the Project's Workspace only | command |
-| `IAM-13` | `RevokeApplicationAccessEntry` | I&A | exact Project access entry (grant or invitation); narrowing, and a revoked grant stops the person at their next request | narrowing command |
+| `IAM-12` | `GrantApplicationAccess` | I&A | exact Project + verified email the person must sign in with; the pair is the natural key; an email whose person already holds an open grant answers that grant and opens nothing; the first grant fixes the application's address; Owner of the Project's Workspace only | command |
+| `IAM-13` | `RevokeApplicationAccessEntry` | I&A | exact Project access entry (grant or invitation); narrowing, and a revoked grant stops the person at their next request and withdraws any invitation to their email for the application | narrowing command |
 | `WS-01` | `CreateWorkspace` | Workspace | any authenticated Account; the creator becomes its owner | command |
 | `WS-02` | `GetWorkspace` | Workspace | current Workspace disclosure flow | read |
 | `PRJ-01` | `ListProjects` | Project | current Workspace Projects selection flow | read |

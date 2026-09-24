@@ -89,7 +89,7 @@ try {
     `export type SetWorkspaceMemberRoleInput = ${toTypeScript(byId.get('IAM-10').schema.body)}`,
     `export type ApplicationAccess = ${toTypeScript(byId.get('IAM-11').schema.response['200'])}`,
     `export type GrantApplicationAccessInput = ${toTypeScript(byId.get('IAM-12').schema.body)}`,
-    `export type ApplicationInvitation = ${toTypeScript(byId.get('IAM-12').schema.response['200'])}`,
+    `export type GrantedApplicationAccess = ${toTypeScript(byId.get('IAM-12').schema.response['200'])}`,
     "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')",
     "const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })",
     'export const iamClient = Object.freeze({',

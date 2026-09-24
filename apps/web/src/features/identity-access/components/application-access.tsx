@@ -166,12 +166,12 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
 function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGranted: () => Promise<unknown> }>) {
   const emailId = useId()
   const [message, setMessage] = useState('')
-  const [invited, setInvited] = useState<string | null>(null)
+  const [granted, setGranted] = useState<string | null>(null)
   const grant = useMutation({
     mutationFn: (email: string) => grantApplicationAccess(projectId, { email }),
-    onSuccess: async (invitation) => {
+    onSuccess: async (access) => {
       setMessage('')
-      setInvited(invitation.email)
+      setGranted(access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`)
       await onGranted()
     },
     onError: (error) => setMessage(applicationAccessMessage(error)),
@@ -186,7 +186,7 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
       setMessage('Escreva o email da pessoa.')
       return
     }
-    setInvited(null)
+    setGranted(null)
     grant.mutate(email, { onSuccess: () => form.reset() })
   }
 
@@ -202,7 +202,7 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
     <p className="cx-field-hint">A pessoa entra com esse e-mail no endereço acima. Ela não passa a ver o Workspace nem o Projeto.</p>
     <p className="cx-form-status" data-tone={message ? 'error' : undefined} role="status" aria-live="polite">
       {message}
-      {invited && !message && <>Convite criado para {invited}.</>}
+      {granted && !message && granted}
     </p>
   </section>
 }

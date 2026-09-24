@@ -331,11 +331,13 @@ paths:
                   description: Verified-email address the person must sign in with. With the Project it is the natural key of the invitation, and it is never Account identity or authorization.
       responses:
         '200':
-          description: Current application invitation for this exact Project and email. The first grant also fixes the application's address, derived from the Project name. Repeating the same request answers the same invitation.
+          description: Current access for this exact Project and email. A person who already holds an open grant keeps it, and the answer is that grant; nothing new is opened. Otherwise the answer is the application invitation, and repeating the request answers the same invitation. The first grant also fixes the application's address, derived from the Project name.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApplicationInvitationEntry'
+                oneOf:
+                  - $ref: '#/components/schemas/ApplicationGrantEntry'
+                  - $ref: '#/components/schemas/ApplicationInvitationEntry'
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }

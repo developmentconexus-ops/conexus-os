@@ -1,6 +1,6 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.
 export const S1_PRODUCT_OAS_DIGEST = "7a87d2c5fbaf3d335764191ca0193834fe5e8d30036627a9a3f648c0ce8bdc4e"
-export const S1_ROUTE_PROJECTION_DIGEST = "01d6419ff639ecde9811363ac39b5d5680908d3131da74c20582a119e3d64c7c"
+export const S1_ROUTE_PROJECTION_DIGEST = "514234bc2cad559510d788cd5427fa9560143abc9424efbc1e8eca435db37fc1"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }
 export type AccessContext = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }
 export type ProvisionAccountInput = { "displayName": string; "email"?: string }
@@ -10,7 +10,7 @@ export type WorkspaceInvitation = { "kind": "invitation"; "invitationId": string
 export type SetWorkspaceMemberRoleInput = { "role": string }
 export type ApplicationAccess = { "address"?: string; "entries": ({ "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string })[] }
 export type GrantApplicationAccessInput = { "email": string }
-export type ApplicationInvitation = { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string }
+export type GrantedApplicationAccess = { "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string }
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
 const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })
 export const iamClient = Object.freeze({

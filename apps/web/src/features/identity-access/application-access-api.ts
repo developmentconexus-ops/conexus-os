@@ -1,7 +1,7 @@
 import type {
   ApplicationAccess,
-  ApplicationInvitation,
   GrantApplicationAccessInput,
+  GrantedApplicationAccess,
 } from '../../generated/iam-client'
 import { iamClient } from '../../generated/iam-client'
 import { clearAuthorityCache } from '../../app/query-client'
@@ -47,9 +47,9 @@ export async function getApplicationAccess(projectId: string): Promise<Applicati
 export async function grantApplicationAccess(
   projectId: string,
   input: GrantApplicationAccessInput,
-): Promise<ApplicationInvitation> {
+): Promise<GrantedApplicationAccess> {
   const response = await send(() => iamClient.grantApplicationAccess(projectId, input), 200)
-  return response.json() as Promise<ApplicationInvitation>
+  return response.json() as Promise<GrantedApplicationAccess>
 }
 
 export async function revokeApplicationAccessEntry(
