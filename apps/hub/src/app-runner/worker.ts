@@ -2,6 +2,7 @@ import { writeSync } from 'node:fs'
 import pg from 'pg'
 import { applyPendingMigrations } from './data-plane.js'
 import type { MigrationPlan } from './data-plane.js'
+import type { Caller } from '../platform/caller.js'
 
 /**
  * Runs inside one invocation's sandbox and nowhere else. The supervisor writes the job to stdin and
@@ -13,7 +14,7 @@ import type { MigrationPlan } from './data-plane.js'
 // upstream itself. Nothing in the sandbox holds a usable credential.
 export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
 export type WorkerJob =
-  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; responseLimit: number }>
+  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>
 export type WorkerResult =
   | Readonly<{ ok: true; value: unknown }>
@@ -81,9 +82,10 @@ const run = async (): Promise<never> => {
       return { rows: result.rows }
     },
   })
+  const caller = Object.freeze({ accountId: job.caller.accountId, email: job.caller.email, displayName: job.caller.displayName })
   let value: unknown
   try {
-    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db }))
+    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller }))
   } catch (error) {
     return finish({ ok: false, code: 'HANDLER_FAILED', detail: detail(error) })
   }

@@ -1,0 +1,79 @@
+{
+  "schema": "conexus.builder-eval/v1",
+  "startedAt": "2026-09-24T02:08:57.208Z",
+  "finishedAt": "2026-09-24T02:09:00.954Z",
+  "outcome": "PASS",
+  "error": null,
+  "case": "scripts/builder-eval/cases/q3-caller-author.json",
+  "gradeOnly": true,
+  "request": null,
+  "baseUrl": "https://hub.conexus.localhost:3443",
+  "workspaceId": null,
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "projectName": null,
+  "conversationId": null,
+  "modelId": null,
+  "sourceRevisionBefore": null,
+  "sourceRevisionAfter": "32df403dadab49f11e39cff7e1308d6c843fd5dc",
+  "filesChanged": [],
+  "runs": [],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": null,
+  "previewUrl": "https://preview-e2f1e830-1f48-4b3d-86f6-90921a41f41e.conexus.localhost:3444/",
+  "checks": {
+    "initial": [
+      {
+        "action": "fill",
+        "selector": "role=textbox[name=/conteúdo da nota|nota|acompanhamento/i] >> nth=0",
+        "value": "Autoria registrada pela plataforma",
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "click",
+        "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota/i]",
+        "value": null,
+        "text": null,
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Autoria registrada pela plataforma",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Operador de Teste",
+        "ok": true,
+        "error": null
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Autoria registrada pela plataforma",
+        "ok": true,
+        "error": null
+      },
+      {
+        "action": "expectText",
+        "selector": "body",
+        "value": null,
+        "text": "Operador de Teste",
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "screenshotPath": "preview.png",
+  "failure": null
+}

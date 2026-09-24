@@ -10,7 +10,7 @@ const target = resolve(repositoryRoot, 'apps/hub/src/generated/s1-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/iam-client.ts')
 const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-s1-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
-const ownerIds = new Set(['IAM-01', 'IAM-02', 'IAM-03', 'IAM-04', 'IAM-05', 'IAM-06', 'IAM-10'])
+const ownerIds = new Set(['IAM-01', 'IAM-02', 'IAM-03', 'IAM-04', 'IAM-05', 'IAM-06', 'IAM-10', 'IAM-11', 'IAM-12', 'IAM-13'])
 const stagedTarget = `${target}.tmp-${process.pid}`
 const stagedClientTarget = `${clientTarget}.tmp-${process.pid}`
 
@@ -64,9 +64,14 @@ try {
     `export type Iam05Body = ${toTypeScript(byId.get('IAM-05').schema.body)}`,
     `export type Iam05Response = ${toTypeScript(byId.get('IAM-05').schema.response['200'])}`,
     `export type Iam10Body = ${toTypeScript(byId.get('IAM-10').schema.body)}`,
+    `export type Iam11Response = ${toTypeScript(byId.get('IAM-11').schema.response['200'])}`,
+    `export type Iam12Body = ${toTypeScript(byId.get('IAM-12').schema.body)}`,
+    `export type Iam12Response = ${toTypeScript(byId.get('IAM-12').schema.response['200'])}`,
     `export type WorkspaceParams = ${JSON.stringify({ workspaceId: 'string' }).replaceAll('"', '')}`,
     `export type MemberParams = ${JSON.stringify({ workspaceId: 'string', accountId: 'string' }).replaceAll('"', '')}`,
     `export type RosterEntryParams = ${JSON.stringify({ workspaceId: 'string', entryKind: 'string', entryId: 'string' }).replaceAll('"', '')}`,
+    `export type ProjectParams = ${JSON.stringify({ projectId: 'string' }).replaceAll('"', '')}`,
+    `export type ApplicationAccessEntryParams = ${JSON.stringify({ projectId: 'string', entryKind: 'string', entryId: 'string' }).replaceAll('"', '')}`,
     "export type S1RouteDefinition = Readonly<{ ownerId: S1OwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; url: string; schema: FastifySchema }>",
     `export const S1_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<S1OwnerId, S1RouteDefinition>)`,
     '',
@@ -82,6 +87,9 @@ try {
     `export type InviteWorkspaceMemberInput = ${toTypeScript(byId.get('IAM-05').schema.body)}`,
     `export type WorkspaceInvitation = ${toTypeScript(byId.get('IAM-05').schema.response['200'])}`,
     `export type SetWorkspaceMemberRoleInput = ${toTypeScript(byId.get('IAM-10').schema.body)}`,
+    `export type ApplicationAccess = ${toTypeScript(byId.get('IAM-11').schema.response['200'])}`,
+    `export type GrantApplicationAccessInput = ${toTypeScript(byId.get('IAM-12').schema.body)}`,
+    `export type GrantedApplicationAccess = ${toTypeScript(byId.get('IAM-12').schema.response['200'])}`,
     "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')",
     "const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })",
     'export const iamClient = Object.freeze({',
@@ -91,6 +99,9 @@ try {
     `  listWorkspaceMembers: (workspaceId: string) => request(${templateUrl(byId.get('IAM-04').path)}),`,
     `  inviteWorkspaceMember: (workspaceId: string, body: InviteWorkspaceMemberInput) => request(${templateUrl(byId.get('IAM-05').path)}, { method: ${JSON.stringify(byId.get('IAM-05').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
     `  setWorkspaceMemberRole: (workspaceId: string, accountId: string, body: SetWorkspaceMemberRoleInput) => request(${templateUrl(byId.get('IAM-10').path)}, { method: ${JSON.stringify(byId.get('IAM-10').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
+    `  listApplicationAccess: (projectId: string) => request(${templateUrl(byId.get('IAM-11').path)}),`,
+    `  grantApplicationAccess: (projectId: string, body: GrantApplicationAccessInput) => request(${templateUrl(byId.get('IAM-12').path)}, { method: ${JSON.stringify(byId.get('IAM-12').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
+    `  revokeApplicationAccessEntry: (projectId: string, entryKind: 'grant' | 'invitation', entryId: string) => request(${templateUrl(byId.get('IAM-13').path)}, { method: ${JSON.stringify(byId.get('IAM-13').method)} }),`,
     `  removeWorkspaceRosterEntry: (workspaceId: string, entryKind: 'member' | 'invitation', entryId: string) => request(${templateUrl(byId.get('IAM-06').path)}, { method: ${JSON.stringify(byId.get('IAM-06').method)} }),`,
     '})',
     '',

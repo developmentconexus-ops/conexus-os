@@ -67,8 +67,16 @@ accepts only the boolean `true`. An unverified address is refused.
 
 The first Account self-provisions from a preconfigured bootstrap identity. Every later
 Account arrives through an authorized invitation path. A Workspace invitation may grant
-development membership; a future application invitation may create an app-only Account without
-granting Workspace membership.
+development membership. An application invitation, made by an Owner of the Project's Workspace
+to one verified email, creates an app-only Account when that person first signs in. It grants
+that one application and never a Workspace membership or a Hub session. The invitation expires
+after 14 days. The app-only Account's display name is the ID token `name` claim, or the verified
+email when the claim is absent.
+
+On an application's host, authority is an unrevoked grant for that Account and application, or a
+current membership in the Project's Workspace. It is resolved on every request, so revoking the
+grant or removing the membership stops the person at their next request. An archived Project's
+application is refused.
 
 ### 3.2 Workspace
 

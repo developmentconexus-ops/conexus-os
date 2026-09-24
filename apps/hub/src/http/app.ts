@@ -100,6 +100,7 @@ export const createHttpApp = async ({
       '/projects/:projectId/build',
       '/projects/:projectId/c/:conversationId',
       '/projects/:projectId/settings',
+      '/projects/:projectId/settings/access',
       '/settings',
       '/settings/account',
       '/settings/models',

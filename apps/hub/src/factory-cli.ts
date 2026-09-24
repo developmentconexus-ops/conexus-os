@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
+import { previousSecretKeyFiles } from './platform/config.js'
 import { createPostgresPool } from './platform/postgres.js'
 import { readSecretFile } from './platform/secrets.js'
 
@@ -19,6 +20,10 @@ const required = (name: string): string => {
   if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   return value
 }
+
+// Written through the Factory's own domain with the Hub's keys, as the Hub's routes write it.
+const credentialEncryption = () => createFactorySecretKeyEncryption(
+  readSecretFile(required('CONEXUS_FACTORY_SECRET_KEY_FILE')), previousSecretKeyFiles(process.env).map(readSecretFile))
 
 const main = async (): Promise<void> => {
   const { positionals, values } = parseArgs({
@@ -42,8 +47,7 @@ const main = async (): Promise<void> => {
   const write = (line: string): void => { process.stdout.write(`${line}\n`) }
   try {
     if (command === 'import-host-credential') {
-      // Written through the Factory's own domain with the Hub's key, as the Hub's routes write it.
-      const credentials = storage.registerDomain(new ModelCredentialsStorage(createFactorySecretKeyEncryption(readSecretFile(required('CONEXUS_FACTORY_SECRET_KEY_FILE')))))
+      const credentials = storage.registerDomain(new ModelCredentialsStorage(credentialEncryption()))
       await storage.init()
       await importHostCredential({
         credentials, orgId, write,
@@ -54,7 +58,7 @@ const main = async (): Promise<void> => {
       return
     }
     if (command === 'import-google-ai-pro-login') {
-      const credentials = storage.registerDomain(new ModelCredentialsStorage(createFactorySecretKeyEncryption(readSecretFile(required('CONEXUS_FACTORY_SECRET_KEY_FILE')))))
+      const credentials = storage.registerDomain(new ModelCredentialsStorage(credentialEncryption()))
       const memorySettings = storage.registerDomain(new MemorySettingsStorage())
       await storage.init()
       await importGoogleAiProLogin({

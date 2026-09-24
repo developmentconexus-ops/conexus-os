@@ -71,10 +71,15 @@ Project Git        → the Git provider
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
-Browser egress is platform controlled. One bounded cross-origin path is admitted: Conexus
-may redirect the browser to the configured Keycloak authorization endpoint and receive
-the allowlisted callback. Any other cross-origin capability is a security contract change,
-not a configuration convenience.
+Browser egress is platform controlled. Two bounded cross-origin paths are admitted:
+
+1. Conexus may redirect the browser to the configured Keycloak authorization endpoint and
+   receive the allowlisted callback.
+2. An application host may send the browser to the Hub sign-in, and the Hub may return it to
+   that application host with a one-use handoff ([4.3](#43-application-session)).
+
+Any other cross-origin capability is a security contract change, not a configuration
+convenience.
 
 ## 4. Human authentication
 
@@ -124,6 +129,69 @@ signup or a permanent recovery bypass.
 The Conexus session is an opaque server-owned cookie. Possession of a Keycloak token
 never grants Conexus authority by itself. Ending the Conexus session ends that session;
 it does not claim a global Keycloak SSO logout.
+
+### 4.3 Application session
+
+Each application has its own host, `<app>.<CONEXUS_APPLICATION_DOMAIN>` on
+`CONEXUS_APPLICATION_PORT` (`<app>.conexus.localhost:3445` on the pilot). The host label is the
+only application selector. One function, `applicationOrigin`, names that origin for the sign-in
+return, the address shown to Owners and the only `Origin` the application API admits. The Hub
+session cookie is host-only and never reaches an application host.
+
+```text
+document navigation at the application host, without an application session
+→ the host sets a sign-in binding cookie (or keeps the one of a sign-in already in progress),
+  clears any application session value, and sends the browser to the Hub sign-in with the
+  application and the binding's digest
+→ Keycloak authenticates through the ordinary Hub OIDC flow
+→ the Hub callback resolves the Account, or provisions an app-only Account only from an
+  open application invitation to that verified email; it never issues a Hub session to an
+  app-only Account
+→ the Hub mints a handoff bound to that Account, application and binding, valid 60 seconds
+→ the application host redeems it once; any presentation consumes it, even a refused one
+→ the host sets its own opaque, host-only, Secure, HttpOnly, SameSite=Lax session cookie
+```
+
+The binding cookie lives ten minutes and redemption leaves it in place, so every handoff of
+sign-ins that share it redeems.
+
+An invitation claims nothing for an Account whose grant on that application was revoked at or
+after the invitation was issued, whatever address it names; a revocation is keyed by the Account,
+not by an email.
+
+Only a top-level document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`)
+starts a sign-in. Any other request without a session answers 401 and sets nothing.
+
+The application session is `iam.application_session`, separate from `iam.session`. It names
+one Account and one application and lasts at most eight hours from sign-in. It keeps the
+Keycloak refresh token server side, sealed at rest in the handoff and in the session with the
+installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the Factory's AES-256-GCM
+envelope); the database refuses any unsealed value. After a key rotation,
+`CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` names the retired keys, which only decrypt, for these
+tokens and the Factory's credentials alike. A token no named key opens ends the session
+(`CUSTODY_CHANGED`). The list is comma-separated with no spaces, and it must not repeat the
+current key's file: the Factory throws `Duplicate key id` at start if it does. The realm rotates refresh tokens
+(`revokeRefreshToken`, `refreshTokenMaxReuse: 0`), so a token works once. At most every five
+minutes one request claims the check in the database, on whichever Hub it arrives, spends the
+token and stores the rotated one in the statement that releases the claim. The claim ages by the
+database clock; one older than a minute is taken over. Any error while the claim is held
+releases it. A request that finds the check held by another reads the session again until the
+holder settles it and answers 503 after five seconds: no request is served on a due check that
+nobody settled. A refused refresh ends the
+session and records why, as far as Keycloak's answer says: `PROVIDER_USER_DISABLED`,
+`PROVIDER_SESSION_ENDED` (the Keycloak SSO session ended, including its 30-minute idle limit)
+or `PROVIDER_REFUSED`. An unreachable Keycloak refuses the request with 503 and releases the
+claim. Because of the idle limit, a person who makes no application request for about 30 minutes is
+signed out at the next check and signs in again with their password.
+
+The application host is a top-level site. Its content security policy has the Preview's
+sources, `frame-ancestors 'none'` and no `sandbox` directive, and it grants no CORS.
+
+Every application request resolves authority again: an unrevoked grant for that Account and
+application, or current membership in the Project's Workspace. Every state-changing request
+must carry the application host's exact `Origin`. SameSite does not separate sibling
+application hosts, which share one site. Handlers receive the caller from the resolved session,
+never from the request.
 
 ## 5. Credentials
 

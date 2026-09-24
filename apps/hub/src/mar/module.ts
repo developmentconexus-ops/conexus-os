@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
+import type { ApplicationAddress } from '../platform/config.js'
+import { registerApplicationHostRoutes } from './application-host-routes.js'
+import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
 import type { ApplicationFileReader, ApplicationRunnerInvoke } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
@@ -22,6 +25,8 @@ export type MarModule = Readonly<{
   closeRoute(routeId: string): void
   isRouteOpening(input: Readonly<{ routeId: string; generation: string; attemptId: string }>): boolean
   registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
+  /** Each application on its own host; absent when the installation serves no applications. */
+  registerApplicationHostRoutes: ((app: FastifyInstance) => Promise<readonly ['MAR-Application']>) | undefined
   close(): Promise<void>
 }>
 
@@ -34,6 +39,7 @@ export const createMarModule = ({
   applicationRunner,
   exactHubOrigin,
   previewPort,
+  applicationHost,
   now = () => Date.now(),
 }: Readonly<{
   access: PreviewAccess
@@ -42,6 +48,7 @@ export const createMarModule = ({
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader }>
   exactHubOrigin: string
   previewPort: number
+  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; reader: ApplicationHostReader; application: ApplicationAddress }>
   now?: () => number
 }>): MarModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
@@ -52,6 +59,7 @@ export const createMarModule = ({
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false
   let closing: Promise<void> | null = null
+  // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
   const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
   const dependencies: PreviewRouteDependencies = {
     routes, access, registryReader, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin, previewPort, now, pendingRequests, isClosed: () => closed,
@@ -105,6 +113,11 @@ export const createMarModule = ({
     closeRoute,
     isRouteOpening,
     registerPreviewRoutes: (app: FastifyInstance) => registerPreviewRoutes(app, dependencies),
+    registerApplicationHostRoutes: applicationHost
+      ? (app: FastifyInstance) => registerApplicationHostRoutes(app, {
+        ...applicationHost, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
+      })
+      : undefined,
     close,
   })
 }

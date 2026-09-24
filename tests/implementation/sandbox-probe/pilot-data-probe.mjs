@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hubModuleUrl } from '../hub-build.mjs'
 
+const PROBE_CALLER = Object.freeze({ accountId: '00000000-0000-4000-8000-000000000000', email: null, displayName: 'probe' })
+
 // Runs the database cases of Q1.7 through the real runner path against a pilot's Applications
 // PostgreSQL: a probe handler's runtime session and probe migrations, each through the relay as the
 // probe Project's own role. Prints each statement's outcome (SQLSTATE or ok) and the expected one.
@@ -97,7 +99,7 @@ try {
   const runtimeTree = serverTree([BASE], HANDLER)
   const prepared = await supervisor.prepare({ projectId: RUNTIME_PROBE, files: runtimeTree })
   if (prepared.state !== 'READY') throw new Error(`PROBE_PREPARE_FAILED: ${JSON.stringify(prepared)}`)
-  const answer = await supervisor.invoke({ projectId: RUNTIME_PROBE, operation: 'probe', input: {}, files: runtimeTree })
+  const answer = await supervisor.invoke({ projectId: RUNTIME_PROBE, operation: 'probe', input: {}, files: runtimeTree, caller: PROBE_CALLER })
   if (answer.status !== 200) throw new Error(`PROBE_INVOKE_FAILED: ${JSON.stringify(answer.body)}`)
   const observed = new Map(JSON.parse(answer.body.text))
   for (const [name, , expected] of RUNTIME_CASES) results.push({ path: 'runtime', name, expected, observed: observed.get(name) })
