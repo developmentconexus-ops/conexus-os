@@ -1,10 +1,11 @@
-import { randomBytes } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
-import { parseApplicationSlug, parseOpaqueToken } from './application-session.js'
-import type { ApplicationSessions } from './application-session.js'
+import { parseApplicationSlug } from '../platform/application-slug.js'
+import { opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
+import { isExactOrigin } from '../platform/origin.js'
+import type { HostSessions } from './host-sessions.js'
 import type { ResolveCurrentSession } from './current-session.js'
 import { identityAccessErrorCode } from './errors.js'
 import type { OidcAdapter } from './oidc.js'
@@ -17,8 +18,6 @@ const OIDC_STATE_COOKIE = '__Host-conexus_oidc_state'
 const cookieOptions = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const }
 const visibleCookieOptions = { ...cookieOptions, httpOnly: false }
 const clearCookieOptions = { path: '/', secure: true, sameSite: 'lax' as const }
-const csrf = (): string => randomBytes(32).toString('base64url')
-const exactOrigin = (request: FastifyRequest, configuredOrigin: string): boolean => request.headers.origin === configuredOrigin
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
 export type IdentityAccessRouteDependencies = Readonly<{
@@ -27,13 +26,15 @@ export type IdentityAccessRouteDependencies = Readonly<{
   oidc: OidcAdapter
   config: Readonly<{ origin: string; bootstrapIssuer: string; bootstrapSubject: string }>
   resolveCurrentSession: ResolveCurrentSession
+  /** Opens a Hub session at sign-in and ends it at sign-out. */
+  hubSessions: Pick<HostSessions, 'openHub' | 'endHub'>
   /** Present when the installation serves applications: sign-ins that begin at an application host. */
-  applications?: Readonly<{ sessions: ApplicationSessions; origin: (slug: string) => string }>
+  applications?: Readonly<{ sessions: Pick<HostSessions, 'applicationBySlug' | 'signIn'>; origin: (slug: string) => string }>
 }>
 
 export const registerIdentityAccessRoutes = async (
   app: FastifyInstance,
-  { store, workspaceReader, oidc, config, resolveCurrentSession, applications }: IdentityAccessRouteDependencies,
+  { store, workspaceReader, oidc, config, resolveCurrentSession, hubSessions, applications }: IdentityAccessRouteDependencies,
 ): Promise<readonly S1OwnerId[]> => {
   // An application host starts a sign-in with its slug and the digest of a binding only that browser
   // holds. Both or neither: the Hub's own sign-in takes no parameter.
@@ -92,7 +93,9 @@ export const registerIdentityAccessRoutes = async (
       }
       if (account) {
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
-        const established = await store.createSession({ accountId: account.accountId })
+        // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
+        if (!identity.refreshToken) return reply.code(503).send()
+        const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
         return reply
           .setCookie(SESSION_COOKIE, established.sessionToken, cookieOptions)
           .setCookie(CSRF_COOKIE, established.csrfToken, visibleCookieOptions)
@@ -103,7 +106,7 @@ export const registerIdentityAccessRoutes = async (
         configuredIssuer: config.bootstrapIssuer,
         configuredSubject: config.bootstrapSubject,
       })
-      const csrfToken = csrf()
+      const csrfToken = opaqueToken()
       return reply
         .setCookie(BOOTSTRAP_COOKIE, bootstrapToken, cookieOptions)
         .setCookie(CSRF_COOKIE, csrfToken, visibleCookieOptions)
@@ -127,16 +130,16 @@ export const registerIdentityAccessRoutes = async (
   app.route({
     ...S1_GENERATED_ROUTES['IAM-02'],
     handler: async (request, reply) => {
-      if (!exactOrigin(request, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
+      if (!isExactOrigin(request.headers.origin, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'csrf-denied', 'Request authenticity denied')
       }
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      // Signing out never waits on Keycloak: the session and its own CSRF token are enough.
       const sessionToken = request.cookies[SESSION_COOKIE]
-      if (!sessionToken) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      await store.endSession(sessionToken)
+      if (!sessionToken || !await hubSessions.endHub({ sessionToken, csrfToken: requestCsrf })) {
+        return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      }
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)
         .clearCookie(CSRF_COOKIE, clearCookieOptions)
@@ -148,7 +151,7 @@ export const registerIdentityAccessRoutes = async (
     ...S1_GENERATED_ROUTES['IAM-03'],
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
-      if (!exactOrigin(request, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       }
       const idempotencyKey = header(request.headers['idempotency-key'])

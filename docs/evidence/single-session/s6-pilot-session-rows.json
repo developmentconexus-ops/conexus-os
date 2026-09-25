@@ -1,0 +1,47 @@
+[
+  {
+    "kind": "HUB",
+    "account": "Operador de Teste",
+    "started_at": "2026-09-25T11:07:25.544+00:00",
+    "ended_at": "2026-09-25T11:17:42.212281+00:00",
+    "ended_reason": "PROVIDER_USER_DISABLED",
+    "lived_seconds": 617,
+    "preview_host": null
+  },
+  {
+    "kind": "HUB",
+    "account": "Operador de Teste",
+    "started_at": "2026-09-25T11:18:36.399+00:00",
+    "ended_at": "2026-09-25T11:23:42.832165+00:00",
+    "ended_reason": "PROVIDER_USER_DISABLED",
+    "lived_seconds": 306,
+    "preview_host": null
+  },
+  {
+    "kind": "HUB",
+    "account": "Operador de Teste",
+    "started_at": "2026-09-25T11:24:00.851+00:00",
+    "ended_at": "2026-09-25T11:29:05.289905+00:00",
+    "ended_reason": "PROVIDER_SESSION_ENDED",
+    "lived_seconds": 304,
+    "preview_host": null
+  },
+  {
+    "kind": "PREVIEW",
+    "account": "Operador de Teste",
+    "started_at": "2026-09-25T11:24:01.656+00:00",
+    "ended_at": "2026-09-25T11:29:05.289726+00:00",
+    "ended_reason": "PARENT_ENDED",
+    "lived_seconds": 304,
+    "preview_host": "preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost"
+  },
+  {
+    "kind": "HUB",
+    "account": "Operador de Teste",
+    "started_at": "2026-09-25T11:38:41.932+00:00",
+    "ended_at": null,
+    "ended_reason": null,
+    "lived_seconds": null,
+    "preview_host": null
+  }
+]

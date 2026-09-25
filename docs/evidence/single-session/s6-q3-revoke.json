@@ -1,0 +1,26 @@
+[
+  {
+    "id": "revoked-grant-next-request",
+    "phase": "revoke",
+    "at": "2026-09-25T11:41:07.387Z",
+    "request": {
+      "poll": "POST https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation every second as the employee",
+      "revoke": "https://hub.conexus.localhost:3443/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/settings/access"
+    },
+    "observed": {
+      "probes": 9,
+      "lastAllowed": {
+        "startedAt": "2026-09-25T11:41:06.028Z",
+        "status": 404,
+        "code": "OPERATION_NOT_FOUND"
+      },
+      "firstRefused": {
+        "startedAt": "2026-09-25T11:41:07.043Z",
+        "status": 401,
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "revokedAt": "2026-09-25 11:41:06.735141+00"
+    },
+    "pass": true
+  }
+]

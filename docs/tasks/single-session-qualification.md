@@ -141,8 +141,9 @@ Before the first product edit:
 
 ### S1. Rotation off, claim protocol gone
 
-The realm returns to `revokeRefreshToken: false` in `infra/keycloak/realm-r1f.json` and on the
-pilot by kcadm. A new migration removes `claim_provider_check`, `release_provider_check`, the
+The realm returns to `revokeRefreshToken: false`. By the operator's instruction on 2026-09-24, the
+spike realm `r1f` was replaced on the pilot by a realm named `conexus`, created from
+`infra/keycloak/realm-conexus.json` with `revokeRefreshToken: false`, and `realm-r1f.json` was deleted. A new migration removes `claim_provider_check`, `release_provider_check`, the
 `provider_check_claim*` columns and the clock correction of 0025. `record_provider_check` becomes a
 compare-and-set; the loser of the race is still served. `HELD`, `HELD_CHECK_READS` and the wait
 loop leave `application-session.ts`. Rewrite the rotation tests in

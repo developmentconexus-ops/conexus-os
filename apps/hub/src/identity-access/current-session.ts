@@ -5,7 +5,7 @@ export type EmailAddress = string & { readonly __brand: 'EmailAddress' }
 
 export type AccountSummary = Readonly<{ accountId: AccountId; displayName: string; email?: string }>
 // `issuer` and `subject` are the provider identity this session was established from.
-// Preview entry binds its cookie to them. No route reads them to decide authority.
+// No route reads them to decide authority.
 export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string; subject: string }>
 // What a session is read from: the Hub's own requests, and a Factory route's request.
 export type SessionRequest = Readonly<{ cookies: Readonly<Record<string, string | undefined>>; headers: Readonly<Record<string, string | string[] | undefined>> }>

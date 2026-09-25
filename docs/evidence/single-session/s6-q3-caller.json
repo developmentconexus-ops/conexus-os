@@ -1,0 +1,93 @@
+[
+  {
+    "id": "employee-writes-note",
+    "phase": "caller",
+    "at": "2026-09-25T11:40:19.062Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "employee",
+      "note": "Nota escrita pelo funcionário 11:40:18"
+    },
+    "observed": {
+      "storedAuthor": "Funcionário Teste",
+      "nameShownAfterReload": true
+    },
+    "pass": true
+  },
+  {
+    "id": "caller-in-input",
+    "phase": "caller",
+    "at": "2026-09-25T11:40:19.163Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/addNote",
+      "body": {
+        "orderNumber": "PC-4521",
+        "note": "Tentativa caller-in-input 11:40:18",
+        "caller": {
+          "accountId": "00000000-0000-4000-8000-000000000000",
+          "email": "forjado@example.com",
+          "displayName": "Forjado"
+        }
+      }
+    },
+    "observed": {
+      "status": 400,
+      "body": {
+        "error": {
+          "code": "INPUT_REFUSED",
+          "detail": "/caller: not declared"
+        }
+      },
+      "storedAuthor": null
+    },
+    "pass": true
+  },
+  {
+    "id": "author-in-input",
+    "phase": "caller",
+    "at": "2026-09-25T11:40:19.254Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/addNote",
+      "body": {
+        "orderNumber": "PC-4521",
+        "note": "Tentativa author-in-input 11:40:18",
+        "author": "Forjado"
+      }
+    },
+    "observed": {
+      "status": 400,
+      "body": {
+        "error": {
+          "code": "INPUT_REFUSED",
+          "detail": "/author: not declared"
+        }
+      },
+      "storedAuthor": null
+    },
+    "pass": true
+  },
+  {
+    "id": "identifiers-in-url-and-headers",
+    "phase": "caller",
+    "at": "2026-09-25T11:40:19.419Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/addNote?projectId=00000000-0000-4000-8000-000000000001&accountId=00000000-0000-4000-8000-000000000000&application=other",
+      "headers": [
+        "x-conexus-caller",
+        "x-conexus-account-id",
+        "x-conexus-project-id",
+        "x-forwarded-host",
+        "forwarded"
+      ],
+      "body": {
+        "orderNumber": "PC-4521",
+        "note": "Tentativa identificadores 11:40:18"
+      }
+    },
+    "observed": {
+      "status": 200,
+      "storedAuthor": "Funcionário Teste"
+    },
+    "pass": true
+  }
+]

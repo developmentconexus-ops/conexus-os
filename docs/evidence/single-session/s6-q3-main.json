@@ -1,0 +1,185 @@
+[
+  {
+    "id": "member-enters-without-grant",
+    "phase": "main",
+    "at": "2026-09-25T11:07:53.436Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member of the Project Workspace, no grant"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+    },
+    "pass": true
+  },
+  {
+    "id": "hub-cookie-on-application-host",
+    "phase": "main",
+    "at": "2026-09-25T11:07:54.917Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member with a Hub session"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "cookiesSentToApplication": [
+        "__Host-conexus_app_signin",
+        "__Host-conexus_app"
+      ],
+      "documentCookie": ""
+    },
+    "pass": true
+  },
+  {
+    "id": "same-origin-baseline",
+    "phase": "main",
+    "at": "2026-09-25T11:07:55.182Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://eval-20260923-224304.conexus.localhost:3445",
+      "as": "member"
+    },
+    "observed": {
+      "status": 404,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "OPERATION_NOT_FOUND"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "id": "cross-origin-from-hub",
+    "phase": "main",
+    "at": "2026-09-25T11:07:55.202Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://hub.conexus.localhost:3443"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "id": "cross-origin-from-other-application",
+    "phase": "main",
+    "at": "2026-09-25T11:07:55.211Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": "https://pedidos-de-ferias.conexus.localhost:3445"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "id": "cross-origin-missing",
+    "phase": "main",
+    "at": "2026-09-25T11:07:55.219Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "origin": null
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "id": "cross-origin-sign-out",
+    "phase": "main",
+    "at": "2026-09-25T11:07:55.227Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/sign-out",
+      "origin": "https://hub.conexus.localhost:3443"
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": {
+        "error": {
+          "code": "ORIGIN_REFUSED"
+        }
+      }
+    },
+    "pass": true
+  },
+  {
+    "id": "handoff-on-other-host",
+    "phase": "main",
+    "at": "2026-09-25T11:07:56.965Z",
+    "request": {
+      "url": "<one handoff> on the other application host, then on its own host without the binding, then on its own host with it, then again"
+    },
+    "observed": {
+      "otherHost": {
+        "status": 403,
+        "location": null,
+        "setCookie": []
+      },
+      "anotherBrowser": {
+        "status": 403,
+        "location": null,
+        "setCookie": []
+      },
+      "ownHost": {
+        "status": 303,
+        "location": "/",
+        "setCookie": [
+          "__Host-conexus_app"
+        ]
+      },
+      "redeemedAfterMs": 19,
+      "replay": {
+        "status": 403,
+        "location": null,
+        "setCookie": []
+      },
+      "landed": "about:blank"
+    },
+    "pass": true
+  },
+  {
+    "id": "handoff-after-expiry",
+    "phase": "main",
+    "at": "2026-09-25T11:08:59.468Z",
+    "request": {
+      "url": "<an unused handoff>",
+      "waitedSeconds": 61
+    },
+    "observed": {
+      "status": 403,
+      "location": null,
+      "setCookie": [],
+      "body": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Não foi possível entrar</title></head><body><main><h1>Não foi possível entrar</h1><p>O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de no"
+    },
+    "pass": true
+  }
+]

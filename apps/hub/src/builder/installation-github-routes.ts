@@ -5,6 +5,7 @@ import type { GithubApp, GithubRepository } from './factory-github.js'
 import { GithubRequestError } from './factory-github.js'
 import { connectFactoryInstallation } from './factory-provisioning.js'
 import type { FactoryRecords } from './factory-provisioning.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
@@ -99,7 +100,7 @@ export const registerInstallationGithubRoutes = async (app: FastifyInstance, { o
   const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
         await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         return null
       }

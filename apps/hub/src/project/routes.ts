@@ -10,6 +10,7 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { type ProjectError, projectErrorCode } from './errors.js'
 import type { ProjectStore } from './store.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
@@ -66,7 +67,7 @@ export const registerProjectRoutes = async (
     ...S3_GENERATED_ROUTES['PRJ-03'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       }
       const current = await dependencies.resolveCurrentSession(request, true)

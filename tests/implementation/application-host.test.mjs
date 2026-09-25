@@ -40,14 +40,15 @@ const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
       application,
       sessions: {
         async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
-        async authority({ sessionToken, projectId }) {
+        async applicationAuthority({ sessionToken, projectId }) {
           if (authorityFor) return authorityFor({ sessionToken, projectId })
           return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
         },
-        async redeem({ handoff, projectId, binding }) {
+        // As iam.redeem_handoff: every check passes before the handoff is consumed.
+        async redeem({ handoff, target: { projectId, binding } }) {
           const found = handoffs.get(handoff)
-          handoffs.delete(handoff)
           if (!found || found.projectId !== projectId || found.binding !== binding) return null
+          handoffs.delete(handoff)
           sessions.set('n'.repeat(43), projectId)
           return { sessionToken: 'n'.repeat(43), maxAgeSeconds: 28_800 }
         },
@@ -103,6 +104,7 @@ const configEnvironment = {
   CONEXUS_DB_NAME: 'conexus_s7',
   CONEXUS_DB_USER: 'hub_bootstrap',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/db',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/ws-command',
   CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/ws-read',
   CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
@@ -224,13 +226,14 @@ test('a sign-in in progress keeps its binding', async (t) => {
   assert.notEqual(malformed.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin').value, 'short')
 })
 
-test('a handoff is redeemed once, only with its binding and on its own host, and the session value is minted then', async (t) => {
+test('a handoff is refused without its binding or on another host, then redeems once on its own host', async (t) => {
   const { app } = await harness(t)
   const complete = (host, cookies) => app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host }, cookies })
   assert.equal((await complete(HOST_A, {})).statusCode, 403, 'no binding cookie')
-  const wrongHost = await complete(HOST_B, { '__Host-conexus_app_signin': 'binding-1' })
-  assert.equal(wrongHost.statusCode, 403, 'the handoff is for another application, and the attempt burns it')
-  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 403, 'a burnt handoff is gone')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'another-browser' })).statusCode, 403, 'another browser')
+  assert.equal((await complete(HOST_B, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 403, 'another application')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 303, 'the refusals did not consume it')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 403, 'redeemed once')
 })
 
 test('a redeemed handoff sets a host-only session cookie that replaces any value chosen before sign-in', async (t) => {
