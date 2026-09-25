@@ -364,3 +364,17 @@ test('a person without access lands on a plain no-access page on the application
   assert.equal(response.statusCode, 403)
   assert.match(response.body, /Você não tem acesso a este aplicativo/)
 })
+
+test('a person denied for an unverified email sees copy naming that, not the generic no-access page', async (t) => {
+  const { app } = await harness(t)
+  const response = await app.inject({ method: 'GET', url: '/__conexus/no-access?reason=EMAIL_NOT_VERIFIED', headers: { host: HOST_A } })
+  assert.equal(response.statusCode, 403)
+  assert.match(response.body, /e-mail ainda não foi verificado/)
+})
+
+test('an unrecognized reason value falls back to the plain no-access page', async (t) => {
+  const { app } = await harness(t)
+  const response = await app.inject({ method: 'GET', url: '/__conexus/no-access?reason=<script>', headers: { host: HOST_A } })
+  assert.equal(response.statusCode, 403)
+  assert.match(response.body, /Você não tem acesso a este aplicativo/)
+})

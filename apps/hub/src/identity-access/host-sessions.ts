@@ -38,9 +38,12 @@ export type PreviewLaunch = Readonly<{
 /** A Preview request's binding: the launch, when its session ends, and its author as the caller. */
 export type PreviewBinding = PreviewLaunch & Readonly<{ expiresAt: number; caller: Caller }>
 
+/** Why an application sign-in was refused: the identity carries no verified email, or it does and simply has no grant. */
+export type ApplicationDenialReason = 'EMAIL_NOT_VERIFIED' | 'NOT_GRANTED'
+
 export type ApplicationSignIn =
   | Readonly<{ kind: 'HANDOFF'; slug: string; handoff: string }>
-  | Readonly<{ kind: 'NO_ACCESS'; slug: string }>
+  | Readonly<{ kind: 'NO_ACCESS'; slug: string; reason: ApplicationDenialReason }>
 
 /** Where a handoff is presented: an application's host with the browser's binding, or a Preview's host. */
 export type HandoffTarget =
@@ -226,20 +229,24 @@ export const createHostSessions = ({
     async signIn({ identity, existingAccountId, projectId, bindingDigest, now = new Date() }) {
       const slug = await slugOf(projectId)
       if (!identity.refreshToken) throw new Error('APPLICATION_REFRESH_TOKEN_MISSING')
+      // An identity with no verified email can hold no invitation and can claim no grant: that is
+      // the whole reason for every denial it can receive here, not something read back from the
+      // database. A verified identity denied here simply has no grant.
+      const reason: ApplicationDenialReason = identity.verifiedEmail === null ? 'EMAIL_NOT_VERIFIED' : 'NOT_GRANTED'
       let accountId = existingAccountId
       if (!accountId) {
         const provisioned = await pool.query<QueryResultRow & { account_id: string | null }>(
           'SELECT iam.provision_application_account($1, $2, $3, $4, $5) AS account_id',
           [randomUUID(), identity.issuer, identity.subject, identity.verifiedEmail, identity.displayName])
         accountId = provisioned.rows[0]?.account_id ?? null
-        if (!accountId) return { kind: 'NO_ACCESS', slug }
+        if (!accountId) return { kind: 'NO_ACCESS', slug, reason }
       }
       await pool.query('SELECT iam.claim_application_invitations($1, $2)', [accountId, identity.verifiedEmail])
       const handoff = opaque()
       const minted = await pool.query<QueryResultRow & { minted: boolean }>(
         'SELECT iam.mint_application_handoff($1, $2, $3, $4, $5, $6) AS minted',
         [accountId, projectId, digest(handoff), bindingDigest, await envelope.seal(identity.refreshToken), now])
-      return minted.rows[0]?.minted ? { kind: 'HANDOFF', slug, handoff } : { kind: 'NO_ACCESS', slug }
+      return minted.rows[0]?.minted ? { kind: 'HANDOFF', slug, handoff } : { kind: 'NO_ACCESS', slug, reason }
     },
 
     async openPreview({ hubSessionToken, launch, now = new Date() }) {

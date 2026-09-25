@@ -260,8 +260,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await grantAccess(projectId, 'sem-nome@application.test')
     assert.equal((await signIn(identity('no-name-sub', 'sem-nome@application.test'))).kind, 'HANDOFF')
     assert.equal((await client.query("SELECT display_name FROM iam.account WHERE external_subject = 'no-name-sub'")).rows[0].display_name, 'sem-nome@application.test')
-    assert.deepEqual(await signIn(identity('stranger-sub', 'stranger@application.test')), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
-    assert.deepEqual(await signIn(identity('unverified-sub', null)), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.deepEqual(await signIn(identity('stranger-sub', 'stranger@application.test')), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
+    assert.deepEqual(await signIn(identity('unverified-sub', null)), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'EMAIL_NOT_VERIFIED' })
     assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject IN ('stranger-sub', 'unverified-sub')")).rows[0].n, 0)
   })
 
@@ -622,7 +622,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.host_session WHERE account_id = $1 AND ended_at IS NULL', [employeeId])).rows[0].n, 0,
       'revocation ended every open session of the person for this application')
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
-    assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
   })
 
   await t.test('a revoke holds: re-granting a person who holds a grant opens no invitation, and revoking withdraws any invitation left for them', async () => {
@@ -646,7 +646,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
     assert.equal(await openInvitations(), 0, 'revoking withdrew the invitation a pre-fix re-grant left open')
 
-    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
     assert.equal(await openGrants(personId), 0, 'the next sign-in claimed nothing')
   })
 
@@ -664,7 +664,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
     assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
 
-    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' }, 'the invitation issued before the revoke is dead')
+    assert.deepEqual(await signIn(person, personId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' }, 'the invitation issued before the revoke is dead')
     assert.equal(await openGrants(), 0)
     await grantAccess(projectId, 'atual@application.test')
     assert.equal((await signIn(person, personId)).kind, 'HANDOFF', 'an Owner granting again after the revoke is honoured')
@@ -693,7 +693,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   })
 
   await t.test('a member of the Workspace uses the application without a grant; a member of another Workspace does not', async () => {
-    assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+    assert.deepEqual(await signIn(identity('control-sub', 'control-s@application.test'), control), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
     const handoff = (await signIn(identity('owner-sub', 'owner-s@application.test'), owner)).handoff
     const ownerToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
     assert.equal((await sessions.applicationAuthority({ sessionToken: ownerToken, projectId, now: at(2_000) })).caller.accountId, owner)
