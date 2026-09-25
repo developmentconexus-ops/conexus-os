@@ -32,24 +32,46 @@ unrelated historical gates into the pilot.
 
 ## 33.4 The surfaces that exist
 
-These are the routes, and there are no others.
+These are the routes, and there are no others. A path with no page of its own is a
+redirect, not a screen; it is labeled as one below.
 
 ```text
-/                                        the person's Workspaces
-/workspaces/new                          create a Workspace
-/workspaces/$workspaceId/projects        the Workspace's Projects
-/workspaces/$workspaceId/projects/new    create a Project
-/workspaces/$workspaceId/members         the roster: members and pending invitations
-/projects/$projectId                     Project detail
-/projects/$projectId/build               the Build surface
-/settings                                the Account's details
-/setup                                   first-run Account provisioning
+/                                          entry: sends a signed-in person to their only Workspace, the
+                                           last one used, the list, or /workspaces/new when they have none
+/setup                                     first-run Account provisioning
+/signed-out                                the session ended; offers signing in again
+/no-access                                 identity confirmed, no Conexus Account for it yet
+/workspaces                                the person's Workspaces
+/workspaces/new                            create a Workspace
+/workspaces/$workspaceId/projects          the Workspace's Projects
+/workspaces/$workspaceId/projects/new      create a Project
+/workspaces/$workspaceId/settings/people   the roster: members and pending invitations
+/projects/$projectId                       redirect: opens the Project's latest conversation, or starts one
+/projects/$projectId/build                 compatibility redirect to /projects/$projectId
+/projects/$projectId/c/$conversationId     the Build surface (33.6)
+/projects/$projectId/settings              About the Project: name, repository connection, archive state
+/projects/$projectId/settings/access       Acesso ao aplicativo: application-only invitations (contract.md 3.1)
+/settings                                  redirect to /settings/account
+/settings/account                          the Account's details and its Workspaces
+/settings/models                           the person's own model accounts and personal model defaults
+/settings/installation/github              installation administration: the company GitHub organization
+/settings/installation/models              installation administration: sharing model accounts with everyone
+/settings/installation/model-defaults      installation administration: default build/fast models
+/settings/installation/memory              installation administration: the memory model
+/settings/installation/admins              installation administration: grant/revoke the administrator role
 ```
 
-Settings shows the Account's details and nothing else. Model sign-in and model
-choice are Mastra Code's, per [C-022](../decisions/index.md). There is no Agents, Brain, Data, Capabilities,
-Integrations, Versions or Activity surface, and none is planned. Do not add
-navigation for one because a shell looks empty without it.
+Settings holds the Account's own details plus the Hub's half of Factory model
+credentials: a person's own model accounts and personal defaults at
+`/settings/models`, and, for an installation administrator, the GitHub
+connection, shared model accounts, model defaults, memory model and
+administrator roster under `/settings/installation/*`. Model sign-in itself,
+and credential storage, stay Mastra Code's, per [C-022](../decisions/index.md)
+and [C-025](../decisions/index.md). The five `/settings/installation/*` routes
+render for any signed-in person but refuse their content to a non-administrator.
+There is no Agents, Brain, Data, Capabilities, Integrations, Versions or
+Activity surface, and none is planned. Do not add navigation for one because a
+shell looks empty without it.
 
 ## 33.6 Build surface
 
