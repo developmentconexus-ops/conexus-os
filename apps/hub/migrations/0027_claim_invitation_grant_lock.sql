@@ -6,7 +6,8 @@ BEGIN;
 -- Locking the account's open grant for every project this claim could open, before touching an
 -- invitation, forces the claim to wait behind an in-flight revoke on that same row and then re-read it
 -- once the revoke settles, in the same order the revoke itself locks: the grant row, then the
--- invitation row.
+-- invitation row. The grants are locked in grant_id order so two concurrent claims for one Account
+-- holding grants on several projects always take them in the same order.
 CREATE OR REPLACE FUNCTION iam.claim_application_invitations(p_account_id uuid, p_verified_email text) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -23,6 +24,7 @@ BEGIN
     ON access_grant.project_id = invitation.project_id AND access_grant.account_id = p_account_id
       AND access_grant.revoked_at IS NULL
   WHERE invitation.email = lower(btrim(p_verified_email)) AND invitation.expires_at > clock_timestamp()
+  ORDER BY access_grant.grant_id
   FOR UPDATE OF access_grant;
   WITH claimed AS (
     DELETE FROM iam.application_invitation AS invitation

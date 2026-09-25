@@ -697,7 +697,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await claimer.connect()
     try {
       // The revoke holds the grant row open (uncommitted) so the claim's statement takes its snapshot
-      // before the revoke is visible, then meets it while inserting the claimed grant.
+      // before the revoke is visible, then meets it at the PERFORM ... FOR UPDATE on the grant row.
       await revoker.query('BEGIN')
       await revoker.query('SELECT iam.revoke_application_grant($1,$2,$3)', [owner, projectId, grantId])
       const claimerPid = (await claimer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
@@ -758,6 +758,47 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(openGrants, 0, 'the revoke that queued behind the claim still lands')
     const openInvitations = (await client.query('SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = $2', [projectId, 'outra-reverso@application.test'])).rows[0].n
     assert.equal(openInvitations, 0, 'the claim that went first still consumed the invitation')
+  })
+
+  await t.test('a revoke racing a claim of the same email neither deadlocks nor lets the claim reopen the grant', async () => {
+    const person = identity('interleaved-same-sub', 'mesmo@application.test', 'Corrida Mesmo Email')
+    await grantAccess(projectId, 'mesmo@application.test')
+    assert.equal((await signIn(person)).kind, 'HANDOFF')
+    const personId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'interleaved-same-sub'")).rows[0].account_id
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+
+    // An invitation to the Account's own address, which the revoke itself withdraws.
+    await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',
+      [randomUUID(), projectId, 'mesmo@application.test', owner, inTwoWeeks()])
+
+    const revoker = new pg.Client(connection)
+    const claimer = new pg.Client(connection)
+    await revoker.connect()
+    await claimer.connect()
+    try {
+      // The revoke holds the grant row and the invitation it withdraws (uncommitted); the claim meets
+      // it at the PERFORM ... FOR UPDATE on the grant row and waits there.
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT iam.revoke_application_grant($1,$2,$3)', [owner, projectId, grantId])
+      const claimerPid = (await claimer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const claim = claimer.query('SELECT iam.claim_application_invitations($1, $2)', [personId, 'mesmo@application.test'])
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [claimerPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the claim never reached the grant lock')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await revoker.query('COMMIT')
+      assert.equal((await claim).rows[0].claim_application_invitations, 0, 'the invitation the revoke withdrew is not claimed')
+    } finally {
+      await revoker.end()
+      await claimer.end()
+    }
+
+    const openGrants = (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].n
+    assert.equal(openGrants, 0, 'the revoke holds')
+    const openInvitations = (await client.query('SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = $2', [projectId, 'mesmo@application.test'])).rows[0].n
+    assert.equal(openInvitations, 0)
   })
 
   await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
