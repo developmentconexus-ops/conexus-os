@@ -34,7 +34,7 @@ If a higher-lane trigger appears mid-work, stop, comment on the issue, and chang
 ## Build a change
 
 - Confirm that the issue or task names the observable result, the non-goals and "done when". If a material item is missing, ask on the issue. Do not invent product meaning in code.
-- Before adding a mechanism, take the native census in the [review checklist](../../../docs/development/review-checklist.md#mastra-first-no-parallel-logic).
+- Before adding a mechanism, take the native census in [Mastra native](../../../docs/development/review/mastra-native.md#proof-required).
 - Stop on the conditions in [Stop, then escalate](../../../docs/development/delivery.md#stop-then-escalate).
 - Add `needs:aprovo` when the change is one of the [three kinds that need it](../../../docs/development/delivery.md#ask-for-aprovo-on-three-kinds-of-change).
 - Run the checks the change touches. Do not run `npm run verify` locally. CI runs the whole graph at the head SHA.
@@ -43,7 +43,7 @@ If a higher-lane trigger appears mid-work, stop, comment on the issue, and chang
 
 ## Review a change
 
-Review the pushed head against its issue or task and the current owners, not against the author's summary. Use the [review checklist](../../../docs/development/review-checklist.md). Report the smallest failed rule. A review does not fix the code it reviews unless the operator asks.
+Review the pushed head against its issue or task and the current owners, not against the author's summary. Load the pages the [review checklist](../../../docs/development/review-checklist.md#load-the-pages) names from the base ref, and give its verdict table. Report the smallest failed item. A review does not fix the code it reviews unless the operator asks.
 
 ## Delegate
 

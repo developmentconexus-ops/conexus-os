@@ -71,7 +71,7 @@ most 5 open pull requests.
   not test each pull request on the pilot. CI runs once per ready head.
 - **Mastra first.** Prefer a Mastra, Keycloak or PostgreSQL primitive over a Conexus-built
   mechanism. A pull request that adds a mechanism carries the native census in
-  [the review checklist](review-checklist.md#mastra-first-no-parallel-logic). Every subagent prompt
+  [Mastra native](review/mastra-native.md#proof-required). Every subagent prompt
   for Conexus work loads [`.agents/skills/mastra/SKILL.md`](../../.agents/skills/mastra/SKILL.md).
 - **Best evidence over past decisions.** Code that exists is not a reason to keep it. When you see a
   better alternative than what is implemented or decided, bring it to the operator with evidence.
