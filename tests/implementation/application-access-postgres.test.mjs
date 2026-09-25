@@ -651,7 +651,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await signIn(recreated), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
       'granting the shared email again still answers the Account that already holds it, not the new subject')
 
-    // The operator revokes the old Account's grant (the deleted person) and grants the email again; only
+    // An Owner revokes the old Account's grant (the deleted person) and grants the email again; only
     // then does a fresh invitation open, and it admits the new subject as its own distinct Account.
     const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, originalId])).rows[0].grant_id
     assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
