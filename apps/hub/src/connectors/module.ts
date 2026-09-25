@@ -26,7 +26,8 @@ export type ConnectorModule = Readonly<{
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
   /** The Builder's per-run brief for this Project's own open grants. Empty for a Project with no open
-   * grant. Never opens a credential and makes no network call. */
+   * grant, a fixed notice when the grants cannot be read. Never throws, never opens a credential and
+   * makes no network call. */
   builderBrief(projectId: string): Promise<string>
   broker: Broker
 }>
@@ -70,7 +71,7 @@ export const createConnectorModule = ({
     { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
   ]
   const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, audit })
-  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore })
+  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore, audit })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {

@@ -55,6 +55,23 @@ test('a revoked grant gets an empty brief again', async () => {
   assert.equal(await brief(scope), '')
 })
 
+test('an unreadable store answers the fixed notice, audits a code with no store detail, and names no operation', async () => {
+  const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const audited = []
+  const brief = createConnectorBrief({
+    connectors,
+    store: { listGrantedCapabilities: async () => { throw new Error('permission denied for function list_granted_capabilities STORE_DETAIL_MARKER') } },
+    audit: (line) => { audited.push(line) },
+  })
+  const text = await brief(scope)
+  assert.equal(text, CONNECTOR_BRIEF_UNAVAILABLE)
+  assert.deepEqual(audited.map((line) => JSON.parse(line)), [{ event: 'connector.brief', result: 'STORE_UNAVAILABLE' }])
+  for (const term of [READ, 'STORE_DETAIL_MARKER', sankhyaDefinition.builderSkill, ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
+
+  const sinkFails = createConnectorBrief({ connectors, store: { listGrantedCapabilities: async () => { throw new Error('down') } }, audit: () => { throw new Error('sink down') } })
+  assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)
+})
+
 test('a scope this module did not mint gets an empty brief, whatever the store would answer', async () => {
   const brief = createConnectorBrief({ connectors, store: storeOf([READ]) })
   assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), '')

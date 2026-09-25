@@ -609,3 +609,27 @@ test("the run appends its own Project's connector brief to the agent instruction
   assert.equal(withoutBrief.configuredInstructions.length, 1)
   assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
 })
+
+test('a run whose connector grants cannot be read still runs, told only that connector data is out of reach', async (t) => {
+  const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+  const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+  const audited = []
+  const brief = createConnectorBrief({
+    connectors: [{ definition: sankhyaDefinition, adapter: null }],
+    store: { listGrantedCapabilities: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
+    audit: (line) => { audited.push(line) },
+  })
+  const run = await harness(t, { connectorBrief: (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId })) })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(run.calls.some(([kind]) => kind === 'fail' || kind === 'interrupt'), false, JSON.stringify(run.calls))
+  const plain = await harness(t)
+  await plain.start()
+  await plain.settled()
+  await plain.service.close()
+  assert.deepEqual(run.configuredInstructions, [`${plain.configuredInstructions[0]} ${CONNECTOR_BRIEF_UNAVAILABLE}`])
+  assert.deepEqual(audited, [`${JSON.stringify({ event: 'connector.brief', result: 'STORE_UNAVAILABLE' })}\n`])
+  assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics]).includes('STORE_DETAIL_MARKER'), false)
+})
