@@ -1,0 +1,17 @@
+{
+  "case": "verified-no-grant",
+  "at": "2026-09-25T18:51:22.399Z",
+  "finalUrl": "https://pedidos-de-ferias.conexus.localhost:3445/__conexus/no-access?reason=NOT_GRANTED",
+  "status": 403,
+  "heading": "Sem acesso",
+  "text": "Você não tem acesso a este aplicativo. Peça acesso a quem administra o Workspace.",
+  "navigations": [
+    "https://pedidos-de-ferias.conexus.localhost:3445/",
+    "https://hub.conexus.localhost:3443/protocol/oidc/login?application=…&binding=…",
+    "https://hub.conexus.localhost:8443/realms/conexus/protocol/openid-connect/auth?redirect_uri=…&scope=…&code_challenge=…&code_challenge_method=…&state=…&nonce=…&client_id=…&response_type=…",
+    "https://hub.conexus.localhost:8443/realms/conexus/login-actions/authenticate?session_code=…&execution=…&client_id=…&tab_id=…&client_data=…",
+    "https://hub.conexus.localhost:3443/protocol/oidc/callback?state=…&session_state=…&iss=…&code=…",
+    "https://pedidos-de-ferias.conexus.localhost:3445/__conexus/no-access?reason=NOT_GRANTED"
+  ],
+  "leaks": []
+}
