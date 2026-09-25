@@ -194,6 +194,11 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome check')).length, 1)
+  const biomeCurrentCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome-current').command
+  assert.equal(biomeCurrentCommand.includes('apps/hub/src'), true)
+  assert.equal(biomeCurrentCommand.includes('apps/web/src'), true)
+  assert.equal(biomeCurrentCommand.includes(' packages '), true,
+    'biome-current must check the whole packages/ root, not a subset of package subpaths')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)
