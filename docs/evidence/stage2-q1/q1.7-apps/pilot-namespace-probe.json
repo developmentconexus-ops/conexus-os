@@ -11,357 +11,357 @@
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-01>",
+      "path": "e2b-api-key",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-02>",
+      "path": "factory-app-client-secret",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-03>",
+      "path": "factory-app.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-04>",
+      "path": "factory-secret-key",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-05>",
+      "path": "factory-state-secret",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-06>",
+      "path": "app-relay-tls",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-07>",
+      "path": "app-relay-tls:ca-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-08>",
+      "path": "app-relay-tls:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-09>",
+      "path": "app-relay-tls:ca.srl",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-10>",
+      "path": "app-relay-tls:relay-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-11>",
+      "path": "app-relay-tls:relay.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-12>",
+      "path": "app-relay-tls:server-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-13>",
+      "path": "app-relay-tls:server.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-14>",
+      "path": "app-runner-key",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-15>",
+      "path": "apps-cluster-authority",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-16>",
+      "path": "apps-cluster-authority:ca-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-17>",
+      "path": "apps-cluster-authority:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-18>",
+      "path": "apps-cluster-authority:server-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-19>",
+      "path": "apps-cluster-authority:server.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-20>",
+      "path": "apps-relay-tls",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-21>",
+      "path": "apps-relay-tls:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-22>",
+      "path": "apps-relay-tls:relay-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-23>",
+      "path": "apps-relay-tls:relay.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-24>",
+      "path": "bootstrap-oidc-user-password",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-25>",
+      "path": "db-app-provisioner",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-26>",
+      "path": "db-apps-root",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-27>",
+      "path": "db-builder-executor",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-28>",
+      "path": "db-builder-ingress",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-29>",
+      "path": "db-hub-factory",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-30>",
+      "path": "db-iam-runtime",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-31>",
+      "path": "db-model-connection",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-32>",
+      "path": "db-prj03-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-33>",
+      "path": "db-project-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-34>",
+      "path": "db-project-read",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-35>",
+      "path": "db-r2-connections",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-36>",
+      "path": "db-rb-executor",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-37>",
+      "path": "db-rb-ingress",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-38>",
+      "path": "db-root",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-39>",
+      "path": "db-s2-read",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-40>",
+      "path": "db-s3-read",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-41>",
+      "path": "db-s4-baseline-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-42>",
+      "path": "db-s4-baseline-read",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-43>",
+      "path": "db-s6-inception-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-44>",
+      "path": "db-workspace-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-45>",
+      "path": "db-workspace-read",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-46>",
+      "path": "db-ws01-command",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-47>",
+      "path": "keycloak-admin-password",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-48>",
+      "path": "oidc-client-secret",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-49>",
+      "path": "oidc-other-secret",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-50>",
+      "path": "test-operator-password",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "<pilot-secret-path-51>",
+      "path": "hub.env",
       "exists": false,
       "readable": false,
       "bytes": null,
