@@ -12,8 +12,14 @@
 //                                                     the caller disabled the person or signed them out in
 //                                                     Keycloak at --since; polls the Hub and the Preview every
 //                                                     10 s until both refuse, and reads how the sessions ended.
-//                                                     Holds when no request that started five minutes or more
-//                                                     after --since was allowed, as in the Q3 disabled case.
+//                                                     Holds when a request was allowed first, no request that
+//                                                     started five minutes or more after --since was allowed,
+//                                                     and one that started within one polling interval after
+//                                                     five minutes was refused; the Preview ends with its Hub.
+//     concurrent       --app <slug>                    signs the person into the application, makes its
+//                                                     Keycloak check due, sends four page requests at once,
+//                                                     and counts Keycloak's REFRESH_TOKEN events for them
+//                                                     (the realm's events must be on)
 //     grant            --owner-state <state.json> --project <id> --email <address> --id <case id> --expect grant|invitation
 //                                                     the Owner grants the application in the Hub (IAM-12),
 //                                                     and lists access (IAM-11) before and after
@@ -56,7 +62,11 @@ const digestHex = (token) => createHash('sha256').update(token).digest('hex')
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const cases = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : []
+const ran = []
+// Every case this run records decides the exit status: a run that records no case, or a failed one, fails.
+process.on('exit', (code) => { if (code === 0 && (ran.length === 0 || ran.includes(false))) process.exitCode = 1 })
 const record = (id, request, observed, pass) => {
+  ran.push(pass)
   const entry = { id, phase, at: new Date().toISOString(), request, observed, pass }
   const index = cases.findIndex((existing) => existing.id === id)
   if (index === -1) cases.push(entry)
@@ -105,21 +115,25 @@ if (phase === 'preview-open') {
   const page = previewCookie ? await call('GET', previewUrl, { cookie: previewCookie }) : { status: null }
   const replay = await call('POST', entryUrl, { headers: { origin: HUB, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ entryGrant }).toString() })
   const row = previewCookie ? sql(`SELECT kind || '|' || coalesce(ended_reason, 'open') || '|' || (absolute_expires_at - started_at) FROM iam.host_session WHERE token_digest = decode('${digestHex(previewCookie.split('=')[1])}', 'hex')`) : ''
-  writeFileSync(need('save'), JSON.stringify({ previewUrl, previewCookie, launchedAt: new Date().toISOString() }), { mode: 0o600, flag: 'w' })
+  const hubStartedAtLaunch = execFileSync('bash', ['-c', 'head -1 $HOME/wt-single-session-hub.log'], { encoding: 'utf8' }).trim()
+  writeFileSync(need('save'), JSON.stringify({ previewUrl, previewCookie, launchedAt: new Date().toISOString(), hubStartedAtLaunch }), { mode: 0o600, flag: 'w' })
   record('preview-opens', { launch: `POST ${HUB}/api/control/projects/${projectId}/builder-session/preview`, entry: `POST ${entryUrl} (Origin ${HUB})`, page: `GET ${previewUrl}` },
-    { launch: launch.status, previewExpiresAt: expiresAt, entry: { status: entered.status, location: entered.location, setCookie: entered.setCookie.map((pair) => pair.split('=')[0]) }, page: page.status, entryReplay: replay.status, session: row },
+    { previewHost: new URL(previewUrl).hostname, hubSession: digestHex(hub.session).slice(0, 12), launch: launch.status, previewExpiresAt: expiresAt, entry: { status: entered.status, location: entered.location, setCookie: entered.setCookie.map((pair) => pair.split('=')[0]) }, page: page.status, entryReplay: replay.status, session: row },
     launch.status === 201 && entered.status === 303 && Boolean(previewCookie) && page.status === 200 && replay.status === 403 && row.startsWith('PREVIEW|open|'))
 }
 
 if (phase === 'preview-restart') {
-  const { previewUrl, previewCookie, launchedAt } = readSaved()
-  const hubStarted = execFileSync('bash', ['-c', "head -1 $HOME/wt-single-session-hub.log"], { encoding: 'utf8' }).trim()
+  const { previewUrl, previewCookie, launchedAt, hubStartedAtLaunch } = readSaved()
+  const hubStarted = execFileSync('bash', ['-c', 'head -1 $HOME/wt-single-session-hub.log'], { encoding: 'utf8' }).trim()
   const page = await call('GET', previewUrl, { cookie: previewCookie })
+  const startOf = (line) => Date.parse(line?.split(' ')[2] ?? '')
   record('preview-survives-hub-restart', { url: previewUrl, as: 'the Preview cookie from before the restart, no new entry' },
-    { launchedAt, hubLog: hubStarted, page: page.status }, page.status === 200 && Date.parse(hubStarted.split(' ')[2] ?? '') > Date.parse(launchedAt))
+    { launchedAt, hubBeforeRestart: hubStartedAtLaunch ?? null, hubAfterRestart: hubStarted, page: page.status },
+    page.status === 200 && startOf(hubStartedAtLaunch) < Date.parse(launchedAt) && startOf(hubStarted) > Date.parse(launchedAt))
 }
 
 if (phase === 'hub-refused') {
+  const POLL_SECONDS = 10
   const hub = hubCookies()
   const { previewUrl, previewCookie } = readSaved()
   const since = Date.parse(need('since'))
@@ -136,16 +150,20 @@ if (phase === 'hub-refused') {
     if (!polled.hub && hubAnswer.status === 401) polled.hub = { refusedAfterSeconds: seconds, ...brief(hubAnswer) }
     if (!polled.preview && previewAnswer.status === 403) polled.preview = { refusedAfterSeconds: seconds, status: previewAnswer.status }
     if (polled.hub && polled.preview) break
-    await sleep(10_000)
+    await sleep(POLL_SECONDS * 1000)
   }
   const ended = sql(`SELECT coalesce(ended_reason, 'open') || '|' || (provider_refresh_token IS NULL) FROM iam.host_session WHERE token_digest = decode('${digestHex(hub.session)}', 'hex')`)
   const previewEnded = sql(`SELECT coalesce(ended_reason, 'open') FROM iam.host_session WHERE token_digest = decode('${digestHex(previewCookie.split('=')[1])}', 'hex')`)
   const reason = { USER_DISABLED: 'PROVIDER_USER_DISABLED', SESSION_ENDED: 'PROVIDER_SESSION_ENDED' }[expected]
   const id = expected === 'USER_DISABLED' ? 'hub-user-disabled-loses-hub-and-preview' : 'keycloak-logout-ends-hub-and-preview'
-  record(id, { hub: `GET ${HUB}/api/control/access-context`, preview: `GET ${previewUrl}`, every: '10 s', since: new Date(since).toISOString() },
+  // Five minutes, as task section 8 states it: allowed before, never at or after 300 s, and refused by the
+  // first request after 300 s, which the 10-second polling places within 310 s.
+  const withinFiveMinutes = (lastAllowed, refused) => lastAllowed !== null && lastAllowed < 300 && refused !== null && refused <= 300 + POLL_SECONDS
+  record(id, { hub: `GET ${HUB}/api/control/access-context`, preview: `GET ${previewUrl}`, every: `${POLL_SECONDS} s`, since: new Date(since).toISOString() },
     { ...polled, hubSession: ended, previewSession: previewEnded },
-    Boolean(polled.hub && polled.preview) && (polled.hubLastAllowedAfterSeconds ?? 0) < 300 && (polled.previewLastAllowedAfterSeconds ?? 0) < 300 &&
-      ended === `${reason}|true` && ['PARENT_ENDED', 'EXPIRED'].includes(previewEnded))
+    withinFiveMinutes(polled.hubLastAllowedAfterSeconds, polled.hub?.refusedAfterSeconds ?? null) &&
+      withinFiveMinutes(polled.previewLastAllowedAfterSeconds, polled.preview?.refusedAfterSeconds ?? null) &&
+      ended === `${reason}|true` && previewEnded === 'PARENT_ENDED')
 }
 
 if (phase === 'grant' || phase === 'revoke') {
@@ -192,4 +210,39 @@ if (phase === 'employee-lands') {
   } finally {
     await browser.close()
   }
+}
+
+if (phase === 'concurrent') {
+  const { chromium } = await import('@playwright/test')
+  const origin = `https://${need('app')}.conexus.localhost:3445`
+  const browser = await chromium.launch()
+  let cookie
+  try {
+    const context = await browser.newContext({ storageState: need('member-state') })
+    const page = await context.newPage()
+    await page.goto(`${origin}/`)
+    await page.waitForURL(`${origin}/`)
+    cookie = (await context.cookies(`${origin}/`)).find((entry) => entry.name === '__Host-conexus_app')
+  } finally {
+    await browser.close()
+  }
+  if (!cookie) throw new Error('APPLICATION_SESSION_NOT_OPENED')
+  const token = digestHex(cookie.value)
+  const account = sql(`SELECT a.external_subject FROM iam.host_session s JOIN iam.account a USING (account_id) WHERE s.token_digest = decode('${token}', 'hex')`)
+  // Six minutes since the last Keycloak check: the next request of this session makes it.
+  const aged = sql(`UPDATE iam.host_session SET started_at = started_at - interval '6 minutes', absolute_expires_at = absolute_expires_at - interval '6 minutes', provider_checked_at = provider_checked_at - interval '6 minutes' WHERE token_digest = decode('${token}', 'hex') AND ended_at IS NULL RETURNING provider_checked_at`)
+  const from = Date.now()
+  const answers = await Promise.all([1, 2, 3, 4].map(() => call('GET', `${origin}/`, { cookie: `__Host-conexus_app=${cookie.value}` })))
+  const until = Date.now()
+  const after = sql(`SELECT coalesce(ended_reason, 'open') || '|' || provider_checked_at FROM iam.host_session WHERE token_digest = decode('${token}', 'hex')`).split('|')
+  await sleep(2_000)
+  const events = JSON.parse(execFileSync('docker', ['exec', 'conexus-keycloak', 'bash', '-c',
+    '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" >/dev/null 2>&1 && ' +
+    `/opt/keycloak/bin/kcadm.sh get realms/conexus/events -q user=${account} -q max=100 --fields time,type,error`], { encoding: 'utf8' }))
+  const refreshes = events.filter((event) => event.time >= from - 1_000 && event.time <= until + 1_000)
+  record('concurrent-due-check-all-served', { requests: `4 × GET ${origin}/ at once, the Keycloak check due`, as: 'the member' },
+    { agedCheckTo: aged, answers: answers.map((answer) => ({ status: answer.status, code: answer.body?.error?.code ?? null })), session: after[0], checkedAfter: after[1],
+      keycloakEvents: refreshes.map((event) => ({ type: event.type, error: event.error ?? null })) },
+    answers.every((answer) => answer.status === 200) && after[0] === 'open' && refreshes.length >= 1 && refreshes.length <= 4 &&
+      refreshes.every((event) => event.type === 'REFRESH_TOKEN'))
 }
