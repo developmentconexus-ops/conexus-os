@@ -305,8 +305,8 @@ credential or gateway URL (P11).
 
 After G0, the executor reads purchase order 22790 once through the broker on the pilot, using the
 Connection the operator loaded. **Check:** the broker returns the order; the evidence records the
-fields returned, the call count, the duration and a response digest. The repository is private, and
-the operator allows business values of order 22790 in the evidence (section 11, point 5).
+fields returned, the call count, the duration and a response digest. The repository is public, so the
+evidence shows field names, counts and digests, never order 22790's business values (section 11, point 5).
 
 ### Q4.7 — Builder end to end (the main case)
 
@@ -325,8 +325,9 @@ browser request; the Builder's diff and transcript hold no credential, host or S
 ### Q4.8 — App user on the pilot
 
 As the Q3 app user (`funcionario-teste@gmail.com`, app-only), in a fresh browser: open the
-application, sign in, and see order 22790 with its notes. **Check:** a screenshot and the handler's
-response in the evidence, with values shown only as section 11 allows.
+application, sign in, and see order 22790 with its notes. **Check:** the evidence holds a screenshot
+with every business value masked and the handler's response reduced to field names, types, counts and
+a digest, as section 11 allows. No raw response is committed.
 
 ### Q4.9 — Second consumer: an agent tool
 
@@ -338,7 +339,8 @@ refused; after revocation the next tool call is refused.
 ### Q4.10 — Negative proof
 
 A script sends each request as a real consumer and records the request, the answer and whether the
-refusal held. Where a refusal could hide a broken fixture, the same run records a live control that
+refusal held. The committed record keeps status codes, error codes, field names and digests only; a
+successful control records counts and a digest, never the order's values. Where a refusal could hide a broken fixture, the same run records a live control that
 succeeds. Each of these must fail:
 
 1. **Credential leak.** A handler or the agent tool returns, logs or throws its whole context,
@@ -371,6 +373,26 @@ A script loads the credential inside its own process from the Connection and sea
 printing it, the Hub, runner and Factory logs of the run window, the Mastra traces, the Builder and
 agent transcripts, the Project repository at every commit Q4 made, the built Preview artifact and
 `docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero.
+
+The same script also collects order 22790's business values from every live read the run made, held
+in its own memory (supplier, dates, status, prices, quantities, totals, item descriptions, notes), and
+searches every text file bound for the repository (`docs/evidence/stage2-q4/`, the Builder and agent
+transcripts, the Project repository at every commit Q4 made, and every commit of this branch that
+touches `docs/evidence/stage2-q4/`) for each value in each representation the
+fields can take (a number with and without thousands and decimal separators, a date in ISO and in
+dd/mm/yyyy). For short or common values, such as a status word or a one-digit quantity, count the
+whole value when it appears next to its field name **or** without a label in the same logical record
+(line, table row, JSON object or transcript turn) as an explicit reference to order 22790. Count it
+without a label or repeated order number in a bounded context explicitly scoped to order 22790:
+the answer to a prompt about that order in the same transcript exchange, or rows under that order's
+heading. The scope ends at the next unrelated exchange, order or section; it must not extend to
+unrelated turns or rows. Also count unlabelled values in a text evidence file explicitly dedicated
+to that order by its path or metadata. A generic word or digit elsewhere in a Q4 evidence file is
+not a match merely because the file is in the evidence directory. For example, `PENDING` in an
+answer to "What is the status of order 22790?" counts even without a field label or order number
+in the answer; `PENDING` outside that order's context does not. It prints only a count per file.
+Before a screenshot is committed, the operator looks at it and confirms every business value is
+masked. **Check:** every count is zero and the operator's confirmation is in the evidence README.
 
 ## 8. Falsifiers
 
@@ -424,8 +446,12 @@ STOP and return to the planner on:
    and X-Token into the Integrações screen (Q4.2). The executor never handles them.
 4. **Who administers.** Decided on 2026-09-24: the installation administrator creates the
    Connection. The Grant stays with the Workspace Owner.
-5. **Business values.** Decided on 2026-09-24: the repository is private, and the evidence may show
-   order 22790's values.
+5. **Business values.** Decided on 2026-09-24, revised the same day when the repository became public:
+   every public artifact from Q4.6 to Q4.11 (evidence, screenshots, logs, transcripts) shows only
+   field names, types, counts, status codes, digests and the call metadata this task asks for: the
+   allow-listed service name, time, duration and call count. It never shows the order's supplier, dates,
+   status, prices, quantities, totals, items or notes, and never a raw Sankhya or handler response.
+   The document number 22790 is the one exception: it is an identifier the task already names.
 6. **The verdict.**
 
 ## 12. Evidence layout
@@ -436,15 +462,16 @@ docs/evidence/stage2-q4/
   census.md            Q4.0 native census with versions, files and dated URLs
   design.md            Q4.1 frozen types, design-only consumers, property map
   q4.6-real-read/      fields, call count, duration, digest
-  q4.7-run1/           Builder run, grade, diff summary (run2/ if used)
+  q4.7-run1/           Builder run, grade, diff summary, redacted (run2/ if used)
   q4.8-app-user.png    the app user's view, redacted per section 11 point 5
-  q4.9-agent-tool/     the agent tool's calls and refusals
-  q4.10-proof.json     every negative case with request, answer and verdict
+  q4.9-agent-tool/     the agent tool's calls and refusals, as sanitized summaries
+  q4.10-proof.json     every case with a sanitized request and answer summary and its verdict
   q4.11-leak-scan.txt  counts per location
 ```
 
 No file in it holds a credential, an access token, a host of the gateway or a path of the operator's
-credentials file.
+credentials file. Every file follows section 11, point 5: no business value of the order and no raw
+Sankhya, handler or agent response.
 
 ## 13. Verdict
 

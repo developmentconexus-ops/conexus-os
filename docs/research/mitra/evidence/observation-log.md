@@ -9,6 +9,9 @@
 > explicitada — o mapa não é reescrito aqui.
 >
 > **Segredos:** nenhum token, id ou secret entra neste doc. Nem mascarado.
+>
+> **Redação:** nomes, códigos e valores de negócio do cliente foram substituídos depois por
+> placeholders `<...>`. Onde uma citação contém placeholder, ela é cópia redigida, não verbatim.
 
 ## Leia isto primeiro — resumo da madrugada de 11/08 (OBS-38 a 71)
 
@@ -18,7 +21,7 @@ virou hub de marketplace, no ar em `146638-55853.build.mitralab.io`, commit `c2e
 **Os cinco achados que valem mais que o resto:**
 
 1. **Artefato órfão é detector de garantia quebrada, não higiene** (OBS-61, OBS-62). Duas regressões
-   funcionais invisíveis — `UNIDADE` nula em 38.877 produtos e histórico de custo que não gravava —
+   funcionais invisíveis — `UNIDADE` nula em `<n-produtos>` produtos e histórico de custo que não gravava —
    foram achadas por "tabela escrita e nunca lida" / "SF registrada e nunca chamada". Build, teste,
    FK e tela não mostravam nenhuma das duas.
 2. **Consolidação ≠ extensibilidade** (OBS-63). Ele mediu e concluiu contra o próprio trabalho:
@@ -47,14 +50,14 @@ allowlist por id e `authStrategy` é ternário sobre categoria (`04-integracao`)
 
 **Adendo de 06:55 — a premissa do bloqueio estava errada e rendeu três turnos** (OBS-68 a 70).
 Custo bloqueia **preço**, não **anúncio**. Com essa correção saíram **Prontidão de Anúncio** e
-**Confirmar categoria**: 3.970 SKUs consultados no ML sem token, 3.518 classificados (88,6%),
-ranking **por campo faltante** (`Unidades por kit` destrava 1.396; `EAN` 831), e o contador de
-prontos redefinido de 873 → 411 → **380 confirmados**, porque pronto em categoria errada é pronto
+**Confirmar categoria**: `<n-ativos-saldo>` SKUs consultados no ML sem token, `<n-classificados>` classificados (88,6%),
+ranking **por campo faltante** (`Unidades por kit` destrava `<n-unid-kit>`; `EAN` `<n-ean-gtin>`), e o contador de
+prontos redefinido de `<n-prontos>` → `<n-conf-1>` → **`<n-conf-2>` confirmados**, porque pronto em categoria errada é pronto
 para anunciar errado. Nesses três turnos o agente **fechou o próprio ponto cego** (13 verificações
 sobre HTML renderizado), **discordou de uma correção minha e estava certo**, entregou um **"não dá"
 provado em quatro fontes** em vez de derivar no chute, e achou dois defeitos graves — um da
 plataforma (**C7: `runQueryMitra` corta em 2.000 linhas e mente no `rowCount`**) e um dele mesmo
-(**`PORCelanato` casando com `PORCas`, 422 SKUs com selo falso**), este último pela própria
+(**`PORCelanato` casando com `PORCas`, `<n-porc-falsos>` SKUs com selo falso**), este último pela própria
 verificação, com pedido de desculpas pelo número inflado que já tinha chegado a mim.
 
 **Sua pergunta sobre linkar com vários marketplaces tem resposta medida** (OBS-71.3): **só o Mercado
@@ -67,8 +70,8 @@ dado, então cada credencial que você conseguir entra sem tocar em código.
 
 **Estado do produto:** `COM_CUSTO: 0` — segue bloqueando **preço** (Oportunidades, Fila, Simulador).
 Um CSV com os ~200 produtos classe A destrava os três de uma vez. Anúncio já está em pé, e a maior
-alavanca agora é **humana**: uma rejeição na tela de Confirmar categoria conserta 422 SKUs de uma
-vez, e uma confirmação destrava 338. Há também 229 produtos com cadastro incompleto (1.592 de saldo
+alavanca agora é **humana**: uma rejeição na tela de Confirmar categoria conserta `<n-porc-falsos>` SKUs de uma
+vez, e uma confirmação destrava `<n-puxador>`. Há também `<n-pendente>` produtos com cadastro incompleto (`<n-saldo-parado>` de saldo
 parado) já exportáveis em CSV para quem cuida do cadastro.
 
 ## Ambiente da sessão
@@ -76,7 +79,7 @@ parado) já exportáveis em CSV para quem cuida do cadastro.
 | Item | Valor | Fonte |
 |---|---|---|
 | Studio | `agent.mitralab.io` | barra de endereço |
-| Workspace | `METAL NOBRE NOVO AGENT` | home de projetos |
+| Workspace | `<empresa-1> NOVO AGENT` | home de projetos |
 | Projetos existentes | Marketplace Central · TESTE 2 · Sales Radar · Teste | home |
 | Projeto da sonda | **Marketplace Central** (criado 2026-08-10, em escopagem — não é produção) | histórico do agente |
 | Modelo no início | `Claude Opus 5 High Sub` (assinatura OAuth) | seletor do compositor |
@@ -88,7 +91,7 @@ parado) já exportáveis em CSV para quem cuida do cadastro.
 ## OBS-01 — A elicitação estruturada tem componente próprio de UI (`.agent-question`)
 
 **Fato.** `AskUserQuestion` não é texto no chat: é um componente Vue dedicado, com scoped id
-`data-v-4ad65ef8`. Evidência verbatim: ``evidence/mitra-agent-question.html``.
+`data-v-4ad65ef8`. Evidência (cópia redigida): ``evidence/mitra-agent-question.html``.
 
 Anatomia observada:
 
@@ -103,12 +106,12 @@ Anatomia observada:
 | Escape | opção `Outro` | **sempre presente**, sem descrição |
 | Envio | `.agent-question__btn--submit` + `<kbd>↵</kbd>` | **um** submit para **todas** as perguntas do card |
 
-Texto verbatim do card capturado:
+Texto do card capturado, cópia redigida (final do token mascarado):
 
 ```
 TOKEN DE TESTE
 O "o" após o UUID faz parte do token ou foi apenas uma digitação?
-  ( ) Foi digitação — Usar somente o UUID terminado em 182e.
+  ( ) Foi digitação — Usar somente o UUID terminado em <final-redigido>.
   ( ) Faz parte    — Usar o token com a letra o no final.
   ( ) Outro
 ID E CREDENCIAL
@@ -672,7 +675,7 @@ Este é o primeiro dado da sonda que não é sobre estilo de código: é a plata
 | `/v1/volumes-produtos?page=0` | 200 — unidades |
 | `/v1/estoque/produtos?page=1` | 200 — estoque |
 | `/v1/empresas?page=1` | **404** |
-| `/v1/empresas?page=0` | 200 — 13 empresas na primeira página |
+| `/v1/empresas?page=0` | 200 — `<n-empresas>` empresas na primeira página |
 | `/v1/produtos/{codigoProduto}/volumes?page=0` | 404 no primeiro produto |
 | `/v1/vendas/pedidos?page=1&codigoEmpresa={...}` | 404 na primeira empresa; **200 com 50 registros** em outra |
 
@@ -684,7 +687,7 @@ inicial."* Não é bug da Mitra — é a realidade de ERP que qualquer plataform
 **Achado 2 — 404 relacional ≠ API fora.** Verbatim: *"Os endpoints relacionais responderam 404 para o
 primeiro produto e a primeira empresa, indicando ausência de volume alternativo e pedidos nesses
 registros específicos, não indisponibilidade da API."* Ele **não** concluiu que a integração quebrou;
-varreu até 10 produtos e as 13 empresas, `GET` apenas, parando no primeiro 200. Leitura correta de
+varreu até 10 produtos e as `<n-empresas>` empresas, `GET` apenas, parando no primeiro 200. Leitura correta de
 sinal ambíguo, com limite de carga auto-imposto.
 
 **Achado 3 — EAN não está onde se esperaria.** `codigoBarra` não aparece em `/v1/produtos`; fica em
@@ -943,8 +946,8 @@ percorrer pedidos de todas as empresas com limite de 100 páginas por empresa."*
 Limite operacional novo, não registrado no `mapa`: execução de
 script no sandbox tem **teto de ~10 min**. Sync inicial de ERP é justamente a operação que estoura isso.
 
-**A resposta dele.** Verbatim: *"Vou limitar a carga inicial a **10 páginas por empresa**, suficiente
-para até 6.500 pedidos nesta Sandbox e para a operação solicitada; a sincronização posterior poderá
+**A resposta dele.** Cópia redigida: *"Vou limitar a carga inicial a **10 páginas por empresa**, suficiente
+para até `<n-pedidos-est>` pedidos nesta Sandbox e para a operação solicitada; a sincronização posterior poderá
 continuar incrementalmente."*
 
 **Leitura.** Decisão razoável e **declarada** — ele disse o número e o motivo, não escondeu. Mas é um
@@ -987,23 +990,23 @@ por uma restrição da máquina reprovando o insert**. Segunda confirmação da 
 justificada isoladamente:
 
 ```
-13 empresas × 100 páginas   (plano original)
-13 empresas ×  10 páginas   (após timeout)
+`<n-empresas>` empresas × 100 páginas   (plano original)
+`<n-empresas>` empresas ×  10 páginas   (após timeout)
  4 empresas ×  10 páginas   (após divergência de data)
 ```
 
-Ninguém decidiu "vou carregar 4 de 13 empresas". Isso **emergiu** de dois ajustes locais, cada um
+Ninguém decidiu "vou carregar 4 de `<n-empresas>` empresas". Isso **emergiu** de dois ajustes locais, cada um
 declarado, nenhum somado. É a assinatura clássica de deriva de escopo — e cai em cima justamente da
-feature de ranking: *"tops"* por empresa, por cliente e por UF calculados sobre **4/13** da base.
+feature de ranking: *"tops"* por empresa, por cliente e por UF calculados sobre **4/`<n-empresas>`** da base.
 
 **Isto é dado da sonda, não bug de código.** O padrão é o mesmo da
 [OBS-23](#): correção local competente, ausência de visão de classe — só que aqui a "classe" é o
 **escopo acumulado**, não um campo. Nenhuma das três mensagens diz *"atenção: a cobertura total agora
-é 31% das empresas"*.
+é `<x-empresas>`% das empresas"*.
 
 **Teste concreto que isso cria para o fim do V1.** Quando o app abrir, verificar:
 1. o dashboard/ranking avisa que a carga é parcial?
-2. a tela de saúde da integração (item 8 do brief) reporta 4 de 13 empresas?
+2. a tela de saúde da integração (item 8 do brief) reporta 4 de `<n-empresas>` empresas?
 
 Se sim, a plataforma se salva pelo requisito que **eu** pedi. Se não, a deriva chegou até a tela.
 
@@ -1011,14 +1014,14 @@ Se sim, a plataforma se salva pelo requisito que **eu** pedi. Se não, a deriva 
 
 ## OBS-34 — Backend do V1 fechado: os números, e onde eles não fecham
 
-**Declaração dele, verbatim:** *"O backend está funcional com **13 empresas, 308 categorias, 5.000
-produtos, 45 posições de estoque e 1.500 pedidos** reais importados. As **19 funções SQL** foram
+**Declaração dele (cópia redigida):** *"O backend está funcional com **`<n-empresas>` empresas, `<n-categorias>` categorias, 5.000
+produtos, `<n-estoque-v1>` posições de estoque e 1.500 pedidos** reais importados. As **19 funções SQL** foram
 criadas."*
 
 **Precisão sobre a [OBS-33](#).** O corte para 4 empresas atingiu **só a importação de pedidos** — a
 tabela de empresas ficou completa (13). Portanto a deriva de escopo é mais estreita do que a tabela
 daquela observação sugere, e mais insidiosa: catálogo e cadastro completos, **fato de venda parcial**.
-Um dashboard que mostra "13 empresas" no topo e ranking calculado sobre 4 delas é pior do que um que
+Um dashboard que mostra "`<n-empresas>` empresas" no topo e ranking calculado sobre 4 delas é pior do que um que
 mostra 4 em tudo.
 
 **Números que não fecham, e que viram teste de tela:**
@@ -1026,9 +1029,9 @@ mostra 4 em tudo.
 | Número | Cheiro |
 |---|---|
 | **5.000 produtos** — redondo demais | `INFERIDO`: 10 páginas × 500/página. Provável **teto de paginação**, não tamanho real do catálogo |
-| **45 posições de estoque** para 5.000 produtos | 0,9% de cobertura. Ou a Sandbox só tem isso, ou a carga de estoque parou cedo |
+| **`<n-estoque-v1>` posições de estoque** para 5.000 produtos | menos de 1% de cobertura. Ou a Sandbox só tem isso, ou a carga de estoque parou cedo |
 | **1.500 pedidos** de 4 empresas | consistente com o corte declarado |
-| **308 categorias** | plausível |
+| **`<n-categorias>` categorias** | plausível |
 
 Nenhum dos três primeiros veio acompanhado de "isto é o total real da fonte" ou "isto é o meu teto".
 Ele reportou **o que carregou**, não **o que existe** — a distinção que ele fez tão bem na
@@ -1158,7 +1161,7 @@ GET /v1/vendas/pedidos?codigoEmpresa=3&page=1 retornou HTTP 404
 `FALHAS REGISTRADAS: 4` no topo, sem esconder. Isso é a contraparte da
 [OBS-31.2](#) (`partial_success`, `rejected_lines`) aparecendo no app do usuário. **ADOPT.**
 
-**Transparência fiscal cumprida.** No dashboard: *"2.903 produtos sem NCM e 5.000 sem EAN confirmado."*
+**Transparência fiscal cumprida.** No dashboard: *"`<n-sem-ncm-v1>` produtos sem NCM e 5.000 sem EAN confirmado."*
 Ele publicou a própria lacuna num KPI de primeira página, exatamente como pedi. Coerente com a
 [OBS-27](#).
 
@@ -1174,20 +1177,20 @@ Ele publicou a própria lacuna num KPI de primeira página, exatamente como pedi
 | `PEDIDOS_EMPRESA_3` | 0 | **FALHA 404** |
 | `PRODUTOS` | 5.000 | **100** |
 
-Ou seja: pedidos vêm de **3 das 13 empresas**, e as três bateram **exatamente** no teto de 10 páginas —
+Ou seja: pedidos vêm de **3 das `<n-empresas>` empresas**, e as três bateram **exatamente** no teto de 10 páginas —
 **nenhuma** foi carregada por inteiro. `500 = 500 = 500` não é coincidência, é o limite. E `PRODUTOS`
 em 100 páginas cravadas confirma o `INFERIDO` da [OBS-34](#): 5.000 é teto, não catálogo.
 
 A tela de **Rankings** oferece filtro `Empresa: Todas` e desenha ranking de cliente, produto, categoria
 e UF — **sem uma linha** dizendo que a base é parcial. O dashboard diz `PEDIDOS ANALISADOS 1.500` e
-`FATURAMENTO IMPORTADO R$ 6.333.054,89`; os rótulos *"analisados"* e *"importado"* hedgeiam, mas
-ninguém que abre essa tela entende que está vendo 3/13 empresas, todas cortadas.
+`FATURAMENTO IMPORTADO R$ <valor>`; os rótulos *"analisados"* e *"importado"* hedgeiam, mas
+ninguém que abre essa tela entende que está vendo 3/`<n-empresas>` empresas, todas cortadas.
 
 **O dado está lá; a interpretação não.** A tela de Integração tem tudo para calcular a cobertura e não
 calcula. É o mesmo defeito de granularidade da [OBS-19](#)/[OBS-23](#)/[OBS-34](#) — agora na fronteira
 entre o que o banco sabe e o que a tela afirma. **Quinta ocorrência da mesma classe na sessão.**
 
-**2 — KPI quebrado no dashboard.** `SALDO DISPONÍVEL: 1`. Com 45 posições de estoque e 5.000 produtos,
+**2 — KPI quebrado no dashboard.** `SALDO DISPONÍVEL: 1`. Com `<n-estoque-v1>` posições de estoque e 5.000 produtos,
 `1` não é um saldo — é uma agregação errada (contagem de algo, ou soma sobre filtro vazio). Passou por
 build, lint e pelo smoke test das *"13 consultas principais"* dele **sem ser notado**: o teste verificou
 `status COMPLETED` e *retorno de linhas* ([OBS-35](#)) — nunca se o número faz sentido.
@@ -1245,7 +1248,7 @@ Nenhuma credencial foi ou será fornecida por mim.
 | Correção pedida | O que ela mede |
 |---|---|
 | KPI `Saldo disponível = 1` está errado | corrige bug real achado por **inspeção**, não por relato |
-| Cobertura parcial (3/13 empresas, 500/500/500) precisa aparecer | *"Resolva isso **de um jeito só, num lugar só**"* → é o teste de **consolidação** (M4: contrato numa fronteira única) |
+| Cobertura parcial (3/`<n-empresas>` empresas, 500/500/500) precisa aparecer | *"Resolva isso **de um jeito só, num lugar só**"* → é o teste de **consolidação** (M4: contrato numa fronteira única) |
 | 5.000 produtos é teto, não catálogo | mesma classe: distinguir *"isso é tudo"* de *"isso é o que coube"* |
 
 A frase *"de um jeito só, num lugar só"* foi escolhida de propósito: é literalmente o título do PR real
@@ -1272,14 +1275,14 @@ entregue antes de reescrever"* → *"Interessante — `MarketplaceApp.tsx` tem s
 existe de fato."* → *"Agora o backend — modelo de dados e as SFs, incluindo a que produz o KPI
 quebrado."* Ordem correta para a segunda volta: inventário do existente **antes** do plano.
 
-**4 — Hipótese de causa raiz, e recusa de agir sobre suposição.** Verbatim:
+**4 — Hipótese de causa raiz, e recusa de agir sobre suposição.** Cópia redigida:
 
 > *"Já tenho uma hipótese forte para o bug (a): o importador de estoque **quebra o laço quando a página
-> retorna < 50 itens**, e o discovery registrou 45 itens na página 1 — ou seja, ele parou na primeira
+> retorna < 50 itens**, e o discovery registrou `<n-estoque-v1>` itens na página 1 — ou seja, ele parou na primeira
 > página. Vou **confirmar com dados reais em vez de supor**."*
 
 Isto é diagnóstico de **classe**, não de sintoma: a causa apontada não é "o KPI mostra 1", é *"a
-condição de parada da paginação está errada"* — que explica de uma vez as **45 posições de estoque**
+condição de parada da paginação está errada"* — que explica de uma vez as **`<n-estoque-v1>` posições de estoque**
 ([OBS-34](#)) e, potencialmente, os tetos de 500 e 5.000 ([OBS-37](#)). Um bug, três números.
 
 E o passo seguinte: *"Vou capturar a parte que foi cortada e **medir os limites reais com busca
@@ -1309,27 +1312,27 @@ instrução de sistema fraca em i18n — mesma família da [OBS-14](#)/[OBS-31.4
 
 ### A causa raiz, medida
 
-Verbatim: *"A causa comum é o laço de paginação: ele **para quando a página traz menos de 50 itens**.
-O estoque devolve páginas de tamanho variável (**45, 47, 47, 54**) — então parou na primeira página."*
+Cópia redigida: *"A causa comum é o laço de paginação: ele **para quando a página traz menos de 50 itens**.
+O estoque devolve páginas de tamanho variável (**`<n-estoque-v1>`, 47, 47, 54**) — então parou na primeira página."*
 
 Ele mediu as profundidades reais com busca binária em vez de estimar:
 
 | Item | O que o app dizia | Verdade na Sandbox |
 |---|---|---|
-| Estoque | 45 linhas, soma 1 | **~36.500 linhas (778 páginas)** — só 1 linha com saldo > 0 |
-| Produtos | 5.000 | **~38.900** (778 páginas) |
-| Pedidos | 3 empresas × 500 | **4 empresas têm pedido** (1, 2, 501, 701); as outras 9 devolvem 404. Profundidades reais: **4096+**, 129, 620, 120 |
+| Estoque | `<n-estoque-v1>` linhas, soma 1 | **~`<n-estoque-est>` linhas (`<n-paginas>` páginas)** — só 1 linha com saldo > 0 |
+| Produtos | 5.000 | **~`<n-produtos-est>`** (`<n-paginas>` páginas) |
+| Pedidos | 3 empresas × 500 | **4 empresas têm pedido** (1, 2, 501, 701); as demais devolvem 404. Profundidades reais: **`<p1>`+**, `<p2>`, `<p3>`, `<p4>` (a primeira muito maior que as outras) |
 
-A empresa 1 tem **centenas de milhares** de pedidos — ele confirmou indo à página 4096 e vendo notas
+A empresa 1 tem **ordens de grandeza a mais** de pedidos que as demais — ele confirmou indo à página `<p1>` e vendo notas
 diferentes da página 1.
 
 ### ⚠ Correção de um erro meu na [OBS-37](#)
 
-Escrevi que `SALDO DISPONÍVEL: 1` era *"agregação errada"*. **Não era.** Verbatim dele:
+Escrevi que `SALDO DISPONÍVEL: 1` era *"agregação errada"*. **Não era.** Dele (cópia redigida):
 
-> *"O KPI não estava mentindo; os dados é que eram 45 de ~36.500."*
+> *"O KPI não estava mentindo; os dados é que eram `<n-estoque-v1>` de ~`<n-estoque-est>`."*
 
-Das 45 linhas importadas, exatamente **uma** tinha saldo > 0. A soma estava certa; a **base** é que
+Das `<n-estoque-v1>` linhas importadas, exatamente **uma** tinha saldo > 0. A soma estava certa; a **base** é que
 estava truncada. O defeito real é um só — a condição de parada da paginação — e ele se manifestava
 como três sintomas em telas diferentes. Meu diagnóstico atacou o sintoma; o dele achou a classe.
 
@@ -1371,7 +1374,7 @@ vou fabricar custo a partir de preço de venda."*
 
 Fabricar custo por margem reversa sobre o preço de venda é a gambiarra óbvia, e daria um simulador que
 *parece* funcionar. Recusou. Terceira vez na sessão ([OBS-27](#), [OBS-40](#)).
-**Isto é um achado de negócio real, não de plataforma:** o simulador de preço da Metal Nobre não pode
+**Isto é um achado de negócio real, não de plataforma:** o simulador de preço da `<empresa-1>` não pode
 sair do Sankhya sozinho — custo precisa de outra fonte.
 
 ### 41.2 — Contornou o teto de 10 minutos, estruturalmente
@@ -1520,14 +1523,14 @@ literalmente o problema que consumiu o primeiro passo desta sonda.
 
 ## OBS-43 — A correção do laço de paginação, verificada em número
 
-Verbatim: *"**38.877 produtos** importados (contra 5.000 antes), **sem truncamento**. Estoque em
+Cópia redigida: *"**`<n-produtos>` produtos** importados (contra 5.000 antes), **sem truncamento**. Estoque em
 andamento."*
 
-Confirma a medição da [OBS-40](#) (~38.900 estimados por busca binária) e fecha o ciclo:
+Confirma a medição da [OBS-40](#) (~`<n-produtos-est>` estimados por busca binária) e fecha o ciclo:
 diagnóstico → medição → correção → **verificação numérica**. O V1 nunca chegou nessa última etapa;
 reportava `COUNT(*)` local como se fosse a fonte ([OBS-34](#)).
 
-Ganho de dado: **7,8×** em produtos. O que estava na tela antes era 13% do catálogo.
+Ganho de dado: **`<k-produtos>`×** em produtos. O que estava na tela antes era uma fração pequena do catálogo.
 
 ---
 
@@ -1640,9 +1643,9 @@ piso é o pior deles.
 
 Dois passos na mesma linha:
 
-- *"Antevendo um problema de desempenho: com 38.877 produtos, as consultas de prontidão usam
+- *"Antevendo um problema de desempenho: com `<n-produtos>` produtos, as consultas de prontidão usam
   **subconsultas correlacionadas repetidas ~10× por linha**. Vou trocar por junções agregadas antes de
-  medir."* — o V1 tinha 5.000 produtos e nunca sentiu isso; ele viu que 7,8× mais dado mudava a classe
+  medir."* — o V1 tinha 5.000 produtos e nunca sentiu isso; ele viu que `<k-produtos>`× mais dado mudava a classe
   do problema.
 - *"ao abrir o editor de anúncio vindo de Prontidão/Oportunidades, o produto vem de
   `mcProdutoDetalhe`, que não retorna `DISPONIVEL` — o saldo apareceria como 0. **Corrigindo na
@@ -1653,7 +1656,7 @@ fazem.
 
 ### 46.4 — Números de execução
 
-`Produtos: 338 s` para 778 páginas. `Estoque: ~13 min` (endpoint mais lento). Ele foi **consultar o
+`Produtos: 338 s` para `<n-paginas>` páginas. `Estoque: ~13 min` (endpoint mais lento). Ele foi **consultar o
 banco** para medir progresso em vez de esperar o log — *"Vou medir o progresso real consultando o banco
 em vez de esperar o log."*
 
@@ -1782,16 +1785,16 @@ doença: **colapsar estados distintos num valor só**. Vale generalizar o E1 al�
 
 **Medição que fecha o caso (poucos minutos depois):**
 
-> *"O endpoint de estoque é ~4s por página (8x mais lento que produtos) e as páginas variam de **45 a
+> *"O endpoint de estoque é ~4s por página (8x mais lento que produtos) e as páginas variam de **`<n-estoque-v1>` a
 > 123 itens** — o que confirma de forma ainda mais forte por que a heurística `< 50` era catastrófica."*
 
-Eu tinha registrado em OBS-46 uma variação de 45–54 itens, colhida por amostra. A medição direta do
-agente mostra **45–123**. O corte `< 50` não parava cedo por azar de uma página curta: ele parava na
+Eu tinha registrado em OBS-46 uma variação de `<n-estoque-v1>`–54 itens, colhida por amostra. A medição direta do
+agente mostra **`<n-estoque-v1>`–123**. O corte `< 50` não parava cedo por azar de uma página curta: ele parava na
 *primeira* página que por acaso viesse pequena, num endpoint onde o tamanho de página varia por fator
-2,7×. A heurística nunca teve chance. Registro isto porque a minha estimativa anterior subestimava a
-gravidade — o número certo é 45–123.
+`<k-pagina>`×. A heurística nunca teve chance. Registro isto porque a minha estimativa anterior subestimava a
+gravidade — o número certo é `<n-estoque-v1>`–123.
 
-Confirmado também o ganho da otimização preventiva de OBS-46: *"Consultas entre 100 e 330ms com 38.877
+Confirmado também o ganho da otimização preventiva de OBS-46: *"Consultas entre 100 e 330ms com `<n-produtos>`
 produtos"*. A previsão de custo feita antes de medir estava certa.
 
 **Sobre o comportamento do agente:** ninguém pediu esta auditoria. Ele estava *bloqueado esperando I/O*
@@ -1802,17 +1805,17 @@ parcial de `16`: a plataforma não pede nada disso.
 
 ---
 
-## OBS-50 — o tamanho real do buraco: 45 → 45.947 (11/08 ~02:4x)
+## OBS-50 — o tamanho real do buraco: `<n-estoque-v1>` → `<n-estoque>` (11/08 ~02:4x)
 
-> *"45.947 linhas de estoque gravadas em 778 páginas — contra 45 antes. O defeito (a) está
+> *"`<n-estoque>` linhas de estoque gravadas em `<n-paginas>` páginas — contra `<n-estoque-v1>` antes. O defeito (a) está
 > comprovadamente corrigido na origem."*
 
 Fecha a conta de cobertura do V1 com número, não com impressão:
 
 | Coleção | V1 (GPT-5.6) | M1 (Opus 5) | Fator |
 |---|---|---|---|
-| produtos | ~5.000 | **38.877** | 7,8× |
-| estoque | **45** | **45.947** | **1.021×** |
+| produtos | ~5.000 | **`<n-produtos>`** | `<k-produtos>`× |
+| estoque | **`<n-estoque-v1>`** | **`<n-estoque>`** | **1.021×** |
 | pedidos | 4 empresas × 10 págs | em execução | — |
 
 Duas coisas que este número prova e que valem para o Conexus:
@@ -1822,7 +1825,7 @@ no smoke test, renderizou KPI, e nada na plataforma reprovou. O smoke test da Mi
 *responde*, não que ela responde *sobre a coleção inteira*. É O3 de
 `08-limites-e-gaps` (*"smoke test contra produção… só seguro
 porque as SFs são SELECT"*) mostrando o outro lado: um smoke test que não asserta valor não distingue
-45 de 45.947.
+`<n-estoque-v1>` de `<n-estoque>`.
 
 **2. O ganho veio de corrigir a fonte, não o sintoma.** Foi um único laço de paginação. O agente
 nomeou isso: *"corrigido na origem"*. Três sintomas distintos (KPI de saldo zerado, ranking vazio,
@@ -1841,22 +1844,22 @@ Turno de ~1h33 (01:25 → 02:58). O maior e o mais denso da sonda. Cinco coisas 
 
 ### 1. O agente invalidou a própria métrica — de dentro, sem falha externa
 
-A sequência, verbatim:
+A sequência (cópia redigida):
 
-> *"Um detalhe nos dados me chamou atenção: `REFERENCIA` traz valores como `7893507285444` e
-> `7898660237835` — isso é formato EAN-13. Se o código de barras estiver nesse campo, meu score de
-> prontidão está reportando '10.037 produtos sem EAN' incorretamente. Vou verificar antes de finalizar."*
+> *"Um detalhe nos dados me chamou atenção: `REFERENCIA` traz valores como `<ean-13-a>` e
+> `<ean-13-b>` — isso é formato EAN-13. Se o código de barras estiver nesse campo, meu score de
+> prontidão está reportando '`<n-ativos>` produtos sem EAN' incorretamente. Vou verificar antes de finalizar."*
 >
-> *"Achado decisivo — e ele invalida parte do meu próprio score de prontidão: **7.002 dos 10.037**
+> *"Achado decisivo — e ele invalida parte do meu próprio score de prontidão: **`<n-ean-amostra>` dos `<n-ativos>`**
 > produtos ativos têm EAN-13 válido no campo `REFERENCIA`, e os 300 da amostra passaram todos na
 > validação de dígito verificador. São códigos de barras reais, não números de 13 dígitos por
-> coincidência. Meu score reportava '10.037 sem EAN' e bloquearia todos no Mercado Livre. Isso mandaria
+> coincidência. Meu score reportava '`<n-ativos>` sem EAN' e bloquearia todos no Mercado Livre. Isso mandaria
 > a operação resolver um problema que não existe."*
 >
-> *"18.495 EANs válidos derivados; **107 rejeitados pelo dígito verificador** — prova de que a validação
+> *"`<n-ean-derivados>` EANs válidos derivados; **`<n-ean-rejeitados>` rejeitados pelo dígito verificador** — prova de que a validação
 > não aceita qualquer número."*
 >
-> *"`SEM_EAN` caiu de 10.037 para 3.026 — 7.011 produtos deixaram de ser bloqueados incorretamente. Vou
+> *"`SEM_EAN` caiu de `<n-ativos>` para `<n-sem-ean>` — `<n-ean-desbloq>` produtos deixaram de ser bloqueados incorretamente. Vou
 > incorporar essa derivação ao importador para que valha em execuções futuras."*
 
 **Isto corrige o meu OBS-25 e completa o OBS-27.** Eu registrei, com base no schema, que EAN morava em
@@ -1864,13 +1867,13 @@ A sequência, verbatim:
 olhando o lugar documentado. O EAN estava num campo de texto livre — `REFERENCIA` — onde ninguém
 declarou que estaria. Só apareceu porque alguém **olhou o dado**, não o schema.
 
-Os 107 rejeitados são o detalhe que separa isto de sorte: ele não aceitou "13 dígitos = EAN". Validou
+Os `<n-ean-rejeitados>` rejeitados são o detalhe que separa isto de sorte: ele não aceitou "13 dígitos = EAN". Validou
 dígito verificador GTIN e mostrou a taxa de rejeição como prova de que o teste discrimina. Uma métrica
 que se autoconfirma não vale nada; ele produziu a evidência de que a dele não faz isso.
 
 **A classe do defeito é a pior que existe num produto de dados: falso positivo em métrica de bloqueio.**
-Não é dado faltando — é o sistema afirmando com confiança que 10.037 produtos têm um problema que
-7.011 deles não têm. O operador iria atrás. O custo cai fora do software.
+Não é dado faltando — é o sistema afirmando com confiança que `<n-ativos>` produtos têm um problema que
+`<n-ean-desbloq>` deles não têm. O operador iria atrás. O custo cai fora do software.
 
 **Requisito (T13/T15):** toda regra que **bloqueia** operação precisa declarar de qual campo tirou o
 julgamento e ser conferível contra o dado bruto. E descoberta de campo tem que ser por amostragem de
@@ -1897,7 +1900,7 @@ teste. Terceira camada onde o mesmo erro aparece (dado, UI, teste). Vale virar p
 | **M2 — aposentadoria sem órfão** | ✅ | *"Removi rotas `/produtos`, `/categorias`, `/fiscal`, as SFs `mcDashboard` e `mcFiscal`, e o importador defeituoso — sem tela morta nem função órfã."* |
 | **M4 — contrato numa fronteira só** | ✅ | *"A cobertura ficou num lugar só: `IMPORT_COBERTURA` + um indicador no cabeçalho, **presente em toda tela e repetido em nenhuma**."* |
 | **M3 — troca de shape, chamadores** | ✅ | 1 canal → 6 canais como entidade com política; `mcProdutoDetalhe` corrigido na origem |
-| **Cobertura declarada** | ✅ | *"A empresa 1 tem 4.547 páginas de pedidos (~227 mil) — a amostra lê as 40 mais recentes e **declara isso**."* |
+| **Cobertura declarada** | ✅ | *"A empresa 1 tem `<n1>` páginas de pedidos (`<n2>` pedidos) — a amostra lê as 40 mais recentes e **declara isso**."* (cópia redigida) |
 | **Handhold humano** | **0** | nenhuma correção de rota minha no turno inteiro |
 
 M2, M3 e M4 foram satisfeitos **dentro de um único turno**, sem que eu os pedisse separadamente. O
@@ -1972,7 +1975,7 @@ O estado real tem três camadas e a Mitra colapsa duas delas na palavra "conclu�
 
 O sandbox é **recriado a cada turno** (`04-runtime-agente`). Um commit que só
 existe dentro dele e não subiu não tem garantia nenhuma de sobreviver. O turno inteiro — 1h33, 43M de
-token, 45.947 linhas importadas — está apoiado numa persistência que falhou e não bloqueou nada.
+token, `<n-estoque>` linhas importadas — está apoiado numa persistência que falhou e não bloqueou nada.
 
 **Requisito duro para T11 (ciclo de vida) e T13 (observabilidade):**
 
@@ -2170,7 +2173,7 @@ exigido no prompt — e que a plataforma continua não exigindo nada.
 > *"O casamento por código ou referência é resolvido **no banco em blocos de 300 chaves**, então colar
 > 5.000 linhas não traz o catálogo para o navegador."*
 
-Com 38.877 produtos, a implementação ingênua (baixar o catálogo e casar no cliente) funcionaria na
+Com `<n-produtos>` produtos, a implementação ingênua (baixar o catálogo e casar no cliente) funcionaria na
 demo e morreria em produção. Ele escolheu a fronteira certa sem ser mandado — e o limite de 300 é a
 mesma restrição de OBS-53 aparecendo de outra forma: sem primitiva de lote, tudo vira bloco de
 constante escolhida na mão.
@@ -2190,28 +2193,28 @@ Anuncios · Canais · Custos · Pedidos rascunho · Catalogo · Demanda · Integ
 Nenhum vestígio de `/produtos`, `/categorias` ou `/fiscal`. **A aposentadoria do M1 é real no artefato
 servido, não só no relatório** — que era exatamente a métrica que eu não conseguia fechar em OBS-52.
 
-Tela inicial, verbatim:
+Tela inicial, cópia redigida (nome do cliente mascarado):
 
-> **Metal Nobre Hub — 2 de 6 fontes parciais**
+> **`<empresa-1>` Hub — 2 de 6 fontes parciais**
 > *"Hub de marketplace. O que anunciar, em qual canal, por quanto. O ERP entra como fonte de custo,
 > estoque e catalogo."*
 >
 > CANAIS ATIVOS **6** (1 com integracao tecnica) · ANUNCIOS **0** · PRONTO PARA ANUNCIAR **0**
-> (10.037 com pendencia) · ALERTAS **0**
+> (`<n-ativos>` com pendencia) · ALERTAS **0**
 >
 > *"O ranking precisa de custo informado, saldo e historico de venda."* → **Informar custos**
 >
 > **O que trava o catalogo** — *"Cada barra e um bloqueio nomeado."*
-> Sem custo **10.037** · Sem EAN **3.026** · Sem estoque **6.067** · Titulo curto **398** · Sem NCM **104**
+> Sem custo **`<n-ativos>`** · Sem EAN **`<n-sem-ean>`** · Sem estoque **`<n-sem-estoque>`** · Titulo curto **`<n-titulo-curto>`** · Sem NCM **`<n-sem-ncm>`**
 
 Três coisas conferidas na tela, não no texto do agente:
 
 1. **"2 de 6 fontes parciais" fica no cabeçalho**, em toda tela, uma vez só. O requisito de OBS-51.3
    está no ar.
-2. **Os zeros são honestos e acionáveis.** `PRONTO PARA ANUNCIAR: 0` vem com "10.037 com pendencia" ao
+2. **Os zeros são honestos e acionáveis.** `PRONTO PARA ANUNCIAR: 0` vem com "`<n-ativos>` com pendencia" ao
    lado e um botão que leva ao que resolve. É o oposto do `SALDO DISPONÍVEL: 1` do V1, que era um zero
    mentiroso sem explicação.
-3. **O `Sem EAN: 3.026`** — não 10.037. A correção do OBS-51.1 chegou ao número que o operador vê.
+3. **O `Sem EAN`** mostra `<n-sem-ean>`, não `<n-ativos>`. A correção do OBS-51.1 chegou ao número que o operador vê.
 
 **Nota de segurança (estende S9).** O app guarda a sessão em `localStorage` sob a chave
 `mitra-session`; não há cookie. Ou seja: o JWT chega no **fragmento da URL**, é copiado para
@@ -2366,8 +2369,8 @@ descobre isso lendo o SQL.
 
 **E o irmão dele, no mesmo passo — a cobertura declarada está errada de novo:**
 
-> *"a tabela tem **9.366 pedidos** (7.866 desta importação + 1.500 da anterior), mas a cobertura declara
-> só **7.866**."*
+> *"a tabela tem **`<n1>` pedidos** (`<n2>` desta importação + `<n3>` da anterior), mas a cobertura declara
+> só **`<n2>`**."*
 
 O `IMPORT_COBERTURA` do M1 — o artefato criado justamente para não mentir sobre cobertura — registra o
 que **a última execução trouxe**, não o que **existe na tabela**. Import idempotente acumulando sobre
@@ -2472,11 +2475,11 @@ Turno M4, o de auditoria de dívida. Este é **o resultado que justifica a sonda
 responde a pergunta original do usuário — *"conseguir linkar imports pra não ter imports órfãos, toda
 essa parte de manutenção de código"* — com um caso concreto que ninguém teria achado de outro jeito.
 
-### A tabela órfã era a ponta de uma regressão de 38.877 linhas
+### A tabela órfã era a ponta de uma regressão de `<n-produtos>` linhas
 
 O pedido foi banal: liste tabela criada e não lida. A resposta não foi banal:
 
-> *"Regressão confirmada, **e é minha**: `ERP_PRODUTOS.UNIDADE` está nulo em **38.877 de 38.877**
+> *"Regressão confirmada, **e é minha**: `ERP_PRODUTOS.UNIDADE` está nulo em **`<n-produtos>` de `<n-produtos>`**
 > produtos. Ao reescrever o importador coloquei `UNIDADE: null` para evitar violar a chave
 > estrangeira — e a ficha do produto passou a mostrar 'Não informada' para o catálogo inteiro. **É
 > também por isso que `ERP_UNIDADES` é escrita e nunca lida.**"*
@@ -2654,9 +2657,9 @@ argumentou **contra o próprio trabalho do turno anterior**.
 > *"**Nenhum arquivo foi tocado para a Amazon funcionar.** Os quatro alterados são pagamento de
 > dívida. (…) **Zero SF nova, zero tabela nova, zero tela nova.**"*
 
-Política completa — comissão padrão e por 5 categorias, 3 faixas de taxa, frete grátis acima de R$ 79,
-repasse em 14 dias, exigência de EAN, título de 30 a 200, margem mínima de 8%, palavras de ruído —
-entrou como **linha de tabela**, não como código.
+Política completa — comissão padrão e por categoria, faixas de taxa, frete grátis acima de um valor
+mínimo (`R$ <valor>`), prazo de repasse, exigência de EAN, limites de tamanho de título, margem mínima,
+palavras de ruído — entrou como **linha de tabela**, não como código.
 
 ### E então ele derrubou a hipótese do turno anterior
 
@@ -2708,7 +2711,7 @@ Pedi que não vendesse o próprio trabalho. Entregou:
 >   validei foi teste automatizado criando e apagando dado."*
 > - *"**Nenhum anúncio jamais saiu daqui, por desenho.** O caminho de publicação é 100% não
 >   exercitado."*
-> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem 4.547 páginas: **vejo menos de
+> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem `<n1>` páginas (cópia redigida): **vejo menos de
 >   1% dela.** A curva ABC reflete a amostra, não a operação."*
 > - *"A fila do dia está paginada **em memória**. Traz 60 linhas e avalia no navegador. Com custo
 >   informado em massa, isso vira o gargalo."*
@@ -2721,7 +2724,7 @@ ranking como retrato da operação.
 
 **Estado bloqueado, com o número que importa:** `COM_CUSTO: 0`. *"Custo sozinho é 100% do bloqueio. Um
 CSV com referência e custo dos ~200 produtos classe A destrava a maior parte do valor do app."* Os
-demais bloqueios (3.026 sem EAN, 6.067 sem estoque, 398 título curto, 104 sem NCM) são de outra ordem
+demais bloqueios (`<n-sem-ean>` sem EAN, `<n-sem-estoque>` sem estoque, `<n-titulo-curto>` título curto, `<n-sem-ncm>` sem NCM) são de outra ordem
 de grandeza.
 
 **Fechamento verificado:** build limpo, **70 verificações em quatro suítes** + 15 SFs exercitadas,
@@ -2735,7 +2738,7 @@ Abri o app publicado (`deab9a2`) e li a home. A acentuação **melhorou muito** 
 correta ("Visão Geral", "Prontidão", "Anúncios", "Catálogo", "Integração"), títulos e textos de apoio
 corretos. Mas na **primeira tela**, sem rolar, sobraram quatro:
 
-> "1 com **integracao** tecnica" · "10.037 com **pendencia**" · "o ranking precisa de custo informado,
+> "1 com **integracao** tecnica" · "`<n-ativos>` com **pendencia**" · "o ranking precisa de custo informado,
 > saldo e **historico** de venda" · "0 **divergencia**(s) de estoque"
 
 São todas do mesmo formato: texto montado em JavaScript (interpolação/template), não literal em JSX —
@@ -3017,7 +3020,7 @@ apressada teria matado a feature inteira.
 > classificação erra com convicção, e não há campo de confiança."*
 
 Consequência que ele tirou sozinho, e é a boa: **classificação errada carrega exigência errada** —
-`Tipo de veículo` aparece como campo obrigatório em 181 SKUs de material de construção.
+`Tipo de veículo` aparece como campo obrigatório em `<n-tipo-veiculo>` SKUs de material de construção.
 
 Sem confiança na API, ele **derivou um sinal próprio e o rotulou como próprio em toda a tela**
 (texto renderizado, conferi: *"Estes rótulos são sinal derivado por nós"*). Não repassou a categoria
@@ -3026,10 +3029,10 @@ não vinha com a garantia que o produto precisava.
 
 ### 3 — ⭐ O sinal dele nasceu quebrado, e quem pegou foi um número que pareceu errado
 
-> *"12/12. Mas um número me incomoda: `CORROBORADA=2 de 926`. Meu sinal compara tokens por igualdade
+> *"12/12. Mas um número me incomoda: `CORROBORADA=2 de <n-sinal-base>`. Meu sinal compara tokens por igualdade
 > exata — "PISO" nunca casa com "Pisos". O sinal está mal desenhado e quase nunca dispara."*
 
-Depois do conserto (comparação por radical de 4 letras): **2 → 1.616**.
+Depois do conserto (comparação por radical de 4 letras): **2 → `<n-corrob-1>`**.
 
 É a **décima primeira** ocorrência do padrão da noite — *julgar pela forma em vez do significado* — e
 a primeira **contra o artefato do próprio agente**, criado no mesmo turno. Detalhe que é o achado:
@@ -3038,7 +3041,7 @@ olhar um número e achar que estava baixo demais para ser verdade.
 
 **Para os requisitos:** isso é a prova mais limpa da noite de que *cobertura de teste não substitui
 plausibilidade de resultado*. Um teste verifica que o sinal roda; só um humano — ou um agente com o
-hábito — verifica que o sinal **informa**. `2 de 926` é sintaticamente um sucesso.
+hábito — verifica que o sinal **informa**. `2 de <n-sinal-base>` é sintaticamente um sucesso.
 
 ### 4 — ⭐⭐ Fechou o ponto cego que ele mesmo declarou duas vezes
 
@@ -3065,21 +3068,21 @@ artefato real" em vez de manter cópia.
 
 ### 5 — Números entregues, com premissa na mesma frase (como pedi)
 
-Universo: **3.970 produtos ativos com saldo** — e ele marcou explicitamente que **não é amostra**:
-*"são todos os 3.970, e todos foram consultados"*.
+Universo: **`<n-ativos-saldo>` produtos ativos com saldo** — e ele marcou explicitamente que **não é amostra**:
+*"são todos os `<n-ativos-saldo>`, e todos foram consultados"*.
 
 | Métrica | Valor |
 |---|---|
-| Classificados | **3.518** (88,6%); 452 o canal não reconheceu |
-| Categorias distintas | 528 — **todas** declararam limite de título |
-| Atributos mapeados | 7.154, dos quais **1.317 obrigatórios** |
-| **Prontos hoje sem intervenção** | **873** (22% dos 3.970) |
+| Classificados | **`<n-classificados>`** (88,6%); `<n-nao-reconhecidos>` o canal não reconheceu |
+| Categorias distintas | `<n-categorias-ml>` — **todas** declararam limite de título |
+| Atributos mapeados | `<n-atributos>`, dos quais **`<n-obrigatorios>` obrigatórios** |
+| **Prontos hoje sem intervenção** | **`<n-prontos>`** (22% dos `<n-ativos-saldo>`) |
 
-Corroboração (sinal dele): 1.616 batem com a categoria do ERP · 1.327 resultado único sem
-corroboração · 575 ambígua · 452 não reconhecido.
+Corroboração (sinal dele): `<n-corrob-1>` batem com a categoria do ERP · `<n-unico>` resultado único sem
+corroboração · `<n-ambigua>` ambígua · `<n-nao-reconhecidos>` não reconhecido.
 
-Ranking **por campo faltante**, que era o formato que pedi: `Unidades por kit` 1.396 · `EAN/GTIN` 831
-· `Código universal` 685 · `Modelo` 591 · `Categoria no canal` 452 · `Número de peça` 283 · …
+Ranking **por campo faltante**, que era o formato que pedi: `Unidades por kit` `<n-unid-kit>` · `EAN/GTIN` `<n-ean-gtin>`
+· `Código universal` `<n-cod-universal>` · `Modelo` `<n-modelo>` · `Categoria no canal` `<n-nao-reconhecidos>` · `Número de peça` `<n-num-peca>` · …
 
 ### 6 — Conferência minha na tela: um defeito de raciocínio que sobreviveu a tudo
 
@@ -3088,12 +3091,12 @@ renderizado. Mas os itens da lista mostram isto:
 
 | SKU | Categoria atribuída | Sinal | Prontidão |
 |---|---|---|---|
-| `#17643` ABAJOUR NADIR | **Protetores Bucais** | sem corroboração | **0 de 0 exigidos faltando** |
-| `#22764` ABAJOUR VD TRANSP | **Caldeiras Industriais** | sem corroboração | **0 de 3 faltando** |
-| `#42271` ACAB… | **Tornos Mecânicos** | sem corroboração | 0 de 3 faltando |
-| `#29697` ACAB… | **Placas de Microcontroladores** | sem corroboração | 0 de 3 faltando |
+| `#<sku-1>` ABAJOUR NADIR | **Protetores Bucais** | sem corroboração | **0 de 0 exigidos faltando** |
+| `#<sku-2>` ABAJOUR VD TRANSP | **Caldeiras Industriais** | sem corroboração | **0 de 3 faltando** |
+| `#<sku-3>` ACAB… | **Tornos Mecânicos** | sem corroboração | 0 de 3 faltando |
+| `#<sku-4>` ACAB… | **Placas de Microcontroladores** | sem corroboração | 0 de 3 faltando |
 
-**"Pronto" numa categoria errada não é pronto — é pronto para anunciar errado.** O número `873` é
+**"Pronto" numa categoria errada não é pronto — é pronto para anunciar errado.** O número `<n-prontos>` é
 calculado contra a *lista de exigências da categoria atribuída*, sem cruzar com o *sinal de
 corroboração que ele próprio criou no mesmo turno*. Os dois fatos estão na mesma tela, lado a lado, e
 o leitor consegue cruzar; **o número do topo não cruza**.
@@ -3103,7 +3106,7 @@ conclusão ao **ranking de campos** e não ao **contador de prontos**.
 
 ⚠ **Honestidade sobre a minha própria medição:** vi 25 itens renderizados, em ordem alfabética
 (`ABAJOUR`, `ACAB…`). Dos que exibiam prontidão, nenhum estava corroborado — mas 25 itens
-alfabéticos **não medem** os 873. Não sei a taxa; sei que o cruzamento não existe. Vai como M7.
+alfabéticos **não medem** os `<n-prontos>`. Não sei a taxa; sei que o cruzamento não existe. Vai como M7.
 
 **Décima segunda ocorrência do padrão**, e a mais cara em consequência de negócio: verificou-se o
 **canal** (a categoria exige X, Y, Z e eles estão preenchidos) em vez do **conteúdo** (a categoria
@@ -3152,15 +3155,15 @@ Verbatim:
 > fosse o total**. Nem `LIMIT 3000` passa disso."*
 
 **É o mesmo defeito da paginação do ERP que abriu esta série** — teto silencioso que parece resposta
-completa ([OBS-49](#), [OBS-50](#): 45 → 45.947 linhas). Agora do lado da **plataforma**, na função de
+completa ([OBS-49](#), [OBS-50](#): `<n-estoque-v1>` → `<n-estoque>` linhas). Agora do lado da **plataforma**, na função de
 consulta direta da própria SDK. Nada sinaliza o corte: não há flag, não há `hasMore`, e o campo que
 existe para dizer "quantas linhas há" diz **2000**.
 
 **Como foi pego, e é a mesma assinatura da noite toda:** não foi teste, não foi build. Foi um número
-redondo que não fechava — *"um recálculo de 3.970 linhas reportou 'recalculando 2000'"*.
+redondo que não fechava — *"um recálculo de `<n-ativos-saldo>` linhas reportou 'recalculando 2000'"*.
 
-**Dois scripts teriam mentido em silêncio**, e ele nomeou quais: a auditoria de schema (322 tabelas
-passam de 2.000 colunas em `INFORMATION_SCHEMA`) e o classificador (universo de 3.970). Ou seja: a
+**Dois scripts teriam mentido em silêncio**, e ele nomeou quais: a auditoria de schema (`<n-tabelas-erp>` tabelas
+passam de 2.000 colunas em `INFORMATION_SCHEMA`) e o classificador (universo de `<n-ativos-saldo>`). Ou seja: a
 auditoria de artefato órfão — **a melhor invariante da noite** — estava prestes a rodar sobre 2/3 do
 schema achando que via tudo. Uma invariante que só vê parte do universo não é uma invariante fraca; é
 uma **falsa garantia**, e das piores, porque o relatório dela é verde.
@@ -3205,14 +3208,14 @@ sintoma.
 
 ### 4 — A medição que eu pedi, e o número mudou de definição
 
-Dos **873** "prontos hoje":
+Dos **`<n-prontos>`** "prontos hoje":
 
 | Faixa | Prontos | |
 |---|---|---|
-| **Categoria corroborada** | **411** | 47% |
-| Resultado único, sem corroboração | 306 | 35% |
-| Ambígua | 133 | 15% |
-| Sem base de comparação | 23 | 3% |
+| **Categoria corroborada** | **`<n-conf-1>`** | 47% |
+| Resultado único, sem corroboração | `<n-unico-prontos>` | 35% |
+| Ambígua | `<n-ambigua-prontos>` | 15% |
+| Sem base de comparação | `<n-sem-base>` | 3% |
 
 > *"Não é 'maioria sem corroboração', mas 53% não têm confirmação — o suficiente para o número não
 > poder ficar como estava. **Definição mudou, não rótulo.**"*
@@ -3221,14 +3224,14 @@ Ele me corrigiu na proporção também: eu suspeitei de maioria, a medição deu
 mandei medir em vez de consertar — e é o registro honesto de que **a minha hipótese estava
 direcionalmente certa e quantitativamente errada**.
 
-**Conferi na tela:** o topo agora diz `PRONTOS E CONFIRMADOS 411`, com `mais 462 prontos com
+**Conferi na tela:** o topo agora diz `PRONTOS E CONFIRMADOS <n-conf-1>`, com `mais <n-a-confirmar-1> prontos com
 categoria a confirmar` embaixo, e o texto renderizado explica o porquê: *"Se a categoria não foi
 confirmada, o produto está pronto para anunciar na categoria errada — o que parece acionável e não
 é."* Cada faixa diz o que precisa acontecer antes.
 
 ### 5 — Dois achados que a medição revelou e que ele não esperava
 
-- **229 SKUs com grupo `PENDENTE` no ERP** — marcador de cadastro incompleto, não categoria. Para
+- **`<n-pendente>` SKUs com grupo `PENDENTE` no ERP** — marcador de cadastro incompleto, não categoria. Para
   eles a corroboração é **estruturalmente impossível**, e eles caíam em *"resultado único"*, que se
   lê como *provavelmente certo*. **Os dois `ABAJOUR` que eu vi eram exatamente isso.** Viraram faixa
   própria: *sem base de comparação*.
@@ -3258,7 +3261,7 @@ trechos, auditoria com 12 achados todos explicados. `main = origin/main = 9dfd28
 
 ---
 
-## OBS-70 — ⭐⭐⭐⭐ M8 (11/08 06:55) — `in: 18.8M · out: 40.4K` — o "não dá" bem feito, e um falso positivo de 422 SKUs
+## OBS-70 — ⭐⭐⭐⭐ M8 (11/08 06:55) — `in: 18.8M · out: 40.4K` — o "não dá" bem feito, e um falso positivo de `<n-porc-falsos>` SKUs
 
 Pedi duas coisas e uma opcional. Voltou com **um "não dá" provado em quatro fontes**, a tela de
 confirmação em lote, **e a falha mais cara da série achada pela própria verificação dele** — com o
@@ -3266,13 +3269,13 @@ número que ele me entregou no turno anterior sendo corrigido para baixo.
 
 ### 1 — ⭐ Como se entrega um "não dá" que vale mais que um "deu"
 
-`Unidades por kit` destrava 1.396 SKUs, o topo do ranking. Pedi para investigar se dava para derivar
+`Unidades por kit` destrava `<n-unid-kit>` SKUs, o topo do ranking. Pedi para investigar se dava para derivar
 do dado existente e avisei que "não dá" seria resultado legítimo. Ele mediu **quatro fontes
 independentes** antes de dizer:
 
 | Fonte | Resultado medido |
 |---|---|
-| Padrão na descrição (`CX C/ 2`, `PCT 10`, `JG 4PC`) | **1.389 de 1.407 sem padrão nenhum (98,7%)** |
+| Padrão na descrição (`CX C/ 2`, `PCT 10`, `JG 4PC`) | **`<n-sem-padrao>` de `<n-unid-kit-amostra>` sem padrão nenhum (98,7%)** |
 | Os 18 que casaram | vários falso positivo — `TUBO 2X 64MM` é código de modelo, não quantidade |
 | Campo `quantidadeEmbalagem` do ERP | preenchido em **9%** (7 de 80), e quase sempre em produto vendido por m², onde significa **m² por caixa** |
 | Campo `agrupamentoMinimo` do ERP | preenchido em 40%, mas é **múltiplo mínimo de compra no atacado** — conceito diferente |
@@ -3291,22 +3294,22 @@ a aparência de rigor. A diferença entre os dois "não dá" aqui é uma pergunt
 algum lugar que eu ainda não olhei?*
 
 Também: erro dele no próprio probe, achado e corrigido em voz alta — *"o atributo do ranking é
-`UNITS_PER_PACK` (149 categorias), não `UNITS_PER_PACKAGE` (46)"*. Teria medido a coisa errada.
+`UNITS_PER_PACK` (`<n-cat-a>` categorias), não `UNITS_PER_PACKAGE` (`<n-cat-b>`)"*. Teria medido a coisa errada.
 
-### 2 — 🔴 `PORCelanato` × `PORCas`: 422 SKUs com selo de corroborado numa categoria de parafusaria
+### 2 — 🔴 `PORCelanato` × `PORCas`: `<n-porc-falsos>` SKUs com selo de corroborado numa categoria de parafusaria
 
 > *"Ao testar o fluxo, a evidência classificou `PISO PORCELANATO` → `Porcas` como "provável acerto".
 > Fui olhar: meu radical de 4 letras casava PORCelanato com PORCas."*
 
-**422 SKUs de piso porcelanato estavam com selo de corroborado — e entravam no contador de prontos
+**`<n-porc-falsos>` SKUs de piso porcelanato estavam com selo de corroborado — e entravam no contador de prontos
 confirmados** que eu publiquei aqui uma hora antes.
 
 **Terceira vez** que um sinal dele acende errado, e as três falham em direções opostas:
 
 | Versão | Regra | Sintoma |
 |---|---|---|
-| 1ª ([OBS-69](#)) | token inteiro, igualdade exata | **nunca acendia** — 2 de 926 |
-| 2ª ([OBS-69](#)) | radical de 4 letras | **acendia demais** — 422 falsos |
+| 1ª ([OBS-69](#)) | token inteiro, igualdade exata | **nunca acendia** — 2 de `<n-sinal-base>` |
+| 2ª ([OBS-69](#)) | radical de 4 letras | **acendia demais** — `<n-porc-falsos>` falsos |
 | 3ª (esta) | abreviação × palavra inteira | 6/6 nos casos conhecidos |
 
 **E a correção óbvia era pior.** Ele testou antes de aplicar:
@@ -3323,8 +3326,8 @@ confirmados** que eu publiquei aqui uma hora antes.
 | `TORN.COZ.MESA` × `Torneiras Convencionais` | casava | casa |
 | `REV. PASTILHAS` × `Pastéis` | casava | **não casa** |
 
-Corroborados **1.616 → 1.146**. Prontos confirmados **411 → 380**. Conferi na tela: `PRONTOS E
-CONFIRMADOS 380`, `mais 493 prontos com categoria a confirmar`.
+Corroborados **`<n-corrob-1>` → `<n-corrob-2>`**. Prontos confirmados **`<n-conf-1>` → `<n-conf-2>`**. Conferi na tela: `PRONTOS E
+CONFIRMADOS <n-conf-2>`, `mais <n-a-confirmar-2> prontos com categoria a confirmar`.
 
 > *"O número que te dei ontem estava inflado, e peço desculpas por isso ter chegado a você antes de
 > eu medir."*
@@ -3341,8 +3344,8 @@ frequentemente verdadeira, o que é justamente o que a torna perigosa.
 Pedi para agrupar por categoria sugerida porque confirmar um grupo vale mais que confirmar 40
 produtos. O retorno foi melhor que o pedido:
 
-- **422** SKUs de `PISO PORCELANATO` → `Porcas` — **uma rejeição conserta 422**
-- **338** de `PUXADOR MOVEL` → `Puxadores` — **uma confirmação destrava 338**
+- **`<n-porc-falsos>`** SKUs de `PISO PORCELANATO` → `Porcas` — **uma rejeição conserta `<n-porc-falsos>`**
+- **`<n-puxador>`** de `PUXADOR MOVEL` → `Puxadores` — **uma confirmação destrava `<n-puxador>`**
 - `ACESSORIOS BANHO AVULSO` → `Optoacopladores`, com o grupo **espalhado por 90 categorias** — e ele
   leu isso corretamente como *"sinal de classificação instável"*, não como 90 decisões a tomar
 
@@ -3355,7 +3358,7 @@ produto do mesmo grupo nasce confirmado.
 
 ### 4 — O item opcional não coube, e ele disse isso do jeito certo
 
-> *"3. Os 229 do `PENDENTE`. **Não coube.** Está registrado no `tasks.md` como pendente, **não como
+> *"3. Os `<n-pendente>` do `PENDENTE`. **Não coube.** Está registrado no `tasks.md` como pendente, **não como
 > feito**."*
 
 Contraste direto com [OBS-52](#), onde um turno fechou "concluído" com o app ainda na versão
@@ -3398,7 +3401,7 @@ Regra final: **prefixo comum, mínimo de 6 letras** (ou o tamanho da palavra cur
 | `CUBA` × `CUBAS` | 4 | 4 | casa ✓ |
 | `TORN.` × `TORNEIRAS` | abreviação | — | casa ✓ |
 
-**25/25.** Corroborados 1.146 → **1.157**; prontos confirmados 380 → **383**.
+**25/25.** Corroborados `<n-corrob-2>` → **`<n-corrob-3>`**; prontos confirmados `<n-conf-2>` → **`<n-conf-3>`**.
 
 Vale sublinhar o que aconteceu: as três primeiras versões do sinal falharam **em produção, achadas
 por olho**; a quarta falhou **no corpus, antes de sair**. É a diferença que o corpus compra, e ela
@@ -3462,10 +3465,10 @@ respondeu.
 > cadastro de seller e chave de API — o que é **decisão comercial, não técnica**. A arquitetura já
 > trata canal como dado: quando houver credencial, o canal entra sem tocar em código."*
 
-### 4 — Os 229 do `PENDENTE`, agora entregues
+### 4 — Os `<n-pendente>` do `PENDENTE`, agora entregues
 
-229 produtos, **1.592 de saldo parado**. Lista do que falta em cada um + exportação CSV para quem
-cuida do cadastro. E a medição mostrou que o grupo não era homogêneo: **72 sem código de barras, 62
+`<n-pendente>` produtos, **`<n-saldo-parado>` de saldo parado**. Lista do que falta em cada um + exportação CSV para quem
+cuida do cadastro. E a medição mostrou que o grupo não era homogêneo: **`<n-sem-codbarras>` sem código de barras, `<n-sem-ref>`
 sem referência, 1 sem marca** — não é só o grupo faltando.
 
 ### 5 — Alerta que ele levantou sozinho, e é bom
@@ -3760,7 +3763,7 @@ Também recusou o atalho de reaproveitar `ANUNCIOS`, com razão declarada: aquel
 ### 73.6 — A regra de ambiguidade que veio da medição, não do costume
 
 Matching por código de barras: **1 candidato vincula; 2+ vira `EAN_AMBIGUO` e vai para a fila
-humana**. O número que justifica a regra (relatado): **589 SKUs ativos** teriam sido vinculados
+humana**. O número que justifica a regra (relatado): **`<n-ean-ambiguo>` SKUs ativos** teriam sido vinculados
 errado — e, pior, *com selo de "o código bateu"*, que é a forma mais convincente de estar errado.
 Normaliza para GTIN-14, então UPC-12 encontra EAN-13 com zero à esquerda.
 
@@ -3889,7 +3892,7 @@ Commit do turno: `1ac45ea`.
 ## OBS-75 — ⭐⭐⭐⭐ M13 (11/08, tarde) — a varredura de coerência: **nenhuma das duas telas estava errada**
 
 Gatilho do usuário, e ele é o melhor tipo de gatilho: *"em Operar Anúncios não está aparecendo nenhum
-anúncio de nenhum marketplace"* — com 34 anúncios reais já espelhados e 30 vinculados. A partir daí
+anúncio de nenhum marketplace"* — com `<n-anuncios>` anúncios reais já espelhados e `<n-vinculados>` vinculados. A partir daí
 ele mandou parar de construir e **alinhar todo o funcionamento da plataforma antes** (decisão que
 também congelou o plano do Loop Governado, `18`).
 
@@ -3945,8 +3948,8 @@ fontes transforma o mesmo fato em algo que o usuário pode resolver.
 
 ### 75.4 — ⭐⭐ O agente quase criou a contradição seguinte, e desfez antes de publicar
 
-Ao construir a varredura, ele escreveu um contador próprio que devolvia **831** onde uma Server
-Function existente devolvia **229**. Ele alinhou os dois **e removeu o seu**, em vez de deixar as
+Ao construir a varredura, ele escreveu um contador próprio que devolvia **`<n-ean-gtin>`** onde uma Server
+Function existente devolvia **`<n-pendente>`**. Ele alinhou os dois **e removeu o seu**, em vez de deixar as
 duas contagens convivendo.
 
 Isso é o comportamento certo, e é raro: o caminho de menor esforço era publicar o número novo (o
@@ -3954,7 +3957,7 @@ dele) e deixar o antigo lá. Duas fontes para o mesmo fato é precisamente a doe
 acabado de diagnosticar em 75.1 — e ele reconheceu o próprio código como portador dela.
 
 A regra virou barreira executável em `test-coerencia.mjs`: **as 4 contagens do mesmo fato precisam
-bater** — hub = espelho = vínculo = canal = **34**. Não é assert de valor; é assert de *acordo entre
+bater** — hub = espelho = vínculo = canal = **`<n-anuncios>`**. Não é assert de valor; é assert de *acordo entre
 fontes*.
 
 ### 75.5 — O saldo da auditoria das 16 rotas
@@ -3977,25 +3980,25 @@ Commits do turno: `6549da4` e `c1f8702`.
 Primeiro lote despachado sob a fila combinada com o usuário (`19-backlog`): um lote
 por turno, conferido na tela publicada antes do próximo. Quatro itens.
 
-### 76.1 — ⭐⭐⭐⭐ 10 divergências reais de estoque em 30 anúncios ligados
+### 76.1 — ⭐⭐⭐⭐ `<n-divergem>` divergências reais de estoque em `<n-vinculados>` anúncios ligados
 
 O achado mais forte do dia, e o primeiro em que o app **produz informação que o usuário não tinha**
 em vez de organizar informação que ele já tinha.
 
 | Medição | Valor |
 |---|---|
-| Anúncios ligados ao catálogo | 30 |
-| Divergem entre canal e ERP | **10** |
-| Canal com **mais** que o ERP | 2 |
-| Canal com **menos** que o ERP | 8 |
+| Anúncios ligados ao catálogo | `<n-vinculados>` |
+| Divergem entre canal e ERP | **`<n-divergem>`** |
+| Canal com **mais** que o ERP | `<n-canal-mais>` |
+| Canal com **menos** que o ERP | `<n-canal-menos>` |
 | Ativos no canal com saldo **zero** no ERP | **0** — o caso caro não ocorre hoje |
 
-Pior caso conferido por mim na tela publicada: *Mangueira Flexível Deca*, **35 no canal contra 5 no
-ERP** — 30 unidades anunciadas a mais do que existem.
+Pior caso conferido por mim na tela publicada: *`<produto-1>`*, **`<u-canal>` no canal contra `<u-erp>` no
+ERP** — `<u-canal>` − `<u-erp>` unidades anunciadas a mais do que existem.
 
 O que faz isso ser medição e não acusação: cada linha traz **os dois lados e a data de cada
 leitura** (canal lido há 2h, ERP importado às 05:29), mais aviso quando o espelho passa de 12h. Sem
-isso, parte das 10 divergências poderia ser apenas o intervalo entre as duas leituras — e o app
+isso, parte das `<n-divergem>` divergências poderia ser apenas o intervalo entre as duas leituras — e o app
 estaria denunciando o próprio atraso como se fosse erro do cliente.
 
 **Recusa que vale tanto quanto o achado:** ele não criou alerta de preço. Motivo declarado — afirmar
@@ -4005,8 +4008,8 @@ fato"* — o mesmo defeito de "88,6% de acerto" (75.3). O preço do canal aparec
 
 ### 76.2 — ⭐⭐ A varredura de truncamento cresceu de 3 declarados para 8 medidos
 
-O lote pedia os 3 casos que ele mesmo havia declarado. Ele varreu e achou mais: ABC **400 de 5.942**,
-Confirmar categoria **40 de 925**, Fila **60 de 1.622**, Alertas com `LIMIT 200`, "Pronto e não
+O lote pedia os 3 casos que ele mesmo havia declarado. Ele varreu e achou mais: ABC **400 de `<n-abc>`**,
+Confirmar categoria **40 de `<n-confirmar-cat>`**, Fila **60 de `<n-fila>`**, Alertas com `LIMIT 200`, "Pronto e não
 vende" 30, CSV 300, Oportunidades, e o **CSV de Prontidão**.
 
 O último é o pior lugar possível para um número mentir: o corte acontece **dentro do arquivo
@@ -4014,7 +4017,7 @@ baixado**, que sai do app e vira planilha na mão de alguém — sem a tela em v
 recorte.
 
 Isca nova em `test-coerencia.mjs` (9 blocos): rótulo de total sobre lista limitada **tem de
-reprovar**. E os totais conferidos passam do teto das listas (5.942 > 400, 925 > 40, 1.622 > 60), ou
+reprovar**. E os totais conferidos passam do teto das listas (`<n-abc>` > 400, `<n-confirmar-cat>` > 40, `<n-fila>` > 60), ou
 seja, **a regra é testada contra dado que realmente dispara**, não contra um caso hipotético.
 
 ### 76.3 — ⭐⭐ O vocabulário de status virou dado por canal
@@ -4039,7 +4042,7 @@ Regressão: 11 suítes, 0 falhas, 13 verificações de render.
 
 ### 76.5 — ⚠ O texto que sobreviveu à feature que o contradisse (achado meu, na tela publicada)
 
-Conferindo `/alertas` por fora, encontrei no topo da tela, **acima** do cartão que diz "10 de 30
+Conferindo `/alertas` por fora, encontrei no topo da tela, **acima** do cartão que diz "`<n-divergem>` de `<n-vinculados>`
 anúncios ligados", o parágrafo antigo:
 
 > *"Os anúncios que estão de fato no canal são lidos como espelho e ainda não entram nesta
@@ -4067,7 +4070,7 @@ Depois do quarto limite de sessão, o agente retomou com `in: 214.4K` — contra
 inteiros. O resumo coube; a tarefa não.
 
 O que aconteceu: ele **re-derivou a intenção a partir de um arquivo do projeto**. Achou um backlog
-interno, leu "P1: lista dos 229 produtos do grupo PENDENTE", e começou a construir isso. Duas Server
+interno, leu "P1: lista dos `<n-pendente>` produtos do grupo PENDENTE", e começou a construir isso. Duas Server
 Functions (`mcProdutosGrupoPendente` 143, `mcProdutosGrupoPendenteResumo` 144) foram **efetivamente
 publicadas** e registradas em `sf-ids.ts` — não ficaram em arquivo local.
 
@@ -4083,8 +4086,8 @@ pode depender de o agente lembrar por quê.* Se o objetivo precisa sobreviver, e
 artefato que o agente **releia**, não num resumo que ele **herde**.
 
 O reancoramento que funcionou nomeava as quatro coisas: qual fonte ele leu por engano, quais eram
-os itens reais, quais fatos já medidos ele **não deve remedir** (`CUSSEMICM`, `METALTST`,
-`AD_NROPEDFAB`, `DHALTER`, 270.874 pedidos), e **"quero o estado, não um plano"**. Ele desfez o
+os itens reais, quais fatos já medidos ele **não deve remedir** (`CUSSEMICM`, `<schema-7>`,
+`AD_<campo-cliente>`, `DHALTER`, `<n>` pedidos), e **"quero o estado, não um plano"**. Ele desfez o
 desvio sozinho antes de qualquer outra coisa: SFs removidas, `sf-ids.ts` regenerado para 117,
 script apagado, as duas barreiras reexecutadas depois da remoção.
 
@@ -4125,7 +4128,7 @@ classificou o item como **zero medido**:
 > *"Nenhum número dela existe hoje: ela imprime em console, não grava tabela, e não há registro do
 > resultado em lugar nenhum do repositório. Não posso afirmar que rodou."*
 
-Reescrita para gravar `CANAL_SONDAGEM_PEDIDO` — 52 linhas, cada uma com `QUANTIDADE`, `BASE` e
+Reescrita para gravar `CANAL_SONDAGEM_PEDIDO` — `<n-linhas-sondagem>` linhas, cada uma com `QUANTIDADE`, `BASE` e
 `MEDIDO_EM`, mais uma SF de leitura (`mcCanalSondagemPedido`, 145) para conferir depois sem acesso
 ao backend. Resultado em `21` §7.1.
 
@@ -4147,7 +4150,7 @@ Barreiras reexecutadas depois de tudo: `test-erp-somente-leitura.mjs` verde (119
 24 egressos vistos, 11 iscas de SQL + 7 de egresso), `test-metodo-ml.mjs` verde. O script novo
 passou pelas duas.
 
-E fechou declarando quatro coisas que **não** mediu — inclusive que os 40 pedidos são *"o que
+E fechou declarando quatro coisas que **não** mediu — inclusive que os `<n-pedidos-ml>` pedidos são *"o que
 `/orders/search` devolve hoje para este seller"*, não *"tudo que já foi vendido"*. É a terceira
 sessão seguida em que o limite declarado vem antes de eu perguntar.
 

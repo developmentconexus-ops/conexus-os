@@ -87,17 +87,22 @@ test('only the root AGENTS.md may tell a reader to run npm run verify', context 
   assert.equal(result.stderr, 'error docs/development/delivery.md:8: only the root AGENTS.md may tell a reader to run npm run verify\n')
 })
 
-test('a nested AGENTS.md over 30 lines fails; the root AGENTS.md over 60 lines only warns', context => {
-  const candidate = fixture(context, { 'AGENTS.md': lines(61) })
-  const warned = run(candidate)
-  assert.equal(warned.status, 0, warned.stderr)
-  assert.equal(warned.stdout, 'warning AGENTS.md: 61 lines exceeds the cap of 60 (enforced once M6 rewrites the root AGENTS.md)\n'
+test('the root AGENTS.md over 60 lines only warns', context => {
+  const result = run(fixture(context, { 'AGENTS.md': lines(61) }))
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, 'warning AGENTS.md: 61 lines exceeds the cap of 60 (enforced once M6 rewrites the root AGENTS.md)\n'
     + 'Agent context checks passed (files=2, warnings=1).\n')
-  mkdirSync(resolve(candidate, 'apps/web'), { recursive: true })
-  writeFileSync(resolve(candidate, 'apps/web/AGENTS.md'), lines(31))
-  const failed = run(candidate)
+})
+
+test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context => {
+  const nested = 'apps/web/AGENTS.md'
+  const atCap = fixture(context, { [nested]: `${'x'.repeat(1799)}\n` })
+  const passed = run(atCap)
+  assert.equal(passed.status, 0, passed.stderr)
+  assert.equal(passed.stdout, 'Agent context checks passed (files=3, warnings=0).\n')
+  const failed = run(fixture(context, { [nested]: `${'x'.repeat(1800)}\n` }))
   assert.equal(failed.status, 1)
-  assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 31 lines exceeds the cap of 30\n')
+  assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 1801 characters exceeds the cap of 1800 (about 500 tokens)\n')
 })
 
 test('a skill over 90 lines fails, the conexus-development skill included', context => {

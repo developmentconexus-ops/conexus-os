@@ -4,7 +4,7 @@
 
 ## Native census
 
-<!-- Only when the change adds a mechanism. See docs/development/review-checklist.md, "Mastra first, no parallel logic". -->
+<!-- Only when the change adds a mechanism. See docs/development/review/mastra-native.md, "Proof required". The reviewer redoes it. -->
 
 ## Proof
 

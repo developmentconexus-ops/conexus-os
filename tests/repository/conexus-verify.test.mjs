@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
@@ -9,6 +10,7 @@ import {
   assertExecutionEnvironment,
   executionEnvironment,
   listScopes,
+  newTestLedger,
   parseArguments,
   resolveScope,
   runVerification,
@@ -58,6 +60,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder',
   'wire-technical-lint', 'wire-technical-ingress',
+  'only-opt-in-skips',
 ])
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
@@ -95,6 +98,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
 
   const calls = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['repository', 'final', 'test:one'],
     packageScripts,
     dryRun: true,
@@ -111,6 +115,7 @@ test('execution is sequential and stops at the first failed npm command', () => 
   const calls = []
   let ticks = 0
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['test:one', 'test:two', 'verify'],
     packageScripts,
     clock: () => ++ticks,
@@ -136,6 +141,7 @@ test('execution is sequential and stops at the first failed npm command', () => 
 test('the hub build step publishes its directory to the steps after it, and only after it succeeds', () => {
   const seen = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -152,6 +158,7 @@ test('the hub build step publishes its directory to the steps after it, and only
 
   const failedBuild = []
   runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -199,6 +206,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'paid live experiments are explicit commands, not inherited flags in default verification')
 
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     dryRun: true,
@@ -217,6 +225,7 @@ test('candidate graph does not reference the deleted Change-era source-state tes
 test('a step that never exits is killed and reported by name', () => {
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['test:one'],
     packageScripts,
     runCommand: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('spawnSync bash ETIMEDOUT'), { code: 'ETIMEDOUT' }) }),
@@ -335,4 +344,79 @@ test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run li
 
   assert.deepEqual(calls.filter(scope => browserScopes.includes(scope)), browserScopes)
   assert.equal(result.records.some(record => record.status === 'skipped'), false)
+})
+
+const REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')} --test-reporter-destination=stdout`
+
+test('every step records its skips into one fresh ledger per run', () => {
+  const ledger = { root: '/work/conexus-os', file: '/tmp/conexus-test-ledger-fixture.jsonl' }
+  const staticStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
+  const postgresStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'postgres')
+  const instrumentation = {
+    CONEXUS_TEST_LEDGER_ROOT: '/work/conexus-os',
+    CONEXUS_TEST_LEDGER: '/tmp/conexus-test-ledger-fixture.jsonl',
+  }
+
+  assert.deepEqual(executionEnvironment(staticStep, { PATH: '/fixture/bin' }, ledger), {
+    PATH: '/fixture/bin',
+    ...instrumentation,
+    NODE_OPTIONS: REPORTER_OPTIONS,
+  })
+  assert.deepEqual(executionEnvironment(staticStep, { NODE_OPTIONS: '--max-old-space-size=4096' }, ledger), {
+    ...instrumentation,
+    NODE_OPTIONS: `--max-old-space-size=4096 ${REPORTER_OPTIONS}`,
+  })
+  assert.deepEqual(executionEnvironment(staticStep, { NODE_OPTIONS: REPORTER_OPTIONS }, ledger), {
+    ...instrumentation,
+    NODE_OPTIONS: REPORTER_OPTIONS,
+  })
+  assert.deepEqual(executionEnvironment(postgresStep, {}, ledger), {
+    ...instrumentation,
+    NODE_OPTIONS: REPORTER_OPTIONS,
+    CONEXUS_TEST_DB_HOST: '127.0.0.1',
+    CONEXUS_TEST_DB_PORT: '5432',
+    CONEXUS_TEST_DB_NAME: 'conexus_test',
+    CONEXUS_TEST_DB_USER: 'postgres',
+    CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
+  })
+
+  let observed
+  runNpmScript(staticStep, {
+    root: '/work/conexus-os',
+    processEnvironment: { PATH: '/fixture/bin' },
+    testLedger: ledger,
+    spawn: (_file, _args, options) => { observed = options.env },
+  })
+  assert.deepEqual(observed, { PATH: '/fixture/bin', ...instrumentation, NODE_OPTIONS: REPORTER_OPTIONS })
+
+  const runLedgers = () => {
+    const seen = []
+    runVerification({
+      scopes: ['candidate'],
+      packageScripts,
+      platform: 'linux',
+      processEnvironment: {},
+      runCommand: (_entry, { testLedger }) => { seen.push(testLedger); return { status: 0 } },
+    })
+    return seen
+  }
+  const first = runLedgers()
+  const second = runLedgers()
+  assert.equal(first.length, CANDIDATE_GRAPH.length)
+  assert.equal(new Set(first).size, 1)
+  assert.equal(first[0].root, repositoryRoot)
+  assert.equal(dirname(first[0].file), tmpdir())
+  assert.match(first[0].file, /conexus-test-ledger-[0-9a-f-]{36}\.jsonl$/)
+  assert.notEqual(first[0].file, second[0].file)
+  assert.equal(existsSync(first[0].file), false)
+  assert.equal(newTestLedger('/work/conexus-os').root, '/work/conexus-os')
+})
+
+test('the opt-in skip check runs last', () => {
+  assert.deepEqual(CANDIDATE_GRAPH.at(-1), {
+    scope: 'only-opt-in-skips',
+    command: 'node scripts/check-test-skips.mjs',
+    environmentClass: 'static',
+    graph: 'candidate',
+  })
 })

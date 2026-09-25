@@ -1,6 +1,6 @@
 // Checks the documents agents read before working: every `npm run X` they cite exists, every
 // relative link resolves, the trunk they name is `main`, only the root AGENTS.md tells a reader to
-// run `npm run verify`, and each file stays under its line cap.
+// run `npm run verify`, and each file stays under its size cap.
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
@@ -18,12 +18,19 @@ export function inScope(path) {
     || (/^(\.agents\/skills|docs\/development)\//.test(path) && path.endsWith('.md'))
 }
 
+const LINES = { unit: 'lines', measure: text => text.replace(/\n$/, '').split('\n').length }
+const CHARACTERS = { unit: 'characters', measure: text => text.length }
+
+// Mastra caps a package AGENTS.md at 500 tokens (tokenx estimateTokenCount). tokenx 2.1.0 on Mastra's and
+// our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
+const NESTED_AGENTS_CHARACTERS = 1800
+
 // First match wins. A `warn` cap reports without failing until the named step rewrites the file.
-export const LINE_CAPS = Object.freeze([
-  { match: path => path === 'AGENTS.md', max: 60, severity: 'warn', until: 'M6 rewrites the root AGENTS.md' },
-  { match: path => path.endsWith('/AGENTS.md'), max: 30, severity: 'error' },
-  { match: path => path.endsWith('/SKILL.md'), max: 90, severity: 'error' },
-  { match: path => path === 'docs/development/delivery.md', max: 150, severity: 'error' },
+export const SIZE_CAPS = Object.freeze([
+  { match: path => path === 'AGENTS.md', ...LINES, max: 60, severity: 'warn', until: 'M6 rewrites the root AGENTS.md' },
+  { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, severity: 'error', note: 'about 500 tokens' },
+  { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90, severity: 'error' },
+  { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150, severity: 'error' },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
@@ -55,16 +62,15 @@ function linesOf(text) {
   })
 }
 
-const lineCount = text => text.replace(/\n$/, '').split('\n').length
-
 export function checkFile(path, text, { root, scripts }) {
   const findings = []
   const report = (severity, number, message) => findings.push({ severity, where: number ? `${path}:${number}` : path, message })
 
-  const cap = LINE_CAPS.find(rule => rule.match(path))
-  const lines = lineCount(text)
-  if (cap && lines > cap.max) {
-    report(cap.severity, 0, `${lines} lines exceeds the cap of ${cap.max}${cap.until ? ` (enforced once ${cap.until})` : ''}`)
+  const cap = SIZE_CAPS.find(rule => rule.match(path))
+  const size = cap?.measure(text)
+  if (cap && size > cap.max) {
+    const gloss = cap.note ?? (cap.until && `enforced once ${cap.until}`)
+    report(cap.severity, 0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${gloss ? ` (${gloss})` : ''}`)
   }
 
   for (const { line, number, fenced } of linesOf(text)) {

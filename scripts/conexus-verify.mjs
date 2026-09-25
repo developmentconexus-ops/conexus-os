@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -50,7 +52,7 @@ const hubBuildStep = Object.freeze({
  */
 export const CANDIDATE_GRAPH = Object.freeze([
   hubBuildStep,
-  candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs', 'postgres'),
+  candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs tests/implementation/hub-database-cleanup-postgres.test.mjs', 'postgres'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs && npx --no-install biome check tests/implementation/hub-migration-selection.test.mjs tests/implementation/hub-migration-postgres.test.mjs'),
   candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
   candidateStep('iam-membership-authority', 'node --test --test-concurrency=1 tests/implementation/membership-authority-postgres.test.mjs', 'postgres'),
@@ -94,7 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/labels.mjs tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/labels.mjs scripts/test-ledger-reporter.mjs scripts/check-test-skips.mjs tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -129,6 +131,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-builder', 'npm run wire:builder'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
+
+  candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
 
 // Descriptive aliases make the manifest easy to discover for tests and small
@@ -288,8 +292,26 @@ export function commandArguments(entry) {
   return ['run', entry.npmScript, ...(entry.npmArgs.length ? ['--', ...entry.npmArgs] : [])]
 }
 
-export function executionEnvironment(entry, processEnvironment = process.env) {
-  if (entry.environmentClass !== 'postgres') return processEnvironment
+const LEDGER_REPORTER = resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')
+const LEDGER_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
+
+// Every step records its skipped tests for the only-opt-in-skips leaf. A fresh ledger per run keeps
+// apart two runs that share node_modules through a worktree symlink, and a test that calls
+// runVerification in-process cannot clear the ledger of the run it is part of.
+export const newTestLedger = (root = repositoryRoot) => Object.freeze({
+  root,
+  file: resolve(tmpdir(), `conexus-test-ledger-${randomUUID()}.jsonl`),
+})
+
+export function executionEnvironment(entry, processEnvironment = process.env, testLedger = null) {
+  const nodeOptions = processEnvironment.NODE_OPTIONS ?? ''
+  const instrumented = testLedger ? {
+    ...processEnvironment,
+    CONEXUS_TEST_LEDGER_ROOT: testLedger.root,
+    CONEXUS_TEST_LEDGER: testLedger.file,
+    NODE_OPTIONS: nodeOptions.includes(LEDGER_REPORTER) ? nodeOptions : `${nodeOptions} ${LEDGER_REPORTER_OPTIONS}`.trim(),
+  } : processEnvironment
+  if (entry.environmentClass !== 'postgres') return instrumented
 
   const names = Object.keys(POSTGRES_ENV_DEFAULTS)
   const selected = names.filter(name => processEnvironment[name])
@@ -298,7 +320,7 @@ export function executionEnvironment(entry, processEnvironment = process.env) {
   }
 
   return {
-    ...processEnvironment,
+    ...instrumented,
     ...(selected.length === names.length ? {} : POSTGRES_ENV_DEFAULTS),
   }
 }
@@ -319,7 +341,7 @@ function defaultClock() {
 // few minutes.
 export const STEP_TIMEOUT_MS = 10 * 60 * 1000
 
-export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env } = {}) {
+export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env, testLedger = null } = {}) {
   const args = commandArguments(entry)
   const executable = entry.command ? (process.platform === 'win32' ? 'bash.exe' : 'bash') : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
   return spawn(executable, args, {
@@ -328,7 +350,7 @@ export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, 
     stdio: ['ignore', 'inherit', 'inherit'],
     timeout: STEP_TIMEOUT_MS,
     killSignal: 'SIGKILL',
-    env: executionEnvironment(entry, processEnvironment),
+    env: executionEnvironment(entry, processEnvironment, testLedger),
   })
 }
 
@@ -371,6 +393,7 @@ export function runVerification({
   const records = []
   const published = {}
   const skipBrowser = Boolean(processEnvironment.CONEXUS_VERIFY_SKIP_BROWSER)
+  const testLedger = newTestLedger(root)
 
   for (const entry of entries) {
     const command = formatCommand(entry)
@@ -404,7 +427,7 @@ export function runVerification({
     const startedAt = clock()
     let result
     try {
-      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...process.env, ...published } })
+      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, testLedger })
     } catch (error) {
       result = { status: null, error }
     }

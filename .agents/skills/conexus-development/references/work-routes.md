@@ -27,7 +27,7 @@ The task in `docs/tasks` is the execution and review contract. It is not product
 2. **Protected result.** The observable or structural result that must become true.
 3. **Why.** Evidence and root cause, only where they change the implementation.
 4. **Preserve.** Decisions and invariants that must not regress.
-5. **Code census.** KEEP, CHANGE, DELETE, and MEASURE where relevant, plus the native census from the [review checklist](../../../../docs/development/review-checklist.md#mastra-first-no-parallel-logic).
+5. **Code census.** KEEP, CHANGE, DELETE, and MEASURE where relevant, plus the native census from [Mastra native](../../../../docs/development/review/mastra-native.md#proof-required).
 6. **Target shape.** Data and control flow and the owner boundary, not speculative detail.
 7. **Implementation checklist.** Ordered work an implementer can do without inventing architecture.
 8. **Non-goals.** Adjacent work that stays out.

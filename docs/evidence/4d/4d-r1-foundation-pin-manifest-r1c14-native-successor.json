@@ -39,7 +39,7 @@
   },
   "image": {
     "tag": "conexus-r1c14-git:2.55.0-native-readmission-v3",
-    "buildInvocation": "BUILDX_GIT_INFO=0 BUILDX_METADATA_PROVENANCE=max docker buildx build --platform linux/amd64 --provenance=mode=max --metadata-file /home/leandrotheodoro/conexus-r1c14-native-readmission/build-metadata-v3.json --load --tag conexus-r1c14-git:2.55.0-native-readmission-v3 qualification/4d/r1-git-source-custody",
+    "buildInvocation": "BUILDX_GIT_INFO=0 BUILDX_METADATA_PROVENANCE=max docker buildx build --platform linux/amd64 --provenance=mode=max --metadata-file ~/conexus-r1c14-native-readmission/build-metadata-v3.json --load --tag conexus-r1c14-git:2.55.0-native-readmission-v3 qualification/4d/r1-git-source-custody",
     "base": "node@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2",
     "ociIndexDigest": "sha256:5e5c3526292bb87a97a3fa41c8e715800a02da5238fbe07bf99c1c4b614f7851",
     "linuxAmd64ManifestDigest": "sha256:5c4c1731bb91b227c26ab40efd8298a8a9b3a3f8a5a40642d65817d581a72276",
@@ -80,7 +80,7 @@
     "supersededControlSha256": "63b2bbd241ef9c303c2a6c92f25a4410730237c31bc683422b0838000e3ad479",
     "supersededCandidatePath": "qualification/4d/r1-git-source-custody/evidence/superseded-candidates/native-readmission-linux-2026-09-01-v13.json",
     "supersededCandidateSha256": "20e9990385e5cdf8524a23c8064e43981a0568123db9e230f7e302198343f065",
-    "command": "node qualification/4d/r1-git-source-custody/run.mjs --pin qualification/4d/r1-git-source-custody/native-readmission-pin.json --build-metadata /home/leandrotheodoro/conexus-r1c14-native-readmission/build-metadata-v3.json --evidence-directory evidence/native-readmission-linux-2026-09-01-v14 --work-root /var/tmp/conexus-r1c14-native-readmission-work-v14",
+    "command": "node qualification/4d/r1-git-source-custody/run.mjs --pin qualification/4d/r1-git-source-custody/native-readmission-pin.json --build-metadata ~/conexus-r1c14-native-readmission/build-metadata-v3.json --evidence-directory evidence/native-readmission-linux-2026-09-01-v14 --work-root /var/tmp/conexus-r1c14-native-readmission-work-v14",
     "expectedCheckIds": ["BUILD_OPTIONS", "BUNDLE_EXISTING_GIT", "BUNDLE_NEW", "CAS", "CORRUPT_BUNDLE", "CREDENTIAL_CONFIG", "EXISTING_GIT", "ISOLATION", "MISSING_REF", "NEW", "PARTIAL", "PIN", "PIN_NEGATIVE", "PROTOCOL", "REDIRECT", "REQUEST_TARGET_NEGATIVE", "SECRET_SCAN_NEGATIVE"]
   },
   "review": {

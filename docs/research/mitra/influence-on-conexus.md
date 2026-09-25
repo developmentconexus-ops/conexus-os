@@ -839,10 +839,10 @@ O gateway `sankhya_oauth` expõe **execução de SQL direto contra o Oracle do E
 
 | Descoberta real no ERP do cliente | Como obteve |
 |---|---|
-| Orçamento = **TOP 14** (7.881 docs/12 meses) + **TOP 714** "ORCAMENTO COMISSIONADO" | `SELECT` agregado em TGFCAB por CODTIPOPER (TOP) |
+| Orçamento = **dois códigos TOP** específicos do cliente (`<n>` docs/12 meses), um deles uma variante de orçamento com regra comercial própria | `SELECT` agregado em TGFCAB por CODTIPOPER (TOP) |
 | **`NUNOTAORIG` não existe** nesta base — vínculo padrão orçamento→NF ausente | introspecção de colunas de TGFCAB |
-| Campos customizados `AD_VENDIDA`, `AD_STATUSNEG`, `AD_NUMNOTAORIG` carregam a semântica real (prefixo `AD_` = campo do cliente) | leitura do dicionário de colunas |
-| **Ambiente multiempresa**: 1 credencial enxerga **6 schemas** de produção (`UNIPARTSPRD, ICROPPRD, ATTRAPRD, PANICEPRD, METALPRD, VASSOURASPRD`) | `SELECT` no catálogo de schemas Oracle |
+| Campos customizados `AD_*` (venda efetivada, status de negociação, nota de origem) carregam a semântica real (prefixo `AD_` = campo do cliente) | leitura do dicionário de colunas |
+| **Ambiente multiempresa**: 1 credencial enxerga **6 schemas** de produção (`<schema-1>, <schema-2>, <schema-3>, <schema-4>, <schema-5>, <schema-6>`) | `SELECT` no catálogo de schemas Oracle |
 
 Insight central: a "integração Sankhya" não é conhecimento embutido de ERP — é **conexão genérica + agente que faz Data Discovery por SQL** sobre o schema real, reconhecendo convenções Sankhya (TGFCAB/TGFTOP, TOP=CODTIPOPER, prefixo AD_ de custom fields, multiempresa por schema).
 
@@ -871,10 +871,10 @@ O agente materializou o trabalho em dois documentos **na raiz do repo** (`discov
 **`discovery-sankhya.md`** — fatos técnicos completos:
 
 - **Mecanismo de query**: serviço nativo Sankhya **`DbExplorerSP.executeQuery` via `/gateway/v1/mge/service.sbr`**; limite **5.000 linhas/consulta** (`burstLimit`) → paginação via SQL.
-- Schema da conexão: `METALPRD` (Metal Nobre Ferragens Finas Ltda); demais 5 schemas flagados para confirmação de escopo (PA-19).
-- **Vínculo de conversão real**: `TGFCAB.NUNOTAORIG` inexistente; conversão rastreada por **`TGFVAR`** (`NUNOTAORIG`→`NUNOTA`), populada (5.171 conversões/12m mapeadas por tipo de destino).
+- Schema da conexão: `<schema-5>` (`<empresa-1>`); demais 5 schemas flagados para confirmação de escopo (PA-19).
+- **Vínculo de conversão real**: `TGFCAB.NUNOTAORIG` inexistente; conversão rastreada por **`TGFVAR`** (`NUNOTAORIG`→`NUNOTA`), populada (`<n>` conversões/12m mapeadas por tipo de destino).
 - Cursor incremental viável: `DTALTER` sem nulos. Vendedor↔usuário via `TGFVEN.EMAIL`.
-- **Dado contradisse a premissa do escopo**: 67% dos orçamentos abertos (73% do valor, R$ 4,45 mi) têm +10 dias — aplicar o P2 especificado inverteria o propósito do produto. O agente **não recalibrou sozinho**: registrou como decisão de negócio (PA-16) e **bloqueou a implementação** ("Aguardando Discovery Técnico"). Contabilidade explícita: 7 PAs bloqueantes / 5 resolvidos.
+- **Dado contradisse a premissa do escopo**: a maioria dos orçamentos abertos (`<x1>`% deles, `<x2>`% do valor, `R$ <valor>`) têm +10 dias — aplicar o P2 especificado inverteria o propósito do produto. O agente **não recalibrou sozinho**: registrou como decisão de negócio (PA-16) e **bloqueou a implementação** ("Aguardando Discovery Técnico"). Contabilidade explícita: 7 PAs bloqueantes / 5 resolvidos.
 - Seção de segurança auto-gerada: recomenda **rotacionar Client Secret/X-Token** por terem sido transmitidos via chat.
 
 **`escopo-sales-radar.md` v2.0** — o build agent **reescreveu** o escopo do specialist (10→15 seções): adicionou RN-06 Explicabilidade Obrigatória, RN-07 Transparência de Origem, RN-08 Imutabilidade do ERP, seção de Riscos, Sequência de Implementação, Aprovação — e assina "**Assistente Conexus**" (veste a marca do produto do usuário). Destaques da seção 6 (protocolo de integração):
@@ -895,7 +895,7 @@ Esqueleto do `escopo-sales-radar.md` v2.0 (15 seções) — serve de **template 
 
 Padrões dignos de ADOPT direto:
 
-- **PA como moeda de rastreabilidade**: cada ponto em aberto tem ID; o Discovery move PAs de "bloqueante" → "resolvido" com a resolução técnica anotada (ex.: PA-01 → `CODTIPOPER IN (14,714)` + `PENDENTE='S'` sem vínculo em `TGFVAR`). Classe "residual — não bloqueia" com **impacto declarado se não resolvido**.
+- **PA como moeda de rastreabilidade**: cada ponto em aberto tem ID; o Discovery move PAs de "bloqueante" → "resolvido" com a resolução técnica anotada (ex.: PA-01 → `CODTIPOPER IN (<códigos-top>)` + `PENDENTE='S'` sem vínculo em `TGFVAR`). Classe "residual — não bloqueia" com **impacto declarado se não resolvido**.
 - **Assunções carimbadas**: PA-02 "**assumido** incremental 30 min + full refresh 3h" — decidiu, mas marcou como assunção reversível ("mudança de configuração, não de arquitetura").
 - **Degradação graciosa como regra de spec**: EX-02 "falha de IA não bloqueia o produto" (score+explicabilidade continuam; NBA indisponível); PA-18 → P3 desligado com P1+P2 renormalizados até alinhamento; CA-14/CA-15 amarram isso em critério de aceite.
 - **Fases com dependência explícita** (F0 Discovery → F1 cargas+monitoramento → F2 score → F3 UI → F4 IA → F5 gestor → F6 piloto+recalibração) e uma **ordem inegociável justificada**: monitoramento antes do produto ("carga que falha em silêncio = decisões comerciais sobre dado de confiabilidade desconhecida").
@@ -1305,7 +1305,7 @@ Importa da `mitra-sdk`: `configureSdkMitra, runDdlMitra, createServerFunctionMit
 1. **DDL**: cria tabelas-espelho (EMPRESAS, VENDEDORES, CLIENTES, ORCAMENTOS, ORCAMENTO_ITENS, LOG_IMPORTACOES) via `runDdlMitra`.
 2. **SF de carga (JAVASCRIPT)**: string `CODIGO_SYNC` — roda NO backend Mitra, puxa Sankhya via `callIntegrationMitra` e faz upsert. Detalhes reais:
    - `endpoint:'/gateway/v1/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json'`, lê `responseBody.fieldsMetadata[].name` p/ colunas.
-   - `PAGINA=4000` (< teto 5000 do DbExplorer); `TOPS_ORCAMENTO='14,714'`.
+   - `PAGINA=4000` (< teto 5000 do DbExplorer); `TOPS_ORCAMENTO='<códigos-top>'`.
    - `upsert()` em lotes de 400: `INSERT ... ON DUPLICATE KEY UPDATE col=VALUES(col)` → **o DB gerenciado é MySQL** (sintaxe ON DUPLICATE KEY), enquanto a fonte Sankhya é Oracle. O espelho faz a ponte Oracle→MySQL.
    - Aberto: `C.PENDENTE='S' AND NOT EXISTS (SELECT 1 FROM TGFVAR VA WHERE VA.NUNOTAORIG=C.NUNOTA)`; conversão via `TGFVAR MIN(DTNEG)`.
    - Loga em LOG_IMPORTACOES (ENTIDADE, STATUS='SUCESSO').
@@ -1665,7 +1665,7 @@ Registro de honestidade: relatos anteriores neste mapa disseram que o Sales Rada
 
 - "Discovery: TIPMOV e TOPs da base Sankhya"
 - "Discovery: status, vínculo e colunas dos orçamentos"
-- "Analisar janela real de conversão e os 2801 fechados"
+- "Analisar janela real de conversão e os `<n>` fechados"
 - "Curva de sobrevivência e taxa real de conversão"
 
 E seguiu para implementação: Server Functions publicadas, matriz de segurança revalidada, feature "ver como" (impersonation de vendedor) com trava de autorização, `ux.md`, builds limpos, commits na `main`. O documento de escopo do topo é o artefato inicial; os pesos foram depois confrontados com dados reais. **O padrão §14 não se aplica a esta sessão.**
@@ -2446,7 +2446,8 @@ O isolamento *"não tem modo desligado"*. Para dois projetos conversarem: algué
 
 > **Fonte primária desta seção**: o código-fonte real de um projeto entregue e validado, lido
 > integralmente via `GET /api/mitra-agent/github-files/146638/55833/content?path=…`.
-> Nenhuma inferência: tudo aqui é citação do repositório.
+> Nenhuma inferência: tudo aqui é citação do repositório, em cópia redigida — códigos, contagens,
+> valores e limiares de negócio do cliente foram substituídos por placeholders `<...>`.
 >
 > Esta é a seção que responde à pergunta de fundo do projeto Conexus:
 > **"o padrão da Mitra é workflow, skill, ou código gerado por LLM?"**
@@ -2706,9 +2707,9 @@ de job é **arquivo de verdade**, não string.
 
 ```js
 const DIAS_PARADO = `DATEDIFF(CURDATE(), o.DTALTER)`;
-const FAIXA = `CASE WHEN ${DIAS_PARADO} <= 3 THEN 'Janela de ouro' … END`;
-const FATOR = `CASE WHEN ${DIAS_PARADO} <= 3 THEN 1.00 WHEN … <= 7 THEN 0.45
-                    WHEN … <= 30 THEN 0.20 ELSE 0.05 END`;
+const FAIXA = `CASE WHEN ${DIAS_PARADO} <= <d1> THEN '<faixa-1>' … END`;
+const FATOR = `CASE WHEN ${DIAS_PARADO} <= <d1> THEN <peso-1> WHEN … <= <d2> THEN <peso-2>
+                    WHEN … <= <d3> THEN <peso-3> ELSE <peso-4> END`;   // peso decrescente por dias parado
 const PENDENTE = `o.PENDENTE='S' AND o.TEM_DERIVADO='N'`;
 const BASE = `FROM ORCAMENTOS o JOIN VENDEDORES v ON … JOIN CLIENTES cl ON … WHERE ${PENDENTE}`;
 const fVend = `AND ('{{vendedor}}'='' OR o.CODVEND='{{vendedor}}')`;
@@ -2782,7 +2783,7 @@ const params = JSON.parse(JSON.stringify(input).replace('{NUNOTA}', String(nunot
 ```
 
 Cobre caso base **e** caso filtrado para cada SF crítica
-(`['dash_kpis', VAZIO]` + `['dash_kpis (filtro vendedor)', {…, vendedor:'1128'}]`), conta `falhas`
+(`['dash_kpis', VAZIO]` + `['dash_kpis (filtro vendedor)', {…, vendedor:'<codvend>'}]`), conta `falhas`
 e sai com código de erro.
 
 > **É a única forma de teste possível nesta plataforma.** Não há ambiente de teste (§27/§33): o
@@ -2798,8 +2799,8 @@ Cruzando `tasks.md` (o razão), `CLAUDE.md` (o protocolo) e os artefatos:
 
 ```
 Fase 1  DISCOVERY      → agente consulta o ERP e escreve integracao-sankhya.md
-                          (descobre: CODTIPOPER IN (14,714); TGFTOP.ORCAMENTO='S' está errado;
-                           VLRCUS não é custo em 94,8% dos itens)
+                          (descobre: CODTIPOPER IN (<códigos-top>); TGFTOP.ORCAMENTO='S' está errado;
+                           VLRCUS não é custo em `<p-custo-igual>` dos itens)
 Fase 2  ARQUITETURA    → decide importação vs. tempo real, com justificativa escrita
 Fase 3  ALINHAMENTO    → confirma definições canônicas com o usuário
 Fase 4  CHECKPOINT     → contrato aprovado ANTES de escrever código
@@ -2834,10 +2835,10 @@ O projeto **declara o que não conseguiu fazer**, em tabela, com encaminhamento:
 
 | # | Limitação | Impacto | Encaminhamento |
 |---|---|---|---|
-| 1 | `VLRCUS` não é custo — 91.856 de 96.936 itens (94,8%) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
+| 1 | `VLRCUS` não é custo — `<n1>` de `<n2>` itens (`<p-custo-igual>`) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
 | 2 | Não há vínculo usuário Mitra ↔ `CODVEND` | Tela do vendedor usa seletor | Mapear por e-mail quando houver de-para |
-| 3 | `TGFPRO.MARGLUCRO` média 3,6 | Parece markup, não percentual | Validar na Fase 2 |
-| 4 | Sem rotina de expiração de orçamento | 37 orçamentos 90d+ vivos | Pendência aberta |
+| 3 | `TGFPRO.MARGLUCRO` com média baixa demais (`<x>`) para ser percentual | Parece markup, não percentual | Validar na Fase 2 |
+| 4 | Sem rotina de expiração de orçamento | `<n>` orçamentos 90d+ vivos | Pendência aberta |
 
 E o §8 fecha: `"Fase 2 (fora deste escopo) … Depende de resolver a limitação #1."`
 
@@ -2846,7 +2847,7 @@ prova, e não entregou um gráfico bonito com dado errado.
 
 > **Conexus — ADOPT como requisito de produto, não como virtude.** O deliverable deve **exigir**
 > um bloco "Limitações conhecidas" com evidência numérica, e critérios de aceite verificáveis
-> (`"Pendentes na tela = 187 / R$ 6.283.878 (bate com o Sankhya)"`), não subjetivos.
+> (`"Pendentes na tela = <n> / R$ <valor> (bate com o Sankhya)"`), não subjetivos.
 
 ## 34.12 Por que a aba "Código" aparece vazia — diagnóstico fechado
 

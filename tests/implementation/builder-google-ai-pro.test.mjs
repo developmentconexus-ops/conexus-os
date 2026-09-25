@@ -323,7 +323,7 @@ test('the sign-in routes need a Hub session, and their writes need the CSRF pair
 })
 
 // Opt-in: runs the pinned CLIProxyAPI itself. It binds Google's callback port 51121 while it runs.
-test('the real CLIProxyAPI answers the shapes the pool and the sign-in rely on', { skip: !process.env.CONEXUS_CLIPROXY_LIVE_BIN }, async (t) => {
+test('the real CLIProxyAPI answers the shapes the pool and the sign-in rely on', { skip: process.env.CONEXUS_CLIPROXY_LIVE_BIN ? false : 'opt-in: CONEXUS_CLIPROXY_LIVE_BIN names the pinned CLIProxyAPI binary' }, async (t) => {
   const binary = process.env.CONEXUS_CLIPROXY_LIVE_BIN
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-cliproxy-live-'))
   t.after(() => rmSync(stateDir, { recursive: true, force: true }))

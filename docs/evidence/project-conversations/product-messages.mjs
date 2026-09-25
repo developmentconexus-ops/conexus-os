@@ -1,6 +1,6 @@
 // Puts a real, different message in each of the Project's two named conversations, through the
 // product's own screen. Each send is a real BuilderRun paid for by the model the operator chose.
-import { chromium } from '/home/leandrotheodoro/conexus-os/node_modules/@playwright/test/index.mjs'
+import { chromium } from '@playwright/test'
 
 const base = 'https://hub.conexus.localhost:3443'
 const projectId = process.argv[2]

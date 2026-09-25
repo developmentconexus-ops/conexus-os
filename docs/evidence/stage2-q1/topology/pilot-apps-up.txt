@@ -1,4 +1,4 @@
-backup /home/leandrotheodoro/.local/share/conexus/pilot/slice7/backups/q1-apps-cluster-20260923T170144Z
+backup ~/.local/share/conexus/pilot/slice7/backups/q1-apps-cluster-20260923T170144Z
 conexus_s7 table-data entries: 95
 conexus_apps table-data entries: 9
 drwx------ 4096 .
@@ -15,8 +15,8 @@ drwx------ 4096 ..
   "verdict": "CONFINED",
   "container": "conexus-apps-postgres",
   "database": "conexus_apps",
-  "authorityDir": "/home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/apps-cluster-authority",
-  "tlsDir": "/home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/apps-relay-tls",
+  "authorityDir": "~/.local/share/conexus/pilot/slice7/secrets/apps-cluster-authority",
+  "tlsDir": "~/.local/share/conexus/pilot/slice7/secrets/apps-relay-tls",
   "changed": [
     "ca.pem",
     "server.pem",
