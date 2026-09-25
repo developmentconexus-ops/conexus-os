@@ -1,4 +1,4 @@
-backup /home/leandrotheodoro/.local/share/conexus/pilot/slice7/backups/q1-hub-unconfine-20260923T172210Z: pg_hba.conf pg_ident.conf postgresql.auto.conf
+backup ~/.local/share/conexus/pilot/slice7/backups/q1-hub-unconfine-20260923T172210Z: pg_hba.conf pg_ident.conf postgresql.auto.conf
 before: start=2026-09-23 14:35:07.161635+00 ssl=on app hba rules=3
 ALTER SYSTEM
 ALTER SYSTEM

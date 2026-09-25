@@ -14,7 +14,7 @@ failed run, because it would mean the harness cannot fail.
 ```
 ===== conversations probe, two processes, from this checkout =====
 # node:        v24.20.0
-# modules:     /home/leandrotheodoro/wt-stream/node_modules
+# modules:     ~/wt-stream/node_modules
 # @mastra/core: 1.67.0
 # @mastra/memory: 1.30.0
 # @mastra/libsql: 1.23.0

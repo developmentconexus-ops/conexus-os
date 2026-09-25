@@ -4,7 +4,7 @@ container=/conexus-s7-postgres id=99f14247c162 image=postgres:17.10-bookworm@sha
 
 container=/conexus-apps-postgres id=35a0a6239b7d image=postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5434"}]} memory=1073741824
   mount bind /var/lib/conexus/applications-postgres/pgdata -> /var/lib/postgresql/data
-  mount bind /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password
+  mount bind ~/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password
 
 hub   system identifier: 7685719825529860133
 apps  system identifier: 7688777040721199149

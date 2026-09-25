@@ -18,4 +18,4 @@ LINE 1: ...f5289c1eb476be3_preview.purchase_order_note where note like ...
 == runner SIGKILL
 killing 451907 at 2026-09-23T17:04:24.873582621Z
 runner gone: yes at 2026-09-23T17:04:24.890343690Z; hub answers 200
-runner state dir: /home/leandrotheodoro/.local/state/conexus-runner /home/leandrotheodoro/.local/state/conexus-runner/i /home/leandrotheodoro/.local/state/conexus-runner/runtime /home/leandrotheodoro/.local/state/conexus-runner/runtime/worker.js /home/leandrotheodoro/.local/state/conexus-runner/runtime/package.json /home/leandrotheodoro/.local/state/conexus-runner/runtime/node_modules /home/leandrotheodoro/.local/state/conexus-runner/runtime/data-plane.js
+runner state dir: ~/.local/state/conexus-runner ~/.local/state/conexus-runner/i ~/.local/state/conexus-runner/runtime ~/.local/state/conexus-runner/runtime/worker.js ~/.local/state/conexus-runner/runtime/package.json ~/.local/state/conexus-runner/runtime/node_modules ~/.local/state/conexus-runner/runtime/data-plane.js

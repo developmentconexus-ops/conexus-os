@@ -1,10 +1,11 @@
 import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { chromium } from '@playwright/test'
 
 const outDir = resolve('/tmp/parity-shots')
 mkdirSync(outDir, { recursive: true })
-const file = `file://${resolve('/home/leandrotheodoro/ux-shots/redesign.html')}`
+const file = `file://${resolve(homedir(), 'ux-shots/redesign.html')}`
 
 async function shots(page, name) {
   for (const scheme of ['light', 'dark']) {

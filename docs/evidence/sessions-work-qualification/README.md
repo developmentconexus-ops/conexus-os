@@ -47,7 +47,7 @@ bash docs/evidence/sessions-work-qualification/capture.sh
 
 `run.sh` reads an existing install rather than making its own, because the point is to
 qualify the versions the product actually resolved. It defaults to
-`/home/leandrotheodoro/wt-stream/node_modules` on trunk `0b7bca05` and prints the path and
+`~/wt-stream/node_modules` on trunk `0b7bca05` and prints the path and
 the three versions it found. Point `CONEXUS_NODE_MODULES` at another install to run it
 elsewhere. `factory-compat.sh` takes `FACTORY_VERSION`, `CONEXUS_CORE_VERSION` and
 `CONEXUS_LIBSQL_VERSION` the same way.
