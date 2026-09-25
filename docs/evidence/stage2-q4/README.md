@@ -26,13 +26,53 @@ any other before a request leaves the Hub. The operator watches the first real c
 | The adapter's source has no write-capable service name | Done | `tests/implementation/connector-adapter-source.test.mjs`: the service literals in `apps/hub/src/connectors/sankhya/*.ts` are exactly `CRUDServiceProvider.loadRecords`, no known write service name appears, and only the gateway file carries wire vocabulary. |
 | The evidence records the decision and its date, never the credential | Done | This section. |
 
+### G0 verification for the operator, 2026-09-25
+
+This is re-checked on `feat/q4-sankhya-part2` at `1ceab4ea`, with no Sankhya request of any kind.
+
+**The documentation.** The two cited pages were read again on 2026-09-25:
+
+- [post_authenticate](https://developer.sankhya.com.br/reference/post_authenticate) says the
+  endpoint "Gera um access token JWT para autenticação em APIs do ecossistema Sankhya". It takes
+  the `X-Token` header and `client_id`, `client_secret` and `grant_type`, and names no business
+  record.
+- [get_loadrecords](https://developer.sankhya.com.br/reference/get_loadrecords.md), titled
+  "Consultas com loadRecords", calls `CRUDServiceProvider.loadRecords` "um serviço genérico para
+  aplicar consultas em todas as Entidades disponíveis no ERP". It is a query service. The operation
+  fixes the entity and the field list, so no consumer chooses what it reads.
+
+The page's example token has `expires_in` 300, not the hour that operator decision 9 assumed. The
+cache takes each token's own `expires_in`, so the design holds. Q4.6 records the real value.
+
+**The barrier.** The code refuses at two points, and each fails its test when it is removed:
+
+| Removed or changed | Test that fails |
+| --- | --- |
+| The allow-list check in `callService` (`gateway.ts`) | `connector-broker`, "P4 (G0)": the other service reaches the fake gateway |
+| The `write` refusal in `broker.ts` | `connector-broker`, "P4 (G0)" |
+| `CRUDServiceProvider.saveRecord` added to `SANKHYA_SERVICES` | `connector-adapter-source` (both G0 tests) and `connector-broker`, "P4 (G0)" |
+
+Unchanged, `connector-broker` and `connector-adapter-source` pass 16 of 16. The paths
+`/authenticate` and `/gateway/v1/mge/service.sbr` are string constants in `gateway.ts`. No
+consumer input reaches a path, host, header or service name.
+
+**What G0 does not cover.** The allow-list bounds what the Hub asks for. It says nothing about
+what the gateway credential could do if it were used elsewhere. That credential stays in the
+Connection, sealed.
+
+**State.** Ready for the operator's review. Q4.6 waits for it, for the pilot deploy of part 1,
+and for the operator loading the credential in the Integrações screen.
+
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
 `CONNECTOR_UNCONFIGURED` with no network, which `connector-broker.test.mjs` also proves.
 
 ### Real Sankhya calls
 
-None. Each real call in part 2 is logged here with the service name, time and status, never a value.
+None yet. Each real call is one row here, never a value, a token or a host.
+
+| # | Time (UTC) | Service | HTTP status | Outcome | Duration (ms) |
+| --- | --- | --- | --- | --- | --- |
 
 ## Part 1 proof
 
