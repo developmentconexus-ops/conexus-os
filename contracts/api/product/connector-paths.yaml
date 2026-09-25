@@ -111,7 +111,7 @@ paths:
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
-        '204': { description: "The Connection is disabled. The row stays as the record, and every Project's next call through it is refused." }
+        '204': { description: "The Connection is disabled and every open grant through it is revoked. Both rows stay as the record, and every Project's next call through it is refused." }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }

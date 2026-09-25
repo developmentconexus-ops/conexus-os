@@ -116,6 +116,10 @@ document number 22790 is the one exception.
 4. **Resolved in review.** A failed read of the grants aborted the Builder run. The run now goes on
    with a fixed notice in place of the brief (design.md section 9). `connector-builder-brief`,
    `builder-factory-runtime`.
+5. **Resolved in review.** Disabling a Connection left the Project's grant open on it. Granting the
+   replacing Connection then answered 200 with that old grant, and every call was `NOT_GRANTED`.
+   Disabling a Connection now revokes its open grants in the same transaction, and a grant racing
+   the disable is revoked by it. `connector-postgres` (P8 and the race test).
 
 ## Open for part 2
 

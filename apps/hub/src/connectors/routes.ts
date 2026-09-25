@@ -93,6 +93,7 @@ export const registerConnectorRoutes = async (
       const { connectionId, connectorId, label, credential } = request.body
       if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
       if (!isUuid(connectionId)) return sendProblem(reply, 422, 'connector-connection-id-refused', 'Connector Connection id refused')
+      if (!label.trim()) return sendProblem(reply, 422, 'connector-label-refused', 'Connector Connection label refused')
       const schema = credentialSchemas[connectorId]
       if (!schema?.safeParse(credential).success) {
         return sendProblem(reply, 422, 'connector-credential-refused', 'Connector credential refused')

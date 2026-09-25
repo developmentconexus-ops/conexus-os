@@ -144,7 +144,9 @@ One entry per `ConnectionId`, either `issuing` (a shared promise) or `live` (tok
   same token, issues once more and reruns the operation once. A second refusal is
   `CREDENTIAL_REFUSED`. "At most once per call" lives in this one function.
 - A Connection is immutable: rotating a credential is disable plus create, so a cached token never
-  outlives its credential. `forget(connectionId)` runs on disable.
+  outlives its credential. `forget(connectionId)` runs on disable. The disable also revokes the
+  Connection's open grants in the same transaction, so every open grant is on an enabled Connection
+  and the Owner grants the replacing Connection as a new grant.
 - Process memory only. A Hub restart costs one authentication.
 
 ## 5. Runner to Hub path
@@ -264,7 +266,7 @@ A new ledger owner, Connector, in `contracts/api/product/connector-paths.yaml`. 
 | `CON-01` | `ListWorkspaceConnections` | `GET /api/control/workspaces/{workspaceId}/connections` | installation administrator |
 | `CON-02` | `CreateWorkspaceConnection` | `POST /api/control/workspaces/{workspaceId}/connections` | installation administrator; the credential fields are `writeOnly` |
 | `CON-03` | `CheckWorkspaceConnection` | `POST /api/control/workspaces/{workspaceId}/connections/{connectionId}/authentication-check` | installation administrator; runs only the allow-listed authentication, only after G0 |
-| `CON-04` | `DisableWorkspaceConnection` | `DELETE /api/control/workspaces/{workspaceId}/connections/{connectionId}` | installation administrator; narrowing; the row stays as the record |
+| `CON-04` | `DisableWorkspaceConnection` | `DELETE /api/control/workspaces/{workspaceId}/connections/{connectionId}` | installation administrator; narrowing; revokes the Connection's open grants; the rows stay as the record |
 | `CON-05` | `ListProjectConnectorGrants` | `GET /api/control/projects/{projectId}/connector-grants` | Owner of the Project's Workspace |
 | `CON-06` | `GrantProjectConnectorOperation` | `POST /api/control/projects/{projectId}/connector-grants` | Owner; the environment is fixed to `preview` by the server |
 | `CON-07` | `RevokeProjectConnectorGrant` | `DELETE /api/control/projects/{projectId}/connector-grants/{grantId}` | Owner; narrowing |

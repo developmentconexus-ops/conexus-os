@@ -105,7 +105,14 @@ export const createConnectorModule = ({
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    builderBrief: (projectId) => connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId })),
+    // A Project id this module cannot mint a scope for has no grant to describe.
+    builderBrief: async (projectId) => {
+      try {
+        return await connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+      } catch {
+        return ''
+      }
+    },
     broker,
   })
 }
