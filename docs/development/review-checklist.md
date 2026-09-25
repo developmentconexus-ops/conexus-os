@@ -7,21 +7,23 @@ failed item or a correctness defect, never for preference. Each item comes from
 
 ## Load the pages
 
-The rules that judge a pull request come from its base ref, never from its head. A pull request
-cannot edit the rules that judge it.
+The rules that judge a pull request come from `origin/main`, the approved reference, never from
+its head or its base. A stacked pull request's base is another open pull request, which may change
+the rules. The rules are this checklist, the pages, `areas.json`, and the browser path pattern in
+`.github/workflows/verify.yml`. The code is still compared with the pull request's base.
 
-1. Read the map from the base ref:
-   `git show origin/<base>:docs/development/review/areas.json`.
+1. Read the map from `origin/main`:
+   `git show origin/main:docs/development/review/areas.json`.
 2. List the changed paths: `gh pr view <n> --json files`.
 3. Match each changed path against each area's `paths`. The grammar is portable on purpose: an
    exact path, `dir/**` for every path under `dir` (dotfiles included), and `*` for any run of
    characters inside one segment. `scripts/check-review-areas.mjs` defines the matcher and checks
    that every production file maps to an area.
-4. Load every matched page from the base ref with `git show origin/<base>:<page>`, and always
+4. Load every matched page with `git show origin/main:<page>`, and always
    [`mastra-native.md`](review/mastra-native.md).
-5. A changed path the base map does not cover is judged by the page the pull request's own map
-   assigns instead. The review table carries a row for it: `new area path: <path>, page <page>,
-   loaded from the head`.
+5. A changed path the map on `origin/main` does not cover is judged by the page the pull
+   request's own map assigns instead. The review table carries a row for it:
+   `new area path: <path>, page <page>, loaded from the head`.
 
 The pages are [mastra-native](review/mastra-native.md), [identity-session](review/identity-session.md),
 [data-migrations](review/data-migrations.md), [connectors](review/connectors.md),

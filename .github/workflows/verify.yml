@@ -82,9 +82,9 @@ jobs:
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
-      # On a pull request the review-area check reads the base's map and the changed tests must fail
-      # on the base. On a push both values are empty: the area check covers the whole tree only, and
-      # the changed-test gate reports that there is no base to check against.
+      # On a pull request the review-area check compares the change with the map on origin/main, and
+      # the changed tests must fail on the base. On a push both values are empty: the area check
+      # covers the whole tree only, and the changed-test gate reports that there is no base.
       - run: npm run verify
         env:
           CONEXUS_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}

@@ -3,7 +3,7 @@
 // glob still matches a tracked file, and every production file belongs to an area that is not
 // universal. A universal area (paths exactly ["**"]) applies to every pull request, so counting it
 // would make the coverage check vacuous.
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -107,9 +107,10 @@ export function checkRepository(root) {
   }
 }
 
-// The base ref judges a pull request, per review-checklist.md. Both env vars unset is the plain
+// The approved rules on origin/main judge a pull request, per review-checklist.md. Both env vars unset is the plain
 // whole-tree check this script always ran; both set adds the pull-request check below; one alone is
 // a broken CI wiring, caught here instead of silently reverting to the whole-tree check.
+const RULES_REF = 'origin/main'
 const PR_BASE_SHA_ENV = 'CONEXUS_PR_BASE_SHA'
 const PR_HEAD_SHA_ENV = 'CONEXUS_PR_HEAD_SHA'
 
@@ -158,17 +159,22 @@ function reportPullRequest(root, { base, head }, headAreas) {
   const mergeBase = execFileSync('git', ['merge-base', base, head], { cwd: root, encoding: 'utf8' }).trim()
   const changed = changedProductionFiles(root, mergeBase, head)
   if (!changed.length) return
-  // The diff starts at the merge base, so it holds only this pull request's changes. The map comes
-  // from the base itself, the ref the reviewer loads per review-checklist.md, even when the base has
-  // moved past the merge base.
-  const baseText = areasTextAtRef(root, base)
-  if (baseText === null) console.log(`${AREAS_FILE} does not exist at the base ${base}; every changed production path is a new area path.`)
+  // The diff starts at the merge base, so it holds only this pull request's changes. The map is the
+  // approved one on origin/main, as review-checklist.md says. A stacked pull request's base is
+  // another open pull request, which may change the rules itself.
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `${RULES_REF}^{commit}`], { cwd: root }).status !== 0) {
+    console.error(`error ${RULES_REF} is not in this clone; fetch it so the approved review map can be read`)
+    process.exitCode = 1
+    return
+  }
+  const baseText = areasTextAtRef(root, RULES_REF)
+  if (baseText === null) console.log(`${AREAS_FILE} does not exist on ${RULES_REF}; every changed production path is a new area path.`)
   const baseAreas = baseText === null ? null : parseAreas(baseText).areas
   for (const { path, isNewArea } of classifyPrPaths(changed, baseAreas)) {
     if (!isNewArea) continue
     const pages = headPagesFor(path, headAreas)
     console.log(`new area path: ${path} -> ${pages}`)
-    console.log(`::notice file=${path}::new area path: the base map has no area for it; judged by ${pages} from the head.`)
+    console.log(`::notice file=${path}::new area path: the approved map on ${RULES_REF} has no area for it; judged by ${pages} from the head.`)
   }
 }
 

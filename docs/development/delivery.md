@@ -124,7 +124,7 @@ operator dictating filenames or implementation.
 A pull request is ready when these hold at its exact head SHA, plus the lane's gates above:
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
   base. If no run exists at your head, merge `main` into your branch and push again.
-- The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from the base ref, with the census
+- The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from `origin/main`, with the census
   redone by the reviewer, no skipped PostgreSQL test, and the browser suites run whenever the change's paths select them in `verify.yml`.
 - A serious change (`needs:aprovo`, `lane:qualification` or `lane:shaped`) also has an independent
   Claude Opus review. The manager runs it without showing it the Factory's verdict.

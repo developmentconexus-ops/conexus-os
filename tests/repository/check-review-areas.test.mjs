@@ -51,8 +51,11 @@ const commit = target => {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: target, encoding: 'utf8' }).trim()
 }
 
-const runPr = (candidate, base, head) =>
-  spawnSync(process.execPath, [script, candidate], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
+// origin/main is the approved rules ref; a fixture points it at the commit that plays main.
+const runPr = (candidate, base, head, main = base) => {
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/main', main], { cwd: candidate })
+  return spawnSync(process.execPath, [script, candidate], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
+}
 
 const failsWith = (candidate, stderr) => {
   const result = run(candidate)
@@ -161,7 +164,7 @@ test('a head path the base map has no area for prints the notice and exits 0', c
   assert.equal(result.stdout, [
     'Review area checks passed (areas=3, production files=5).',
     'new area path: apps/new/x.ts -> docs/development/review/mastra-native.md, docs/development/review/new-app.md',
-    '::notice file=apps/new/x.ts::new area path: the base map has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
+    '::notice file=apps/new/x.ts::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
     '',
   ].join('\n'))
   assert.equal(result.status, 0)
@@ -178,25 +181,42 @@ test('a head change to a path the base already covers prints nothing extra', con
   assert.equal(result.status, 0)
 })
 
-test('the map comes from the base, not the merge base, when the base has moved on', context => {
+test('a stacked pull request is judged by the map on origin/main, not by its base', context => {
   const target = fixture(context)
-  commit(target)
+  const main = commit(target)
   const newAreas = [...baseAreas, { area: 'new-app', paths: ['apps/new/**'], page: 'docs/development/review/new-app.md' }]
-  const mapped = { [AREAS]: `${JSON.stringify(newAreas, null, 2)}\n`, 'docs/development/review/new-app.md': '# New app\n' }
-  execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: target })
-  writeFiles(target, { ...mapped, 'apps/new/x.ts': 'export {}\n' })
-  const head = commit(target)
-  execFileSync('git', ['checkout', '-q', 'main'], { cwd: target })
-  writeFiles(target, { ...mapped, 'apps/new/base.ts': 'export {}\n' })
+  execFileSync('git', ['checkout', '-q', '-b', 'stack'], { cwd: target })
+  writeFiles(target, {
+    [AREAS]: `${JSON.stringify(newAreas, null, 2)}\n`,
+    'docs/development/review/new-app.md': '# New app\n',
+    'apps/new/base.ts': 'export {}\n',
+  })
   const base = commit(target)
-  execFileSync('git', ['checkout', '-q', 'feature'], { cwd: target })
-  const result = runPr(target, base, head)
+  writeFiles(target, { 'apps/new/x.ts': 'export {}\n' })
+  const head = commit(target)
+  const result = runPr(target, base, head, main)
   assert.equal(result.stderr, '')
-  assert.equal(result.stdout, 'Review area checks passed (areas=3, production files=5).\n')
+  assert.equal(result.stdout, [
+    'Review area checks passed (areas=3, production files=6).',
+    'new area path: apps/new/x.ts -> docs/development/review/mastra-native.md, docs/development/review/new-app.md',
+    '::notice file=apps/new/x.ts::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
+    '',
+  ].join('\n'))
   assert.equal(result.status, 0)
 })
 
-test('no areas.json at the base treats every changed path as new', context => {
+test('without origin/main the pull request check fails and says what to fetch', context => {
+  const target = fixture(context)
+  const base = commit(target)
+  writeFiles(target, { 'apps/hub/src/server.ts': 'export const changed = true\n' })
+  const head = commit(target)
+  const result = spawnSync(process.execPath, [script, target], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
+  assert.equal(result.stdout, 'Review area checks passed (areas=2, production files=4).\n')
+  assert.equal(result.stderr, 'error origin/main is not in this clone; fetch it so the approved review map can be read\n')
+  assert.equal(result.status, 1)
+})
+
+test('no areas.json on origin/main treats every changed path as new', context => {
   const target = mkdtempSync(resolve(tmpdir(), 'conexus-review-areas-'))
   context.after(() => rmSync(target, { recursive: true, force: true }))
   execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: target })
@@ -212,9 +232,9 @@ test('no areas.json at the base treats every changed path as new', context => {
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
     'Review area checks passed (areas=1, production files=1).',
-    `${AREAS} does not exist at the base ${base}; every changed production path is a new area path.`,
+    `${AREAS} does not exist on origin/main; every changed production path is a new area path.`,
     'new area path: package.json -> docs/development/review/root.md',
-    '::notice file=package.json::new area path: the base map has no area for it; judged by docs/development/review/root.md from the head.',
+    '::notice file=package.json::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/root.md from the head.',
     '',
   ].join('\n'))
   assert.equal(result.status, 0)
