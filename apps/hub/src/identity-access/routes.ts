@@ -88,7 +88,7 @@ export const registerIdentityAccessRoutes = async (
         const origin = applications.origin(outcome.slug)
         const location = outcome.kind === 'HANDOFF'
           ? `${origin}/__conexus/sign-in/complete?handoff=${outcome.handoff}`
-          : `${origin}/__conexus/no-access`
+          : `${origin}/__conexus/no-access?reason=${outcome.reason}`
         return reply.header('referrer-policy', 'no-referrer').redirect(location, 303)
       }
       if (account) {

@@ -277,7 +277,7 @@ const loginUrl = (query) => `/protocol/oidc/login?${new URLSearchParams(query)}`
 
 test('TI-01 takes an application and its binding together, and refuses one alone, a malformed one or an unknown application', async (t) => {
   const store = makeStore()
-  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
   const app = await createHubApp({ store, oidc: makeOidc(), config, applications })
   const bare = await createHubApp({ store: makeStore(), oidc: makeOidc(), config })
   t.after(() => Promise.all([app.close(), bare.close()]))
@@ -329,15 +329,27 @@ test('TI-02 for an application sign-in returns to the application host with a ha
   assert.equal(store.state.sessions.size, 0, 'no Hub session exists')
 })
 
-test('TI-02 sends a person without access to the application host no-access page', async (t) => {
+test('TI-02 sends a person without access to the application host no-access page, carrying the denial reason', async (t) => {
   const store = makeStore()
-  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras' })
+  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
   const app = await createHubApp({ store, oidc: makeOidc({ subject: 'control', verifiedEmail: 'control@example.test', refreshToken: 'r' }), config, applications })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 303)
-  assert.equal(callback.headers.location, 'https://caderno-de-compras.conexus.localhost:3445/__conexus/no-access')
+  assert.equal(callback.headers.location, 'https://caderno-de-compras.conexus.localhost:3445/__conexus/no-access?reason=NOT_GRANTED')
+  assert.equal(store.state.sessions.size, 0)
+})
+
+test('TI-02 sends a person with an unverified email to the no-access page with that reason', async (t) => {
+  const store = makeStore()
+  const { applications } = makeApplications({ kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'EMAIL_NOT_VERIFIED' })
+  const app = await createHubApp({ store, oidc: makeOidc({ subject: 'control', verifiedEmail: null, refreshToken: 'r' }), config, applications })
+  t.after(() => app.close())
+  await app.inject({ method: 'GET', url: loginUrl({ application: 'caderno-de-compras', binding: BINDING_DIGEST }) })
+  const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
+  assert.equal(callback.statusCode, 303)
+  assert.equal(callback.headers.location, 'https://caderno-de-compras.conexus.localhost:3445/__conexus/no-access?reason=EMAIL_NOT_VERIFIED')
   assert.equal(store.state.sessions.size, 0)
 })
 

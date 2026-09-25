@@ -49,6 +49,7 @@ const page = (title: string, text: string): string =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`
 
 const NO_ACCESS = page('Sem acesso', 'Você não tem acesso a este aplicativo. Peça acesso a quem administra o Workspace.')
+const EMAIL_NOT_VERIFIED = page('E-mail não verificado', 'Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado. Verifique seu e-mail e tente entrar de novo.')
 const NOT_READY = page('Aplicativo sem versão pronta', 'Este aplicativo ainda não tem uma versão pronta para uso. Tente de novo mais tarde.')
 const SIGN_IN_FAILED = page('Não foi possível entrar', 'O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de novo para entrar.')
 const UNAVAILABLE = page('Aplicativo indisponível', 'Não foi possível confirmar seu acesso agora. Tente de novo em alguns minutos.')
@@ -110,9 +111,12 @@ export const registerApplicationHostRoutes = async (
       .code(303).header('location', '/').send()
   })
 
-  app.get('/__conexus/no-access', async (request, reply) => {
+  app.get<{ Querystring: Record<string, unknown> }>('/__conexus/no-access', async (request, reply) => {
     if (!applicationSlugOfHost(dependencies.application, request.headers.host)) return reply.code(404).send()
-    return html(reply, 403, NO_ACCESS)
+    // Only a fixed, known reason selects distinct copy: a query parameter is user-controlled, and every
+    // other value falls back to the generic page.
+    const body = request.query.reason === 'EMAIL_NOT_VERIFIED' ? EMAIL_NOT_VERIFIED : NO_ACCESS
+    return html(reply, 403, body)
   })
 
   app.post('/__conexus/sign-out', async (request, reply) => {
