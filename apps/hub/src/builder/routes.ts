@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { randomUUID } from 'node:crypto'
 import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
@@ -55,10 +54,6 @@ export type BuilderTraceSummary = Readonly<{
 export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly<{
   accountId: string
   projectId: string
-  changeId: string
-  builderRunId?: string
-  subjectDigest: string
-  attemptId: string
   artifactRevisionId: string
   artifactDigest: string
   artifact: ApplicationArtifactMetadata
@@ -189,10 +184,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       }
       const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: subject.lastPreviewSourceRevision })
       if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-      const correlationId = randomUUID()
       const launched = await dependencies.launchPreview(request, {
-        accountId: session.account.accountId, projectId: request.params.projectId, changeId: correlationId, builderRunId: correlationId,
-        subjectDigest: subject.lastPreviewSourceRevision, attemptId: correlationId, artifactRevisionId: artifact.artifactRevisionId,
+        accountId: session.account.accountId, projectId: request.params.projectId, artifactRevisionId: artifact.artifactRevisionId,
         artifactDigest: artifact.artifactDigest, artifact,
       })
       return reply.code(201).send(launched)
