@@ -1,7 +1,7 @@
 # Stage 2 Q4 — Sankhya connector evidence
 
-**Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. Part 2 (G0 with the operator,
-then Q4.6 to Q4.11) has not started, and no Sankhya request of any kind has been made.
+**Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. The operator approved G0
+on 2026-09-25. Q4.6 to Q4.11 have not started, and no Sankhya request of any kind has been made.
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 
@@ -60,8 +60,12 @@ consumer input reaches a path, host, header or service name.
 what the gateway credential could do if it were used elsewhere. That credential stays in the
 Connection, sealed.
 
-**State.** Ready for the operator's review. Q4.6 waits for it, for the pilot deploy of part 1,
-and for the operator loading the credential in the Integrações screen.
+**State.** The operator approved G0 on 2026-09-25, in the manager's chat. The approval is recorded
+on [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282#issuecomment-5840841862)
+and covers the read allow-list (`POST /authenticate` and `CRUDServiceProvider.loadRecords`), the
+no-network refusal test and the adapter source check, as this section records them. Q4.6, the first
+real call, still waits for three things: the merge of #246, the pilot deploy of its migration, and
+the operator loading the credential in the Integrações screen. The operator watches that call.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
