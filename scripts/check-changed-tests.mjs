@@ -3,6 +3,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { executionEnvironment, LEDGER_REPORTER, LEDGER_REPORTER_OPTIONS } from './conexus-verify.mjs'
+import { approved, describeUnexecuted, OPT_IN, unexecuted } from './test-ledger-reporter.mjs'
 
 // A test file a pull request adds or modifies must fail against the base's source. A test that
 // already passes there proves nothing about the change. Each changed test runs in two trees built
@@ -115,7 +116,7 @@ const run = (treeRoot, path, label) => {
   })
   closeSync(output)
   const records = existsSync(ledger) ? readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line)) : []
-  return { ...outcome(result, records), log }
+  return { ...outcome(result, records), unapproved: unexecuted(records).filter((entry) => !approved(entry)), log }
 }
 const tail = (log) => readFileSync(log, 'utf8').trimEnd().split('\n').slice(-20).map((line) => `    ${line}`).join('\n')
 
@@ -149,6 +150,8 @@ for (const path of changedTests) {
   if (onHead.kind !== 'passed') {
     process.stdout.write(`${onHead.kind} on head: ${path}\n${tail(onHead.log)}\n`)
     refused.push(`error ${path}: fails in the head tree too, so its failure on the base proves nothing`)
+  } else if (onHead.unapproved.length > 0) {
+    refused.push(`error ${path}: leaves tests unexecuted on the head without an "${OPT_IN}" reason: ${onHead.unapproved.map(describeUnexecuted).join('; ')}`)
   }
 }
 if (refused.length > 0) fail(refused.join('\n'))

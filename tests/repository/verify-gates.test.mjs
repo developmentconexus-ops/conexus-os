@@ -53,7 +53,7 @@ test('a skip without an opt-in reason fails the graph and is named', context => 
   assert.equal(result.status, 1)
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, [
-    '2 skipped test(s) in the verify graph; only a reason starting with "opt-in:" may skip:',
+    '2 skipped or todo test(s) in the verify graph; only a reason starting with "opt-in:" may leave a test unexecuted:',
     'tests/pg.test.mjs › reads the database: real PostgreSQL configuration not supplied',
     'tests/pg.test.mjs › runs a browser: no reason given',
     '',
@@ -74,7 +74,47 @@ test('an opt-in live skip passes and is listed', context => {
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
     'opt-in skip: tests/live.test.mjs › calls the live service: opt-in: set CONEXUS_LIVE=1',
-    'no skipped test outside opt-in live runs (tests=2, opt-in skips=1)',
+    'no unexecuted test outside opt-in live runs (tests=2, opt-in skips=1, opt-in todos=0)',
+    '',
+  ].join('\n'))
+})
+
+test('a todo without an opt-in reason fails the graph, bodyless or not', context => {
+  const candidate = fixture(context, 'conexus-todo-refused-', {
+    'tests/todo.test.mjs': [
+      "import test from 'node:test'",
+      "test.todo('handles the empty cart')",
+      "test('handles a refund', { todo: 'not written yet' }, () => {})",
+      "test('runs', () => {})",
+      '',
+    ].join('\n'),
+  })
+  const result = runWithLedger(candidate, 'tests/todo.test.mjs')
+  assert.equal(result.status, 1)
+  assert.equal(result.stdout, '')
+  assert.equal(result.stderr, [
+    '2 skipped or todo test(s) in the verify graph; only a reason starting with "opt-in:" may leave a test unexecuted:',
+    'tests/todo.test.mjs › handles the empty cart: no reason given (todo)',
+    'tests/todo.test.mjs › handles a refund: not written yet (todo)',
+    '',
+  ].join('\n'))
+})
+
+test('an opt-in todo passes and is listed', context => {
+  const candidate = fixture(context, 'conexus-todo-opt-in-', {
+    'tests/todo.test.mjs': [
+      "import test from 'node:test'",
+      "test('calls the live service', { todo: 'opt-in: set CONEXUS_LIVE=1' })",
+      "test('runs', () => {})",
+      '',
+    ].join('\n'),
+  })
+  const result = runWithLedger(candidate, 'tests/todo.test.mjs')
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, [
+    'opt-in todo: tests/todo.test.mjs › calls the live service: opt-in: set CONEXUS_LIVE=1 (todo)',
+    'no unexecuted test outside opt-in live runs (tests=2, opt-in skips=0, opt-in todos=1)',
     '',
   ].join('\n'))
 })
@@ -117,7 +157,7 @@ test('an allowlisted nested node --test passes', context => {
   })
   const result = spawnSync(process.execPath, [checkSkips], { cwd: candidate, encoding: 'utf8', env: cleanEnvironment({ CONEXUS_TEST_LEDGER: resolve(candidate, 'ledger.jsonl') }) })
   assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'no skipped test outside opt-in live runs (tests=1, opt-in skips=0)\n')
+  assert.equal(result.stdout, 'no unexecuted test outside opt-in live runs (tests=1, opt-in skips=0, opt-in todos=0)\n')
 })
 
 const checkChanged = resolve(root, 'scripts/check-changed-tests.mjs')
@@ -274,6 +314,18 @@ test('a test that throws a TypeError on the base is refused as an error', contex
   assert.equal(result.status, 1)
   assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'error on base: tests/add-read.test.mjs', ''])
   assert.equal(result.stderr, 'error tests/add-read.test.mjs: fails on the base in "reads the sum" with an error that is not an assertion\n')
+})
+
+test('a changed test that fails on the base but leaves a bodyless todo on the head is refused', context => {
+  const pr = pullRequest(context, {
+    'src/add.mjs': ADD_FIXED,
+    'tests/add-sum.test.mjs': `${addTest('adds', 'add(2, 3)', 5)}test.todo('adds negatives')\n`,
+  })
+  const result = runChanged(pr)
+  assert.equal(result.status, 1)
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'assertion on base: tests/add-sum.test.mjs', ''])
+  assert.equal(result.stderr,
+    'error tests/add-sum.test.mjs: leaves tests unexecuted on the head without an "opt-in:" reason: tests/add-sum.test.mjs › adds negatives: no reason given (todo)\n')
 })
 
 test('without a pull request there is nothing to check, and half a pull request is an error', context => {

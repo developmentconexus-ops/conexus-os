@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { approved, describeUnexecuted, OPT_IN, unexecuted } from './test-ledger-reporter.mjs'
 
-// Inside `npm run verify` a test may skip only when it declares an opt-in live authority. Any other
-// skip, a PostgreSQL suite in a step without a database for example, passes silently and proves
-// nothing, so it fails the graph here.
-const OPT_IN = 'opt-in:'
+// Inside `npm run verify` a test may skip, or be a todo, only when it declares an opt-in live
+// authority. Any other unexecuted test, a PostgreSQL suite in a step without a database for example,
+// passes silently and proves nothing, so it fails the graph here.
 
 const fail = (message) => {
   process.stderr.write(`${message}\n`)
@@ -39,14 +39,13 @@ const records = readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map((li
 const tests = records.filter((record) => 'tests' in record).reduce((sum, record) => sum + record.tests, 0)
 if (tests === 0) fail(`the test ledger at ${ledger} recorded no test, so the ledger reporter did not run`)
 
-const skips = records.filter((record) => 'skip' in record)
-const describe = ({ file, name, skip }) => `${file} › ${name}: ${skip === true ? 'no reason given' : skip}`
-const refused = skips.filter(({ skip }) => typeof skip !== 'string' || !skip.startsWith(OPT_IN))
+const all = unexecuted(records)
+const refused = all.filter((entry) => !approved(entry))
 if (refused.length > 0) {
   fail([
-    `${refused.length} skipped test(s) in the verify graph; only a reason starting with "${OPT_IN}" may skip:`,
-    ...refused.map(describe),
+    `${refused.length} skipped or todo test(s) in the verify graph; only a reason starting with "${OPT_IN}" may leave a test unexecuted:`,
+    ...refused.map(describeUnexecuted),
   ].join('\n'))
 }
-for (const skip of skips) process.stdout.write(`opt-in skip: ${describe(skip)}\n`)
-process.stdout.write(`no skipped test outside opt-in live runs (tests=${tests}, opt-in skips=${skips.length})\n`)
+for (const entry of all) process.stdout.write(`opt-in ${entry.kind}: ${describeUnexecuted(entry)}\n`)
+process.stdout.write(`no unexecuted test outside opt-in live runs (tests=${tests}, opt-in skips=${all.filter(({ kind }) => kind === 'skip').length}, opt-in todos=${all.filter(({ kind }) => kind === 'todo').length})\n`)
