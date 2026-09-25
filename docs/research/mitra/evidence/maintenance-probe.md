@@ -80,7 +80,7 @@ já existia**, não num descartável — ele estava em scoping, não em produç�
 |---|---|---|---|---|
 | 10/08 23:0x–00:11 | **Fase 0/1** — descoberta do ERP, read-only | GPT-5.6 Sol Medium | Gate de ambiente cumprido antes da 1ª chamada; 7 endpoints mapeados; lacunas declaradas (EAN, fiscal) | OBS-17, 21, 25, 27, 28 |
 | 11/08 00:14–00:53 | **V1** — app completo a partir de brief só-negócio | GPT-5.6 Sol Medium | Entregue e funcional (7 telas, 19 SFs, commit `7bdc122`). Cobertura truncada em silêncio | OBS-29..37 |
-| 11/08 01:25–02:58 | **M1** — troca de shape para hub de marketplace + 3 correções | Claude Opus 5 High | **Fechado.** Estoque 45 → 45.947; produtos 5.000 → 38.877; EAN descoberto em campo não documentado (7.011 produtos desbloqueados); 15/15 e2e. `git push` recusado (credencial do sandbox) | OBS-38..51 |
+| 11/08 01:25–02:58 | **M1** — troca de shape para hub de marketplace + 3 correções | Claude Opus 5 High | **Fechado.** Estoque `<n-estoque-v1>` → `<n-estoque>`; produtos 5.000 → `<n-produtos>`; EAN descoberto em campo não documentado (`<n-ean-desbloq>` produtos desbloqueados); 15/15 e2e. `git push` recusado (credencial do sandbox) | OBS-38..51 |
 
 | 11/08 03:13–03:32 | **M2** — aditivo sobre o shape novo: custo em massa + inteligência de anúncio | Claude Opus 5 High | **Fechado.** 53 checagens; lei de conservação (`lidas = casadas + rejeitadas`); 8 motivos de recusa nomeados; regra oficial do ML × política local separadas; push OK, `origin/main` = `cb7e248` | OBS-53..55 |
 
