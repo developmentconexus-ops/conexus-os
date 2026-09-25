@@ -630,6 +630,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       'revocation ended every open session of the person for this application')
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
+    assert.deepEqual(await signIn(identity('employee-sub', null), employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
+      'an existing Account with a revoked grant needs a new grant, not a re-verified email, even if the claim itself comes back unverified')
   })
 
   await t.test('a revoke holds: re-granting a person who holds a grant opens no invitation, and revoking withdraws any invitation left for them', async () => {
