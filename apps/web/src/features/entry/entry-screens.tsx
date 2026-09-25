@@ -9,7 +9,7 @@ export const SIGN_IN_URL = '/protocol/oidc/login'
 export function EntryFrame({ title, children, arrive = false }: Readonly<{ title: string; children?: ReactNode; arrive?: boolean }>) {
   return <main className="cx-entry">
     <div className="cx-entry-column">
-      <ConexusWordmark size={26} arrive={arrive} />
+      <ConexusWordmark size="md" arrive={arrive} />
       <h1>{title}</h1>
       {children}
     </div>

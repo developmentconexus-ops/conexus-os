@@ -140,11 +140,11 @@ test('S5-P0 the top of the Project sidebar switches the Project itself, not the 
   assert.match(shell, /<NavText icon=\{<ArrowLeft size=\{16\} aria-hidden \/>\}>\{workspace\.name\}<\/NavText>/)
 })
 
-test('S5-P0 the top bar\'s lockup sits before a 1px divider, outside the breadcrumb trail, at the prototype\'s size (19px text, 22px mark)', () => {
+test('S5-P0 the top bar\'s lockup sits before a 1px divider, outside the breadcrumb trail, at the prototype\'s size (18px text, 22px mark)', () => {
   const shell = read('apps/web/src/app/shell.tsx')
   assert.match(shell, /<Link to="\/" className="cx-lockup" aria-label="Conexus, início">/)
   assert.match(shell, /<span className="cx-topbar-divider" aria-hidden \/>/)
-  assert.match(shell, /<ConexusWordmark size=\{19\} markSize=\{22\} arrive=\{arrive\} \/>/)
+  assert.match(shell, /<ConexusWordmark size="xs" markSize=\{22\} arrive=\{arrive\} \/>/)
   assert.match(shell, /<ConexusMark size=\{22\} \/>/)
   // The lockup is a sibling of <Breadcrumb>, not one of its <Crumb> children.
   const lockupIndex = shell.indexOf('className="cx-lockup"')

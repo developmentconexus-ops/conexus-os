@@ -45,16 +45,6 @@ button, input {
   margin-bottom: 1.5rem;
 }
 
-/* ConexusWordmark sets its size via an inline `style` attribute
-   (packages/brand/src/conexus-mark.tsx). Keycloak's default CSP sends a
-   `style-src` with specific hashes and no `unsafe-inline`, so that inline
-   style gets blocked and silently never applies. A stylesheet rule isn't
-   subject to that directive, so this reproduces the intended size without
-   needing an inline style or a CSP change on the Keycloak side. */
-.kc-lockup .cx-wordmark {
-  font-size: 32px;
-}
-
 .kc-heading {
   font: 600 1.625rem/1.2 var(--cx-font-display);
   letter-spacing: -0.02em;
