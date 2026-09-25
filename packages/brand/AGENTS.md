@@ -17,3 +17,7 @@ node --test tests/implementation/brand-wordmark-csp.test.mjs
 npm run web:style:check
 npx --no-install biome check packages/brand/src
 ```
+
+## Review
+
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to (mostly [`frontend.md`](../../docs/development/review/frontend.md)).
