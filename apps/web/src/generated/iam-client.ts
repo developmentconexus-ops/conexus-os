@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.
-export const S1_PRODUCT_OAS_DIGEST = "7a87d2c5fbaf3d335764191ca0193834fe5e8d30036627a9a3f648c0ce8bdc4e"
+export const S1_PRODUCT_OAS_DIGEST = "56d1cf98889f289c0dc07c81142163ec449f1eb5c411df2cc4c26903076e0b6c"
 export const S1_ROUTE_PROJECTION_DIGEST = "514234bc2cad559510d788cd5427fa9560143abc9424efbc1e8eca435db37fc1"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }
 export type AccessContext = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }
