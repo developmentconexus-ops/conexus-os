@@ -1,0 +1,126 @@
+[
+  {
+    "area": "mastra-native",
+    "paths": ["**"],
+    "page": "docs/development/review/mastra-native.md"
+  },
+  {
+    "area": "identity-session",
+    "paths": [
+      "apps/hub/src/identity-access/**",
+      "apps/hub/src/builder/hub-session-auth.ts",
+      "apps/hub/src/mar/application-host-routes.ts",
+      "apps/hub/src/mar/preview-routes.ts",
+      "apps/hub/src/platform/caller.ts",
+      "infra/keycloak/**",
+      "apps/keycloak-theme/**",
+      "scripts/bootstrap-installation-administrator.mjs",
+      "scripts/q3-sign-in.mjs",
+      "scripts/q3-negative-proof.mjs"
+    ],
+    "page": "docs/development/review/identity-session.md"
+  },
+  {
+    "area": "data-migrations",
+    "paths": [
+      "apps/hub/migrations/**",
+      "contracts/technical/**",
+      "apps/hub/src/*/store.ts",
+      "apps/hub/src/registry/application-artifact-store.ts",
+      "apps/hub/src/platform/postgres.ts",
+      "apps/hub/src/platform/hub-roles.generated.ts",
+      "apps/hub/src/platform/connection-census.ts",
+      "scripts/run-hub-migrations.mjs",
+      "scripts/generate-hub-baseline.mjs",
+      "scripts/generate-hub-catalog-snapshot.mjs",
+      "scripts/hub-catalog.mjs",
+      "scripts/generate-hub-role-register.mjs",
+      "scripts/provision-hub-roles.mjs",
+      "scripts/cutover-hub-role-names.mjs"
+    ],
+    "page": "docs/development/review/data-migrations.md"
+  },
+  {
+    "area": "connectors",
+    "paths": [
+      "apps/hub/src/app-runner/data-plane.ts",
+      "apps/hub/src/app-runner/pg-relay.ts",
+      "apps/hub/src/builder/factory-github.ts",
+      "apps/hub/src/builder/installation-github-routes.ts",
+      "apps/hub/src/builder/repository-routes.ts",
+      "apps/hub/src/builder/model-accounts.ts",
+      "apps/hub/src/builder/chat-models.ts",
+      "apps/hub/src/builder/google-ai-pro/**",
+      "apps/hub/src/builder/factory-provisioning.ts",
+      "apps/hub/src/platform/secrets.ts",
+      "scripts/builder-e2b-template.mjs",
+      "scripts/provision-application-database.mjs",
+      "scripts/confine-application-cluster.mjs",
+      "scripts/run-application-cluster.sh",
+      "scripts/mount-application-cluster-storage.sh"
+    ],
+    "page": "docs/development/review/connectors.md"
+  },
+  {
+    "area": "frontend",
+    "paths": ["apps/web/**", "packages/brand/**", "apps/keycloak-theme/**"],
+    "page": "docs/development/review/frontend.md"
+  },
+  {
+    "area": "builder-factory",
+    "paths": [
+      "apps/hub/src/builder/**",
+      "apps/hub/src/factory-cli.ts",
+      "apps/hub/compiler-template/**",
+      "factory-skills/**",
+      "scripts/builder-eval/**",
+      "scripts/builder-e2b-template.mjs",
+      "scripts/hub-factory.mjs"
+    ],
+    "page": "docs/development/review/builder-factory.md"
+  },
+  {
+    "area": "contracts",
+    "paths": [
+      "contracts/api/**",
+      "apps/hub/src/generated/**",
+      "packages/canonical-json/**",
+      "scripts/check-wire-*.mjs",
+      "scripts/generate-wire-projection.mjs",
+      "scripts/generate-r1-s*-contracts.mjs",
+      "scripts/run-kubb-wire-probe.mjs"
+    ],
+    "page": "docs/development/review/contracts.md"
+  },
+  {
+    "area": "platform",
+    "paths": [
+      "apps/hub/src/server.ts",
+      "apps/hub/src/http/**",
+      "apps/hub/src/platform/**",
+      "apps/hub/src/app-runner/**",
+      "apps/hub/src/mar/**",
+      "apps/hub/src/registry/**",
+      "apps/hub/src/project/**",
+      "apps/hub/src/workspace/**",
+      "apps/hub/tsconfig.json",
+      "packages/canonical-json/**",
+      "scripts/build-hub-local.mjs",
+      "scripts/check-agent-context.mjs",
+      "scripts/check-current-state.mjs",
+      "scripts/check-import-law.mjs",
+      "scripts/check-review-areas.mjs",
+      "scripts/check-web-style.mjs",
+      "scripts/conexus-preflight.mjs",
+      "scripts/conexus-verify.mjs",
+      "scripts/labels.mjs",
+      ".github/workflows/**",
+      "package.json",
+      "package-lock.json",
+      "biome.json",
+      "tsconfig.base.json",
+      ".nvmrc"
+    ],
+    "page": "docs/development/review/platform.md"
+  }
+]
