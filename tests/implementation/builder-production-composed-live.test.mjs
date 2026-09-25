@@ -22,7 +22,7 @@ const readTrace = (page, projectId, builderRunId) => page.evaluate(async ({ id, 
 }, { id: projectId, run: builderRunId })
 
 test('RB composed production journey uses server.ts, Preview, and native persisted traces', {
-  skip: live ? false : 'requires explicit CONEXUS_RB_COMPOSED_LIVE=true',
+  skip: live ? false : 'opt-in: CONEXUS_RB_COMPOSED_LIVE=true',
   timeout: 20 * 60_000,
 }, async (t) => {
   const missing = required.filter((name) => !process.env[name])
