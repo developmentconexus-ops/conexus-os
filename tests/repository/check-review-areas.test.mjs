@@ -67,14 +67,14 @@ const failsWith = (candidate, stderr) => {
 test('the real tree passes', () => {
   const result = run(root)
   assert.equal(result.stderr, '')
-  assert.match(result.stdout, /^Review area checks passed \(areas=\d+, production files=\d+\)\.$/m)
+  assert.match(result.stdout, /^Review area checks passed \(areas=\d+, reviewed files=\d+\)\.$/m)
   assert.equal(result.status, 0)
 })
 
 test('a clean fixture passes, and dir/** covers a dotfile', context => {
   const result = run(fixture(context))
   assert.equal(result.stderr, '')
-  assert.equal(result.stdout, 'Review area checks passed (areas=2, production files=4).\n')
+  assert.equal(result.stdout, 'Review area checks passed (areas=2, reviewed files=4).\n')
   assert.equal(result.status, 0)
 })
 
@@ -162,7 +162,8 @@ test('a head path the base map has no area for prints the notice and exits 0', c
   const result = runPr(target, base, head)
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
-    'Review area checks passed (areas=3, production files=5).',
+    'Review area checks passed (areas=3, reviewed files=5).',
+    'review pages from origin/main: docs/development/review/mastra-native.md',
     'new area path: apps/new/x.ts -> docs/development/review/mastra-native.md, docs/development/review/new-app.md',
     '::notice file=apps/new/x.ts::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
     '',
@@ -170,14 +171,18 @@ test('a head path the base map has no area for prints the notice and exits 0', c
   assert.equal(result.status, 0)
 })
 
-test('a head change to a path the base already covers prints nothing extra', context => {
+test('a head change to a path the approved map covers lists its pages and no notice', context => {
   const target = fixture(context)
   const base = commit(target)
   writeFiles(target, { 'apps/hub/src/server.ts': 'export const changed = true\n' })
   const head = commit(target)
   const result = runPr(target, base, head)
   assert.equal(result.stderr, '')
-  assert.equal(result.stdout, 'Review area checks passed (areas=2, production files=4).\n')
+  assert.equal(result.stdout, [
+    'Review area checks passed (areas=2, reviewed files=4).',
+    'review pages from origin/main: docs/development/review/mastra-native.md, docs/development/review/hub.md',
+    '',
+  ].join('\n'))
   assert.equal(result.status, 0)
 })
 
@@ -197,12 +202,37 @@ test('a stacked pull request is judged by the map on origin/main, not by its bas
   const result = runPr(target, base, head, main)
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
-    'Review area checks passed (areas=3, production files=6).',
+    'Review area checks passed (areas=3, reviewed files=6).',
+    'review pages from origin/main: docs/development/review/mastra-native.md',
     'new area path: apps/new/x.ts -> docs/development/review/mastra-native.md, docs/development/review/new-app.md',
     '::notice file=apps/new/x.ts::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
     '',
   ].join('\n'))
   assert.equal(result.status, 0)
+})
+
+test('a test-only change loads the page of the area its test belongs to', context => {
+  const areas = [...baseAreas, { area: 'identity', paths: ['tests/identity-*.test.mjs'], page: 'docs/development/review/identity.md' }]
+  const target = fixture(context, {
+    areas,
+    files: { 'tests/identity-session.test.mjs': 'export {}\n', 'docs/development/review/identity.md': '# Identity\n' },
+  })
+  const base = commit(target)
+  writeFiles(target, { 'tests/identity-session.test.mjs': 'export const changed = true\n' })
+  const head = commit(target)
+  const result = runPr(target, base, head)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, [
+    'Review area checks passed (areas=3, reviewed files=5).',
+    'review pages from origin/main: docs/development/review/mastra-native.md, docs/development/review/identity.md',
+    '',
+  ].join('\n'))
+  assert.equal(result.status, 0)
+})
+
+test('a test file that maps to no area fails coverage', context => {
+  failsWith(fixture(context, { files: { 'tests/stray.test.mjs': 'export {}\n' } }),
+    'error tests/stray.test.mjs maps to no review area (a universal area does not count)\n')
 })
 
 test('without origin/main the pull request check fails and says what to fetch', context => {
@@ -211,7 +241,7 @@ test('without origin/main the pull request check fails and says what to fetch', 
   writeFiles(target, { 'apps/hub/src/server.ts': 'export const changed = true\n' })
   const head = commit(target)
   const result = spawnSync(process.execPath, [script, target], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
-  assert.equal(result.stdout, 'Review area checks passed (areas=2, production files=4).\n')
+  assert.equal(result.stdout, 'Review area checks passed (areas=2, reviewed files=4).\n')
   assert.equal(result.stderr, 'error origin/main is not in this clone; fetch it so the approved review map can be read\n')
   assert.equal(result.status, 1)
 })
@@ -231,8 +261,8 @@ test('no areas.json on origin/main treats every changed path as new', context =>
   const result = runPr(target, base, head)
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
-    'Review area checks passed (areas=1, production files=1).',
-    `${AREAS} does not exist on origin/main; every changed production path is a new area path.`,
+    'Review area checks passed (areas=1, reviewed files=1).',
+    `${AREAS} does not exist on origin/main; every changed reviewed path is a new area path.`,
     'new area path: package.json -> docs/development/review/root.md',
     '::notice file=package.json::new area path: the approved map on origin/main has no area for it; judged by docs/development/review/root.md from the head.',
     '',

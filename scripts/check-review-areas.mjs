@@ -1,7 +1,7 @@
 // Checks docs/development/review/areas.json, the map the Factory reviewer reads to pick the review
 // pages a pull request loads: every entry is well formed, every page exists and is listed, every
-// glob still matches a tracked file, and every production file belongs to an area that is not
-// universal. A universal area (paths exactly ["**"]) applies to every pull request, so counting it
+// glob still matches a tracked file, and every reviewed file (production code and the tests that
+// prove it) belongs to an area that is not universal. A universal area (paths exactly ["**"]) applies to every pull request, so counting it
 // would make the coverage check vacuous.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -11,10 +11,12 @@ import { fileURLToPath } from 'node:url'
 const AREAS_FILE = 'docs/development/review/areas.json'
 const PAGE_DIR = 'docs/development/review/'
 const UNIVERSAL = '**'
-const PRODUCTION_DIRS = ['apps/', 'packages/', 'contracts/', 'infra/', 'scripts/', 'factory-skills/', '.github/workflows/']
-const PRODUCTION_ROOT_FILES = new Set(['package.json', 'package-lock.json', 'biome.json', 'tsconfig.base.json', '.nvmrc'])
+// Tests are reviewed with the code they prove: a test-only change still loads its domain's page, whose
+// proof rules judge that test.
+const REVIEWED_DIRS = ['apps/', 'packages/', 'contracts/', 'infra/', 'scripts/', 'factory-skills/', '.github/workflows/', 'tests/']
+const REVIEWED_ROOT_FILES = new Set(['package.json', 'package-lock.json', 'biome.json', 'tsconfig.base.json', '.nvmrc'])
 
-export const isProduction = path => PRODUCTION_DIRS.some(dir => path.startsWith(dir)) || PRODUCTION_ROOT_FILES.has(path)
+export const isReviewed = path => REVIEWED_DIRS.some(dir => path.startsWith(dir)) || REVIEWED_ROOT_FILES.has(path)
 
 // The portable grammar every matcher agrees on: an exact path, `dir/**` for everything under dir
 // (dotfiles included), and `*` for any run of characters inside one segment. Node's
@@ -87,7 +89,7 @@ export function checkAreas(areas, { files, pageExists }) {
   }
   const covering = areas.filter(({ universal }) => !universal).flatMap(({ matchers }) => matchers)
   for (const file of files) {
-    if (isProduction(file) && !covering.some(matches => matches(file))) findings.push(`${file} maps to no review area (a universal area does not count)`)
+    if (isReviewed(file) && !covering.some(matches => matches(file))) findings.push(`${file} maps to no review area (a universal area does not count)`)
   }
   return findings
 }
@@ -102,7 +104,7 @@ export function checkRepository(root) {
   if (findings.length) return { areas, files: 0, findings }
   return {
     areas,
-    files: unique.filter(isProduction).length,
+    files: unique.filter(isReviewed).length,
     findings: checkAreas(areas, { files: unique, pageExists: page => existsSync(join(root, page)) }),
   }
 }
@@ -123,9 +125,9 @@ export function prMode(env) {
   return { kind: 'error', message: `${missingName} is not set (${presentName} is)` }
 }
 
-function changedProductionFiles(root, mergeBase, head) {
+function changedReviewedFiles(root, mergeBase, head) {
   return execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', mergeBase, head], { cwd: root, encoding: 'utf8' })
-    .split('\n').filter(Boolean).filter(isProduction).sort()
+    .split('\n').filter(Boolean).filter(isReviewed).sort()
 }
 
 // null when areas.json does not exist at that ref: a base that predates the file, or a rewritten
@@ -139,7 +141,7 @@ function areasTextAtRef(root, ref) {
   }
 }
 
-// The one function that classifies: for each pull-request-changed production path, whether the
+// The one function that classifies: for each pull-request-changed reviewed path, whether the
 // base map covers it with an area other than the universal one. `null` base areas (no areas.json at
 // the base) makes every path new. A path a non-universal base area already covers is judged by that
 // map today and needs no exception; a path only the universal area or nothing covers is genuinely
@@ -147,6 +149,12 @@ function areasTextAtRef(root, ref) {
 export function classifyPrPaths(paths, baseAreas) {
   const covering = baseAreas === null ? [] : baseAreas.filter(({ universal }) => !universal).flatMap(({ matchers }) => matchers)
   return paths.map(path => ({ path, isNewArea: !covering.some(matches => matches(path)) }))
+}
+
+// The pages the reviewer loads for these paths from the approved map: every area that matches a
+// changed path, the universal one included, each page once, in the map's order.
+export function pagesToLoad(paths, areas) {
+  return areas.filter(({ matchers }) => paths.some(path => matchers.some(matches => matches(path)))).map(({ page }) => page)
 }
 
 function headPagesFor(path, headAreas) {
@@ -157,7 +165,7 @@ function headPagesFor(path, headAreas) {
 // map with its own findings has nothing reliable to report a new path's page from.
 function reportPullRequest(root, { base, head }, headAreas) {
   const mergeBase = execFileSync('git', ['merge-base', base, head], { cwd: root, encoding: 'utf8' }).trim()
-  const changed = changedProductionFiles(root, mergeBase, head)
+  const changed = changedReviewedFiles(root, mergeBase, head)
   if (!changed.length) return
   // The diff starts at the merge base, so it holds only this pull request's changes. The map is the
   // approved one on origin/main, as review-checklist.md says. A stacked pull request's base is
@@ -168,8 +176,9 @@ function reportPullRequest(root, { base, head }, headAreas) {
     return
   }
   const baseText = areasTextAtRef(root, RULES_REF)
-  if (baseText === null) console.log(`${AREAS_FILE} does not exist on ${RULES_REF}; every changed production path is a new area path.`)
+  if (baseText === null) console.log(`${AREAS_FILE} does not exist on ${RULES_REF}; every changed reviewed path is a new area path.`)
   const baseAreas = baseText === null ? null : parseAreas(baseText).areas
+  if (baseAreas !== null) console.log(`review pages from ${RULES_REF}: ${pagesToLoad(changed, baseAreas).join(', ')}`)
   for (const { path, isNewArea } of classifyPrPaths(changed, baseAreas)) {
     if (!isNewArea) continue
     const pages = headPagesFor(path, headAreas)
@@ -190,7 +199,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const { areas, files, findings } = checkRepository(root)
     for (const finding of findings) console.error(`error ${finding}`)
     if (findings.length) process.exitCode = 1
-    else console.log(`Review area checks passed (areas=${areas.length}, production files=${files}).`)
+    else console.log(`Review area checks passed (areas=${areas.length}, reviewed files=${files}).`)
     if (mode.kind === 'pull-request' && !findings.length) reportPullRequest(root, mode, areas)
   }
 }

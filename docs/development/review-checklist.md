@@ -18,7 +18,7 @@ the rules. The rules are this checklist, the pages, `areas.json`, and the browse
 3. Match each changed path against each area's `paths`. The grammar is portable on purpose: an
    exact path, `dir/**` for every path under `dir` (dotfiles included), and `*` for any run of
    characters inside one segment. `scripts/check-review-areas.mjs` defines the matcher and checks
-   that every production file maps to an area.
+   that every production and test file maps to an area. A test maps to the area of the code it proves.
 4. Load every matched page with `git show origin/main:<page>`, and always
    [`mastra-native.md`](review/mastra-native.md).
 5. A changed path the map on `origin/main` does not cover is judged by the page the pull

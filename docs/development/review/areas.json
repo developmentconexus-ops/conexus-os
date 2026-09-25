@@ -1,7 +1,9 @@
 [
   {
     "area": "mastra-native",
-    "paths": ["**"],
+    "paths": [
+      "**"
+    ],
     "page": "docs/development/review/mastra-native.md"
   },
   {
@@ -18,7 +20,16 @@
       "scripts/q3-sign-in.mjs",
       "scripts/q3-negative-proof.mjs",
       "scripts/keycloak-refresh-probe.mjs",
-      "scripts/single-session-proof.mjs"
+      "scripts/single-session-proof.mjs",
+      "tests/implementation/identity-access-*",
+      "tests/implementation/application-access-*",
+      "tests/implementation/membership-authority-*",
+      "tests/implementation/installation-administrator-*",
+      "tests/implementation/installation-settings-*",
+      "tests/implementation/workspace-membership-*",
+      "tests/implementation/preview-application-*",
+      "tests/implementation/r1-s1-*",
+      "tests/implementation/r1-s2-*"
     ],
     "page": "docs/development/review/identity-session.md"
   },
@@ -39,7 +50,17 @@
       "scripts/generate-hub-role-register.mjs",
       "scripts/provision-hub-roles.mjs",
       "scripts/cutover-hub-role-names.mjs",
-      "packages/canonical-json/**"
+      "packages/canonical-json/**",
+      "tests/implementation/*-postgres.test.mjs",
+      "tests/implementation/hub-migration-*",
+      "tests/implementation/hub-baseline.test.mjs",
+      "tests/implementation/hub-database.mjs",
+      "tests/implementation/hub-role-*",
+      "tests/implementation/provision-hub-*",
+      "tests/implementation/cutover-hub-*",
+      "tests/implementation/connection-census.test.mjs",
+      "tests/implementation/protected-cluster*",
+      "tests/implementation/workspace-reads.test.mjs"
     ],
     "page": "docs/development/review/data-migrations.md"
   },
@@ -60,13 +81,33 @@
       "scripts/provision-application-database.mjs",
       "scripts/confine-application-cluster.mjs",
       "scripts/run-application-cluster.sh",
-      "scripts/mount-application-cluster-storage.sh"
+      "scripts/mount-application-cluster-storage.sh",
+      "tests/implementation/application-data-*",
+      "tests/implementation/application-cluster*",
+      "tests/implementation/sandbox-probe/**",
+      "tests/implementation/builder-google-*",
+      "tests/implementation/builder-model-*",
+      "tests/implementation/builder-e2b-*",
+      "tests/implementation/builder-factory-fake-github.mjs",
+      "tests/implementation/builder-repository-*"
     ],
     "page": "docs/development/review/connectors.md"
   },
   {
     "area": "frontend",
-    "paths": ["apps/web/**", "packages/brand/**", "apps/keycloak-theme/**"],
+    "paths": [
+      "apps/web/**",
+      "packages/brand/**",
+      "apps/keycloak-theme/**",
+      "tests/implementation/*browser*",
+      "tests/implementation/brand-*",
+      "tests/implementation/web-dev-server.mjs",
+      "tests/implementation/parity-shots.mjs",
+      "tests/implementation/*-screenshot*",
+      "tests/implementation/preview-form-policy.test.mjs",
+      "tests/repository/web-style.test.mjs",
+      "tests/implementation/provider-groups.test.mjs"
+    ],
     "page": "docs/development/review/frontend.md"
   },
   {
@@ -78,7 +119,9 @@
       "factory-skills/**",
       "scripts/builder-eval/**",
       "scripts/builder-e2b-template.mjs",
-      "scripts/hub-factory.mjs"
+      "scripts/hub-factory.mjs",
+      "tests/implementation/builder-*",
+      "tests/implementation/factory-skills-guard.test.mjs"
     ],
     "page": "docs/development/review/builder-factory.md"
   },
@@ -92,7 +135,9 @@
       "scripts/check-wire-*.mjs",
       "scripts/generate-wire-projection.mjs",
       "scripts/generate-r1-s*-contracts.mjs",
-      "scripts/run-kubb-wire-probe.mjs"
+      "scripts/run-kubb-wire-probe.mjs",
+      "tests/repository/wire-bijection-gate.test.mjs",
+      "tests/implementation/project-disclosure.test.mjs"
     ],
     "page": "docs/development/review/contracts.md"
   },
@@ -127,7 +172,18 @@
       "package-lock.json",
       "biome.json",
       "tsconfig.base.json",
-      ".nvmrc"
+      ".nvmrc",
+      "tests/repository/**",
+      "tests/fixtures/**",
+      "tests/implementation/application-host*",
+      "tests/implementation/application-invoker*",
+      "tests/implementation/application-runner-*",
+      "tests/implementation/application-server-*",
+      "tests/implementation/hub-build.mjs",
+      "tests/implementation/guard-mutations.mjs",
+      "tests/implementation/project-*",
+      "tests/implementation/workspace-*",
+      "tests/implementation/shell-browser-boundary.test.mjs"
     ],
     "page": "docs/development/review/platform.md"
   }
