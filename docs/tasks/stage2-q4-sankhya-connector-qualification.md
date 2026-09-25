@@ -374,10 +374,13 @@ printing it, the Hub, runner and Factory logs of the run window, the Mastra trac
 agent transcripts, the Project repository at every commit Q4 made, the built Preview artifact and
 `docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero.
 
-The same script also takes order 22790's business values from one live read held in its own memory
-(supplier, dates, status, prices, quantities, totals, item descriptions, notes) and searches every
-text file bound for the repository (`docs/evidence/stage2-q4/`, the Builder and agent transcripts, the
-Project repository diff) for each value, again printing only a count per file. Before a screenshot is
+The same script also collects order 22790's business values from every live read the run made, held
+in its own memory (supplier, dates, status, prices, quantities, totals, item descriptions, notes), and
+searches every text file bound for the repository (`docs/evidence/stage2-q4/`, the Builder and agent
+transcripts, the Project repository at every commit Q4 made) for each value in each representation the
+fields can take (a number with and without thousands and decimal separators, a date in ISO and in
+dd/mm/yyyy). Short or common values, such as a status word or a one-digit quantity, count only next to
+their field name. It prints only a count per file. Before a screenshot is
 committed, the operator looks at it and confirms every business value is masked. **Check:** every
 count is zero and the operator's confirmation is in the evidence README.
 
