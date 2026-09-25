@@ -766,6 +766,55 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(openGrants, 0, 'an invitation issued before the revoke must not survive it, however the two interleave')
   })
 
+  await t.test('a claim locks an existing grant even before its invitation is issued, then a queued revoke ends it', async () => {
+    const personId = await account('late-invitation')
+    const email = 'late-invitation-verified@application.test'
+    const grantId = randomUUID()
+    await client.query('INSERT INTO iam.application_grant(grant_id, project_id, account_id, granted_by) VALUES ($1,$2,$3,$4)',
+      [grantId, projectId, personId, owner])
+
+    const blocker = new pg.Client(connection)
+    const claimer = new pg.Client(connection)
+    const revoker = new pg.Client(connection)
+    await blocker.connect()
+    await claimer.connect()
+    await revoker.connect()
+    try {
+      await blocker.query('BEGIN')
+      await blocker.query('SELECT 1 FROM iam.application_grant WHERE grant_id = $1 FOR UPDATE', [grantId])
+      await claimer.query('BEGIN')
+      const claimerPid = (await claimer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const claim = claimer.query('SELECT iam.claim_application_invitations($1,$2) AS claimed', [personId, email])
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [claimerPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the claim did not lock the grant before seeing an invitation')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',
+        [randomUUID(), projectId, email, owner, inTwoWeeks()])
+      await blocker.query('COMMIT')
+      assert.equal((await claim).rows[0].claimed, 1, 'the later statement sees the newly issued invitation')
+      const revokerPid = (await revoker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const revoke = revoker.query('SELECT iam.revoke_application_grant($1,$2,$3) AS revoked', [owner, projectId, grantId])
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [revokerPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the revoke did not queue behind the claim')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await claimer.query('COMMIT')
+      assert.equal((await revoke).rows[0].revoked, true)
+    } finally {
+      await blocker.query('ROLLBACK')
+      await claimer.query('ROLLBACK')
+      await blocker.end()
+      await claimer.end()
+      await revoker.end()
+    }
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].n, 0)
+  })
+
   await t.test('a claim racing a revoke in the other order neither deadlocks nor loses the revoke', async () => {
     const person = identity('interleaved-reverse-sub', 'reverso@application.test', 'Corrida Invertida')
     await grantAccess(projectId, 'reverso@application.test')

@@ -37,6 +37,7 @@ const applicationAccessReviewDigest = 'c8d5f024ce4e83f66cfe6c6f304060d45ef7fd68b
 const applicationAccessVerificationDigest = '5c31112ec06e7d69bd43ad40b4a4cdb77405ec92dd7bff3060def078672d7f62'
 const singleSessionDigest = '8b68fd77bdf58eb1ea8dc728d2315e1f32f42ba361e67744cf72c68aeee58f24'
 const claimInvitationGrantLockDigest = '247d4e7e92c7fde07006bc0a5bf36f719402e4be38e257f6239e93f2d596b451'
+const claimLockAllOpenGrantsDigest = 'e56b9f08bed9b673ed7db2457e51ff837465b46e184a31deb94f8f11af296a43'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -66,6 +67,7 @@ const migrationDigests = new Map([
   ['0025_application_access_verification.sql', applicationAccessVerificationDigest],
   ['0026_single_session.sql', singleSessionDigest],
   ['0027_claim_invitation_grant_lock.sql', claimInvitationGrantLockDigest],
+  ['0028_claim_lock_all_open_grants.sql', claimLockAllOpenGrantsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
