@@ -12,7 +12,7 @@ Each route walks one lane from [the delivery rules](../../../../docs/development
 
 ## Shaped lane
 
-1. The bet lives in the private `conexus-hq` repository. It names the appetite, "done when" and the sub-issues. The public repository never names a bet.
+1. The bet lives in the private `conexus-hq` repository. It names the appetite, "done when" and the sub-issues. This repository never names a bet.
 2. Each sub-issue here carries `lane:shaped` and walks the fast route.
 3. Before the last sub-issue closes, check the bet's "done when" on the real artifact: the running Hub, a Preview, or the pilot. A mock does not count.
 4. When the bet passes its appetite, stop and say so on the issue. The manager records what was learned and reshapes the bet.

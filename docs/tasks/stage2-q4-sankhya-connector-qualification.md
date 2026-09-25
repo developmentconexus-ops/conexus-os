@@ -305,8 +305,8 @@ credential or gateway URL (P11).
 
 After G0, the executor reads purchase order 22790 once through the broker on the pilot, using the
 Connection the operator loaded. **Check:** the broker returns the order; the evidence records the
-fields returned, the call count, the duration and a response digest. The repository is public, so the
-evidence shows field names, counts and digests, never order 22790's business values (section 11, point 5).
+fields returned, the call count, the duration and a response digest. The evidence shows field names,
+counts and digests, never order 22790's business values (section 11, point 5).
 
 ### Q4.7 — Builder end to end (the main case)
 
