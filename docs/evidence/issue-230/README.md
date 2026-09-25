@@ -1,5 +1,7 @@
 # Issue #230 pilot proof
 
+**Verdict: ACCEPT**, given by the operator on 2026-09-25 in the chat with the manager.
+
 **Issue:** [#230](https://github.com/developmentconexus-ops/conexus-os/issues/230), explain an unverified email
 on the application no-access page. The code merged in #267 (`f035461e`). This file records its "Done when" on
 the pilot.
@@ -9,8 +11,11 @@ the pilot.
 lands on the "Sem acesso" page, which says to ask the Workspace administrator. No email, username or
 Keycloak subject appeared in any URL of either sign-in or in either page.
 
-The page says the person's email is not verified. It does not print the address itself, as the issue's
-constraint requires: the page reveals nothing about an email's invitation or grant.
+The page says the person's email is not verified but does not print the address. The no-access route picks
+its copy only from a fixed `reason` value in the query
+([`application-host-routes.ts`](../../../apps/hub/src/mar/application-host-routes.ts), the `/__conexus/no-access`
+handler), and every other value falls back to the generic page. Showing the address would mean carrying the
+identity in the redirect URL.
 
 ## Pilot
 
