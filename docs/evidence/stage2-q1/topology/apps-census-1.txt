@@ -1,7 +1,7 @@
 == container
 name=/conexus-apps-postgres image=postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f restart=unless-stopped memory=1073741824 swap=1073741824 cpus=2000000000 pids=512 readonly=true ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"5434"}]}
 bind /var/lib/conexus/applications-postgres/pgdata -> /var/lib/postgresql/data rw=true
-bind /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password rw=false
+bind ~/.local/share/conexus/pilot/slice7/secrets/db-apps-root -> /run/secrets/postgres-password rw=false
 
 memory.max=1073741824 cpu.max=200000 100000
 postgresql-Wed.log

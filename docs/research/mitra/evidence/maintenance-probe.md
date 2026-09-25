@@ -29,7 +29,7 @@ A sonda reproduz essas classes no domínio da Mitra.
 
 ## Desenho
 
-**Ambiente.** Projeto novo e descartável no workspace `METAL NOBRE NOVO AGENT`, dados fake.
+**Ambiente.** Projeto novo e descartável no workspace `<empresa-1> NOVO AGENT`, dados fake.
 Motivo: o projeto `Marketplace Central` que já existe na Mitra está **vivo** (sessão de 2026-08-10
 20:46–20:50, decisões reais de integração Sankhya) e — por **S2** (`08-limites-e-gaps`)
 — na Mitra o banco de DEV *é* o banco. Sonda não encosta em projeto real.

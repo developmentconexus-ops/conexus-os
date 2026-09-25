@@ -2,7 +2,7 @@
 // IAM (access context), Workspace (list and read), Project (list), and one real write to the Hub
 // PostgreSQL read back (the operator's personal model defaults, swapped and then restored).
 // Prints one JSON line. Usage: CONEXUS_STATE=<storage state> node hub-heartbeat.mjs <label>
-import { chromium } from '/home/leandrotheodoro/wt-q1/node_modules/@playwright/test/index.mjs'
+import { chromium } from '~/wt-q1/node_modules/@playwright/test/index.mjs'
 
 const base = 'https://hub.conexus.localhost:3443'
 const label = process.argv[2] ?? 'heartbeat'

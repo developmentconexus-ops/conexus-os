@@ -213,7 +213,7 @@ CLIProxyAPI v7.3.12. The Hub runs the binary; it never reads `~/cliproxy/config.
    when the binary's sha256 differs:
 
    ```
-   CONEXUS_CLIPROXY_BIN=/home/leandrotheodoro/cliproxy/cli-proxy-api
+   CONEXUS_CLIPROXY_BIN=~/cliproxy/cli-proxy-api
    CONEXUS_CLIPROXY_SHA256=3a82a4db2b7264d9e744865b39e888def222ba19dd3156113efaa50d406530e6
    ```
 
@@ -240,7 +240,7 @@ Disconnecting removes the Factory row, and the next call fails with the Factory'
 credential error.
 
 To rerun the check against the real binary:
-`CONEXUS_CLIPROXY_LIVE_BIN=/home/leandrotheodoro/cliproxy/cli-proxy-api node --test tests/implementation/builder-google-ai-pro.test.mjs`.
+`CONEXUS_CLIPROXY_LIVE_BIN=~/cliproxy/cli-proxy-api node --test tests/implementation/builder-google-ai-pro.test.mjs`.
 It binds port 51121 while it runs.
 
 ## Known gaps

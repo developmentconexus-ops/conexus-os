@@ -280,7 +280,7 @@ A mock proves adapter behavior, not the provider. A hand-written example proves 
 
 ## 10. Stage 2 lie detector
 
-The preferred first end-to-end application is a **purchasing follow-up notebook** for Metal Nobre:
+The preferred first end-to-end application is a **purchasing follow-up notebook** for `<empresa-1>`:
 
 - read a bounded set of open purchase orders from Sankhya;
 - store Conexus-owned follow-up notes/status separately;

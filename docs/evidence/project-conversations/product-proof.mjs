@@ -2,10 +2,10 @@
 // operator: open a Project, hold two conversations with different messages, switch between them,
 // rename one, and check that switching leaves the Project's source and last good Preview alone.
 // Pass 1 writes. Pass 2 runs after the Hub restarts and checks both are still there.
-import { chromium } from '/home/leandrotheodoro/conexus-os/node_modules/@playwright/test/index.mjs'
+import { chromium } from '~/conexus-os/node_modules/@playwright/test/index.mjs'
 
 const base = 'https://hub.conexus.localhost:3443'
-const statePath = process.env.CONEXUS_STATE ?? '/home/leandrotheodoro/.local/share/conexus/pilot/slice7/operator-storage-state.json'
+const statePath = process.env.CONEXUS_STATE ?? '~/.local/share/conexus/pilot/slice7/operator-storage-state.json'
 const projectId = process.argv[2]
 const pass = process.argv[3] ?? '1'
 const stamp = () => new Date().toISOString().slice(11, 19)

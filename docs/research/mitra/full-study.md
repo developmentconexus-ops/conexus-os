@@ -445,7 +445,7 @@ As 28 SFs analíticas não são 28 queries escritas à mão. São constantes com
 
 ```js
 const DIAS_PARADO = `DATEDIFF(CURDATE(), o.DTALTER)`;
-const FAIXA = `CASE WHEN ${DIAS_PARADO} <= 3 THEN 'Janela de ouro' … END`;
+const FAIXA = `CASE WHEN ${DIAS_PARADO} <= <d1> THEN '<faixa-1>' … END`;
 const BASE  = `FROM ORCAMENTOS o JOIN … WHERE o.PENDENTE='S' AND o.TEM_DERIVADO='N'`;
 const fVend = `AND ('{{vendedor}}'='' OR o.CODVEND='{{vendedor}}')`;
 // dash_por_vendedor recebe fCli, fFaixa, fMes — MAS NÃO fVend
@@ -652,7 +652,7 @@ para instrumentação. Tabelas nativas `INT_*` = log de ações da plataforma de
 
 - **Ambiente de dados efêmero por tarefa** + **fixtures**: o gap mais claro para superar a Mitra. O
   teste deixa de ser "não explodiu contra produção" e passa a ser **asserção de valor** contra dado
-  controlado (`pendentes == 187`, não `query rodou`).
+  controlado (`pendentes == <n>`, não `query rodou`).
 - **Migration como gate**, não como log pós-fato: schema só evolui por migration validada, com
   dry-run **antes** do deploy (ver ``05``).
 - **Cofre único** para todo segredo — sem a exceção "criptografado dentro do banco do projeto".
@@ -731,10 +731,10 @@ O catálogo real observado inclui Gmail, Google Calendar, HubSpot, SAP, Supabase
 O padrão mais valioso desta área: antes de codar, o agente **consulta o dado real por SQL** para
 validar hipóteses de escopo. No projeto de orçamentos isso derrubou três suposições:
 
-- `Orçamento = CODTIPOPER IN (14,714)` (e não o `TGFTOP.ORCAMENTO='S'`, que estava mal configurado).
+- `Orçamento = CODTIPOPER IN (<códigos-top>)` (e não o `TGFTOP.ORCAMENTO='S'`, que estava mal configurado).
 - `VLRCUS` **não é custo** em 94,8% dos itens → margem não é calculável → feature cancelada com o
   número que prova.
-- Pendente = `PENDENTE='S'` sem derivado em `TGFVAR` → 187 orçamentos / R$ 6.283.878.
+- Pendente = `PENDENTE='S'` sem derivado em `TGFVAR` → `<n>` orçamentos / `R$ <valor>`.
 
 É o estágio-2 (build) **auditando** o estágio-1 (escopo) contra a fonte real. Ver ``07``.
 
@@ -1188,11 +1188,11 @@ ambiente de teste, é smoke test contra produção — só seguro porque as SFs 
 
 O projeto **declara o que não conseguiu**, com evidência numérica e encaminhamento:
 
-> `VLRCUS` não é custo — 91.856 de 96.936 itens (94,8%) idênticos ao `VLRUNIT` → **margem não é
+> `VLRCUS` não é custo — `<n>` de `<n>` itens (94,8%) idênticos ao `VLRUNIT` → **margem não é
 > calculável** → feature cancelada, não entregue com dado errado.
 
-Critérios de aceite são **verificáveis, não subjetivos**: *"Pendentes na tela = 187 / R$ 6.283.878
-(bate com o Sankhya)"*, *"Conversão limpa 12M = 71,2%"*.
+Critérios de aceite são **verificáveis, não subjetivos**: *"Pendentes na tela = `<n>` / `R$ <valor>`
+(bate com o Sankhya)"*, *"Conversão limpa 12M = `<x>`%"*.
 
 ## Evidência
 

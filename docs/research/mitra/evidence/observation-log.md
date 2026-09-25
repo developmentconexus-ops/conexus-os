@@ -76,7 +76,7 @@ parado) já exportáveis em CSV para quem cuida do cadastro.
 | Item | Valor | Fonte |
 |---|---|---|
 | Studio | `agent.mitralab.io` | barra de endereço |
-| Workspace | `METAL NOBRE NOVO AGENT` | home de projetos |
+| Workspace | `<empresa-1> NOVO AGENT` | home de projetos |
 | Projetos existentes | Marketplace Central · TESTE 2 · Sales Radar · Teste | home |
 | Projeto da sonda | **Marketplace Central** (criado 2026-08-10, em escopagem — não é produção) | histórico do agente |
 | Modelo no início | `Claude Opus 5 High Sub` (assinatura OAuth) | seletor do compositor |
@@ -108,7 +108,7 @@ Texto verbatim do card capturado:
 ```
 TOKEN DE TESTE
 O "o" após o UUID faz parte do token ou foi apenas uma digitação?
-  ( ) Foi digitação — Usar somente o UUID terminado em 182e.
+  ( ) Foi digitação — Usar somente o UUID terminado em <final-redigido>.
   ( ) Faz parte    — Usar o token com a letra o no final.
   ( ) Outro
 ID E CREDENCIAL
@@ -1180,7 +1180,7 @@ em 100 páginas cravadas confirma o `INFERIDO` da [OBS-34](#): 5.000 é teto, n�
 
 A tela de **Rankings** oferece filtro `Empresa: Todas` e desenha ranking de cliente, produto, categoria
 e UF — **sem uma linha** dizendo que a base é parcial. O dashboard diz `PEDIDOS ANALISADOS 1.500` e
-`FATURAMENTO IMPORTADO R$ 6.333.054,89`; os rótulos *"analisados"* e *"importado"* hedgeiam, mas
+`FATURAMENTO IMPORTADO R$ <valor>`; os rótulos *"analisados"* e *"importado"* hedgeiam, mas
 ninguém que abre essa tela entende que está vendo 3/13 empresas, todas cortadas.
 
 **O dado está lá; a interpretação não.** A tela de Integração tem tudo para calcular a cobertura e não
@@ -1371,7 +1371,7 @@ vou fabricar custo a partir de preço de venda."*
 
 Fabricar custo por margem reversa sobre o preço de venda é a gambiarra óbvia, e daria um simulador que
 *parece* funcionar. Recusou. Terceira vez na sessão ([OBS-27](#), [OBS-40](#)).
-**Isto é um achado de negócio real, não de plataforma:** o simulador de preço da Metal Nobre não pode
+**Isto é um achado de negócio real, não de plataforma:** o simulador de preço da `<empresa-1>` não pode
 sair do Sankhya sozinho — custo precisa de outra fonte.
 
 ### 41.2 — Contornou o teto de 10 minutos, estruturalmente
@@ -1897,7 +1897,7 @@ teste. Terceira camada onde o mesmo erro aparece (dado, UI, teste). Vale virar p
 | **M2 — aposentadoria sem órfão** | ✅ | *"Removi rotas `/produtos`, `/categorias`, `/fiscal`, as SFs `mcDashboard` e `mcFiscal`, e o importador defeituoso — sem tela morta nem função órfã."* |
 | **M4 — contrato numa fronteira só** | ✅ | *"A cobertura ficou num lugar só: `IMPORT_COBERTURA` + um indicador no cabeçalho, **presente em toda tela e repetido em nenhuma**."* |
 | **M3 — troca de shape, chamadores** | ✅ | 1 canal → 6 canais como entidade com política; `mcProdutoDetalhe` corrigido na origem |
-| **Cobertura declarada** | ✅ | *"A empresa 1 tem 4.547 páginas de pedidos (~227 mil) — a amostra lê as 40 mais recentes e **declara isso**."* |
+| **Cobertura declarada** | ✅ | *"A empresa 1 tem `<n>` páginas de pedidos (`<n>` pedidos) — a amostra lê as 40 mais recentes e **declara isso**."* |
 | **Handhold humano** | **0** | nenhuma correção de rota minha no turno inteiro |
 
 M2, M3 e M4 foram satisfeitos **dentro de um único turno**, sem que eu os pedisse separadamente. O
@@ -2192,7 +2192,7 @@ servido, não só no relatório** — que era exatamente a métrica que eu não 
 
 Tela inicial, verbatim:
 
-> **Metal Nobre Hub — 2 de 6 fontes parciais**
+> **`<empresa-1>` Hub — 2 de 6 fontes parciais**
 > *"Hub de marketplace. O que anunciar, em qual canal, por quanto. O ERP entra como fonte de custo,
 > estoque e catalogo."*
 >
@@ -2654,9 +2654,9 @@ argumentou **contra o próprio trabalho do turno anterior**.
 > *"**Nenhum arquivo foi tocado para a Amazon funcionar.** Os quatro alterados são pagamento de
 > dívida. (…) **Zero SF nova, zero tabela nova, zero tela nova.**"*
 
-Política completa — comissão padrão e por 5 categorias, 3 faixas de taxa, frete grátis acima de R$ 79,
-repasse em 14 dias, exigência de EAN, título de 30 a 200, margem mínima de 8%, palavras de ruído —
-entrou como **linha de tabela**, não como código.
+Política completa — comissão padrão e por categoria, faixas de taxa, frete grátis acima de um valor
+mínimo (`R$ <valor>`), prazo de repasse, exigência de EAN, limites de tamanho de título, margem mínima,
+palavras de ruído — entrou como **linha de tabela**, não como código.
 
 ### E então ele derrubou a hipótese do turno anterior
 
@@ -2708,7 +2708,7 @@ Pedi que não vendesse o próprio trabalho. Entregou:
 >   validei foi teste automatizado criando e apagando dado."*
 > - *"**Nenhum anúncio jamais saiu daqui, por desenho.** O caminho de publicação é 100% não
 >   exercitado."*
-> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem 4.547 páginas: **vejo menos de
+> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem `<n>` páginas: **vejo menos de
 >   1% dela.** A curva ABC reflete a amostra, não a operação."*
 > - *"A fila do dia está paginada **em memória**. Traz 60 linhas e avalia no navegador. Com custo
 >   informado em massa, isso vira o gargalo."*
@@ -3990,7 +3990,7 @@ em vez de organizar informação que ele já tinha.
 | Canal com **menos** que o ERP | 8 |
 | Ativos no canal com saldo **zero** no ERP | **0** — o caso caro não ocorre hoje |
 
-Pior caso conferido por mim na tela publicada: *Mangueira Flexível Deca*, **35 no canal contra 5 no
+Pior caso conferido por mim na tela publicada: *Mangueira Flexível `<empresa-2>`*, **35 no canal contra 5 no
 ERP** — 30 unidades anunciadas a mais do que existem.
 
 O que faz isso ser medição e não acusação: cada linha traz **os dois lados e a data de cada
@@ -4083,8 +4083,8 @@ pode depender de o agente lembrar por quê.* Se o objetivo precisa sobreviver, e
 artefato que o agente **releia**, não num resumo que ele **herde**.
 
 O reancoramento que funcionou nomeava as quatro coisas: qual fonte ele leu por engano, quais eram
-os itens reais, quais fatos já medidos ele **não deve remedir** (`CUSSEMICM`, `METALTST`,
-`AD_NROPEDFAB`, `DHALTER`, 270.874 pedidos), e **"quero o estado, não um plano"**. Ele desfez o
+os itens reais, quais fatos já medidos ele **não deve remedir** (`CUSSEMICM`, `<schema-7>`,
+`AD_<campo-cliente>`, `DHALTER`, `<n>` pedidos), e **"quero o estado, não um plano"**. Ele desfez o
 desvio sozinho antes de qualquer outra coisa: SFs removidas, `sf-ids.ts` regenerado para 117,
 script apagado, as duas barreiras reexecutadas depois da remoção.
 

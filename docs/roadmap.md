@@ -117,7 +117,7 @@ Every application-architecture gate follows the
 
 ## Stage 2 lie detector
 
-The preferred end-to-end application is a small Metal Nobre **purchasing follow-up notebook**.
+The preferred end-to-end application is a small `<empresa-1>` **purchasing follow-up notebook**.
 
 By Stage 2 completion it should:
 

@@ -8,7 +8,7 @@ image: /var/lib/conexus/applications-postgres.img blocks=8388616 x 512 size=4294
 fstrim.timer: enabled inactive
 127.0.0.1:5432 - accepting connections
 entrypoint: ["/bin/sh"] restart=unless-stopped
-mounts: /home/leandrotheodoro/.local/share/conexus/pilot/slice7/secrets/db-apps-root->/run/secrets/postgres-password:false /var/lib/conexus/applications-postgres->/var/lib/conexus-apps-storage:false /var/lib/conexus/applications-postgres/pgdata->/var/lib/postgresql/data:true 
+mounts: ~/.local/share/conexus/pilot/slice7/secrets/db-apps-root->/run/secrets/postgres-password:false /var/lib/conexus/applications-postgres->/var/lib/conexus-apps-storage:false /var/lib/conexus/applications-postgres/pgdata->/var/lib/postgresql/data:true 
 old: exited restart=no
 log_filename=postgresql-%H.log
 log_rotation_age=60

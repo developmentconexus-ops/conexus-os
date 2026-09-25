@@ -1,4 +1,4 @@
-{"event":"ready","socketPath":"/home/leandrotheodoro/.local/state/conexus-runner.sock","startMs":260}
+{"event":"ready","socketPath":"~/.local/state/conexus-runner.sock","startMs":260}
 {"event":"invoke","projectId":"a700a0f2-883b-427f-9f52-89c1eb476be3","operation":"listNotes","status":200,"ms":68}
 {"event":"invoke","projectId":"a700a0f2-883b-427f-9f52-89c1eb476be3","operation":"listNotes","status":200,"ms":64}
 {"event":"invoke","projectId":"0429fa8e-3432-4ae5-93f1-648b53cf07cf","operation":"listNotes","status":200,"ms":71}

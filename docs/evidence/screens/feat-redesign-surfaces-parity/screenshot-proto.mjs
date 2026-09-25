@@ -4,7 +4,7 @@ import { chromium } from '@playwright/test'
 
 const outDir = resolve('/tmp/parity-shots')
 mkdirSync(outDir, { recursive: true })
-const file = `file://${resolve('/home/leandrotheodoro/ux-shots/redesign.html')}`
+const file = `file://${resolve('~/ux-shots/redesign.html')}`
 
 async function shots(page, name) {
   for (const scheme of ['light', 'dark']) {
