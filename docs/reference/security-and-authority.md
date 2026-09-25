@@ -152,9 +152,11 @@ disabled or signed out in Keycloak loses the Hub, every application and every Pr
 minutes (operator decision of the single session qualification; before it, the Hub never asked
 Keycloak). A refused refresh ends that session, and a Hub session's end ends the Previews it
 opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDED` or
-`PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused with 503
-`identity-provider-unavailable` on every Hub route (the Factory's included) and on application
-and Preview hosts, and the session is kept. Signing out of the Hub never asks Keycloak.
+`PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused and the
+session is kept: 503 `identity-provider-unavailable` on every Hub route and on application and
+Preview hosts. The Factory's routes answer 503 too, because the Hub's own check runs before
+Mastra's auth; that answer is **PROPOSED** in the [decisions index](../decisions/index.md), since the
+operator had accepted 401 there. Signing out of the Hub never asks Keycloak.
 
 **Rotation is off.** The realm does not rotate refresh tokens (`revokeRefreshToken: false`,
 Keycloak's default): a token refreshes any number of times, so requests that find the same check
@@ -165,8 +167,9 @@ single session qualification proved on Keycloak 26.7.2 that with rotation off a 
 an ended SSO session are still refused and no old token outlives the SSO session. Reopen on a
 Keycloak upgrade that changes refresh behaviour for a disabled user or an ended session.
 
-The realm's SSO idle limit is 40 minutes: a refresh resets it, and the Hub refreshes only when its
-five-minute check is due, so it must outlast the Hub's own 30-minute idle limit plus five minutes.
+The realm's SSO idle limit is 40 minutes (the operator's decision in the chat with the manager on
+2026-09-25): a refresh resets it, and the Hub refreshes only when its five-minute check is due, so it
+must outlast the Hub's own 30-minute idle limit plus five minutes.
 
 ### 4.3 Application session
 
