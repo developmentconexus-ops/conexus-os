@@ -147,4 +147,4 @@ If no run exists at your head, merge `main` into your branch and push again.
 - Review follows [the review checklist](review-checklist.md). From PR B, the Factory reads it from
   the base ref, so a pull request cannot edit the rules that judge it.
 - `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can
-  check in these documents: cited scripts exist, links resolve, the trunk is `main`, line caps.
+  check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.
