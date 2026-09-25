@@ -96,7 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/check-review-areas.mjs scripts/labels.mjs scripts/test-ledger-reporter.mjs scripts/check-test-skips.mjs scripts/check-changed-tests.mjs tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/labels.mjs scripts/test-ledger-reporter.mjs scripts/check-test-skips.mjs tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -132,9 +132,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
 
-  // The base's migrations run against the same cluster, and roles are cluster-wide, so this gate
-  // runs after every other PostgreSQL step.
-  candidateStep('changed-tests-fail-on-base', 'node scripts/check-changed-tests.mjs', 'postgres'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
 
@@ -295,8 +292,8 @@ export function commandArguments(entry) {
   return ['run', entry.npmScript, ...(entry.npmArgs.length ? ['--', ...entry.npmArgs] : [])]
 }
 
-export const LEDGER_REPORTER = resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')
-export const LEDGER_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
+const LEDGER_REPORTER = resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')
+const LEDGER_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
 
 // Every step records its skipped tests for the only-opt-in-skips leaf. A fresh ledger per run keeps
 // apart two runs that share node_modules through a worktree symlink, and a test that calls

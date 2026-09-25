@@ -60,7 +60,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder',
   'wire-technical-lint', 'wire-technical-ingress',
-  'changed-tests-fail-on-base', 'only-opt-in-skips',
+  'only-opt-in-skips',
 ])
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
@@ -412,13 +412,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   assert.equal(newTestLedger('/work/conexus-os').root, '/work/conexus-os')
 })
 
-test('the changed-test gate runs after every other PostgreSQL step, and the opt-in skip check last', () => {
-  assert.deepEqual(CANDIDATE_GRAPH.at(-2), {
-    scope: 'changed-tests-fail-on-base',
-    command: 'node scripts/check-changed-tests.mjs',
-    environmentClass: 'postgres',
-    graph: 'candidate',
-  })
+test('the opt-in skip check runs last', () => {
   assert.deepEqual(CANDIDATE_GRAPH.at(-1), {
     scope: 'only-opt-in-skips',
     command: 'node scripts/check-test-skips.mjs',

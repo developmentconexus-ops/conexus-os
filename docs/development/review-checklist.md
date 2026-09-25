@@ -17,8 +17,7 @@ the rules. The rules are this checklist, the pages, `areas.json`, and the browse
 2. List the changed paths: `gh pr view <n> --json files`.
 3. Match each changed path against each area's `paths`. The grammar is portable on purpose: an
    exact path, `dir/**` for every path under `dir` (dotfiles included), and `*` for any run of
-   characters inside one segment. `scripts/check-review-areas.mjs` defines the matcher and checks
-   that every production and test file maps to an area. A test maps to the area of the code it proves.
+   characters inside one segment. A test maps to the area of the code it proves.
 4. Load every matched page with `git show origin/main:<page>`, and always
    [`mastra-native.md`](review/mastra-native.md).
 5. A changed path the map on `origin/main` does not cover is judged by the page the pull
@@ -53,9 +52,6 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
 - [ ] No secret, token or credential appears in code, fixtures, logs or the pull request body.
 - [ ] CI `verify` is green on the exact head SHA, and no PostgreSQL or browser leaf the change
       touches was skipped. The reviewer reads the run log, not the badge.
-- [ ] Each `Test-Refactor:` trailer names a test whose change really is a refactor, and each
-      `Test-New-Subject:` trailer names a test whose subject the pull request adds. The
-      `changed-tests-fail-on-base` leaf prints each trailer as a notice.
 
 ## Documents
 

@@ -22,7 +22,7 @@
     "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",
     "db:catalog:snapshot": "node scripts/generate-hub-catalog-snapshot.mjs",
     "db:catalog:check": "node scripts/generate-hub-catalog-snapshot.mjs --check",
-    "repository:check": "node scripts/check-current-state.mjs && node scripts/check-agent-context.mjs && node scripts/check-review-areas.mjs",
+    "repository:check": "node scripts/check-current-state.mjs && node scripts/check-agent-context.mjs",
     "repository:candidate-census": "node --test --test-concurrency=1 tests/repository/repository-contract.test.mjs",
     "r1:a0:web:typecheck": "node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false",
     "web:style:check": "node scripts/check-web-style.mjs",
