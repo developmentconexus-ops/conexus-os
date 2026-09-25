@@ -625,6 +625,44 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
   })
 
+  await t.test('a Keycloak user deleted and re-created with the same email is a new (issuer, subject): the old Account keeps its grant, and the new subject inherits nothing', async () => {
+    await grantAccess(projectId, 'recriada@application.test')
+    const original = identity('original-sub', 'recriada@application.test', 'Original')
+    assert.equal((await signIn(original)).kind, 'HANDOFF')
+    const originalId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'original-sub'")).rows[0].account_id
+    const openGrants = async (accountId) => (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, accountId])).rows[0].n
+    assert.equal(await openGrants(originalId), 1)
+
+    // The Keycloak user is deleted and a new one created with the same verified email; Keycloak issues a
+    // new subject. Conexus is never told, so iam.account for 'original-sub' is untouched, and no live
+    // invitation names this email (the one grant already claimed it), so the new subject gets nothing.
+    const recreated = identity('recreated-sub', 'recriada@application.test', 'Recriada')
+    assert.deepEqual(await signIn(recreated), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
+      'the new subject shares an email with the old Account but resolves to no Account and no grant')
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject = 'recreated-sub'")).rows[0].n, 0,
+      'no Account is provisioned for the new subject either')
+    assert.equal(await openGrants(originalId), 1, "the old Account's grant is untouched by the new subject's sign-in")
+
+    // Admitting the new person is an ordinary invite: it never reaches the old Account, because
+    // grant_application_access answers the grant that email already holds instead of opening a second one.
+    await grantAccess(projectId, 'recriada@application.test')
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = 'recriada@application.test'", [projectId])).rows[0].n, 0,
+      'the address is already held, so no invitation was opened for it')
+    assert.deepEqual(await signIn(recreated), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
+      'granting the shared email again still answers the Account that already holds it, not the new subject')
+
+    // An Owner revokes the old Account's grant (the deleted person) and grants the email again; only
+    // then does a fresh invitation open, and it admits the new subject as its own distinct Account.
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, originalId])).rows[0].grant_id
+    assert.equal((await client.query('SELECT iam.revoke_application_grant($1,$2,$3) AS found', [owner, projectId, grantId])).rows[0].found, true)
+    await grantAccess(projectId, 'recriada@application.test')
+    assert.equal((await signIn(recreated)).kind, 'HANDOFF')
+    const recreatedId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'recreated-sub'")).rows[0].account_id
+    assert.notEqual(recreatedId, originalId, 'the new subject provisions its own Account, never the deleted one')
+    assert.equal(await openGrants(recreatedId), 1)
+    assert.equal(await openGrants(originalId), 0, "the old Account's grant stays revoked, kept as a record")
+  })
+
   await t.test('a revoke holds: re-granting a person who holds a grant opens no invitation, and revoking withdraws any invitation left for them', async () => {
     const person = identity('revoke-sub', 'revoga@application.test', 'Revogada')
     const openInvitations = async () => (await client.query('SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = $2', [projectId, 'revoga@application.test'])).rows[0].n
