@@ -227,5 +227,56 @@
       "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
     },
     "pass": true
+  },
+  {
+    "id": "concurrent-due-check-all-served",
+    "phase": "concurrent",
+    "at": "2026-09-25T11:56:11.123Z",
+    "request": {
+      "requests": "4 × GET https://eval-20260923-224304.conexus.localhost:3445/ at once, the Keycloak check due",
+      "as": "the member"
+    },
+    "observed": {
+      "agedCheckTo": "2026-09-25 11:50:02.569+00",
+      "answers": [
+        {
+          "status": 200,
+          "code": null
+        },
+        {
+          "status": 200,
+          "code": null
+        },
+        {
+          "status": 200,
+          "code": null
+        },
+        {
+          "status": 200,
+          "code": null
+        }
+      ],
+      "session": "open",
+      "checkedAfter": "2026-09-25 11:56:04.548+00",
+      "keycloakEvents": [
+        {
+          "type": "REFRESH_TOKEN",
+          "error": null
+        },
+        {
+          "type": "REFRESH_TOKEN",
+          "error": null
+        },
+        {
+          "type": "REFRESH_TOKEN",
+          "error": null
+        },
+        {
+          "type": "REFRESH_TOKEN",
+          "error": null
+        }
+      ]
+    },
+    "pass": true
   }
 ]
