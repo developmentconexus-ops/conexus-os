@@ -210,10 +210,11 @@ CLIProxyAPI v7.3.12. The Hub runs the binary; it never reads `~/cliproxy/config.
 `~/.cli-proxy-api`.
 
 1. Add two lines to the Hub's environment. Both are required together, and the Hub refuses to start
-   when the binary's sha256 differs:
+   when the binary's sha256 differs. `CONEXUS_CLIPROXY_BIN` must be the absolute path to
+   `cliproxy/cli-proxy-api`; the Hub rejects a path that does not start with `/`:
 
    ```
-   CONEXUS_CLIPROXY_BIN=~/cliproxy/cli-proxy-api
+   CONEXUS_CLIPROXY_BIN=<absolute path to cliproxy/cli-proxy-api>
    CONEXUS_CLIPROXY_SHA256=3a82a4db2b7264d9e744865b39e888def222ba19dd3156113efaa50d406530e6
    ```
 
@@ -239,8 +240,9 @@ after 5 minutes. A proxy stops after 10 minutes without calls and starts again o
 Disconnecting removes the Factory row, and the next call fails with the Factory's own missing
 credential error.
 
-To rerun the check against the real binary:
-`CONEXUS_CLIPROXY_LIVE_BIN=~/cliproxy/cli-proxy-api node --test tests/implementation/builder-google-ai-pro.test.mjs`.
+To rerun the check against the real binary, set `CONEXUS_CLIPROXY_LIVE_BIN` to the absolute path to
+`cliproxy/cli-proxy-api` and run
+`CONEXUS_CLIPROXY_LIVE_BIN=<absolute path to cliproxy/cli-proxy-api> node --test tests/implementation/builder-google-ai-pro.test.mjs`.
 It binds port 51121 while it runs.
 
 ## Known gaps

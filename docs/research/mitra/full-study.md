@@ -1186,9 +1186,10 @@ ambiente de teste, é smoke test contra produção — só seguro porque as SFs 
 
 ### Honestidade — o traço mais copiável
 
-O projeto **declara o que não conseguiu**, com evidência numérica e encaminhamento:
+O projeto **declara o que não conseguiu**, com evidência numérica e encaminhamento (citações abaixo
+em cópia redigida: contagens e valores do cliente viraram placeholders):
 
-> `VLRCUS` não é custo — `<n>` de `<n>` itens (94,8%) idênticos ao `VLRUNIT` → **margem não é
+> `VLRCUS` não é custo — `<n1>` de `<n2>` itens (94,8%) idênticos ao `VLRUNIT` → **margem não é
 > calculável** → feature cancelada, não entregue com dado errado.
 
 Critérios de aceite são **verificáveis, não subjetivos**: *"Pendentes na tela = `<n>` / `R$ <valor>`

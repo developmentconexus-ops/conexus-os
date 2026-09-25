@@ -9,6 +9,9 @@
 > explicitada — o mapa não é reescrito aqui.
 >
 > **Segredos:** nenhum token, id ou secret entra neste doc. Nem mascarado.
+>
+> **Redação:** nomes, códigos e valores de negócio do cliente foram substituídos depois por
+> placeholders `<...>`. Onde uma citação contém placeholder, ela é cópia redigida, não verbatim.
 
 ## Leia isto primeiro — resumo da madrugada de 11/08 (OBS-38 a 71)
 
@@ -88,7 +91,7 @@ parado) já exportáveis em CSV para quem cuida do cadastro.
 ## OBS-01 — A elicitação estruturada tem componente próprio de UI (`.agent-question`)
 
 **Fato.** `AskUserQuestion` não é texto no chat: é um componente Vue dedicado, com scoped id
-`data-v-4ad65ef8`. Evidência verbatim: ``evidence/mitra-agent-question.html``.
+`data-v-4ad65ef8`. Evidência (cópia redigida): ``evidence/mitra-agent-question.html``.
 
 Anatomia observada:
 
@@ -103,7 +106,7 @@ Anatomia observada:
 | Escape | opção `Outro` | **sempre presente**, sem descrição |
 | Envio | `.agent-question__btn--submit` + `<kbd>↵</kbd>` | **um** submit para **todas** as perguntas do card |
 
-Texto verbatim do card capturado:
+Texto do card capturado, cópia redigida (final do token mascarado):
 
 ```
 TOKEN DE TESTE
@@ -1897,7 +1900,7 @@ teste. Terceira camada onde o mesmo erro aparece (dado, UI, teste). Vale virar p
 | **M2 — aposentadoria sem órfão** | ✅ | *"Removi rotas `/produtos`, `/categorias`, `/fiscal`, as SFs `mcDashboard` e `mcFiscal`, e o importador defeituoso — sem tela morta nem função órfã."* |
 | **M4 — contrato numa fronteira só** | ✅ | *"A cobertura ficou num lugar só: `IMPORT_COBERTURA` + um indicador no cabeçalho, **presente em toda tela e repetido em nenhuma**."* |
 | **M3 — troca de shape, chamadores** | ✅ | 1 canal → 6 canais como entidade com política; `mcProdutoDetalhe` corrigido na origem |
-| **Cobertura declarada** | ✅ | *"A empresa 1 tem `<n>` páginas de pedidos (`<n>` pedidos) — a amostra lê as 40 mais recentes e **declara isso**."* |
+| **Cobertura declarada** | ✅ | *"A empresa 1 tem `<n1>` páginas de pedidos (`<n2>` pedidos) — a amostra lê as 40 mais recentes e **declara isso**."* (cópia redigida) |
 | **Handhold humano** | **0** | nenhuma correção de rota minha no turno inteiro |
 
 M2, M3 e M4 foram satisfeitos **dentro de um único turno**, sem que eu os pedisse separadamente. O
@@ -2190,7 +2193,7 @@ Anuncios · Canais · Custos · Pedidos rascunho · Catalogo · Demanda · Integ
 Nenhum vestígio de `/produtos`, `/categorias` ou `/fiscal`. **A aposentadoria do M1 é real no artefato
 servido, não só no relatório** — que era exatamente a métrica que eu não conseguia fechar em OBS-52.
 
-Tela inicial, verbatim:
+Tela inicial, cópia redigida (nome do cliente mascarado):
 
 > **`<empresa-1>` Hub — 2 de 6 fontes parciais**
 > *"Hub de marketplace. O que anunciar, em qual canal, por quanto. O ERP entra como fonte de custo,
@@ -2366,8 +2369,8 @@ descobre isso lendo o SQL.
 
 **E o irmão dele, no mesmo passo — a cobertura declarada está errada de novo:**
 
-> *"a tabela tem **9.366 pedidos** (7.866 desta importação + 1.500 da anterior), mas a cobertura declara
-> só **7.866**."*
+> *"a tabela tem **`<n1>` pedidos** (`<n2>` desta importação + `<n3>` da anterior), mas a cobertura declara
+> só **`<n2>`**."*
 
 O `IMPORT_COBERTURA` do M1 — o artefato criado justamente para não mentir sobre cobertura — registra o
 que **a última execução trouxe**, não o que **existe na tabela**. Import idempotente acumulando sobre
@@ -2708,7 +2711,7 @@ Pedi que não vendesse o próprio trabalho. Entregou:
 >   validei foi teste automatizado criando e apagando dado."*
 > - *"**Nenhum anúncio jamais saiu daqui, por desenho.** O caminho de publicação é 100% não
 >   exercitado."*
-> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem `<n>` páginas: **vejo menos de
+> - *"**A amostra de pedidos é enviesada pelo fim.** (…) A empresa 1 tem `<n1>` páginas (cópia redigida): **vejo menos de
 >   1% dela.** A curva ABC reflete a amostra, não a operação."*
 > - *"A fila do dia está paginada **em memória**. Traz 60 linhas e avalia no navegador. Com custo
 >   informado em massa, isso vira o gargalo."*

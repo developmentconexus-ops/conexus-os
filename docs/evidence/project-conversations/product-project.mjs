@@ -1,5 +1,5 @@
 // Ensures the test operator has a Project to hold conversations in, and prints its id.
-import { chromium } from '~/conexus-os/node_modules/@playwright/test/index.mjs'
+import { chromium } from '@playwright/test'
 
 const base = 'https://hub.conexus.localhost:3443'
 const statePath = process.env.CONEXUS_STATE

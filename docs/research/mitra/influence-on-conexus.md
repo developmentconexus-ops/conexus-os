@@ -874,7 +874,7 @@ O agente materializou o trabalho em dois documentos **na raiz do repo** (`discov
 - Schema da conexão: `<schema-5>` (`<empresa-1>`); demais 5 schemas flagados para confirmação de escopo (PA-19).
 - **Vínculo de conversão real**: `TGFCAB.NUNOTAORIG` inexistente; conversão rastreada por **`TGFVAR`** (`NUNOTAORIG`→`NUNOTA`), populada (`<n>` conversões/12m mapeadas por tipo de destino).
 - Cursor incremental viável: `DTALTER` sem nulos. Vendedor↔usuário via `TGFVEN.EMAIL`.
-- **Dado contradisse a premissa do escopo**: a maioria dos orçamentos abertos (`<x>`% deles, `<x>`% do valor, `R$ <valor>`) têm +10 dias — aplicar o P2 especificado inverteria o propósito do produto. O agente **não recalibrou sozinho**: registrou como decisão de negócio (PA-16) e **bloqueou a implementação** ("Aguardando Discovery Técnico"). Contabilidade explícita: 7 PAs bloqueantes / 5 resolvidos.
+- **Dado contradisse a premissa do escopo**: a maioria dos orçamentos abertos (`<x1>`% deles, `<x2>`% do valor, `R$ <valor>`) têm +10 dias — aplicar o P2 especificado inverteria o propósito do produto. O agente **não recalibrou sozinho**: registrou como decisão de negócio (PA-16) e **bloqueou a implementação** ("Aguardando Discovery Técnico"). Contabilidade explícita: 7 PAs bloqueantes / 5 resolvidos.
 - Seção de segurança auto-gerada: recomenda **rotacionar Client Secret/X-Token** por terem sido transmitidos via chat.
 
 **`escopo-sales-radar.md` v2.0** — o build agent **reescreveu** o escopo do specialist (10→15 seções): adicionou RN-06 Explicabilidade Obrigatória, RN-07 Transparência de Origem, RN-08 Imutabilidade do ERP, seção de Riscos, Sequência de Implementação, Aprovação — e assina "**Assistente Conexus**" (veste a marca do produto do usuário). Destaques da seção 6 (protocolo de integração):
@@ -2446,7 +2446,8 @@ O isolamento *"não tem modo desligado"*. Para dois projetos conversarem: algué
 
 > **Fonte primária desta seção**: o código-fonte real de um projeto entregue e validado, lido
 > integralmente via `GET /api/mitra-agent/github-files/146638/55833/content?path=…`.
-> Nenhuma inferência: tudo aqui é citação do repositório.
+> Nenhuma inferência: tudo aqui é citação do repositório, em cópia redigida — códigos, contagens,
+> valores e limiares de negócio do cliente foram substituídos por placeholders `<...>`.
 >
 > Esta é a seção que responde à pergunta de fundo do projeto Conexus:
 > **"o padrão da Mitra é workflow, skill, ou código gerado por LLM?"**
@@ -2834,7 +2835,7 @@ O projeto **declara o que não conseguiu fazer**, em tabela, com encaminhamento:
 
 | # | Limitação | Impacto | Encaminhamento |
 |---|---|---|---|
-| 1 | `VLRCUS` não é custo — `<n>` de `<n>` itens (94,8%) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
+| 1 | `VLRCUS` não é custo — `<n1>` de `<n2>` itens (94,8%) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
 | 2 | Não há vínculo usuário Mitra ↔ `CODVEND` | Tela do vendedor usa seletor | Mapear por e-mail quando houver de-para |
 | 3 | `TGFPRO.MARGLUCRO` com média baixa demais (`<x>`) para ser percentual | Parece markup, não percentual | Validar na Fase 2 |
 | 4 | Sem rotina de expiração de orçamento | `<n>` orçamentos 90d+ vivos | Pendência aberta |
