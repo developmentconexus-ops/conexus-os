@@ -427,8 +427,9 @@ STOP and return to the planner on:
 4. **Who administers.** Decided on 2026-09-24: the installation administrator creates the
    Connection. The Grant stays with the Workspace Owner.
 5. **Business values.** Decided on 2026-09-24, revised the same day when the repository became public:
-   every public artifact from Q4.6 to Q4.11 (evidence, screenshots, logs, transcripts) shows field
-   names, types, counts, status codes and digests only. It never shows the order's supplier, dates,
+   every public artifact from Q4.6 to Q4.11 (evidence, screenshots, logs, transcripts) shows only
+   field names, types, counts, status codes, digests and the call metadata this task asks for: the
+   allow-listed service name, time, duration and call count. It never shows the order's supplier, dates,
    status, prices, quantities, totals, items or notes, and never a raw Sankhya or handler response.
    The document number 22790 is the one exception: it is an identifier the task already names.
 6. **The verdict.**
