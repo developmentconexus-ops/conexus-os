@@ -1,0 +1,231 @@
+[
+  {
+    "id": "preview-opens",
+    "phase": "preview-open",
+    "at": "2026-09-25T11:10:29.475Z",
+    "request": {
+      "launch": "POST https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/builder-session/preview",
+      "entry": "POST https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/__conexus/preview-entry (Origin https://hub.conexus.localhost:3443)",
+      "page": "GET https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/"
+    },
+    "observed": {
+      "launch": 201,
+      "previewExpiresAt": "2026-09-25T11:25:29.371Z",
+      "entry": {
+        "status": 303,
+        "location": "/",
+        "setCookie": [
+          "__Host-conexus_preview"
+        ]
+      },
+      "page": 200,
+      "entryReplay": 403,
+      "session": "PREVIEW|open|00:14:59.983"
+    },
+    "pass": true
+  },
+  {
+    "id": "preview-survives-hub-restart",
+    "phase": "preview-restart",
+    "at": "2026-09-25T11:11:16.200Z",
+    "request": {
+      "url": "https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+      "as": "the Preview cookie from before the restart, no new entry"
+    },
+    "observed": {
+      "launchedAt": "2026-09-25T11:10:29.475Z",
+      "hubLog": "hub starting 2026-09-25T11:10:56Z head 572fb6a8",
+      "page": 200
+    },
+    "pass": true
+  },
+  {
+    "id": "hub-user-disabled-loses-hub-and-preview",
+    "phase": "hub-refused",
+    "at": "2026-09-25T11:23:42.970Z",
+    "request": {
+      "hub": "GET https://hub.conexus.localhost:3443/api/control/access-context",
+      "preview": "GET https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+      "every": "10 s",
+      "since": "2026-09-25T11:18:40.878Z"
+    },
+    "observed": {
+      "hub": {
+        "refusedAfterSeconds": 302,
+        "status": 401,
+        "code": "urn:conexus:problem:authentication-required"
+      },
+      "preview": {
+        "refusedAfterSeconds": 302,
+        "status": 403
+      },
+      "hubLastAllowedAfterSeconds": 292,
+      "previewLastAllowedAfterSeconds": 292,
+      "hubSession": "PROVIDER_USER_DISABLED|true",
+      "previewSession": "PARENT_ENDED"
+    },
+    "pass": true
+  },
+  {
+    "id": "keycloak-logout-ends-hub-and-preview",
+    "phase": "hub-refused",
+    "at": "2026-09-25T11:29:05.509Z",
+    "request": {
+      "hub": "GET https://hub.conexus.localhost:3443/api/control/access-context",
+      "preview": "GET https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+      "every": "10 s",
+      "since": "2026-09-25T11:24:03.982Z"
+    },
+    "observed": {
+      "hub": {
+        "refusedAfterSeconds": 301,
+        "status": 401,
+        "code": "urn:conexus:problem:authentication-required"
+      },
+      "preview": {
+        "refusedAfterSeconds": 301,
+        "status": 403
+      },
+      "hubLastAllowedAfterSeconds": 291,
+      "previewLastAllowedAfterSeconds": 291,
+      "hubSession": "PROVIDER_SESSION_ENDED|true",
+      "previewSession": "PARENT_ENDED"
+    },
+    "pass": true
+  },
+  {
+    "id": "owner-grants-again",
+    "phase": "grant",
+    "at": "2026-09-25T11:36:45.428Z",
+    "request": {
+      "method": "POST",
+      "url": "https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/application-access",
+      "body": {
+        "email": "funcionario-teste@gmail.com"
+      },
+      "as": "the Owner"
+    },
+    "observed": {
+      "status": 200,
+      "answer": {
+        "kind": "invitation"
+      },
+      "before": [],
+      "after": [
+        {
+          "kind": "invitation",
+          "id": "70ddb5db-8850-4033-974c-8e097bde89b2"
+        }
+      ]
+    },
+    "pass": true
+  },
+  {
+    "id": "owner-regrants-held-grant",
+    "phase": "grant",
+    "at": "2026-09-25T11:40:48.649Z",
+    "request": {
+      "method": "POST",
+      "url": "https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/application-access",
+      "body": {
+        "email": "funcionario-teste@gmail.com"
+      },
+      "as": "the Owner"
+    },
+    "observed": {
+      "status": 200,
+      "answer": {
+        "kind": "grant"
+      },
+      "before": [
+        {
+          "kind": "grant",
+          "id": "aba8ea81-db72-4772-866f-f735d684d865"
+        }
+      ],
+      "after": [
+        {
+          "kind": "grant",
+          "id": "aba8ea81-db72-4772-866f-f735d684d865"
+        }
+      ]
+    },
+    "pass": true
+  },
+  {
+    "id": "owner-revokes-grant",
+    "phase": "revoke",
+    "at": "2026-09-25T11:41:07.147Z",
+    "request": {
+      "method": "DELETE",
+      "url": "https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/application-access/grant/<grantId>",
+      "as": "the Owner"
+    },
+    "observed": {
+      "status": 204,
+      "before": [
+        {
+          "kind": "grant",
+          "id": "aba8ea81-db72-4772-866f-f735d684d865"
+        }
+      ],
+      "after": []
+    },
+    "pass": true
+  },
+  {
+    "id": "revoked-employee-signs-in-again",
+    "phase": "employee-lands",
+    "at": "2026-09-25T11:41:21.577Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "the employee, from their browser state"
+    },
+    "observed": {
+      "status": 403,
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/no-access"
+    },
+    "pass": true
+  },
+  {
+    "id": "owner-grants-after-revoke",
+    "phase": "grant",
+    "at": "2026-09-25T11:41:22.027Z",
+    "request": {
+      "method": "POST",
+      "url": "https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/application-access",
+      "body": {
+        "email": "funcionario-teste@gmail.com"
+      },
+      "as": "the Owner"
+    },
+    "observed": {
+      "status": 200,
+      "answer": {
+        "kind": "invitation"
+      },
+      "before": [],
+      "after": [
+        {
+          "kind": "invitation",
+          "id": "3193fc74-2c3a-438c-9f4c-7818172da769"
+        }
+      ]
+    },
+    "pass": true
+  },
+  {
+    "id": "employee-signs-in-after-new-grant",
+    "phase": "employee-lands",
+    "at": "2026-09-25T11:41:23.184Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "the employee, from their browser state"
+    },
+    "observed": {
+      "status": 200,
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+    },
+    "pass": true
+  }
+]

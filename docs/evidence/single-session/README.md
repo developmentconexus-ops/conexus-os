@@ -2,7 +2,24 @@
 
 **Task:** [Single session qualification](../../tasks/single-session-qualification.md)
 
-**Verdict:** not yet given. This file grows one step at a time. It holds only what a step has proved.
+**Proposed verdict: ACCEPT.** The operator gives the verdict. With refresh-token rotation off, one session
+model (`iam.host_session`) and one handoff (`iam.handoff`) in PostgreSQL serve the Hub, application hosts and
+Preview hosts. On the pilot, a person disabled or signed out in Keycloak lost the Hub, the application and their
+Preview inside five minutes. A Preview survived a Hub restart. A handoff presented on the wrong host was refused
+and still redeemed on its own host within 60 s. Every Stage 2 Q3.6 negative case still failed. No falsifier of
+task section 8 fired:
+
+1. The probe's falsifier did not hold (no old token accepted after the SSO session ended), and no disabled or
+   signed-out person kept a host past five minutes (S6).
+2. No Q3.6 negative case succeeded (S6).
+3. No property of section 4 was lost. Two answers changed by operator decision: a due check that cannot reach
+   Keycloak answers 503 on every Hub route, the Factory's included (D4, see the review), and the realm's SSO idle
+   limit is 40 minutes so that it outlasts the Hub's own 30-minute idle limit.
+4. No handoff was consumed by a failed presentation, and none redeemed twice (tests, and S6 `handoff-on-other-host`,
+   `handoff-redeemed-twice`).
+5. A Preview did not die on a Hub restart (S6 `preview-survives-hub-restart`).
+6. One session model, one handoff and one liveness check remain: `iam.session`, `iam.application_session`,
+   `iam.application_handoff`, `preview-access.ts`, the MAR route map and the claim protocol are gone.
 
 ## S0. Native census
 
@@ -106,6 +123,54 @@ node scripts/keycloak-refresh-probe.mjs --issuer <realm issuer URL> --username <
 
 `--loopback-host hub.conexus.localhost` resolves the pilot's `.localhost` name to 127.0.0.1 and
 `NODE_EXTRA_CA_CERTS` trusts the local CA, as in the Q3 rerun.
+
+## S6. Pilot proof
+
+The pilot ran `feat/single-session` at `572fb6a8` on 2026-09-25: migration `0026_single_session.sql` applied after
+a backup (`conexus_s7-before-0026-20260925T110312.dump`; `run-hub-migrations` verdict PASS against the catalog
+snapshot; the migration ended every open session), the realm `conexus` with `ssoSessionIdleTimeout` 2400, and the
+Hub and runner from `~/single-session/`. The operator authorized each pilot change through the manager: the
+migration, the realm setting, disabling and re-enabling `conexus-test-operator` and `funcionario-teste`, the
+Keycloak logout, and `REFRESH_TOKEN` events during the run (before: `eventsEnabled: false`, no types; after: the
+same, [`s6-keycloak-events-before.json`](s6-keycloak-events-before.json),
+[`s6-keycloak-events-after.json`](s6-keycloak-events-after.json); every user read back `enabled: true`).
+
+The member is the test operator (`conexus-test-operator`, a member of `sdasdsa`), whose saved Keycloak password
+signed them in without anyone typing. The Owner (`conexus_admin`) and the employee (`funcionario-teste`) were signed
+in by the operator in visible browser windows ([`scripts/q3-sign-in.mjs`](../../../scripts/q3-sign-in.mjs), now with
+a banner naming who signs in). The first Owner window was used by mistake for the employee: the Hub refused the
+application-only Account and no session or state was kept, as Q3.6 expects; the attempt was discarded.
+
+The levers are [`scripts/q3-negative-proof.mjs`](../../../scripts/q3-negative-proof.mjs) for the Q3.6 and review cases
+and [`scripts/single-session-proof.mjs`](../../../scripts/single-session-proof.mjs) for the cases this task added.
+Each record holds the request, the answer and whether the expected result held.
+
+| S6 case | Request | Answer | Record |
+| --- | --- | --- | --- |
+| Every Q3.6 negative case | the Q3 script's `main`, `control`, `expired` and `caller` phases, with the member and the employee | 28 cases (22 in `main` with the employee, 1 `control`, 1 `expired`, 4 `caller`), all held; a member-only `main` run before the employee signed in also held its 9: the employee is refused at the Hub (callback 403, no Hub cookie), on the Preview host (403), on every Control Plane route (401/403) and on the other application (no-access); a caller or author in the input is refused (400); a session value planted before sign-in is replaced; the eight-hour limit ends a session | [`s6-q3-main-with-employee.json`](s6-q3-main-with-employee.json), [`s6-q3-main.json`](s6-q3-main.json), [`s6-q3-control.json`](s6-q3-control.json), [`s6-q3-expired.json`](s6-q3-expired.json), [`s6-q3-caller.json`](s6-q3-caller.json), [`s6-employee-note.png`](s6-employee-note.png) |
+| Handoff on another application's host | one handoff on `pedidos-de-ferias`, then on its own host without the binding, then with it, then again | 403, 403, 303 with `__Host-conexus_app` inside 60 s, 403 | `handoff-on-other-host` in the `main` records (member and employee runs) |
+| Preview across a Hub restart | Preview opened (launch 201, entry 303, page 200, entry replayed 403); the Hub process stopped and started again at 11:10:56Z; the same Preview cookie | 200, no new sign-in | [`s6-single-session.json`](s6-single-session.json) `preview-opens`, `preview-survives-hub-restart` |
+| Employee disabled in Keycloak | `funcionario-teste` disabled at 11:41:41Z; an application request every 20 s | last allowed at 11:46:02Z (261 s), first refused 11:46:22Z (281 s), 401 | [`s6-q3-employee-disabled.json`](s6-q3-employee-disabled.json) |
+| Hub user disabled | `conexus-test-operator` disabled at 11:18:40Z with a Preview open; the Hub and the Preview every 10 s | Hub and Preview last allowed at 292 s, refused at 302 s (401, 403); Hub session `PROVIDER_USER_DISABLED`, token dropped; Preview `PARENT_ENDED` | `hub-user-disabled-loses-hub-and-preview` |
+| Keycloak logout ends the Hub | `conexus-test-operator` signed out in Keycloak (admin logout) at 11:24:03Z with a Preview open | last allowed at 291 s, refused at 301 s; Hub `PROVIDER_SESSION_ENDED`; Preview `PARENT_ENDED` | `keycloak-logout-ends-hub-and-preview` |
+| Four concurrent requests with a due check | the member's application session aged six minutes; four API requests at once | 404, 404, 429, 404 (past authority; 429 is the Project's admission bound), session open, check recorded; Keycloak logged exactly four `REFRESH_TOKEN` events for that user at that instant | [`s6-q3-review-with-events.json`](s6-q3-review-with-events.json) `concurrent-due-check`, [`s6-keycloak-refresh-events.json`](s6-keycloak-refresh-events.json) |
+| #234 grant | the Owner grants `funcionario-teste@gmail.com` in the Hub (IAM-12), after Q3 had left the grant revoked | 200, an invitation; the employee's sign-in claimed it (one grant, no membership, one application session) | `owner-grants-again` |
+| #234 re-grant | the Owner grants again while the employee holds the grant | 200, `kind: grant`, the same grant, no invitation opened | `owner-regrants-held-grant` |
+| #234 revoke | the Owner revokes (IAM-13) while the employee calls the API every second | 204, access list empty; last allowed request 11:41:06.028Z, first refused 11:41:07.043Z | `owner-revokes-grant`, [`s6-q3-revoke.json`](s6-q3-revoke.json) |
+| #234 revoke holds | the revoked employee opens the application again | lands on `/__conexus/no-access` | `revoked-employee-signs-in-again` |
+| #234 grant after revoke | the Owner grants again after the revoke, and the employee opens the application | an invitation, then the application (`/`) | `owner-grants-after-revoke`, `employee-signs-in-after-new-grant` |
+| Review and verification cases on the new code | the Q3 script's `review` and `verification` phases | navigation-only sign-in, the application CSP, one read per file, parallel sign-ins, a token under a foreign key ending the session (`CUSTODY_CHANGED`): all held | [`s6-q3-review.json`](s6-q3-review.json), [`s6-q3-verification.json`](s6-q3-verification.json) |
+
+**A failed attempt, kept.** The first run of the Hub-disable case
+([`s6-single-session-attempt-1.json`](s6-single-session-attempt-1.json)) is recorded FAILED: its tool required the
+first refusal within 300 s while polling every 20 s, and the refusal came at 310 s. That criterion was stricter than
+the property and did not record the last allowed request, so the run could not show whether the property held. The
+tool now uses the Q3 criterion (no request that started five minutes or more after the disable is allowed) and polls
+every 10 s; the rerun above held.
+
+Keycloak refreshes only when a request finds the Hub's five-minute check due, so "within five minutes" is measured
+from the disable to the first request after the next due check: in every run the last allowed request started before
+300 s and every later one was refused.
 
 ## Independent review
 

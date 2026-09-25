@@ -1,0 +1,96 @@
+[
+  {
+    "id": "sign-in-only-on-navigation",
+    "phase": "review",
+    "at": "2026-09-25T11:09:13.905Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "a browser without an application session"
+    },
+    "observed": {
+      "script": {
+        "status": 401,
+        "location": null,
+        "setCookie": [],
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "fetch": {
+        "status": 401,
+        "location": null,
+        "setCookie": [],
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "navigation": {
+        "status": 303,
+        "location": "https://hub.conexus.localhost:3443/protocol/oidc/login?application=eval-20260923-224304&binding=AuKr4RlDe9BgRA4Z6pXNZWOrUiks94kb0ujLczWaheM",
+        "setCookie": [
+          "__Host-conexus_app_signin",
+          "__Host-conexus_app"
+        ]
+      },
+      "secondNavigationKeepsBinding": true
+    },
+    "pass": true
+  },
+  {
+    "id": "application-host-csp",
+    "phase": "review",
+    "at": "2026-09-25T11:09:14.517Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member"
+    },
+    "observed": {
+      "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "status": 200,
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'",
+      "frameOptions": "DENY",
+      "cors": null
+    },
+    "pass": true
+  },
+  {
+    "id": "served-files-one-read",
+    "phase": "review",
+    "at": "2026-09-25T11:09:14.527Z",
+    "request": {
+      "urls": [
+        "https://eval-20260923-224304.conexus.localhost:3445/",
+        "https://eval-20260923-224304.conexus.localhost:3445/conexus-server/manifest.json",
+        "https://eval-20260923-224304.conexus.localhost:3445/nao-existe.js"
+      ],
+      "as": "member"
+    },
+    "observed": {
+      "page": 200,
+      "serverTree": 404,
+      "missing": 404
+    },
+    "pass": true
+  },
+  {
+    "id": "concurrent-due-check",
+    "phase": "review",
+    "at": "2026-09-25T11:09:14.913Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "member, four requests at once when the Keycloak check is due"
+    },
+    "observed": {
+      "aged": true,
+      "statuses": [
+        404,
+        404,
+        404,
+        404
+      ],
+      "session": "open",
+      "checkedBefore": "2026-09-25 11:09:14.061+00",
+      "checkedAged": "2026-09-25 11:03:14.061+00",
+      "checkedAfter": "2026-09-25 11:09:14.721+00",
+      "sealed": true,
+      "unsealedTokens": "0"
+    },
+    "pass": true
+  }
+]

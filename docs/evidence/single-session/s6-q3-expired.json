@@ -1,0 +1,23 @@
+[
+  {
+    "id": "session-older-than-eight-hours",
+    "phase": "expired",
+    "at": "2026-09-25T11:09:29.567Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "a live application session aged by 8 hours 1 minute in the database"
+    },
+    "observed": {
+      "limit": "08:00:00",
+      "before": 404,
+      "agedPastLimit": true,
+      "after": 401,
+      "afterBody": {
+        "error": {
+          "code": "APPLICATION_SIGN_IN_REQUIRED"
+        }
+      }
+    },
+    "pass": true
+  }
+]
