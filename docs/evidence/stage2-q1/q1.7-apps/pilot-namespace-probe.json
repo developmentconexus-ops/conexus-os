@@ -53,49 +53,49 @@
       "err": "ENOENT"
     },
     {
-      "path": "ca-key.pem",
+      "path": "app-relay-tls:ca-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "ca.pem",
+      "path": "app-relay-tls:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "ca.srl",
+      "path": "app-relay-tls:ca.srl",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "relay-key.pem",
+      "path": "app-relay-tls:relay-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "relay.pem",
+      "path": "app-relay-tls:relay.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "server-key.pem",
+      "path": "app-relay-tls:server-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "server.pem",
+      "path": "app-relay-tls:server.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
@@ -116,28 +116,28 @@
       "err": "ENOENT"
     },
     {
-      "path": "ca-key.pem",
+      "path": "apps-cluster-authority:ca-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "ca.pem",
+      "path": "apps-cluster-authority:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "server-key.pem",
+      "path": "apps-cluster-authority:server-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "server.pem",
+      "path": "apps-cluster-authority:server.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
@@ -151,21 +151,21 @@
       "err": "ENOENT"
     },
     {
-      "path": "ca.pem",
+      "path": "apps-relay-tls:ca.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "relay-key.pem",
+      "path": "apps-relay-tls:relay-key.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
       "err": "ENOENT"
     },
     {
-      "path": "relay.pem",
+      "path": "apps-relay-tls:relay.pem",
       "exists": false,
       "readable": false,
       "bytes": null,
