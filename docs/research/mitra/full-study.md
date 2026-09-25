@@ -445,7 +445,7 @@ As 28 SFs analíticas não são 28 queries escritas à mão. São constantes com
 
 ```js
 const DIAS_PARADO = `DATEDIFF(CURDATE(), o.DTALTER)`;
-const FAIXA = `CASE WHEN ${DIAS_PARADO} <= 3 THEN 'Janela de ouro' … END`;
+const FAIXA = `CASE WHEN ${DIAS_PARADO} <= <d1> THEN '<faixa-1>' … END`;
 const BASE  = `FROM ORCAMENTOS o JOIN … WHERE o.PENDENTE='S' AND o.TEM_DERIVADO='N'`;
 const fVend = `AND ('{{vendedor}}'='' OR o.CODVEND='{{vendedor}}')`;
 // dash_por_vendedor recebe fCli, fFaixa, fMes — MAS NÃO fVend
@@ -652,7 +652,7 @@ para instrumentação. Tabelas nativas `INT_*` = log de ações da plataforma de
 
 - **Ambiente de dados efêmero por tarefa** + **fixtures**: o gap mais claro para superar a Mitra. O
   teste deixa de ser "não explodiu contra produção" e passa a ser **asserção de valor** contra dado
-  controlado (`pendentes == 187`, não `query rodou`).
+  controlado (`pendentes == <n>`, não `query rodou`).
 - **Migration como gate**, não como log pós-fato: schema só evolui por migration validada, com
   dry-run **antes** do deploy (ver ``05``).
 - **Cofre único** para todo segredo — sem a exceção "criptografado dentro do banco do projeto".
@@ -731,10 +731,10 @@ O catálogo real observado inclui Gmail, Google Calendar, HubSpot, SAP, Supabase
 O padrão mais valioso desta área: antes de codar, o agente **consulta o dado real por SQL** para
 validar hipóteses de escopo. No projeto de orçamentos isso derrubou três suposições:
 
-- `Orçamento = CODTIPOPER IN (14,714)` (e não o `TGFTOP.ORCAMENTO='S'`, que estava mal configurado).
-- `VLRCUS` **não é custo** em 94,8% dos itens → margem não é calculável → feature cancelada com o
+- `Orçamento = CODTIPOPER IN (<códigos-top>)` (e não o `TGFTOP.ORCAMENTO='S'`, que estava mal configurado).
+- `VLRCUS` **não é custo** em `<p-custo-igual>` dos itens → margem não é calculável → feature cancelada com o
   número que prova.
-- Pendente = `PENDENTE='S'` sem derivado em `TGFVAR` → 187 orçamentos / R$ 6.283.878.
+- Pendente = `PENDENTE='S'` sem derivado em `TGFVAR` → `<n>` orçamentos / `R$ <valor>`.
 
 É o estágio-2 (build) **auditando** o estágio-1 (escopo) contra a fonte real. Ver ``07``.
 
@@ -1186,13 +1186,14 @@ ambiente de teste, é smoke test contra produção — só seguro porque as SFs 
 
 ### Honestidade — o traço mais copiável
 
-O projeto **declara o que não conseguiu**, com evidência numérica e encaminhamento:
+O projeto **declara o que não conseguiu**, com evidência numérica e encaminhamento (citações abaixo
+em cópia redigida: contagens e valores do cliente viraram placeholders):
 
-> `VLRCUS` não é custo — 91.856 de 96.936 itens (94,8%) idênticos ao `VLRUNIT` → **margem não é
+> `VLRCUS` não é custo — `<n1>` de `<n2>` itens (`<p-custo-igual>`) idênticos ao `VLRUNIT` → **margem não é
 > calculável** → feature cancelada, não entregue com dado errado.
 
-Critérios de aceite são **verificáveis, não subjetivos**: *"Pendentes na tela = 187 / R$ 6.283.878
-(bate com o Sankhya)"*, *"Conversão limpa 12M = 71,2%"*.
+Critérios de aceite são **verificáveis, não subjetivos**: *"Pendentes na tela = `<n>` / `R$ <valor>`
+(bate com o Sankhya)"*, *"Conversão limpa 12M = `<x>`%"*.
 
 ## Evidência
 
@@ -1316,7 +1317,7 @@ Cada linha é um "não repetir isto". Agrupados por gravidade.
 | C4 | `input` de tool truncado exigindo regex tolerante | Protocolo entrega dado corrompido | Input **íntegro**; se grande, referenciar por id | `§31.6` |
 | C5 | `loadHistory()` devolve tool call como **texto cru** | Força o cliente a re-parsear o que era estruturado | Histórico **tipado na origem** | `§31.6` |
 | C6 | Rename `connection`↔`integrationSlug` vazando no wire | Contrato de API divergente do corpo | **Versionar** o contrato de API | `§20` |
-| **C7** 🔴 | **`runQueryMitra` corta em 2.000 linhas e devolve `rowCount: 2000` como se fosse o total.** `LIMIT 3000` também devolve 2.000. Nenhum sinal de corte — sem flag, sem `hasMore` | É o mesmo teto silencioso da paginação do ERP, agora na **função de consulta da própria SDK**. Uma auditoria que varre `INFORMATION_SCHEMA` (322 tabelas > 2.000 colunas) roda sobre 2/3 do schema e **reporta verde**. Falsa garantia é pior que garantia ausente | Teto **explícito no contrato**: ou devolve o total real, ou devolve `truncado: true`. E a primitiva de leitura completa pagina até página curta, **exige `ORDER BY`** (sem ordem estável a paginação repete e pula linha) e **recusa SQL que já traga `LIMIT`** | `OBS-69.1` |
+| **C7** 🔴 | **`runQueryMitra` corta em 2.000 linhas e devolve `rowCount: 2000` como se fosse o total.** `LIMIT 3000` também devolve 2.000. Nenhum sinal de corte — sem flag, sem `hasMore` | É o mesmo teto silencioso da paginação do ERP, agora na **função de consulta da própria SDK**. Uma auditoria que varre `INFORMATION_SCHEMA` (`<n-tabelas-erp>` tabelas > 2.000 colunas) roda sobre 2/3 do schema e **reporta verde**. Falsa garantia é pior que garantia ausente | Teto **explícito no contrato**: ou devolve o total real, ou devolve `truncado: true`. E a primitiva de leitura completa pagina até página curta, **exige `ORDER BY`** (sem ordem estável a paginação repete e pula linha) e **recusa SQL que já traga `LIMIT`** | `OBS-69.1` |
 
 ### Experiência e observabilidade
 

@@ -20,12 +20,11 @@ A change is in the qualification lane when any Q trigger is true:
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Codex comments triaged; diff read; from PR B, Factory review `approve` | operator |
-| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates on each pull request, and the bet's "done when" checked on the real artifact | operator |
-| `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex comments triaged; diff read | operator |
+| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the Opus review on each pull request, and the bet's "done when" checked on the real artifact | operator |
+| `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
-PR B is the dev Factory change that adds the Conexus review. Until it merges, no pull request gets a
-Factory verdict. Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
+Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
 The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
 
 Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
@@ -67,20 +66,17 @@ most 5 open pull requests.
 
 ## Working rules
 
-- **Lean delivery.** A pull request merges on CI green plus a read of the diff. The operator does
-  not test each pull request on the pilot. CI runs once per ready head.
+- **Lean delivery.** The operator does not test pull requests on the pilot. CI runs once per ready head.
 - **Mastra first.** Prefer a Mastra, Keycloak or PostgreSQL primitive over a Conexus-built
-  mechanism. A pull request that adds a mechanism carries the native census in
-  [the review checklist](review-checklist.md#mastra-first-no-parallel-logic). Every subagent prompt
-  for Conexus work loads [`.agents/skills/mastra/SKILL.md`](../../.agents/skills/mastra/SKILL.md).
+  mechanism. The reviewer redoes the [native census](review/mastra-native.md#proof-required). Every
+  subagent prompt for Conexus work loads [the Mastra skill](../../.agents/skills/mastra/SKILL.md).
 - **Best evidence over past decisions.** Code that exists is not a reason to keep it. When you see a
   better alternative than what is implemented or decided, bring it to the operator with evidence.
   Reopen the owner. Do not work around it.
 - **Laptop first, then server.** Make each capability work on the WSL laptop pilot. Server
   installation and infrastructure migration follow validation there.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
-- **Codex is the second-model reviewer.** It comments on pull requests and runs the independent
-  review of qualification gates. It is not an author.
+- **Codex is the second-model reviewer.** It is not an author.
 - **CodeRabbit is off** for this repository.
 - **Tests serve the product.** Never reshape a design to keep a test or fixture passing. Fix every
   test that exercised real behavior. Delete every test whose subject is gone.
@@ -110,29 +106,35 @@ operator dictating filenames or implementation.
   browser, persistence or runtime needs evidence from that dependency.
 - A live provider, model, E2B or Sankhya run needs explicit authority for that proof. A green
   repository gate never implies it.
-- Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`. Each leaf runs once.
-  Never regenerate expected output to hide drift. Use the explicit generation command instead.
-- A change to workflow events or concurrency needs evidence that branch protection and trigger
+- Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected
+  output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
+- A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
-- Independent review is required in the qualification lane only. Freeze the candidate, the
-  protected claims and the deciding-proof route first. Run two fresh challengers, at least one on
-  another model, and give neither the other's output. Run Codex read-only from the Windows checkout:
-  `codex exec -m gpt-6-astra -s read-only`. The lead adjudicates every finding against
-  current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
-  only when a correction invalidated a protected property or the deciding proof.
+- In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
+  first. Its challengers, the Opus review and Codex, never see each other's output. Run Codex
+  read-only from the Windows checkout: `codex exec -m gpt-6-astra -s read-only`. The lead
+  adjudicates every finding against current owners. A valid non-blocker gets DEFER SAFELY with a
+  revisit trigger. Run another round only when a correction invalidated a protected property or the
+  deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
   to Git history once their obligations are absorbed.
 
 ## Merge gate
 
-A pull request is ready when CI `verify` is green on its exact head SHA and the person who merges
-has read the diff, plus the lane's gates above. A plan, an artifact or a Preview grant is not
-product acceptance. GitHub skips the workflow silently when a pull request conflicts with its base.
-If no run exists at your head, merge `main` into your branch and push again.
+A pull request is ready when these hold at its exact head SHA, plus the lane's gates above:
+- CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
+  base. If no run exists at your head, merge `main` into your branch and push again.
+- The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from `origin/main`, with the census
+  redone by the reviewer, no skipped PostgreSQL test, and the browser suites run whenever the change's paths select them in `verify.yml`.
+- A serious change (`needs:aprovo`, `lane:qualification` or `lane:shaped`) also has an independent
+  Claude Opus review. The manager runs it without showing it the Factory's verdict.
+- The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
 
 ## Git and pull requests
 
-- Trunk is `main`. Open every pull request against `main`. Squash merge is the normal shape.
+- Trunk is `main`. Its rulesets require a pull request and the `verify` check with no bypass, and
+  only an administrator updates it, so the Factory never merges. Open every pull request against
+  `main`. Squash merge is the normal shape.
 - Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent
   writers get disjoint file sets and report to one named integrator.
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not
@@ -144,7 +146,5 @@ If no run exists at your head, merge `main` into your branch and push again.
   commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one
   commit. `npm run wire:bijection` gates on an exact count.
-- Review follows [the review checklist](review-checklist.md). From PR B, the Factory reads it from
-  the base ref, so a pull request cannot edit the rules that judge it.
 - `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can
   check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.

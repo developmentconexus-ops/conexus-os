@@ -18,3 +18,7 @@ node --test tests/implementation/brand-wordmark-csp.test.mjs
 ```
 
 CI does not build this theme. The full jar needs Maven and a JDK; see the README.
+
+## Review
+
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to (mostly [`frontend.md`](../../docs/development/review/frontend.md)).

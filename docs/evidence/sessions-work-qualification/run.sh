@@ -10,7 +10,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROBE="$HERE/probe.mjs"
-MODULES=${CONEXUS_NODE_MODULES:-/home/leandrotheodoro/wt-stream/node_modules}
+MODULES=${CONEXUS_NODE_MODULES:-~/wt-stream/node_modules}
 
 [ -f "$PROBE" ] || { echo "probe.mjs not found beside this script"; exit 2; }
 [ -d "$MODULES/@mastra/core" ] || { echo "no @mastra/core under $MODULES; set CONEXUS_NODE_MODULES"; exit 2; }
