@@ -22,8 +22,8 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
 - [ ] A rule PostgreSQL enforces (CHECK, `SECURITY DEFINER` function, partial index) is not
       repeated in TypeScript beyond boundary parsing.
 - [ ] A change to the output of `packages/canonical-json` is a data change: the idempotency tables
-      store `sha256(canonicalBytes(request))`, so a retried request fails with
-      `IDEMPOTENCY_CONFLICT` after deploy. See [its AGENTS.md](../../../packages/canonical-json/AGENTS.md).
+      store `request_digest`, the SHA-256 of those bytes, so a retry of a request made before the
+      deploy fails with `IDEMPOTENCY_CONFLICT`. See [its AGENTS.md](../../../packages/canonical-json/AGENTS.md).
 
 ## Proof required
 
