@@ -4,10 +4,10 @@ import { operationId } from '../model.js'
 import type { Operation } from '../operation.js'
 import type { LoadRecordsQuery, SankhyaRecord, SankhyaSession } from './gateway.js'
 
-// UNVERIFIED until the first real read (task Q4.6): NUMNOTA with TIPMOV = 'O' as the key of a
-// purchase order's document number, the STATUSNOTA values, the date and decimal formats and the
-// metadata names of the referenced fields. This file holds the whole field mapping, so correcting
-// it after Q4.6 touches nothing else.
+// UNVERIFIED until the first real read: NUMNOTA with TIPMOV = 'O' as the key of a purchase order's
+// document number, the STATUSNOTA values, the date and decimal formats and the metadata names of
+// the referenced fields. This file holds the whole field mapping, so correcting it later touches
+// nothing else.
 
 const HEADER = Object.freeze({
   rootEntity: 'CabecalhoNota',

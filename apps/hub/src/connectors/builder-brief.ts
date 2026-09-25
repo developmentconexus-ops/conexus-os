@@ -6,11 +6,11 @@ import { isMintedScope } from './scope.js'
 import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 
-// What the Builder learns about a Project's granted connector operations (design.md section 9). A
-// Project with no open grant sees nothing; a Project with a grant sees exactly the operations it may
-// call, their contracts, one handler snippet, and the granted Definition's own Skill, once per
-// connector. This never reaches the network and never opens a credential: it only reads the granted
-// capability ids and the in-memory operation registry the broker itself is built from.
+// What the Builder learns about a Project's granted connector operations. A Project with no open
+// grant sees nothing; a Project with a grant sees exactly the operations it may call, their contracts,
+// one handler snippet, and the granted Definition's own Skill, once per connector. This never reaches
+// the network and never opens a credential: it only reads the granted capability ids and the in-memory
+// operation registry the broker itself is built from.
 
 // biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
 type AnyOperation = Operation<any, any, any>

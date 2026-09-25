@@ -10,8 +10,8 @@ import { refused } from './errors.js'
 import type { BrokerResult } from './errors.js'
 import type { ConsumerScope } from './scope.js'
 
-// The runner-to-Hub path of design.md section 5: one owner-only unix socket per invocation, served by
-// the Hub, closed over the scope the Hub minted. Nothing on the wire names a Project.
+// One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
+// Nothing on the wire names a Project.
 
 export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number }>
 

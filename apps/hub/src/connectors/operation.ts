@@ -6,8 +6,8 @@ import type { IssuedToken, Redacted, TokenLease } from './token-cache.js'
 export type Effect = 'read' | 'write'
 
 /**
- * A plain function with its own contract. `createTool` wraps one for agents (Q4.9); it does not
- * define it. `summary` is product language: no service, entity or field name.
+ * A plain function with its own contract. `createTool` wraps one for agents; it does not define it.
+ * `summary` is product language: no service, entity or field name.
  */
 export type Operation<I, O, S> = Readonly<{
   id: OperationId
@@ -18,7 +18,7 @@ export type Operation<I, O, S> = Readonly<{
   run(input: I, session: S): Promise<O>
 }>
 
-/** Design only (design.md section 10): Sankhya declares none. */
+/** Not yet implemented: Sankhya's Definition declares no events. */
 export type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
 /** Records each provider service a session called, by its constant name, for the audit line. */

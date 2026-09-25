@@ -1,5 +1,4 @@
-// The closed codes of design.md section 2. A consumer only ever sees one of these, never a provider
-// body, header, status text or token.
+// The closed codes a consumer may see; never a provider body, header, status text or token.
 export const BROKER_ERROR_CODES = [
   'OPERATION_UNKNOWN',
   'INPUT_REFUSED',

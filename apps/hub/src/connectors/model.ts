@@ -1,5 +1,5 @@
 // Ids and shapes shared by the store and the routes. The broker's own types (Consumer, BrokerResult,
-// the token cache) are unit B's; this unit only administers Connections and Grants.
+// the token cache) live in broker.ts and token-cache.ts; this module only administers Connections and Grants.
 
 export type ConnectorId = 'sankhya'
 export type ConnectionId = string & { readonly __brand: 'ConnectionId' }

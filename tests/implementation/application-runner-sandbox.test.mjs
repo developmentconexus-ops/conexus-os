@@ -434,8 +434,10 @@ test('a handler reads the order through the bound connector socket, and holds no
     { ok: false, code: 'INPUT_REFUSED', issues: ['/service'] },
     { ok: false, code: 'OPERATION_UNKNOWN' },
   ])
-  // The other Project's port is open, but its socket is not this handler's, and the grant is the port's.
-  assert.deepEqual(await run('readOrder', { documentNumber: 22790 }, portB.socketPath), { ok: false, code: 'NOT_GRANTED' })
+  assert.deepEqual(
+    await run('readOrder', { documentNumber: 22790 }, portB.socketPath), { ok: false, code: 'NOT_GRANTED' },
+    "the other Project's own open port grants nothing here: the grant belongs to the socket that resolved it",
+  )
 
   const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`, socketDir], port })
   noSecretIn(JSON.stringify(seen))

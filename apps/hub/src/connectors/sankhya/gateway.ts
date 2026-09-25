@@ -6,16 +6,13 @@ import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 
-// The only file that speaks the Sankhya gateway wire (design.md section 6). Nothing here takes a
-// service, entity, expression, URL, header or token from a consumer.
+// The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
+// expression, URL, header or token from a consumer.
 
 /** The gateway origins the Sankhya documentation publishes: production and sandbox. */
 export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
 
-/**
- * The G0 allow-list: read services only, each cited in docs/evidence/stage2-q4/census.md. Any other
- * name is refused before a request is built.
- */
+/** The allow-list: read services only. Any other name is refused before a request is built. */
 export const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
 export type SankhyaService = typeof SANKHYA_SERVICES[number]
 
@@ -49,8 +46,8 @@ export const pinnedGatewayOrigin = (value: string): string => {
   return value
 }
 
-// One classification for every HTTP status the gateway answers. Whether a refused token arrives as
-// 401 or inside the envelope is unverified until Q4.6 (design.md section 14).
+// One classification for every HTTP status the gateway answers. Whether a refused token surfaces as
+// HTTP 401 or inside the response envelope is unverified; only the status is checked here.
 const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): AdapterFailureReason | null => {
   if (status >= 200 && status < 300) return null
   if (status === 401 || status === 403 || (phase === 'authenticate' && status === 400)) return phase === 'authenticate' ? 'AUTHENTICATION_REFUSED' : 'TOKEN_REFUSED'
@@ -170,7 +167,7 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
   },
   open(token: TokenLease, signal: AbortSignal, trace: ServiceTrace): SankhyaSession {
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
-      if (!(SANKHYA_SERVICES as readonly string[]).includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
+      if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
       const bearer = (await token()).bearer()
       trace.called(service)
       const body = await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {

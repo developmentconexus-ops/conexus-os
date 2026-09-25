@@ -21,7 +21,8 @@ const storeOf = (granted) => ({ listGrantedCapabilities: async () => granted.map
 
 const connectors = Object.freeze([{ definition: sankhyaDefinition, adapter: null }])
 
-// The wire vocabulary the brief and the Skill must never carry (design.md section 9, task Q4.5).
+// The wire vocabulary the brief and the Skill must never carry: Sankhya field, entity and service
+// names, credential material, and the pinned gateway origins.
 const FORBIDDEN = [
   'CRUDServiceProvider', 'loadRecords', 'CabecalhoNota', 'ItemNota', 'TGFCAB', 'TGFITE',
   'NUMNOTA', 'NUNOTA', 'TIPMOV', 'DTNEG', 'STATUSNOTA', 'VLRNOTA', 'Parceiro', 'NOMEPARC',

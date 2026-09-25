@@ -8,7 +8,6 @@ const { AdapterFailure } = await import(hubModuleUrl('connectors/errors.js'))
 
 const CONNECTION = '11111111-1111-4111-8111-111111111111'
 
-// An issuer that hands out numbered tokens and counts how often it was asked.
 const issuer = ({ expiresInSeconds = 3600, delayMs = 0 } = {}) => {
   let issued = 0
   const issue = async () => {

@@ -94,7 +94,7 @@ export const createBroker = ({
   }
   const adapterOf = (connectorId: ConnectorId): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
 
-  // Reads, opens and parses the credential, then authenticates. Only this function opens the envelope.
+  // Only this function opens the credential envelope.
   const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal): Promise<IssuedToken> => {
     let sealed: string | null
     try {

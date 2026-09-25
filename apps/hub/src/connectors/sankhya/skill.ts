@@ -1,11 +1,9 @@
 // The business concepts below (that a document number identifies a purchase order, that a purchase
 // order has a header and a list of items, and the shape of a purchases follow-up) come from
-// https://github.com/andressaolivi/sankhya-skills (MIT), read by task Q4.0's census
-// (docs/evidence/stage2-q4/census.md). No table name, entity name or field name of that source, and no
-// service name, host, URL or header name of the adapter that reads it, entered this text: everything
-// below is stated only in the shape of this connector's own operation contracts, in product language for
-// the person building a purchase-order follow-up app. The census's "checked table by table" condition
-// therefore holds trivially for this file: there is no table or field name here to check.
+// https://github.com/andressaolivi/sankhya-skills (MIT). No table name, entity name or field name of
+// that source, and no service name, host, URL or header name of the adapter that reads it, entered
+// this text: everything below is stated only in the shape of this connector's own operation contracts,
+// in product language for the person building a purchase-order follow-up app.
 export const SANKHYA_BUILDER_SKILL: string = [
   'Esta Skill cobre a operação de pedidos de compra concedida a este Project. Chame-a apenas por '
     + "`connectors.call(operationId, input)` a partir de um handler do servidor, com o identificador e a "

@@ -86,8 +86,8 @@ export async function revokeProjectConnectorGrant(projectId: string, grantId: st
   await send(() => connectorClient.revokeProjectConnectorGrant(projectId, grantId), 204)
 }
 
-// Distinct from every other failure: the viewer isn't an installation administrator, so the
-// Connections section renders an explanatory message instead of a retryable error.
+// The viewer isn't an installation administrator; the Connections section explains that
+// instead of offering a retry.
 export function isConnectorAdminRequired(error: unknown): boolean {
   return error instanceof ConnectorRequestError && error.status === 403
 }
@@ -99,9 +99,8 @@ export function workspaceConnectionsMessage(error: unknown): string {
   return 'A alteração não foi confirmada.'
 }
 
-// Distinct from every other failure: the viewer isn't the Owner of the Project's Workspace, so the
-// Grants section renders an explanatory message instead of a retryable error. A Project the viewer
-// cannot see at all answers the same non-disclosing shape, so both statuses render the same way here.
+// The viewer isn't the Project's Workspace Owner (403), or the Project doesn't exist for them
+// at all (404, kept non-disclosing) — the Grants section explains either instead of retrying.
 export function isConnectorGrantsForbidden(error: unknown): boolean {
   return error instanceof ConnectorRequestError && (error.status === 403 || error.status === 404)
 }
@@ -131,8 +130,6 @@ export function checkConnectionMessage(error: unknown): string {
   return 'Não foi possível testar a conexão agora.'
 }
 
-// The one operation Q4 admits. Grown as more operations are defined; an id with no entry here
-// still renders, using the id itself as its own description.
 const OPERATION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'sankhya.purchase-order.read': 'Ler pedido de compra do Sankhya',
 }

@@ -25,8 +25,8 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
-  /** The Builder's per-run brief for this Project's own open grants (design.md section 9, P11). Empty
-   * for a Project with no open grant. Never opens a credential and makes no network call. */
+  /** The Builder's per-run brief for this Project's own open grants. Empty for a Project with no open
+   * grant. Never opens a credential and makes no network call. */
   builderBrief(projectId: string): Promise<string>
   broker: Broker
 }>
@@ -53,7 +53,7 @@ export const createConnectorModule = ({
   audit = (line) => { process.stderr.write(line) },
 }: Readonly<{
   /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
-   * exactly as Q3's application-access functions are (no new login role, no new pilot secret). */
+   * exactly as the application-access functions are (no new login role, no new pilot secret). */
   pool: PostgresPool
   envelope: SecretEnvelope
   origin: string
@@ -82,7 +82,7 @@ export const createConnectorModule = ({
     return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
   }
 
-  // Disable is terminal (design.md section 4), so the cached token of that Connection goes with it.
+  // Disable is terminal, so the cached token of that Connection goes with it.
   const administeredStore = Object.freeze({
     ...store,
     async disableConnection(input: Parameters<typeof store.disableConnection>[0]) {

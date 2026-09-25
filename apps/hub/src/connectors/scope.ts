@@ -22,11 +22,12 @@ const mint = (projectId: string, environment: Environment): ConsumerScope => {
 export const isMintedScope = (value: unknown): value is ConsumerScope =>
   typeof value === 'object' && value !== null && minted.has(value)
 
-/** Preview and the application host both serve the Preview environment until Q5. */
+/** Preview and the application host both serve the Preview environment for now; that will change
+ * once the application host gets its own environment. */
 export const scopeFromArtifactSource = (source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): ConsumerScope =>
   mint(source.projectId, 'preview')
 
-// Q4.9: the agent tool's scope, minted by the Hub for the session's own Project and carried in the
+// The agent tool's scope, minted by the Hub for the session's own Project and carried in the
 // session's RequestContext under this key. No agent tool exists yet.
 export const CONNECTOR_SCOPE_CONTEXT_KEY = 'conexus.connectorScope'
 

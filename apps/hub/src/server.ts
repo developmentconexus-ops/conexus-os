@@ -48,8 +48,8 @@ const identityAccessDependencies = {
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
 // The Connector Connection's credential is sealed with the same installation key as an application
-// session's refresh token; the module needs no login role of its own (connector.* functions are
-// executable by hub_iam_runtime, like Q3's application-access functions).
+// session's refresh token, so the module needs no login role of its own: connector.* functions run
+// as hub_iam_runtime, like application-access's do.
 const connectors = config.factory ? createConnectorModule({
   pool,
   envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
@@ -59,7 +59,7 @@ const connectors = config.factory ? createConnectorModule({
   gatewayOrigin: config.connectors.gatewayOrigin,
   socketDirectory: config.connectors.socketDirectory,
 }) : undefined
-// A restarted Hub leaves no orphan handler socket answering (design.md section 5, M2).
+// A restarted Hub leaves no orphan handler socket still answering.
 await connectors?.sweepHandlerPorts()
 const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
   commandPool: createPostgresPool({
@@ -174,7 +174,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
-  // What the Builder learns about this Project's own granted connector operations (design.md section 9).
+  // What the Builder learns about this Project's own granted connector operations.
   ...(connectors ? { connectorBrief: (projectId: string) => connectors.builderBrief(projectId) } : {}),
 }) : undefined
 const app = await createHttpApp({

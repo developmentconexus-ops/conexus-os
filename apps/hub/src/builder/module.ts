@@ -188,7 +188,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
-  /** The Connector owner's per-run brief for a Project (design.md section 9); absent without a Connector module. */
+  /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
 }>) => {
   assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
@@ -295,7 +295,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
-  /** The Connector owner's per-run brief for a Project (design.md section 9); absent without a Connector module. */
+  /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
 }>) => {
   assertFactoryGlobalSkillsAvailable()

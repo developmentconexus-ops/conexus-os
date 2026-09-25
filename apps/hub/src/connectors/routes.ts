@@ -16,7 +16,7 @@ import type { ConnectorStore } from './store.js'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
-/** The Connection's outcome through the allow-listed authentication alone (design.md section 6).
+/** The Connection's outcome through the allow-listed authentication alone.
  * `NOT_FOUND`: no open Connection with this id in this Workspace. */
 export type CheckConnectionOutcome = 'OK' | 'CREDENTIAL_REFUSED' | 'CONNECTOR_UNCONFIGURED' | 'PROVIDER_UNAVAILABLE' | 'PROVIDER_TIMEOUT' | 'PROVIDER_ERROR'
 export type CheckConnection = (input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: string }>) => Promise<CheckConnectionOutcome | 'NOT_FOUND'>
@@ -30,7 +30,7 @@ export type ConnectorRouteDependencies = Readonly<{
    * key (a connectorId the wire admits but no Definition claims) is simply absent. */
   credentialSchemas: Readonly<Record<string, { safeParse(value: unknown): { success: boolean } }>>
   /** Every operation id a registered Connector Definition admits, flattened. A `GrantProjectConnectorOperation`
-   * body naming any other id is refused as 422 before the store, per design.md section 8. */
+   * body naming any other id is refused as 422 before the store. */
   admittedOperationIds: ReadonlySet<OperationId>
   config: Readonly<{ origin: string }>
 }>

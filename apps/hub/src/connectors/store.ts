@@ -63,7 +63,7 @@ export type ConnectorStore = Readonly<{
   revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: GrantId }>): Promise<boolean>
 }>
 
-/** The broker's three reads (design.md section 7). Only the sealed envelope leaves PostgreSQL. */
+/** The broker's three reads. Only the sealed envelope leaves PostgreSQL. */
 export type BrokerStore = Readonly<{
   /** An open grant on an enabled Connection of a Project that is not archived, or null. */
   resolveGrant(input: Readonly<{ projectId: string; environment: Environment; capabilityKind: CapabilityKind; capabilityId: OperationId }>): Promise<Readonly<{ grantId: GrantId; connectionId: ConnectionId }> | null>

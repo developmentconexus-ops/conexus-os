@@ -136,7 +136,7 @@ const run = async (): Promise<never> => {
     },
   })
   const caller = Object.freeze({ accountId: job.caller.accountId, email: job.caller.email, displayName: job.caller.displayName })
-  const connectors = Object.freeze({ call: connectorCall(job.connector === true) })
+  const connectors = Object.freeze({ call: connectorCall(job.connector) })
   let value: unknown
   try {
     value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))

@@ -52,7 +52,7 @@ export type FactoryRunPorts = Readonly<{
   github: Pick<GithubApp, 'repositoryToken' | 'branchContains'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
-  /** The run's Project's connector brief (design.md section 9); absent or empty adds nothing. */
+  /** The run's Project's connector brief; absent or empty adds nothing to the agent's instructions. */
   connectorBrief?(projectId: string): Promise<string>
   log(line: string): void
 }>

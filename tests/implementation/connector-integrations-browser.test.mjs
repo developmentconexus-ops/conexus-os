@@ -13,7 +13,7 @@ import { buildHubDatabase } from './hub-database.mjs'
 // Real Fastify + real PostgreSQL, driven by a real Chromium, exactly as the Hub runs: only the
 // session/administrator lookup is a test double (a real sign-in needs Keycloak, which this suite
 // must not touch). Everything else -- the store, the credential envelope, the admitted operation
-// ids and the SQL authority checks -- is production code (design.md section 8, task Q4.2).
+// ids and the SQL authority checks -- is production code.
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
   .every((name) => process.env[name])
 
@@ -121,7 +121,7 @@ const setupFixture = async (t) => {
     staticRoot,
     registerRoutes: async (fastify) => {
       // The Hub's own record of every request and response this server answers: the same shape a
-      // request logger would produce. Nothing in it may ever carry a credential.
+      // request logger would produce.
       fastify.addHook('onSend', (request, reply, payload, done) => {
         logLines.push(`${request.method} ${request.url} -> ${reply.statusCode} ${typeof payload === 'string' ? payload : ''}`)
         done(null, payload)
