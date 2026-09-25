@@ -71,6 +71,55 @@ Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
 `CONNECTOR_UNCONFIGURED` with no network, which `connector-broker.test.mjs` also proves.
 
+### Pilot deploy plan for part 1
+
+The procedure is [`infra/pilot/README.md`, "Deploy main"](../../../infra/pilot/README.md#deploy-main), run
+once #246 is merged. The operator approves every step in the executor's session before it runs, and
+each approval covers only that step. The deploy makes no Sankhya request:
+`CONEXUS_SANKHYA_GATEWAY_ORIGIN` stays absent, so every call and every "Testar" answers
+`CONNECTOR_UNCONFIGURED` without the network.
+
+1. **Fetch and list.** Run `git fetch` in `~/conexus-pilot` and diff the old head against the merged
+   `main`. Expected: one migration, `apps/hub/migrations/0029_connector.sql`, plus changes under
+   `apps/hub/src/app-runner`, so the runner restarts too. Check whether `package-lock.json` changed,
+   which decides whether step 4 runs `npm ci`.
+2. **Stop** the Hub (`server.js` and its `build-hub-local.mjs` parent) and the runner.
+3. **Create the connector socket directory, owner-only.** The Hub refuses to start
+   (`CONNECTOR_SOCKET_DIR_REFUSED`) when the directory exists and this user does not own it with
+   mode 0700. It also refuses a relative path. So create the directory before the first start, as the
+   user that runs both the Hub and the runner:
+
+   ```bash
+   install -d -m 0700 "$HOME/conexus-pilot-state/connector"
+   stat -c '%U %a' "$HOME/conexus-pilot-state/connector"   # expect: the pilot user, 700
+   ```
+
+   The path must leave room for a 15-byte socket name within the 107-byte unix socket limit. This
+   one does. The operator then adds `CONEXUS_CONNECTOR_SOCKET_DIR` with that same path to both the
+   Hub's and the runner's env files. The runner admits a socket only inside its own copy of the
+   directory, so the two values must be equal.
+4. **Move the checkout** to the merged head, and run `npm ci` only if step 1 showed a dependency
+   change.
+5. **Back up, then migrate.** `pg_dump -Fc` of `conexus_s7`, then `pg_restore --list` of the dump.
+   Record `backup ok` and the dump's name here. Then `scripts/run-hub-migrations.mjs` with
+   `CONEXUS_MIGRATION_DATABASE_URL_FILE`, which applies `0029` alone. Record its verdict and the
+   catalog digest (`8531eadb…` at 0029 in `contracts/technical/hub-catalog-snapshot.json`). The
+   migration is forward-only, so the dump is the only way back.
+6. **Start** `infra/pilot/runner.sh`, then `infra/pilot/hub.sh`. Check the runner socket before the
+   Hub, per the pilot rule.
+7. **Confirm.** The last `starting` line of each log names the merged head. The Hub log shows no
+   `CONNECTOR_SOCKET_DIR_REFUSED` and no `MIGRATION_` error. The Integrações screen lists no
+   Connection, and "Testar" is not pressed.
+
+After the deploy:
+
+8. The operator types client id, client secret and X-Token into the Integrações screen (section 11,
+   point 3). The executor never sees them.
+9. **Q4.6 starts only here.** The operator adds `CONEXUS_SANKHYA_GATEWAY_ORIGIN` to the Hub's env file.
+   It must be one of the two origins the Sankhya documentation publishes, because the Hub refuses
+   any other at startup. Then the operator restarts the Hub and watches the first real call. Each call
+   from then on gets one row in the table below.
+
 ### Real Sankhya calls
 
 None yet. Each real call is one row here, never a value, a token or a host.
