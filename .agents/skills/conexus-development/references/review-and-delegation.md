@@ -18,11 +18,13 @@ A delegate does not widen its task. If it finds a material fork, it stops and re
 
 ## Review by lane
 
-The [review checklist](../../../../docs/development/review-checklist.md) applies to every pull request.
+The [review checklist](../../../../docs/development/review-checklist.md) and the pages it loads from the base ref apply to every pull request. The Factory's verdict at the head SHA is a gate in every lane, per the [merge gate](../../../../docs/development/delivery.md#merge-gate).
 
-**Fast and shaped lanes.** No independent review. The gates are the fast-lane gates in [the delivery rules](../../../../docs/development/delivery.md#pick-the-lane-by-risk). Codex comments on the pull request. Triage each comment on its merits: fix it, dismiss it with a concrete reason, or ask on the thread.
+**Fast lane.** No independent review beyond the Factory's. The gates are the fast-lane gates in [the delivery rules](../../../../docs/development/delivery.md#pick-the-lane-by-risk). Codex comments on the pull request. Triage each comment on its merits: fix it, dismiss it with a concrete reason, or ask on the thread.
 
-**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), which holds the reviewer count, the model rule and the Codex command. Codex is the challenger on another model. The other challenger is a fresh subagent that has seen no draft of the work. Also:
+**Shaped lane and `needs:aprovo`.** The [merge gate](../../../../docs/development/delivery.md#merge-gate) adds an independent Claude Opus review. The manager runs it without the Factory's verdict.
+
+**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), which holds the reviewer count, the model rule and the Codex command. Codex is the challenger on another model. The other challenger is the manager's Opus review, which has seen no draft of the work. Also:
 
 - A collaborative writer or design challenger is not an independent reviewer.
 - A reviewer finding is evidence, not a product requirement and not execution authority. The lead classifies it against current owners.
