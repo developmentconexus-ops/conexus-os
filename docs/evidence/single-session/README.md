@@ -2,7 +2,7 @@
 
 **Task:** [Single session qualification](../../tasks/single-session-qualification.md)
 
-**Proposed verdict: ACCEPT.** The operator gives the verdict. With refresh-token rotation off, one session
+**Verdict: ACCEPT**, given by the operator on 2026-09-25 in the chat with the manager. With refresh-token rotation off, one session
 model (`iam.host_session`) and one handoff (`iam.handoff`) in PostgreSQL serve the Hub, application hosts and
 Preview hosts. On the pilot, after a person was disabled or signed out in Keycloak, no request to the Hub, the
 application or their Preview that started five minutes or more later was allowed, and the first one after five
@@ -16,8 +16,8 @@ task section 8 fired:
 3. No property of section 4 was lost. Two answers changed. The realm's SSO idle limit is 40 minutes, so that it
    outlasts the Hub's own 30-minute idle limit: the operator decided it in the chat with the manager on
    2026-09-25. A due check that cannot reach Keycloak answers 503 on every Hub route, the Factory's included, and
-   keeps the session: **PROPOSED**, not decided by the operator, who had accepted 401 for the Factory's routes (D4,
-   see the review and the decisions index).
+   keeps the session: the operator accepted it on 2026-09-25 in the chat with the manager, replacing the 401 D4 had
+   named for the Factory's routes (see the review and the decisions index).
 4. No handoff was consumed by a failed presentation, and none redeemed twice (tests, and S6 `handoff-on-other-host`,
    `handoff-redeemed-twice`).
 5. A Preview did not die on a Hub restart (S6 `preview-survives-hub-restart`).
@@ -207,7 +207,7 @@ against the task and the owners; the table says how each was resolved.
 | 1, Codex | The evidence held S0 only, and no upgrade of a populated database. | A test upgrades a 0025 database with an open Hub session, an open application session and a handoff (`0f015c91`). S6 below. |
 | 2, Opus (`0f015c91`) | `workspace-http` built a Hub configuration without the key. | Fixture fixed (`880ab936`); CI caught it too. |
 | 2, Opus | Hub sign-out failed with 503 while a due check found Keycloak down, and the session stayed open. | `iam.end_hub_session` ends the session on its CSRF digest and never asks Keycloak; tested with Keycloak down (`ec4b09dc`). |
-| 2, Opus | Factory routes answered 503, not the 401 recorded for D4. | Kept 503, recorded as **PROPOSED** for the operator (it is not what D4 accepted): the Hub's preHandler runs before Mastra's auth, and 503 says the truth (nobody signed out). The error handler matches the error's code, not any 503. Tested on a Factory route (`ec4b09dc`). |
+| 2, Opus | Factory routes answered 503, not the 401 recorded for D4. | Kept 503, proposed to the operator, who accepted it on 2026-09-25 in place of D4's 401: the Hub's preHandler runs before Mastra's auth, and 503 says the truth (nobody signed out). The error handler matches the error's code, not any 503. Tested on a Factory route (`ec4b09dc`). |
 | 2, Opus | Keycloak's 1800 s SSO idle limit could sign a Hub user out after about 26 idle minutes, since the token is refreshed only when the five-minute check is due. | Realm `ssoSessionIdleTimeout` 2400 in `realm-conexus.json` (`ec4b09dc`); the operator decided it in the chat with the manager on 2026-09-25, and the pilot realm took it before S6. |
 | 2, Opus | `iam.preview` and ended Preview sessions grew without bound (the memory map was capped at 4,096). | The next launch removes every ended Preview and its sessions; tested (`ec4b09dc`). |
 | 2, Opus and Codex | `export-users.sh` kept the mode of an existing output file. | It refuses an existing file and writes with `flag: 'wx'` (`ec4b09dc`). |

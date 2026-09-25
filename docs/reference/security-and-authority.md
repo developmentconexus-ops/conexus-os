@@ -155,8 +155,7 @@ opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDE
 `PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused and the
 session is kept: 503 `identity-provider-unavailable` on every Hub route and on application and
 Preview hosts. The Factory's routes answer 503 too, because the Hub's own check runs before
-Mastra's auth; that answer is **PROPOSED** in the [decisions index](../decisions/index.md), since the
-operator had accepted 401 there. Signing out of the Hub never asks Keycloak.
+Mastra's auth; the operator accepted that answer on 2026-09-25 ([decisions index](../decisions/index.md)). Signing out of the Hub never asks Keycloak.
 
 **Rotation is off.** The realm does not rotate refresh tokens (`revokeRefreshToken: false`,
 Keycloak's default): a token refreshes any number of times, so requests that find the same check
