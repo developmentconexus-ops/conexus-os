@@ -12,17 +12,21 @@ its head or its base. A stacked pull request's base is another open pull request
 the rules. The rules are this checklist, the pages, `areas.json`, and the browser path pattern in
 `.github/workflows/verify.yml`. The code is still compared with the pull request's base.
 
-1. Read the map from `origin/main`:
+1. Fetch the approved reference first, because a local `origin/main` can be stale:
+   `git fetch origin main`. Then read the map:
    `git show origin/main:docs/development/review/areas.json`.
-2. List the changed paths: `gh pr view <n> --json files`.
+2. List every changed path, across all pages:
+   `gh api --paginate repos/developmentconexus-ops/conexus-os/pulls/<n>/files --jq '.[].filename'`.
+   `gh pr view <n> --json files` stops at 100 files.
 3. Match each changed path against each area's `paths`. The grammar is portable on purpose: an
    exact path, `dir/**` for every path under `dir` (dotfiles included), and `*` for any run of
    characters inside one segment. A test maps to the area of the code it proves.
 4. Load every matched page with `git show origin/main:<page>`, and always
    [`mastra-native.md`](review/mastra-native.md).
-5. A changed path the map on `origin/main` does not cover is judged by the page the pull
-   request's own map assigns instead. The review table carries a row for it:
-   `new area path: <path>, page <page>, loaded from the head`.
+5. A changed path is not covered when no area other than a universal one matches it in the map
+   on `origin/main`. `mastra-native`, whose paths are `["**"]`, does not count. Judge such a path
+   by the page the pull request's own map assigns, loaded from the head, and record a row for it in
+   the review table: `new area path: <path>, page <page>, loaded from the head`.
 
 The pages are [mastra-native](review/mastra-native.md), [identity-session](review/identity-session.md),
 [data-migrations](review/data-migrations.md), [connectors](review/connectors.md),
