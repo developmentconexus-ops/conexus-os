@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0029",
+ "head": "0026",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",

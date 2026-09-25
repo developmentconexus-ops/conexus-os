@@ -35,10 +35,7 @@ const applicationAccessDigest = 'aab11d37b619ce81df07c292336b7bcff31b9b260245343
 const applicationSessionDigest = 'e3efcd8b1a7ad067d336f7466011870792521f57c1464b0c5ed5db3172914e40'
 const applicationAccessReviewDigest = 'c8d5f024ce4e83f66cfe6c6f304060d45ef7fd68b9a6d05101b03e1e4868a8e8'
 const applicationAccessVerificationDigest = '5c31112ec06e7d69bd43ad40b4a4cdb77405ec92dd7bff3060def078672d7f62'
-const providerCheckCompareAndSetDigest = '36f9da08d53af5df645b8a3c4d3bda122c47fb1379f6601c81b961efdc00adbc'
-const oneHandoffHostSessionsDigest = '272854dbfb73d7178ab8b52b9ddb95ede148b9d965ef79d77a637b7ac7d7623a'
-const hubHostSessionDigest = '9432501848bec8493f126d5bfb37b02089fc023747b98f053eb345acbac825f8'
-const hubProviderCheckDigest = '4aea6bfce8dd147770ae33b08d8f8536af5dac2a07078bdb624a5e44e13ef8fe'
+const singleSessionDigest = '8b68fd77bdf58eb1ea8dc728d2315e1f32f42ba361e67744cf72c68aeee58f24'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -66,10 +63,7 @@ const migrationDigests = new Map([
   ['0023_application_session.sql', applicationSessionDigest],
   ['0024_application_access_review.sql', applicationAccessReviewDigest],
   ['0025_application_access_verification.sql', applicationAccessVerificationDigest],
-  ['0026_provider_check_compare_and_set.sql', providerCheckCompareAndSetDigest],
-  ['0027_one_handoff_host_sessions.sql', oneHandoffHostSessionsDigest],
-  ['0028_hub_host_session.sql', hubHostSessionDigest],
-  ['0029_hub_provider_check.sql', hubProviderCheckDigest],
+  ['0026_single_session.sql', singleSessionDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -1,11 +1,28 @@
 BEGIN;
 
--- One handoff and one host session serve application hosts and Preview hosts. A Preview no longer lives in
--- the Hub process: its launch facts, its entry handoff and its session are rows, so a Preview survives a Hub
--- restart and any Hub serves it. The application tables of 0023 go; their open sessions end, and each person
--- signs in once again.
+-- One session model and one handoff for the Hub, application hosts and Preview hosts.
+--
+-- Keycloak no longer rotates refresh tokens (revokeRefreshToken is false in the Conexus realm), so a token
+-- works any number of times and concurrent requests may refresh at once: the claim protocol of 0024 and 0025
+-- goes. iam.session, iam.application_session and iam.application_handoff give way to iam.host_session (one
+-- row per cookie, kind HUB, APPLICATION or PREVIEW, one CHECK per kind) and iam.handoff (kind APPLICATION or
+-- PREVIEW). A Preview no longer lives in the Hub process: its launch facts are iam.preview, so any Hub serves
+-- it and it survives a restart. Every open Hub and application session ends: a Hub session held no refresh
+-- token and cannot be checked (operator decision 4), and each person signs in once again.
+
+DROP FUNCTION iam.claim_provider_check(p_session_digest bytea, p_claim uuid, p_now timestamp with time zone);
+DROP FUNCTION iam.release_provider_check(p_session_digest bytea, p_claim uuid);
+DROP FUNCTION iam.record_provider_check(p_session_digest bytea, p_claim uuid, p_refresh_token text, p_now timestamp with time zone);
+DROP FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone);
+DROP FUNCTION iam.redeem_application_handoff(p_handoff_digest bytea, p_project_id uuid, p_binding_digest bytea, p_session_digest bytea, p_now timestamp with time zone);
+DROP FUNCTION iam.end_application_session(p_session_digest bytea, p_reason text);
+DROP FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid, p_handoff_digest bytea, p_binding_digest bytea, p_refresh_token text, p_authenticated_at timestamp with time zone);
+DROP TABLE iam.application_handoff;
+DROP TABLE iam.application_session;
+DROP TABLE iam.session;
 
 -- What one Preview launch shows: written once, when the Hub opens it for a developer, and never changed.
+
 CREATE TABLE iam.preview (
     preview_id uuid NOT NULL,
     account_id uuid NOT NULL,
@@ -26,10 +43,64 @@ CREATE TABLE iam.preview (
 
 ALTER TABLE iam.preview OWNER TO iam_owner;
 
+-- One person on one host through one opaque cookie. A Hub session has its CSRF digest and a 30-minute idle
+-- limit inside an absolute 8 hours; an application session lasts 8 hours from sign-in; both keep the sealed
+-- Keycloak refresh token of their sign-in while open, so the Hub asks Keycloak again at most every five
+-- minutes. A Preview session holds no token: it lives while the Hub session that opened it does, for at most
+-- fifteen minutes.
+
+CREATE TABLE iam.host_session (
+    token_digest bytea NOT NULL,
+    kind text NOT NULL,
+    account_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    absolute_expires_at timestamp with time zone NOT NULL,
+    project_id uuid,
+    provider_refresh_token text,
+    provider_checked_at timestamp with time zone,
+    preview_id uuid,
+    parent_digest bytea,
+    ended_at timestamp with time zone,
+    ended_reason text,
+    csrf_digest bytea,
+    idle_expires_at timestamp with time zone,
+    CONSTRAINT host_session_pkey PRIMARY KEY (token_digest),
+    CONSTRAINT host_session_account_id_fkey FOREIGN KEY (account_id) REFERENCES iam.account(account_id),
+    CONSTRAINT host_session_project_id_fkey FOREIGN KEY (project_id) REFERENCES iam.application(project_id),
+    CONSTRAINT host_session_preview_id_fkey FOREIGN KEY (preview_id) REFERENCES iam.preview(preview_id),
+    CONSTRAINT host_session_parent_digest_fkey FOREIGN KEY (parent_digest) REFERENCES iam.host_session(token_digest),
+    CONSTRAINT host_session_kind_check CHECK (kind = ANY (ARRAY['HUB'::text, 'APPLICATION'::text, 'PREVIEW'::text])),
+    CONSTRAINT host_session_hub_check CHECK (kind <> 'HUB' OR (csrf_digest IS NOT NULL
+      AND idle_expires_at IS NOT NULL AND idle_expires_at <= absolute_expires_at
+      AND absolute_expires_at = started_at + interval '8 hours' AND provider_checked_at >= started_at
+      AND (ended_at IS NULL) = (provider_refresh_token IS NOT NULL)
+      AND project_id IS NULL AND preview_id IS NULL AND parent_digest IS NULL)),
+    CONSTRAINT host_session_application_check CHECK (kind <> 'APPLICATION' OR (project_id IS NOT NULL
+      AND absolute_expires_at = started_at + interval '8 hours' AND provider_checked_at >= started_at
+      AND (ended_at IS NULL) = (provider_refresh_token IS NOT NULL)
+      AND preview_id IS NULL AND parent_digest IS NULL AND csrf_digest IS NULL AND idle_expires_at IS NULL)),
+    CONSTRAINT host_session_preview_check CHECK (kind <> 'PREVIEW' OR (preview_id IS NOT NULL AND parent_digest IS NOT NULL
+      AND absolute_expires_at > started_at AND absolute_expires_at <= started_at + interval '15 minutes'
+      AND project_id IS NULL AND provider_refresh_token IS NULL AND provider_checked_at IS NULL
+      AND csrf_digest IS NULL AND idle_expires_at IS NULL)),
+    CONSTRAINT host_session_token_sealed_check CHECK (provider_refresh_token IS NULL OR provider_refresh_token LIKE 'mastra:factory-secret:v1:%'),
+    CONSTRAINT host_session_end_check CHECK ((ended_at IS NULL) = (ended_reason IS NULL)),
+    CONSTRAINT host_session_reason_check CHECK (ended_reason IS NULL OR ended_reason = ANY (ARRAY[
+      'SIGNED_OUT'::text, 'ACCESS_ENDED'::text, 'EXPIRED'::text, 'CUSTODY_CHANGED'::text, 'PARENT_ENDED'::text,
+      'PROVIDER_REFUSED'::text, 'PROVIDER_USER_DISABLED'::text, 'PROVIDER_SESSION_ENDED'::text]))
+);
+
+ALTER TABLE iam.host_session OWNER TO iam_owner;
+
+CREATE INDEX host_session_open_application ON iam.host_session USING btree (project_id, account_id) WHERE (kind = 'APPLICATION' AND ended_at IS NULL);
+
+CREATE INDEX host_session_open_children ON iam.host_session USING btree (parent_digest) WHERE (parent_digest IS NOT NULL AND ended_at IS NULL);
+
 -- A one-use proof the Hub hands a browser for exactly one host. An application handoff names the
 -- application, the digest of a binding only the browser that started the sign-in holds, and the sealed
 -- Keycloak refresh token of that sign-in; it lives 60 seconds. A Preview handoff names the Preview and the
 -- Hub session that opened it; it lives 30 seconds and is presented by the Hub's own page.
+
 CREATE TABLE iam.handoff (
     handoff_digest bytea NOT NULL,
     kind text NOT NULL,
@@ -45,7 +116,7 @@ CREATE TABLE iam.handoff (
     CONSTRAINT handoff_account_id_fkey FOREIGN KEY (account_id) REFERENCES iam.account(account_id),
     CONSTRAINT handoff_project_id_fkey FOREIGN KEY (project_id) REFERENCES iam.application(project_id),
     CONSTRAINT handoff_preview_id_fkey FOREIGN KEY (preview_id) REFERENCES iam.preview(preview_id),
-    CONSTRAINT handoff_parent_digest_fkey FOREIGN KEY (parent_digest) REFERENCES iam.session(token_digest),
+    CONSTRAINT handoff_parent_digest_fkey FOREIGN KEY (parent_digest) REFERENCES iam.host_session(token_digest),
     CONSTRAINT handoff_kind_check CHECK (kind = ANY (ARRAY['APPLICATION'::text, 'PREVIEW'::text])),
     CONSTRAINT handoff_application_check CHECK (kind <> 'APPLICATION' OR (project_id IS NOT NULL AND binding_digest IS NOT NULL
       AND provider_refresh_token IS NOT NULL AND preview_id IS NULL AND parent_digest IS NULL)),
@@ -60,54 +131,14 @@ ALTER TABLE iam.handoff OWNER TO iam_owner;
 
 CREATE UNIQUE INDEX handoff_one_per_preview ON iam.handoff USING btree (preview_id) WHERE (preview_id IS NOT NULL);
 
--- One person on one host through one opaque cookie. An application session keeps the sealed Keycloak
--- refresh token while open, so the Hub can ask Keycloak again at most every five minutes, and lasts eight
--- hours from sign-in. A Preview session holds no token: it lives while the Hub session that opened it
--- does, for at most fifteen minutes.
-CREATE TABLE iam.host_session (
-    token_digest bytea NOT NULL,
-    kind text NOT NULL,
-    account_id uuid NOT NULL,
-    started_at timestamp with time zone NOT NULL,
-    absolute_expires_at timestamp with time zone NOT NULL,
-    project_id uuid,
-    provider_refresh_token text,
-    provider_checked_at timestamp with time zone,
-    preview_id uuid,
-    parent_digest bytea,
-    ended_at timestamp with time zone,
-    ended_reason text,
-    CONSTRAINT host_session_pkey PRIMARY KEY (token_digest),
-    CONSTRAINT host_session_account_id_fkey FOREIGN KEY (account_id) REFERENCES iam.account(account_id),
-    CONSTRAINT host_session_project_id_fkey FOREIGN KEY (project_id) REFERENCES iam.application(project_id),
-    CONSTRAINT host_session_preview_id_fkey FOREIGN KEY (preview_id) REFERENCES iam.preview(preview_id),
-    CONSTRAINT host_session_parent_digest_fkey FOREIGN KEY (parent_digest) REFERENCES iam.session(token_digest),
-    CONSTRAINT host_session_kind_check CHECK (kind = ANY (ARRAY['APPLICATION'::text, 'PREVIEW'::text])),
-    CONSTRAINT host_session_application_check CHECK (kind <> 'APPLICATION' OR (project_id IS NOT NULL
-      AND absolute_expires_at = started_at + interval '8 hours' AND provider_checked_at >= started_at
-      AND (ended_at IS NULL) = (provider_refresh_token IS NOT NULL) AND preview_id IS NULL AND parent_digest IS NULL)),
-    CONSTRAINT host_session_preview_check CHECK (kind <> 'PREVIEW' OR (preview_id IS NOT NULL AND parent_digest IS NOT NULL
-      AND absolute_expires_at > started_at AND absolute_expires_at <= started_at + interval '15 minutes'
-      AND project_id IS NULL AND provider_refresh_token IS NULL AND provider_checked_at IS NULL)),
-    CONSTRAINT host_session_token_sealed_check CHECK (provider_refresh_token IS NULL OR provider_refresh_token LIKE 'mastra:factory-secret:v1:%'),
-    CONSTRAINT host_session_end_check CHECK ((ended_at IS NULL) = (ended_reason IS NULL)),
-    CONSTRAINT host_session_reason_check CHECK (ended_reason IS NULL OR ended_reason = ANY (ARRAY[
-      'SIGNED_OUT'::text, 'ACCESS_ENDED'::text, 'EXPIRED'::text, 'CUSTODY_CHANGED'::text, 'PARENT_ENDED'::text,
-      'PROVIDER_REFUSED'::text, 'PROVIDER_USER_DISABLED'::text, 'PROVIDER_SESSION_ENDED'::text]))
-);
-
-ALTER TABLE iam.host_session OWNER TO iam_owner;
-
-CREATE INDEX host_session_open_application ON iam.host_session USING btree (project_id, account_id) WHERE (kind = 'APPLICATION' AND ended_at IS NULL);
-
--- A Hub session that opens a Preview must be open, unexpired, of an active Control Plane Account.
+-- A Hub session that opens or serves a Preview is open, inside its limits, of an active Control Plane Account.
 CREATE FUNCTION iam.hub_session_live(p_session_digest bytea, p_account_id uuid, p_now timestamp with time zone) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
   SELECT EXISTS (
-    SELECT 1 FROM iam.session AS hub JOIN iam.account AS person ON person.account_id = hub.account_id
-    WHERE hub.token_digest = p_session_digest AND hub.account_id = p_account_id AND hub.revoked_at IS NULL
+    SELECT 1 FROM iam.host_session AS hub JOIN iam.account AS person ON person.account_id = hub.account_id
+    WHERE hub.token_digest = p_session_digest AND hub.kind = 'HUB' AND hub.account_id = p_account_id AND hub.ended_at IS NULL
       AND p_now < hub.idle_expires_at AND p_now < hub.absolute_expires_at AND person.active
       AND iam.account_access_scope(person.account_id) = 'CONTROL_PLANE');
 $$;
@@ -116,14 +147,119 @@ ALTER FUNCTION iam.hub_session_live(p_session_digest bytea, p_account_id uuid, p
 
 REVOKE ALL ON FUNCTION iam.hub_session_live(p_session_digest bytea, p_account_id uuid, p_now timestamp with time zone) FROM PUBLIC;
 
--- The old handoff and session go with their functions. Their open rows end: every person signs in again.
-DROP FUNCTION iam.redeem_application_handoff(p_handoff_digest bytea, p_project_id uuid, p_binding_digest bytea, p_session_digest bytea, p_now timestamp with time zone);
-DROP FUNCTION iam.end_application_session(p_session_digest bytea, p_reason text);
-DROP FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone);
-DROP FUNCTION iam.record_provider_check(p_session_digest bytea, p_previous_checked_at timestamp with time zone, p_refresh_token text, p_now timestamp with time zone);
-DROP FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid, p_handoff_digest bytea, p_binding_digest bytea, p_refresh_token text, p_authenticated_at timestamp with time zone);
-DROP TABLE iam.application_handoff;
-DROP TABLE iam.application_session;
+-- Opens a Hub session for an active Control Plane Account. An Account born from an application invitation,
+-- and in no Workspace, never holds one.
+CREATE FUNCTION iam.open_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_account_id uuid, p_refresh_token text, p_now timestamp with time zone) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  is_active boolean;
+BEGIN
+  SELECT person.active INTO is_active FROM iam.account AS person WHERE person.account_id = p_account_id FOR UPDATE;
+  IF NOT FOUND OR NOT is_active THEN
+    RETURN 'ACCOUNT_INACTIVE';
+  END IF;
+  IF iam.account_access_scope(p_account_id) <> 'CONTROL_PLANE' THEN
+    RETURN 'IDENTITY_NOT_ELIGIBLE';
+  END IF;
+  INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, csrf_digest, idle_expires_at,
+    provider_refresh_token, provider_checked_at)
+  VALUES (p_session_digest, 'HUB', p_account_id, p_now, p_now + interval '8 hours', p_csrf_digest, p_now + interval '30 minutes',
+    p_refresh_token, p_now);
+  RETURN 'OPENED';
+END;
+$$;
+
+ALTER FUNCTION iam.open_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_account_id uuid, p_refresh_token text, p_now timestamp with time zone) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.open_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_account_id uuid, p_refresh_token text, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.open_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_account_id uuid, p_refresh_token text, p_now timestamp with time zone) TO hub_iam_runtime;
+
+-- Ending a session ends the Previews it opened and withdraws their entry handoffs.
+CREATE FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  DELETE FROM iam.handoff AS handoff WHERE handoff.parent_digest = p_session_digest;
+  UPDATE iam.host_session AS session
+  SET ended_at = clock_timestamp(),
+    ended_reason = CASE WHEN session.token_digest = p_session_digest THEN p_reason ELSE 'PARENT_ENDED' END,
+    provider_refresh_token = NULL
+  WHERE (session.token_digest = p_session_digest OR session.parent_digest = p_session_digest) AND session.ended_at IS NULL;
+$$;
+
+ALTER FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) TO hub_iam_runtime;
+
+-- A Hub request: the session is open, inside its idle and absolute limits, of an active Control Plane
+-- Account, and carries the CSRF token when one is given. The same statement slides the idle limit. One found
+-- past a limit is ended here. The sealed refresh token is handed out only when the five-minute Keycloak check
+-- is due.
+CREATE FUNCTION iam.resolve_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_now timestamp with time zone) RETURNS TABLE(account_id uuid, issuer text, subject text, display_name text, email text, provider_checked_at timestamp with time zone, due_provider_refresh_token text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  found_session iam.host_session%ROWTYPE;
+BEGIN
+  SELECT session.* INTO found_session FROM iam.host_session AS session
+  WHERE session.token_digest = p_session_digest AND session.kind = 'HUB' AND session.ended_at IS NULL;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+  IF p_now >= found_session.idle_expires_at OR p_now >= found_session.absolute_expires_at THEN
+    PERFORM iam.end_host_session(p_session_digest, 'EXPIRED');
+    RETURN;
+  END IF;
+  IF p_csrf_digest IS NOT NULL AND p_csrf_digest <> found_session.csrf_digest THEN
+    RETURN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM iam.account AS person WHERE person.account_id = found_session.account_id AND person.active
+    AND iam.account_access_scope(person.account_id) = 'CONTROL_PLANE') THEN
+    RETURN;
+  END IF;
+  RETURN QUERY
+  WITH slid AS (
+    UPDATE iam.host_session AS session
+    SET idle_expires_at = least(p_now + interval '30 minutes', session.absolute_expires_at)
+    WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
+    RETURNING session.account_id, session.provider_checked_at, session.provider_refresh_token
+  )
+  SELECT person.account_id, person.issuer, person.external_subject, person.display_name, person.email, slid.provider_checked_at,
+    CASE WHEN slid.provider_checked_at <= p_now - interval '5 minutes' THEN slid.provider_refresh_token END
+  FROM slid JOIN iam.account AS person ON person.account_id = slid.account_id;
+END;
+$$;
+
+ALTER FUNCTION iam.resolve_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_now timestamp with time zone) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.resolve_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_now timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.resolve_hub_session(p_session_digest bytea, p_csrf_digest bytea, p_now timestamp with time zone) TO hub_iam_runtime;
+
+-- Signing out of the Hub needs only the session and its CSRF token, never Keycloak: a sign-out asked while
+-- Keycloak is unreachable still ends the session and its Previews. True when an open Hub session ended.
+CREATE FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM iam.host_session AS session
+    WHERE session.token_digest = p_session_digest AND session.kind = 'HUB' AND session.ended_at IS NULL
+      AND session.csrf_digest = p_csrf_digest) THEN
+    RETURN false;
+  END IF;
+  PERFORM iam.end_host_session(p_session_digest, 'SIGNED_OUT');
+  RETURN true;
+END;
+$$;
+
+ALTER FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) OWNER TO iam_owner;
+
+REVOKE ALL ON FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) FROM PUBLIC;
+GRANT ALL ON FUNCTION iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) TO hub_iam_runtime;
 
 CREATE FUNCTION iam.mint_application_handoff(p_account_id uuid, p_project_id uuid, p_handoff_digest bytea, p_binding_digest bytea, p_refresh_token text, p_authenticated_at timestamp with time zone) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
@@ -218,20 +354,6 @@ ALTER FUNCTION iam.redeem_handoff(p_kind text, p_handoff_digest bytea, p_project
 REVOKE ALL ON FUNCTION iam.redeem_handoff(p_kind text, p_handoff_digest bytea, p_project_id uuid, p_exact_host text, p_binding_digest bytea, p_session_digest bytea, p_now timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.redeem_handoff(p_kind text, p_handoff_digest bytea, p_project_id uuid, p_exact_host text, p_binding_digest bytea, p_session_digest bytea, p_now timestamp with time zone) TO hub_iam_runtime;
 
-CREATE FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) RETURNS void
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'pg_temp'
-    AS $$
-  UPDATE iam.host_session AS session
-  SET ended_at = clock_timestamp(), ended_reason = p_reason, provider_refresh_token = NULL
-  WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL;
-$$;
-
-ALTER FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) OWNER TO iam_owner;
-
-REVOKE ALL ON FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) FROM PUBLIC;
-GRANT ALL ON FUNCTION iam.end_host_session(p_session_digest bytea, p_reason text) TO hub_iam_runtime;
-
 -- An application session is valid only on its own application's host, before its limit, and while the
 -- person has access; one found past its limit or without access is ended here. The sealed refresh token is
 -- handed out only when the five-minute Keycloak check is due.
@@ -268,8 +390,9 @@ REVOKE ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p
 GRANT ALL ON FUNCTION iam.resolve_application_session(p_session_digest bytea, p_project_id uuid, p_now timestamp with time zone) TO hub_iam_runtime;
 
 -- A Preview session is valid only on its Preview's host, before its limit, and while the Hub session that
--- opened it is live. One whose Hub session ended, idled out or lost its Account is ended here.
-CREATE FUNCTION iam.resolve_preview_session(p_session_digest bytea, p_exact_host text, p_now timestamp with time zone) RETURNS TABLE(account_id uuid, email text, display_name text, project_id uuid, source_revision text, artifact_revision_id uuid, artifact_digest text, manifest jsonb, expires_at timestamp with time zone)
+-- opened it is live. One whose Hub session ended, idled out or lost its Account is ended here. The Hub
+-- session's sealed refresh token is handed out only when its five-minute Keycloak check is due.
+CREATE FUNCTION iam.resolve_preview_session(p_session_digest bytea, p_exact_host text, p_now timestamp with time zone) RETURNS TABLE(account_id uuid, email text, display_name text, subject text, project_id uuid, source_revision text, artifact_revision_id uuid, artifact_digest text, manifest jsonb, expires_at timestamp with time zone, hub_digest bytea, hub_checked_at timestamp with time zone, due_hub_refresh_token text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
@@ -295,9 +418,15 @@ BEGIN
     RETURN;
   END IF;
   RETURN QUERY
-  SELECT person.account_id, person.email, person.display_name, shown.project_id, shown.source_revision,
-    shown.artifact_revision_id, shown.artifact_digest, shown.manifest, found_session.absolute_expires_at
-  FROM iam.account AS person WHERE person.account_id = found_session.account_id;
+  SELECT person.account_id, person.email, person.display_name, person.external_subject, shown.project_id, shown.source_revision,
+    shown.artifact_revision_id, shown.artifact_digest, shown.manifest, found_session.absolute_expires_at,
+    hub.token_digest, hub.provider_checked_at,
+    CASE WHEN hub.provider_checked_at <= p_now - interval '5 minutes' THEN hub.provider_refresh_token END
+  FROM iam.account AS person, iam.host_session AS hub
+  -- Checked again in the query that hands out the token: a Hub session a concurrent refusal ended after the
+  -- check above has no token left, and must not read as a check that is not due.
+  WHERE person.account_id = found_session.account_id AND hub.token_digest = found_session.parent_digest
+    AND hub.ended_at IS NULL AND iam.hub_session_live(hub.token_digest, person.account_id, p_now);
 END;
 $$;
 
@@ -306,8 +435,8 @@ ALTER FUNCTION iam.resolve_preview_session(p_session_digest bytea, p_exact_host 
 REVOKE ALL ON FUNCTION iam.resolve_preview_session(p_session_digest bytea, p_exact_host text, p_now timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION iam.resolve_preview_session(p_session_digest bytea, p_exact_host text, p_now timestamp with time zone) TO hub_iam_runtime;
 
--- Compare-and-set on the check time the request read: of requests that found the same check due, one
--- stores its token and the others are still served, since their own refresh was answered too.
+-- The check is recorded by compare-and-set on the check time the request read. The answer is whether the
+-- session is still open: a request that lost the race is served, one whose session ended meanwhile is not.
 CREATE FUNCTION iam.record_provider_check(p_session_digest bytea, p_previous_checked_at timestamp with time zone, p_refresh_token text, p_now timestamp with time zone) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -317,7 +446,7 @@ BEGIN
   SET provider_checked_at = p_now, provider_refresh_token = p_refresh_token
   WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL
     AND session.provider_checked_at = p_previous_checked_at;
-  RETURN FOUND;
+  RETURN EXISTS (SELECT 1 FROM iam.host_session AS session WHERE session.token_digest = p_session_digest AND session.ended_at IS NULL);
 END;
 $$;
 

@@ -133,4 +133,7 @@ Both reviewers found no defect in the atomic handoff redemption, in the removal 
 mechanisms, in cookies, lifetimes, CSRF, authority or caller, or in the import-law change, which admits
 exactly the three `platform/` helpers S5 made the owners.
 
-Migrations 0027, 0028 and 0029 were corrected in place: no database had applied them.
+The corrections changed the migrations in place, since no database had applied them. Before the pilot,
+the four step migrations (one per step S1 to S4) were merged into one, `0026_single_session.sql`, which goes
+from 0025 straight to the final state: each function is defined once. The merged migration produces the same
+catalog, digest `cf09b9ac…`, as the four did, and the upgrade test from a populated 0025 database passes.
