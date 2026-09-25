@@ -237,3 +237,49 @@ test('a Workspace Owner who is not an installation administrator sees Grants but
   await page.getByRole('heading', { name: 'Integrações deste Projeto' }).waitFor()
   await page.getByText('Só um administrador da instalação vê e administra as conexões do Workspace.').waitFor()
 })
+
+test('a create whose answer was lost resubmits the same id and gets 200; a failed disable says so and leaves the Connection active', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const fixture = await setupFixture(t)
+  const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
+  const connections = `**/api/control/workspaces/${fixture.workspaceId}/connections`
+  const created = []
+  let loseAnswer = true
+  await page.route(connections, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    const response = await route.fetch()
+    created.push({ connectionId: route.request().postDataJSON().connectionId, status: response.status() })
+    if (loseAnswer) {
+      loseAnswer = false
+      return route.abort('connectionreset')
+    }
+    return route.fulfill({ response })
+  })
+
+  await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
+  await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
+  await page.getByLabel('Nome da conexão').fill('ERP de teste')
+  await page.getByLabel('Client id').fill(CREDENTIAL.clientId)
+  await page.getByLabel('Client secret').fill(CREDENTIAL.clientSecret)
+  await page.getByLabel('X-Token').fill(CREDENTIAL.xToken)
+  await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
+  await page.getByText('A alteração não foi confirmada.').waitFor()
+  await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
+  await page.getByText('ERP de teste').waitFor()
+  assert.deepEqual(created.map(({ status }) => status), [201, 200])
+  assert.equal(created[1].connectionId, created[0].connectionId, 'the resubmit is the same request')
+
+  await page.route(`${connections}/*`, (route) => (route.request().method() === 'DELETE'
+    ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
+    : route.fallback()))
+  await page.getByRole('button', { name: 'Desativar' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Desativar' }).click()
+  await page.getByText('A conexão não foi desativada e continua ativa.').waitFor()
+  assert.equal(await page.getByText('· desativada').count(), 0)
+  await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
+
+  const check = await fetch(`${fixture.origin}/api/control/workspaces/${fixture.workspaceId}/connections/${randomUUID()}/authentication-check`, {
+    method: 'POST',
+    headers: { origin: fixture.origin, 'x-conexus-csrf': CSRF_TOKEN, cookie: `${SESSION_COOKIE}=${fixture.bothAccountId}; ${CSRF_COOKIE}=${CSRF_TOKEN}` },
+  })
+  assert.equal(check.status, 404, 'no gateway configured, and still no outcome for a Connection that does not exist')
+})

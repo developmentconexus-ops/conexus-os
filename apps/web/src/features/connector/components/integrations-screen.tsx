@@ -5,7 +5,7 @@ import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { CheckWorkspaceConnectionOutcome, ConnectorConnection } from '../../../generated/connector-client'
 import {
   checkConnectionMessage,
@@ -15,6 +15,7 @@ import {
   type ConnectorGrantable,
   createWorkspaceConnection,
   describeOperation,
+  disableConnectionMessage,
   disableWorkspaceConnection,
   grantProjectConnectorOperation,
   isConnectorAdminRequired,
@@ -99,6 +100,7 @@ function ConnectionRow({ workspaceId, connection, onChanged }: Readonly<{ worksp
   const disable = useMutation({
     mutationFn: () => disableWorkspaceConnection(workspaceId, connection.connectionId),
     onSuccess: () => { setConfirmingDisable(false); onChanged() },
+    onError: (error) => { setConfirmingDisable(false); setOutcomeMessage(disableConnectionMessage(error)) },
   })
   const disabled = Boolean(connection.disabledAt)
 
@@ -140,10 +142,13 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
   const xTokenId = useId()
   const [message, setMessage] = useState('')
   const [created, setCreated] = useState(false)
+  // One id per Connection the administrator is adding, kept across a failed submit: if the server
+  // committed but the answer was lost, the resubmit is the same request and answers 200.
+  const pendingConnectionId = useRef<string | null>(null)
   const create = useMutation({
     mutationFn: (input: Readonly<{ connectionId: string; connectorId: 'sankhya'; label: string; credential: Readonly<{ clientId: string; clientSecret: string; xToken: string }> }>) =>
       createWorkspaceConnection(workspaceId, input),
-    onSuccess: () => { setMessage(''); setCreated(true); onCreated() },
+    onSuccess: () => { pendingConnectionId.current = null; setMessage(''); setCreated(true); onCreated() },
     onError: (error) => { setCreated(false); setMessage(workspaceConnectionsMessage(error)) },
   })
 
@@ -161,8 +166,9 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
       return
     }
     setCreated(false)
+    pendingConnectionId.current ??= crypto.randomUUID()
     create.mutate(
-      { connectionId: crypto.randomUUID(), connectorId: 'sankhya', label, credential: { clientId, clientSecret, xToken } },
+      { connectionId: pendingConnectionId.current, connectorId: 'sankhya', label, credential: { clientId, clientSecret, xToken } },
       { onSuccess: () => form.reset() },
     )
   }

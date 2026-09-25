@@ -284,7 +284,7 @@ test('read_connection_credential and list_granted_capabilities: the broker surfa
 })
 
 test('the Hub store tells an identical retry from a changed credential without opening the stored one', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { fixture, client, account, workspace, administrator } = await connectorDatabase(t)
+  const { fixture, client, account, workspace, project, administrator } = await connectorDatabase(t)
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
   const { createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
   const { isConnectorConnectionConflict } = await import(hubModuleUrl('connectors/model.js'))
@@ -320,4 +320,11 @@ test('the Hub store tells an identical retry from a changed credential without o
   const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', credential })))
   assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
   assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
+
+  // Two Owners, or one retrying client, granting the same capability at once get the one open grant.
+  const projectId = await project(other, 'race')
+  const grants = await Promise.all(Array.from({ length: 8 }, () => store.grantCapability({ actor: admin, projectId, connectionId: racedId, operationId: 'sankhya.purchase-order.read' })))
+  assert.equal(new Set(grants.map((grant) => grant.grantId)).size, 1)
+  const open = await client.query('SELECT count(*)::int AS open FROM connector.project_grant WHERE project_id = $1 AND revoked_at IS NULL', [projectId])
+  assert.deepEqual(open.rows, [{ open: 1 }])
 })
