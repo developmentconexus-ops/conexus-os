@@ -7,7 +7,12 @@ import type { EmailAddress } from './current-session.js'
 import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
-export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
+/**
+ * `verifiedEmail` is null both when the claim says unverified and when it says verified but the
+ * address is missing or unparseable. `emailVerified` keeps that second case distinguishable: it is
+ * the raw `email_verified === true` claim, regardless of whether an address came with it.
+ */
+export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null; emailVerified: boolean }>
 /** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
 export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
 /**
@@ -132,7 +137,7 @@ export const createOidcAdapter = async ({
       // It only means this identity can claim no invitation.
       const verifiedEmail = resolveVerifiedEmail(claims)
       const name = typeof claims.name === 'string' && /\S/.test(claims.name) ? claims.name.trim().slice(0, 200) : null
-      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, displayName: name, refreshToken: tokens.refresh_token ?? null }
+      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, emailVerified: claims.email_verified === true, displayName: name, refreshToken: tokens.refresh_token ?? null }
     },
     // Keycloak answers invalid_grant for a disabled user, an ended SSO session or a stale token.
     // Anything that is not an answer from Keycloak leaves the person's standing unknown.

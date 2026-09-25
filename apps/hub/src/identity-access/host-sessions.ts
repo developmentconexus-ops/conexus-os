@@ -229,10 +229,13 @@ export const createHostSessions = ({
     async signIn({ identity, existingAccountId, projectId, bindingDigest, now = new Date() }) {
       const slug = await slugOf(projectId)
       if (!identity.refreshToken) throw new Error('APPLICATION_REFRESH_TOKEN_MISSING')
-      // An identity with no verified email can hold no invitation and can claim no grant: that is
-      // the whole reason for every denial it can receive here, not something read back from the
-      // database. A verified identity denied here simply has no grant.
-      const reason: ApplicationDenialReason = identity.verifiedEmail === null ? 'EMAIL_NOT_VERIFIED' : 'NOT_GRANTED'
+      // "Verify your email" is only true for a brand-new identity whose email claim is genuinely
+      // unverified: that is the one case where verifying could change the outcome. An identity with
+      // no existing Account but a verified-yet-unparseable-or-missing address can hold no invitation
+      // for a reason no re-verification fixes, and an existing Account (its grant revoked, or never
+      // granted) needs a new grant, not a re-verified email, so both show the generic no-access
+      // message instead.
+      const reason: ApplicationDenialReason = !existingAccountId && !identity.emailVerified ? 'EMAIL_NOT_VERIFIED' : 'NOT_GRANTED'
       let accountId = existingAccountId
       if (!accountId) {
         const provisioned = await pool.query<QueryResultRow & { account_id: string | null }>(
