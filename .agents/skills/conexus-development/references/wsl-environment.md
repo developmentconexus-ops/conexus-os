@@ -4,17 +4,23 @@ Local Conexus implementation and deciding verification run in WSL Ubuntu. The Wi
 
 ## Enter the environment
 
-Run every command inside Ubuntu, in a worktree on the Linux filesystem. A non-interactive shell does not reliably load `.bashrc`, so every script sources NVM itself:
+Run every command inside Ubuntu, in a worktree on the Linux filesystem. A non-interactive shell does not reliably load `.bashrc`, so select and verify the pinned toolchain explicitly:
 
 ```bash
-source "$HOME/.nvm/nvm.sh"
 cd "$HOME/<worktree>"
-nvm use
-node --version
-npm --version
+if [ -f "$HOME/.nvm/nvm.sh" ]; then
+  source "$HOME/.nvm/nvm.sh"
+  nvm use
+fi
+case "$(command -v node):$(command -v npm)" in *"/mnt/"*|*".exe"*) echo "Use Linux Node and npm, not Windows binaries" >&2; exit 1;; esac
+test "$(node -p 'process.platform')" = linux || { echo "Linux Node is required" >&2; exit 1; }
+test "$(node --version)" = "v$(tr -d '\r\n' < .nvmrc)" || { echo "Node does not match .nvmrc" >&2; exit 1; }
+expected_npm=$(node -p "require('./package.json').engines.npm")
+test "$(npm --version)" = "$expected_npm" || { echo "npm does not match package.json#engines.npm" >&2; exit 1; }
+npm run conexus:preflight
 ```
 
-The pins are the Node version in `.nvmrc` and the npm version in `package.json#engines.npm`. If either differs, stop before installation or verification. Do not fall through to the Windows `node`, `npm` or `npx`.
+The version checks stop before preflight on a mismatch. Without NVM, they use the pinned Linux `node` and `npm` already on PATH; Windows-interoperability binaries are rejected.
 
 Installing NVM or changing its versions changes the operator's host, so it needs the operator's authorization. Once authorized, install the exact `.nvmrc` Node and the exact `package.json#engines.npm`, and make that Node the NVM default. Never replace the repository pins with the host's versions.
 
@@ -31,7 +37,7 @@ So:
 
 1. Write the logic to a `.sh` file with the editor tool. Never pass an inline `$(...)` through `wsl.exe`.
 2. Run it by path: `wsl.exe -d Ubuntu -- bash /mnt/c/<path>/<file>.sh`. From Git Bash, prefix `MSYS_NO_PATHCONV=1`. Never pipe a script into `bash`.
-3. Source NVM and run `nvm use` inside the script.
+3. Select the pinned Node and npm inside the script using the NVM-or-verified-PATH procedure above.
 4. Write commit messages and pull request bodies to a file. Pass them with `git commit -F <file>` and `gh pr create --body-file <file>`.
 5. Capture output with `tee` and check the exit status separately, because `cmd | tail` returns the status of `tail`.
 
