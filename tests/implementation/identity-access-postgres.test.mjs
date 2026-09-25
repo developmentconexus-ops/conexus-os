@@ -32,13 +32,24 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await admin.connect()
   await admin.query(`CREATE DATABASE "${database}"`)
   let store
+  let hubPool
   // One hook, in this order, because FORCE terminates any pool still connected and the pool then
   // reports that termination as an unhandled error.
   t.after(async () => {
-    await store?.close().catch(() => {})
-    await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`)
-    await admin.query('ALTER ROLE hub_iam_runtime PASSWORD NULL')
-    await admin.end()
+    try {
+      try {
+        await store?.close()
+      } finally {
+        await hubPool?.end()
+      }
+      await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`)
+    } finally {
+      try {
+        await admin.query('ALTER ROLE hub_iam_runtime PASSWORD NULL')
+      } finally {
+        await admin.end()
+      }
+    }
   })
   const installed = { ...connection, database }
   const url = new URL('postgresql://localhost')
@@ -108,7 +119,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
     (error) => error.code === 'IDENTITY_NOT_ELIGIBLE',
   )
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  const hubPool = createPostgresPool(runtimeConnection)
+  hubPool = createPostgresPool(runtimeConnection)
   let hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   const established = await hub.openHub({ accountId: first.accountId, refreshToken: 'refresh-1' })
   const signedIn = { account: { accountId: first.accountId, displayName: 'Leandro', email: 'leandro@example.test' }, issuer: 'https://issuer.test', subject: 'subject-1' }
@@ -124,6 +135,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   assert.equal(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken }), true)
   assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken }), null)
   await hubPool.end()
+  hubPool = null
 
   const denied = new Client(runtimeConnection)
   await denied.connect()
