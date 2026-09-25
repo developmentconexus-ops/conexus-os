@@ -98,6 +98,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
 
   const calls = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['repository', 'final', 'test:one'],
     packageScripts,
     dryRun: true,
@@ -114,6 +115,7 @@ test('execution is sequential and stops at the first failed npm command', () => 
   const calls = []
   let ticks = 0
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['test:one', 'test:two', 'verify'],
     packageScripts,
     clock: () => ++ticks,
@@ -139,6 +141,7 @@ test('execution is sequential and stops at the first failed npm command', () => 
 test('the hub build step publishes its directory to the steps after it, and only after it succeeds', () => {
   const seen = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -155,6 +158,7 @@ test('the hub build step publishes its directory to the steps after it, and only
 
   const failedBuild = []
   runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -202,6 +206,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'paid live experiments are explicit commands, not inherited flags in default verification')
 
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     dryRun: true,
@@ -220,6 +225,7 @@ test('candidate graph does not reference the deleted Change-era source-state tes
 test('a step that never exits is killed and reported by name', () => {
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['test:one'],
     packageScripts,
     runCommand: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('spawnSync bash ETIMEDOUT'), { code: 'ETIMEDOUT' }) }),
@@ -310,6 +316,7 @@ test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', ()
 
   const calls = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -329,6 +336,7 @@ test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run li
   const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
   const calls = []
   const result = runVerification({
+    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',

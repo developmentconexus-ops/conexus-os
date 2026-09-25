@@ -430,7 +430,7 @@ export function runVerification({
     const startedAt = clock()
     let result
     try {
-      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...process.env, ...published }, skipLedger })
+      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, skipLedger })
     } catch (error) {
       result = { status: null, error }
     }
