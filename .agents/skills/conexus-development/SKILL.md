@@ -43,7 +43,7 @@ If a higher-lane trigger appears mid-work, stop, comment on the issue, and chang
 
 ## Review a change
 
-Review the pushed head against its issue or task and the current owners, not against the author's summary. Load the pages the [review checklist](../../../docs/development/review-checklist.md#load-the-pages) names from the base ref, and give its verdict table. Report the smallest failed item. A review does not fix the code it reviews unless the operator asks.
+Review the pushed head against its issue or task and the current owners, not against the author's summary. Load the pages the [review checklist](../../../docs/development/review-checklist.md#load-the-pages) names from `origin/main`, and give its verdict table. Report the smallest failed item. A review does not fix the code it reviews unless the operator asks.
 
 ## Delegate
 
