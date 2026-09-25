@@ -3993,7 +3993,7 @@ em vez de organizar informação que ele já tinha.
 | Canal com **menos** que o ERP | `<n-canal-menos>` |
 | Ativos no canal com saldo **zero** no ERP | **0** — o caso caro não ocorre hoje |
 
-Pior caso conferido por mim na tela publicada: *Mangueira Flexível `<empresa-2>`*, **`<u-canal>` no canal contra `<u-erp>` no
+Pior caso conferido por mim na tela publicada: *`<produto-1>`*, **`<u-canal>` no canal contra `<u-erp>` no
 ERP** — `<u-canal>` − `<u-erp>` unidades anunciadas a mais do que existem.
 
 O que faz isso ser medição e não acusação: cada linha traz **os dois lados e a data de cada
