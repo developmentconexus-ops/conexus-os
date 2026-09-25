@@ -60,6 +60,6 @@ SHA. Run the focused checks your change touches, push, and confirm the run's hea
 SHA equals yours. GitHub skips the workflow without saying so when a pull request
 conflicts with its base; if no run exists, merge trunk into your branch and push again.
 
-The merge gate is that `verify` check green on the head SHA, plus the coordinator
-reading the diff. A required CI failure should mean a broken repository or product
+The [merge gate](docs/development/delivery.md#merge-gate) is that `verify` check green
+on the head SHA, plus the review verdicts and a read of the diff. A required CI failure should mean a broken repository or product
 property, not a planning preference or a review ceremony.

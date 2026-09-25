@@ -22,4 +22,4 @@ Then the `tests/implementation/` suites for what you touched.
 
 ## Review
 
-Review: load the pages `docs/development/review/areas.json` maps your paths to. `src/identity-access/` is `identity-session.md`, `migrations/` is `data-migrations.md`, `src/builder/` and `compiler-template/` are `builder-factory.md`, except `model-accounts.ts`, `google-ai-pro/` and the GitHub files, which are `connectors.md`. The rest is `platform.md`.
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to: identity-session for `src/identity-access/`, data-migrations for `migrations/`, builder-factory for `src/builder/`, connectors for model accounts, Google AI Pro and GitHub, platform for the rest.

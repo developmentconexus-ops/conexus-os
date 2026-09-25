@@ -20,4 +20,4 @@ npm run db:catalog:check     # needs PostgreSQL
 
 ## Review
 
-Review: load the pages `docs/development/review/areas.json` maps your paths to. `api/` is `contracts.md`, `technical/` is `data-migrations.md`.
+Review: load the pages [`areas.json`](../docs/development/review/areas.json) maps your paths to. `api/` is [`contracts.md`](../docs/development/review/contracts.md), `technical/` is [`data-migrations.md`](../docs/development/review/data-migrations.md).

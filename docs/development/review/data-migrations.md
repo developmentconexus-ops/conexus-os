@@ -3,23 +3,7 @@
 ## Scope
 
 The Hub database: forward-only migrations, the baseline, the catalog snapshot, database roles, the
-stores that issue SQL, and the scripts that generate or apply them. Paths, as
-[`areas.json`](areas.json) lists them:
-
-- `apps/hub/migrations/**`
-- `contracts/technical/**`
-- `apps/hub/src/*/store.ts`
-- `apps/hub/src/registry/application-artifact-store.ts`
-- `apps/hub/src/platform/postgres.ts`
-- `apps/hub/src/platform/hub-roles.generated.ts`
-- `apps/hub/src/platform/connection-census.ts`
-- `scripts/run-hub-migrations.mjs`
-- `scripts/generate-hub-baseline.mjs`
-- `scripts/generate-hub-catalog-snapshot.mjs`
-- `scripts/hub-catalog.mjs`
-- `scripts/generate-hub-role-register.mjs`
-- `scripts/provision-hub-roles.mjs`
-- `scripts/cutover-hub-role-names.mjs`
+stores that issue SQL, and the scripts that generate or apply them. [`areas.json`](areas.json) owns the paths.
 
 ## What to check
 
@@ -37,6 +21,9 @@ stores that issue SQL, and the scripts that generate or apply them. Paths, as
       regenerated. `npm run db:roles:check` refuses drift.
 - [ ] A rule PostgreSQL enforces (CHECK, `SECURITY DEFINER` function, partial index) is not
       repeated in TypeScript beyond boundary parsing.
+- [ ] A change to the output of `packages/canonical-json` is a data change: the idempotency tables
+      store `sha256(canonicalBytes(request))`, so a retried request fails with
+      `IDEMPOTENCY_CONFLICT` after deploy. See [its AGENTS.md](../../../packages/canonical-json/AGENTS.md).
 
 ## Proof required
 

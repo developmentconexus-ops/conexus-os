@@ -3,9 +3,7 @@
 ## Scope
 
 Every pull request. The reviewer redoes the native census for each mechanism the diff adds or
-changes. Paths, as [`areas.json`](areas.json) lists them:
-
-- `**`
+changes. [`areas.json`](areas.json) owns the paths.
 
 A mechanism is a new table, SQL function, module, cookie, provider setting or exported helper. The
 [Mastra boundary](../../reference/mastra-boundary.md) records where the Hub crossed this line before

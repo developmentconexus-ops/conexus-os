@@ -19,4 +19,4 @@ npx --no-install biome check packages/canonical-json/src
 
 ## Review
 
-Review: load the pages `docs/development/review/areas.json` maps your paths to (mostly `data-migrations.md`; `contracts.md` for the generators).
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to (mostly [`data-migrations.md`](../../docs/development/review/data-migrations.md); [`contracts.md`](../../docs/development/review/contracts.md) for the generators).

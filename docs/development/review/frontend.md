@@ -2,12 +2,7 @@
 
 ## Scope
 
-The web app, the brand package and the Keycloak sign-in theme. Paths, as [`areas.json`](areas.json)
-lists them:
-
-- `apps/web/**`
-- `packages/brand/**`
-- `apps/keycloak-theme/**`
+The web app, the brand package and the Keycloak sign-in theme. [`areas.json`](areas.json) owns the paths.
 
 The [`conexus-frontend`](../../../.agents/skills/conexus-frontend/SKILL.md) skill owns how screens
 are designed, built and verified. This page does not restate it.

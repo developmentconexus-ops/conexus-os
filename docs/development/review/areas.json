@@ -36,7 +36,8 @@
       "scripts/hub-catalog.mjs",
       "scripts/generate-hub-role-register.mjs",
       "scripts/provision-hub-roles.mjs",
-      "scripts/cutover-hub-role-names.mjs"
+      "scripts/cutover-hub-role-names.mjs",
+      "packages/canonical-json/**"
     ],
     "page": "docs/development/review/data-migrations.md"
   },
@@ -83,6 +84,7 @@
     "area": "contracts",
     "paths": [
       "contracts/api/**",
+      "contracts/AGENTS.md",
       "apps/hub/src/generated/**",
       "packages/canonical-json/**",
       "scripts/check-wire-*.mjs",
@@ -104,6 +106,7 @@
       "apps/hub/src/project/**",
       "apps/hub/src/workspace/**",
       "apps/hub/tsconfig.json",
+      "apps/hub/AGENTS.md",
       "packages/canonical-json/**",
       "scripts/build-hub-local.mjs",
       "scripts/check-agent-context.mjs",
