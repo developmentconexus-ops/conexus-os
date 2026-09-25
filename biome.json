@@ -55,6 +55,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["apps/hub/src/**", "apps/web/src/**", "packages/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredDependencies": "error"
+          }
+        }
+      }
     }
   ]
 }
