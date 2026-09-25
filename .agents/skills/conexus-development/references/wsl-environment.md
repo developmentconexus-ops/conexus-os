@@ -80,9 +80,9 @@ Then run only the checks the change touches, such as `npm run repository:check`,
 
 The pilot is the operator's laptop install of the real Hub and application runner. It holds the operator's working state. Touch it only when the issue or task names a pilot proof.
 
-- The launchers live in the operator's WSL home, not in the repository. Since Q3 they are `~/q3/hub-q3.sh` and `~/q3/runner-q3.sh`. If they have moved, ask the operator. `hub-q3.sh` runs `scripts/build-hub-local.mjs` with the pilot environment file. `runner-q3.sh` compiles `apps/hub` and starts the application runner.
+- The pilot Hub and runner run from one checkout of `main` with the start scripts in `infra/pilot/`. [`infra/pilot/README.md`](../../../../infra/pilot/README.md) owns where they live and how to deploy `main`.
 - Run each launcher in the foreground in its own terminal tab. A Hub started with `&` from a `wsl.exe` call dies when that call ends. Never wrap the Hub in `timeout`.
 - The Hub serves `https://hub.conexus.localhost:3443`. A Hub left over from an earlier call can still hold the port, and the new one then fails with `EADDRINUSE`.
-- The pilot database was last migrated to `0025_application_access_verification.sql`. `scripts/run-hub-migrations.mjs` applies the Hub migrations. They are forward-only, so running it against the pilot from a branch with a later migration changes the pilot for good. That needs the operator's Aprovo.
+- `scripts/run-hub-migrations.mjs` applies the Hub migrations. They are forward-only, so running it against the pilot from a branch with a later migration changes the pilot for good. That needs the operator's Aprovo.
 - The environment files and secrets live outside the repository. Never print them.
 - Never type the operator's password. Sign in as described in the frontend skill's [verification reference](../../conexus-frontend/references/verification.md#see-it-in-a-real-browser).
