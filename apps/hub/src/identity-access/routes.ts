@@ -94,6 +94,7 @@ export const registerIdentityAccessRoutes = async (
       if (account) {
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
+        if (!identity.refreshToken) return reply.code(503).send()
         const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
         return reply
           .setCookie(SESSION_COOKIE, established.sessionToken, cookieOptions)

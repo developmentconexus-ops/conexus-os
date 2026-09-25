@@ -105,7 +105,7 @@ const makeStore = ({ eligible = true } = {}) => {
 
 const makeOidc = (identity = {}) => ({
   async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test/authorize?state=state-1' } },
-  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, ...identity } },
+  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: 'keycloak-refresh', ...identity } },
 })
 
 const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) => createHttpApp({

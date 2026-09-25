@@ -70,7 +70,8 @@ export const createIdentityAccessModule = async ({
     if (!sessionToken) return null
     const csrfHeader = request.headers['x-conexus-csrf']
     const csrfToken = Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader
-    return hostSessions.resolveHub({ sessionToken, ...(csrfToken ? { csrfToken } : {}), requireCsrf })
+    if (!requireCsrf) return hostSessions.resolveHub({ sessionToken })
+    return csrfToken ? hostSessions.resolveHub({ sessionToken, csrfToken }) : null
   }
   const installationAdministration = createInstallationAdministration({ pool })
   return Object.freeze({

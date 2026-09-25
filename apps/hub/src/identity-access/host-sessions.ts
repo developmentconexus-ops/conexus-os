@@ -53,9 +53,12 @@ export type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: strin
 
 export type HostSessions = Readonly<{
   /** Opens a Hub session for an active Control Plane Account, keeping the sign-in's Keycloak refresh token sealed. */
-  openHub(input: Readonly<{ accountId: string; refreshToken: string | null; now?: Date }>): Promise<HubSessionTokens>
-  /** A Hub request's session; with a CSRF token, the request must carry the session's own. Slides the idle limit. */
-  resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; requireCsrf?: boolean; now?: Date }>): Promise<CurrentSession | null>
+  openHub(input: Readonly<{ accountId: string; refreshToken: string; now?: Date }>): Promise<HubSessionTokens>
+  /**
+   * A Hub request's session. A csrfToken means the request changes state and must carry the session's own
+   * token; a read passes none. Slides the idle limit.
+   */
+  resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; now?: Date }>): Promise<CurrentSession | null>
   /** Signs out of the Hub with the session's own CSRF token, and ends the Previews it opened. Never asks Keycloak. */
   endHub(input: Readonly<{ sessionToken: string; csrfToken: string }>): Promise<boolean>
   applicationBySlug(slug: string): Promise<string | null>
@@ -177,7 +180,6 @@ export const createHostSessions = ({
 
   return Object.freeze({
     async openHub({ accountId, refreshToken, now = new Date() }) {
-      if (!refreshToken) throw new Error('HUB_REFRESH_TOKEN_MISSING')
       const sessionToken = opaque()
       const csrfToken = opaque()
       const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4, $5) AS outcome',
@@ -188,13 +190,13 @@ export const createHostSessions = ({
       return { sessionToken, csrfToken }
     },
 
-    async resolveHub({ sessionToken, csrfToken, requireCsrf = false, now = new Date() }) {
+    async resolveHub({ sessionToken, csrfToken, now = new Date() }) {
       if (!parseOpaqueToken(sessionToken)) return null
-      if (requireCsrf && !parseOpaqueToken(csrfToken)) return null
+      if (csrfToken !== undefined && !parseOpaqueToken(csrfToken)) return null
       const sessionDigest = digest(sessionToken)
       const resolved = await pool.query<HubRow>(
         'SELECT account_id, issuer, subject, display_name, email, provider_checked_at, due_provider_refresh_token FROM iam.resolve_hub_session($1, $2, $3)',
-        [sessionDigest, requireCsrf && csrfToken ? digest(csrfToken) : null, now])
+        [sessionDigest, csrfToken === undefined ? null : digest(csrfToken), now])
       const row = resolved.rows[0]
       if (!row) return null
       if (row.due_provider_refresh_token) {

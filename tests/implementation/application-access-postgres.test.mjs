@@ -317,7 +317,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await redeem(presented, { binding: 'another-browser' }), null, 'another browser, without the binding')
     assert.equal(await redeem(presented, { projectId: otherProject, binding: 'another-browser' }), null)
     assert.equal(await stored(presented), 1, 'no refused presentation consumed it')
-    assert.ok(await redeem(presented, { now: at(59_000) }), 'it redeems on its own host inside its lifetime')
+    assert.equal((await redeem(presented, { now: at(59_000) }))?.maxAgeSeconds, 8 * 60 * 60 - 59, 'it redeems on its own host inside its lifetime, for eight hours from sign-in')
     assert.equal(await stored(presented), 0, 'redemption consumed it')
     assert.equal(await redeem(presented), null, 'second redemption')
 
@@ -468,12 +468,12 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(opened.idle_expires_at.getTime(), at(30 * 60 * 1000).getTime())
     assert.equal(opened.absolute_expires_at.getTime(), at(8 * 60 * 60 * 1000).getTime())
 
-    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: 'w'.repeat(43), requireCsrf: true, now: at(60_000) }), null, 'a wrong CSRF token')
+    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: 'w'.repeat(43), now: at(60_000) }), null, 'a wrong CSRF token')
     assert.equal((await row()).idle_expires_at.getTime(), at(30 * 60 * 1000).getTime(), 'a refused request does not slide the idle limit')
-    const current = await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken, requireCsrf: true, now: at(20 * 60 * 1000) })
+    const current = await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken, now: at(20 * 60 * 1000) })
     assert.deepEqual(current.account.accountId, owner)
     assert.equal((await row()).idle_expires_at.getTime(), at(50 * 60 * 1000).getTime(), 'a request slides the idle limit')
-    for (let minute = 45; minute < 8 * 60; minute += 25) assert.ok(await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(minute * 60 * 1000) }), `minute ${minute}`)
+    for (let minute = 45; minute < 8 * 60; minute += 25) assert.equal((await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(minute * 60 * 1000) }))?.account.accountId, owner, `minute ${minute}`)
     assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(8 * 60 * 60 * 1000) }), null, 'eight hours, however active')
     assert.deepEqual({ ...(await row()), idle_expires_at: undefined, absolute_expires_at: undefined },
       { provider_refresh_token: null, ended_reason: 'EXPIRED', idle_expires_at: undefined, absolute_expires_at: undefined })
@@ -504,9 +504,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     refreshes.length = 0
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-hub-2' }
     const active = await openWithPreview('refresh-hub-1')
-    assert.ok(await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: at(4 * 60 * 1000) }))
+    assert.equal((await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: at(4 * 60 * 1000) }))?.account.accountId, owner)
     assert.deepEqual(refreshes, [], 'not due before five minutes')
-    assert.ok(await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: due }))
+    assert.equal((await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: due }))?.account.accountId, owner)
     assert.deepEqual(refreshes, [{ refreshToken: 'refresh-hub-1', expectedSubject: owner }], 'due at five minutes, with the Hub session token')
     assert.equal(await envelope.open((await client.query('SELECT provider_refresh_token FROM iam.host_session WHERE token_digest = $1',
       [createHash('sha256').update(active.hub.sessionToken).digest()])).rows[0].provider_refresh_token), 'refresh-hub-2')
@@ -514,7 +514,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     refreshes.length = 0
     const concurrent = await openWithPreview('refresh-hub-3')
     const answers = await Promise.all([1, 2, 3, 4].map(() => sessions.resolveHub({ sessionToken: concurrent.hub.sessionToken, now: due })))
-    assert.equal(answers.filter(Boolean).length, 4, 'four concurrent Hub requests with the check due are all served')
+    assert.deepEqual(answers.map((answer) => answer?.account.accountId), [owner, owner, owner, owner], 'four concurrent Hub requests with the check due are all served')
     assert.ok(refreshes.length >= 1 && refreshes.length <= 4, `Keycloak was asked ${refreshes.length} times`)
 
     for (const [reason, endedReason] of [['USER_DISABLED', 'PROVIDER_USER_DISABLED'], ['SESSION_ENDED', 'PROVIDER_SESSION_ENDED']]) {
@@ -539,7 +539,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await assert.rejects(sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), (error) => error.statusCode === 503)
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: unreachable.preview.sessionToken, exactHost: unreachable.exactHost, now: due }), { kind: 'PROVIDER_UNAVAILABLE' })
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-reachable' }
-    assert.ok(await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), 'the session was kept and Keycloak is asked again')
+    assert.equal((await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }))?.account.accountId, owner, 'the session was kept and Keycloak is asked again')
 
     const signingOut = await openWithPreview('refresh-signing-out')
     providerAnswer = { kind: 'UNAVAILABLE' }
@@ -603,11 +603,11 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const first = launch()
     const old = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: first, now: new Date() })
     const entered = await sessions.redeem({ handoff: old.entryGrant, target: { kind: 'PREVIEW', exactHost: first.exactHost }, now: new Date() })
-    assert.ok(entered)
+    assert.match(entered.sessionToken, /^[A-Za-z0-9_-]{43}$/)
     await client.query("UPDATE iam.preview SET opened_at = opened_at - interval '16 minutes', expires_at = expires_at - interval '16 minutes' WHERE artifact_revision_id = $1", [first.artifactRevisionId])
     await client.query("UPDATE iam.host_session SET started_at = started_at - interval '16 minutes', absolute_expires_at = absolute_expires_at - interval '16 minutes' WHERE token_digest = $1",
       [createHash('sha256').update(entered.sessionToken).digest()])
-    assert.ok(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: launch(), now: new Date() }))
+    assert.deepEqual(Object.keys(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: launch(), now: new Date() })).sort(), ['entryGrant', 'expiresAt'])
     assert.deepEqual((await client.query('SELECT (SELECT count(*) FROM iam.preview WHERE artifact_revision_id = $1)::int AS previews, (SELECT count(*) FROM iam.host_session WHERE token_digest = $2)::int AS sessions',
       [first.artifactRevisionId, createHash('sha256').update(entered.sessionToken).digest()])).rows, [{ previews: 0, sessions: 0 }])
   })
@@ -707,7 +707,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [employeeId, workspaceId, 'member'])
     assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'CONTROL_PLANE')
     const hubSession = await sessions.openHub({ accountId: employeeId, refreshToken: 'refresh-member' })
-    assert.ok(await sessions.resolveHub({ sessionToken: hubSession.sessionToken }))
+    assert.equal((await sessions.resolveHub({ sessionToken: hubSession.sessionToken }))?.account.accountId, employeeId)
     await client.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [employeeId])
     assert.equal(await sessions.resolveHub({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
   })
