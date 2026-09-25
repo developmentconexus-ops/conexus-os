@@ -1,6 +1,6 @@
 # apps/keycloak-theme
 
-The Keycloakify sign-in theme for the `r1f` realm. It uses the brand from `packages/brand`. [`README.md`](README.md) covers the local preview and the jar build.
+The Keycloakify sign-in theme for the `conexus` realm. It uses the brand from `packages/brand`. [`README.md`](README.md) covers the local preview and the jar build.
 
 ## Traps
 

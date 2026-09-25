@@ -1,17 +1,18 @@
 # infra/keycloak
 
-The Keycloak side of sign-in: the `r1f` realm export and the scripts that install the sign-in theme and create an installation's first person. [`README.md`](README.md) explains each file. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#4-human-authentication) owns human authentication.
+The Keycloak that authenticates the pilot: one container, one realm named `conexus`, one client `conexus-hub`. [`README.md`](README.md) explains each script and each realm setting. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#4-human-authentication) owns human authentication.
 
 ## Traps
 
-- `install-theme.sh` copies the theme into the running pilot container and restarts it. `create-first-user.sh` creates a user in the running realm and asks you to restart the Hub. Run either only when the issue names a pilot proof.
-- `realm-r1f.json` is a reference export that nothing imports. Every client secret, private key and other credential value holds a `<..._PLACEHOLDER_REPLACE_BEFORE_IMPORT>` value. Never commit a real one. Policy settings whose names contain `password`, such as `resetPasswordAllowed`, are not credentials and keep their values.
-- Keycloak only authenticates. Its roles, groups and claims grant no Conexus authority. A realm change states its effect on every client in the realm, `r1f-primary` and `r1f-other` included.
-- The theme's source lives in `apps/keycloak-theme`. Change it there, not here.
+- `realm-conexus.json` holds only the settings the Hub depends on; everything else is Keycloak's default on purpose. A new setting states why the Hub needs it, as the README's table does.
+- The client secret is never in the file. `provision.sh` sets it from the Hub's secret file. Never commit a secret, a password or an exported people file.
+- `provision.sh`, `install-theme.sh`, `create-first-user.sh` and `export-users.sh` act on running pilot containers. Run them only when the issue names a pilot proof.
+- `revokeRefreshToken` is `false` and the idle timeout outlasts the Hub's own, for reasons the README gives. A Keycloak upgrade past 26.7.x reruns `scripts/keycloak-refresh-probe.mjs` before trusting rotation off.
+- Keycloak only authenticates. Its roles and claims grant no Conexus authority. The theme's source lives in `apps/keycloak-theme`.
 
 ## Verify
 
-No script checks this directory. Before you commit the realm export, confirm every credential value still holds its placeholder. For the theme the install script ships:
+No script checks this directory. Read the diff for secrets before you commit. For the theme the install script ships:
 
 ```bash
 npm run keycloak-theme:check
