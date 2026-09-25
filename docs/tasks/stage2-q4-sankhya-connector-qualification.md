@@ -442,15 +442,16 @@ docs/evidence/stage2-q4/
   census.md            Q4.0 native census with versions, files and dated URLs
   design.md            Q4.1 frozen types, design-only consumers, property map
   q4.6-real-read/      fields, call count, duration, digest
-  q4.7-run1/           Builder run, grade, diff summary (run2/ if used)
+  q4.7-run1/           Builder run, grade, diff summary, redacted (run2/ if used)
   q4.8-app-user.png    the app user's view, redacted per section 11 point 5
-  q4.9-agent-tool/     the agent tool's calls and refusals
-  q4.10-proof.json     every negative case with request, answer and verdict
+  q4.9-agent-tool/     the agent tool's calls and refusals, as sanitized summaries
+  q4.10-proof.json     every case with a sanitized request and answer summary and its verdict
   q4.11-leak-scan.txt  counts per location
 ```
 
 No file in it holds a credential, an access token, a host of the gateway or a path of the operator's
-credentials file.
+credentials file. Every file follows section 11, point 5: no business value of the order and no raw
+Sankhya, handler or agent response.
 
 ## 13. Verdict
 
