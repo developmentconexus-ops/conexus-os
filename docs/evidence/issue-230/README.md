@@ -47,7 +47,9 @@ grant or realm setting was changed.
 in headless Chromium and signs in through the realm's login form. It then waits for
 `/__conexus/no-access`. It records every main-frame navigation request, redirects included, with query values
 blanked except `reason`. It also records the no-access response status, the page heading and text, and whether
-the user's email, username or Keycloak subject appears in any navigated URL or in the page HTML.
+the user's email, username or Keycloak subject appears in any navigated URL, percent-decoded, or in the page
+HTML. A URL that leaks is recorded with its query values blanked. `--self-check` runs the leak check against
+fixed inputs, with no browser. It was added after the recorded runs, and the records hold no leak.
 
 ```bash
 PILOT230_PASSWORD=… node scripts/issue-230-no-access-proof.mjs --case email-not-verified \
