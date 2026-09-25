@@ -1,0 +1,32 @@
+{
+  "realm": "conexus",
+  "enabled": true,
+  "loginTheme": "conexus",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR"],
+  "defaultLocale": "pt-BR",
+  "revokeRefreshToken": false,
+  "ssoSessionIdleTimeout": 2400,
+  "ssoSessionMaxLifespan": 36000,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "conexus-hub",
+      "name": "Conexus Hub",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://hub.conexus.localhost:3443/protocol/oidc/callback"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      }
+    }
+  ]
+}

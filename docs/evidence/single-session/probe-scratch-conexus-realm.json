@@ -1,0 +1,109 @@
+{
+  "keycloakIssuer": "http://localhost:8446/realms/conexus",
+  "probedAt": "2026-09-24T20:12:31.097Z",
+  "cases": [
+    {
+      "case": "realm-settings",
+      "held": true,
+      "at": "2026-09-24T20:11:09.685Z",
+      "revokeRefreshToken": false,
+      "refreshTokenMaxReuse": 0,
+      "ssoSessionIdleTimeout": 60
+    },
+    {
+      "case": "concurrent-refresh",
+      "held": true,
+      "at": "2026-09-24T20:11:10.290Z",
+      "answers": [
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        }
+      ],
+      "originalStillWorks": true
+    },
+    {
+      "case": "disabled-refresh-refused",
+      "held": true,
+      "at": "2026-09-24T20:11:10.458Z",
+      "error": "invalid_grant",
+      "description": "User disabled"
+    },
+    {
+      "case": "logout-refresh-refused",
+      "held": true,
+      "at": "2026-09-24T20:11:10.706Z",
+      "logoutStatus": 200,
+      "tokensTried": 5,
+      "answers": [
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        }
+      ]
+    },
+    {
+      "case": "refresh-resets-sso-idle",
+      "held": true,
+      "at": "2026-09-24T20:12:30.903Z",
+      "ssoIdleSeconds": 60,
+      "refreshedAtSeconds": 40,
+      "checkedAtSeconds": 80,
+      "refreshedSession": {
+        "middle": true,
+        "afterLimit": true
+      },
+      "neverRefreshedSession": {
+        "ok": false,
+        "description": "Token is not active"
+      }
+    },
+    {
+      "case": "client-account-console",
+      "held": true,
+      "at": "2026-09-24T20:12:31.009Z",
+      "signedIn": true,
+      "refreshed": true
+    },
+    {
+      "case": "client-security-admin-console",
+      "held": true,
+      "at": "2026-09-24T20:12:31.097Z",
+      "signedIn": true,
+      "refreshed": true
+    }
+  ]
+}

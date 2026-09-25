@@ -40,12 +40,9 @@ const identityAccessDependencies = {
   clientId: config.oidc.clientId,
   clientSecret: readSecretFile(config.oidc.clientSecretFile),
   bootstrapSubject: config.bootstrapSubject,
-  // The application host requires the Builder, and so the Factory, whose credential key seals the
-  // application sessions' refresh tokens (readHubConfig refuses one without the other).
-  application: config.application && config.factory ? {
-    address: config.application,
-    envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
-  } : undefined,
+  // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's credential key.
+  envelope: createSecretEnvelope(readSecretFile(config.secretKey.file), config.secretKey.previousFiles.map(readSecretFile)),
+  application: config.application ? { address: config.application } : undefined,
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
@@ -91,7 +88,7 @@ const servedPool = config.application && config.builder ? createPostgresPool({
 }) : undefined
 const servedApplications = servedPool ? createServedApplicationReader(servedPool) : undefined
 const mar = config.preview ? createMarModule({
-  access: identityAccess.previewAccess,
+  sessions: identityAccess.hostSessions,
   exactHubOrigin: config.origin,
   previewPort: config.preview.port,
   registryReader: (input) => {
@@ -120,38 +117,28 @@ const mar = config.preview ? createMarModule({
       invoke: applicationRunner.invoke,
     },
   } : {}),
-  ...(config.application && identityAccess.applicationSessions && servedApplications ? {
-    applicationHost: { sessions: identityAccess.applicationSessions, reader: servedApplications, application: config.application },
+  ...(config.application && servedApplications ? {
+    applicationHost: { sessions: identityAccess.hostSessions, reader: servedApplications, application: config.application },
   } : {}),
 }) : undefined
 const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
-  const opened = mar.openRoute({
+  const address = mar.previewAddress(input.artifactRevisionId)
+  const opened = await identityAccess.openPreview(request, {
     accountId: input.accountId,
     projectId: input.projectId,
-    changeId: input.changeId,
-    subjectDigest: input.subjectDigest,
-    attemptId: input.attemptId,
     sourceRevision: input.artifact.sourceRevision,
     artifactRevisionId: input.artifactRevisionId,
     artifactDigest: input.artifactDigest,
+    exactHost: address.exactHost,
     manifest: { entryPath: input.artifact.entryPath, files: input.artifact.files },
   })
-  let issued: Awaited<ReturnType<typeof identityAccess.issuePreviewEntry>> | undefined
-  try {
-    issued = await identityAccess.issuePreviewEntry(request, { accountId: input.accountId, route: opened.route })
-    if (!mar.isRouteOpening({ routeId: opened.route.routeId, generation: opened.route.generation, attemptId: opened.route.attemptId })) throw new Error('PREVIEW_LAUNCH_STALE')
-    return {
-      entryUrl: opened.entryUrl,
-      previewUrl: opened.previewUrl,
-      entryGrant: issued.entryGrant,
-      artifactRevisionId: input.artifactRevisionId,
-      artifactDigest: input.artifactDigest,
-      expiresAt: new Date(opened.route.expiresAt).toISOString(),
-    }
-  } catch (error) {
-    if (issued) identityAccess.previewAccess.discardEntryGrant(issued.entryGrant)
-    mar.closeRoute(opened.route.routeId)
-    throw error
+  return {
+    entryUrl: address.entryUrl,
+    previewUrl: address.previewUrl,
+    entryGrant: opened.entryGrant,
+    artifactRevisionId: input.artifactRevisionId,
+    artifactDigest: input.artifactDigest,
+    expiresAt: new Date(opened.expiresAt).toISOString(),
   }
 } : undefined
 builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
@@ -162,6 +149,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   },
   builder: config.builder,
   factory: config.factory,
+  secretKey: config.secretKey,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
   ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),

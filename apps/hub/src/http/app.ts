@@ -43,6 +43,10 @@ export const createHttpApp = async ({
   })
   app.setErrorHandler((error, _request, reply) => {
     const reportedStatus = errorStatus(error)
+    // Keycloak could not be asked about a session due for its check: the request waits, nobody is signed out.
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'IDENTITY_PROVIDER_UNAVAILABLE') {
+      return sendProblem(reply, 503, 'identity-provider-unavailable', 'Identity provider unavailable')
+    }
     const status = reportedStatus >= 400 && reportedStatus < 500 ? reportedStatus : 500
     if (status === 400) return sendProblem(reply, status, 'request-invalid', 'Request invalid')
     if (status === 401) return sendProblem(reply, status, 'authentication-required', 'Authentication required')

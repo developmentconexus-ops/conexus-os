@@ -4,6 +4,7 @@
 //
 //   node scripts/q3-sign-in.mjs --role owner    --out <state.json>
 //   node scripts/q3-sign-in.mjs --role employee --app <slug> --out <state.json>
+//     [--who <name>]   a banner on every page of the window says who signs in there
 //
 // For the employee it also records what the negative proof needs from the sign-in itself: the
 // application session value planted before sign-in, and the handoff URL, which the browser redeems.
@@ -29,14 +30,39 @@ if ((role !== 'owner' && role !== 'employee') || !out || (role === 'employee' &&
 
 const browser = await chromium.launch({ headless: false })
 const context = await browser.newContext()
+const who = argument('--who')
+if (who) {
+  // Shown on every page, Keycloak's form included, so the person at the keyboard signs in as the right one.
+  await context.addInitScript((name) => {
+    const show = () => {
+      if (document.getElementById('conexus-who') || !document.body) return
+      const banner = document.createElement('div')
+      banner.id = 'conexus-who'
+      banner.textContent = `Entre como: ${name}`
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px;font:600 18px sans-serif;text-align:center;background:#ffd400;color:#000'
+      document.body.appendChild(banner)
+    }
+    document.addEventListener('DOMContentLoaded', show)
+    setInterval(show, 500)
+  }, who)
+}
 const page = await context.newPage()
 const record = { role, startedAt: new Date().toISOString() }
+// Waits for the page to land where the predicate says, polling the URL: a navigation Keycloak's own page
+// makes on the way (its session checker, a retried form) may answer with an error code, which aborts
+// page.waitForURL but is not the end of the sign-in.
+const landed = async (predicate) => {
+  for (const deadline = Date.now() + WAIT_MS; Date.now() < deadline; await page.waitForTimeout(500)) {
+    if (predicate(new URL(page.url()))) return
+  }
+  throw new Error('SIGN_IN_TIMED_OUT')
+}
 
 try {
   if (role === 'owner') {
     await page.goto(`${HUB}/protocol/oidc/login`)
     console.log(`SIGN IN AS THE OWNER HERE: ${HUB}/protocol/oidc/login`)
-    await page.waitForURL((url) => url.origin === HUB && !url.pathname.startsWith('/protocol/'), { timeout: WAIT_MS })
+    await landed((url) => url.origin === HUB && !url.pathname.startsWith('/protocol/'))
     const probe = await page.evaluate(async () => {
       const response = await fetch('/api/control/access-context', { credentials: 'same-origin' })
       return { status: response.status, body: response.ok ? await response.json() : null }
@@ -60,7 +86,7 @@ try {
     console.log(`KEYCLOAK FORM ${JSON.stringify({ ...form, at: page.url().split('?')[0], cookiesBeforeSignIn: (await context.cookies()).map((cookie) => `${cookie.domain}:${cookie.name}`) })}`)
     if (!record.passwordFormShown) throw new Error('PASSWORD_FORM_NOT_SHOWN')
     console.log(`SIGN IN AS THE EMPLOYEE HERE: ${page.url().split('?')[0]}`)
-    await page.waitForURL((url) => url.origin === origin && !url.pathname.startsWith('/__conexus/'), { timeout: WAIT_MS })
+    await landed((url) => url.origin === origin && !url.pathname.startsWith('/__conexus/'))
     const session = (await context.cookies(`${origin}/`)).find((cookie) => cookie.name === '__Host-conexus_app')
     record.sessionReplaced = Boolean(session) && session.value !== PLANTED
     if (!session) throw new Error('APPLICATION_SESSION_MISSING')

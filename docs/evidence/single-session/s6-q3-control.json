@@ -1,0 +1,26 @@
+[
+  {
+    "id": "control-member-of-another-workspace",
+    "phase": "control",
+    "at": "2026-09-25T11:09:13.496Z",
+    "request": {
+      "url": "https://controle-q3.conexus.localhost:3445/",
+      "as": "member of the Project Workspace of the first application only, no grant on the control application"
+    },
+    "observed": {
+      "ownApplication": {
+        "landed": "https://eval-20260923-224304.conexus.localhost:3445/",
+        "api": 404
+      },
+      "controlApplication": {
+        "landed": "https://controle-q3.conexus.localhost:3445/__conexus/no-access",
+        "api": 401,
+        "code": "APPLICATION_SIGN_IN_REQUIRED",
+        "cookies": [
+          "__Host-conexus_app_signin"
+        ]
+      }
+    },
+    "pass": true
+  }
+]

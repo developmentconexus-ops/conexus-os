@@ -38,7 +38,7 @@ test('local OIDC transport is admitted narrowly and closes with its adapter', as
     return {}
   }
   const adapter = await createOidcAdapter({
-    issuer: 'https://hub.conexus.localhost:8443/realms/r1f',
+    issuer: 'https://hub.conexus.localhost:8443/realms/conexus',
     clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`,
   }, { discovery })
   assert.equal(Object.hasOwn(captured, openidClient.customFetch), true)
@@ -75,7 +75,7 @@ test('a refused refresh names why Keycloak refused it: a disabled user, an ended
 })
 
 const makeStore = ({ eligible = true } = {}) => {
-  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [] }
+  const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [], opened: [] }
   return {
     state,
     async createOidcTransaction(value) { state.oidc.set(value.state, value) },
@@ -93,15 +93,19 @@ const makeStore = ({ eligible = true } = {}) => {
       state.bootstrap.delete(bootstrapToken)
       return { accountId: 'account-1', displayName, ...(email ? { email } : {}), replayed: false }
     },
-    async createSession({ accountId }) { const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
-    async validateSession({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
-    async endSession(value) { state.sessions.delete(value); state.ended.push(value); return true },
+    async openHub({ accountId, refreshToken }) { state.opened.push({ accountId, refreshToken }); const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
+    async resolveHub({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
+    async endHub({ sessionToken, csrfToken }) {
+      const value = state.sessions.get(sessionToken)
+      if (!value || value.csrfToken !== csrfToken) return false
+      state.sessions.delete(sessionToken); state.ended.push(sessionToken); return true
+    },
   }
 }
 
 const makeOidc = (identity = {}) => ({
   async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test/authorize?state=state-1' } },
-  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, ...identity } },
+  async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: 'keycloak-refresh', ...identity } },
 })
 
 const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) => createHttpApp({
@@ -109,13 +113,14 @@ const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) 
     store,
     oidc,
     config,
+    hubSessions: store,
     ...(applications ? { applications } : {}),
     resolveCurrentSession: async (request, requireCsrf = false) => {
       const sessionToken = request.cookies['__Host-conexus_session']
       if (!sessionToken) return null
       const value = request.headers['x-conexus-csrf']
       const csrfToken = Array.isArray(value) ? value[0] : value
-      return store.validateSession({ sessionToken, csrfToken, requireCsrf })
+      return store.resolveHub({ sessionToken, csrfToken, requireCsrf })
     },
   }),
   staticRoot,
@@ -138,13 +143,14 @@ test('S1 exposes only generated IAM-01..03 through one sealed validator', async 
 test('an existing account claims its invitations before its session starts', async (t) => {
   const store = makeStore()
   store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'account-1', displayName: 'Leandro' })
-  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test' }), config })
+  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test', refreshToken: 'keycloak-refresh-1' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 303)
   assert.equal(callback.headers.location, '/')
   assert.deepEqual(store.state.claimed, [{ accountId: 'account-1', verifiedEmail: 'leandro@example.test' }])
+  assert.deepEqual(store.state.opened, [{ accountId: 'account-1', refreshToken: 'keycloak-refresh-1' }], 'the Hub session keeps the sign-in refresh token')
 })
 
 test('an unknown identity that is neither first nor invited is refused', async (t) => {
@@ -338,11 +344,27 @@ test('TI-02 sends a person without access to the application host no-access page
 test('an app-only Account signing in at the Hub is refused with no session cookie', async (t) => {
   const store = makeStore()
   store.state.accounts.set(`${config.bootstrapIssuer}|app-only`, { accountId: 'account-app', displayName: 'Funcionária' })
-  store.createSession = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
+  store.openHub = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
   const app = await createHubApp({ store, oidc: makeOidc({ subject: 'app-only', verifiedEmail: 'funcionaria@example.test' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 403)
   assert.equal(callback.cookies.some((item) => item.name === '__Host-conexus_session' || item.name === '__Host-conexus_csrf'), false)
+})
+
+test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 503, not signed out', async (t) => {
+  const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const app = await createHttpApp({
+    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
+      store: makeStore(), workspaceReader: makeStore(), oidc: makeOidc(), config, hubSessions: makeStore(),
+      resolveCurrentSession: async () => { throw providerUnavailable() },
+    }),
+    staticRoot: null,
+  })
+  t.after(() => app.close())
+  const answer = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 's'.repeat(43) } })
+  assert.equal(answer.statusCode, 503)
+  assert.equal(answer.json().type.endsWith('identity-provider-unavailable'), true)
+  assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
 })

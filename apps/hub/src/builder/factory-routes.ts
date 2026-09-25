@@ -4,6 +4,7 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { type BuilderAgentController, isUserAuthoredMessage, messageText } from './runtime.js'
 import type { FactoryBindingRecord } from './store.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -117,7 +118,7 @@ export const registerFactoryConversationRoutes = async (app: FastifyInstance, { 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     const binding = await boundProject(session.account.accountId, request.params.projectId)

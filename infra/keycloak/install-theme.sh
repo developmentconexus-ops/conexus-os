@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the Conexus Keycloakify theme and install it into the running
-# pilot container (conexus-s7-keycloak). Read infra/keycloak/README.md
+# pilot container (conexus-keycloak). Read infra/keycloak/README.md
 # first: this touches the running container (jar copy + restart) but
 # never its database or other worktrees.
 #
@@ -23,8 +23,8 @@
 
 set -euo pipefail
 
-CONTAINER="conexus-s7-keycloak"
-REALM="r1f"
+CONTAINER="conexus-keycloak"
+REALM="conexus"
 THEME_NAME="conexus"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 THEME_DIR="$REPO_ROOT/apps/keycloak-theme"

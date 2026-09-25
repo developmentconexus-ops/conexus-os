@@ -69,7 +69,7 @@ export const createOidcAdapter = async ({
   const localIssuerAdmitted = issuerUrl.protocol === 'https:' &&
     issuerUrl.hostname === 'hub.conexus.localhost' &&
     issuerUrl.port === '8443' &&
-    issuerUrl.pathname === '/realms/r1f' &&
+    issuerUrl.pathname === '/realms/conexus' &&
     !issuerUrl.search && !issuerUrl.hash
   const localIssuerTransport = localIssuerAdmitted ? new Agent({
     connect: {

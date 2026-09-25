@@ -1,0 +1,41 @@
+{
+  "keycloakIssuer": "http://127.0.0.1:8444/realms/r1f",
+  "probedAt": "2026-09-24T19:44:29.318Z",
+  "cases": [
+    {
+      "case": "realm-settings",
+      "held": false,
+      "at": "2026-09-24T19:44:28.498Z",
+      "revokeRefreshToken": true,
+      "refreshTokenMaxReuse": 0,
+      "ssoSessionIdleTimeout": 60
+    },
+    {
+      "case": "concurrent-refresh",
+      "held": false,
+      "at": "2026-09-24T19:44:29.318Z",
+      "answers": [
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session doesn't have required client"
+        },
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session doesn't have required client"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Maximum allowed refresh token reuse exceeded"
+        }
+      ],
+      "originalStillWorks": false
+    }
+  ]
+}

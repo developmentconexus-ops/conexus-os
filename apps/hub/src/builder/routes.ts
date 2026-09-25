@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { randomUUID } from 'node:crypto'
 import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -54,10 +54,6 @@ export type BuilderTraceSummary = Readonly<{
 export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly<{
   accountId: string
   projectId: string
-  changeId: string
-  builderRunId?: string
-  subjectDigest: string
-  attemptId: string
   artifactRevisionId: string
   artifactDigest: string
   artifact: ApplicationArtifactMetadata
@@ -113,7 +109,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     const idempotencyKey = header(request.headers['idempotency-key'])
@@ -141,7 +137,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     try {
@@ -177,7 +173,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
-    if (request.headers.origin !== dependencies.origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
     const session = await dependencies.resolveCurrentSession(request, true)
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
@@ -188,10 +184,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       }
       const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: subject.lastPreviewSourceRevision })
       if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-      const correlationId = randomUUID()
       const launched = await dependencies.launchPreview(request, {
-        accountId: session.account.accountId, projectId: request.params.projectId, changeId: correlationId, builderRunId: correlationId,
-        subjectDigest: subject.lastPreviewSourceRevision, attemptId: correlationId, artifactRevisionId: artifact.artifactRevisionId,
+        accountId: session.account.accountId, projectId: request.params.projectId, artifactRevisionId: artifact.artifactRevisionId,
         artifactDigest: artifact.artifactDigest, artifact,
       })
       return reply.code(201).send(launched)
