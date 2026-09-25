@@ -325,8 +325,9 @@ browser request; the Builder's diff and transcript hold no credential, host or S
 ### Q4.8 — App user on the pilot
 
 As the Q3 app user (`funcionario-teste@gmail.com`, app-only), in a fresh browser: open the
-application, sign in, and see order 22790 with its notes. **Check:** a screenshot and the handler's
-response in the evidence, with values shown only as section 11 allows.
+application, sign in, and see order 22790 with its notes. **Check:** the evidence holds a screenshot
+with every business value masked and the handler's response reduced to field names, types, counts and
+a digest, as section 11 allows. No raw response is committed.
 
 ### Q4.9 — Second consumer: an agent tool
 
@@ -338,7 +339,8 @@ refused; after revocation the next tool call is refused.
 ### Q4.10 — Negative proof
 
 A script sends each request as a real consumer and records the request, the answer and whether the
-refusal held. Where a refusal could hide a broken fixture, the same run records a live control that
+refusal held. The committed record keeps status codes, error codes, field names and digests only; a
+successful control records counts and a digest, never the order's values. Where a refusal could hide a broken fixture, the same run records a live control that
 succeeds. Each of these must fail:
 
 1. **Credential leak.** A handler or the agent tool returns, logs or throws its whole context,
@@ -425,7 +427,10 @@ STOP and return to the planner on:
 4. **Who administers.** Decided on 2026-09-24: the installation administrator creates the
    Connection. The Grant stays with the Workspace Owner.
 5. **Business values.** Decided on 2026-09-24, revised the same day when the repository became public:
-   the evidence shows field names, counts and digests, never supplier names, prices or quantities.
+   every public artifact from Q4.6 to Q4.11 (evidence, screenshots, logs, transcripts) shows field
+   names, types, counts, status codes and digests only. It never shows the order's supplier, dates,
+   status, prices, quantities, totals, items or notes, and never a raw Sankhya or handler response.
+   The document number 22790 is the one exception: it is an identifier the task already names.
 6. **The verdict.**
 
 ## 12. Evidence layout
