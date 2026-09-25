@@ -7,8 +7,11 @@ the platform builds, the realm, the sign-in theme and the administrator bootstra
 
 ## What to check
 
-- [ ] `needs:aprovo` is on the pull request. Every change here is a security or authentication
-      change. Owner: [Ask for "Aprovo"](../delivery.md#ask-for-aprovo-on-three-kinds-of-change).
+- [ ] `needs:aprovo` is on the pull request when the change alters what the sign-in does: a flow, a
+      field, or a message or CSP rule that carries security meaning. A Hub or application session,
+      OIDC, Preview access, realm or administrator-bootstrap change is always this. A purely visual
+      sign-in theme change needs it only if the operator asked to see that screen. Owner:
+      [Ask for "Aprovo"](../delivery.md#ask-for-aprovo-on-three-kinds-of-change).
 - [ ] Keycloak only authenticates. Conexus owns the mapping from an identity to an account,
       Workspace and Project grants, per C-015 in the [decision register](../../decisions/index.md).
       A realm change states its effect on every client in the realm.
