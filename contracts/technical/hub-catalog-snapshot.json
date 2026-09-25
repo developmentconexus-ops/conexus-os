@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0026",
+ "head": "0027",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -459,7 +459,7 @@
    "function iam.bootstrap_installation_administrator(p_account_id uuid) returns text kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=iam_owner:EXECUTE:false body=04b85e2ea26fe713dbbbd798027019fc",
    "function iam.cancel_application_invitation(p_actor uuid, p_project_id uuid, p_invitation_id uuid) returns boolean kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=7feb5cb9c3315e4e8274cc9df00533e7",
    "function iam.cancel_workspace_invitation(p_actor uuid, p_invitation_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=b25b2ff39496cfd30717dc14ac9f2f82",
-   "function iam.claim_application_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=31756ddef8e2e8cf9c290b4439a80568",
+   "function iam.claim_application_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=5125c2fe226d9aba0960cc4d06590bbb",
    "function iam.claim_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=ad60e34430b82bd13e15be73c6cbbbcb",
    "function iam.email_has_open_invitation(p_verified_email text) returns boolean kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=05b749c56aa6323a48c968ac384f025b",
    "function iam.end_host_session(p_session_digest bytea, p_reason text) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=81db8d2a623d6e43bf9a75c6982e1037",

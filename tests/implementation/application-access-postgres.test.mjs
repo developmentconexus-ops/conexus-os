@@ -719,6 +719,47 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(openGrants, 0, 'an invitation issued before the revoke must not survive it, however the two interleave')
   })
 
+  await t.test('a claim racing a revoke in the other order neither deadlocks nor loses the revoke', async () => {
+    const person = identity('interleaved-reverse-sub', 'reverso@application.test', 'Corrida Invertida')
+    await grantAccess(projectId, 'reverso@application.test')
+    assert.equal((await signIn(person)).kind, 'HANDOFF')
+    const personId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'interleaved-reverse-sub'")).rows[0].account_id
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+
+    await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',
+      [randomUUID(), projectId, 'outra-reverso@application.test', owner, inTwoWeeks()])
+
+    const claimer = new pg.Client(connection)
+    const revoker = new pg.Client(connection)
+    await claimer.connect()
+    await revoker.connect()
+    try {
+      // This time the claim reaches the grant lock first and holds it open (uncommitted), so the
+      // revoke queues behind it: the same lock order as above, the opposite arrival order, proving it
+      // is the row lock and not the arrival order that keeps the two from interleaving unsafely.
+      await claimer.query('BEGIN')
+      await claimer.query('SELECT iam.claim_application_invitations($1, $2)', [personId, 'outra-reverso@application.test'])
+      const revokerPid = (await revoker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const revoke = revoker.query('SELECT iam.revoke_application_grant($1,$2,$3)', [owner, projectId, grantId])
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [revokerPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the revoke never reached the grant lock')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await claimer.query('COMMIT')
+      assert.equal((await revoke).rows[0].revoke_application_grant, true)
+    } finally {
+      await claimer.end()
+      await revoker.end()
+    }
+
+    const openGrants = (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].n
+    assert.equal(openGrants, 0, 'the revoke that queued behind the claim still lands')
+    const openInvitations = (await client.query('SELECT count(*)::int AS n FROM iam.application_invitation WHERE project_id = $1 AND email = $2', [projectId, 'outra-reverso@application.test'])).rows[0].n
+    assert.equal(openInvitations, 0, 'the claim that went first still consumed the invitation')
+  })
+
   await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
     const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
     const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
