@@ -159,7 +159,6 @@
       "scripts/check-agent-context.mjs",
       "scripts/check-current-state.mjs",
       "scripts/check-import-law.mjs",
-      "scripts/check-review-areas.mjs",
       "scripts/check-web-style.mjs",
       "scripts/conexus-preflight.mjs",
       "scripts/conexus-verify.mjs",
