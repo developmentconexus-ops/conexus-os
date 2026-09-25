@@ -38,6 +38,21 @@ runs were removed from the product on 2026-09-19 and have no tables.
 
 For C-015 human authentication, the verified external identity key `(issuer, subject)` is stored as attributes of the existing `iam.account` identity. It is not a separate durable record class and does not make Keycloak provider state Hub authority.
 
+Sessions are one model in `iam` (migration `0026_single_session.sql`, the single session qualification):
+
+- `iam.host_session`: one row per session cookie, of kind `HUB`, `APPLICATION` or `PREVIEW`, with one CHECK per
+  kind. A Hub row holds its CSRF digest and idle limit; Hub and application rows hold the sign-in's Keycloak refresh
+  token sealed with the installation's credential key and the time of the last Keycloak check; a Preview row points
+  to its Preview and to the Hub session that opened it. An ended row keeps why it ended and drops the token.
+- `iam.handoff`: a one-use proof for one host, kind `APPLICATION` (60 s, bound to the browser's sign-in binding,
+  carrying the sealed token) or `PREVIEW` (30 s, bound to the Hub session that opened it). Redemption checks
+  everything and deletes in one statement.
+- `iam.preview`: the immutable facts of one Preview launch (Account, Project, source and artifact revision, digest,
+  exact host, manifest), removed with its sessions at a later launch once it has ended.
+
+`iam.session`, `iam.application_session` and `iam.application_handoff` no longer exist. No table is written except
+through `SECURITY DEFINER` functions granted to `hub_iam_runtime`.
+
 Exact table/column spellings belong post-C-018 derived Realization Planning. Logical owner schemas/capabilities remain explicit.
 
 The `hub_control` migration lineage and schema-integrity ledger are owned by

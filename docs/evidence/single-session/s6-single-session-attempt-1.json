@@ -1,0 +1,67 @@
+[
+  {
+    "id": "preview-opens",
+    "phase": "preview-open",
+    "at": "2026-09-25T11:10:29.475Z",
+    "request": {
+      "launch": "POST https://hub.conexus.localhost:3443/api/control/projects/2b9d2bbb-6336-4957-bb55-78e5fdd228cd/builder-session/preview",
+      "entry": "POST https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/__conexus/preview-entry (Origin https://hub.conexus.localhost:3443)",
+      "page": "GET https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/"
+    },
+    "observed": {
+      "launch": 201,
+      "previewExpiresAt": "2026-09-25T11:25:29.371Z",
+      "entry": {
+        "status": 303,
+        "location": "/",
+        "setCookie": [
+          "__Host-conexus_preview"
+        ]
+      },
+      "page": 200,
+      "entryReplay": 403,
+      "session": "PREVIEW|open|00:14:59.983"
+    },
+    "pass": true
+  },
+  {
+    "id": "preview-survives-hub-restart",
+    "phase": "preview-restart",
+    "at": "2026-09-25T11:11:16.200Z",
+    "request": {
+      "url": "https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+      "as": "the Preview cookie from before the restart, no new entry"
+    },
+    "observed": {
+      "launchedAt": "2026-09-25T11:10:29.475Z",
+      "hubLog": "hub starting 2026-09-25T11:10:56Z head 572fb6a8",
+      "page": 200
+    },
+    "pass": true
+  },
+  {
+    "id": "hub-user-disabled-loses-hub-and-preview",
+    "phase": "hub-refused",
+    "at": "2026-09-25T11:17:42.344Z",
+    "request": {
+      "hub": "GET https://hub.conexus.localhost:3443/api/control/access-context",
+      "preview": "GET https://preview-6678f9ac-0f8d-4ec9-905b-623ba85a9b94.conexus.localhost:3444/",
+      "every": "20 s",
+      "since": "2026-09-25T11:12:31.729Z"
+    },
+    "observed": {
+      "hub": {
+        "refusedAfterSeconds": 310,
+        "status": 401,
+        "code": "urn:conexus:problem:authentication-required"
+      },
+      "preview": {
+        "refusedAfterSeconds": 310,
+        "status": 403
+      },
+      "hubSession": "PROVIDER_USER_DISABLED|true",
+      "previewSession": "PARENT_ENDED"
+    },
+    "pass": false
+  }
+]

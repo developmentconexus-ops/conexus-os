@@ -14,6 +14,7 @@ import {
   parseEmailAddress,
 } from './current-session.js'
 import type { AccountId, EmailAddress, InvitationId, ResolveCurrentSession, WorkspaceId } from './current-session.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const INVITATION_MS = 14 * 24 * 60 * 60 * 1000
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -139,7 +140,7 @@ export const registerMembershipRoutes = async (
 ): Promise<readonly S1OwnerId[]> => {
   const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
-    return request.headers.origin === config.origin && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
+    return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
   }
 
   app.route<{ Params: WorkspaceParams }>({

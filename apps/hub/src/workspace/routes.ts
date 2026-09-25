@@ -1,14 +1,14 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { S2_GENERATED_ROUTES } from '../generated/s2-routes.js'
 import type { S2OwnerId, Ws01Body, Ws02Params } from '../generated/s2-routes.js'
 import { sendProblem } from '../http/problem.js'
 import { workspaceErrorCode } from './errors.js'
 import type { WorkspaceStore } from './store.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
-const exactOrigin = (request: FastifyRequest, configuredOrigin: string): boolean => request.headers.origin === configuredOrigin
 const driverCode = (error: unknown): string | undefined => {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
   const code = error.code
@@ -31,7 +31,7 @@ export const registerWorkspaceRoutes = async (
     ...S2_GENERATED_ROUTES['WS-01'],
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
-      if (!exactOrigin(request, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       }
       const current = await resolveCurrentSession(request, true)

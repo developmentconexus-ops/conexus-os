@@ -59,7 +59,7 @@ const createSessions = () => {
   }
 }
 
-const createFactoryApp = async (t, { accountId = accountA } = {}) => {
+const createFactoryApp = async (t, { accountId = accountA, providerDown = false } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-factory-routes-'))
   const storage = new LibSQLStore({ id: `factory-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
@@ -78,9 +78,13 @@ const createFactoryApp = async (t, { accountId = accountA } = {}) => {
     return { projectId, projectRepositoryId: repositoryOf[projectId], repositoryId: `repository-of-${projectId}` }
   }
   const reachedContexts = []
-  const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
-    ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-    : null
+  const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const resolveCurrentSession = async (request) => {
+    if (providerDown) throw providerUnavailable()
+    return request.cookies['__Host-conexus_session']
+      ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
+      : null
+  }
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       instance.addHook('onResponse', async (request) => {
@@ -111,6 +115,14 @@ const authentic = {
   cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
 }
 const sessionBase = (conversationId = conversationA) => `/api/mastra-factory/agent-controller/code/sessions/${conversationId}`
+
+test('a Factory request whose Hub session check Keycloak cannot answer is refused with 503 and signs nobody out', async (t) => {
+  const { app } = await createFactoryApp(t, { providerDown: true })
+  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/threads`, ...authentic })
+  assert.equal(response.statusCode, 503)
+  assert.equal(response.json().type.endsWith('identity-provider-unavailable'), true)
+  assert.equal(response.headers['set-cookie'], undefined)
+})
 
 test('a browser-supplied requestContext is refused on the Factory mount', async (t) => {
   const { app } = await createFactoryApp(t)

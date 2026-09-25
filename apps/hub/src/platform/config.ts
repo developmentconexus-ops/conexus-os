@@ -1,3 +1,5 @@
+import { parseApplicationSlug } from './application-slug.js'
+
 export type ProjectRuntimeConfig = Readonly<{
   commandPasswordFile: string
   readPasswordFile: string
@@ -29,6 +31,11 @@ export type HubConfig = Readonly<{
     e2bApiKeyFile: string
     e2bTemplateId: string
   }> | undefined
+  /**
+   * The installation's AES-256 credential key and the keys a rotation retired (decrypt-only). It seals every
+   * Hub and application session's Keycloak refresh token, and the Factory's stored credentials.
+   */
+  secretKey: InstallationSecretKey
   factory: FactoryRuntimeConfig | undefined
   googleAiPro: GoogleAiProRuntimeConfig | undefined
   // The application runner's socket; without it a Preview has no application API.
@@ -39,7 +46,6 @@ export type HubConfig = Readonly<{
 /** Where applications are served: `<slug>.<domain>` on one port. */
 export type ApplicationAddress = Readonly<{ port: number; domain: string }>
 
-const SLUG = /^[a-z]([a-z0-9-]{0,38}[a-z0-9])?$/
 const DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 
 // A browser leaves the default port out of both Host and Origin.
@@ -52,12 +58,15 @@ export const applicationOrigin = (address: ApplicationAddress, slug: string): st
 export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): string | null => {
   const suffix = authority(address, '')
   if (typeof host !== 'string' || !host.endsWith(suffix)) return null
-  const slug = host.slice(0, -suffix.length)
-  return SLUG.test(slug) && !slug.includes('--') ? slug : null
+  return parseApplicationSlug(host.slice(0, -suffix.length))
 }
 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
+
+// CONEXUS_FACTORY_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES names
+// the keys it replaced, until every value sealed under them has been rewritten.
+export type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
 
 export type FactoryRuntimeConfig = Readonly<{
   orgId: string
@@ -67,10 +76,6 @@ export type FactoryRuntimeConfig = Readonly<{
   githubPrivateKeyFile: string
   githubClientSecretFile: string
   stateSecretFile: string
-  // 64 hex characters: the AES-256 key the Factory encrypts stored credentials with.
-  secretKeyFile: string
-  // The keys it replaced, decrypt-only, until every value sealed under them has been rewritten.
-  previousSecretKeyFiles: readonly string[]
   databasePasswordFile: string
 }>
 
@@ -212,9 +217,8 @@ const FACTORY_VARIABLES = {
   githubPrivateKeyFile: 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
   githubClientSecretFile: 'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
   stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
-  secretKeyFile: 'CONEXUS_FACTORY_SECRET_KEY_FILE',
   databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
-} as const satisfies Record<Exclude<keyof FactoryRuntimeConfig, 'previousSecretKeyFiles'>, string>
+} as const satisfies Record<keyof FactoryRuntimeConfig, string>
 
 // The Mastra Factory adds Mastra Platform integrations on its own whenever it sees Platform
 // credentials in the process, so a Hub composing it must not carry any.
@@ -226,7 +230,7 @@ const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] =>
     if (name.startsWith('MASTRA_PLATFORM_') && environment[name]) throw new Error(`FACTORY_REFUSES_CONFIG_${name}`)
   }
   const variables = Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as Record<keyof typeof FACTORY_VARIABLES, string>
-  return { ...variables, previousSecretKeyFiles: previousSecretKeyFiles(environment) }
+  return variables
 }
 
 const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAiPro'] => {
@@ -298,6 +302,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     preview,
     application: applicationRuntime(environment, hubPort, preview),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
+    secretKey: { file: required(environment, 'CONEXUS_FACTORY_SECRET_KEY_FILE'), previousFiles: previousSecretKeyFiles(environment) },
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),
       port: port(required(environment, 'CONEXUS_DB_PORT'), 'CONEXUS_DB_PORT'),

@@ -28,6 +28,7 @@ const baseEnvironment = {
   CONEXUS_DB_NAME: 'conexus',
   CONEXUS_DB_USER: 'hub_iam',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/iam',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
   CONEXUS_OIDC_ISSUER: OPERATOR.issuer,
   CONEXUS_OIDC_CLIENT_ID: 'hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',

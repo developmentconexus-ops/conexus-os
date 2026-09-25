@@ -27,6 +27,7 @@ const baseEnvironment = {
   CONEXUS_OIDC_ISSUER: 'https://issuer.test',
   CONEXUS_OIDC_CLIENT_ID: 'hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
   CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
   CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/ingress',
@@ -42,7 +43,6 @@ const factoryEnvironment = {
   CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: '/secrets/factory-app.pem',
   CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: '/secrets/factory-app-client-secret',
   CONEXUS_FACTORY_STATE_SECRET_FILE: '/secrets/factory-state-secret',
-  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-secret-key',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
 }
 
@@ -172,8 +172,11 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
 
 const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
-test('with no Builder and no Factory variable the Hub boots as it did before', () => {
+test('with no Builder and no Factory variable the Hub boots as it did before, with the installation credential key', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
+  assert.deepEqual(readHubConfig(environmentWithoutBuilder).secretKey, { file: '/secrets/installation-secret-key', previousFiles: [] })
+  const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
+  assert.throws(() => readHubConfig(keyless), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/, 'every Hub seals its sessions\' refresh tokens')
 })
 
 test('a Builder without Factory variables is refused: there is no second agent runtime to fall back to', () => {
@@ -189,14 +192,10 @@ test('a complete Factory configuration is read, and a partial one names the miss
     githubPrivateKeyFile: '/secrets/factory-app.pem',
     githubClientSecretFile: '/secrets/factory-app-client-secret',
     stateSecretFile: '/secrets/factory-state-secret',
-    secretKeyFile: '/secrets/factory-secret-key',
-    previousSecretKeyFiles: [],
     databasePasswordFile: '/secrets/factory-db',
   })
   const { CONEXUS_FACTORY_STATE_SECRET_FILE: _omitted, ...partial } = factoryEnvironment
   assert.throws(() => readHubConfig({ ...baseEnvironment, ...partial }), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_STATE_SECRET_FILE$/)
-  const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = factoryEnvironment
-  assert.throws(() => readHubConfig({ ...baseEnvironment, ...keyless }), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/)
 })
 
 test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the Factory', () => {
@@ -230,8 +229,8 @@ test('after a key rotation a secret sealed under a previous key still opens, and
 
 test('previous credential keys are named by absolute paths, separated by commas', () => {
   const complete = { ...baseEnvironment, ...factoryEnvironment }
-  assert.deepEqual(readHubConfig(complete).factory.previousSecretKeyFiles, [])
-  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).factory.previousSecretKeyFiles,
+  assert.deepEqual(readHubConfig(complete).secretKey.previousFiles, [])
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).secretKey.previousFiles,
     ['/secrets/key-2025', '/secrets/key-2026'])
   assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), /^Error: INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES$/)
 })

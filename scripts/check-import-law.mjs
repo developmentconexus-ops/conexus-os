@@ -266,9 +266,12 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/problem.',
           'apps/hub/src/generated/s1-routes.',
           'apps/hub/src/identity-access/',
+          'apps/hub/src/platform/application-slug.',
+          'apps/hub/src/platform/opaque-token.',
+          'apps/hub/src/platform/origin.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity routes may use only their owner, HTTP problem, and owned generated routes'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity routes may use only their owner, HTTP problem, owned generated routes and the platform token, Origin and slug helpers'))
         }
       }
       if (source === 'apps/hub/src/identity-access/store.ts' && isRelative) {
@@ -278,9 +281,10 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/identity-access/errors.',
           'apps/hub/src/identity-access/oidc.',
           'apps/hub/src/identity-access/current-session.',
+          'apps/hub/src/platform/opaque-token.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity store may use only owner errors/types, PostgreSQL types, and canonical JSON'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity store may use only owner errors/types, PostgreSQL types, canonical JSON and the platform token helper'))
         }
       }
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
@@ -289,9 +293,10 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/generated/s2-routes.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
+          'apps/hub/src/platform/origin.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace routes may use only their owner, HTTP problem, and owned generated routes'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace routes may use only their owner, HTTP problem, owned generated routes and the platform Origin helper'))
         }
       }
       if (source === 'apps/hub/src/workspace/store.ts' && isRelative) {
