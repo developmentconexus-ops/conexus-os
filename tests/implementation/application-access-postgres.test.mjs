@@ -679,6 +679,46 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal((await signIn(person, personId)).kind, 'HANDOFF')
   })
 
+  await t.test('a revoke racing an invitation claim with a diverging email holds: the invitation issued before it never survives, however the two interleave', async () => {
+    const person = identity('interleaved-sub', 'divergiu@application.test', 'Corrida de Revogacao')
+    await grantAccess(projectId, 'divergiu@application.test')
+    assert.equal((await signIn(person)).kind, 'HANDOFF')
+    const personId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'interleaved-sub'")).rows[0].account_id
+    const grantId = (await client.query('SELECT grant_id FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].grant_id
+
+    // An invitation to a different, still-verified address, issued before the revoke: exactly the
+    // diverging-email boundary a revoke must hold against, whatever the claim's statement overlaps it.
+    await client.query('INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1,$2,$3,$4,$5)',
+      [randomUUID(), projectId, 'outra-divergiu@application.test', owner, inTwoWeeks()])
+
+    const revoker = new pg.Client(connection)
+    const claimer = new pg.Client(connection)
+    await revoker.connect()
+    await claimer.connect()
+    try {
+      // The revoke holds the grant row open (uncommitted) so the claim's statement takes its snapshot
+      // before the revoke is visible, then meets it while inserting the claimed grant.
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT iam.revoke_application_grant($1,$2,$3)', [owner, projectId, grantId])
+      const claimerPid = (await claimer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid
+      const claim = claimer.query('SELECT iam.claim_application_invitations($1, $2)', [personId, 'outra-divergiu@application.test'])
+      for (let polls = 0; ; polls += 1) {
+        const waiting = (await client.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1', [claimerPid])).rows[0]?.wait_event_type
+        if (waiting === 'Lock') break
+        if (polls === 200) throw new Error('the claim never reached the grant lock')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await revoker.query('COMMIT')
+      await claim
+    } finally {
+      await revoker.end()
+      await claimer.end()
+    }
+
+    const openGrants = (await client.query('SELECT count(*)::int AS n FROM iam.application_grant WHERE project_id = $1 AND account_id = $2 AND revoked_at IS NULL', [projectId, personId])).rows[0].n
+    assert.equal(openGrants, 0, 'an invitation issued before the revoke must not survive it, however the two interleave')
+  })
+
   await t.test('the application host resolves a caller with a long name and any verified address, and the runner admits it', async () => {
     const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
     const displayName = `Setor de Compras e Fiscal ${'da Matriz '.repeat(25)}`.trim()
