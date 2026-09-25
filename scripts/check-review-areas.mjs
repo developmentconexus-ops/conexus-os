@@ -97,13 +97,75 @@ export function checkRepository(root) {
     .split('\0').filter(path => path && existsSync(join(root, path)))
   const unique = [...new Set(files)].sort()
   const areasPath = join(root, AREAS_FILE)
-  if (!existsSync(areasPath)) return { areas: 0, files: 0, findings: [`${AREAS_FILE} does not exist`] }
+  if (!existsSync(areasPath)) return { areas: [], files: 0, findings: [`${AREAS_FILE} does not exist`] }
   const { areas, findings } = parseAreas(readFileSync(areasPath, 'utf8'))
-  if (findings.length) return { areas: areas.length, files: 0, findings }
+  if (findings.length) return { areas, files: 0, findings }
   return {
-    areas: areas.length,
+    areas,
     files: unique.filter(isProduction).length,
     findings: checkAreas(areas, { files: unique, pageExists: page => existsSync(join(root, page)) }),
+  }
+}
+
+// The base ref judges a pull request, per review-checklist.md. Both env vars unset is the plain
+// whole-tree check this script always ran; both set adds the pull-request check below; one alone is
+// a broken CI wiring, caught here instead of silently reverting to the whole-tree check.
+const PR_BASE_SHA_ENV = 'CONEXUS_PR_BASE_SHA'
+const PR_HEAD_SHA_ENV = 'CONEXUS_PR_HEAD_SHA'
+
+export function prMode(env) {
+  const base = env[PR_BASE_SHA_ENV]
+  const head = env[PR_HEAD_SHA_ENV]
+  if (base && head) return { kind: 'pull-request', base, head }
+  if (!base && !head) return { kind: 'whole-tree' }
+  const [presentName, missingName] = base ? [PR_BASE_SHA_ENV, PR_HEAD_SHA_ENV] : [PR_HEAD_SHA_ENV, PR_BASE_SHA_ENV]
+  return { kind: 'error', message: `${missingName} is not set (${presentName} is)` }
+}
+
+function changedProductionFiles(root, mergeBase, head) {
+  return execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', mergeBase, head], { cwd: root, encoding: 'utf8' })
+    .split('\n').filter(Boolean).filter(isProduction).sort()
+}
+
+// null when areas.json does not exist at that ref: a base that predates the file, or a rewritten
+// history. git show's own message already distinguishes a missing path from a bad ref; either way
+// there is no base map, so this check treats them the same.
+function areasTextAtRef(root, ref) {
+  try {
+    return execFileSync('git', ['show', `${ref}:${AREAS_FILE}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+}
+
+// The one function that classifies: for each pull-request-changed production path, whether the
+// base map covers it with an area other than the universal one. `null` base areas (no areas.json at
+// the base) makes every path new. A path a non-universal base area already covers is judged by that
+// map today and needs no exception; a path only the universal area or nothing covers is genuinely
+// new, allowed, but flagged so the reviewer loads the head's page for it instead.
+export function classifyPrPaths(paths, baseAreas) {
+  const covering = baseAreas === null ? [] : baseAreas.filter(({ universal }) => !universal).flatMap(({ matchers }) => matchers)
+  return paths.map(path => ({ path, isNewArea: !covering.some(matches => matches(path)) }))
+}
+
+function headPagesFor(path, headAreas) {
+  return headAreas.filter(({ matchers }) => matchers.some(matches => matches(path))).map(({ page }) => page).join(', ')
+}
+
+// Runs only once the whole-tree check above found the head's own map internally consistent: a head
+// map with its own findings has nothing reliable to report a new path's page from.
+function reportPullRequest(root, { base, head }, headAreas) {
+  const mergeBase = execFileSync('git', ['merge-base', base, head], { cwd: root, encoding: 'utf8' }).trim()
+  const changed = changedProductionFiles(root, mergeBase, head)
+  if (!changed.length) return
+  const baseText = areasTextAtRef(root, mergeBase)
+  if (baseText === null) console.log(`${AREAS_FILE} does not exist at the merge base ${mergeBase}; every changed production path is a new area path.`)
+  const baseAreas = baseText === null ? null : parseAreas(baseText).areas
+  for (const { path, isNewArea } of classifyPrPaths(changed, baseAreas)) {
+    if (!isNewArea) continue
+    const pages = headPagesFor(path, headAreas)
+    console.log(`new area path: ${path} -> ${pages}`)
+    console.log(`::notice file=${path}::new area path: the base map has no area for it; judged by ${pages} from the head.`)
   }
 }
 
@@ -111,8 +173,15 @@ const repositoryRoot = dirname(fileURLToPath(new URL('../package.json', import.m
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const root = process.argv[2] ? resolve(process.argv[2]) : repositoryRoot
-  const { areas, files, findings } = checkRepository(root)
-  for (const finding of findings) console.error(`error ${finding}`)
-  if (findings.length) process.exitCode = 1
-  else console.log(`Review area checks passed (areas=${areas}, production files=${files}).`)
+  const mode = prMode(process.env)
+  if (mode.kind === 'error') {
+    console.error(`error ${mode.message}`)
+    process.exitCode = 1
+  } else {
+    const { areas, files, findings } = checkRepository(root)
+    for (const finding of findings) console.error(`error ${finding}`)
+    if (findings.length) process.exitCode = 1
+    else console.log(`Review area checks passed (areas=${areas.length}, production files=${files}).`)
+    if (mode.kind === 'pull-request' && !findings.length) reportPullRequest(root, mode, areas)
+  }
 }

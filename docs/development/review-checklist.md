@@ -19,6 +19,9 @@ cannot edit the rules that judge it.
    that every production file maps to an area.
 4. Load every matched page from the base ref with `git show origin/<base>:<page>`, and always
    [`mastra-native.md`](review/mastra-native.md).
+5. A changed path the base map does not cover is judged by the page the pull request's own map
+   assigns instead. The review table carries a row for it: `new area path: <path>, page <page>,
+   loaded from the head`.
 
 The pages are [mastra-native](review/mastra-native.md), [identity-session](review/identity-session.md),
 [data-migrations](review/data-migrations.md), [connectors](review/connectors.md),
