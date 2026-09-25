@@ -48,6 +48,8 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
 - [ ] No secret, token or credential appears in code, fixtures, logs or the pull request body.
 - [ ] CI `verify` is green on the exact head SHA, and no PostgreSQL or browser leaf the change
       touches was skipped. The reviewer reads the run log, not the badge.
+- [ ] Each `Test-Refactor:` trailer names a test whose change really is a refactor. The
+      `changed-tests-fail-on-base` leaf prints each exemption as a notice.
 
 ## Documents
 
