@@ -8,7 +8,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const script = resolve(root, 'scripts/check-review-areas.mjs')
-const run = candidateRoot => spawnSync(process.execPath, [script, candidateRoot], { encoding: 'utf8' })
+// The checker reads the pull request from CONEXUS_PR_*. Inside verify on a pull request those name
+// the real base and head, which a fixture repository does not contain, so every run starts without them.
+const { CONEXUS_PR_BASE_SHA, CONEXUS_PR_HEAD_SHA, ...fixtureEnv } = process.env
+const run = candidateRoot => spawnSync(process.execPath, [script, candidateRoot], { encoding: 'utf8', env: fixtureEnv })
 
 const AREAS = 'docs/development/review/areas.json'
 const baseAreas = [
@@ -49,7 +52,7 @@ const commit = target => {
 }
 
 const runPr = (candidate, base, head) =>
-  spawnSync(process.execPath, [script, candidate], { encoding: 'utf8', env: { ...process.env, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
+  spawnSync(process.execPath, [script, candidate], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
 
 const failsWith = (candidate, stderr) => {
   const result = run(candidate)
@@ -137,7 +140,7 @@ test('a file that is not JSON fails', context => {
 
 test('CONEXUS_PR_BASE_SHA without CONEXUS_PR_HEAD_SHA exits 1 with the exact error', context => {
   const target = fixture(context)
-  const result = spawnSync(process.execPath, [script, target], { encoding: 'utf8', env: { ...process.env, CONEXUS_PR_BASE_SHA: 'deadbeef' } })
+  const result = spawnSync(process.execPath, [script, target], { encoding: 'utf8', env: { ...fixtureEnv, CONEXUS_PR_BASE_SHA: 'deadbeef' } })
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, 'error CONEXUS_PR_HEAD_SHA is not set (CONEXUS_PR_BASE_SHA is)\n')
   assert.equal(result.status, 1)
