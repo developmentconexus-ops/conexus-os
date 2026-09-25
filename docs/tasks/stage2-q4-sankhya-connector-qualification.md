@@ -377,7 +377,8 @@ agent transcripts, the Project repository at every commit Q4 made, the built Pre
 The same script also collects order 22790's business values from every live read the run made, held
 in its own memory (supplier, dates, status, prices, quantities, totals, item descriptions, notes), and
 searches every text file bound for the repository (`docs/evidence/stage2-q4/`, the Builder and agent
-transcripts, the Project repository at every commit Q4 made) for each value in each representation the
+transcripts, the Project repository at every commit Q4 made, and every commit of this branch that
+touches `docs/evidence/stage2-q4/`) for each value in each representation the
 fields can take (a number with and without thousands and decimal separators, a date in ISO and in
 dd/mm/yyyy). Short or common values, such as a status word or a one-digit quantity, count only next to
 their field name. It prints only a count per file. Before a screenshot is
