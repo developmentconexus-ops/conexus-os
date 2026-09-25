@@ -305,8 +305,8 @@ credential or gateway URL (P11).
 
 After G0, the executor reads purchase order 22790 once through the broker on the pilot, using the
 Connection the operator loaded. **Check:** the broker returns the order; the evidence records the
-fields returned, the call count, the duration and a response digest. The repository is private, and
-the operator allows business values of order 22790 in the evidence (section 11, point 5).
+fields returned, the call count, the duration and a response digest. The repository is public, so the
+evidence shows field names, counts and digests, never order 22790's business values (section 11, point 5).
 
 ### Q4.7 — Builder end to end (the main case)
 
@@ -424,8 +424,8 @@ STOP and return to the planner on:
    and X-Token into the Integrações screen (Q4.2). The executor never handles them.
 4. **Who administers.** Decided on 2026-09-24: the installation administrator creates the
    Connection. The Grant stays with the Workspace Owner.
-5. **Business values.** Decided on 2026-09-24: the repository is private, and the evidence may show
-   order 22790's values.
+5. **Business values.** Decided on 2026-09-24, revised the same day when the repository became public:
+   the evidence shows field names, counts and digests, never supplier names, prices or quantities.
 6. **The verdict.**
 
 ## 12. Evidence layout
