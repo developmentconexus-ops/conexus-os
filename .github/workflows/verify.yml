@@ -51,7 +51,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          if echo "$changed" | grep -Eq '^(apps/web/|packages/brand/|apps/hub/src/builder/application-|tests/implementation/builder-application-|tests/implementation/[^/]*browser[^/]*$|tests/implementation/web-dev-server\.mjs$|package-lock\.json$|scripts/conexus-verify\.mjs$)'; then
+          if echo "$changed" | grep -Eq '^(apps/web/|packages/brand/|apps/keycloak-theme/|apps/hub/src/builder/application-|tests/implementation/builder-application-|tests/implementation/[^/]*browser[^/]*$|tests/implementation/web-dev-server\.mjs$|package-lock\.json$|scripts/conexus-verify\.mjs$)'; then
             echo "browser-relevant change detected; browser suites will run"
           else
             echo "CONEXUS_VERIFY_SKIP_BROWSER=1" >> "$GITHUB_ENV"

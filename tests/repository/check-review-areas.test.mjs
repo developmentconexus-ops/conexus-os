@@ -25,17 +25,31 @@ const baseFiles = {
   'docs/development/review/hub.md': '# Hub\n',
 }
 
-const fixture = (context, { areas = baseAreas, files = {} } = {}) => {
-  const target = mkdtempSync(resolve(tmpdir(), 'conexus-review-areas-'))
-  context.after(() => rmSync(target, { recursive: true, force: true }))
-  execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: target })
-  const contents = { ...baseFiles, [AREAS]: typeof areas === 'string' ? areas : `${JSON.stringify(areas, null, 2)}\n`, ...files }
+const writeFiles = (target, contents) => {
   for (const [path, text] of Object.entries(contents)) {
     mkdirSync(dirname(resolve(target, path)), { recursive: true })
     writeFileSync(resolve(target, path), text)
   }
+}
+
+const fixture = (context, { areas = baseAreas, files = {} } = {}) => {
+  const target = mkdtempSync(resolve(tmpdir(), 'conexus-review-areas-'))
+  context.after(() => rmSync(target, { recursive: true, force: true }))
+  execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: target })
+  writeFiles(target, { ...baseFiles, [AREAS]: typeof areas === 'string' ? areas : `${JSON.stringify(areas, null, 2)}\n`, ...files })
   return target
 }
+
+// Commits everything currently on disk and returns the new commit's SHA, so a test can build a base
+// commit, mutate the working tree, and commit again as the pull request's head.
+const commit = target => {
+  execFileSync('git', ['add', '-A'], { cwd: target })
+  execFileSync('git', ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '-m', 'x'], { cwd: target })
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: target, encoding: 'utf8' }).trim()
+}
+
+const runPr = (candidate, base, head) =>
+  spawnSync(process.execPath, [script, candidate], { encoding: 'utf8', env: { ...process.env, CONEXUS_PR_BASE_SHA: base, CONEXUS_PR_HEAD_SHA: head } })
 
 const failsWith = (candidate, stderr) => {
   const result = run(candidate)
@@ -119,4 +133,68 @@ test('a file that is not JSON fails', context => {
   const result = run(fixture(context, { areas: '[{' }))
   assert.equal(result.status, 1)
   assert.match(result.stderr, /^error docs\/development\/review\/areas\.json is not valid JSON: /)
+})
+
+test('CONEXUS_PR_BASE_SHA without CONEXUS_PR_HEAD_SHA exits 1 with the exact error', context => {
+  const target = fixture(context)
+  const result = spawnSync(process.execPath, [script, target], { encoding: 'utf8', env: { ...process.env, CONEXUS_PR_BASE_SHA: 'deadbeef' } })
+  assert.equal(result.stdout, '')
+  assert.equal(result.stderr, 'error CONEXUS_PR_HEAD_SHA is not set (CONEXUS_PR_BASE_SHA is)\n')
+  assert.equal(result.status, 1)
+})
+
+test('a head path the base map has no area for prints the notice and exits 0', context => {
+  const target = fixture(context)
+  const base = commit(target)
+  const newAreas = [...baseAreas, { area: 'new-app', paths: ['apps/new/**'], page: 'docs/development/review/new-app.md' }]
+  writeFiles(target, {
+    [AREAS]: `${JSON.stringify(newAreas, null, 2)}\n`,
+    'docs/development/review/new-app.md': '# New app\n',
+    'apps/new/x.ts': 'export {}\n',
+  })
+  const head = commit(target)
+  const result = runPr(target, base, head)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, [
+    'Review area checks passed (areas=3, production files=5).',
+    'new area path: apps/new/x.ts -> docs/development/review/mastra-native.md, docs/development/review/new-app.md',
+    '::notice file=apps/new/x.ts::new area path: the base map has no area for it; judged by docs/development/review/mastra-native.md, docs/development/review/new-app.md from the head.',
+    '',
+  ].join('\n'))
+  assert.equal(result.status, 0)
+})
+
+test('a head change to a path the base already covers prints nothing extra', context => {
+  const target = fixture(context)
+  const base = commit(target)
+  writeFiles(target, { 'apps/hub/src/server.ts': 'export const changed = true\n' })
+  const head = commit(target)
+  const result = runPr(target, base, head)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, 'Review area checks passed (areas=2, production files=4).\n')
+  assert.equal(result.status, 0)
+})
+
+test('no areas.json at the base treats every changed path as new', context => {
+  const target = mkdtempSync(resolve(tmpdir(), 'conexus-review-areas-'))
+  context.after(() => rmSync(target, { recursive: true, force: true }))
+  execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: target })
+  writeFiles(target, { 'README.md': '# Fixture\n' })
+  const base = commit(target)
+  writeFiles(target, {
+    'package.json': '{"name":"fixture"}\n',
+    [AREAS]: `${JSON.stringify([{ area: 'root', paths: ['package.json'], page: 'docs/development/review/root.md' }], null, 2)}\n`,
+    'docs/development/review/root.md': '# Root\n',
+  })
+  const head = commit(target)
+  const result = runPr(target, base, head)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, [
+    'Review area checks passed (areas=1, production files=1).',
+    `${AREAS} does not exist at the merge base ${base}; every changed production path is a new area path.`,
+    'new area path: package.json -> docs/development/review/root.md',
+    '::notice file=package.json::new area path: the base map has no area for it; judged by docs/development/review/root.md from the head.',
+    '',
+  ].join('\n'))
+  assert.equal(result.status, 0)
 })
