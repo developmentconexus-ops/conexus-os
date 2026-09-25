@@ -1,0 +1,17 @@
+{
+  "case": "email-not-verified",
+  "at": "2026-09-25T18:51:20.878Z",
+  "finalUrl": "https://pedidos-de-ferias.conexus.localhost:3445/__conexus/no-access?reason=EMAIL_NOT_VERIFIED",
+  "status": 403,
+  "heading": "E-mail não verificado",
+  "text": "Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado. Verifique seu e-mail e tente entrar de novo.",
+  "navigations": [
+    "https://pedidos-de-ferias.conexus.localhost:3445/",
+    "https://hub.conexus.localhost:3443/protocol/oidc/login?application=…&binding=…",
+    "https://hub.conexus.localhost:8443/realms/conexus/protocol/openid-connect/auth?redirect_uri=…&scope=…&code_challenge=…&code_challenge_method=…&state=…&nonce=…&client_id=…&response_type=…",
+    "https://hub.conexus.localhost:8443/realms/conexus/login-actions/authenticate?session_code=…&execution=…&client_id=…&tab_id=…&client_data=…",
+    "https://hub.conexus.localhost:3443/protocol/oidc/callback?state=…&session_state=…&iss=…&code=…",
+    "https://pedidos-de-ferias.conexus.localhost:3445/__conexus/no-access?reason=EMAIL_NOT_VERIFIED"
+  ],
+  "leaks": []
+}
