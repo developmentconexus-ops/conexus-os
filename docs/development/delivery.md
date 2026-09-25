@@ -25,8 +25,8 @@ A change is in the qualification lane when any Q trigger is true:
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
 PR B is the dev Factory change that adds the Conexus review. Until it merges, no pull request gets a
-Factory verdict. The operator approved decision D1: the manager auto-merges `lane:fast` pull requests
-without `needs:aprovo`, only once CI enforces the lane guard (step M9). Until then, the operator merges.
+Factory verdict. Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
+The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
 
 Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
 
