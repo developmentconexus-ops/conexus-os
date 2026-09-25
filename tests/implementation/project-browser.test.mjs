@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 import { startWebServer } from './web-dev-server.mjs'
 
 let origin
@@ -217,7 +217,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
   await t.test('the Projects home shows cards most recent first, with state and last change', async () => {
     await reset()
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
-    await page.locator('.cx-project-card').first().waitFor()
+    await expect(page.locator('.cx-project-card')).toHaveCount(4)
     assert.deepEqual(await page.locator('.cx-project-card h3').allTextContents(), ['Pedidos de férias', 'Visitas a clientes', 'Checklist de abertura da loja', 'Estoque do almoxarifado'])
     assert.deepEqual(await page.locator('.cx-project-card .cx-chip').allTextContents(), ['Em uso', 'Construindo', 'Falhou: build do aplicativo', 'Sem prévia ainda'])
     assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Alterado há 5 min.')
