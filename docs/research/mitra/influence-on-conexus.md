@@ -2800,7 +2800,7 @@ Cruzando `tasks.md` (o razão), `CLAUDE.md` (o protocolo) e os artefatos:
 ```
 Fase 1  DISCOVERY      → agente consulta o ERP e escreve integracao-sankhya.md
                           (descobre: CODTIPOPER IN (<códigos-top>); TGFTOP.ORCAMENTO='S' está errado;
-                           VLRCUS não é custo em 94,8% dos itens)
+                           VLRCUS não é custo em `<p-custo-igual>` dos itens)
 Fase 2  ARQUITETURA    → decide importação vs. tempo real, com justificativa escrita
 Fase 3  ALINHAMENTO    → confirma definições canônicas com o usuário
 Fase 4  CHECKPOINT     → contrato aprovado ANTES de escrever código
@@ -2835,7 +2835,7 @@ O projeto **declara o que não conseguiu fazer**, em tabela, com encaminhamento:
 
 | # | Limitação | Impacto | Encaminhamento |
 |---|---|---|---|
-| 1 | `VLRCUS` não é custo — `<n1>` de `<n2>` itens (94,8%) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
+| 1 | `VLRCUS` não é custo — `<n1>` de `<n2>` itens (`<p-custo-igual>`) idênticos ao `VLRUNIT` | Margem não é calculável | **Margem fora da Fase 1** |
 | 2 | Não há vínculo usuário Mitra ↔ `CODVEND` | Tela do vendedor usa seletor | Mapear por e-mail quando houver de-para |
 | 3 | `TGFPRO.MARGLUCRO` com média baixa demais (`<x>`) para ser percentual | Parece markup, não percentual | Validar na Fase 2 |
 | 4 | Sem rotina de expiração de orçamento | `<n>` orçamentos 90d+ vivos | Pendência aberta |

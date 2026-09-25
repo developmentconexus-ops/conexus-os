@@ -732,7 +732,7 @@ O padrão mais valioso desta área: antes de codar, o agente **consulta o dado r
 validar hipóteses de escopo. No projeto de orçamentos isso derrubou três suposições:
 
 - `Orçamento = CODTIPOPER IN (<códigos-top>)` (e não o `TGFTOP.ORCAMENTO='S'`, que estava mal configurado).
-- `VLRCUS` **não é custo** em 94,8% dos itens → margem não é calculável → feature cancelada com o
+- `VLRCUS` **não é custo** em `<p-custo-igual>` dos itens → margem não é calculável → feature cancelada com o
   número que prova.
 - Pendente = `PENDENTE='S'` sem derivado em `TGFVAR` → `<n>` orçamentos / `R$ <valor>`.
 
