@@ -225,7 +225,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   await grantAccess(projectId, 'funcionaria@application.test')
   await grantAccess(otherProject, 'ninguem@application.test')
 
-  const identity = (subject, email, displayName = null) => ({ issuer: 'https://application.test', subject, verifiedEmail: email, displayName, refreshToken: `refresh-${subject}` })
+  const identity = (subject, email, displayName = null, emailVerified = email !== null) =>
+    ({ issuer: 'https://application.test', subject, verifiedEmail: email, emailVerified, displayName, refreshToken: `refresh-${subject}` })
   const binding = 'binding-secret'
   const bindingDigest = createHash('sha256').update(binding).digest()
   const T0 = new Date('2026-09-23T12:00:00.000Z')
@@ -263,6 +264,12 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await signIn(identity('stranger-sub', 'stranger@application.test')), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
     assert.deepEqual(await signIn(identity('unverified-sub', null)), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'EMAIL_NOT_VERIFIED' })
     assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject IN ('stranger-sub', 'unverified-sub')")).rows[0].n, 0)
+  })
+
+  await t.test('a verified claim whose address is missing or unparseable shows the generic no-access message, not "verify your email"', async () => {
+    assert.deepEqual(await signIn(identity('no-address-sub', null, null, true)), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
+      'verifying again would not help: the claim already says verified')
+    assert.equal((await client.query("SELECT count(*)::int AS n FROM iam.account WHERE external_subject = 'no-address-sub'")).rows[0].n, 0)
   })
 
   await t.test('two first sign-ins of one identity that race both get in, as one Account', async () => {
@@ -623,6 +630,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       'revocation ended every open session of the person for this application')
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: live, projectId, now: at(3_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(await signIn(employee, employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' })
+    assert.deepEqual(await signIn(identity('employee-sub', null), employeeId), { kind: 'NO_ACCESS', slug: 'caderno-de-compras', reason: 'NOT_GRANTED' },
+      'an existing Account with a revoked grant needs a new grant, not a re-verified email, even if the claim itself comes back unverified')
   })
 
   await t.test('a Keycloak user deleted and re-created with the same email is a new (issuer, subject): the old Account keeps its grant, and the new subject inherits nothing', async () => {

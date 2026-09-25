@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
-const { createOidcAdapter, resolveVerifiedEmail } = await import(built('identity-access/oidc.js'))
+const { createOidcAdapter, resolveVerifiedEmail, isEmailVerifiedClaim } = await import(built('identity-access/oidc.js'))
 const { identityAccessError } = await import(built('identity-access/errors.js'))
 
 const origin = 'https://conexus.test'
@@ -256,6 +256,23 @@ test('an email_verified claim that is not the strict boolean true is refused, an
 
   assert.equal(resolveVerifiedEmail({ email: 'ana@example.test' }, log), null)
   assert.deepEqual(logged.length, 2)
+})
+
+test('isEmailVerifiedClaim is false for a claim of any type but the strict boolean true, and for a realm that sends no claims at all', () => {
+  const logged = []
+  const log = (line) => logged.push(line)
+
+  assert.equal(isEmailVerifiedClaim({ email_verified: true, email: 'ana@example.test' }, log), true)
+  assert.deepEqual(logged, [])
+
+  assert.equal(isEmailVerifiedClaim({ email_verified: 'true', email: 'ana@example.test' }, log), false)
+  assert.deepEqual(logged, [{ event: 'oidc_email_verified_unexpected_type', claimType: 'string' }])
+
+  // A realm that sends neither email_verified nor email at all: 'email_verified' in claims is
+  // false, so no unexpected-type warning fires, and the claim is treated as unverified.
+  logged.length = 0
+  assert.equal(isEmailVerifiedClaim({}, log), false)
+  assert.deepEqual(logged, [])
 })
 
 const PROJECT_ID = '66666666-6666-4666-8666-666666666666'

@@ -7,7 +7,12 @@ import type { EmailAddress } from './current-session.js'
 import { identityAccessError } from './errors.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
-export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null }>
+/**
+ * `verifiedEmail` is null both when the claim says unverified and when it says verified but the
+ * address is missing or unparseable. `emailVerified` keeps that second case distinguishable: it is
+ * the raw `email_verified === true` claim, regardless of whether an address came with it.
+ */
+export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null; emailVerified: boolean }>
 /** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
 export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
 /**
@@ -46,15 +51,20 @@ type OidcDiscovery = typeof oidc.discovery
 // has no way to tell the two apart. Logging the claim's JavaScript type, and never the email or
 // the claim's value, gives the operator that signal without disclosing anything about the
 // identity being provisioned.
-export const resolveVerifiedEmail = (
+export const isEmailVerifiedClaim = (
   claims: Record<string, unknown>,
   log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
-): EmailAddress | null => {
+): boolean => {
   if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
     log({ event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified })
   }
-  return claims.email_verified === true ? parseEmailAddress(claims.email) : null
+  return claims.email_verified === true
 }
+
+export const resolveVerifiedEmail = (
+  claims: Record<string, unknown>,
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+): EmailAddress | null => (isEmailVerifiedClaim(claims, log) ? parseEmailAddress(claims.email) : null)
 
 export const createOidcAdapter = async ({
   issuer,
@@ -130,9 +140,10 @@ export const createOidcAdapter = async ({
       if (!claims?.iss || !claims.sub) throw identityAccessError('OIDC_IDENTITY_MISSING')
       // An unverified address, or a realm that asserts no address at all, is not an error.
       // It only means this identity can claim no invitation.
-      const verifiedEmail = resolveVerifiedEmail(claims)
+      const emailVerified = isEmailVerifiedClaim(claims)
+      const verifiedEmail = emailVerified ? parseEmailAddress(claims.email) : null
       const name = typeof claims.name === 'string' && /\S/.test(claims.name) ? claims.name.trim().slice(0, 200) : null
-      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, displayName: name, refreshToken: tokens.refresh_token ?? null }
+      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, emailVerified, displayName: name, refreshToken: tokens.refresh_token ?? null }
     },
     // Keycloak answers invalid_grant for a disabled user, an ended SSO session or a stale token.
     // Anything that is not an answer from Keycloak leaves the person's standing unknown.
