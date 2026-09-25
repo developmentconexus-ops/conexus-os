@@ -68,7 +68,11 @@ These are known technical follow-ups, not decisions:
 - The per-person credential path runs through the Factory's own resolver, which the Factory registers
   because the Hub-session auth provider is set. `builder-model-accounts-postgres.test.mjs` qualifies
   it with two accounts.
-- Whether a Keycloak disable or logout must end an existing Hub session is an open question.
+- **Proposed, for the operator to accept:** a Keycloak disable or logout ends an existing Hub session,
+  and the Previews it opened, within five minutes, through the same check the application session uses
+  (operator decision 2 of the [single session qualification](../tasks/single-session-qualification.md);
+  [evidence](../evidence/single-session/README.md)). Reopen on a requirement to end sessions at the instant of a
+  Keycloak logout (back-channel logout).
 
 ## Amended on 2026-09-20
 

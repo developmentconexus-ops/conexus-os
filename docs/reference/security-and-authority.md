@@ -92,7 +92,7 @@ browser
 → Keycloak authenticates the human
 → the Conexus callback validates and exchanges the code server side
 → the verified (issuer, subject) pair resolves one iam.account
-→ Conexus issues its own opaque server-owned iam.session
+→ Conexus issues its own opaque server-owned session (iam.host_session, kind HUB)
 → every protected operation resolves current Conexus authority
 ```
 
@@ -130,6 +130,44 @@ The Conexus session is an opaque server-owned cookie. Possession of a Keycloak t
 never grants Conexus authority by itself. Ending the Conexus session ends that session;
 it does not claim a global Keycloak SSO logout.
 
+One session model serves the Hub, every application host and every Preview host:
+`iam.host_session`, one row per cookie, of kind `HUB`, `APPLICATION` or `PREVIEW`, with one CHECK
+per kind. A Hub session has its CSRF digest and a 30-minute idle limit inside an absolute 8 hours.
+An application session lasts 8 hours from sign-in. A Preview session lasts at most 15 minutes
+from its launch and only while the Hub session that opened it is live. One handoff primitive,
+`iam.handoff`, carries a sign-in to exactly one host (section 4.3, section 6).
+
+Hub and application sessions keep the Keycloak refresh token of their sign-in server side,
+sealed at rest with the installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the
+Factory's AES-256-GCM envelope; every Hub requires it); the database refuses any unsealed value.
+After a key rotation, `CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` names the retired keys, which
+only decrypt, for these tokens and the Factory's credentials alike. A token no named key opens
+ends the session (`CUSTODY_CHANGED`). The list is comma-separated with no spaces, and it must not
+repeat the current key's file: the Factory throws `Duplicate key id` at start if it does.
+
+**The Keycloak check.** At most every five minutes, a request on any host refreshes the sealed
+token of the session that holds it (a Preview uses its Hub session's). Keycloak's refresh refuses
+a disabled user (`User disabled`) and an ended SSO session (`Session not active`), so a person
+disabled or signed out in Keycloak loses the Hub, every application and every Preview within five
+minutes (operator decision of the single session qualification; before it, the Hub never asked
+Keycloak). A refused refresh ends that session, and a Hub session's end ends the Previews it
+opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDED` or
+`PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused with 503
+`identity-provider-unavailable` on every Hub route (the Factory's included) and on application
+and Preview hosts, and the session is kept. Signing out of the Hub never asks Keycloak.
+
+**Rotation is off.** The realm does not rotate refresh tokens (`revokeRefreshToken: false`,
+Keycloak's default): a token refreshes any number of times, so requests that find the same check
+due may all refresh, each is served, and a compare-and-set on the check time records one of them.
+Rotation served no accepted requirement: the token never leaves the Hub and is sealed at rest,
+and rotation forced a claim protocol in the database whose failures signed people out. The
+single session qualification proved on Keycloak 26.7.2 that with rotation off a disabled user and
+an ended SSO session are still refused and no old token outlives the SSO session. Reopen on a
+Keycloak upgrade that changes refresh behaviour for a disabled user or an ended session.
+
+The realm's SSO idle limit is 40 minutes: a refresh resets it, and the Hub refreshes only when its
+five-minute check is due, so it must outlast the Hub's own 30-minute idle limit plus five minutes.
+
 ### 4.3 Application session
 
 Each application has its own host, `<app>.<CONEXUS_APPLICATION_DOMAIN>` on
@@ -148,7 +186,8 @@ document navigation at the application host, without an application session
   open application invitation to that verified email; it never issues a Hub session to an
   app-only Account
 → the Hub mints a handoff bound to that Account, application and binding, valid 60 seconds
-→ the application host redeems it once; any presentation consumes it, even a refused one
+→ the application host redeems it once; a presentation that fails any check (host, binding,
+  lifetime, access) is refused and consumes nothing, so the handoff still redeems on its own host
 → the host sets its own opaque, host-only, Secure, HttpOnly, SameSite=Lax session cookie
 ```
 
@@ -162,27 +201,11 @@ not by an email.
 Only a top-level document navigation (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`)
 starts a sign-in. Any other request without a session answers 401 and sets nothing.
 
-The application session is `iam.application_session`, separate from `iam.session`. It names
-one Account and one application and lasts at most eight hours from sign-in. It keeps the
-Keycloak refresh token server side, sealed at rest in the handoff and in the session with the
-installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the Factory's AES-256-GCM
-envelope); the database refuses any unsealed value. After a key rotation,
-`CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES` names the retired keys, which only decrypt, for these
-tokens and the Factory's credentials alike. A token no named key opens ends the session
-(`CUSTODY_CHANGED`). The list is comma-separated with no spaces, and it must not repeat the
-current key's file: the Factory throws `Duplicate key id` at start if it does. The realm rotates refresh tokens
-(`revokeRefreshToken`, `refreshTokenMaxReuse: 0`), so a token works once. At most every five
-minutes one request claims the check in the database, on whichever Hub it arrives, spends the
-token and stores the rotated one in the statement that releases the claim. The claim ages by the
-database clock; one older than a minute is taken over. Any error while the claim is held
-releases it. A request that finds the check held by another reads the session again until the
-holder settles it and answers 503 after five seconds: no request is served on a due check that
-nobody settled. A refused refresh ends the
-session and records why, as far as Keycloak's answer says: `PROVIDER_USER_DISABLED`,
-`PROVIDER_SESSION_ENDED` (the Keycloak SSO session ended, including its 30-minute idle limit)
-or `PROVIDER_REFUSED`. An unreachable Keycloak refuses the request with 503 and releases the
-claim. Because of the idle limit, a person who makes no application request for about 30 minutes is
-signed out at the next check and signs in again with their password.
+The application session is an `APPLICATION` row of `iam.host_session` (section 4.2). It names
+one Account and one application, lasts at most eight hours from sign-in, and holds the sign-in's
+sealed Keycloak refresh token. Because of Keycloak's SSO idle limit, a person who makes no
+request for about 40 minutes is signed out at the next check and signs in again with their
+password. Application sign-out ends only that application session.
 
 The application host is a top-level site. Its content security policy has the Preview's
 sources, `frame-ancestors 'none'` and no `sandbox` directive, and it grants no CORS.
@@ -202,13 +225,18 @@ variable is set, with `RETIRED_CONFIG_<name>`.
 
 ## 6. Preview serving
 
-A Preview is authorized separately from the Control Plane. Each launch binds its own
-immutable route, and a grant is checked again after the asynchronous artifact read.
-Possession or guessing of an artifact path never bypasses that check. An issued grant is
-not proof that an application works.
+A Preview is authorized separately from the Control Plane. Each launch writes its immutable
+facts (Account, Project, source and artifact revision, digest, exact host, manifest) to
+`iam.preview` and mints a `PREVIEW` handoff for the Hub session that asked, valid 30 seconds. The
+Hub's own page posts it to the Preview host with the Hub's exact `Origin`; redemption opens a
+`PREVIEW` session on that host only, and a presentation on any other host consumes nothing. Every
+Preview request resolves the session and its live Hub session again, and again after the
+asynchronous artifact read. Possession or guessing of an artifact path never bypasses that check.
+An issued handoff is not proof that an application works.
 
-Preview grants may expire when the Hub restarts. Artifacts in the registry stay reusable
-after fresh authorization.
+A Preview lives in PostgreSQL, not in the Hub process: any Hub serves it, and it survives a Hub
+restart. It ends 15 minutes after launch, or when its Hub session ends, idles out or is refused by
+Keycloak. The next launch removes ended Previews and their sessions.
 
 ## 7. Recovery
 

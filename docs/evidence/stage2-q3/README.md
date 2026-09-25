@@ -193,6 +193,9 @@ are proved against real PostgreSQL only.
    answer and storing the rotated token, Keycloak has already revoked the stored one. The next
    check gets `invalid_grant`, the session ends as `PROVIDER_REFUSED`, and the person signs in
    again. An error sealing or storing the rotated token has the same effect.
+
+   Boundaries 6 and 7 no longer exist: the [single session qualification](../single-session/README.md)
+   turned refresh-token rotation off and removed the claim protocol they came from.
 8. **An API call reads the server tree file by file.** One `reg.get_served_application` and then
    one `reg.read_served_application_file` per server file, each reading the whole artifact
    payload. On the pilot's `eval-20260923-224304` that is 5 statements per call, for 4 server
