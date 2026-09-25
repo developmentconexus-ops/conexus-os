@@ -106,8 +106,8 @@ operator dictating filenames or implementation.
   browser, persistence or runtime needs evidence from that dependency.
 - A live provider, model, E2B or Sankhya run needs explicit authority for that proof. A green
   repository gate never implies it.
-- Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`. Each leaf runs once.
-  Never regenerate expected output to hide drift. Use the explicit generation command instead.
+- Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected
+  output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route

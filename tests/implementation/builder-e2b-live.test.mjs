@@ -16,7 +16,7 @@ const createSandbox = (apiKey, templateRef, label, network) => Sandbox.create(te
   ...network,
 })
 
-test('RB exact E2B template enforces mechanics, empty guest credentials and real egress denial', { skip: live ? false : 'requires explicit CONEXUS_RB_E2B_LIVE=true authority and E2B configuration' }, async () => {
+test('RB exact E2B template enforces mechanics, empty guest credentials and real egress denial', { skip: live ? false : 'opt-in: CONEXUS_RB_E2B_LIVE=true authority and E2B configuration' }, async () => {
   const templateRef = process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID
   if (!templateRef || !/^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(templateRef)) {
     throw new Error('CONEXUS_BUILDER_E2B_TEMPLATE_ID_REFUSED')
