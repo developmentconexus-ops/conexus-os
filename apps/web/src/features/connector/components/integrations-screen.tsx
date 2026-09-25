@@ -169,7 +169,8 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
     pendingConnectionId.current ??= crypto.randomUUID()
     create.mutate(
       { connectionId: pendingConnectionId.current, connectorId: 'sankhya', label, credential: { clientId, clientSecret, xToken } },
-      { onSuccess: () => form.reset() },
+      // reset() also drops the mutation's cached variables, which hold the credential.
+      { onSuccess: () => { form.reset(); create.reset() } },
     )
   }
 

@@ -253,7 +253,48 @@ test('P8: the broker sees a resolvable grant only while it is open, the Connecti
   await t.test('disabling the Connection empties resolve_grant for every Project that held an open grant through it', async () => {
     await disable(admin, workspaceId, connectionId)
     assert.deepEqual((await resolveGrant(projectB, 'preview', 'operation', operationId)).rows, [])
+    const record = (await client.query('SELECT revoked_by, revoked_at IS NOT NULL AS revoked FROM connector.project_grant WHERE grant_id = $1', [grantB.grant_id])).rows[0]
+    assert.deepEqual(record, { revoked_by: admin, revoked: true }, 'the disable revoked the open grant, and the row stays as the record')
   })
+
+  await t.test('after disable-then-create, granting the new Connection opens a new grant that resolves', async () => {
+    const replacement = randomUUID()
+    await createConnection(admin, replacement, workspaceId, 'sankhya', 'ERP principal novo', sealed)
+    const listed = (await client.query('SELECT kind, connection_id FROM connector.list_project_grants($1, $2, $3)', [owner, projectB, [operationId]])).rows
+    assert.deepEqual(listed, [{ kind: 'grantable', connection_id: replacement }], 'no grant is left open on the disabled Connection')
+    const granted = (await grant(owner, projectB, replacement, operationId)).rows[0]
+    assert.notEqual(granted.grant_id, grantB.grant_id)
+    assert.equal(granted.connection_id, replacement)
+    assert.deepEqual((await resolveGrant(projectB, 'preview', 'operation', operationId)).rows, [{ grant_id: granted.grant_id, connection_id: replacement }])
+  })
+})
+
+test('a grant that races a disable of its Connection is revoked by it, never left open on a disabled Connection', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { fixture, client, account, workspace, project, administrator, createConnection, resolveGrant } = await connectorDatabase(t)
+  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+  const sealed = await createSecretEnvelope('34'.repeat(32)).seal(JSON.stringify({ clientId: 'client-e', clientSecret: 'secret-e', xToken: 'token-e' }))
+  const admin = await account('admin-e')
+  await administrator(admin)
+  const owner = await account('owner-e')
+  const workspaceId = await workspace('purchasing-e', [[owner, 'owner']])
+  const connectionId = randomUUID()
+  await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)
+  const projectId = await project(workspaceId, 'Pedidos')
+  const operationId = 'sankhya.purchase-order.read'
+
+  const granting = new pg.Client(fixture.connection)
+  await granting.connect()
+  fixture.onCleanup(() => granting.end())
+  await granting.query('BEGIN')
+  const opened = (await granting.query('SELECT grant_id FROM connector.grant_capability($1,$2,$3,$4)', [owner, projectId, connectionId, operationId])).rows[0]
+  const disabling = client.query('SELECT connector.disable_connection($1,$2,$3) AS found', [admin, workspaceId, connectionId])
+  const settled = await Promise.race([disabling.then(() => 'DISABLED'), new Promise((wake) => { setTimeout(() => wake('WAITING'), 300) })])
+  assert.equal(settled, 'WAITING', 'the disable waits for the open grant transaction')
+  await granting.query('COMMIT')
+  assert.equal((await disabling).rows[0].found, true)
+  const record = (await client.query('SELECT revoked_by FROM connector.project_grant WHERE grant_id = $1', [opened.grant_id])).rows[0]
+  assert.deepEqual(record, { revoked_by: admin })
+  assert.deepEqual((await resolveGrant(projectId, 'preview', 'operation', operationId)).rows, [])
 })
 
 test('read_connection_credential and list_granted_capabilities: the broker surface no admission gates', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {

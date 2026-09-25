@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { chmod, mkdir, readdir, rm } from 'node:fs/promises'
+import { chmod, lstat, mkdir, readdir, rm, unlink } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
@@ -49,11 +49,20 @@ const readBody = (request: IncomingMessage, limit: number): Promise<Buffer | nul
   request.on('error', () => resolve(null))
 })
 
-/** Unlinks every entry of the socket directory, creating it owner-only when absent. */
+const PORT_SOCKET_NAME = /^[A-Za-z0-9_-]{12}\.s$/
+
+/** Unlinks the port sockets a previous Hub left behind. It creates the directory owner-only when absent,
+ * refuses one this process does not own with mode 0700, and touches no entry that is not a port socket,
+ * so a misconfigured shared directory keeps its data. */
 export const sweepSocketDirectory = async (directory: string): Promise<void> => {
   await mkdir(directory, { recursive: true, mode: 0o700 })
-  await chmod(directory, 0o700)
-  for (const entry of await readdir(directory)) await rm(join(directory, entry), { recursive: true, force: true })
+  const stat = await lstat(directory)
+  if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) throw new Error('CONNECTOR_SOCKET_DIR_REFUSED')
+  for (const entry of await readdir(directory)) {
+    if (!PORT_SOCKET_NAME.test(entry)) continue
+    const path = join(directory, entry)
+    if ((await lstat(path)).isSocket()) await unlink(path)
+  }
 }
 
 export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LIMITS }: Readonly<{

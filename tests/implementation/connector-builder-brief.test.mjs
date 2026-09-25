@@ -85,3 +85,16 @@ test('the brief and the Skill carry none of the forbidden wire vocabulary', asyn
     assert.equal(sankhyaDefinition.builderSkill.includes(term), false, `Skill must not contain ${term}`)
   }
 })
+
+test('the module answers an empty brief, never a throw, for a Project id it cannot mint a scope for', async () => {
+  const { createConnectorModule } = await import(hubModuleUrl('connectors/module.js'))
+  const module = createConnectorModule({
+    pool: { query: async () => { throw new Error('the store must not be reached') } },
+    envelope: { seal: async () => '', open: async () => '', fingerprint: () => '' },
+    origin: 'https://conexus.test',
+    resolveCurrentSession: async () => null,
+    isInstallationAdministrator: async () => false,
+    audit: () => {},
+  })
+  assert.equal(await module.builderBrief('not-a-uuid'), '')
+})

@@ -216,7 +216,9 @@ REVOKE ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id
 GRANT ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digest text) TO hub_iam_runtime;
 
 -- Idempotent and narrowing: disabling an already-disabled Connection still answers true, and the row
--- is kept as the record of who disabled it and when.
+-- is kept as the record of who disabled it and when. Disable is terminal, so the Connection's open
+-- grants are revoked with it: every open grant is then on an enabled Connection, and the Owner grants
+-- the replacing Connection as a new grant instead of meeting the old one.
 CREATE FUNCTION connector.disable_connection(p_actor uuid, p_workspace_id uuid, p_connection_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -226,7 +228,12 @@ BEGIN
   UPDATE connector.connection AS stored
   SET disabled_at = clock_timestamp(), disabled_by = p_actor
   WHERE stored.connection_id = p_connection_id AND stored.workspace_id = p_workspace_id AND stored.disabled_at IS NULL;
-  IF FOUND THEN RETURN true; END IF;
+  IF FOUND THEN
+    UPDATE connector.project_grant AS open_grant
+    SET revoked_at = clock_timestamp(), revoked_by = p_actor
+    WHERE open_grant.connection_id = p_connection_id AND open_grant.revoked_at IS NULL;
+    RETURN true;
+  END IF;
   RETURN EXISTS (SELECT 1 FROM connector.connection AS stored WHERE stored.connection_id = p_connection_id AND stored.workspace_id = p_workspace_id);
 END;
 $$;
@@ -286,8 +293,9 @@ DECLARE
   settled_grant_id uuid;
 BEGIN
   owning_workspace_id := connector.admit_project_owner(p_actor, p_project_id);
+  -- FOR SHARE holds off a concurrent disable until this grant commits, so the disable then revokes it.
   SELECT stored.workspace_id, stored.disabled_at INTO connection_workspace_id, connection_disabled_at
-  FROM connector.connection AS stored WHERE stored.connection_id = p_connection_id;
+  FROM connector.connection AS stored WHERE stored.connection_id = p_connection_id FOR SHARE;
   IF connection_workspace_id IS NULL OR connection_workspace_id <> owning_workspace_id OR connection_disabled_at IS NOT NULL THEN
     RAISE EXCEPTION 'CONNECTOR_CONNECTION_NOT_AVAILABLE' USING ERRCODE = 'P0002';
   END IF;

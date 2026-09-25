@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -78,19 +78,28 @@ test('M2: a port is an owner-only socket; close() stops it, unlinks it and a con
   broker.release()
 })
 
-test('M2: the startup sweep empties the directory, stale sockets and files included, and keeps it owner-only', async (t) => {
+test('M2: the startup sweep unlinks only stale port sockets, and refuses a directory that is not owner-only', async (t) => {
   const directory = socketDirectory(t)
   const ports = createHandlerPorts({ directory, broker: recordingBroker() })
   const stale = await ports.open(scope)
   writeFileSync(join(directory, 'leftover.s'), 'x')
+  writeFileSync(join(directory, 'AAAAAAAAAAAA.s'), 'not a socket')
   await ports.sweep()
   assert.equal(existsSync(stale.socketPath), false)
-  assert.equal(existsSync(join(directory, 'leftover.s')), false)
+  assert.equal(existsSync(join(directory, 'leftover.s')), true, 'a file that is not a port socket is left alone')
+  assert.equal(existsSync(join(directory, 'AAAAAAAAAAAA.s')), true, 'a regular file with a port name is left alone')
   assert.equal(statSync(directory).mode & 0o777, 0o700)
   await stale.close()
   const fresh = join(directory, 'missing', 'nested')
   await createHandlerPorts({ directory: fresh, broker: recordingBroker() }).sweep()
   assert.equal(statSync(fresh).mode & 0o777, 0o700)
+
+  const shared = socketDirectory(t)
+  chmodSync(shared, 0o755)
+  writeFileSync(join(shared, 'data.txt'), 'keep')
+  await assert.rejects(createHandlerPorts({ directory: shared, broker: recordingBroker() }).sweep(), { message: 'CONNECTOR_SOCKET_DIR_REFUSED' })
+  assert.equal(existsSync(join(shared, 'data.txt')), true)
+  assert.equal(statSync(shared).mode & 0o777, 0o755, 'a refused directory keeps its mode')
 })
 
 test('P6: another Project in the input or in extra body keys never changes the resolved grant', async (t) => {

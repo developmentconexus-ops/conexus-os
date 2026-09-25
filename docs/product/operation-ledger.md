@@ -104,7 +104,7 @@ must agree exactly.
 | `CON-01` | `ListWorkspaceConnections` | Connector | the Workspace's Connections, never a credential field; installation administrator only | read |
 | `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it; the credential fields are write-only and never returned | command |
 | `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | read |
-| `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, and the row stays as the record | narrowing command |
+| `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, revokes the Connection's open grants, and the rows stay as the record | narrowing command |
 | `CON-05` | `ListProjectConnectorGrants` | Connector | exact Project's open grants and the operations it could still be granted, in one projection; Owner of the Project's Workspace only | read |
 | `CON-06` | `GrantProjectConnectorOperation` | Connector | exact Project + one operation of one Connection of its own Workspace; Owner of the Project's Workspace only; an operation already granted through another Connection answers that grant | command |
 | `CON-07` | `RevokeProjectConnectorGrant` | Connector | exact Project's connector grant; narrowing, and the next call through it is refused; Owner of the Project's Workspace only | narrowing command |
