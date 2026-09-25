@@ -11,6 +11,6 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "pilot che
 env_file="${CONEXUS_PILOT_HUB_ENV:-$HOME/wt-rmmc/.audit/slice7/hub.env}"
 logs="${CONEXUS_PILOT_LOGS:-$HOME/conexus-pilot-logs}"
 mkdir -p "$logs"
-exec > >(tee "$logs/hub.log") 2>&1
+exec > >(tee -a "$logs/hub.log") 2>&1
 echo "hub starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
 exec node --env-file="$env_file" scripts/build-hub-local.mjs
