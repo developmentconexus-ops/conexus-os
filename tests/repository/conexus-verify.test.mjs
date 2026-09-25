@@ -316,7 +316,6 @@ test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', ()
 
   const calls = []
   const result = runVerification({
-    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
@@ -336,7 +335,6 @@ test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run li
   const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
   const calls = []
   const result = runVerification({
-    processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
