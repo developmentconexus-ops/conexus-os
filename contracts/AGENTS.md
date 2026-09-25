@@ -17,7 +17,3 @@ npm run r1:s2:check
 npm run db:roles:check
 npm run db:catalog:check     # needs PostgreSQL
 ```
-
-## Review
-
-Review: load the pages `docs/development/review/areas.json` maps your paths to. `api/` is `contracts.md`, `technical/` is `data-migrations.md`.
