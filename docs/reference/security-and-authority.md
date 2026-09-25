@@ -149,7 +149,7 @@ repeat the current key's file: the Factory throws `Duplicate key id` at start if
 token of the session that holds it (a Preview uses its Hub session's). Keycloak's refresh refuses
 a disabled user (`User disabled`) and an ended SSO session (`Session not active`), so a person
 disabled or signed out in Keycloak loses the Hub, every application and every Preview within five
-minutes (operator decision of the single session qualification; before it, the Hub never asked
+minutes (operator decision 2 of the single session qualification, accepted on 2026-09-25; before it, the Hub never asked
 Keycloak). A refused refresh ends that session, and a Hub session's end ends the Previews it
 opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDED` or
 `PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused and the

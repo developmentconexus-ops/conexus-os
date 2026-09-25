@@ -69,15 +69,15 @@ These are known technical follow-ups, not decisions:
   because the Hub-session auth provider is set. `builder-model-accounts-postgres.test.mjs` qualifies
   it with two accounts.
 
-## Proposed by the single session qualification
+## Decided on 2026-09-25, from the single session qualification
 
 These rows come from the [single session qualification](../tasks/single-session-qualification.md), whose verdict the
-operator gave as ACCEPT on 2026-09-25 ([evidence](../evidence/single-session/README.md)). Each row says whether the
-operator has accepted it.
+operator gave as ACCEPT on 2026-09-25 ([evidence](../evidence/single-session/README.md)). The operator accepted both
+rows that day, in the chat with the manager.
 
 | Decision | Consequence |
 | --- | --- |
-| **PROPOSED.** A Keycloak disable or logout ends an existing Hub session, and the Previews it opened, within five minutes, through the same check the application session uses (operator decision 2 of the task). | Replaces the open question "whether a Keycloak disable or logout must end an existing Hub session". Reopen on a requirement to end sessions at the instant of a Keycloak logout (back-channel logout). |
+| **Accepted by the operator on 2026-09-25**, in the chat with the manager. A Keycloak disable or logout ends an existing Hub session, and the Previews it opened, within five minutes, through the same check the application session uses (operator decision 2 of the task). | Replaces the open question "whether a Keycloak disable or logout must end an existing Hub session". Reopen on a requirement to end sessions at the instant of a Keycloak logout (back-channel logout). |
 | **Accepted by the operator on 2026-09-25**, in the chat with the manager. When a due Keycloak check cannot reach Keycloak, every Hub route answers 503 `identity-provider-unavailable`, the Factory's routes included, and the session is kept. | The operator accepted "the session is kept, the Hub answers 503, the Factory answers 401" (D4); the Factory's routes answer 503 instead, because the Hub's own check runs before Mastra's auth. |
 
 ## Amended on 2026-09-20
