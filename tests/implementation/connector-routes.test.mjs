@@ -27,7 +27,7 @@ const makeStore = (overrides = {}) => {
   return {
     calls,
     async listConnections(input) { calls.push({ name: 'listConnections', input }); return [connectionEntry] },
-    async createConnection(input) { calls.push({ name: 'createConnection', input }); return connectionEntry },
+    async createConnection(input) { calls.push({ name: 'createConnection', input }); return { connection: connectionEntry, created: true } },
     async disableConnection(input) { calls.push({ name: 'disableConnection', input }); return true },
     async listProjectGrants(input) { calls.push({ name: 'listProjectGrants', input }); return [openGrant, grantable] },
     async grantCapability(input) { calls.push({ name: 'grantCapability', input }); return openGrant },
@@ -97,17 +97,51 @@ test('an installation administrator lists, creates and disables a Workspace Conn
   assert.deepEqual(store.calls.at(-1), { name: 'disableConnection', input: { actor: adminAccountId, workspaceId, connectionId } })
 })
 
-test('a second open Connection of the same Connector in the Workspace answers 409, not a server error', async (t) => {
-  const openExists = () => Object.assign(new Error('duplicate key value violates unique constraint "connection_open_key"'), { code: '23505', constraint: 'connection_open_key' })
-  const app = await makeApp(makeStore({ async createConnection() { throw openExists() } }))
+test('a retry the store recognizes answers 200, a changed one 409, and a Workspace that does not exist 422', async (t) => {
+  const outcomes = [
+    async () => ({ connection: connectionEntry, created: false }),
+    async () => { throw Object.assign(new Error('CONNECTOR_CONNECTION_CONFLICT'), { code: 'P0001' }) },
+    async () => { throw Object.assign(new Error('CONNECTOR_WORKSPACE_NOT_FOUND'), { code: 'P0002' }) },
+  ]
+  const app = await makeApp(makeStore({ createConnection: () => outcomes.shift()() }))
   t.after(() => app.close())
-  const created = await app.inject({
-    method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
-    payload: { connectionId, connectorId: 'sankhya', label: 'Segunda', credential },
-  })
-  assert.equal(created.statusCode, 409)
-  assert.equal(created.json().type.endsWith('connector-connection-conflict'), true)
-  bodyHasNoCredential(created.json())
+  const post = () => app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential } })
+
+  const retried = await post()
+  assert.deepEqual({ status: retried.statusCode, body: retried.json() },
+    { status: 200, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-24T10:00:00.000Z' } })
+  const changed = await post()
+  assert.deepEqual({ status: changed.statusCode, type: changed.json().type }, { status: 409, type: 'urn:conexus:problem:connector-connection-conflict' })
+  const nowhere = await post()
+  assert.deepEqual({ status: nowhere.statusCode, type: nowhere.json().type }, { status: 422, type: 'urn:conexus:problem:connector-workspace-not-found' })
+  for (const response of [retried, changed, nowhere]) bodyHasNoCredential(response.json())
+})
+
+test('a reference PostgreSQL could not read as a uuid gets the declared 404 or 422, and never reaches the store', async (t) => {
+  const store = makeStore()
+  const app = await makeApp(store)
+  t.after(() => app.close())
+  const bad = 'not-a-uuid'
+  const cases = [
+    { method: 'GET', url: `/api/control/workspaces/${bad}/connections`, cookies: session, expected: { status: 200, body: { entries: [] } } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-workspace-not-found' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-connection-id-refused' } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'DELETE', url: `/api/control/workspaces/${bad}/connections/${connectionId}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${bad}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'GET', url: `/api/control/projects/${bad}/connector-grants`, cookies: session, expected: { status: 404, type: 'project-not-found' } },
+    { method: 'POST', url: `/api/control/projects/${bad}/connector-grants`, ...authentic, payload: { connectionId, operationId: 'sankhya.purchase-order.read' }, expected: { status: 404, type: 'project-not-found' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connector-grants`, ...authentic, payload: { connectionId: bad, operationId: 'sankhya.purchase-order.read' }, expected: { status: 422, type: 'connector-connection-id-refused' } },
+    { method: 'DELETE', url: `/api/control/projects/${bad}/connector-grants/${grantId}`, ...authenticDelete, expected: { status: 404, type: 'project-not-found' } },
+    { method: 'DELETE', url: `/api/control/projects/${projectId}/connector-grants/${bad}`, ...authenticDelete, expected: { status: 404, type: 'connector-grant-not-found' } },
+  ]
+  for (const { expected, ...request } of cases) {
+    const response = await app.inject(request)
+    const seen = expected.body ? { status: response.statusCode, body: response.json() } : { status: response.statusCode, type: response.json().type }
+    assert.deepEqual(seen, expected.body ? expected : { status: expected.status, type: `urn:conexus:problem:${expected.type}` }, `${request.method} ${request.url} ${JSON.stringify(request.payload ?? {})}`)
+  }
+  assert.deepEqual(store.calls, [])
 })
 
 test('the credential fields are writeOnly: a malformed credential is refused before the store, and every field name stays out of every response', async (t) => {

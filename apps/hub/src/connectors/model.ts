@@ -50,13 +50,15 @@ export const isConnectorProjectNotFound = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
   'message' in error && error.message === 'CONNECTOR_PROJECT_NOT_FOUND'
 
+export const isConnectorWorkspaceNotFound = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
+  'message' in error && error.message === 'CONNECTOR_WORKSPACE_NOT_FOUND'
+
 export const isConnectorConnectionNotAvailable = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
   'message' in error && error.message === 'CONNECTOR_CONNECTION_NOT_AVAILABLE'
 
 // A retry that differs from the stored row, or a second open Connection of the same Connector in one
-// Workspace (the partial unique index connection_open_key).
+// Workspace: connector.create_connection raises both by name.
 export const isConnectorConnectionConflict = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && (
-    ('message' in error && error.message === 'CONNECTOR_CONNECTION_CONFLICT') ||
-    ('code' in error && error.code === '23505' && 'constraint' in error && error.constraint === 'connection_open_key'))
+  typeof error === 'object' && error !== null && 'message' in error && error.message === 'CONNECTOR_CONNECTION_CONFLICT'

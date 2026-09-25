@@ -52,11 +52,12 @@ const toGrantEntry = (row: GrantRow): ProjectGrantEntry =>
  * returns a credential field, in either direction: the caller can only ever supply one. */
 export type ConnectorStore = Readonly<{
   listConnections(input: Readonly<{ actor: AccountId; workspaceId: string }>): Promise<readonly Connection[]>
-  /** `credential`'s fields are sealed together as one JSON envelope; the store never inspects them. */
+  /** `credential`'s fields are sealed together as one JSON envelope; the store never inspects them.
+   * `created` is false when an earlier request with this id and these same fields made the row. */
   createConnection(input: Readonly<{
     actor: AccountId; connectionId: ConnectionId; workspaceId: string; connectorId: ConnectorId
     label: string; credential: Readonly<Record<string, string>>
-  }>): Promise<Connection>
+  }>): Promise<Readonly<{ connection: Connection; created: boolean }>>
   disableConnection(input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: ConnectionId }>): Promise<boolean>
   listProjectGrants(input: Readonly<{ actor: AccountId; projectId: string; operationIds: readonly OperationId[] }>): Promise<readonly ProjectGrantEntry[]>
   grantCapability(input: Readonly<{ actor: AccountId; projectId: string; connectionId: ConnectionId; operationId: OperationId }>): Promise<OpenGrant>
@@ -100,12 +101,14 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
   },
   async createConnection({ actor, connectionId, workspaceId, connectorId, label, credential }) {
     const sealed = await envelope.seal(JSON.stringify(credential))
-    const result = await pool.query<ConnectionRow>(
-      'SELECT connection_id, connector_id, label, created_at, disabled_at FROM connector.create_connection($1, $2, $3, $4, $5, $6)',
-      [actor, connectionId, workspaceId, connectorId, label, sealed])
+    // Sorted keys, so a retry that sends the same fields in another order has the same digest.
+    const digest = envelope.fingerprint(JSON.stringify(credential, Object.keys(credential).sort()))
+    const result = await pool.query<ConnectionRow & { created: boolean }>(
+      'SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1, $2, $3, $4, $5, $6, $7)',
+      [actor, connectionId, workspaceId, connectorId, label, sealed, digest])
     const row = result.rows[0]
     if (!row) throw new Error('CONNECTOR_CONNECTION_NOT_READABLE')
-    return toConnection(row)
+    return { connection: toConnection(row), created: row.created }
   },
   async disableConnection({ actor, workspaceId, connectionId }) {
     const result = await pool.query<QueryResultRow & { found: boolean }>(

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, createHmac, hkdfSync } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { createFactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import type { FactorySecretEncryption, FactorySecretEncryptionKey } from '@mastra/factory/secret-encryption'
@@ -28,11 +28,15 @@ export type SecretEnvelope = Readonly<{
   seal(value: string): Promise<string>
   /** Refuses anything that is not a sealed envelope under this key: a plaintext value is never read. */
   open(sealed: string): Promise<string>
+  /** A keyed HMAC-SHA256 of the value, in hex: equal for equal values under the current key, so a stored
+   * secret can be compared without opening it, and useless to anyone who does not hold the key. */
+  fingerprint(value: string): string
 }>
 
 /** Seals a secret the Hub keeps at rest with the same key and AES-256-GCM envelope as the Factory's stored credentials. */
 export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly string[] = []): SecretEnvelope => {
   const encryption = factorySecretEncryption(hexKey, previousHexKeys)
+  const fingerprintKey = Buffer.from(hkdfSync('sha256', factorySecretKey(hexKey).key, Buffer.alloc(0), 'conexus:secret-fingerprint:v1', 32))
   return Object.freeze({
     seal: (value: string) => encryption.encrypt(value),
     open: async (sealed: string) => {
@@ -41,5 +45,6 @@ export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly s
       if (typeof value !== 'string') throw new Error('SECRET_NOT_SEALED')
       return value
     },
+    fingerprint: (value: string) => createHmac('sha256', fingerprintKey).update(value).digest('hex'),
   })
 }

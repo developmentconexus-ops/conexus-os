@@ -5,6 +5,7 @@ import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase } from './hub-database.mjs'
 
+const DIGEST = 'd'.repeat(64)
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 
 const refusal = async (run) => {
@@ -47,9 +48,9 @@ const connectorDatabase = async (t) => {
   const administrator = async (accountId) => {
     await client.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [accountId])
   }
-  const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed) =>
-    client.query('SELECT connection_id, connector_id, label, created_at, disabled_at FROM connector.create_connection($1,$2,$3,$4,$5,$6)',
-      [actor, connectionId, workspaceId, connectorId, label, credentialSealed])
+  const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest = DIGEST) =>
+    client.query('SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1,$2,$3,$4,$5,$6,$7)',
+      [actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest])
   const grant = (actor, projectId, connectionId, operationId) =>
     client.query('SELECT grant_id, connection_id, connector_id, capability_id, granted_at FROM connector.grant_capability($1,$2,$3,$4)',
       [actor, projectId, connectionId, operationId])
@@ -60,7 +61,7 @@ const connectorDatabase = async (t) => {
   const resolveGrant = (projectId, environment, kind, capabilityId) =>
     client.query('SELECT grant_id, connection_id FROM connector.resolve_grant($1,$2,$3,$4)', [projectId, environment, kind, capabilityId])
 
-  return { client, account, workspace, project, administrator, createConnection, grant, revoke, disable, resolveGrant }
+  return { fixture, client, account, workspace, project, administrator, createConnection, grant, revoke, disable, resolveGrant }
 }
 
 test('installation administrators hold a Workspace Connection; idempotent create and a conflicting retry', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
@@ -83,8 +84,8 @@ test('installation administrators hold a Workspace Connection; idempotent create
 
   await t.test('P1: the stored row matches the sealed envelope prefix and holds no fragment of the credential', async () => {
     const created = (await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)).rows[0]
-    assert.deepEqual({ connector_id: created.connector_id, label: created.label, disabled_at: created.disabled_at },
-      { connector_id: 'sankhya', label: 'ERP principal', disabled_at: null })
+    assert.deepEqual({ connector_id: created.connector_id, label: created.label, disabled_at: created.disabled_at, created: created.created },
+      { connector_id: 'sankhya', label: 'ERP principal', disabled_at: null, created: true })
     const stored = (await client.query('SELECT credential_sealed FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
     assert.ok(stored.credential_sealed.startsWith('mastra:factory-secret:v1:'))
     for (const secret of ['client-a', 'super-secret-value', 'x-token-value']) {
@@ -94,14 +95,30 @@ test('installation administrators hold a Workspace Connection; idempotent create
   })
 
   await t.test('a retry with the same id and fields is idempotent; a retry with a different field is a conflict', async () => {
-    const repeat = (await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)).rows[0]
-    assert.equal(repeat.connection_id, connectionId)
-    assert.deepEqual(await refusal(() => createConnection(admin, connectionId, workspaceId, 'sankhya', 'Different label', sealed)),
-      { code: 'P0001', message: 'CONNECTOR_CONNECTION_CONFLICT' })
+    const reseal = await envelope.seal(JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }))
+    assert.notEqual(reseal, sealed, 'a fresh seal of the same credential is different ciphertext')
+    const repeat = (await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', reseal)).rows[0]
+    assert.deepEqual({ connection_id: repeat.connection_id, created: repeat.created }, { connection_id: connectionId, created: false })
+    const conflict = { code: 'P0001', message: 'CONNECTOR_CONNECTION_CONFLICT' }
+    assert.deepEqual(await refusal(() => createConnection(admin, connectionId, workspaceId, 'sankhya', 'Different label', sealed)), conflict)
+    assert.deepEqual(await refusal(() => createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed, 'e'.repeat(64))), conflict)
+    const stored = (await client.query('SELECT credential_sealed, credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
+    assert.deepEqual(stored, { credential_sealed: sealed, credential_digest: DIGEST }, 'no retry replaced the stored credential')
   })
 
   await t.test('a second open Connection of the same Workspace and Connector is refused', async () => {
-    assert.equal((await refusal(() => createConnection(admin, randomUUID(), workspaceId, 'sankhya', 'Second', sealed))).code, '23505')
+    assert.deepEqual(await refusal(() => createConnection(admin, randomUUID(), workspaceId, 'sankhya', 'Second', sealed)),
+      { code: 'P0001', message: 'CONNECTOR_CONNECTION_CONFLICT' })
+  })
+
+  await t.test('a Connection of a Workspace that does not exist is refused by name', async () => {
+    assert.deepEqual(await refusal(() => createConnection(admin, randomUUID(), randomUUID(), 'sankhya', 'Nowhere', sealed)),
+      { code: 'P0002', message: 'CONNECTOR_WORKSPACE_NOT_FOUND' })
+  })
+
+  await t.test('a digest that is not 64 hex characters is refused by the column CHECK', async () => {
+    const other = await workspace('digest-a')
+    assert.equal((await refusal(() => createConnection(admin, randomUUID(), other, 'sankhya', 'Digest', sealed, 'not-a-digest'))).code, '23514')
   })
 
   await t.test('an unsealed credential is refused by the column CHECK', async () => {
@@ -264,4 +281,43 @@ test('read_connection_credential and list_granted_capabilities: the broker surfa
   await disable(admin, workspaceId, connectionId)
   assert.equal(await read(connectionId), null, 'a disabled Connection answers no credential')
   assert.deepEqual((await client.query('SELECT * FROM connector.list_granted_capabilities($1, $2)', [projectId, 'preview'])).rows, [])
+})
+
+test('the Hub store tells an identical retry from a changed credential without opening the stored one', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { fixture, client, account, workspace, administrator } = await connectorDatabase(t)
+  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+  const { createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
+  const { isConnectorConnectionConflict } = await import(hubModuleUrl('connectors/model.js'))
+  const pool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 10 })
+  pool.on('error', () => {})
+  fixture.onCleanup(() => pool.end())
+  const envelope = createSecretEnvelope('ab'.repeat(32))
+  const store = createConnectorStore({ pool, envelope })
+
+  const admin = await account('admin-store')
+  await administrator(admin)
+  const workspaceId = await workspace('purchasing-store', [[admin, 'owner']])
+  const credential = { clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }
+  const create = (connectionId, fields = {}) => store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  const summary = ({ connection, created }) => ({ connectionId: connection.connectionId, created })
+
+  const connectionId = randomUUID()
+  assert.deepEqual(summary(await create(connectionId)), { connectionId, created: true })
+  assert.deepEqual(summary(await create(connectionId, { credential: { xToken: 'x-token-value', clientSecret: 'super-secret-value', clientId: 'client-a' } })),
+    { connectionId, created: false }, 'the same credential in another key order is the same retry')
+  const changed = await create(connectionId, { credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
+  assert.equal(isConnectorConnectionConflict(changed), true, 'a retry that changes the credential is a conflict')
+
+  assert.equal((await refusal(() => pool.query('SELECT credential_digest FROM connector.connection'))).code, '42501', 'hub_iam_runtime only calls the functions')
+  const digest = (await client.query('SELECT credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0].credential_digest
+  const canonical = JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' })
+  assert.equal(digest, envelope.fingerprint(canonical))
+  assert.notEqual(digest, createSecretEnvelope('cd'.repeat(32)).fingerprint(canonical), 'the digest is keyed by the installation key')
+
+  // A client that times out and retries while its first request is still in flight.
+  const racedId = randomUUID()
+  const other = await workspace('purchasing-race', [[admin, 'owner']])
+  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', credential })))
+  assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
+  assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
 })

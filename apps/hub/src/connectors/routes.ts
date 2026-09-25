@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 import { CONNECTOR_GENERATED_ROUTES } from '../generated/connector-routes.js'
 import type {
   ConnectorOwnerId, CreateWorkspaceConnectionBody, GrantProjectConnectorOperationBody,
@@ -7,7 +8,7 @@ import type {
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import {
-  isConnectorConnectionConflict, isConnectorConnectionNotAvailable, isConnectorNotAdmitted, isConnectorProjectNotFound,
+  isConnectorConnectionConflict, isConnectorConnectionNotAvailable, isConnectorNotAdmitted, isConnectorProjectNotFound, isConnectorWorkspaceNotFound,
 } from './model.js'
 import type { OperationId } from './model.js'
 import { connectionId as toConnectionId, grantId as toGrantId, operationId as toOperationId } from './model.js'
@@ -15,6 +16,10 @@ import type { ConnectorStore } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
+// Every id the wire carries is an untrusted string, and the store's functions take uuid parameters: a
+// reference PostgreSQL could not read as a uuid is answered here as the resource it cannot name.
+const UUID = z.guid()
+const isUuid = (value: string): boolean => UUID.safeParse(value).success
 
 /** The Connection's outcome through the allow-listed authentication alone.
  * `NOT_FOUND`: no open Connection with this id in this Workspace. */
@@ -73,6 +78,7 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, false)
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
+      if (!isUuid(request.params.workspaceId)) return { entries: [] }
       const connections = await store.listConnections({ actor, workspaceId: request.params.workspaceId })
       return { entries: connections.map((connection) => ({ connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(), ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}) })) }
     },
@@ -85,20 +91,23 @@ export const registerConnectorRoutes = async (
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
       const { connectionId, connectorId, label, credential } = request.body
+      if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
+      if (!isUuid(connectionId)) return sendProblem(reply, 422, 'connector-connection-id-refused', 'Connector Connection id refused')
       const schema = credentialSchemas[connectorId]
       if (!schema?.safeParse(credential).success) {
         return sendProblem(reply, 422, 'connector-credential-refused', 'Connector credential refused')
       }
       try {
-        const connection = await store.createConnection({
+        const { connection, created } = await store.createConnection({
           actor, connectionId: toConnectionId(connectionId), workspaceId: request.params.workspaceId, connectorId, label, credential,
         })
-        return reply.code(201).send({
+        return reply.code(created ? 201 : 200).send({
           connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(),
           ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}),
         })
       } catch (error) {
         if (isConnectorConnectionConflict(error)) return sendProblem(reply, 409, 'connector-connection-conflict', 'Connector Connection conflict')
+        if (isConnectorWorkspaceNotFound(error)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
         if (isConnectorNotAdmitted(error)) return sendProblem(reply, 403, 'installation-administrator-required', 'Installation administrator required')
         throw error
       }
@@ -111,6 +120,7 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
+      if (!isUuid(request.params.workspaceId) || !isUuid(request.params.connectionId)) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
       const outcome = await checkConnection({ actor, workspaceId: request.params.workspaceId, connectionId: request.params.connectionId })
       if (outcome === 'NOT_FOUND') return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
       return { outcome }
@@ -123,6 +133,7 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
+      if (!isUuid(request.params.workspaceId) || !isUuid(request.params.connectionId)) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
       const found = await store.disableConnection({ actor, workspaceId: request.params.workspaceId, connectionId: toConnectionId(request.params.connectionId) })
       if (!found) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
       return reply.code(204).send()
@@ -134,6 +145,7 @@ export const registerConnectorRoutes = async (
     handler: async (request, reply) => {
       const actor = await admittedActor(request, reply, false)
       if (!actor) return reply
+      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
       try {
         const entries = await store.listProjectGrants({ actor, projectId: request.params.projectId, operationIds: [...admittedOperationIds] })
         return { entries: entries.map((entry) => entry.kind === 'grant'
@@ -151,6 +163,8 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       const { connectionId, operationId } = request.body
+      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+      if (!isUuid(connectionId)) return sendProblem(reply, 422, 'connector-connection-id-refused', 'Connector Connection id refused')
       if (!admittedOperationIds.has(toOperationId(operationId))) {
         return sendProblem(reply, 422, 'connector-operation-not-admitted', 'Connector operation not admitted')
       }
@@ -168,6 +182,8 @@ export const registerConnectorRoutes = async (
     handler: async (request, reply) => {
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
+      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+      if (!isUuid(request.params.grantId)) return sendProblem(reply, 404, 'connector-grant-not-found', 'Connector grant not found')
       try {
         const found = await store.revokeGrant({ actor, projectId: request.params.projectId, grantId: toGrantId(request.params.grantId) })
         if (!found) return sendProblem(reply, 404, 'connector-grant-not-found', 'Connector grant not found')
