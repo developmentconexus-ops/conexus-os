@@ -226,7 +226,7 @@ real read (Q4.6).
 
 ## 7. Storage
 
-Migration `0026_connector.sql`:
+Migration `0029_connector.sql`:
 
 - A NOLOGIN owner role `connector_owner` and a schema `connector`. No new login role and no new pilot
   secret: the functions are executable by `hub_iam_runtime`, as Q3's application-access functions

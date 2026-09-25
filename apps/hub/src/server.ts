@@ -50,17 +50,17 @@ const identityAccess = await createIdentityAccessModule(identityAccessDependenci
 // The Connector Connection's credential is sealed with the same installation key as an application
 // session's refresh token, so the module needs no login role of its own: connector.* functions run
 // as hub_iam_runtime, like application-access's do.
-const connectors = config.factory ? createConnectorModule({
+const connectors = createConnectorModule({
   pool,
-  envelope: createSecretEnvelope(readSecretFile(config.factory.secretKeyFile), config.factory.previousSecretKeyFiles.map(readSecretFile)),
+  envelope: identityAccessDependencies.envelope,
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
   gatewayOrigin: config.connectors.gatewayOrigin,
   socketDirectory: config.connectors.socketDirectory,
-}) : undefined
+})
 // A restarted Hub leaves no orphan handler socket still answering.
-await connectors?.sweepHandlerPorts()
+await connectors.sweepHandlerPorts()
 const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
   commandPool: createPostgresPool({
     host: config.database.host,
@@ -131,7 +131,7 @@ const mar = config.preview ? createMarModule({
       },
       invoke: applicationRunner.invoke,
       // Each invocation gets its own connector port, minted by the Connector owner from the source.
-      ...(connectors ? { openConnectorPort: (source) => connectors.openHandlerPort(source) } : {}),
+      openConnectorPort: (source) => connectors.openHandlerPort(source),
     },
   } : {}),
   ...(config.application && servedApplications ? {
@@ -175,7 +175,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
   // What the Builder learns about this Project's own granted connector operations.
-  ...(connectors ? { connectorBrief: (projectId: string) => connectors.builderBrief(projectId) } : {}),
+  connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
 }) : undefined
 const app = await createHttpApp({
   registerRoutes: async (server) => [
@@ -183,7 +183,7 @@ const app = await createHttpApp({
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
-    ...(connectors ? await connectors.registerConnectorRoutes(server) : []),
+    ...(await connectors.registerConnectorRoutes(server)),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
   ...(config.preview ? {
