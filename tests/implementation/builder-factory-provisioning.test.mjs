@@ -22,7 +22,7 @@ const setup = async (t, fakeOptions) => {
   onCleanup(() => github.close())
   const factoryPool = testPool({ connectionString, options: '-c search_path=factory', max: 4 })
   const storage = createFactoryStorage(factoryPool)
-  onCleanup(async () => { await storage.close().catch(() => {}); await factoryPool.end().catch(() => {}) })
+  onCleanup(async () => { try { await storage.close() } finally { await factoryPool.end() } })
   const records = await openFactoryRecords(storage)
   // Assuming the role at connection start exercises its grants without writing a cluster-global password.
   const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
