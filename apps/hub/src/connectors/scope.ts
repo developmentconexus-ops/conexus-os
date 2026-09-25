@@ -26,3 +26,15 @@ export const isMintedScope = (value: unknown): value is ConsumerScope =>
  * once the application host gets its own environment. */
 export const scopeFromArtifactSource = (source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): ConsumerScope =>
   mint(source.projectId, 'preview')
+
+// The agent tool's scope (Q4.9), minted by the Hub for the session's own Project and carried in the
+// session's RequestContext under this key.
+export const CONNECTOR_SCOPE_CONTEXT_KEY = 'conexus.connectorScope'
+
+export const scopeForAgentSession = (session: Readonly<{ projectId: string }>): ConsumerScope => mint(session.projectId, 'preview')
+
+/** Only a scope this module minted is read back; anything a request could have filled is refused. */
+export const scopeFromRequestContext = (context: Readonly<{ get(key: string): unknown }>): ConsumerScope | null => {
+  const value = context.get(CONNECTOR_SCOPE_CONTEXT_KEY)
+  return isMintedScope(value) ? value : null
+}
