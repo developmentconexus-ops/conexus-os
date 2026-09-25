@@ -234,10 +234,13 @@ Migration `0029_connector.sql`:
 - `project.project` gains `UNIQUE (project_id, workspace_id)`. `project_id` is already unique, so this
   adds no rule on data; it is the target of a composite key.
 - `connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed,
-  created_by, created_at, disabled_by, disabled_at)`. `connection_id` is chosen by the client, so a
-  retried create answers the same row. `credential_sealed` has a CHECK on the envelope prefix, so
-  plaintext cannot be stored, and there is no column for an MGE user or password. One open
-  Connection per Workspace and connector (partial unique index).
+  credential_digest, created_by, created_at, disabled_by, disabled_at)`. `connection_id` is chosen by
+  the client, so a retried create answers the same row with 200. The seal is randomized, so
+  `credential_digest`, an HMAC-SHA256 of the credential under a subkey of the installation key, is
+  what tells an identical retry from one that changes the credential; the second is a 409. After a
+  key rotation an identical retry is a 409 too, which is safe. `credential_sealed` has a CHECK on
+  the envelope prefix, so plaintext cannot be stored, and there is no column for an MGE user or
+  password. One open Connection per Workspace and connector (partial unique index).
 - `connector.project_grant(grant_id, workspace_id, project_id, environment, connection_id,
   capability_kind, capability_id, granted_by, granted_at, revoked_by, revoked_at)`. Two composite
   foreign keys share `workspace_id`: `(project_id, workspace_id)` to `project.project` and
@@ -281,6 +284,9 @@ Per run, per Project, through the channel the Hub already owns: `factory-runtime
 `factoryAgentInstructions` gains a brief built from `list_granted_capabilities`:
 
 - empty for a Project with no open grant;
+- a fixed notice when the grants cannot be read: the run goes on, told not to call `connectors.call`
+  and to tell the person that connected data is unavailable. The Hub logs one line with no store
+  detail. The broker still checks the grant on every call;
 - otherwise, for each granted operation, its id, summary, input and output JSON Schema
   (`z.toJSONSchema`, zod 4.5.2), one handler snippet using `connectors.call`, and the granted
   Definition's Skill.

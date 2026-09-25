@@ -44,7 +44,7 @@ Applications cluster, never the pilot. CI runs the same tests at the pull reques
 | Q4.2 | A stored Connection holds only ciphertext; no Hub operation returns a credential field. A browser creates a Connection and a Grant, reloads, and finds no credential value in the page, the input values, the network responses or the Hub's log. | `connector-postgres`, `connector-routes`, `connector-integrations-browser` |
 | Q4.3 | P7 and P8 against real PostgreSQL; `wire:bijection` at 31 operations. | `connector-postgres`, `connector-broker-postgres` |
 | Q4.4 | A handler reads a fake order through the grant; the fake saw one fixed service with fixed fields; ten concurrent calls cause one authentication; a token is refreshed before it expires; the worker holds no credential; P3 to P6, P9 and P10. The manager's four conditions M1 to M4 (design.md section 5). | `connector-broker`, `connector-token-cache`, `connector-handler-port`, `connector-broker-postgres`, `application-runner-sandbox`, `application-invoker` |
-| Q4.5 | No grant, no brief; with the grant, the operation's id and both contracts; the brief and the Skill hold no wire vocabulary, gateway origin or credential field name. | `connector-builder-brief`, `builder-factory-runtime` |
+| Q4.5 | No grant, no brief; with the grant, the operation's id and both contracts; the brief and the Skill hold no wire vocabulary, gateway origin or credential field name; an unreadable store gives a notice and the run goes on. | `connector-builder-brief`, `builder-factory-runtime` |
 
 For M3, the socket on the host belongs to uid 1000 with mode `0600`. Inside the sandbox the handler
 runs as uid 1000 and connects without any permission change.
@@ -60,7 +60,18 @@ document number 22790 is the one exception.
 ## Findings
 
 1. **Resolved in part 1.** A second open Connection in one Workspace surfaced as a server error. It
-   now answers 409, and the screen offers the form only when no Connection is open (`8998a66d`).
+   now answers 409, and the screen offers the form only when no Connection is open (`8f9ea4d1`).
+2. **Resolved in review.** A create retry could not tell an identical credential from a changed one,
+   so a changed credential was silently dropped, and every retry answered 201. The Connection now
+   stores a keyed digest of the credential. An identical retry answers 200, a changed one 409, and
+   concurrent retries converge on one row. `connector-postgres`, `connector-routes`.
+3. **Resolved in review.** A malformed id in a path or body reached PostgreSQL as a `uuid` parameter
+   and failed as a server error. Every id is parsed at the route, and a malformed one gets the
+   declared 404 or 422 before the store. A create in a Workspace that does not exist answers 422.
+   `connector-routes`, `connector-postgres`.
+4. **Resolved in review.** A failed read of the grants aborted the Builder run. The run now goes on
+   with a fixed notice in place of the brief (design.md section 9). `connector-builder-brief`,
+   `builder-factory-runtime`.
 
 ## Open for part 2
 
