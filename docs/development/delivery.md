@@ -107,7 +107,7 @@ operator dictating filenames or implementation.
 - A live provider, model, E2B or Sankhya run needs explicit authority for that proof. A green
   repository gate never implies it.
 - Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected output to hide drift.
-  A changed test must fail on the base unless a commit trailer `Test-Refactor: <path> <reason>` exempts it, and only an `opt-in:` reason may skip a test.
+  A changed test must fail an assertion on the base. The commit trailer `Test-Refactor: <path> <reason>` exempts a file, and `Test-New-Subject: <path> <reason>` accepts its load error on the base. Only an `opt-in:` reason may skip a test.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route

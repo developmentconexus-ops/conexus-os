@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
-const reporter = resolve(root, 'scripts/test-skip-reporter.mjs')
+const reporter = resolve(root, 'scripts/test-ledger-reporter.mjs')
 const checkSkips = resolve(root, 'scripts/check-test-skips.mjs')
 
 const fixture = (context, prefix, files) => {
@@ -23,15 +23,15 @@ const fixture = (context, prefix, files) => {
 // The calibration runs inside `npm run verify`, whose ledger variables it must not inherit, and
 // inside node --test, whose NODE_TEST_CONTEXT would make a nested node --test skip its reporters.
 const cleanEnvironment = (extra) => {
-  const { CONEXUS_TEST_SKIP_LEDGER, CONEXUS_TEST_SKIP_ROOT, NODE_OPTIONS, NODE_TEST_CONTEXT, ...rest } = process.env
+  const { CONEXUS_TEST_LEDGER, CONEXUS_TEST_LEDGER_ROOT, NODE_OPTIONS, NODE_TEST_CONTEXT, ...rest } = process.env
   return { ...rest, ...extra }
 }
 
-const runWithSkipLedger = (candidate, file) => {
+const runWithLedger = (candidate, file) => {
   const ledger = resolve(candidate, 'ledger.jsonl')
   const environment = cleanEnvironment({
-    CONEXUS_TEST_SKIP_ROOT: candidate,
-    CONEXUS_TEST_SKIP_LEDGER: ledger,
+    CONEXUS_TEST_LEDGER_ROOT: candidate,
+    CONEXUS_TEST_LEDGER: ledger,
     NODE_OPTIONS: `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${reporter} --test-reporter-destination=stdout`,
   })
   const tests = spawnSync(process.execPath, ['--test', file], { cwd: candidate, encoding: 'utf8', env: environment })
@@ -49,7 +49,7 @@ test('a skip without an opt-in reason fails the graph and is named', context => 
       '',
     ].join('\n'),
   })
-  const result = runWithSkipLedger(candidate, 'tests/pg.test.mjs')
+  const result = runWithLedger(candidate, 'tests/pg.test.mjs')
   assert.equal(result.status, 1)
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, [
@@ -69,7 +69,7 @@ test('an opt-in live skip passes and is listed', context => {
       '',
     ].join('\n'),
   })
-  const result = runWithSkipLedger(candidate, 'tests/live.test.mjs')
+  const result = runWithLedger(candidate, 'tests/live.test.mjs')
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
@@ -83,12 +83,12 @@ test('a run the reporter never saw fails instead of passing empty', context => {
   const candidate = fixture(context, 'conexus-skip-uninstrumented-', { 'empty.jsonl': '' })
   const missing = spawnSync(process.execPath, [checkSkips], { encoding: 'utf8', env: cleanEnvironment({}) })
   assert.equal(missing.status, 1)
-  assert.equal(missing.stderr, 'the runner did not instrument this run: no skip ledger at (CONEXUS_TEST_SKIP_LEDGER unset)\n')
+  assert.equal(missing.stderr, 'the runner did not instrument this run: no test ledger at (CONEXUS_TEST_LEDGER unset)\n')
 
   const ledger = resolve(candidate, 'empty.jsonl')
-  const empty = spawnSync(process.execPath, [checkSkips], { encoding: 'utf8', env: cleanEnvironment({ CONEXUS_TEST_SKIP_LEDGER: ledger }) })
+  const empty = spawnSync(process.execPath, [checkSkips], { encoding: 'utf8', env: cleanEnvironment({ CONEXUS_TEST_LEDGER: ledger }) })
   assert.equal(empty.status, 1)
-  assert.equal(empty.stderr, `the skip ledger at ${ledger} recorded no test, so the skip reporter did not run\n`)
+  assert.equal(empty.stderr, `the test ledger at ${ledger} recorded no test, so the ledger reporter did not run\n`)
 })
 
 const checkChanged = resolve(root, 'scripts/check-changed-tests.mjs')
@@ -134,7 +134,7 @@ test('a new test that fails on the buggy base and passes on the fix is accepted'
   const result = runChanged(pr)
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.equal(result.stderr, '')
-  assert.equal(result.stdout, `changed tests against the base ${pr.base.slice(0, 12)}:\nfailed on base: tests/add-sum.test.mjs\n`)
+  assert.equal(result.stdout, `changed tests against the base ${pr.base.slice(0, 12)}:\nassertion on base: tests/add-sum.test.mjs\n`)
 })
 
 test('a new test that already passes on the base is refused by name', context => {
@@ -173,8 +173,78 @@ test('a test that fails in the head tree too proves nothing and is refused', con
   const pr = pullRequest(context, { 'tests/add-wrong.test.mjs': addTest('adds wrongly', 'add(2, 3)', 7) })
   const result = runChanged(pr)
   assert.equal(result.status, 1)
-  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'failed on head too: tests/add-wrong.test.mjs', ''])
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'assertion on base: tests/add-wrong.test.mjs', 'assertion on head: tests/add-wrong.test.mjs', ''])
   assert.equal(result.stderr, 'error tests/add-wrong.test.mjs: fails in the head tree too, so its failure on the base proves nothing\n')
+})
+
+const SUBTRACT = 'export const subtract = (a, b) => a - b\n'
+const subtractTest = [
+  "import assert from 'node:assert/strict'",
+  "import test from 'node:test'",
+  "import { subtract } from '../src/subtract.mjs'",
+  "test('subtracts', () => assert.equal(subtract(5, 3), 2))",
+  '',
+].join('\n')
+
+test('a test whose subject is missing on the base fails to load there and is refused', context => {
+  const pr = pullRequest(context, { 'src/subtract.mjs': SUBTRACT, 'tests/subtract.test.mjs': subtractTest })
+  const result = runChanged(pr)
+  assert.equal(result.status, 1)
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'load-error on base: tests/subtract.test.mjs', ''])
+  assert.equal(result.stderr,
+    'error tests/subtract.test.mjs: fails to load on the base, so no assertion ran; if its subject is new in this pull request, add a commit trailer "Test-New-Subject: tests/subtract.test.mjs <reason>"\n')
+})
+
+test('a Test-New-Subject trailer accepts a load error on the base and shows its reason', context => {
+  const pr = pullRequest(context, { 'src/subtract.mjs': SUBTRACT, 'tests/subtract.test.mjs': subtractTest },
+    'add subtract\n\nTest-New-Subject: tests/subtract.test.mjs src/subtract.mjs is new')
+  const result = runChanged(pr)
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, [
+    `changed tests against the base ${pr.base.slice(0, 12)}:`,
+    '::notice file=tests/subtract.test.mjs::Test-New-Subject: src/subtract.mjs is new',
+    'load-error on base: tests/subtract.test.mjs (new subject: src/subtract.mjs is new)',
+    '',
+  ].join('\n'))
+})
+
+test('a Test-New-Subject trailer on a file that loads on the base is refused', context => {
+  const pr = pullRequest(context, { 'src/add.mjs': ADD_FIXED, 'tests/add-sum.test.mjs': addTest('adds', 'add(2, 3)', 5) },
+    'fix add\n\nTest-New-Subject: tests/add-sum.test.mjs add is new')
+  const result = runChanged(pr)
+  assert.equal(result.status, 1)
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'assertion on base: tests/add-sum.test.mjs', ''])
+  assert.equal(result.stderr, 'error tests/add-sum.test.mjs: Test-New-Subject says its subject is new, but the file loads on the base (assertion); remove the trailer\n')
+})
+
+const addScenario = (name, options, body) => [
+  "import test from 'node:test'",
+  "import { add } from '../src/add.mjs'",
+  `test('${name}', ${options}() => ${body})`,
+  '',
+].join('\n')
+
+test('a test that times out on the base is refused as a timeout', context => {
+  const pr = pullRequest(context, {
+    'src/add.mjs': ADD_FIXED,
+    'tests/add-wait.test.mjs': addScenario('waits for the sum', '{ timeout: 200 }, ', 'new Promise(resolve => { if (add(2, 3) === 5) resolve() })'),
+  })
+  const result = runChanged(pr)
+  assert.equal(result.status, 1)
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'timeout on base: tests/add-wait.test.mjs', ''])
+  assert.equal(result.stderr, 'error tests/add-wait.test.mjs: times out on the base in "waits for the sum", so no assertion failed\n')
+})
+
+test('a test that throws a TypeError on the base is refused as an error', context => {
+  const pr = pullRequest(context, {
+    'src/add.mjs': ADD_FIXED,
+    'tests/add-read.test.mjs': addScenario('reads the sum', '', '{ if (add(2, 3) !== 5) null.value }'),
+  })
+  const result = runChanged(pr)
+  assert.equal(result.status, 1)
+  assert.deepEqual(verdicts(result.stdout), [`changed tests against the base ${pr.base.slice(0, 12)}:`, 'error on base: tests/add-read.test.mjs', ''])
+  assert.equal(result.stderr, 'error tests/add-read.test.mjs: fails on the base in "reads the sum" with an error that is not an assertion\n')
 })
 
 test('without a pull request there is nothing to check, and half a pull request is an error', context => {

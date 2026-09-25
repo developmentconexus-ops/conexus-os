@@ -96,7 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/check-review-areas.mjs scripts/labels.mjs scripts/test-skip-reporter.mjs scripts/check-test-skips.mjs scripts/check-changed-tests.mjs tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs && npx --no-install biome check scripts/check-agent-context.mjs scripts/check-review-areas.mjs scripts/labels.mjs scripts/test-ledger-reporter.mjs scripts/check-test-skips.mjs scripts/check-changed-tests.mjs tests/repository/check-agent-context.test.mjs tests/repository/check-review-areas.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -295,24 +295,24 @@ export function commandArguments(entry) {
   return ['run', entry.npmScript, ...(entry.npmArgs.length ? ['--', ...entry.npmArgs] : [])]
 }
 
-const SKIP_REPORTER = resolve(repositoryRoot, 'scripts/test-skip-reporter.mjs')
-const SKIP_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${SKIP_REPORTER} --test-reporter-destination=stdout`
+export const LEDGER_REPORTER = resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')
+export const LEDGER_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
 
 // Every step records its skipped tests for the only-opt-in-skips leaf. A fresh ledger per run keeps
 // apart two runs that share node_modules through a worktree symlink, and a test that calls
 // runVerification in-process cannot clear the ledger of the run it is part of.
-export const newSkipLedger = (root = repositoryRoot) => Object.freeze({
+export const newTestLedger = (root = repositoryRoot) => Object.freeze({
   root,
-  file: resolve(tmpdir(), `conexus-test-skips-${randomUUID()}.jsonl`),
+  file: resolve(tmpdir(), `conexus-test-ledger-${randomUUID()}.jsonl`),
 })
 
-export function executionEnvironment(entry, processEnvironment = process.env, skipLedger = null) {
+export function executionEnvironment(entry, processEnvironment = process.env, testLedger = null) {
   const nodeOptions = processEnvironment.NODE_OPTIONS ?? ''
-  const instrumented = skipLedger ? {
+  const instrumented = testLedger ? {
     ...processEnvironment,
-    CONEXUS_TEST_SKIP_ROOT: skipLedger.root,
-    CONEXUS_TEST_SKIP_LEDGER: skipLedger.file,
-    NODE_OPTIONS: nodeOptions.includes(SKIP_REPORTER) ? nodeOptions : `${nodeOptions} ${SKIP_REPORTER_OPTIONS}`.trim(),
+    CONEXUS_TEST_LEDGER_ROOT: testLedger.root,
+    CONEXUS_TEST_LEDGER: testLedger.file,
+    NODE_OPTIONS: nodeOptions.includes(LEDGER_REPORTER) ? nodeOptions : `${nodeOptions} ${LEDGER_REPORTER_OPTIONS}`.trim(),
   } : processEnvironment
   if (entry.environmentClass !== 'postgres') return instrumented
 
@@ -344,7 +344,7 @@ function defaultClock() {
 // few minutes.
 export const STEP_TIMEOUT_MS = 10 * 60 * 1000
 
-export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env, skipLedger = null } = {}) {
+export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env, testLedger = null } = {}) {
   const args = commandArguments(entry)
   const executable = entry.command ? (process.platform === 'win32' ? 'bash.exe' : 'bash') : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
   return spawn(executable, args, {
@@ -353,7 +353,7 @@ export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, 
     stdio: ['ignore', 'inherit', 'inherit'],
     timeout: STEP_TIMEOUT_MS,
     killSignal: 'SIGKILL',
-    env: executionEnvironment(entry, processEnvironment, skipLedger),
+    env: executionEnvironment(entry, processEnvironment, testLedger),
   })
 }
 
@@ -396,7 +396,7 @@ export function runVerification({
   const records = []
   const published = {}
   const skipBrowser = Boolean(processEnvironment.CONEXUS_VERIFY_SKIP_BROWSER)
-  const skipLedger = newSkipLedger(root)
+  const testLedger = newTestLedger(root)
 
   for (const entry of entries) {
     const command = formatCommand(entry)
@@ -430,7 +430,7 @@ export function runVerification({
     const startedAt = clock()
     let result
     try {
-      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, skipLedger })
+      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, testLedger })
     } catch (error) {
       result = { status: null, error }
     }

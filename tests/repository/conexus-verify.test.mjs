@@ -10,7 +10,7 @@ import {
   assertExecutionEnvironment,
   executionEnvironment,
   listScopes,
-  newSkipLedger,
+  newTestLedger,
   parseArguments,
   resolveScope,
   runVerification,
@@ -346,15 +346,15 @@ test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run li
   assert.equal(result.records.some(record => record.status === 'skipped'), false)
 })
 
-const REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-skip-reporter.mjs')} --test-reporter-destination=stdout`
+const REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')} --test-reporter-destination=stdout`
 
 test('every step records its skips into one fresh ledger per run', () => {
-  const ledger = { root: '/work/conexus-os', file: '/tmp/conexus-test-skips-fixture.jsonl' }
+  const ledger = { root: '/work/conexus-os', file: '/tmp/conexus-test-ledger-fixture.jsonl' }
   const staticStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   const postgresStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'postgres')
   const instrumentation = {
-    CONEXUS_TEST_SKIP_ROOT: '/work/conexus-os',
-    CONEXUS_TEST_SKIP_LEDGER: '/tmp/conexus-test-skips-fixture.jsonl',
+    CONEXUS_TEST_LEDGER_ROOT: '/work/conexus-os',
+    CONEXUS_TEST_LEDGER: '/tmp/conexus-test-ledger-fixture.jsonl',
   }
 
   assert.deepEqual(executionEnvironment(staticStep, { PATH: '/fixture/bin' }, ledger), {
@@ -384,7 +384,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   runNpmScript(staticStep, {
     root: '/work/conexus-os',
     processEnvironment: { PATH: '/fixture/bin' },
-    skipLedger: ledger,
+    testLedger: ledger,
     spawn: (_file, _args, options) => { observed = options.env },
   })
   assert.deepEqual(observed, { PATH: '/fixture/bin', ...instrumentation, NODE_OPTIONS: REPORTER_OPTIONS })
@@ -396,7 +396,7 @@ test('every step records its skips into one fresh ledger per run', () => {
       packageScripts,
       platform: 'linux',
       processEnvironment: {},
-      runCommand: (_entry, { skipLedger }) => { seen.push(skipLedger); return { status: 0 } },
+      runCommand: (_entry, { testLedger }) => { seen.push(testLedger); return { status: 0 } },
     })
     return seen
   }
@@ -406,10 +406,10 @@ test('every step records its skips into one fresh ledger per run', () => {
   assert.equal(new Set(first).size, 1)
   assert.equal(first[0].root, repositoryRoot)
   assert.equal(dirname(first[0].file), tmpdir())
-  assert.match(first[0].file, /conexus-test-skips-[0-9a-f-]{36}\.jsonl$/)
+  assert.match(first[0].file, /conexus-test-ledger-[0-9a-f-]{36}\.jsonl$/)
   assert.notEqual(first[0].file, second[0].file)
   assert.equal(existsSync(first[0].file), false)
-  assert.equal(newSkipLedger('/work/conexus-os').root, '/work/conexus-os')
+  assert.equal(newTestLedger('/work/conexus-os').root, '/work/conexus-os')
 })
 
 test('the changed-test gate runs after every other PostgreSQL step, and the opt-in skip check last', () => {

@@ -10,12 +10,12 @@ const fail = (message) => {
   process.exit(1)
 }
 
-const ledger = process.env.CONEXUS_TEST_SKIP_LEDGER
-if (!ledger || !existsSync(ledger)) fail(`the runner did not instrument this run: no skip ledger at ${ledger ?? '(CONEXUS_TEST_SKIP_LEDGER unset)'}`)
+const ledger = process.env.CONEXUS_TEST_LEDGER
+if (!ledger || !existsSync(ledger)) fail(`the runner did not instrument this run: no test ledger at ${ledger ?? '(CONEXUS_TEST_LEDGER unset)'}`)
 
 const records = readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line))
 const tests = records.filter((record) => 'tests' in record).reduce((sum, record) => sum + record.tests, 0)
-if (tests === 0) fail(`the skip ledger at ${ledger} recorded no test, so the skip reporter did not run`)
+if (tests === 0) fail(`the test ledger at ${ledger} recorded no test, so the ledger reporter did not run`)
 
 const skips = records.filter((record) => 'skip' in record)
 const describe = ({ file, name, skip }) => `${file} › ${name}: ${skip === true ? 'no reason given' : skip}`

@@ -119,7 +119,7 @@
       "scripts/conexus-preflight.mjs",
       "scripts/conexus-verify.mjs",
       "scripts/labels.mjs",
-      "scripts/test-skip-reporter.mjs",
+      "scripts/test-ledger-reporter.mjs",
       ".github/workflows/**",
       "package.json",
       "package-lock.json",
