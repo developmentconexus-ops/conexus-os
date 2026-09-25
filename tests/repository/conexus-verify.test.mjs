@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
+  BROWSER_CLASSES,
   CANDIDATE_GRAPH,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
@@ -263,7 +264,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
 
   const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
   const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
@@ -310,6 +311,9 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
   assert.deepEqual(executionEnvironment(c020Postgres, selectedPostgres), selectedPostgres)
+  const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
+  assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
+  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), postgresDefaults)
   assert.throws(
     () => executionEnvironment(c020Postgres, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
@@ -317,7 +321,7 @@ test('candidate graph labels execution environments and passes shell argv correc
 })
 
 test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', () => {
-  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => BROWSER_CLASSES.has(entry.environmentClass)).map(entry => entry.scope)
   assert.ok(browserScopes.length > 0, 'fixture assumption: the candidate graph still has browser steps')
 
   const calls = []
@@ -338,7 +342,7 @@ test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', ()
 })
 
 test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run like any other', () => {
-  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => BROWSER_CLASSES.has(entry.environmentClass)).map(entry => entry.scope)
   const calls = []
   const result = runVerification({
     scopes: ['candidate'],

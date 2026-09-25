@@ -25,6 +25,11 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
   CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
 })
 
+// A class names what a step needs: a PostgreSQL, a browser, or both. A browser-postgres step gets the
+// database defaults and is skipped with the browser steps.
+const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
+export const BROWSER_CLASSES = new Set(['browser', 'browser-postgres'])
+
 const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
   scope,
   command,
@@ -91,7 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs && npx --no-install biome check tests/implementation/settings-browser.test.mjs tests/implementation/settings-screenshots.mjs', 'browser'),
   candidateStep('application-access-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-access-browser.test.mjs && npx --no-install biome check tests/implementation/project-settings-access-browser.test.mjs tests/implementation/project-settings-access-screenshot.mjs', 'browser'),
-  candidateStep('connector-integrations-browser', 'node --test --test-concurrency=1 tests/implementation/connector-integrations-browser.test.mjs && npx --no-install biome check tests/implementation/connector-integrations-browser.test.mjs tests/implementation/connector-integrations-screenshot.mjs', 'browser'),
+  candidateStep('connector-integrations-browser', 'node --test --test-concurrency=1 tests/implementation/connector-integrations-browser.test.mjs && npx --no-install biome check tests/implementation/connector-integrations-browser.test.mjs tests/implementation/connector-integrations-screenshot.mjs', 'browser-postgres'),
   candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs'),
   candidateStep('c020-web-typecheck', 'node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false'),
   candidateStep('c020-web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
@@ -319,7 +324,7 @@ export function executionEnvironment(entry, processEnvironment = process.env, te
     CONEXUS_TEST_LEDGER: testLedger.file,
     NODE_OPTIONS: nodeOptions.includes(LEDGER_REPORTER) ? nodeOptions : `${nodeOptions} ${LEDGER_REPORTER_OPTIONS}`.trim(),
   } : processEnvironment
-  if (entry.environmentClass !== 'postgres') return instrumented
+  if (!POSTGRES_CLASSES.has(entry.environmentClass)) return instrumented
 
   const names = Object.keys(POSTGRES_ENV_DEFAULTS)
   const selected = names.filter(name => processEnvironment[name])
@@ -408,7 +413,7 @@ export function runVerification({
     // A PR that never touches the web app or its browser fixtures gets no signal from
     // re-running Playwright against unchanged code; CONEXUS_VERIFY_SKIP_BROWSER records that
     // decision instead of silently dropping the step.
-    if (skipBrowser && entry.environmentClass === 'browser') {
+    if (skipBrowser && BROWSER_CLASSES.has(entry.environmentClass)) {
       records.push({
         scope: entry.scope,
         command,
