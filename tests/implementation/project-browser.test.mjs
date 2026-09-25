@@ -78,8 +78,15 @@ async function mockHub(page, hub) {
     const projects = p.match(/^\/api\/control\/workspaces\/([^/]+)\/projects$/)
     if (projects && method === 'POST') return json(route, 201, projectOf(ids.created))
     if (projects) return json(route, 200, hub.summaries.map(({ projectId, name, archived }) => ({ projectId, workspaceId: ids.operations, name, archived })))
-    if (p.endsWith('/members')) return json(route, 200, hub.roster)
-    if (p.endsWith('/invitations') && method === 'POST') return json(route, 200, { kind: 'invitation', invitationId: ids.invitation, email: body.email, role: body.role, invitedAt: '2026-09-22T12:00:00.000Z', expiresAt: '2026-10-06T12:00:00.000Z' })
+    if (p.endsWith('/members')) {
+      if (hub.rosterRefreshGate) await hub.rosterRefreshGate()
+      return json(route, 200, hub.roster)
+    }
+    if (p.endsWith('/invitations') && method === 'POST') {
+      const invitation = { kind: 'invitation', invitationId: ids.invitation, email: body.email, role: body.role, invitedAt: '2026-09-22T12:00:00.000Z', expiresAt: '2026-10-06T12:00:00.000Z' }
+      hub.roster.entries = [...hub.roster.entries, invitation]
+      return json(route, 200, invitation)
+    }
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/repository')) return json(route, 200, hub.repository)
     if (p.endsWith('/builder-session/preview')) {
@@ -346,6 +353,31 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.waitForFunction(() => true)
     await page.getByRole('alertdialog').waitFor({ state: 'detached' })
     assert.ok(hub.requests.some((entry) => entry.method === 'DELETE' && entry.path.endsWith(`/roster/member/${ids.diego}`)))
+  })
+
+  await t.test('an invitation stays unconfirmed until the refreshed roster includes it', async () => {
+    await reset()
+    await page.goto(`${origin}/workspaces/${ids.operations}/settings/people`)
+    await page.getByRole('heading', { name: 'Pessoas', exact: true }).waitFor()
+    await page.getByText('carla@empresa.com.br').waitFor()
+    let holdRefresh
+    const refreshStarted = new Promise((resolve) => { holdRefresh = resolve })
+    let releaseRefresh
+    const refreshGate = new Promise((resolve) => { releaseRefresh = resolve })
+    hub.rosterRefreshGate = async () => {
+      hub.rosterRefreshGate = null
+      holdRefresh()
+      await refreshGate
+    }
+
+    await page.getByLabel('Email').fill('nova@empresa.com.br')
+    await page.getByRole('button', { name: 'Convidar' }).click()
+    await refreshStarted
+    assert.equal(await page.getByText('Convite criado para nova@empresa.com.br.').count(), 0)
+    assert.equal(await page.getByText('nova@empresa.com.br', { exact: true }).count(), 0)
+    releaseRefresh()
+    await page.getByText('Convite criado para nova@empresa.com.br.').waitFor()
+    await page.getByText('nova@empresa.com.br', { exact: true }).waitFor()
   })
 
   await t.test('a member sees Pessoas read only, with a way to leave', async () => {

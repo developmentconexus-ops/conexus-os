@@ -171,8 +171,8 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
     mutationFn: (email: string) => grantApplicationAccess(projectId, { email }),
     onSuccess: async (access) => {
       setMessage('')
-      setGranted(access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`)
       await onGranted()
+      setGranted(access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`)
     },
     onError: (error) => setMessage(applicationAccessMessage(error)),
   })
