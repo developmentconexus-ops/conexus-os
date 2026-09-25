@@ -291,14 +291,17 @@ BEGIN
   IF connection_workspace_id IS NULL OR connection_workspace_id <> owning_workspace_id OR connection_disabled_at IS NOT NULL THEN
     RAISE EXCEPTION 'CONNECTOR_CONNECTION_NOT_AVAILABLE' USING ERRCODE = 'P0002';
   END IF;
-  SELECT open_grant.grant_id INTO settled_grant_id
-  FROM connector.project_grant AS open_grant
-  WHERE open_grant.project_id = p_project_id AND open_grant.environment = 'preview' AND open_grant.capability_kind = 'operation'
-    AND open_grant.capability_id = p_operation_id AND open_grant.revoked_at IS NULL;
+  -- ON CONFLICT DO NOTHING on project_grant_open_key: a concurrent grant of the same capability waits
+  -- for the winner's commit, inserts nothing, and answers the winner's open grant.
+  INSERT INTO connector.project_grant (workspace_id, project_id, environment, connection_id, capability_kind, capability_id, granted_by)
+  VALUES (owning_workspace_id, p_project_id, 'preview', p_connection_id, 'operation', p_operation_id, p_actor)
+  ON CONFLICT DO NOTHING
+  RETURNING connector.project_grant.grant_id INTO settled_grant_id;
   IF settled_grant_id IS NULL THEN
-    INSERT INTO connector.project_grant (workspace_id, project_id, environment, connection_id, capability_kind, capability_id, granted_by)
-    VALUES (owning_workspace_id, p_project_id, 'preview', p_connection_id, 'operation', p_operation_id, p_actor)
-    RETURNING connector.project_grant.grant_id INTO settled_grant_id;
+    SELECT open_grant.grant_id INTO settled_grant_id
+    FROM connector.project_grant AS open_grant
+    WHERE open_grant.project_id = p_project_id AND open_grant.environment = 'preview' AND open_grant.capability_kind = 'operation'
+      AND open_grant.capability_id = p_operation_id AND open_grant.revoked_at IS NULL;
   END IF;
   RETURN QUERY
   SELECT stored.grant_id, stored.connection_id, connection.connector_id, stored.capability_id, stored.granted_at

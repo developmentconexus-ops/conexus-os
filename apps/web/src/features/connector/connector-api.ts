@@ -125,6 +125,11 @@ export function checkOutcomeMessage(outcome: CheckWorkspaceConnectionOutcome['ou
   return CHECK_OUTCOME_MESSAGES[outcome]
 }
 
+export function disableConnectionMessage(error: unknown): string {
+  if (error instanceof ConnectorRequestError && error.status === 404) return 'Esta conexão não existe mais.'
+  return 'A conexão não foi desativada e continua ativa.'
+}
+
 export function checkConnectionMessage(error: unknown): string {
   if (error instanceof ConnectorRequestError && error.status === 404) return 'Esta conexão não existe mais.'
   return 'Não foi possível testar a conexão agora.'

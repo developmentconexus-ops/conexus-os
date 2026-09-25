@@ -75,10 +75,10 @@ export const createConnectorModule = ({
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {
-    if (!gatewayOrigin) return 'CONNECTOR_UNCONFIGURED'
     const connection = (await store.listConnections({ actor, workspaceId }))
       .find((candidate) => candidate.connectionId === connectionId && candidate.disabledAt === null)
     if (!connection) return 'NOT_FOUND'
+    if (!gatewayOrigin) return 'CONNECTOR_UNCONFIGURED'
     const result = await broker.checkCredential(connection.connectorId, connection.connectionId)
     return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
   }
