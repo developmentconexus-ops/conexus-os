@@ -178,6 +178,24 @@ test('a head change to a path the base already covers prints nothing extra', con
   assert.equal(result.status, 0)
 })
 
+test('the map comes from the base, not the merge base, when the base has moved on', context => {
+  const target = fixture(context)
+  commit(target)
+  const newAreas = [...baseAreas, { area: 'new-app', paths: ['apps/new/**'], page: 'docs/development/review/new-app.md' }]
+  const mapped = { [AREAS]: `${JSON.stringify(newAreas, null, 2)}\n`, 'docs/development/review/new-app.md': '# New app\n' }
+  execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: target })
+  writeFiles(target, { ...mapped, 'apps/new/x.ts': 'export {}\n' })
+  const head = commit(target)
+  execFileSync('git', ['checkout', '-q', 'main'], { cwd: target })
+  writeFiles(target, { ...mapped, 'apps/new/base.ts': 'export {}\n' })
+  const base = commit(target)
+  execFileSync('git', ['checkout', '-q', 'feature'], { cwd: target })
+  const result = runPr(target, base, head)
+  assert.equal(result.stderr, '')
+  assert.equal(result.stdout, 'Review area checks passed (areas=3, production files=5).\n')
+  assert.equal(result.status, 0)
+})
+
 test('no areas.json at the base treats every changed path as new', context => {
   const target = mkdtempSync(resolve(tmpdir(), 'conexus-review-areas-'))
   context.after(() => rmSync(target, { recursive: true, force: true }))
@@ -194,7 +212,7 @@ test('no areas.json at the base treats every changed path as new', context => {
   assert.equal(result.stderr, '')
   assert.equal(result.stdout, [
     'Review area checks passed (areas=1, production files=1).',
-    `${AREAS} does not exist at the merge base ${base}; every changed production path is a new area path.`,
+    `${AREAS} does not exist at the base ${base}; every changed production path is a new area path.`,
     'new area path: package.json -> docs/development/review/root.md',
     '::notice file=package.json::new area path: the base map has no area for it; judged by docs/development/review/root.md from the head.',
     '',

@@ -158,8 +158,11 @@ function reportPullRequest(root, { base, head }, headAreas) {
   const mergeBase = execFileSync('git', ['merge-base', base, head], { cwd: root, encoding: 'utf8' }).trim()
   const changed = changedProductionFiles(root, mergeBase, head)
   if (!changed.length) return
-  const baseText = areasTextAtRef(root, mergeBase)
-  if (baseText === null) console.log(`${AREAS_FILE} does not exist at the merge base ${mergeBase}; every changed production path is a new area path.`)
+  // The diff starts at the merge base, so it holds only this pull request's changes. The map comes
+  // from the base itself, the ref the reviewer loads per review-checklist.md, even when the base has
+  // moved past the merge base.
+  const baseText = areasTextAtRef(root, base)
+  if (baseText === null) console.log(`${AREAS_FILE} does not exist at the base ${base}; every changed production path is a new area path.`)
   const baseAreas = baseText === null ? null : parseAreas(baseText).areas
   for (const { path, isNewArea } of classifyPrPaths(changed, baseAreas)) {
     if (!isNewArea) continue
