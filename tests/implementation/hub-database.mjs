@@ -52,8 +52,13 @@ export const createEmptyDatabase = async (t, prefix = 'conexus_hub') => {
           cleanupError ??= error
         }
       }
+      try {
+        await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+      } catch (error) {
+        if (cleanupError) throw new AggregateError([cleanupError, error], 'Fixture cleanup and database drop failed')
+        throw error
+      }
       if (cleanupError) throw cleanupError
-      await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
     } finally {
       await admin.end()
     }
