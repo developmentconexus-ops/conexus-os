@@ -380,10 +380,19 @@ searches every text file bound for the repository (`docs/evidence/stage2-q4/`, t
 transcripts, the Project repository at every commit Q4 made, and every commit of this branch that
 touches `docs/evidence/stage2-q4/`) for each value in each representation the
 fields can take (a number with and without thousands and decimal separators, a date in ISO and in
-dd/mm/yyyy). Short or common values, such as a status word or a one-digit quantity, count only next to
-their field name. It prints only a count per file. Before a screenshot is
-committed, the operator looks at it and confirms every business value is masked. **Check:** every
-count is zero and the operator's confirmation is in the evidence README.
+dd/mm/yyyy). For short or common values, such as a status word or a one-digit quantity, count the
+whole value when it appears next to its field name **or** without a label in the same logical record
+(line, table row, JSON object or transcript turn) as an explicit reference to order 22790. Count it
+without a label or repeated order number in a bounded context explicitly scoped to order 22790:
+the answer to a prompt about that order in the same transcript exchange, or rows under that order's
+heading. The scope ends at the next unrelated exchange, order or section; it must not extend to
+unrelated turns or rows. Also count unlabelled values in a text evidence file explicitly dedicated
+to that order by its path or metadata. A generic word or digit elsewhere in a Q4 evidence file is
+not a match merely because the file is in the evidence directory. For example, `PENDING` in an
+answer to "What is the status of order 22790?" counts even without a field label or order number
+in the answer; `PENDING` outside that order's context does not. It prints only a count per file.
+Before a screenshot is committed, the operator looks at it and confirms every business value is
+masked. **Check:** every count is zero and the operator's confirmation is in the evidence README.
 
 ## 8. Falsifiers
 
