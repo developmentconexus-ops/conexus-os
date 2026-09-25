@@ -1,8 +1,9 @@
 import { createServer } from 'node:http'
 
 // A local stand-in for the Sankhya gateway on 127.0.0.1. It records every request, issues numbered
-// short-lived tokens and answers loadRecords from a fixed purchase order. No test ever reaches a
-// Sankhya host: the broker receives this origin through the adapter factory, not configuration.
+// short-lived tokens and answers loadRecords from a fixed purchase order. Its values are invented;
+// only the document number 22790 is the task's. No test ever reaches a Sankhya host: the broker
+// receives this origin through the adapter factory, not configuration.
 
 export const SECRET_MARKER = 'SECRET-MARKER-7f3a9c'
 export const FAKE_CREDENTIAL = Object.freeze({ clientId: 'fake-client-id', clientSecret: 'fake-client-secret-5d1e', xToken: 'fake-x-token-88b2' })

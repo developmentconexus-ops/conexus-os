@@ -49,6 +49,14 @@ Applications cluster, never the pilot. CI runs the same tests at the pull reques
 For M3, the socket on the host belongs to uid 1000 with mode `0600`. Inside the sandbox the handler
 runs as uid 1000 and connects without any permission change.
 
+## What public evidence may hold
+
+The repository is public. Part 1 holds no value from Sankhya, because no request was made. The
+fixture order in `tests/implementation/connector-fake-gateway.mjs` is invented, apart from the
+document number 22790. From Q4.6 on, public artifacts keep only field names, types, counts, status
+codes and digests. They never keep an order value or a raw response from Sankhya or a handler. The
+document number 22790 is the one exception.
+
 ## Findings
 
 1. **Resolved in part 1.** A second open Connection in one Workspace surfaced as a server error. It
