@@ -1,0 +1,28 @@
+[
+  {
+    "id": "disabled-in-keycloak-within-five-minutes",
+    "phase": "disabled",
+    "at": "2026-09-25T11:46:23.027Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "employee, polled every 20 s after being disabled in Keycloak",
+      "disabledAt": "2026-09-25T11:41:41.736Z"
+    },
+    "observed": {
+      "probes": 15,
+      "lastAllowed": {
+        "startedAt": "2026-09-25T11:46:02.826Z",
+        "status": 404,
+        "code": "OPERATION_NOT_FOUND"
+      },
+      "firstRefused": {
+        "startedAt": "2026-09-25T11:46:22.931Z",
+        "status": 401,
+        "code": "APPLICATION_SIGN_IN_REQUIRED"
+      },
+      "refusedAfterSeconds": 281,
+      "sessionEnded": "PROVIDER_USER_DISABLED"
+    },
+    "pass": true
+  }
+]

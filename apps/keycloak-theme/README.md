@@ -1,6 +1,6 @@
 # Conexus Keycloak theme
 
-A [Keycloakify](https://docs.keycloakify.dev) login theme for the `r1f` pilot realm:
+A [Keycloakify](https://docs.keycloakify.dev) login theme for the `conexus` realm:
 Grafite e Ipê tokens, self-hosted Hanken Grotesk / Bricolage Grotesque / JetBrains Mono,
 the Encaixe mark fitting together on load, and no Keycloak default styling anywhere.
 

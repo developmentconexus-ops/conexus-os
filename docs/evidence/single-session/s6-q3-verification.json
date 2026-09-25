@@ -1,0 +1,44 @@
+[
+  {
+    "id": "parallel-sign-ins-both-redeem",
+    "phase": "verification",
+    "at": "2026-09-25T11:09:17.592Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/",
+      "as": "member, two sign-ins started in one browser before either handoff was redeemed"
+    },
+    "observed": {
+      "distinctHandoffs": true,
+      "landings": [
+        {
+          "status": 200,
+          "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+        },
+        {
+          "status": 200,
+          "landed": "https://eval-20260923-224304.conexus.localhost:3445/"
+        }
+      ]
+    },
+    "pass": true
+  },
+  {
+    "id": "custody-changed-ends-session",
+    "phase": "verification",
+    "at": "2026-09-25T11:09:18.070Z",
+    "request": {
+      "url": "https://eval-20260923-224304.conexus.localhost:3445/__conexus/api/anyOperation",
+      "as": "member, whose stored refresh token was sealed under a foreign key, with the check made due"
+    },
+    "observed": {
+      "replaced": true,
+      "aged": true,
+      "first": 401,
+      "firstCode": "APPLICATION_SIGN_IN_REQUIRED",
+      "second": 401,
+      "ended": "CUSTODY_CHANGED",
+      "tokenDropped": true
+    },
+    "pass": true
+  }
+]

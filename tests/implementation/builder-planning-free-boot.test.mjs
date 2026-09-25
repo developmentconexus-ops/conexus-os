@@ -52,7 +52,7 @@ test('a Builder without the Factory is refused: there is no second agent runtime
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-  const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_')))
+  const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_') || name === 'CONEXUS_FACTORY_SECRET_KEY_FILE'))
   assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
 })
 

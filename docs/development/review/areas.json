@@ -16,7 +16,9 @@
       "apps/keycloak-theme/**",
       "scripts/bootstrap-installation-administrator.mjs",
       "scripts/q3-sign-in.mjs",
-      "scripts/q3-negative-proof.mjs"
+      "scripts/q3-negative-proof.mjs",
+      "scripts/keycloak-refresh-probe.mjs",
+      "scripts/single-session-proof.mjs"
     ],
     "page": "docs/development/review/identity-session.md"
   },

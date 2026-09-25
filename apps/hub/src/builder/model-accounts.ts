@@ -13,6 +13,7 @@ import { FACTORY_OPERATOR_ID } from './factory.js'
 import { GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 // The installation's defaults are one Factory model pack; a person's own defaults are their active
 // pack row. The plan role is not offered, so it follows the build model.
@@ -88,7 +89,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
         await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         return null
       }

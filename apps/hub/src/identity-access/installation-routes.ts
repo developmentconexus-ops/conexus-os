@@ -3,6 +3,7 @@ import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from './current-session.js'
 import { isAccountEmailAmbiguous, isAccountNotFound, isLastInstallationAdministrator } from './current-session.js'
 import type { InstallationAdministration, InstallationAdministrator } from './installation-administration.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const EMAIL = /^.{1,320}$/
@@ -28,7 +29,7 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { origin,
   const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (request.headers.origin !== origin || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
         await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         return null
       }

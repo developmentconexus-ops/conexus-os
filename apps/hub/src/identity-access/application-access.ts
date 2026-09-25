@@ -7,6 +7,7 @@ import { sendProblem } from '../http/problem.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
 import type { AccountId, EmailAddress, ResolveCurrentSession } from './current-session.js'
+import { isExactOrigin } from '../platform/origin.js'
 
 const APPLICATION_INVITATION_MS = 14 * 24 * 60 * 60 * 1000
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -128,7 +129,7 @@ export const registerApplicationAccessRoutes = async (
 ): Promise<readonly S1OwnerId[]> => {
   const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
-    return request.headers.origin === config.origin && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
+    return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
   }
   const refused = (reply: Parameters<typeof sendProblem>[0], error: unknown) => {
     if (isApplicationNotFound(error)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')

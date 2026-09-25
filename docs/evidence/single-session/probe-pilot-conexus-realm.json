@@ -1,0 +1,93 @@
+{
+  "keycloakIssuer": "https://hub.conexus.localhost:8443/realms/conexus",
+  "probedAt": "2026-09-24T20:23:24.002Z",
+  "cases": [
+    {
+      "case": "realm-settings",
+      "held": true,
+      "at": "2026-09-24T20:23:23.206Z",
+      "revokeRefreshToken": false,
+      "refreshTokenMaxReuse": 0,
+      "ssoSessionIdleTimeout": 1800
+    },
+    {
+      "case": "concurrent-refresh",
+      "held": true,
+      "at": "2026-09-24T20:23:23.419Z",
+      "answers": [
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        },
+        {
+          "ok": true,
+          "rotated": true
+        }
+      ],
+      "originalStillWorks": true
+    },
+    {
+      "case": "disabled-refresh-refused",
+      "held": true,
+      "at": "2026-09-24T20:23:23.619Z",
+      "error": "invalid_grant",
+      "description": "User disabled"
+    },
+    {
+      "case": "logout-refresh-refused",
+      "held": true,
+      "at": "2026-09-24T20:23:23.800Z",
+      "logoutStatus": 200,
+      "tokensTried": 5,
+      "answers": [
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        },
+        {
+          "ok": false,
+          "error": "invalid_grant",
+          "description": "Session not active"
+        }
+      ]
+    },
+    {
+      "case": "client-account-console",
+      "held": true,
+      "at": "2026-09-24T20:23:23.907Z",
+      "signedIn": true,
+      "refreshed": true
+    },
+    {
+      "case": "client-security-admin-console",
+      "held": true,
+      "at": "2026-09-24T20:23:24.002Z",
+      "signedIn": true,
+      "refreshed": true
+    }
+  ]
+}

@@ -16,7 +16,7 @@ import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplic
 import { createBuilderStore } from './store.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig } from '../platform/config.js'
+import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
 import type { FactoryComposition } from './factory.js'
 import { createGithubApp } from './factory-github.js'
@@ -177,9 +177,10 @@ const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) =>
 
 // The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
 // the Builder's traces.
-const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
+  secretKey: InstallationSecretKey
   googleAiPro: GoogleAiProRuntimeConfig | undefined
   store: BuilderStore
   e2bApiKey: string
@@ -198,8 +199,8 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
     clientSecret: readSecretFile(factory.githubClientSecretFile),
   }
   const stateSecret = readSecretFile(factory.stateSecretFile)
-  const secretKey = readSecretFile(factory.secretKeyFile)
-  const previousSecretKeys = factory.previousSecretKeyFiles.map(readSecretFile)
+  const secretKey = readSecretFile(installationKey.file)
+  const previousSecretKeys = installationKey.previousFiles.map(readSecretFile)
   const observability = createBuilderObservability('conexus-builder-factory')
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
@@ -277,13 +278,14 @@ const startFactoryComposition = ({ database, factory, googleAiPro: googleAiProCo
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
     e2bTemplateId: string
   }>
   factory: FactoryRuntimeConfig
+  secretKey: InstallationSecretKey
   googleAiPro?: GoogleAiProRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   applicationServer?: ApplicationServerPort
@@ -306,7 +308,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, goog
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const factoryComposition = startFactoryComposition({
-    database, factory, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
+    database, factory, secretKey, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
     resolveCurrentSession, isInstallationAdministrator,
   })
   const service = createBuilderService({

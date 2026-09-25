@@ -1,0 +1,30 @@
+{
+  "keycloakIssuer": "https://hub.conexus.localhost:8443/realms/conexus",
+  "probedAt": "2026-09-24T21:04:22.794Z",
+  "cases": [
+    {
+      "case": "realm-settings",
+      "held": true,
+      "at": "2026-09-24T20:24:21.544Z",
+      "revokeRefreshToken": false,
+      "refreshTokenMaxReuse": 0,
+      "ssoSessionIdleTimeout": 1800
+    },
+    {
+      "case": "refresh-resets-sso-idle",
+      "held": true,
+      "at": "2026-09-24T21:04:22.793Z",
+      "ssoIdleSeconds": 1800,
+      "refreshedAtSeconds": 1200,
+      "checkedAtSeconds": 2400,
+      "refreshedSession": {
+        "middle": true,
+        "afterLimit": true
+      },
+      "neverRefreshedSession": {
+        "ok": false,
+        "description": "Token is not active"
+      }
+    }
+  ]
+}
