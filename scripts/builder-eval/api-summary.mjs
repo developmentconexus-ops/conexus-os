@@ -40,8 +40,10 @@ export function summarizeBody(body) {
 const APPLICATION_API_PREFIX = '/__conexus/api/'
 
 /** Records every application API answer a Playwright browser context receives, reduced by
- * `summarizeBody`. Await `settled()` before the context closes. */
-export function recordApplicationApi(context) {
+ * `summarizeBody`. Await `settled()` before the context closes. A body still unread after
+ * `bodyReadMs` keeps `summary: null`, because a body read can stay pending for good: three 429
+ * answers around a Preview reload held a finished run open for 17 minutes. */
+export function recordApplicationApi(context, { bodyReadMs = 5_000 } = {}) {
   const entries = []
   const pending = []
   context.on('response', (response) => {
@@ -49,7 +51,8 @@ export function recordApplicationApi(context) {
     if (!url.pathname.startsWith(APPLICATION_API_PREFIX)) return
     const entry = { at: new Date().toISOString(), host: url.hostname, operation: url.pathname.slice(APPLICATION_API_PREFIX.length), status: response.status(), summary: null }
     entries.push(entry)
-    pending.push(response.json().then((body) => { entry.summary = summarizeBody(body) }, () => {}))
+    const read = response.json().then((body) => { entry.summary = summarizeBody(body) }, () => {})
+    pending.push(Promise.race([read, new Promise((resolve) => { setTimeout(resolve, bodyReadMs).unref() })]))
   })
   return { entries, settled: () => Promise.allSettled(pending) }
 }
