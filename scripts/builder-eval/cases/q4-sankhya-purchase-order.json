@@ -6,5 +6,6 @@
     { "action": "click", "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota|adicionar|salvar|registrar/i]" },
     { "action": "expectText", "selector": "body", "text": "Acompanhamento registrado no Q4.7" }
   ],
-  "reload": true
+  "reload": true,
+  "apiFields": ["orders", "number", "internalId", "date", "supplier", "status", "total", "items", "sequence", "productCode", "description", "quantity", "unit", "unitPrice"]
 }

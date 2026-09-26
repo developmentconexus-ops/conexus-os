@@ -58,7 +58,9 @@ page must have loaded before it, or absence passes on a page that has not render
 every step still runs. `reload` (optional, default `false`): once every initial check passes,
 clear the Preview origin's browser storage (localStorage, sessionStorage, IndexedDB), reload the
 Preview iframe in place and rerun the `expectText` and `expectNoText` checks against it, to prove the
-result was saved outside the browser.
+result was saved outside the browser. `apiFields` (optional, default none): the field names the
+`api` summaries may keep, such as an operation's output contract. Every other key is recorded as `*`,
+because a key can itself be data.
 
 ## Output
 
@@ -80,7 +82,8 @@ result was saved outside the browser.
   `ERROR` (the tool itself broke; see `error` and `failure.png`).
 - `api`: one entry per application API answer the browser received (`/__conexus/api/<operation>`),
   with its time, host, operation and status. `summary` holds the answer's field paths with their
-  types, array lengths and a SHA-256 digest, never a value (`api-summary.mjs`).
+  types, array lengths and a SHA-256 digest, never a value (`api-summary.mjs`). A path keeps only the
+  case's `apiFields` names. A body unread after 5 s leaves `summary` null.
 
 The screenshots and a failed check's `error` show what the page showed. When the Preview shows
 business data, keep `--out` outside the repository and commit only what the task allows.

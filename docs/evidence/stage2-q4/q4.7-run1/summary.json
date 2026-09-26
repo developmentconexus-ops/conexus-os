@@ -109,12 +109,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].assignee": "string",
-          "$[].createdAt": "string",
-          "$[].expectedDeliveryDate": "string",
-          "$[].id": "number",
-          "$[].latestNoteAuthor": "string",
-          "$[].orderNumber": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 1
@@ -131,10 +126,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 1
@@ -151,10 +143,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].content": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].orderNumber": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 1
@@ -171,11 +160,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].author": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string",
+          "$[].*": "number|string",
           "$[].status": "string"
         },
         "counts": {
@@ -193,12 +178,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].assignee": "string",
-          "$[].createdAt": "string",
-          "$[].expectedDeliveryDate": "string",
-          "$[].id": "number",
-          "$[].latestNoteAuthor": "string",
-          "$[].orderNumber": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 1
@@ -215,11 +195,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].author": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string",
+          "$[].*": "number|string",
           "$[].status": "string"
         },
         "counts": {
@@ -237,11 +213,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].author": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string",
+          "$[].*": "number|string",
           "$[].status": "string"
         },
         "counts": {
@@ -259,20 +231,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].assignee": "string",
-          "$[].buyerName": "string",
-          "$[].createdAt": "string",
-          "$[].expectedDeliveryDate": "string",
-          "$[].id": "number",
-          "$[].itemsJson": "string",
-          "$[].latestNoteAuthor": "string",
-          "$[].orderDate": "string",
-          "$[].orderNumber": "string",
-          "$[].paymentTerms": "string",
-          "$[].sankhyaStatus": "string",
-          "$[].supplierCnpj": "string",
-          "$[].supplierName": "string",
-          "$[].totalAmount": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 2
@@ -289,11 +248,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].author": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string",
+          "$[].*": "number|string",
           "$[].status": "string"
         },
         "counts": {
@@ -310,8 +265,8 @@
       "summary": {
         "fields": {
           "$": "object",
-          "$.error": "object",
-          "$.error.code": "string"
+          "$.*": "object",
+          "$.*.*": "string"
         },
         "counts": {},
         "digest": "sha256:823824b271fd7dae31ec74d3acfbaf1034d2ea681e37e432b3ff61eb62416794"
@@ -326,20 +281,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].assignee": "string",
-          "$[].buyerName": "string",
-          "$[].createdAt": "string",
-          "$[].expectedDeliveryDate": "string",
-          "$[].id": "number",
-          "$[].itemsJson": "string",
-          "$[].latestNoteAuthor": "string",
-          "$[].orderDate": "string",
-          "$[].orderNumber": "string",
-          "$[].paymentTerms": "string",
-          "$[].sankhyaStatus": "string",
-          "$[].supplierCnpj": "string",
-          "$[].supplierName": "string",
-          "$[].totalAmount": "string"
+          "$[].*": "number|string"
         },
         "counts": {
           "$": 2
@@ -356,11 +298,7 @@
         "fields": {
           "$": "array",
           "$[]": "object",
-          "$[].author": "string",
-          "$[].createdAt": "string",
-          "$[].id": "number",
-          "$[].note": "string",
-          "$[].orderNumber": "string",
+          "$[].*": "number|string",
           "$[].status": "string"
         },
         "counts": {
@@ -369,5 +307,6 @@
         "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
       }
     }
-  ]
+  ],
+  "apiFieldsRule": "paths keep only the Q4 case's apiFields names (the operation's output contract); every other key is *"
 }

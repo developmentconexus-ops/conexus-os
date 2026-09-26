@@ -26,10 +26,15 @@ export function parseCase(raw) {
   if (typeof raw !== 'object' || raw === null) fail('case must be a JSON object')
   if (typeof raw.request !== 'string' || !raw.request.trim()) fail('case.request must be a non-empty string')
   if (!Array.isArray(raw.checks)) fail('case.checks must be an array')
+  const apiFields = raw.apiFields ?? []
+  if (!Array.isArray(apiFields) || apiFields.some((name) => typeof name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))) {
+    fail('case.apiFields must be an array of field names')
+  }
   return {
     request: raw.request.trim(),
     checks: raw.checks.map(validateStep),
     reload: raw.reload === true,
+    apiFields,
   }
 }
 

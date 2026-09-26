@@ -321,7 +321,7 @@ export async function runCase(options) {
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
-  const api = recordApplicationApi(context)
+  const api = recordApplicationApi(context, { trustedKeys: new Set(caseFile.apiFields) })
   const startedAt = new Date().toISOString()
   const result = {
     schema: 'conexus.builder-eval/v1', startedAt, finishedAt: null, outcome: 'ERROR', error: null,
