@@ -59,9 +59,9 @@ These bind Q4 and are not reopened by the executor.
    credential into the Workspace Connection (section 11, point 3).
 3. **Sample.** The sample purchase order is document number 22790.
 4. **Read authority.** The design never relies on the scope of the gateway credential. The broker
-   calls only the read services on its allow-list and refuses any other before it reaches Sankhya.
-   The operator recorded this decision on 2026-09-24 and watches the first real calls. This is
-   gate G0.
+   calls only the read services on its allow-list, plus the token call `POST /authenticate`, and
+   refuses any other before it reaches Sankhya. The operator recorded this decision on 2026-09-24,
+   admitted the token call on 2026-09-26 and watches the first real calls. This is gate G0.
 5. **No leak.** The credential never appears in logs, issues, evidence or the generated application.
    The generated application never sees it.
 6. **Build the authority layer.** Conexus builds the Connection, the per-operation Project Grant,
@@ -180,7 +180,7 @@ proves it.
 
 | # | Property |
 | --- | --- |
-| P1 | The credential is encrypted at rest and decrypted only inside the broker's process. It never enters the worker, the handler, the runner's invocation input, the browser, the Builder's sandbox, an agent's context, a Factory credential row or the Project repository. |
+| P1 | The credential is encrypted at rest and decrypted only inside the broker's process. It is never sent to a browser, and it never enters the worker, the handler, the runner's invocation input, the Builder's sandbox, an agent's context, a Factory credential row or the Project repository. |
 | P2 | No log line, trace span, error body, issue or evidence file carries the credential or the gateway access token. Mastra tracing redacts them, or the broker's spans never receive them. |
 | P3 | A consumer names one admitted operation and its typed input. It cannot name a Sankhya service, entity, SQL text, URL, host, header or token. |
 | P4 | The operation calls one fixed gateway service with a fixed field list. The broker refuses every operation whose effect is `write`, and every service outside the adapter's list, before the network. |
@@ -202,13 +202,15 @@ Each step ends in a check that passes before the next starts.
 
 The operator decided on 2026-09-24 that Q4 proceeds without relying on the scope of the gateway
 credential. The barrier is the broker: it holds an allow-list of the Sankhya read services the
-operations use, and it refuses any other service or path before a request leaves the Hub.
+operations use plus the token call `POST /authenticate`, and it refuses any other service or path
+before a request leaves the Hub.
 
 No Sankhya call of any kind, including a test call, an authentication or a call from a spike,
 happens before all of these hold:
 
-- the allow-list names only read services, and each entry cites the Sankhya documentation that
-  shows it reads;
+- the allow-list names only read services, each citing the Sankhya documentation that shows it
+  reads, plus `POST /authenticate`, the token call, which is the one admitted non-read call. The
+  operator decided this on 2026-09-26;
 - a test proves that the broker refuses a service outside the allow-list without any network call;
 - the adapter's source has no write-capable service name;
 - the evidence records the decision and its date, never the credential.
@@ -276,7 +278,7 @@ The installation administrator creates the Connection in the Hub's **Integraçõ
 today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
 Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
 write-only fields that are never shown back), test it, and grant an operation to a Project. The test
-button calls the allow-listed authentication only, and only after G0. **Check:** a browser test
+button calls `POST /authenticate` only, and only after G0. **Check:** a browser test
 creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
 page, the network responses or the Hub logs.
 
@@ -369,10 +371,14 @@ The app user reading or changing the Connection or a grant is recorded as a sixt
 
 ### Q4.11 — Leak scan
 
-A script loads the credential inside its own process from the Connection and searches, without
-printing it, the Hub, runner and Factory logs of the run window, the Mastra traces, the Builder and
+The scan never holds the plaintext credential: P1 holds without exception. The broker, inside its
+own process, supplies what the scan compares against, for example a non-reversible fingerprint of
+each credential value and access token or a count per location that it computes itself, and the
+implementer designs how. Nothing the broker supplies lets the credential be recovered. The scan
+searches the Hub, runner and Factory logs of the run window, the Mastra traces, the Builder and
 agent transcripts, the Project repository at every commit Q4 made, the built Preview artifact and
-`docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero.
+`docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero,
+and a test shows the scan's process never receives a plaintext credential value.
 
 The same script also collects order 22790's business values from every live read the run made, held
 in its own memory (supplier, dates, status, prices, quantities, totals, item descriptions, notes), and
@@ -422,12 +428,16 @@ Any one rejects the hypothesis:
 
 STOP and return to the planner on:
 
-- **any Sankhya call, including a test call, before G0, or to a service outside the allow-list.**
+- **any Sankhya call, including a test call, before G0, or to a service outside the G0
+  allow-list, whose one non-read entry is `POST /authenticate`.**
   This rule comes first and has no exception;
 - a need for the MGE user or password, or for a second credential;
 - the credential, an access token or a value from the operator's credentials file seen anywhere
-  outside the broker, even once. Stop, tell the operator so they can rotate it, and write no value
-  in the report;
+  outside the broker, even once. The one authorized path is the installation administrator typing
+  client id, client secret and X-Token into the write-only fields of Q4.2, which the browser sends
+  once in the request that creates the Connection. A value in any response, page state after that
+  request, log, worker, agent, the Builder or the repository is a leak. Stop, tell the operator so
+  they can rotate it, and write no value in the report;
 - a need to reopen contract section 12.6, C-022 or C-028, or the Q1 worker boundary;
 - a property of 6.2 that the design cannot keep;
 - a need for a new dependency, including `@mastra/mcp` as a direct one (the technology rule applies
