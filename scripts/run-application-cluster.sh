@@ -15,9 +15,12 @@
 # filesystem as PGDATA, and that filesystem is still the dedicated one, not merely something with a
 # marker and stale `pgdata` copied into the plain directory left behind once <storage-root> is
 # unmounted. The entrypoint reads /proc/self/mountinfo and requires the mount covering the storage
-# root to be ext4 from the exact source this script found mounted at <storage-root> when it started
-# the container, passed in as CONEXUS_APP_CLUSTER_STORAGE_SOURCE. A plain directory reports its own
-# root filesystem's source there, never a match.
+# root to be ext4 from the exact identity this script found mounted at <storage-root> when it started
+# the container, passed in as CONEXUS_APP_CLUSTER_STORAGE_SOURCE. For a loop device that identity is
+# the loop's backing file, not the /dev/loopN path: loop numbers are assigned in mount order at boot,
+# so a reboot can renumber the same image to a different number, while the backing file it was built
+# from stays the same. A plain directory reports its own root filesystem's identity there, never a
+# match.
 #
 # The settings below are cluster-level: set on the server command line, so no Project role can
 # change them for the cluster. Roles get tighter per-role values from the application runner
@@ -53,14 +56,20 @@ case "$device" in
     allocated=$(($(stat -c %b "$image_file") * $(stat -c %B "$image_file")))
     size="$(stat -c %s "$image_file")"
     [ "$allocated" -ge "$size" ] || fail "APPLICATION_CLUSTER_STORAGE_SPARSE: $allocated of $size bytes allocated in $image_file"
+    identity="$image_file"
+    ;;
+  *)
+    identity="$device"
     ;;
 esac
 
 # Runs as the container's entrypoint on every start, Docker's restarts included. Beyond the marker,
 # it requires the mount covering $storage to still be the dedicated ext4 filesystem this script found
 # at <storage-root>: a plain directory left behind by an unmount reports its own root filesystem's
-# source, which never matches CONEXUS_APP_CLUSTER_STORAGE_SOURCE below.
-guard="[ -f $storage/$marker ] && [ \"\$(stat -c %d $storage/$marker)\" = \"\$(stat -c %d /var/lib/postgresql/data)\" ]"' && line=$(grep -F " /var/lib/conexus-apps-storage " /proc/self/mountinfo | tail -n1) && rest=${line#*" - "} && fstype=${rest%% *} && src=${rest#* } && src=${src%% *} && [ "$fstype" = ext4 ] && [ "$src" = "$CONEXUS_APP_CLUSTER_STORAGE_SOURCE" ] || { echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1; }; exec docker-entrypoint.sh "$@"'
+# identity, which never matches CONEXUS_APP_CLUSTER_STORAGE_SOURCE below. For a loop mount, "identity"
+# resolves the live source to its backing file too, since a reboot can remount the same image under a
+# different /dev/loopN number and the raw device path would then never match either.
+guard="[ -f $storage/$marker ] && [ \"\$(stat -c %d $storage/$marker)\" = \"\$(stat -c %d /var/lib/postgresql/data)\" ]"' && line=$(grep -F " /var/lib/conexus-apps-storage " /proc/self/mountinfo | tail -n1) && rest=${line#*" - "} && fstype=${rest%% *} && src=${rest#* } && src=${src%% *} && case $src in /dev/loop*) identity=$(cat "/sys/block/${src#/dev/}/loop/backing_file") ;; *) identity=$src ;; esac && [ "$fstype" = ext4 ] && [ "$identity" = "$CONEXUS_APP_CLUSTER_STORAGE_SOURCE" ] || { echo APPLICATION_CLUSTER_STORAGE_UNMOUNTED >&2; exit 1; }; exec docker-entrypoint.sh "$@"'
 
 docker run -d --name "$container" \
   --restart unless-stopped \
@@ -74,7 +83,7 @@ docker run -d --name "$container" \
   --mount "type=bind,source=$password_file,target=/run/secrets/postgres-password,readonly" \
   --env POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password \
   --env POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 \
-  --env CONEXUS_APP_CLUSTER_STORAGE_SOURCE="$device" \
+  --env CONEXUS_APP_CLUSTER_STORAGE_SOURCE="$identity" \
   --entrypoint /bin/sh \
   "$image" \
   -c "$guard" conexus-storage-guard \

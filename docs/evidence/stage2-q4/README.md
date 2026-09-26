@@ -64,8 +64,9 @@ Connection, sealed.
 on [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282#issuecomment-5840841862)
 and covers the read allow-list (`POST /authenticate` and `CRUDServiceProvider.loadRecords`), the
 no-network refusal test and the adapter source check, as this section records them. Q4.6, the first
-real call, still waits for three things: the merge of #246, the pilot deploy of its migration, and
-the operator loading the credential in the Integrações screen. The operator watches that call.
+real call, still waits for two things: the pilot deploy of part 1 and its migration, and the
+operator loading the credential in the Integrações screen. Part 1 is on `main` since #246 merged on
+2026-09-26 (`9ae2ff73`). The operator watches that call.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
@@ -74,7 +75,7 @@ Until part 2, the Hub runs with no gateway destination configured
 ### Pilot deploy plan for part 1
 
 The procedure is [`infra/pilot/README.md`, "Deploy main"](../../../infra/pilot/README.md#deploy-main), run
-once #246 is merged. The operator approves every step in the executor's session before it runs, and
+on `main` at or after `9ae2ff73`, the merge of #246. The operator approves every step in the executor's session before it runs, and
 each approval covers only that step. The deploy makes no Sankhya request:
 `CONEXUS_SANKHYA_GATEWAY_ORIGIN` stays absent, so every call and every "Testar" answers
 `CONNECTOR_UNCONFIGURED` without the network.
@@ -103,7 +104,7 @@ each approval covers only that step. The deploy makes no Sankhya request:
 5. **Back up, then migrate.** `pg_dump -Fc` of `conexus_s7`, then `pg_restore --list` of the dump.
    Record `backup ok` and the dump's name here. Then `scripts/run-hub-migrations.mjs` with
    `CONEXUS_MIGRATION_DATABASE_URL_FILE`, which applies `0029` alone. Record its verdict and the
-   catalog digest (`8531eadb…` at 0029 in `contracts/technical/hub-catalog-snapshot.json`). The
+   catalog digest (`ca37c492…` at 0029 in `contracts/technical/hub-catalog-snapshot.json`). The
    migration is forward-only, so the dump is the only way back.
 6. **Start** `infra/pilot/runner.sh`, then `infra/pilot/hub.sh`. Check the runner socket before the
    Hub, per the pilot rule.
@@ -171,6 +172,16 @@ document number 22790 is the one exception.
    replacing Connection then answered 200 with that old grant, and every call was `NOT_GRANTED`.
    Disabling a Connection now revokes its open grants in the same transaction, and a grant racing
    the disable is revoked by it. `connector-postgres` (P8 and the race test).
+6. **Resolved in review.** An identical create retry answered 409 after a key rotation, because the
+   digest came from the current key alone. The retry now matches the stored digest under the current
+   key or any retired key still configured. `connector-postgres`.
+7. **Resolved in review.** A document number from 1,000,000,000 up, which the input admits, came back
+   as `NaN` and the whole read was refused. The parse now takes every number up to 2,147,483,647.
+   `connector-broker`.
+8. **Resolved in review.** A failed revoke now closes its dialog, as a failed disable does, and
+   shows the error in the row. The browser run showed that the dialog's confirm button already
+   closed it and the error was visible, so this makes the close explicit.
+   `connector-integrations-browser`.
 
 ## Open for part 2
 

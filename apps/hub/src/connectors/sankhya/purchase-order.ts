@@ -48,7 +48,10 @@ const purchaseOrder = z.object({
   items: z.array(purchaseOrderItem).max(MAX_ITEMS),
 })
 
-export const purchaseOrderReadInput = z.strictObject({ documentNumber: z.number().int().positive().max(2_147_483_647) })
+// The largest document number the input admits, and so the largest one a response may carry back.
+const MAX_INTEGER = 2_147_483_647
+
+export const purchaseOrderReadInput = z.strictObject({ documentNumber: z.number().int().positive().max(MAX_INTEGER) })
 export const purchaseOrderReadOutput = z.object({ orders: z.array(purchaseOrder).max(MAX_ORDERS) })
 
 export type PurchaseOrderReadInput = z.infer<typeof purchaseOrderReadInput>
@@ -72,7 +75,7 @@ const dateOf = (value: string | null): string | null => {
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null
 }
 
-const integerOf = (value: string | null): number => (value !== null && /^\d{1,9}$/.test(value) ? Number(value) : Number.NaN)
+const integerOf = (value: string | null): number => (value !== null && /^\d{1,10}$/.test(value) && Number(value) <= MAX_INTEGER ? Number(value) : Number.NaN)
 
 const itemOf = (row: SankhyaRecord) => ({
   sequence: integerOf(row.SEQUENCIA ?? null),

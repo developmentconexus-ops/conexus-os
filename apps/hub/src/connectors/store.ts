@@ -102,10 +102,10 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
   async createConnection({ actor, connectionId, workspaceId, connectorId, label, credential }) {
     const sealed = await envelope.seal(JSON.stringify(credential))
     // Sorted keys, so a retry that sends the same fields in another order has the same digest.
-    const digest = envelope.fingerprint(JSON.stringify(credential, Object.keys(credential).sort()))
+    const digests = envelope.fingerprints(JSON.stringify(credential, Object.keys(credential).sort()))
     const result = await pool.query<ConnectionRow & { created: boolean }>(
       'SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1, $2, $3, $4, $5, $6, $7)',
-      [actor, connectionId, workspaceId, connectorId, label, sealed, digest])
+      [actor, connectionId, workspaceId, connectorId, label, sealed, digests])
     const row = result.rows[0]
     if (!row) throw new Error('CONNECTOR_CONNECTION_NOT_READABLE')
     return { connection: toConnection(row), created: row.created }

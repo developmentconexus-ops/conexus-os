@@ -43,14 +43,9 @@ So:
 
 ## Keep worktrees intact
 
-The Windows checkout at `C:\Users\leandro.theodoro\Documents\conexus-os` is the Git common directory for worktrees that live in WSL, such as `~/conexus-os` and `~/wt-*`. Windows Git cannot resolve a `/home/...` path, so `git worktree list` on Windows marks every one of them `prunable`.
+The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`.
 
-**Never run `git worktree prune` on Windows.** It deletes each worktree's `.git/worktrees/<name>/` directory and breaks the checkout with `fatal: not a git repository`. The files survive. The index and staged state do not. Before trusting a `prunable` flag, check the path from WSL with `ls -d <path>`.
-
-To recover a pruned worktree:
-
-1. Recreate `.git/worktrees/<name>/HEAD`, `commondir` and `gitdir` in the Windows checkout.
-2. Rebuild its index from Windows with `GIT_INDEX_FILE=.git/worktrees/<name>/index git read-tree <sha>`. The index lives on the Windows side. Only the work tree is in WSL.
+Remove worktrees only with `npm run worktree:reap`. It prints what it would remove and why it keeps the rest, and `npm run worktree:reap -- --apply` removes. It removes a worktree only when its pull request is closed or merged, its HEAD is that pull request's head commit, and it holds nothing but regenerable build output. Never run `git worktree prune` or `git worktree remove --force`.
 
 Build and test only in WSL. The `node_modules` of a WSL worktree is a Linux install, and Vite fails on Windows with a missing `rolldown-binding.win32-x64-msvc.node`. Edit WSL files from Windows tools through `\\wsl.localhost\Ubuntu\home\...`.
 
@@ -59,7 +54,7 @@ Build and test only in WSL. The `node_modules` of a WSL worktree is a Linux inst
 The Ubuntu disk is `D:\WSL\Ubuntu\ext4.vhdx`. It only grows. Deleting files inside WSL returns no space to D:. When D: fills, the ext4 file system turns read-only and Ubuntu refuses to start.
 
 - Before work that pulls Docker images, runs `npm ci` in a new worktree, or builds templates, check D: from PowerShell with `(Get-Volume -DriveLetter D).SizeRemaining`. Below 20 GB, stop and tell the operator.
-- When a pull request merges, delete its worktree's `node_modules`. Each one takes about 1.5 GB.
+- When a pull request merges, run `npm run worktree:reap`. Each worktree's `node_modules` takes about 1.5 GB.
 - To return space to D:, the operator compacts the disk as administrator: `wsl --shutdown`, then in `diskpart` run `select vdisk file=D:\WSL\Ubuntu\ext4.vhdx`, `attach vdisk readonly`, `compact vdisk`, and `detach vdisk`.
 - Do not force a sparse disk with `wsl --manage Ubuntu --set-sparse true --allow-unsafe`. WSL refuses it because of possible data corruption.
 - If Conexus feels slow, measure the disk before blaming the code.
