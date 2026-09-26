@@ -207,8 +207,9 @@ operations use, and it refuses any other service or path before a request leaves
 No Sankhya call of any kind, including a test call, an authentication or a call from a spike,
 happens before all of these hold:
 
-- the allow-list names only read services, and each entry cites the Sankhya documentation that
-  shows it reads;
+- the allow-list names only read services, each citing the Sankhya documentation that shows it
+  reads, plus `POST /authenticate`, the token call and the one admitted non-read call. The
+  operator decided this on 2026-09-26;
 - a test proves that the broker refuses a service outside the allow-list without any network call;
 - the adapter's source has no write-capable service name;
 - the evidence records the decision and its date, never the credential.
@@ -276,7 +277,7 @@ The installation administrator creates the Connection in the Hub's **Integraçõ
 today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
 Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
 write-only fields that are never shown back), test it, and grant an operation to a Project. The test
-button calls the allow-listed authentication only, and only after G0. **Check:** a browser test
+button calls `POST /authenticate` only, and only after G0. **Check:** a browser test
 creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
 page, the network responses or the Hub logs.
 
@@ -369,10 +370,14 @@ The app user reading or changing the Connection or a grant is recorded as a sixt
 
 ### Q4.11 — Leak scan
 
-A script loads the credential inside its own process from the Connection and searches, without
-printing it, the Hub, runner and Factory logs of the run window, the Mastra traces, the Builder and
+The scan never holds the plaintext credential: P1 holds without exception. The broker, inside its
+own process, supplies what the scan compares against, for example a non-reversible fingerprint of
+each credential value and access token or a count per location that it computes itself, and the
+implementer designs how. Nothing the broker supplies lets the credential be recovered. The scan
+searches the Hub, runner and Factory logs of the run window, the Mastra traces, the Builder and
 agent transcripts, the Project repository at every commit Q4 made, the built Preview artifact and
-`docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero.
+`docs/evidence/stage2-q4/`. It prints only a count per location. **Check:** every count is zero,
+and a test shows the scan's process never receives a plaintext credential value.
 
 The same script also collects order 22790's business values from every live read the run made, held
 in its own memory (supplier, dates, status, prices, quantities, totals, item descriptions, notes), and
@@ -422,7 +427,8 @@ Any one rejects the hypothesis:
 
 STOP and return to the planner on:
 
-- **any Sankhya call, including a test call, before G0, or to a service outside the allow-list.**
+- **any Sankhya call, including a test call, before G0, or to a service outside the G0
+  allow-list, whose one non-read entry is `POST /authenticate`.**
   This rule comes first and has no exception;
 - a need for the MGE user or password, or for a second credential;
 - the credential, an access token or a value from the operator's credentials file seen anywhere
