@@ -180,7 +180,7 @@ proves it.
 
 | # | Property |
 | --- | --- |
-| P1 | The credential is encrypted at rest and decrypted only inside the broker's process. It never enters the worker, the handler, the runner's invocation input, the browser, the Builder's sandbox, an agent's context, a Factory credential row or the Project repository. |
+| P1 | The credential is encrypted at rest and decrypted only inside the broker's process. It is never sent to a browser, and it never enters the worker, the handler, the runner's invocation input, the Builder's sandbox, an agent's context, a Factory credential row or the Project repository. |
 | P2 | No log line, trace span, error body, issue or evidence file carries the credential or the gateway access token. Mastra tracing redacts them, or the broker's spans never receive them. |
 | P3 | A consumer names one admitted operation and its typed input. It cannot name a Sankhya service, entity, SQL text, URL, host, header or token. |
 | P4 | The operation calls one fixed gateway service with a fixed field list. The broker refuses every operation whose effect is `write`, and every service outside the adapter's list, before the network. |
@@ -209,7 +209,7 @@ No Sankhya call of any kind, including a test call, an authentication or a call 
 happens before all of these hold:
 
 - the allow-list names only read services, each citing the Sankhya documentation that shows it
-  reads, plus `POST /authenticate`, the token call and the one admitted non-read call. The
+  reads, plus `POST /authenticate`, the token call, which is the one admitted non-read call. The
   operator decided this on 2026-09-26;
 - a test proves that the broker refuses a service outside the allow-list without any network call;
 - the adapter's source has no write-capable service name;
