@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { recordApplicationApi } from './api-summary.mjs'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
 
 const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
@@ -320,6 +321,7 @@ export async function runCase(options) {
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
+  const api = recordApplicationApi(context)
   const startedAt = new Date().toISOString()
   const result = {
     schema: 'conexus.builder-eval/v1', startedAt, finishedAt: null, outcome: 'ERROR', error: null,
@@ -328,7 +330,7 @@ export async function runCase(options) {
     conversationId: null, modelId: options.model ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
     runs: [], repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
-    checks: { initial: [], afterReload: null }, screenshotPath: null, failure: null,
+    checks: { initial: [], afterReload: null }, screenshotPath: null, failure: null, api: api.entries,
   }
   try {
     let requestSentAt = null
@@ -357,6 +359,7 @@ export async function runCase(options) {
     mkdirSync(options.out, { recursive: true })
     await page.screenshot({ path: join(options.out, 'failure.png') }).catch(() => {})
   } finally {
+    await api.settled()
     result.finishedAt = new Date().toISOString()
     await browser.close()
   }

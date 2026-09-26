@@ -78,3 +78,9 @@ result was saved outside the browser.
   run's revision within the bound; `NO_PREVIEW` (grade-only) means the Project has no Preview. Checks never grade a Preview the request did not produce.
 - `outcome`: `PASS`, `FAIL` (a check failed, `failure` is set, or no Preview became usable), or
   `ERROR` (the tool itself broke; see `error` and `failure.png`).
+- `api`: one entry per application API answer the browser received (`/__conexus/api/<operation>`),
+  with its time, host, operation and status. `summary` holds the answer's field paths with their
+  types, array lengths and a SHA-256 digest, never a value (`api-summary.mjs`).
+
+The screenshots and a failed check's `error` show what the page showed. When the Preview shows
+business data, keep `--out` outside the repository and commit only what the task allows.
