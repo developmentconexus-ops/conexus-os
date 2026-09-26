@@ -15,7 +15,8 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
       runs once. A new test file is run by a leaf. A test file no leaf runs protects nothing. Owner:
       [Proof and verification](../delivery.md#proof-and-verification).
-- [ ] A leaf that drives a real browser is tagged `browser` (or `browser-postgres`) so its environment wiring and record output are correct.
+- [ ] A leaf that drives a real browser is tagged `browser` (or `browser-postgres`) so its
+      environment wiring and record output are correct.
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger
       coverage stay equivalent.
 - [ ] Expected output is regenerated only with the explicit generation command, never by hand to
@@ -40,7 +41,7 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 - #169 skipped browser leaves for pull requests that did not touch web paths, but the
   `c020-compiler-runtime` leaf drove a real Chromium without the `browser` tag. Every Builder-only
   pull request then failed Verify on a timeout. Fixed by #177 (`aa67e19e`), which tags the leaf.
-  #297 removed the browser skip optimization completely so browser suites run on every pull request.
+  #304 removed the browser skip optimization completely so browser suites run on every pull request.
 - The runner sandbox tests ran with Node's permission layer on, so they could not show what the
   bubblewrap namespaces alone allowed, and their network check against `127.0.0.1:5432` could not
   fail. Review rounds of #196 (`b90c54f7`) added a `nodePermission` switch, a network test that
