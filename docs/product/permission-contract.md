@@ -50,20 +50,22 @@ A Project has no authority of its own. It inherits the Workspace that owns it.
 
 An installation administrator may act on the whole installation. The actions it exists for
 are connecting or replacing the company GitHub organization, sharing a model account with
-everyone in the installation, and creating, listing or disabling a Workspace's integration
+everyone in the installation, and creating, listing, checking, or disabling a Workspace's integration
 Connections ([C-026](../decisions/index.md)). It is a fact about an Account, held in
 `iam.installation_administrator`. It is not a Workspace role and not an `iam.action`.
 
 Being an administrator grants nothing inside a Workspace or a Project, with exactly one
-narrow carve-out: an administrator may create, list and disable that Workspace's Connections
-through `connector.create_connection`, `connector.list_connections` and
-`connector.disable_connection`. Those functions call only
+narrow carve-out: an administrator may manage that Workspace's enterprise Connections
+(list, create, check authentication, and disable) through `connector.create_connection`,
+`connector.list_connections`, `connector.disable_connection`, and the `CheckWorkspaceConnection`
+operation (CON-03, which tests authentication via `connector.list_connections` and the broker). Those functions call only
 `connector.admit_installation_administrator` (which reads `iam.is_installation_administrator`),
-never `iam.admit_workspace`, so they do not require Workspace membership. Outside that
-carve-out, `iam.admit_workspace`, `iam.admit_project`, `iam.visible_workspaces` and
+never `iam.admit_workspace`, so they do not require Workspace membership. Disabling a Connection
+is terminal and revokes all of its open grants, recording the administrator as `revoked_by`.
+Outside that carve-out, `iam.admit_workspace`, `iam.admit_project`, `iam.visible_workspaces` and
 `iam.visible_projects` never read the table, so an administrator with no membership sees and
 may do nothing else in any Workspace. In particular, granting or revoking an operation of a
-Connection to a Project (`connector.grant_capability`, `connector.revoke_grant`) is gated by
+Connection for an individual Project (`connector.grant_capability`, `connector.revoke_grant`) is gated by
 `connector.admit_project_owner` (`iam.admit_workspace(..., 'members.manage')`), which stays
 reserved to an Owner of that Workspace.
 
