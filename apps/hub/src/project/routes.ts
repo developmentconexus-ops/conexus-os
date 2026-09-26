@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { S3_GENERATED_ROUTES } from '../generated/s3-routes.js'
 import type {
   Prj01Params,

@@ -274,19 +274,20 @@ encrypted custody of client id, client secret and X-Token. The Connection stores
 password and its schema has no field for one. **Check:** unit tests show a stored Connection holds
 only ciphertext, and no Hub operation returns a credential field.
 
-The installation administrator creates the Connection in the Hub's **Integrações** screen, which is
-today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
-Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
-write-only fields that are never shown back), test it, and grant an operation to a Project. The test
-button calls `POST /authenticate` only, and only after G0. **Check:** a browser test
-creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
-page, the network responses or the Hub logs.
+The **Integrações** screen at `/projects/$projectId/integrations` (replacing the "Em breve"
+item in `apps/web/src/app/shell.tsx`) serves both roles: it lists the Workspace's Connections,
+lets an installation administrator add one (client id, client secret and X-Token as write-only
+fields that are never shown back), check it (`POST /authenticate` only, and only after G0), and
+disable it; and lets a Workspace Owner grant and revoke the operation for this Project (Q4.3).
+**Check:** a browser test creates a Connection through the screen as an installation administrator,
+verifies that an Owner grants and revokes an operation, reloads, and finds no credential value
+in the page, the network responses or the Hub logs.
 
 ### Q4.3 — Project Grant
 
-A Workspace Owner grants and revokes one operation of a Connection to one Project and environment.
-Only the Preview environment exists before Q5. **Check:** tests prove P7 and P8 against real
-PostgreSQL, and `npm run wire:bijection` passes.
+A Workspace Owner grants and revokes one operation of a Connection to one Project and environment
+on the **Integrações** screen. Only the Preview environment exists before Q5. **Check:** tests prove
+P7 and P8 against real PostgreSQL, and `npm run wire:bijection` passes.
 
 ### Q4.4 — Broker, token cache and handler relay
 
@@ -303,26 +304,39 @@ of the operations granted to its Project, and only those. **Check:** a Project w
 Sankhya operation; a Project with the grant sees its id and contracts; the Builder's sandbox holds no
 credential or gateway URL (P11).
 
-### Q4.6 — First real read
+### Q4.6 — First real call and the grant
 
-After G0, the executor reads purchase order 22790 once through the broker on the pilot, using the
-Connection the operator loaded. **Check:** the broker returns the order; the evidence records the
-fields returned, the call count, the duration and a response digest. The evidence shows field names,
-counts and digests, never order 22790's business values (section 11, point 5).
+After G0, the Workspace Owner grants `sankhya.purchase-order.read` to the Q3 Project in the
+Integrações screen. The installation administrator then presses **Testar** on the Connection the
+operator loaded. That check is the first real Sankhya call, and it calls `POST /authenticate` only.
+The operator watches it. The first data read happens in Q4.7 (section 11, point 7). **Check:** the
+grant is open; **Testar** answers `OK`; the evidence logs the call as G0 requires.
 
 ### Q4.7 — Builder end to end (the main case)
 
-The Owner grants the operation to the Q3 Project. With `scripts/builder-eval/run.mjs`, the operator
-asks the Builder in product language:
+The Q3 Project holds the grant from Q4.6. With `scripts/builder-eval/run.mjs`, the operator asks the
+Builder in product language:
 
 > Quero acompanhar os pedidos de compra. Para o pedido 22790, mostre os dados do pedido que estão no
 > Sankhya e deixe a equipe registrar notas de acompanhamento.
 
 The Builder, taught by the Sankhya Skill and the typed operations the Project may use, writes a
 handler that calls the operation through the runner relay and the broker. The notes stay in Project
-data. Budget: two Builder runs, one of them a repair. **Check:** the Preview shows real Sankhya data
-for 22790 beside its notes after reload; the handler calls the operation, not a hard-coded value or a
-browser request; the Builder's diff and transcript hold no credential, host or Sankhya service name.
+data. The handler's first call is Q4's first data read. Budget: two Builder runs, one of them a
+repair.
+
+If the first read fails, the executor diagnoses it from the broker's `connector.call` audit line and
+the Builder's diff before any fix. Only a demonstrated Hub defect, such as a wrong field mapping in
+`sankhya/purchase-order.ts`, is fixed in the Hub. A reload of the same Preview retests that fix
+without spending a Builder run. A credential, configuration or Sankhya data problem goes to the
+operator. An external outage waits, and the same Preview is retried. A fault in the handler counts
+against the Builder's budget as before.
+
+**Check:** the Preview shows real Sankhya data for 22790 beside its notes after reload; the handler
+calls the operation, not a hard-coded value or a browser request; the Builder's diff and transcript
+hold no credential, host or Sankhya service name; the evidence records the first read's fields
+returned, call count, duration and response digest. The evidence shows field names, counts and
+digests, never order 22790's business values (section 11, point 5).
 
 ### Q4.8 — App user on the pilot
 
@@ -463,6 +477,10 @@ STOP and return to the planner on:
    status, prices, quantities, totals, items or notes, and never a raw Sankhya or handler response.
    The document number 22790 is the one exception: it is an identifier the task already names.
 6. **The verdict.**
+7. **First data read.** Decided on 2026-09-26 (decision 16A): the first read of order 22790 is the
+   first handler read of Q4.7, not a separate read in Q4.6. Before Q4.9, a handler is the only
+   consumer that reaches the broker. A one-off script would run a second broker outside the Hub,
+   and section 6.1 fixes the broker in the Hub.
 
 ## 12. Evidence layout
 
@@ -471,8 +489,8 @@ docs/evidence/stage2-q4/
   README.md            verdict, G0 confirmation and date, falsifiers, findings, review
   census.md            Q4.0 native census with versions, files and dated URLs
   design.md            Q4.1 frozen types, design-only consumers, property map
-  q4.6-real-read/      fields, call count, duration, digest
-  q4.7-run1/           Builder run, grade, diff summary, redacted (run2/ if used)
+  q4.7-run1/           Builder run, grade, diff summary, redacted (run2/ if used); the first read's
+                       fields, call count, duration and digest
   q4.8-app-user.png    the app user's view, redacted per section 11 point 5
   q4.9-agent-tool/     the agent tool's calls and refusals, as sanitized summaries
   q4.10-proof.json     every case with a sanitized request and answer summary and its verdict

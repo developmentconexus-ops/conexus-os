@@ -52,7 +52,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
   'repository-check', 'repository-import-law', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
-  'repository-contract-checks', 'knip', 'biome-current',
+  'repository-contract-checks', 'knip', 'biome',
+  'brand-wordmark-csp', 'builder-tool-sentences', 'factory-skills-guard', 'settings-provider-groups', 'conexus-preflight',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
@@ -61,6 +62,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder', 'wire-connector',
   'wire-technical-lint', 'wire-technical-ingress',
+  'test-census',
   'only-opt-in-skips',
 ])
 
@@ -194,12 +196,9 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'historical Builder verifier suite is not a current MVP blocker')
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
-  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome check')).length, 1)
-  const biomeCurrentCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome-current').command
-  assert.equal(biomeCurrentCommand.includes('apps/hub/src'), true)
-  assert.equal(biomeCurrentCommand.includes('apps/web/src'), true)
-  assert.equal(biomeCurrentCommand.includes(' packages '), true,
-    'biome-current must check the whole packages/ root, not a subset of package subpaths')
+  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
+  const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
+  assert.equal(biomeCommand, 'npx --no-install biome ci .')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)
@@ -251,7 +250,7 @@ test('a step that never exits is killed and reported by name', () => {
   runNpmScript(candidate, {
     root: '/tmp/conexus-verify-test',
     processEnvironment: { PATH: '/fixture/bin' },
-    spawn: (file, args, options) => {
+    spawn: (_file, _args, options) => {
       observed = options
       return { status: 0 }
     },

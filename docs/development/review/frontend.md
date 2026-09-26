@@ -16,8 +16,6 @@ are designed, built and verified. This page does not restate it.
       reimplements one fails the [Mastra native](mastra-native.md) census.
 - [ ] Values match the issue's literal numbers and copy. Using a token or a class is not proof the
       value is right.
-- [ ] Every package the web app imports is a direct dependency in `package.json`, not a transitive
-      one.
 - [ ] A token change updates `DESIGN.md`, `.impeccable/design.json` and
       `tests/implementation/brand-tokens.test.mjs` in the same pull request.
 - [ ] A brand component the Keycloak sign-in theme renders has no inline `style` attribute. The

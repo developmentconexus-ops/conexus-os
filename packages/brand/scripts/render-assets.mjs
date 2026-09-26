@@ -80,7 +80,6 @@ async function main() {
   {
     const size = 180
     const markSize = Math.round(size * 0.72)
-    const offset = Math.round((size - markSize) / 2)
     const html = `<html><body style="margin:0;width:${size}px;height:${size}px;background:#FFFFFF;
       display:flex;align-items:center;justify-content:center">
       <div style="width:${markSize}px;height:${markSize}px">${markSvg(MARK_LIGHT, markSize)}</div>
