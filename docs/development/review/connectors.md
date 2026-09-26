@@ -57,6 +57,10 @@ Applications PostgreSQL cluster. [`areas.json`](areas.json) owns the paths.
 - The Applications cluster's storage guard compared device numbers and a marker file, which a
   copied data directory could pass on Docker's own restart path. Fixed in #196 (`b90c54f7`), which
   reads the live mount table. Now at `scripts/run-application-cluster.sh:58-63`.
+- The live-mount-table guard above still compared the raw `/dev/loopN` path, which a host reboot can
+  renumber for the same backing image, crash-looping the cluster with
+  `APPLICATION_CLUSTER_STORAGE_UNMOUNTED` on every boot. Fixed in #283, which resolves a loop source
+  to its backing file before comparing. Now at `scripts/run-application-cluster.sh:51-72`.
 
 ## Principles
 
