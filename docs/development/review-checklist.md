@@ -1,7 +1,7 @@
 # Review checklist
 
 This file is the index of the Conexus review. It says which pages a review loads, the items every
-pull request meets, the principles by change type, and the verdict. Request changes only for a
+pull request meets, and the verdict. Request changes only for a
 failed item or a correctness defect, never for preference. Each item comes from
 [the delivery rules](delivery.md) or the owner it links.
 
@@ -51,7 +51,7 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
 
 ## Tests and secrets
 
-- [ ] Each new or changed test calls the code as its users do and asserts a literal value the code computes, never one that restates a hand-maintained constant, digest or prompt.
+- [ ] Each new or changed test calls the code as its users do and asserts a literal value the code computes, never one that restates a hand-maintained constant, digest or prompt. A value an owner outside the code approved, such as a brand token in `DESIGN.md`, is not a restatement.
 - [ ] No design was reshaped to keep a test passing. Tests whose subject is gone are deleted.
 - [ ] No secret, token or credential appears in code, fixtures, logs or the pull request body.
 
@@ -62,4 +62,4 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
 
 ## Verdict
 
-- The review names the head SHA, the pages it loaded, the census table or "no new mechanism", and each failed or unevaluated item with its evidence. Any failed item is `request changes`, otherwise `approve`.
+- The review names the head SHA, the pages it loaded, the census table or "no new mechanism", and each failed or unevaluated item with its evidence. Any failed or unevaluated item, or a correctness defect, is `request changes`, otherwise `approve`.

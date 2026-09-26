@@ -24,7 +24,7 @@ The [review checklist](../../../../docs/development/review-checklist.md) and the
 
 **Shaped lane and `needs:aprovo`.** The [merge gate](../../../../docs/development/delivery.md#merge-gate) adds an independent Claude Opus review. The manager runs it without the Factory's verdict.
 
-**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), which holds the reviewer count and the model rule. The manager's Opus review has seen no draft of the work. Also:
+**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification) and the [merge gate](../../../../docs/development/delivery.md#merge-gate). The manager's Opus review has seen no draft of the work. Also:
 
 - A collaborative writer or design challenger is not an independent reviewer.
 - A reviewer finding is evidence, not a product requirement and not execution authority. The lead classifies it against current owners.
