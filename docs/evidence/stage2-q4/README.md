@@ -72,17 +72,19 @@ since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the sa
 deploy record below). On 2026-09-26 the operator loaded the credential, granted the operation to
 the Q3 Project and watched Q4.6, the first real call. It is row 1 of the table below.
 
-Until part 2, the Hub runs with no gateway destination configured
-(`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
-`CONNECTOR_UNCONFIGURED` with no network, which `connector-broker.test.mjs` also proves.
+Until 2026-09-26 22:17 UTC, the pilot Hub ran with no gateway destination configured
+(`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answered
+`CONNECTOR_UNCONFIGURED` with no network, which `connector-broker.test.mjs` also proves. Since that
+restart, the Hub has the production origin for Q4.6 (step 10 below), so a credential check and a
+granted call reach Sankhya.
 
 ### Pilot deploy plan for part 1
 
 The procedure is [`infra/pilot/README.md`, "Deploy main"](../../../infra/pilot/README.md#deploy-main), run
 on `main` at or after `9ae2ff73`, the merge of #246. The operator approves every step in the executor's session before it runs, and
 each approval covers only that step. The deploy makes no Sankhya request:
-`CONEXUS_SANKHYA_GATEWAY_ORIGIN` stays absent, so every call and every "Testar" answers
-`CONNECTOR_UNCONFIGURED` without the network.
+`CONEXUS_SANKHYA_GATEWAY_ORIGIN` stays absent through step 7, so every call and every "Testar"
+answers `CONNECTOR_UNCONFIGURED` without the network.
 
 1. **Fetch and list.** Run `git fetch` in `~/conexus-pilot` and diff the old head against the merged
    `main`. Expected: one migration, `apps/hub/migrations/0029_connector.sql`, plus changes under
@@ -142,6 +144,12 @@ After the deploy:
 11. The operator presses **Testar** and watches the first real call, `POST /authenticate` only. Each
     call from then on gets one row in the table below. The first data read is the first handler read
     of Q4.7 (task section 11, point 7).
+
+**Record, 2026-09-26.** Steps 8 to 11 ran. The operator added the Connection and the grant. With the
+operator's go-ahead, the implementer added the production origin to the Hub's env file and restarted
+only the Hub: `hub starting 2026-09-26T22:17:34Z head 9ae2ff73`, then
+`HUB_CONNECTION_CENSUS:ok=8`, with no `INVALID_CONFIG_` line. The runner kept running. The operator
+pressed **Testar** at 22:22 UTC, row 1 below.
 
 ### Real Sankhya calls
 
@@ -222,6 +230,3 @@ document number 22790 is the one exception.
   refused token arrives as HTTP 401. Each lives in one file or one function.
 - One authentication serves every concurrent miss under the first caller's deadline. If that caller
   times out, the others waiting on it fail too.
-- The pilot has `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner since the deploy. It
-  still needs `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub, which the implementer adds at Q4.6 with
-  the operator's go-ahead.
