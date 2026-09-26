@@ -78,6 +78,16 @@ document number 22790 is the one exception.
    replacing Connection then answered 200 with that old grant, and every call was `NOT_GRANTED`.
    Disabling a Connection now revokes its open grants in the same transaction, and a grant racing
    the disable is revoked by it. `connector-postgres` (P8 and the race test).
+6. **Resolved in review.** An identical create retry answered 409 after a key rotation, because the
+   digest came from the current key alone. The retry now matches the stored digest under the current
+   key or any retired key still configured. `connector-postgres`.
+7. **Resolved in review.** A document number from 1,000,000,000 up, which the input admits, came back
+   as `NaN` and the whole read was refused. The parse now takes every number up to 2,147,483,647.
+   `connector-broker`.
+8. **Resolved in review.** A failed revoke now closes its dialog, as a failed disable does, and
+   shows the error in the row. The browser run showed that the dialog's confirm button already
+   closed it and the error was visible, so this makes the close explicit.
+   `connector-integrations-browser`.
 
 ## Open for part 2
 

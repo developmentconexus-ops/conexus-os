@@ -238,7 +238,7 @@ test('a Workspace Owner who is not an installation administrator sees Grants but
   await page.getByText('Só um administrador da instalação vê e administra as conexões do Workspace.').waitFor()
 })
 
-test('a create whose answer was lost resubmits the same id and gets 200; a failed disable says so and leaves the Connection active', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('a create whose answer was lost resubmits the same id and gets 200; a failed disable or revoke says so and changes nothing', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
   const connections = `**/api/control/workspaces/${fixture.workspaceId}/connections`
@@ -275,6 +275,19 @@ test('a create whose answer was lost resubmits the same id and gets 200; a faile
   await page.getByRole('alertdialog').getByRole('button', { name: 'Desativar' }).click()
   await page.getByText('A conexão não foi desativada e continua ativa.').waitFor()
   assert.equal(await page.getByText('· desativada').count(), 0)
+
+  await page.getByRole('button', { name: 'Conceder' }).click()
+  await page.getByRole('button', { name: 'Revogar' }).waitFor()
+  await page.route(`**/api/control/projects/${fixture.projectId}/connector-grants/*`, (route) => (route.request().method() === 'DELETE'
+    ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
+    : route.fallback()))
+  await page.getByRole('button', { name: 'Revogar' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar' }).click()
+  await page.getByRole('alertdialog').waitFor({ state: 'detached' })
+  const revokeFailure = page.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' })
+  await revokeFailure.waitFor()
+  assert.equal(await revokeFailure.isVisible(), true, 'the failed revoke is reported where the administrator can see it')
+  await page.getByRole('button', { name: 'Revogar' }).waitFor()
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
   const check = await fetch(`${fixture.origin}/api/control/workspaces/${fixture.workspaceId}/connections/${randomUUID()}/authentication-check`, {

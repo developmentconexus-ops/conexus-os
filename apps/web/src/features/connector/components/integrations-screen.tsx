@@ -259,7 +259,7 @@ function OpenGrantRow({ projectId, grant, onChanged }: Readonly<{ projectId: str
   const revoke = useMutation({
     mutationFn: () => revokeProjectConnectorGrant(projectId, grant.grantId),
     onSuccess: () => { setConfirming(false); onChanged() },
-    onError: (error) => setMessage(projectGrantsMessage(error)),
+    onError: (error) => { setConfirming(false); setMessage(projectGrantsMessage(error)) },
   })
 
   return <li className="cx-connection">
