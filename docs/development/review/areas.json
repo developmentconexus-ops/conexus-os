@@ -67,6 +67,7 @@
   {
     "area": "connectors",
     "paths": [
+      "apps/hub/src/connectors/**",
       "apps/hub/src/app-runner/data-plane.ts",
       "apps/hub/src/app-runner/pg-relay.ts",
       "apps/hub/src/builder/factory-github.ts",

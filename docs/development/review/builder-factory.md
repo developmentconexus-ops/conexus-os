@@ -27,8 +27,6 @@ Factory skills, and the Builder scripts and evaluation cases. [`areas.json`](are
 
 - A test that fakes the boundary which executes generated code proves nothing about that code. The
   generated script, template or artifact is parsed or run for real.
-- The Builder leaves the change touches (for example `c020-builder-postgres`, `factory-runtime`,
-  `factory-composition`, `factory-recovery-postgres`) ran at the head SHA with zero skipped cases.
 - A change that closes an application-architecture gate meets the
   [Builder proof rule](../delivery.md#builder-proof-rule): a real Project, a product-language
   request, the real model path, a Conexus build and Preview, and browser interaction.
