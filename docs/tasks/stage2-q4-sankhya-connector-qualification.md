@@ -59,9 +59,9 @@ These bind Q4 and are not reopened by the executor.
    credential into the Workspace Connection (section 11, point 3).
 3. **Sample.** The sample purchase order is document number 22790.
 4. **Read authority.** The design never relies on the scope of the gateway credential. The broker
-   calls only the read services on its allow-list and refuses any other before it reaches Sankhya.
-   The operator recorded this decision on 2026-09-24 and watches the first real calls. This is
-   gate G0.
+   calls only the read services on its allow-list, plus the token call `POST /authenticate`, and
+   refuses any other before it reaches Sankhya. The operator recorded this decision on 2026-09-24,
+   admitted the token call on 2026-09-26 and watches the first real calls. This is gate G0.
 5. **No leak.** The credential never appears in logs, issues, evidence or the generated application.
    The generated application never sees it.
 6. **Build the authority layer.** Conexus builds the Connection, the per-operation Project Grant,
@@ -202,7 +202,8 @@ Each step ends in a check that passes before the next starts.
 
 The operator decided on 2026-09-24 that Q4 proceeds without relying on the scope of the gateway
 credential. The barrier is the broker: it holds an allow-list of the Sankhya read services the
-operations use, and it refuses any other service or path before a request leaves the Hub.
+operations use plus the token call `POST /authenticate`, and it refuses any other service or path
+before a request leaves the Hub.
 
 No Sankhya call of any kind, including a test call, an authentication or a call from a spike,
 happens before all of these hold:
