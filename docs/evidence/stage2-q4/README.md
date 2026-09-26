@@ -1,7 +1,8 @@
 # Stage 2 Q4 — Sankhya connector evidence
 
 **Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. The operator approved G0
-on 2026-09-25. Q4.6 to Q4.11 have not started, and no Sankhya request of any kind has been made.
+on 2026-09-25. Q4.6 ran on 2026-09-26: the first real call, `POST /authenticate` only, answered
+`OK`. Q4.7 to Q4.11 have not started, and no Sankhya data has been read.
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 
@@ -68,8 +69,8 @@ the no-network refusal test and the adapter source check, as this section record
 2026-09-26 the operator recorded the token call in the task as the one admitted non-read call
 ([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Part 1 is on `main`
 since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the same day (see the
-deploy record below). Q4.6, the first real call, still waits for the operator to load the credential
-and grant the operation in the Integrações screen. The operator watches that call.
+deploy record below). On 2026-09-26 the operator loaded the credential, granted the operation to
+the Q3 Project and watched Q4.6, the first real call. It is row 1 of the table below.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
@@ -144,10 +145,17 @@ After the deploy:
 
 ### Real Sankhya calls
 
-None yet. Each real call is one row here, never a value, a token or a host.
+Each real call is one row here, never a value, a token or a host.
 
 | # | Time (UTC) | Service | HTTP status | Outcome | Duration (ms) |
 | --- | --- | --- | --- | --- | --- |
+| 1 | 2026-09-26 22:22 | `POST /authenticate` (**Testar**, Q4.6) | 2xx | `OK` | 927 |
+
+Row 1 comes from the Hub's audit line `{"event":"connector.check","connector":"sankhya","result":"OK","ms":927}`.
+The line has no timestamp. The time is when a watcher that read `hub.log` every 2 s saw it, at
+22:22:35 UTC. The line records the result, not the status code. `OK` means the gateway answered 2xx
+with a token (`failureOfStatus` in `gateway.ts`). No `connector.call` line appeared, so no data was
+read.
 
 ## Part 1 proof
 
