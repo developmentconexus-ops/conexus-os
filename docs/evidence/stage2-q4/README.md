@@ -1,8 +1,9 @@
 # Stage 2 Q4 — Sankhya connector evidence
 
 **Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. The operator approved G0
-on 2026-09-25. Q4.6 ran on 2026-09-26: the first real call, `POST /authenticate` only, answered
-`OK`. Q4.7 to Q4.11 have not started, and no Sankhya data has been read.
+on 2026-09-25. On 2026-09-26 the first real call, `POST /authenticate` only, answered `OK`, but
+the Q4.6 grant was never recorded. Q4.7 run 1 therefore built the app without the connector
+([q4.7-run1](q4.7-run1/README.md)). No Sankhya data has been read.
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 
@@ -69,8 +70,9 @@ the no-network refusal test and the adapter source check, as this section record
 2026-09-26 the operator recorded the token call in the task as the one admitted non-read call
 ([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Part 1 is on `main`
 since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the same day (see the
-deploy record below). On 2026-09-26 the operator loaded the credential, granted the operation to
-the Q3 Project and watched Q4.6, the first real call. It is row 1 of the table below.
+deploy record below). On 2026-09-26 the operator loaded the credential and watched the first real
+call, row 1 of the table below. The grant of Q4.6 was not recorded: `connector.project_grant` held
+no row at 23:10 UTC.
 
 Until 2026-09-26 22:17 UTC, the pilot Hub ran with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answered
@@ -145,7 +147,8 @@ After the deploy:
     call from then on gets one row in the table below. The first data read is the first handler read
     of Q4.7 (task section 11, point 7).
 
-**Record, 2026-09-26.** Steps 8 to 11 ran. The operator added the Connection and the grant. With the
+**Record, 2026-09-26.** Steps 8, 10 and 11 ran. The operator added the Connection at 22:05:56 UTC.
+Step 9, the grant, left no row in `connector.project_grant`. With the
 operator's go-ahead, the implementer added the production origin to the Hub's env file and restarted
 only the Hub: `hub starting 2026-09-26T22:17:34Z head 9ae2ff73`, then
 `HUB_CONNECTION_CENSUS:ok=8`, with no `INVALID_CONFIG_` line. The runner kept running. The operator
