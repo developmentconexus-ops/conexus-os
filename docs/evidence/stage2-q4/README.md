@@ -16,12 +16,13 @@ Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-san
 ## Gate G0: read allow-list
 
 The operator decided on 2026-09-24 that Q4 proceeds without relying on the scope of the gateway
-credential. The broker is the barrier: it calls only the read services on its allow-list and refuses
-any other before a request leaves the Hub. The operator watches the first real call.
+credential. The broker is the barrier. It calls only the read services on its allow-list, plus the
+token call `POST /authenticate`, and refuses any other before a request leaves the Hub. The operator
+admitted the token call on 2026-09-26 and watches the first real call.
 
 | G0 item | State | Where |
 | --- | --- | --- |
-| The allow-list names only read services, each citing the documentation that shows it reads | Done | [census.md, "Sankhya read services admitted for G0"](census.md#sankhya-read-services-admitted-for-g0): the authentication and `CRUDServiceProvider.loadRecords`. `SANKHYA_SERVICES` in `apps/hub/src/connectors/sankhya/gateway.ts` holds `CRUDServiceProvider.loadRecords` alone. |
+| The allow-list names only read services, each citing the documentation that shows it reads, plus `POST /authenticate`, the one admitted non-read call | Done | [census.md, "Sankhya services admitted for G0"](census.md#sankhya-services-admitted-for-g0): `CRUDServiceProvider.loadRecords` and the token call. `SANKHYA_SERVICES` in `apps/hub/src/connectors/sankhya/gateway.ts` holds `CRUDServiceProvider.loadRecords` alone. |
 | A test proves the broker refuses a service outside the allow-list without any network call | Done | `tests/implementation/connector-broker.test.mjs`, "P4 (G0)": an operation asking for another service answers `SERVICE_REFUSED`, and a `write` operation answers `EFFECT_REFUSED`. In both cases the fake gateway records zero requests, the authentication included. |
 | The adapter's source has no write-capable service name | Done | `tests/implementation/connector-adapter-source.test.mjs`: the service literals in `apps/hub/src/connectors/sankhya/*.ts` are exactly `CRUDServiceProvider.loadRecords`, no known write service name appears, and only the gateway file carries wire vocabulary. |
 | The evidence records the decision and its date, never the credential | Done | This section. |
@@ -62,8 +63,10 @@ Connection, sealed.
 
 **State.** The operator approved G0 on 2026-09-25, in the manager's chat. The approval is recorded
 on [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282#issuecomment-5840841862)
-and covers the read allow-list (`POST /authenticate` and `CRUDServiceProvider.loadRecords`), the
-no-network refusal test and the adapter source check, as this section records them. Q4.6, the first
+and covers the allow-list (`CRUDServiceProvider.loadRecords` and the token call `POST /authenticate`),
+the no-network refusal test and the adapter source check, as this section records them. On
+2026-09-26 the operator recorded the token call in the task as the one admitted non-read call
+([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Q4.6, the first
 real call, still waits for two things: the pilot deploy of part 1 and its migration, and the
 operator loading the credential in the Integrações screen. Part 1 is on `main` since #246 merged on
 2026-09-26 (`9ae2ff73`). The operator watches that call.
@@ -106,16 +109,20 @@ each approval covers only that step. The deploy makes no Sankhya request:
    `CONEXUS_MIGRATION_DATABASE_URL_FILE`, which applies `0029` alone. Record its verdict and the
    catalog digest (`ca37c492…` at 0029 in `contracts/technical/hub-catalog-snapshot.json`). The
    migration is forward-only, so the dump is the only way back.
-6. **Start** `infra/pilot/runner.sh`, then `infra/pilot/hub.sh`. Check the runner socket before the
-   Hub, per the pilot rule.
+6. **Start** `infra/pilot/hub.sh`, then `infra/pilot/runner.sh`, in the order of the procedure's
+   step 5.
 7. **Confirm.** The last `starting` line of each log names the merged head. The Hub log shows no
    `CONNECTOR_SOCKET_DIR_REFUSED` and no `MIGRATION_` error. The Integrações screen lists no
    Connection, and "Testar" is not pressed.
 
 After the deploy:
 
-8. The operator types client id, client secret and X-Token into the Integrações screen (section 11,
-   point 3). The executor never sees them.
+8. The operator, signed in as the installation administrator, adds the Sankhya Connection in the
+   Integrações screen to the Workspace that holds the Q3 Project, since a grant reaches only a
+   Connection of its own Workspace (P7). The operator types client id, client secret and X-Token
+   into its write-only fields. This is the one path the task's STOP law authorizes for the
+   credential (section 11, points 3 and 4; C-026 as amended on 2026-09-26). The executor never sees
+   them.
 9. **Q4.6 starts only here.** The operator adds `CONEXUS_SANKHYA_GATEWAY_ORIGIN` to the Hub's env file.
    It must be one of the two origins the Sankhya documentation publishes, because the Hub refuses
    any other at startup. Then the operator restarts the Hub and watches the first real call. Each call

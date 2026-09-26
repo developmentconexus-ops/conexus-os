@@ -50,13 +50,13 @@ consumes the mechanism. `KEEP` means the repository already has it and it stays.
 | Grant cannot cross Workspaces (P7) | A composite foreign key from the grant to the Connection and to the Project on the same `workspace_id`. | USE. A cross-Workspace grant is unrepresentable in the table, not refused in TypeScript. |
 | Revocation and disablement checked on every call (P8) | A `SECURITY DEFINER` function with a pinned `search_path`, the pattern `docs/reference/security-and-authority.md` section 2 names. | USE. The broker asks PostgreSQL for the grant on every call. |
 
-## Sankhya read services admitted for G0
+## Sankhya services admitted for G0
 
 Documentation read on 2026-09-24. No Sankhya request of any kind was made.
 
-| Service | Documentation | Why it is a read |
+| Service | Documentation | Why it is admitted |
 | --- | --- | --- |
-| `POST /authenticate` (client credentials plus `X-Token`) | [post_authenticate](https://developer.sankhya.com.br/reference/post_authenticate) | Issues an access token. It touches no business record. |
+| `POST /authenticate` (client credentials plus `X-Token`) | [post_authenticate](https://developer.sankhya.com.br/reference/post_authenticate) | The token call, the one admitted non-read call, which the operator decided on 2026-09-26. It issues an access token and touches no business record. |
 | `CRUDServiceProvider.loadRecords` | [get_loadrecords](https://developer.sankhya.com.br/reference/get_loadrecords.md), [criteria](https://developer.sankhya.com.br/reference/get_criteriosloadrecords.md) | The documentation calls it the generic query service ("consultas") over the entities. The service name alone does not fix what it reads: the root entity and the field list are fixed by the operation, not by the consumer. |
 
 The list of `docs/evidence/stage2-q4/design.md` and the adapter's source repeat these two and no other.
