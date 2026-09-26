@@ -14,6 +14,5 @@ coverage/
 apps/hub/.conexus-build-*/
 apps/hub/*-build-*/
 .DS_Store
-# Claude Code keeps local state here (launch.json, locks, worktrees). Only the shared deny rules are tracked.
+# Claude Code keeps local state here (launch.json, locks, worktrees).
 .claude/*
-!.claude/settings.json
