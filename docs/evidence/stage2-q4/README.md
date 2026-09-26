@@ -2,8 +2,10 @@
 
 **Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. The operator approved G0
 on 2026-09-25. On 2026-09-26 the first real call, `POST /authenticate` only, answered `OK`, but
-the Q4.6 grant was never recorded. Q4.7 run 1 therefore built the app without the connector
-([q4.7-run1](q4.7-run1/README.md)). No Sankhya data has been read.
+the Q4.6 grant was not recorded until 23:10:46 UTC. Q4.7 run 1 therefore built the app without
+the connector ([q4.7-run1](q4.7-run1/README.md)). Q4.7 run 2's handler reads order 22790 through
+the broker ([q4.7-run2](q4.7-run2/README.md)): the first read failed with `PROVIDER_ERROR`, and
+the next two answered `OK`.
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 
@@ -161,12 +163,24 @@ Each real call is one row here, never a value, a token or a host.
 | # | Time (UTC) | Service | HTTP status | Outcome | Duration (ms) |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 2026-09-26 22:22 | `POST /authenticate` (**Testar**, Q4.6) | 2xx | `OK` | 927 |
+| 2 | 2026-09-26, before 23:18:16 | `POST /authenticate`, then `CRUDServiceProvider.loadRecords` ×1 (Q4.7 run 2) | not recorded | `PROVIDER_ERROR` | 462 |
+| 3 | 2026-09-26 23:18:16 | `CRUDServiceProvider.loadRecords` ×2 (Q4.7 run 2) | 2xx | `OK` | 1982 |
+| 4 | 2026-09-26 23:18:19 | `CRUDServiceProvider.loadRecords` ×2 (Q4.7 run 2) | 2xx | `OK` | 496 |
 
 Row 1 comes from the Hub's audit line `{"event":"connector.check","connector":"sankhya","result":"OK","ms":927}`.
 The line has no timestamp. The time is when a watcher that read `hub.log` every 2 s saw it, at
 22:22:35 UTC. The line records the result, not the status code. `OK` means the gateway answered 2xx
 with a token (`failureOfStatus` in `gateway.ts`). No `connector.call` line appeared, so no data was
 read.
+
+Rows 2 to 4 are the three `connector.call` lines of `hub.log` lines 684 to 703, in their order. Each
+names consumer `handler`, the Q3 Project and `sankhya.purchase-order.read`. The lines have no
+timestamp. Rows 3 and 4 match the two `readSankhyaOrders` answers the builder-eval browser received,
+at 23:18:16.775 and 23:18:19.254 UTC, each carrying one order. That browser received no third one,
+so row 2 came from another browser that opened the Preview first. Row 2 was the Hub process's first
+connector call, so it also made the token call, which the audit line does not list: Testar does not
+fill the token cache. `PROVIDER_ERROR` means an error envelope or an HTTP status other than 2xx, 401,
+403 and 5xx, so its status is unknown. It is under diagnosis and not fixed here.
 
 ## Part 1 proof
 

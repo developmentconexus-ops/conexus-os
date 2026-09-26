@@ -1,0 +1,463 @@
+{
+  "schema": "conexus.q4.7-run-summary/v1",
+  "source": "scripts/builder-eval/run.mjs in-memory result, read through the Node inspector before the hung runner was stopped; reduced, no value, screenshot or check error text",
+  "case": "scripts/builder-eval/cases/q4-sankhya-purchase-order.json",
+  "projectId": "2b9d2bbb-6336-4957-bb55-78e5fdd228cd",
+  "conversationId": "98672483-485f-4eaf-b0f5-438a7d2a9135",
+  "modelId": "google-ai-pro/gemini-3.8-flash-high",
+  "startedAt": "2026-09-26T23:11:57.483Z",
+  "finishedAt": null,
+  "outcome": "FAIL",
+  "sourceRevisionBefore": "7a58a198c46ef883266264cbb4801864fe428f3b",
+  "sourceRevisionAfter": "16eaeb8ed650f71caa0b3ad67c45916a00b3ca7c",
+  "runs": [
+    {
+      "builderRunId": "9e4fcfc2-02f4-456e-81d3-d46a6414aea1",
+      "isRepair": false,
+      "state": "SUCCEEDED",
+      "resultKind": "SOURCE_CHANGED",
+      "failureCode": null,
+      "failureCategory": null
+    }
+  ],
+  "repairIterations": 0,
+  "wallTimeToUsablePreviewMs": 378167,
+  "filesChanged": [
+    {
+      "path": "app/src/main.tsx",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "app/src/style.css",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/notes.ts",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/handlers/orders.ts",
+      "status": "MODIFIED",
+      "previousPath": null
+    },
+    {
+      "path": "conexus/manifest.json",
+      "status": "MODIFIED",
+      "previousPath": null
+    }
+  ],
+  "checks": {
+    "initial": [
+      {
+        "action": "expectText",
+        "text": "22790",
+        "ok": true
+      },
+      {
+        "action": "fill",
+        "text": null,
+        "ok": true
+      },
+      {
+        "action": "click",
+        "text": null,
+        "ok": true
+      },
+      {
+        "action": "expectText",
+        "text": "Acompanhamento registrado no Q4.7",
+        "ok": true
+      }
+    ],
+    "afterReload": [
+      {
+        "action": "expectText",
+        "text": "22790",
+        "ok": true
+      },
+      {
+        "action": "expectText",
+        "text": "Acompanhamento registrado no Q4.7",
+        "ok": false
+      }
+    ]
+  },
+  "api": [
+    {
+      "at": "2026-09-26T23:11:58.171Z",
+      "host": "preview-da815f64-4016-466e-b3b9-1d78990c6e1f",
+      "operation": "listNotes",
+      "status": 429,
+      "summary": {
+        "fields": {
+          "$": "object",
+          "$.error": "object",
+          "$.error.code": "string"
+        },
+        "counts": {},
+        "digest": "sha256:2d3d7d997388cf06f9175429bf327006bd7300d7c9e7f7ca61c1e2f6b4a42d6c"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:58.343Z",
+      "host": "preview-9e5dc09b-a3fc-4fb4-bc3e-d3024238f5bd",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array"
+        },
+        "counts": {
+          "$": 0
+        },
+        "digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:58.357Z",
+      "host": "preview-65804464-bfb1-40fb-b06a-134cd822b0f8",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].content": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].orderNumber": "string"
+        },
+        "counts": {
+          "$": 1
+        },
+        "digest": "sha256:ef9dbc541eaa15d7b32832cdb913b39e2058e71abc55ac4c8ffa68c659d48115"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:58.359Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listPurchaseOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].assignee": "string",
+          "$[].buyerName": "string",
+          "$[].createdAt": "string",
+          "$[].expectedDeliveryDate": "string",
+          "$[].id": "number",
+          "$[].itemsJson": "string",
+          "$[].latestNoteAuthor": "string",
+          "$[].orderDate": "string",
+          "$[].orderNumber": "string",
+          "$[].paymentTerms": "string",
+          "$[].sankhyaStatus": "string",
+          "$[].supplierCnpj": "string",
+          "$[].supplierName": "string",
+          "$[].totalAmount": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:abaf2d3a8723b23f719ac88fe7ffdcbc22fcfeafeb8eb9227245aa506727f4d4"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:58.359Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].author": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].note": "string",
+          "$[].orderNumber": "string",
+          "$[].status": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:58.470Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].author": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].note": "string",
+          "$[].orderNumber": "string",
+          "$[].status": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:59.764Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].author": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].note": "string",
+          "$[].orderNumber": "string",
+          "$[].status": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:59.768Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listPurchaseOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].assignee": "string",
+          "$[].buyerName": "string",
+          "$[].createdAt": "string",
+          "$[].expectedDeliveryDate": "string",
+          "$[].id": "number",
+          "$[].itemsJson": "string",
+          "$[].latestNoteAuthor": "string",
+          "$[].orderDate": "string",
+          "$[].orderNumber": "string",
+          "$[].paymentTerms": "string",
+          "$[].sankhyaStatus": "string",
+          "$[].supplierCnpj": "string",
+          "$[].supplierName": "string",
+          "$[].totalAmount": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:abaf2d3a8723b23f719ac88fe7ffdcbc22fcfeafeb8eb9227245aa506727f4d4"
+      }
+    },
+    {
+      "at": "2026-09-26T23:11:59.888Z",
+      "host": "preview-8c35d80d-ff28-4286-b00e-ba2f4fa1e93b",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].author": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].note": "string",
+          "$[].orderNumber": "string",
+          "$[].status": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
+      }
+    },
+    {
+      "at": "2026-09-26T23:18:14.683Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listPurchaseOrders",
+      "status": 429,
+      "summary": null
+    },
+    {
+      "at": "2026-09-26T23:18:14.784Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listNotes",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].author": "string",
+          "$[].createdAt": "string",
+          "$[].id": "number",
+          "$[].note": "string",
+          "$[].orderNumber": "string",
+          "$[].status": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:addb7753db5b56d1fff0ddb91b259cedffd74aa77e0a5c67141719409438224a"
+      }
+    },
+    {
+      "at": "2026-09-26T23:18:16.775Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "readSankhyaOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "object",
+          "$.code": "string",
+          "$.message": "string",
+          "$.ok": "boolean",
+          "$.orders": "array",
+          "$.orders[]": "object",
+          "$.orders[].date": "string",
+          "$.orders[].internalId": "string",
+          "$.orders[].items": "array",
+          "$.orders[].items[]": "object",
+          "$.orders[].items[].description": "string",
+          "$.orders[].items[].productCode": "string",
+          "$.orders[].items[].quantity": "string",
+          "$.orders[].items[].sequence": "number",
+          "$.orders[].items[].total": "string",
+          "$.orders[].items[].unit": "string",
+          "$.orders[].items[].unitPrice": "string",
+          "$.orders[].number": "number",
+          "$.orders[].status": "string",
+          "$.orders[].supplier": "string",
+          "$.orders[].total": "string"
+        },
+        "counts": {
+          "$.orders": 1,
+          "$.orders[].items": 1
+        },
+        "digest": "sha256:38206ce7f4aefc95de6fcf2e4afb3675f564b844aa85fb238cec6ebc3920138d"
+      }
+    },
+    {
+      "at": "2026-09-26T23:18:16.884Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listPurchaseOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].assignee": "string",
+          "$[].buyerName": "string",
+          "$[].createdAt": "string",
+          "$[].expectedDeliveryDate": "string",
+          "$[].id": "number",
+          "$[].itemsJson": "string",
+          "$[].latestNoteAuthor": "string",
+          "$[].orderDate": "string",
+          "$[].orderNumber": "string",
+          "$[].paymentTerms": "string",
+          "$[].sankhyaStatus": "string",
+          "$[].supplierCnpj": "string",
+          "$[].supplierName": "string",
+          "$[].totalAmount": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:82d0e3c722078c80913b12239b5f5921de3dcc288d07e8083e07f95dc5a31374"
+      }
+    },
+    {
+      "at": "2026-09-26T23:18:18.650Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listNotes",
+      "status": 429,
+      "summary": null
+    },
+    {
+      "at": "2026-09-26T23:18:18.651Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listPurchaseOrders",
+      "status": 429,
+      "summary": null
+    },
+    {
+      "at": "2026-09-26T23:18:19.254Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "readSankhyaOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "object",
+          "$.code": "string",
+          "$.message": "string",
+          "$.ok": "boolean",
+          "$.orders": "array",
+          "$.orders[]": "object",
+          "$.orders[].date": "string",
+          "$.orders[].internalId": "string",
+          "$.orders[].items": "array",
+          "$.orders[].items[]": "object",
+          "$.orders[].items[].description": "string",
+          "$.orders[].items[].productCode": "string",
+          "$.orders[].items[].quantity": "string",
+          "$.orders[].items[].sequence": "number",
+          "$.orders[].items[].total": "string",
+          "$.orders[].items[].unit": "string",
+          "$.orders[].items[].unitPrice": "string",
+          "$.orders[].number": "number",
+          "$.orders[].status": "string",
+          "$.orders[].supplier": "string",
+          "$.orders[].total": "string"
+        },
+        "counts": {
+          "$.orders": 1,
+          "$.orders[].items": 1
+        },
+        "digest": "sha256:38206ce7f4aefc95de6fcf2e4afb3675f564b844aa85fb238cec6ebc3920138d"
+      }
+    },
+    {
+      "at": "2026-09-26T23:18:19.353Z",
+      "host": "preview-37937555-7d86-4d85-8545-fe83ebbcc975",
+      "operation": "listPurchaseOrders",
+      "status": 200,
+      "summary": {
+        "fields": {
+          "$": "array",
+          "$[]": "object",
+          "$[].assignee": "string",
+          "$[].buyerName": "string",
+          "$[].createdAt": "string",
+          "$[].expectedDeliveryDate": "string",
+          "$[].id": "number",
+          "$[].itemsJson": "string",
+          "$[].latestNoteAuthor": "string",
+          "$[].orderDate": "string",
+          "$[].orderNumber": "string",
+          "$[].paymentTerms": "string",
+          "$[].sankhyaStatus": "string",
+          "$[].supplierCnpj": "string",
+          "$[].supplierName": "string",
+          "$[].totalAmount": "string"
+        },
+        "counts": {
+          "$": 2
+        },
+        "digest": "sha256:82d0e3c722078c80913b12239b5f5921de3dcc288d07e8083e07f95dc5a31374"
+      }
+    }
+  ]
+}
