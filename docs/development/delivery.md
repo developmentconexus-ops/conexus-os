@@ -20,7 +20,7 @@ A change is in the qualification lane when any Q trigger is true:
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex comments triaged; diff read | operator |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex connector comments triaged; diff read | operator |
 | `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the Opus review on each pull request, and the bet's "done when" checked on the real artifact | operator |
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
@@ -76,7 +76,7 @@ most 5 open pull requests.
 - **Laptop first, then server.** Make each capability work on the WSL laptop pilot. Server
   installation and infrastructure migration follow validation there.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
-- **Codex is the second-model reviewer.** It is not an author.
+- **Codex never authors.** Its connector's pull request comments never count as the challenger.
 - **CodeRabbit is off** for this repository.
 - **Tests serve the product.** Never reshape a design to keep a test or fixture passing. Fix every
   test that exercised real behavior. Delete every test whose subject is gone.
@@ -111,11 +111,11 @@ operator dictating filenames or implementation.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
-  first. Its challengers, the Opus review and Codex, never see each other's output. Run Codex
-  read-only from the Windows checkout: `codex exec -m gpt-6-astra -s read-only`. The lead
-  adjudicates every finding against current owners. A valid non-blocker gets DEFER SAFELY with a
-  revisit trigger. Run another round only when a correction invalidated a protected property or the
-  deciding proof.
+  first. Its challengers, the Opus review and the Codex challenger, never see each other's output.
+  Run the challenger in WSL on a worktree at the frozen head SHA, named in its brief:
+  `codex exec -C <worktree> -m gpt-6-sol -s read-only`. The lead adjudicates every finding against
+  current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
+  only when a correction invalidated a protected property or the deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
   to Git history once their obligations are absorbed.
 
