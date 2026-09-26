@@ -174,12 +174,14 @@ REVOKE ALL ON FUNCTION connector.list_connections(p_actor uuid, p_workspace_id u
 GRANT ALL ON FUNCTION connector.list_connections(p_actor uuid, p_workspace_id uuid) TO hub_iam_runtime;
 
 -- Idempotent on connection_id: a retry with the same Workspace, Connector, label and credential digest
--- answers the stored row with created = false; a retry that changes any of them is a conflict rather
+-- answers the stored row with created = false. p_credential_digests holds the credential's digest under
+-- the current key first, then under each key a rotation retired, so a row stored before a rotation still
+-- matches its identical retry; a retry that changes any of them is a conflict rather
 -- than a silent overwrite. ON CONFLICT DO NOTHING makes concurrent retries converge on one row: the
 -- loser waits for the winner's commit and then compares, instead of failing on the primary key. A
 -- conflict on connection_open_key leaves no row under this id, which is the second-open-Connection
 -- conflict. The credential is never returned.
-CREATE FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digest text) RETURNS TABLE(connection_id uuid, connector_id text, label text, created_at timestamp with time zone, disabled_at timestamp with time zone, created boolean)
+CREATE FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digests text[]) RETURNS TABLE(connection_id uuid, connector_id text, label text, created_at timestamp with time zone, disabled_at timestamp with time zone, created boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
@@ -190,7 +192,7 @@ BEGIN
   PERFORM connector.admit_installation_administrator(p_actor);
   BEGIN
     INSERT INTO connector.connection (connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
-    VALUES (p_connection_id, p_workspace_id, p_connector_id, p_label, p_credential_sealed, p_credential_digest, p_actor)
+    VALUES (p_connection_id, p_workspace_id, p_connector_id, p_label, p_credential_sealed, p_credential_digests[1], p_actor)
     ON CONFLICT DO NOTHING;
     inserted := FOUND;
   EXCEPTION WHEN foreign_key_violation THEN
@@ -200,7 +202,7 @@ BEGIN
   IF NOT inserted THEN
     SELECT * INTO existing FROM connector.connection AS stored WHERE stored.connection_id = p_connection_id;
     IF NOT FOUND OR existing.workspace_id <> p_workspace_id OR existing.connector_id <> p_connector_id
-       OR existing.label <> p_label OR existing.credential_digest <> p_credential_digest THEN
+       OR existing.label <> p_label OR NOT existing.credential_digest = ANY (p_credential_digests) THEN
       RAISE EXCEPTION 'CONNECTOR_CONNECTION_CONFLICT';
     END IF;
   END IF;
@@ -210,10 +212,10 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digest text) OWNER TO connector_owner;
+ALTER FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digests text[]) OWNER TO connector_owner;
 
-REVOKE ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digest text) FROM PUBLIC;
-GRANT ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digest text) TO hub_iam_runtime;
+REVOKE ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digests text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION connector.create_connection(p_actor uuid, p_connection_id uuid, p_workspace_id uuid, p_connector_id text, p_label text, p_credential_sealed text, p_credential_digests text[]) TO hub_iam_runtime;
 
 -- Idempotent and narrowing: disabling an already-disabled Connection still answers true, and the row
 -- is kept as the record of who disabled it and when. Disable is terminal, so the Connection's open

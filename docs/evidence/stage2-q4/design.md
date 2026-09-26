@@ -239,8 +239,9 @@ Migration `0029_connector.sql`:
   credential_digest, created_by, created_at, disabled_by, disabled_at)`. `connection_id` is chosen by
   the client, so a retried create answers the same row with 200. The seal is randomized, so
   `credential_digest`, an HMAC-SHA256 of the credential under a subkey of the installation key, is
-  what tells an identical retry from one that changes the credential; the second is a 409. After a
-  key rotation an identical retry is a 409 too, which is safe. `credential_sealed` has a CHECK on
+  what tells an identical retry from one that changes the credential; the second is a 409. The
+  retry is compared against the digest under the current key and under every retired key still
+  configured, so an identical retry replays across a key rotation. `credential_sealed` has a CHECK on
   the envelope prefix, so plaintext cannot be stored, and there is no column for an MGE user or
   password. One open Connection per Workspace and connector (partial unique index).
 - `connector.project_grant(grant_id, workspace_id, project_id, environment, connection_id,

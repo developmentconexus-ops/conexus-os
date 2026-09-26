@@ -50,7 +50,7 @@ const connectorDatabase = async (t) => {
   }
   const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest = DIGEST) =>
     client.query('SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1,$2,$3,$4,$5,$6,$7)',
-      [actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest])
+      [actor, connectionId, workspaceId, connectorId, label, credentialSealed, [credentialDigest]])
   const grant = (actor, projectId, connectionId, operationId) =>
     client.query('SELECT grant_id, connection_id, connector_id, capability_id, granted_at FROM connector.grant_capability($1,$2,$3,$4)',
       [actor, projectId, connectionId, operationId])
@@ -352,8 +352,18 @@ test('the Hub store tells an identical retry from a changed credential without o
   assert.equal((await refusal(() => pool.query('SELECT credential_digest FROM connector.connection'))).code, '42501', 'hub_iam_runtime only calls the functions')
   const digest = (await client.query('SELECT credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0].credential_digest
   const canonical = JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' })
-  assert.equal(digest, envelope.fingerprint(canonical))
-  assert.notEqual(digest, createSecretEnvelope('cd'.repeat(32)).fingerprint(canonical), 'the digest is keyed by the installation key')
+  assert.equal(digest, envelope.fingerprints(canonical)[0])
+  assert.notEqual(digest, createSecretEnvelope('cd'.repeat(32)).fingerprints(canonical)[0], 'the digest is keyed by the installation key')
+
+  // The installation key rotates, and the old one stays configured to open what it sealed.
+  const rotated = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32), ['ab'.repeat(32)]) })
+  const createRotated = (fields = {}) => rotated.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  assert.deepEqual(summary(await createRotated()), { connectionId, created: false }, 'an identical retry after the rotation still replays')
+  const changedAfterRotation = await createRotated({ credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
+  assert.equal(isConnectorConnectionConflict(changedAfterRotation), true, 'a changed credential is still a conflict after the rotation')
+  const forgotten = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32)) })
+  const afterRetirement = await forgotten.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential }).then(() => null, (error) => error)
+  assert.equal(isConnectorConnectionConflict(afterRetirement), true, 'once the old key is no longer configured, the stored digest cannot be matched')
 
   // A client that times out and retries while its first request is still in flight.
   const racedId = randomUUID()

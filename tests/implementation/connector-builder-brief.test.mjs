@@ -90,7 +90,7 @@ test('the module answers an empty brief, never a throw, for a Project id it cann
   const { createConnectorModule } = await import(hubModuleUrl('connectors/module.js'))
   const module = createConnectorModule({
     pool: { query: async () => { throw new Error('the store must not be reached') } },
-    envelope: { seal: async () => '', open: async () => '', fingerprint: () => '' },
+    envelope: { seal: async () => '', open: async () => '', fingerprints: () => [''] },
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => null,
     isInstallationAdministrator: async () => false,
