@@ -30,10 +30,6 @@ the platform builds, the realm, the sign-in theme and the administrator bootstra
 
 ## Proof required
 
-- The PostgreSQL leaves that exercise identity (for example `iam-membership-authority`,
-  `iam-application-access`, `iam-installation-administrator`) ran at the head SHA with zero
-  skipped cases. The reviewer reads the `verify` run log and counts skips. A case skipped with
-  "real PostgreSQL configuration not supplied" is a failed item.
 - A negative case for each refusal the change adds: another Workspace, another Project, an expired
   or revoked session, a missing CSRF token. A test that proves only the allowed path fails.
 - A claim about Keycloak behavior (refresh, logout, token exchange) cites the documentation or

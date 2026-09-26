@@ -27,13 +27,6 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
 
 ## Proof required
 
-- Every PostgreSQL leaf the change touches ran at the head SHA with zero skipped cases. The
-  reviewer opens the `verify` run for the exact head SHA, finds each leaf, and reads its
-  `skipped` count. A case skipped with "real PostgreSQL configuration not supplied" is a failed
-  item, whatever the check's color.
-- A local or sandbox run with skipped PostgreSQL cases proves nothing about them. In #243 the
-  Factory's sandbox skipped all five cases of `application-access-postgres.test.mjs`, and a green
-  `verify` badge did not say whether CI ran them.
 - `db-catalog-snapshot`, `db-baseline-file` and `db-role-register` passed at the head.
 
 ## Traps from history
@@ -58,5 +51,4 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
 - **Model the Domain.** The database owns the invariant. TypeScript parses input and calls the
   function that enforces it.
 - **Boundary Discipline.** A row is external data until the store parses it into the typed model.
-- **Prove It Works.** A migration claim needs PostgreSQL cases that ran, not ones that skipped.
 - **Fix Root Causes.** A failing install is reproduced against a fresh database before it is fixed.

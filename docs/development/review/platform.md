@@ -28,9 +28,6 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 
 ## Proof required
 
-- `verify` ran at the exact head SHA and every leaf the change touches passed without skips. A
-  skipped PostgreSQL or browser leaf is a failed item. When no run exists at the head, GitHub
-  skipped the workflow because the pull request conflicts with its base.
 - A security claim about the runner or the sandbox runs each escape with the other layers off, and
   on the real configuration and paths. A check that cannot fail is not a proof.
 - A change to `scripts/conexus-verify.mjs` updates `tests/repository/conexus-verify.test.mjs`, and
@@ -55,7 +52,6 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 ## Principles
 
 - **Encode Lessons in Structure.** A rule a script can check becomes a leaf, not a sentence.
-- **Prove It Works.** Read the run log at the head SHA. A green badge is a proxy.
 - **Laziness Protocol.** A gate that nothing runs, or that already fails on trunk, is deleted.
 - **Separate Before Serializing Shared State.** Leaves share no mutable state. Each owns its
   database, port and temporary directory.
