@@ -29,7 +29,7 @@ const setup = async (t) => {
     // must answer 503 for, not UNREACHABLE (that state is reserved for a GitHub-confirmed refusal).
     [staleProjectId, { projectId: staleProjectId, factoryProjectId: 'factory-2', projectRepositoryId: 'project-repository-2', repositoryId: 'repository-2', boundAt: new Date().toISOString() }],
   ])
-  const readFactoryBinding = async ({ accountId: caller, projectId }) => {
+  const readFactoryBinding = async ({ accountId: _caller, projectId }) => {
     if (projectId === deniedProjectId) throw new Error('NOT_AUTHORIZED')
     return bindings.get(projectId) ?? null
   }
