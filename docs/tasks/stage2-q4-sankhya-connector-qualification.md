@@ -433,8 +433,11 @@ STOP and return to the planner on:
   This rule comes first and has no exception;
 - a need for the MGE user or password, or for a second credential;
 - the credential, an access token or a value from the operator's credentials file seen anywhere
-  outside the broker, even once. Stop, tell the operator so they can rotate it, and write no value
-  in the report;
+  outside the broker, even once. The one authorized path is the installation administrator typing
+  client id, client secret and X-Token into the write-only fields of Q4.2, which the browser sends
+  once in the request that creates the Connection. A value in any response, page state after that
+  request, log, worker, agent, the Builder or the repository is a leak. Stop, tell the operator so
+  they can rotate it, and write no value in the report;
 - a need to reopen contract section 12.6, C-022 or C-028, or the Q1 worker boundary;
 - a property of 6.2 that the design cannot keep;
 - a need for a new dependency, including `@mastra/mcp` as a direct one (the technology rule applies
