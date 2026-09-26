@@ -24,7 +24,7 @@ export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
 // (`stripMastraCodeCustomProviderPrefix` treats it and the bare id as the same provider), so it only
 // shows as unselected in a picker until the person re-picks it once. This installation is a
 // single-operator pilot, so that one-time re-pick costs less than a permanent id-rewrite layer.
-export const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
+const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
 
 // The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
 export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {

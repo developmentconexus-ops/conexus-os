@@ -13,7 +13,7 @@ import type { Caller } from '../platform/caller.js'
  */
 // No password: the worker reaches the database only through the relay socket, which authenticates
 // upstream itself. Nothing in the sandbox holds a usable credential.
-export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
+type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
 export type WorkerJob =
   | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number; connector: boolean }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>

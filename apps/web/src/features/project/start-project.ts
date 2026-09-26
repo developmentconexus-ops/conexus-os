@@ -12,7 +12,7 @@ export type StartedProject = Readonly<{ project: CreateProjectResponse; firstReq
 // Project, conversation and request the first attempt already made instead of making new ones.
 type Attempt = Readonly<{ fingerprint: string; projectKey: string; conversationId: string; requestKey: string }>
 
-export function startProjectRefusal(error: unknown): string {
+function startProjectRefusal(error: unknown): string {
   if (error instanceof ProjectRequestError && error.status === 403) return 'Sua conta não pode criar Projetos neste Workspace.'
   if (error instanceof ProjectRequestError && error.status === 409) return 'A criação ainda não foi confirmada. Envie de novo com os mesmos dados.'
   if (error instanceof ProjectRequestError && error.status === 503) return 'O GitHub não criou o repositório do Projeto, então nenhum Projeto foi criado. Se o GitHub ainda não está conectado, peça a um administrador da instalação.'

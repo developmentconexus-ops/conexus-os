@@ -29,13 +29,13 @@ export type ProviderCheck =
   | Readonly<{ kind: 'UNAVAILABLE' }>
 
 // Keycloak 26.7 TokenManager's descriptions for an invalid_grant refresh.
-export const providerRefusal = (description: string | undefined): ProviderRefusal => {
+const providerRefusal = (description: string | undefined): ProviderRefusal => {
   if (description === 'User disabled') return 'USER_DISABLED'
   if (description === 'Session not active' || description === 'Offline session not active' || description === 'Client session not active') return 'SESSION_ENDED'
   return 'REFUSED'
 }
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
-export type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
+type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
   complete(input: OidcCompletion): Promise<CompletedSignIn>
@@ -51,6 +51,7 @@ type OidcDiscovery = typeof oidc.discovery
 // has no way to tell the two apart. Logging the claim's JavaScript type, and never the email or
 // the claim's value, gives the operator that signal without disclosing anything about the
 // identity being provisioned.
+/** @public Tests import this at runtime from the built module. */
 export const isEmailVerifiedClaim = (
   claims: Record<string, unknown>,
   log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
@@ -61,6 +62,7 @@ export const isEmailVerifiedClaim = (
   return claims.email_verified === true
 }
 
+/** @public Tests import this at runtime from the built module. */
 export const resolveVerifiedEmail = (
   claims: Record<string, unknown>,
   log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),

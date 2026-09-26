@@ -11,7 +11,7 @@ export type BuilderFailureCategory =
   | 'RUN_INTERRUPTED'
   | 'INTERNAL_ERROR'
 
-export const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = Object.freeze({
+const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = Object.freeze({
   ENVIRONMENT_PREPARATION_FAILED: 'Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.',
   MODEL_CREDENTIAL_REFUSED: 'Nenhuma conta sua ou compartilhada atende este modelo, ou o provedor a recusou. Conecte sua conta em Configurações, em Contas de modelo.',
   MODEL_RATE_LIMITED: 'O provedor do modelo está limitando as requisições. Tente novamente em alguns minutos.',

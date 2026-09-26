@@ -1,14 +1,14 @@
 import type { Caller } from '../platform/caller.js'
 
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
-export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
+type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
 
 /**
  * Which artifact a request's server tree is read from, and on whose authority: a developer's Preview
  * (Project visibility, exact source revision) or an application host (access to the application, the
  * artifact it serves).
  */
-export type ArtifactSource =
+type ArtifactSource =
   | Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
   | Readonly<{ via: 'APPLICATION'; accountId: string; projectId: string; artifactRevisionId: string }>
 
@@ -45,7 +45,7 @@ export type ApplicationAdmissionLimits = Readonly<{
   maxServerTreeBytes: number
 }>
 
-export const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
+const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   // The runner's own cap (DEFAULT_LIMITS.concurrency in app-runner/supervisor.ts, 4), so the Hub never
   // admits more work than the runner could service at once. The import law keeps the MAR owner from
   // importing the runner's supervisor, so the number is restated here.

@@ -41,7 +41,7 @@ const SECTIONS = Object.freeze({
   extension: `SELECT 'extension ' || extname || ' ' || extversion FROM pg_extension`,
 })
 
-export const CATALOG_SECTIONS = Object.freeze(Object.keys(SECTIONS))
+const CATALOG_SECTIONS = Object.freeze(Object.keys(SECTIONS))
 
 export const readCatalog = async (client) => {
   const catalog = {}

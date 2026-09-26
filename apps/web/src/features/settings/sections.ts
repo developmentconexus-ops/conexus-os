@@ -1,7 +1,7 @@
 import { Brain, Code2, KeyRound, ShieldCheck, SlidersHorizontal, User, Users } from 'lucide-react'
 import type { ComponentType } from 'react'
 
-export type SettingsGroup = 'personal' | 'installation'
+type SettingsGroup = 'personal' | 'installation'
 
 export type SettingsSection = Readonly<{
   id: string
@@ -22,6 +22,3 @@ export const settingsSections: readonly SettingsSection[] = [
   { id: 'installation-memory', label: 'Memória', to: '/settings/installation/memory', icon: Brain, group: 'installation' },
   { id: 'installation-admins', label: 'Administradores', to: '/settings/installation/admins', icon: ShieldCheck, group: 'installation' },
 ] as const
-
-export const settingsSectionByPath = (pathname: string): SettingsSection | undefined =>
-  settingsSections.find((section) => section.to === pathname)

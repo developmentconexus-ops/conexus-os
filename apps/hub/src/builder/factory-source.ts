@@ -13,7 +13,7 @@ export type BuilderSourceFile = Readonly<{
   content: string
 }>
 
-export type BuilderSourceChange = Readonly<{
+type BuilderSourceChange = Readonly<{
   path: string
   status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'RENAMED'
   previousPath: string | null

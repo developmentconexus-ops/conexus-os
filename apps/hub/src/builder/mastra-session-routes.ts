@@ -7,7 +7,7 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
 
-export const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
+const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const SESSION_BASE = '/agent-controller/:controllerId/sessions/:resourceId'
 const RUN_SCOPE = /^builder:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

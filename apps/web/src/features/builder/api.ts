@@ -47,8 +47,8 @@ export type BuilderRun = Readonly<{
   cancellationRequested?: boolean
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
-export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
-export type BuilderTraceSpan = Readonly<{
+type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
+type BuilderTraceSpan = Readonly<{
   spanId: string
   parentSpanId: string | null
   spanType: string
@@ -59,7 +59,7 @@ export type BuilderTraceSpan = Readonly<{
   model: string | null
   usage: BuilderTraceUsage | null
 }>
-export type BuilderTraceScore = Readonly<{ scorer: string; score: number; reason: string | null }>
+type BuilderTraceScore = Readonly<{ scorer: string; score: number; reason: string | null }>
 export type BuilderTraceSummary = Readonly<{
   available: boolean
   traceId: string | null

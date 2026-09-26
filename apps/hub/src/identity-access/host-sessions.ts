@@ -12,17 +12,17 @@ import { identityAccessError } from './errors.js'
 import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
 /** A request on an application or Preview host: signed in, sent to sign in, or refused because Keycloak could not be asked. */
-export type HostAuthority<Signed> =
+type HostAuthority<Signed> =
   | Readonly<{ kind: 'SIGNED_IN' } & Signed>
   // No session, an ended or expired one, one for another host, or access withdrawn.
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
   // The Keycloak check was due and Keycloak could not answer. Refuse, and keep the session.
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-export type ApplicationAuthority = HostAuthority<{ caller: Caller }>
+type ApplicationAuthority = HostAuthority<{ caller: Caller }>
 
 type ManifestFile = Readonly<{ path: string; mediaType: string }>
-export type PreviewManifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
+type PreviewManifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
 
 /** What one Preview launch shows. Stored once when the Hub opens it and never changed. */
 export type PreviewLaunch = Readonly<{
@@ -36,23 +36,23 @@ export type PreviewLaunch = Readonly<{
 }>
 
 /** A Preview request's binding: the launch, when its session ends, and its author as the caller. */
-export type PreviewBinding = PreviewLaunch & Readonly<{ expiresAt: number; caller: Caller }>
+type PreviewBinding = PreviewLaunch & Readonly<{ expiresAt: number; caller: Caller }>
 
 /** Why an application sign-in was refused: the identity carries no verified email, or it does and simply has no grant. */
-export type ApplicationDenialReason = 'EMAIL_NOT_VERIFIED' | 'NOT_GRANTED'
+type ApplicationDenialReason = 'EMAIL_NOT_VERIFIED' | 'NOT_GRANTED'
 
-export type ApplicationSignIn =
+type ApplicationSignIn =
   | Readonly<{ kind: 'HANDOFF'; slug: string; handoff: string }>
   | Readonly<{ kind: 'NO_ACCESS'; slug: string; reason: ApplicationDenialReason }>
 
 /** Where a handoff is presented: an application's host with the browser's binding, or a Preview's host. */
-export type HandoffTarget =
+type HandoffTarget =
   | Readonly<{ kind: 'APPLICATION'; projectId: string; binding: string }>
   | Readonly<{ kind: 'PREVIEW'; exactHost: string }>
 
 const secondsUntil = (end: Date, now: Date): number => Math.max(1, Math.floor((end.getTime() - now.getTime()) / 1000))
 
-export type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>
+type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>
 
 export type HostSessions = Readonly<{
   /** Opens a Hub session for an active Control Plane Account, keeping the sign-in's Keycloak refresh token sealed. */
@@ -83,7 +83,10 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
 
 type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-/** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
+/**
+ * A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session.
+ * @public Tests import this at runtime from the built module.
+ */
 export const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
 
 type ApplicationRow = QueryResultRow & {

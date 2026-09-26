@@ -17,10 +17,10 @@ import { isExactOrigin } from '../platform/origin.js'
 
 // The installation's defaults are one Factory model pack; a person's own defaults are their active
 // pack row. The plan role is not offered, so it follows the build model.
-export const INSTALLATION_DEFAULTS_PACK = 'Modelos padrão'
+const INSTALLATION_DEFAULTS_PACK = 'Modelos padrão'
 const PERSONAL_DEFAULTS_PACK_ID = 'conexus:personal'
 
-export type ModelDefaults = Readonly<{ build: string; fast: string }>
+type ModelDefaults = Readonly<{ build: string; fast: string }>
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const MODEL_ID = /^[\w.-]+\/[\w./:-]+$/
@@ -58,7 +58,7 @@ export const FACTORY_CREDENTIAL_ROUTES: ReadonlySet<string> = new Set([
 const toDefaults = (models: Readonly<{ build: string; fast: string }>): ModelDefaults => ({ build: models.build, fast: models.fast })
 const packModels = ({ build, fast }: ModelDefaults) => ({ build, plan: build, fast })
 
-export const readInstallationDefaults = async (modelPacks: ModelPacksStorage, orgId: string) =>
+const readInstallationDefaults = async (modelPacks: ModelPacksStorage, orgId: string) =>
   (await modelPacks.list({ orgId })).find((pack) => pack.name === INSTALLATION_DEFAULTS_PACK) ?? null
 
 type DefaultsSession = Parameters<typeof applyActiveModelPack>[0]
