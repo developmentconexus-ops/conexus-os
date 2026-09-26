@@ -29,12 +29,13 @@ const memberParamsSchema = { type: 'object', additionalProperties: false, requir
 // that is neither `member` nor `invitation`, and a schema enum would turn that into a 400.
 const rosterEntryParamsSchema = { type: 'object', additionalProperties: false, required: ['workspaceId', 'entryKind', 'entryId'], properties: { workspaceId: uuid, entryKind: { type: 'string' }, entryId: uuid } } as const
 
-export type WorkspaceRole = 'owner' | 'member'
+type WorkspaceRole = 'owner' | 'member'
 
+/** @public Tests import this at runtime from the built module. */
 export const parseWorkspaceRole = (value: unknown): WorkspaceRole | null =>
   value === 'owner' || value === 'member' ? value : null
 
-export type MemberEntry = Readonly<{
+type MemberEntry = Readonly<{
   kind: 'member'
   accountId: AccountId
   displayName: string
@@ -43,7 +44,7 @@ export type MemberEntry = Readonly<{
   since: string
 }>
 
-export type InvitationEntry = Readonly<{
+type InvitationEntry = Readonly<{
   kind: 'invitation'
   invitationId: InvitationId
   email: EmailAddress
@@ -52,8 +53,8 @@ export type InvitationEntry = Readonly<{
   expiresAt: string
 }>
 
-export type RosterEntry = MemberEntry | InvitationEntry
-export type WorkspaceRoster = Readonly<{ viewerRole: WorkspaceRole; entries: readonly RosterEntry[] }>
+type RosterEntry = MemberEntry | InvitationEntry
+type WorkspaceRoster = Readonly<{ viewerRole: WorkspaceRole; entries: readonly RosterEntry[] }>
 
 export type MembershipStore = Readonly<{
   roster(input: Readonly<{ actor: AccountId; workspaceId: WorkspaceId }>): Promise<WorkspaceRoster | null>

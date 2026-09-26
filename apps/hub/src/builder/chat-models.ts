@@ -13,7 +13,7 @@ const NON_CHAT_MODEL_PATTERNS: ReadonlyArray<RegExp> = [
 
 export type ChatCandidateModel = Readonly<{ id: string; modelName: string }>
 
-export const isChatModel = (model: ChatCandidateModel): boolean =>
+const isChatModel = (model: ChatCandidateModel): boolean =>
   !NON_CHAT_MODEL_PATTERNS.some((pattern) => pattern.test(model.modelName) || pattern.test(model.id))
 
 export const filterChatModels = <T extends ChatCandidateModel>(models: readonly T[]): T[] => models.filter(isChatModel)

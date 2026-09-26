@@ -1,6 +1,6 @@
 // The Factory owns every model account. Its own routes answer at their own paths, for the person
 // signed in; sharing with everyone is the Hub's, behind the installation administrator role.
-export type ModelAccountSource = 'none' | 'stored-user' | 'oauth-user' | 'stored-org' | 'oauth-org' | 'env' | 'stored' | 'oauth'
+type ModelAccountSource = 'none' | 'stored-user' | 'oauth-user' | 'stored-org' | 'oauth-org' | 'env' | 'stored' | 'oauth'
 export type ModelProvider = Readonly<{
   provider: string
   source: ModelAccountSource

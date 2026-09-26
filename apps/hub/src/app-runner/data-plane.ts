@@ -19,7 +19,7 @@ export type LedgerRow = Readonly<{ position: number; name: string; sha256: strin
 export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly (MigrationSource & Readonly<{ position: number }>)[] }>
 
 export const PROVISIONER_ROLE = 'app_provisioner'
-export const LEDGER_TABLE = 'conexus_migration'
+const LEDGER_TABLE = 'conexus_migration'
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** Every Project role name previewAllocation derives; pg_hba confines exactly these names. */
 export const PROJECT_ROLE_NAME = /^app_[0-9a-f]{32}_preview_(rt|mig)$/

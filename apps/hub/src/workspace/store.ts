@@ -4,12 +4,12 @@ import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/
 import type { PostgresPool } from '../platform/postgres.js'
 import { workspaceError } from './errors.js'
 
-export type WorkspaceSummary = Readonly<{
+type WorkspaceSummary = Readonly<{
   workspaceId: string
   name: string
 }>
 
-export type WorkspaceCreateResult = WorkspaceSummary & Readonly<{
+type WorkspaceCreateResult = WorkspaceSummary & Readonly<{
   creatorAccountId: string
   initialAccessEstablished: true
   replayed: boolean

@@ -15,7 +15,7 @@ type Caller = Readonly<{ accountId: AccountId }>
 type RepositoryStatus = 'reachable' | 'missing' | 'identity-changed' | 'unknown'
 type GithubStatusState = 'not-connected' | 'connected' | 'gone' | 'unreachable'
 
-export type GithubStatus = Readonly<{
+type GithubStatus = Readonly<{
   state: GithubStatusState
   organization: Readonly<{ login: string; type: 'Organization' | 'User' }> | null
   installUrl: string
@@ -50,7 +50,7 @@ const repositoryState = async (github: GithubApp, installationExternalId: number
   return String(repository.id) === row.externalId ? 'reachable' : 'identity-changed'
 }
 
-export const readGithubStatus = async ({ github, records, orgId, appSlug }: Readonly<{
+const readGithubStatus = async ({ github, records, orgId, appSlug }: Readonly<{
   github: GithubApp
   records: FactoryRecords
   orgId: string

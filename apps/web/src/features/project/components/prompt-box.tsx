@@ -12,7 +12,7 @@ import { suggestProjectName } from '../project-name'
 import { useStartProject } from '../start-project'
 import type { StartedProject } from '../start-project'
 
-export const EXAMPLE_IDEAS = [
+const EXAMPLE_IDEAS = [
   'Controle de pedidos de férias',
   'Checklist de abertura de loja com fotos',
   'Cadastro de visitas a clientes',

@@ -32,7 +32,7 @@ const required = (environment, name) => environment[name] ?? fail(`MISSING_CONFI
 export const hubRoleNames = (environment) =>
   readRegister().map((entry) => (entry.roleVariable ? environment[entry.roleVariable] : undefined) ?? entry.role)
 
-export const readApplicationDatabaseConfig = (environment) => {
+const readApplicationDatabaseConfig = (environment) => {
   const database = required(environment, 'CONEXUS_APP_DB_NAME')
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(database)) fail('APPLICATION_DATABASE_NAME_REFUSED', database)
   return {

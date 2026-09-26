@@ -9,16 +9,19 @@ import type { SankhyaCredential } from './credential.js'
 // The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
 // expression, URL, header or token from a consumer.
 
-/** The gateway origins the Sankhya documentation publishes: production and sandbox. */
+/**
+ * The gateway origins the Sankhya documentation publishes: production and sandbox.
+ * @public Tests import this at runtime from the built module.
+ */
 export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
 
 /** The allow-list: read services only. Any other name is refused before a request is built. */
-export const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
-export type SankhyaService = typeof SANKHYA_SERVICES[number]
+const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
+type SankhyaService = typeof SANKHYA_SERVICES[number]
 
-export type SankhyaEntity = 'CabecalhoNota' | 'ItemNota'
-export type SankhyaReference = Readonly<{ path: 'Parceiro' | 'Produto'; fields: readonly string[] }>
-export type SankhyaParameter = Readonly<{ type: 'I' | 'S'; value: string }>
+type SankhyaEntity = 'CabecalhoNota' | 'ItemNota'
+type SankhyaReference = Readonly<{ path: 'Parceiro' | 'Produto'; fields: readonly string[] }>
+type SankhyaParameter = Readonly<{ type: 'I' | 'S'; value: string }>
 
 /** One read. The operation fixes the entity, the fields and the expression; a consumer's value reaches only `parameters`. */
 export type LoadRecordsQuery = Readonly<{

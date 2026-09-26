@@ -15,7 +15,7 @@ export type ProjectModule = Readonly<{
   close(): Promise<void>
 }>
 
-export const createProjectModule = ({
+const createProjectModule = ({
   commandPool,
   readPool,
   repository,

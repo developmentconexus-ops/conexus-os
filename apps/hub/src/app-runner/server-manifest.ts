@@ -11,11 +11,11 @@ export type ValueSchema =
   | Readonly<{ type: 'object'; properties: Readonly<Record<string, ValueSchema>>; required?: readonly string[]; additionalProperties: false }>
   | Readonly<{ type: 'array'; items: ValueSchema; maxItems?: number }>
 
-export type SourceOperation = Readonly<{ handler: string; export: string; input: ValueSchema; output: ValueSchema }>
+type SourceOperation = Readonly<{ handler: string; export: string; input: ValueSchema; output: ValueSchema }>
 export type SourceManifest = Readonly<{ operations: Readonly<Record<string, SourceOperation>> }>
 
-export type ServerOperation = Readonly<{ module: string; export: string; input: ValueSchema; output: ValueSchema }>
-export type ServerMigration = Readonly<{ name: string; sha256: string; sql: string }>
+type ServerOperation = Readonly<{ module: string; export: string; input: ValueSchema; output: ValueSchema }>
+type ServerMigration = Readonly<{ name: string; sha256: string; sql: string }>
 export type ServerManifest = Readonly<{
   version: 1
   operations: Readonly<Record<string, ServerOperation>>

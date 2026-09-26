@@ -1,0 +1,47 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    // Scripts that are run but never imported, and that no package.json script names. Name each one:
+    // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
+    "scripts/check-test-skips.mjs",
+    "scripts/generate-r1-connector-contracts.mjs",
+    "scripts/generate-wire-projection.mjs",
+    "scripts/hub-factory.mjs",
+    "scripts/issue-230-no-access-proof.mjs",
+    "scripts/keycloak-refresh-probe.mjs",
+    "scripts/q3-negative-proof.mjs",
+    "scripts/q3-sign-in.mjs",
+    "scripts/run-kubb-wire-probe.mjs",
+    "scripts/single-session-proof.mjs",
+    "scripts/builder-eval/run.mjs",
+    "tests/**/*.test.mjs",
+    // Test-support files that are run or loaded but never imported. Name each one: a directory glob
+    // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
+    "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
+    "tests/implementation/connector-integrations-screenshot.mjs",
+    "tests/implementation/guard-mutations.mjs",
+    "tests/implementation/parity-shots.mjs",
+    "tests/implementation/project-settings-access-screenshot.mjs",
+    "tests/implementation/settings-screenshots.mjs",
+    "tests/implementation/sandbox-probe/pilot-probe.mjs",
+    "tests/implementation/sandbox-probe/pilot-data-probe.mjs",
+    "tests/implementation/sandbox-probe/network_egress.mjs",
+    "tests/implementation/sandbox-probe/read_proc.mjs",
+    "tests/implementation/sandbox-probe/read_secrets.mjs",
+    "tests/implementation/sandbox-probe/walk_fs.mjs",
+    "apps/hub/src/server.ts",
+    "apps/hub/src/factory-cli.ts",
+    "apps/hub/src/app-runner/main.ts",
+    "apps/web/src/main.tsx",
+    "apps/hub/compiler-template/**",
+    "factory-skills/**"
+  ],
+  "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**"],
+  "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],
+  // @mastra/playground-ui publishes .d.ts files importing class-variance-authority but lists it
+  // only as its own devDependency; our pin supplies those types for the web typecheck.
+  "ignoreDependencies": [
+    "class-variance-authority"
+  ],
+  "ignoreBinaries": ["setpriv"]
+}

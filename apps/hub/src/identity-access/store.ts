@@ -8,13 +8,13 @@ import type { AccountId, AccountSummary, CurrentSession, EmailAddress } from './
 import { identityAccessError, translatePostgresError } from './errors.js'
 import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
-export type { AccountSummary, CurrentSession }
+export type { CurrentSession }
 
 const BOOTSTRAP_MS = 10 * 60 * 1000
 const OIDC_MS = 10 * 60 * 1000
 
-export type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
-export type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
+type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
+type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
 
 type AccountRow = QueryResultRow & {
   account_id: string

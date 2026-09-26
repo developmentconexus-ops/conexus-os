@@ -13,7 +13,7 @@ const message = (error: unknown): string => error instanceof Error ? error.messa
 // The "Sobre o Projeto" page's repository link: a Project's bound GitHub repository, and whether
 // it currently answers, without ever disclosing why not (a token, an installation id, or a
 // GitHub error message).
-export type ProjectRepositoryState =
+type ProjectRepositoryState =
   | Readonly<{ state: 'REACHABLE'; fullName: string; url: string }>
   | Readonly<{ state: 'UNREACHABLE' }>
 

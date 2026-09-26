@@ -14,6 +14,7 @@ export type PostgresConnection = PoolConfig
 // serves this label, the provisioning step and the reference doc.
 
 // An unregistered role labels itself. A connection is never refused for being unknown here.
+/** @public Tests import this at runtime from the built module. */
 export const capabilityFor = (role: string | undefined): string =>
   (role && CAPABILITY_BY_ROLE[role]) || role || 'unlabelled'
 

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
 
-export type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
+type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 export type LoginProblem = 'model-login-busy' | 'model-login-unavailable' | 'model-login-callback-refused'
 
 export class GoogleAiProLoginError extends Error {

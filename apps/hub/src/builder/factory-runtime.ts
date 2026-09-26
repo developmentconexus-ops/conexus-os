@@ -18,7 +18,7 @@ import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
 import type { BuilderRunningPhase, BuilderStore, FactoryBindingRecord } from './store.js'
 
-export type FactoryRunSandbox = Readonly<{
+type FactoryRunSandbox = Readonly<{
   readonly sandboxId: string | undefined
   start(): Promise<void>
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
@@ -28,7 +28,7 @@ export type FactoryRunSandbox = Readonly<{
   buildApplication(buildRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
 }>
 
-export type FactoryAgentTurn = Readonly<{
+type FactoryAgentTurn = Readonly<{
   reason: string
   endedAt: Date
   userMessageId: string | undefined
@@ -36,7 +36,7 @@ export type FactoryAgentTurn = Readonly<{
 }>
 
 /** One run's session on the Factory controller, scoped to builder:<runId> under the conversation. */
-export type FactoryRunSession = Readonly<{
+type FactoryRunSession = Readonly<{
   sandbox: FactoryRunSandbox
   configure(input: Readonly<{ mode: 'BUILD' | 'PLAN'; instructions: string }>): Promise<void>
   hasModelSelection(): boolean
@@ -57,7 +57,7 @@ export type FactoryRunPorts = Readonly<{
   log(line: string): void
 }>
 
-export type FactoryCodingWorkerInput = Readonly<{
+type FactoryCodingWorkerInput = Readonly<{
   projectId: string
   accountId: string
   conversationId: string
@@ -82,6 +82,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SLUG = /^[\w.-]+\/[\w.-]+$/
 const BRANCH = /^[A-Za-z0-9_./-]+$/
 
+/** @public Tests import this at runtime from the built module. */
 export const factoryAgentInstructions = (workdir: string, connectorBrief = ''): string => [
   ...BUILDER_SHARED_AGENT_INSTRUCTIONS.map((line) => line.replaceAll('/workspace/repo', workdir)),
   'The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history.',
