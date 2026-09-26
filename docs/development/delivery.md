@@ -21,7 +21,7 @@ A change is in the qualification lane when any Q trigger is true:
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
 | `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
-| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the Opus review on each pull request, and the bet's "done when" checked on the real artifact | operator |
+| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the GPT-6 Sol review on each pull request, and the bet's "done when" checked on the real artifact | operator |
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
 Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
@@ -111,7 +111,7 @@ operator dictating filenames or implementation.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
-  first. The Opus review never sees the other reviews. The lead adjudicates every finding against
+  first. The GPT-6 Sol review never sees the other reviews. The lead adjudicates every finding against
   current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
   only when a correction invalidated a protected property or the deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
@@ -125,7 +125,7 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from `origin/main`, with the census
   redone by the reviewer.
 - A serious change (`needs:aprovo`, `lane:qualification` or `lane:shaped`) also has an independent
-  Claude Opus review. The manager runs it without showing it the Factory's verdict.
+  GPT-6 Sol review. The manager runs it without showing it the Factory's verdict.
 - The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
 
 ## Git and pull requests
