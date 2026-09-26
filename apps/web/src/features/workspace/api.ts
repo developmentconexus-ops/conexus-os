@@ -2,7 +2,6 @@ import { clearAuthorityCache } from '../../app/query-client'
 import type {
   CreateWorkspaceInput,
   CreateWorkspaceResponse,
-  WorkspaceSummary,
 } from '../../generated/workspace-client'
 import { workspaceClient } from '../../generated/workspace-client'
 
@@ -33,15 +32,4 @@ export async function createWorkspace(
   }
   if (response.status !== 201) reject(response)
   return response.json() as Promise<CreateWorkspaceResponse>
-}
-
-export async function getWorkspace(workspaceId: string): Promise<WorkspaceSummary> {
-  let response: Response
-  try {
-    response = await workspaceClient.getWorkspace(workspaceId)
-  } catch {
-    throw new WorkspaceRequestError(null)
-  }
-  if (!response.ok) reject(response)
-  return response.json() as Promise<WorkspaceSummary>
 }

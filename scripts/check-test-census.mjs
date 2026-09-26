@@ -37,7 +37,7 @@ export function collectReachableTests(candidateGraph, packageScripts) {
   return reachable
 }
 
-export function listCommittedTests(root) {
+function listCommittedTests(root) {
   const output = execFileSync('git', ['ls-files', 'tests/**/*.test.mjs'], {
     cwd: root,
     encoding: 'utf8',
