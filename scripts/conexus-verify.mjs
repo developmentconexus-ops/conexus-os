@@ -25,10 +25,8 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
   CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
 })
 
-// A class names what a step needs: a PostgreSQL, a browser, or both. A browser-postgres step gets the
-// database defaults and is skipped with the browser steps.
+// A class names what a step needs: PostgreSQL, a browser, or both.
 const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
-export const BROWSER_CLASSES = new Set(['browser', 'browser-postgres'])
 
 const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
   scope,
@@ -405,26 +403,10 @@ export function runVerification({
   const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
   const records = []
   const published = {}
-  const skipBrowser = Boolean(processEnvironment.CONEXUS_VERIFY_SKIP_BROWSER)
   const testLedger = newTestLedger(root)
 
   for (const entry of entries) {
     const command = formatCommand(entry)
-    // A PR that never touches the web app or its browser fixtures gets no signal from
-    // re-running Playwright against unchanged code; CONEXUS_VERIFY_SKIP_BROWSER records that
-    // decision instead of silently dropping the step.
-    if (skipBrowser && BROWSER_CLASSES.has(entry.environmentClass)) {
-      records.push({
-        scope: entry.scope,
-        command,
-        environmentClass: entry.environmentClass,
-        status: 'skipped',
-        exitCode: null,
-        durationMs: 0,
-        reason: 'no web change',
-      })
-      continue
-    }
     if (dryRun) {
       records.push({
         scope: entry.scope,
