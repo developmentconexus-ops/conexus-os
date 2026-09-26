@@ -43,7 +43,7 @@ This is re-checked on `feat/q4-sankhya-part2` at `1ceab4ea`, with no Sankhya req
   fixes the entity and the field list, so no consumer chooses what it reads.
 
 The page's example token has `expires_in` 300, not the hour that operator decision 9 assumed. The
-cache takes each token's own `expires_in`, so the design holds. Q4.6 records the real value.
+cache takes each token's own `expires_in`, so the design holds.
 
 **The barrier.** The code refuses at two points, and each fails its test when it is removed:
 
@@ -69,7 +69,7 @@ the no-network refusal test and the adapter source check, as this section record
 ([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Part 1 is on `main`
 since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the same day (see the
 deploy record below). Q4.6, the first real call, still waits for the operator to load the credential
-in the Integrações screen. The operator watches that call.
+and grant the operation in the Integrações screen. The operator watches that call.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
@@ -131,10 +131,16 @@ After the deploy:
    into its write-only fields. This is the one path the task's STOP law authorizes for the
    credential (section 11, points 3 and 4; C-026 as amended on 2026-09-26). The executor never sees
    them.
-9. **Q4.6 starts only here.** The operator adds `CONEXUS_SANKHYA_GATEWAY_ORIGIN` to the Hub's env file.
-   It must be one of the two origins the Sankhya documentation publishes, because the Hub refuses
-   any other at startup. Then the operator restarts the Hub and watches the first real call. Each call
-   from then on gets one row in the table below.
+9. **Q4.6 starts only here.** The operator, as Owner of that Workspace, grants
+   `sankhya.purchase-order.read` to the Q3 Project with **Conceder**.
+10. The operator names the gateway origin his credential belongs to. It must be one of the two
+    origins the Sankhya documentation publishes, because the Hub refuses any other at startup. With
+    the operator's go-ahead, the implementer adds `CONEXUS_SANKHYA_GATEWAY_ORIGIN` to the Hub's env
+    file, then stops the Hub and starts `infra/pilot/hub.sh` again. The Hub reads the origin only at
+    startup. The runner keeps running.
+11. The operator presses **Testar** and watches the first real call, `POST /authenticate` only. Each
+    call from then on gets one row in the table below. The first data read is the first handler read
+    of Q4.7 (task section 11, point 7).
 
 ### Real Sankhya calls
 
@@ -200,12 +206,14 @@ document number 22790 is the one exception.
 
 ## Open for part 2
 
-- The invocation timeout is 5 s and the broker deadline is 4 s. Q4.6 measures a cold call on the
-  pilot before any bound changes.
+- The invocation timeout is 5 s and the broker deadline is 4 s. The first read, in Q4.7, measures a
+  cold call on the pilot before any bound changes. "Testar" does not fill the token cache, so that
+  read is cold.
 - The field mapping in `sankhya/purchase-order.ts` is unverified: `NUMNOTA` with `TIPMOV = 'O'`, the
   status values, the date and decimal formats, and the reference field names. So is whether a
   refused token arrives as HTTP 401. Each lives in one file or one function.
 - One authentication serves every concurrent miss under the first caller's deadline. If that caller
   times out, the others waiting on it fail too.
 - The pilot has `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner since the deploy. It
-  still needs `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub, which the operator adds at Q4.6.
+  still needs `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub, which the implementer adds at Q4.6 with
+  the operator's go-ahead.

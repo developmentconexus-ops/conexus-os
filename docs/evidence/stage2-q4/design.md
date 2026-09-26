@@ -224,7 +224,7 @@ field mapping: the header on `CabecalhoNota` (`NUMNOTA = ?` and `TIPMOV = 'O'`, 
 `{ orders: PurchaseOrder[] }` with at most 10 orders and 200 items each, because a document number is
 unique per company and series only; "not found" is `orders: []`. Money and quantities are decimal
 strings, so no value passes through a binary float. The mapping is marked unverified until the first
-real read (Q4.6).
+read, the first handler read of Q4.7.
 
 ## 7. Storage
 
@@ -362,9 +362,9 @@ id with a kind; the schema change is one widened CHECK, and there is no sibling 
 ## 14. Open risks for part 2
 
 - The invocation timeout is 5 s and the broker deadline 4 s. A cold authentication plus two
-  `loadRecords` calls on the pilot may not fit. Q4.6 measures before any bound changes.
+  `loadRecords` calls on the pilot may not fit. The first read measures before any bound changes.
 - `NUMNOTA` with `TIPMOV = 'O'` as the key for "document number 22790", and the `STATUSNOTA` values,
-  are unverified until Q4.6. The mapping is one file.
+  are unverified until the first read. The mapping is one file.
 - Whether the gateway reports a refused token as HTTP 401 or in the envelope is unverified. The
   adapter's classification is one function.
 - The shared socket directory assumes the Hub and the runner share an OS user, as the runner socket
