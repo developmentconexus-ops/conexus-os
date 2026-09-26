@@ -24,7 +24,7 @@ The [review checklist](../../../../docs/development/review-checklist.md) and the
 
 **Shaped lane and `needs:aprovo`.** The [merge gate](../../../../docs/development/delivery.md#merge-gate) adds an independent Claude Opus review. The manager runs it without the Factory's verdict.
 
-**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), which holds the reviewer count, the model rule and the Codex command. The Codex challenger (`codex exec`) is the challenger on another model. The Codex connector's pull request comments do not count as it. The other challenger is the manager's Opus review, which has seen no draft of the work. Also:
+**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), which holds the reviewer count and the model rule. The manager's Opus review has seen no draft of the work. Also:
 
 - A collaborative writer or design challenger is not an independent reviewer.
 - A reviewer finding is evidence, not a product requirement and not execution authority. The lead classifies it against current owners.

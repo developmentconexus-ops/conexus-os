@@ -34,6 +34,7 @@ If a higher-lane trigger appears mid-work, stop, comment on the issue, and chang
 ## Build a change
 
 - Confirm that the issue or task names the observable result, the non-goals and "done when". If a material item is missing, ask on the issue. Do not invent product meaning in code.
+- Turn each "done when" item into one check with its literal expected result. A claim that existing code or tests already cover an item cites the file:line or test name, otherwise the item counts as uncovered.
 - Before adding a mechanism, take the native census in [Mastra native](../../../docs/development/review/mastra-native.md#proof-required).
 - Stop on the conditions in [Stop, then escalate](../../../docs/development/delivery.md#stop-then-escalate).
 - Add `needs:aprovo` when the change is one of the [three kinds that need it](../../../docs/development/delivery.md#ask-for-aprovo-on-three-kinds-of-change).

@@ -76,7 +76,7 @@ most 5 open pull requests.
 - **Laptop first, then server.** Make each capability work on the WSL laptop pilot. Server
   installation and infrastructure migration follow validation there.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
-- **Codex never authors.** Its connector's pull request comments never count as the challenger.
+- **Codex never authors.**
 - **CodeRabbit is off** for this repository.
 - **Tests serve the product.** Never reshape a design to keep a test or fixture passing. Fix every
   test that exercised real behavior. Delete every test whose subject is gone.
@@ -111,9 +111,7 @@ operator dictating filenames or implementation.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
-  first. Its challengers, the Opus review and the Codex challenger, never see each other's output.
-  Run the challenger in WSL on a worktree at the frozen head SHA, named in its brief:
-  `codex exec -C <worktree> -m gpt-6-sol -s read-only`. The lead adjudicates every finding against
+  first. The Opus review never sees the other reviews. The lead adjudicates every finding against
   current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
   only when a correction invalidated a protected property or the deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
@@ -125,7 +123,7 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
   base. If no run exists at your head, merge `main` into your branch and push again.
 - The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from `origin/main`, with the census
-  redone by the reviewer, no skipped PostgreSQL test, and the browser suites run whenever the change's paths select them in `verify.yml`.
+  redone by the reviewer.
 - A serious change (`needs:aprovo`, `lane:qualification` or `lane:shaped`) also has an independent
   Claude Opus review. The manager runs it without showing it the Factory's verdict.
 - The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
