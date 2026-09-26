@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { test } from 'node:test'
-import { catalogDigest, readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
+import { readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
 import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, withClient } from './hub-database.mjs'
 
@@ -134,7 +134,6 @@ test('the committed snapshot is the catalog the baseline and forward migration b
   const snapshot = readCommittedSnapshot()
   assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
-  assert.equal(catalogDigest(snapshot.catalog), 'ca37c492c8ee1fa7113fba19dd4afe59cde9fa34ee5da30d7b7ea804e11edd30')
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 

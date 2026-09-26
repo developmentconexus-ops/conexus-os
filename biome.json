@@ -9,6 +9,7 @@
     "ignoreUnknown": true,
     "includes": [
       "apps/**",
+      "!apps/keycloak-theme",
       "packages/**",
       "scripts/**",
       "tests/**",
@@ -24,7 +25,12 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
+      }
     }
   },
   "assist": {
@@ -62,6 +68,16 @@
         "rules": {
           "correctness": {
             "noUndeclaredDependencies": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/builder-eval/checks.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noControlCharactersInRegex": "off"
           }
         }
       }

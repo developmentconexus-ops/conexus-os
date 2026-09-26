@@ -8,13 +8,12 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 
 ## What to check
 
-- [ ] The import law holds. Platform code does not import an application layer, and the
+- [ ] Platform code does not import an application layer, and the
       composition root's allowlist names every platform module `server.ts` imports.
       `tests/repository/import-law.test.mjs` enforces it.
 - [ ] Generated application code never runs in the Hub process.
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
-      runs once. A new test file is run by a leaf. A test file no leaf runs protects nothing. Owner:
-      [Proof and verification](../delivery.md#proof-and-verification).
+      runs once. Owner: [Proof and verification](../delivery.md#proof-and-verification).
 - [ ] A leaf that drives a real browser is tagged `browser`, and the path list in
       `.github/workflows/verify.yml` that decides whether browser suites run covers every path the
       leaf depends on.
