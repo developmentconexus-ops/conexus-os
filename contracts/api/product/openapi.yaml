@@ -143,6 +143,12 @@ components:
         type: string
         minLength: 1
   responses:
+    Problem400:
+      description: The request does not match the operation's schema, for example an identifier that is not a UUID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Problem401:
       description: No valid current Conexus principal/session for the protected human surface.
       content:

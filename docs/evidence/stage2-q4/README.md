@@ -66,9 +66,11 @@ document number 22790 is the one exception.
    stores a keyed digest of the credential. An identical retry answers 200, a changed one 409, and
    concurrent retries converge on one row. `connector-postgres`, `connector-routes`.
 3. **Resolved in review.** A malformed id in a path or body reached PostgreSQL as a `uuid` parameter
-   and failed as a server error. Every id is parsed at the route, and a malformed one gets the
-   declared 404 or 422 before the store. A create in a Workspace that does not exist answers 422.
-   `connector-routes`, `connector-postgres`.
+   and failed as a server error. The contract now types `connectionId` and `grantId` as uuids, in
+   paths, bodies and responses, and the generated routes validate them, so a malformed one gets the
+   declared 400. The shared `workspaceId` and `projectId` stay plain strings and are parsed in the
+   handler, which answers 404, or 422 on create. None of these reaches the store. A create in a
+   Workspace that does not exist answers 422. `connector-routes`, `connector-postgres`.
 4. **Resolved in review.** A failed read of the grants aborted the Builder run. The run now goes on
    with a fixed notice in place of the brief (design.md section 9). `connector-builder-brief`,
    `builder-factory-runtime`.

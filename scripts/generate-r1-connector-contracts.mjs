@@ -31,6 +31,14 @@ try {
       if (!operation || !ownerIds.has(operation['x-conexus-4a-id'])) continue
       const schema = {}
       const parameters = [...(pathItem.parameters ?? []), ...(operation.parameters ?? [])]
+      const pathParameters = parameters.filter((parameter) => parameter.in === 'path')
+      if (pathParameters.length) {
+        schema.params = {
+          type: 'object',
+          required: pathParameters.filter((parameter) => parameter.required).map((parameter) => parameter.name),
+          properties: Object.fromEntries(pathParameters.map((parameter) => [parameter.name, parameter.schema])),
+        }
+      }
       const headers = parameters.filter((parameter) => parameter.in === 'header')
       if (headers.length) {
         schema.headers = {

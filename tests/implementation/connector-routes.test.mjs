@@ -117,7 +117,7 @@ test('a retry the store recognizes answers 200, a changed one 409, and a Workspa
   for (const response of [retried, changed, nowhere]) bodyHasNoCredential(response.json())
 })
 
-test('a reference PostgreSQL could not read as a uuid gets the declared 404 or 422, and never reaches the store', async (t) => {
+test('a malformed id gets the declared 400, 404 or 422, and never reaches the store', async (t) => {
   const store = makeStore()
   const app = await makeApp(store)
   t.after(() => app.close())
@@ -125,17 +125,17 @@ test('a reference PostgreSQL could not read as a uuid gets the declared 404 or 4
   const cases = [
     { method: 'GET', url: `/api/control/workspaces/${bad}/connections`, cookies: session, expected: { status: 200, body: { entries: [] } } },
     { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-workspace-not-found' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-connection-id-refused' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 400, type: 'request-invalid' } },
     { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', credential }, expected: { status: 422, type: 'connector-label-refused' } },
     { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
     { method: 'DELETE', url: `/api/control/workspaces/${bad}/connections/${connectionId}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
-    { method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${bad}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
+    { method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${bad}`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
     { method: 'GET', url: `/api/control/projects/${bad}/connector-grants`, cookies: session, expected: { status: 404, type: 'project-not-found' } },
     { method: 'POST', url: `/api/control/projects/${bad}/connector-grants`, ...authentic, payload: { connectionId, operationId: 'sankhya.purchase-order.read' }, expected: { status: 404, type: 'project-not-found' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connector-grants`, ...authentic, payload: { connectionId: bad, operationId: 'sankhya.purchase-order.read' }, expected: { status: 422, type: 'connector-connection-id-refused' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connector-grants`, ...authentic, payload: { connectionId: bad, operationId: 'sankhya.purchase-order.read' }, expected: { status: 400, type: 'request-invalid' } },
     { method: 'DELETE', url: `/api/control/projects/${bad}/connector-grants/${grantId}`, ...authenticDelete, expected: { status: 404, type: 'project-not-found' } },
-    { method: 'DELETE', url: `/api/control/projects/${projectId}/connector-grants/${bad}`, ...authenticDelete, expected: { status: 404, type: 'connector-grant-not-found' } },
+    { method: 'DELETE', url: `/api/control/projects/${projectId}/connector-grants/${bad}`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
   ]
   for (const { expected, ...request } of cases) {
     const response = await app.inject(request)
