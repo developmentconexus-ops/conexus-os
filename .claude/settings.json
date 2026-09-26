@@ -31,7 +31,21 @@
     ],
     "ask": [
       "Bash(gh pr merge*)",
-      "PowerShell(gh pr merge*)"
+      "PowerShell(gh pr merge*)",
+      "Bash(*infra/pilot/*)",
+      "PowerShell(*infra/pilot/*)",
+      "Bash(*infra/keycloak/*)",
+      "PowerShell(*infra/keycloak/*)",
+      "Bash(*scripts/run-application-cluster.sh*)",
+      "PowerShell(*scripts/run-application-cluster.sh*)",
+      "Bash(*scripts/mount-application-cluster-storage.sh*)",
+      "PowerShell(*scripts/mount-application-cluster-storage.sh*)",
+      "Bash(*scripts/run-hub-migrations.mjs*)",
+      "PowerShell(*scripts/run-hub-migrations.mjs*)",
+      "Bash(docker * conexus-*)",
+      "PowerShell(docker * conexus-*)",
+      "Bash(*~/conexus-pilot*)",
+      "PowerShell(*~/conexus-pilot*)"
     ]
   }
 }
