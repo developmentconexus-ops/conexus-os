@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, createHmac, hkdfSync } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { createFactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import type { FactorySecretEncryption, FactorySecretEncryptionKey } from '@mastra/factory/secret-encryption'
@@ -28,11 +28,19 @@ export type SecretEnvelope = Readonly<{
   seal(value: string): Promise<string>
   /** Refuses anything that is not a sealed envelope under this key: a plaintext value is never read. */
   open(sealed: string): Promise<string>
+  /** Keyed HMAC-SHA256s of the value, in hex, one per configured key: the current key first, then each
+   * key a rotation retired. A stored secret is compared without opening it, and a digest stored before a
+   * rotation still matches while its key stays configured. Useless to anyone who does not hold a key. */
+  fingerprints(value: string): readonly [string, ...string[]]
 }>
 
 /** Seals a secret the Hub keeps at rest with the same key and AES-256-GCM envelope as the Factory's stored credentials. */
 export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly string[] = []): SecretEnvelope => {
   const encryption = factorySecretEncryption(hexKey, previousHexKeys)
+  const fingerprintKeyOf = (key: string) => Buffer.from(hkdfSync('sha256', factorySecretKey(key).key, Buffer.alloc(0), 'conexus:secret-fingerprint:v1', 32))
+  const currentFingerprintKey = fingerprintKeyOf(hexKey)
+  const previousFingerprintKeys = previousHexKeys.map(fingerprintKeyOf)
+  const hmac = (key: Buffer, value: string) => createHmac('sha256', key).update(value).digest('hex')
   return Object.freeze({
     seal: (value: string) => encryption.encrypt(value),
     open: async (sealed: string) => {
@@ -41,5 +49,6 @@ export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly s
       if (typeof value !== 'string') throw new Error('SECRET_NOT_SEALED')
       return value
     },
+    fingerprints: (value: string) => [hmac(currentFingerprintKey, value), ...previousFingerprintKeys.map((key) => hmac(key, value))] as const,
   })
 }

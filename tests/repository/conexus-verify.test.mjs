@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
+  BROWSER_CLASSES,
   CANDIDATE_GRAPH,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
@@ -43,14 +44,15 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-baseline',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
+  'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
   'application-data-postgres', 'application-runner-sandbox', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
-  'c020-browser', 'settings-browser', 'application-access-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
+  'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
   'repository-check', 'repository-import-law', 'repository-agent-context',
-  'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project',
+  'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
   'repository-contract-checks', 'biome-current',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
@@ -58,7 +60,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
-  'wire-project', 'wire-builder',
+  'wire-project', 'wire-builder', 'wire-connector',
   'wire-technical-lint', 'wire-technical-ingress',
   'only-opt-in-skips',
 ])
@@ -262,7 +264,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
 
   const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
   const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
@@ -309,6 +311,9 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
   assert.deepEqual(executionEnvironment(c020Postgres, selectedPostgres), selectedPostgres)
+  const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
+  assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
+  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), postgresDefaults)
   assert.throws(
     () => executionEnvironment(c020Postgres, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
@@ -316,7 +321,7 @@ test('candidate graph labels execution environments and passes shell argv correc
 })
 
 test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', () => {
-  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => BROWSER_CLASSES.has(entry.environmentClass)).map(entry => entry.scope)
   assert.ok(browserScopes.length > 0, 'fixture assumption: the candidate graph still has browser steps')
 
   const calls = []
@@ -337,7 +342,7 @@ test('CONEXUS_VERIFY_SKIP_BROWSER skips only browser-tagged candidate steps', ()
 })
 
 test('without CONEXUS_VERIFY_SKIP_BROWSER, browser-tagged candidate steps run like any other', () => {
-  const browserScopes = CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'browser').map(entry => entry.scope)
+  const browserScopes = CANDIDATE_GRAPH.filter(entry => BROWSER_CLASSES.has(entry.environmentClass)).map(entry => entry.scope)
   const calls = []
   const result = runVerification({
     scopes: ['candidate'],

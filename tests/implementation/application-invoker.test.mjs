@@ -145,3 +145,44 @@ test('a missing file still refuses by throwing, as the Preview API layer expects
     /APPLICATION_SERVER_FILE_MISSING/,
   )
 })
+
+// The connector port lives exactly as long as one invocation: opened for its source before the
+// runner is called, named to the runner beside the input, and closed after the answer or the failure.
+const portOpener = () => {
+  const events = []
+  const openConnectorPort = async (portSource) => {
+    events.push(['open', portSource])
+    return { socketPath: '/run/hub-connectors/abc.s', close: async () => { events.push(['close']) } }
+  }
+  return { events, openConnectorPort }
+}
+
+test('the connector port is opened for the source, named to the runner and closed after its answer', async () => {
+  const reader = immediateReader(bytes(16))
+  const ports = portOpener()
+  const calls = []
+  const invoker = createApplicationInvoker({
+    readFile: reader.readFile, openConnectorPort: ports.openConnectorPort,
+    invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { status: 200, body: { ok: true } } },
+  })
+  assert.deepEqual(await call(invoker, 'p1'), { status: 200, body: { ok: true } })
+  assert.deepEqual(ports.events, [['open', source('p1')], ['invoke', '/run/hub-connectors/abc.s'], ['close']])
+  assert.equal(calls[0].input.connectorSocket, undefined, 'the socket is a platform fact beside the input, never inside it')
+})
+
+test('the connector port is closed when the runner fails or times out', async () => {
+  const ports = portOpener()
+  const invoker = createApplicationInvoker({
+    readFile: immediateReader(bytes(16)).readFile, openConnectorPort: ports.openConnectorPort,
+    invoke: async () => { throw new Error('APPLICATION_RUNNER_UNAVAILABLE') },
+  })
+  await assert.rejects(() => call(invoker, 'p1'), /APPLICATION_RUNNER_UNAVAILABLE/)
+  assert.deepEqual(ports.events.map(([event]) => event), ['open', 'close'])
+})
+
+test('with no connector port the runner is called without a socket', async () => {
+  const runner = spyInvoke()
+  const invoker = createApplicationInvoker({ readFile: immediateReader(bytes(16)).readFile, invoke: runner.invoke, openConnectorPort: async () => null })
+  assert.equal((await call(invoker, 'p1')).status, 200)
+  assert.equal(Object.hasOwn(runner.calls[0], 'connectorSocket'), false)
+})

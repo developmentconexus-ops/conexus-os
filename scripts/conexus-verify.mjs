@@ -25,6 +25,11 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
   CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
 })
 
+// A class names what a step needs: a PostgreSQL, a browser, or both. A browser-postgres step gets the
+// database defaults and is skipped with the browser steps.
+const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
+export const BROWSER_CLASSES = new Set(['browser', 'browser-postgres'])
+
 const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
   scope,
   command,
@@ -61,6 +66,11 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('installation-settings-routes', 'node --test tests/implementation/installation-settings-routes.test.mjs'),
   candidateStep('iam-grant-surface-excision', 'node --test --test-concurrency=1 tests/implementation/grant-surface-excision-postgres.test.mjs', 'postgres'),
   candidateStep('hub-call-site-privileges', 'node --test --test-concurrency=1 tests/implementation/hub-call-site-privileges-postgres.test.mjs && npx --no-install biome check tests/implementation/hub-call-site-privileges-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-postgres.test.mjs && npx --no-install biome check tests/implementation/connector-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-routes', 'node --test tests/implementation/connector-routes.test.mjs && npx --no-install biome check tests/implementation/connector-routes.test.mjs'),
+  candidateStep('connector-broker', 'node --test tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/application-invoker.test.mjs && npx --no-install biome check tests/implementation/application-invoker.test.mjs tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/connector-fake-gateway.mjs apps/hub/src/connectors'),
+  candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs && npx --no-install biome check tests/implementation/connector-broker-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs && npx --no-install biome check tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('factory-binding-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-binding-postgres.test.mjs', 'postgres'),
@@ -86,6 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs && npx --no-install biome check tests/implementation/settings-browser.test.mjs tests/implementation/settings-screenshots.mjs', 'browser'),
   candidateStep('application-access-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-access-browser.test.mjs && npx --no-install biome check tests/implementation/project-settings-access-browser.test.mjs tests/implementation/project-settings-access-screenshot.mjs', 'browser'),
+  candidateStep('connector-integrations-browser', 'node --test --test-concurrency=1 tests/implementation/connector-integrations-browser.test.mjs && npx --no-install biome check tests/implementation/connector-integrations-browser.test.mjs tests/implementation/connector-integrations-screenshot.mjs', 'browser-postgres'),
   candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs'),
   candidateStep('c020-web-typecheck', 'node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false'),
   candidateStep('c020-web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
@@ -100,6 +111,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
+  candidateStep('contract-projection-check-connector', 'node scripts/generate-r1-connector-contracts.mjs --check'),
   candidateStep('repository-contract-checks', 'node --test tests/repository/repository-contract.test.mjs'),
   candidateStep('biome-current', 'npx --no-install biome check apps/hub/src apps/web/src packages tests/implementation/brand-tokens.test.mjs scripts/run-hub-migrations.mjs scripts/hub-catalog.mjs scripts/generate-hub-catalog-snapshot.mjs scripts/generate-hub-baseline.mjs tests/implementation/hub-database.mjs tests/implementation/hub-baseline.test.mjs tests/implementation/grant-surface-excision-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/builder-*.mjs tests/implementation/project-browser.test.mjs tests/implementation/preview-form-policy.test.mjs tests/implementation/installation-settings-routes.test.mjs tests/repository/conexus-verify.test.mjs'),
 
@@ -129,6 +141,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
   candidateStep('wire-project', 'npm run wire:project'),
   candidateStep('wire-builder', 'npm run wire:builder'),
+  candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
 
@@ -311,7 +324,7 @@ export function executionEnvironment(entry, processEnvironment = process.env, te
     CONEXUS_TEST_LEDGER: testLedger.file,
     NODE_OPTIONS: nodeOptions.includes(LEDGER_REPORTER) ? nodeOptions : `${nodeOptions} ${LEDGER_REPORTER_OPTIONS}`.trim(),
   } : processEnvironment
-  if (entry.environmentClass !== 'postgres') return instrumented
+  if (!POSTGRES_CLASSES.has(entry.environmentClass)) return instrumented
 
   const names = Object.keys(POSTGRES_ENV_DEFAULTS)
   const selected = names.filter(name => processEnvironment[name])
@@ -400,7 +413,7 @@ export function runVerification({
     // A PR that never touches the web app or its browser fixtures gets no signal from
     // re-running Playwright against unchanged code; CONEXUS_VERIFY_SKIP_BROWSER records that
     // decision instead of silently dropping the step.
-    if (skipBrowser && entry.environmentClass === 'browser') {
+    if (skipBrowser && BROWSER_CLASSES.has(entry.environmentClass)) {
       records.push({
         scope: entry.scope,
         command,

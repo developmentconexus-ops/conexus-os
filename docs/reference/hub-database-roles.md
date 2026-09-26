@@ -27,11 +27,15 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
 | `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 
-These eight and the five owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner` and `builder_owner` are every role the product has. A cluster built from
-`apps/hub/migrations/` holds exactly those thirteen. `0009_remove_model_connections.sql` dropped
-`hub_model_connection` and `model_connection_owner` with the model connection subsystem, and leaves
-either one in place while another database on the cluster still grants to it.
+These eight and the six owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+`registry_owner`, `builder_owner` and `connector_owner` are every role the product has. A cluster
+built from `apps/hub/migrations/` holds exactly those fourteen. `0009_remove_model_connections.sql`
+dropped `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and
+leaves either one in place while another database on the cluster still grants to it.
+`connector_owner`, added by `0029_connector.sql`, is `NOLOGIN` like every owner role: it owns the
+`connector` schema and its functions are reached only through `hub_iam_runtime`, the same shape as
+Stage 2 Q3's `iam.application_grant` functions. It holds no register row above because it never
+connects to the database on its own.
 
 ## The Builder split, which is load-bearing
 

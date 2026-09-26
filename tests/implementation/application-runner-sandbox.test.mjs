@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { chmodSync, copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { homedir, networkInterfaces, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,6 +12,7 @@ import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
+import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 
 // The real runner path: a supervisor that provisions with app_provisioner, migrates and invokes
 // through the rootless bubblewrap worker and the pinned database relay. Needs unprivileged user
@@ -20,6 +21,12 @@ const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js
 const { assertUserNamespaces, stageWorkerRuntime, DEFAULT_SANDBOX } = await import(hubModuleUrl('app-runner/sandbox.js'))
 const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
+const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
+const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
@@ -92,7 +99,7 @@ const serverTree = (migrations) => {
   return [file('manifest.json', JSON.stringify(manifest)), file('handlers/notes.mjs', NOTES_HANDLER), file('handlers/probe.mjs', PROBE_HANDLER)]
 }
 
-const setup = async (t, sandbox) => {
+const setup = async (t, sandbox, { connectorSocketDir } = {}) => {
   await refuseProtectedCluster()
   await refuseProtectedApplicationCluster()
   assertUserNamespaces()
@@ -106,7 +113,7 @@ const setup = async (t, sandbox) => {
   const stateDir = mkdtempSync(join(tmpdir(), 'conexus-runner-'))
   const supervisor = createSupervisor({
     stateDir, runtimeDir: stageWorkerRuntime(join(stateDir, 'runtime')), cluster: { host: admin.host, port: admin.port },
-    database, provisionerPassword, relayTls: relayTls(), ...(sandbox ? { sandbox } : {}),
+    database, provisionerPassword, relayTls: relayTls(), ...(sandbox ? { sandbox } : {}), ...(connectorSocketDir ? { connectorSocketDir } : {}),
   })
   const projects = [randomUUID(), randomUUID()]
   t.after(async () => {
@@ -333,4 +340,163 @@ test('the runner socket admits an invocation only with an exact platform caller 
     { ...body, caller: { ...CALLER, email: '' } },
     { ...body, caller: { ...CALLER, email: 42 } },
   ]) assert.equal(invokeBody.safeParse(refused).success, false, JSON.stringify(refused.caller))
+})
+
+// A handler reaching the Connector broker through the one socket the runner binds: the order comes
+// back, and the handler still holds no credential, no token and no other way out.
+const CONNECTOR_HANDLER = `const READ = 'sankhya.purchase-order.read'
+export const readOrder = async (input, { connectors }) => ({ text: JSON.stringify(await connectors.call(READ, { documentNumber: input.documentNumber })) })
+export const callShapes = async (input, { connectors }) => ({ text: JSON.stringify([
+  await connectors.call(42, {}),
+  await connectors.call(READ, { documentNumber: 22790, service: 'CRUDServiceProvider.saveRecord' }),
+  await connectors.call('sankhya.everything.read', {}),
+]) })
+export const probe = async (input, context) => {
+  const fs = await import('node:fs')
+  const net = await import('node:net')
+  const attempt = async (work) => { try { return await work() } catch (error) { return String(error?.cause?.code ?? error?.code ?? error?.name ?? 'ERROR') } }
+  const connect = (options) => new Promise((resolve) => { const socket = net.connect(options); socket.once('connect', () => { socket.destroy(); resolve('CONNECTED') }); socket.once('error', (error) => resolve(String(error.code))) })
+  return { text: JSON.stringify({
+    uid: process.getuid(),
+    socket: await attempt(() => { const stat = fs.statSync('/run/conexus/connector/.s.connector'); return { uid: stat.uid, mode: (stat.mode & 0o777).toString(8), isSocket: stat.isSocket() } }),
+    listing: await attempt(() => fs.readdirSync('/run/conexus/connector')),
+    elsewhere: await Promise.all(input.paths.map((path) => connect({ path }))),
+    tcp: await connect({ host: '127.0.0.1', port: input.port }),
+    fetch: await attempt(async () => { await fetch('http://127.0.0.1:' + input.port + '/authenticate'); return 'FETCHED' }),
+    env: process.env,
+    context: Object.keys(context).sort(),
+    connectorKeys: Object.keys(context.connectors),
+    frozen: Object.isFrozen(context.connectors),
+    files: { environ: await attempt(() => fs.readFileSync('/proc/self/environ', 'utf8')), cmdline: await attempt(() => fs.readFileSync('/proc/self/cmdline', 'utf8')) },
+  }) }
+}
+`
+const connectorTree = () => {
+  const manifest = {
+    version: 1,
+    operations: {
+      readOrder: { module: 'handlers/connector.mjs', export: 'readOrder', input: { type: 'object', properties: { documentNumber: { type: 'integer' } }, required: ['documentNumber'], additionalProperties: false }, output: text },
+      callShapes: { module: 'handlers/connector.mjs', export: 'callShapes', input: empty, output: text },
+      probe: { module: 'handlers/connector.mjs', export: 'probe', input: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } }, port: { type: 'integer' } }, required: ['paths', 'port'], additionalProperties: false }, output: text },
+    },
+    migrations: [],
+  }
+  return [file('manifest.json', JSON.stringify(manifest)), file('handlers/connector.mjs', CONNECTOR_HANDLER)]
+}
+
+const connectorSetup = async (t, sandbox) => {
+  const socketDir = mkdtempSync(join(tmpdir(), 'cx-'))
+  t.after(() => rmSync(socketDir, { recursive: true, force: true }))
+  const runner = await setup(t, sandbox, { connectorSocketDir: socketDir })
+  const [project, otherProject] = runner.projects
+  const fake = await startFakeGateway()
+  t.after(() => fake.close())
+  const envelope = createSecretEnvelope('fe'.repeat(32))
+  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+  const store = {
+    resolveGrant: async (input) => (input.projectId === project ? { grantId: 'grant', connectionId: '33333333-3333-4333-8333-333333333333' } : null),
+    readConnectionCredential: async () => sealed,
+    listGrantedCapabilities: async () => [],
+  }
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, audit: () => undefined })
+  const ports = createHandlerPorts({ directory: socketDir, broker })
+  await ports.sweep()
+  const open = async (projectId) => {
+    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+    t.after(() => port.close())
+    return port
+  }
+  const files = connectorTree()
+  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
+  const port = Number(new URL(fake.origin).port)
+  return { ...runner, socketDir, fake, open, invoke, project, otherProject, port }
+}
+
+const noSecretIn = (text) => {
+  for (const secret of [...Object.values(FAKE_CREDENTIAL), 'fake-token-', SECRET_MARKER]) assert.equal(text.includes(secret), false, `${secret} reached the handler`)
+}
+
+test('a handler reads the order through the bound connector socket, and holds nothing else', async (t) => {
+  const { socketDir, fake, open, invoke, project, otherProject, port } = await connectorSetup(t)
+  const portA = await open(project)
+  const portB = await open(otherProject)
+  const run = async (operation, input, socket = portA.socketPath) => {
+    const answer = await invoke(operation, input, socket)
+    assert.equal(answer.status, 200, JSON.stringify(answer.body))
+    return JSON.parse(answer.body.text)
+  }
+
+  assert.deepEqual(await run('readOrder', { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
+  assert.deepEqual(fake.requests.map((request) => request.path), ['/authenticate', '/gateway/v1/mge/service.sbr', '/gateway/v1/mge/service.sbr'])
+  assert.deepEqual(await run('callShapes', {}), [
+    { ok: false, code: 'OPERATION_UNKNOWN' },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/service'] },
+    { ok: false, code: 'OPERATION_UNKNOWN' },
+  ])
+  assert.deepEqual(
+    await run('readOrder', { documentNumber: 22790 }, portB.socketPath), { ok: false, code: 'NOT_GRANTED' },
+    "the other Project's own open port grants nothing here: the grant belongs to the socket that resolved it",
+  )
+
+  const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`, socketDir], port })
+  noSecretIn(JSON.stringify(seen))
+  assert.deepEqual({ ...seen, tcp: seen.tcp === 'CONNECTED', fetch: seen.fetch === 'FETCHED' }, {
+    uid: seen.uid,
+    socket: 'ERR_ACCESS_DENIED',
+    listing: 'ERR_ACCESS_DENIED',
+    elsewhere: ['ENOENT', 'ENOENT', 'ENOENT', 'ENOENT'],
+    tcp: false,
+    fetch: false,
+    env: { PWD: '/' },
+    context: ['caller', 'connectors', 'db'],
+    connectorKeys: ['call'],
+    frozen: true,
+    files: { environ: 'ERR_ACCESS_DENIED', cmdline: 'ERR_ACCESS_DENIED' },
+  })
+  t.diagnostic(`P12 with the socket bound: tcp ${seen.tcp}, fetch ${seen.fetch}`)
+  assert.equal(fake.requests.length, 3, 'the probe reached no gateway')
+
+  await t.test('without a bound socket every call answers CONNECTOR_UNCONFIGURED', async () => {
+    const answer = await invoke('readOrder', { documentNumber: 22790 })
+    assert.deepEqual(JSON.parse(answer.body.text), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+  })
+
+  await t.test('the runner binds only a socket directly inside its own configured directory', async () => {
+    writeFileSync(join(socketDir, 'plain.s'), 'x')
+    symlinkSync(portA.socketPath, join(socketDir, 'link.s'))
+    for (const path of [join(socketDir, 'plain.s'), join(socketDir, 'link.s'), join(tmpdir(), 'elsewhere.s'), `${socketDir}/../${portA.socketPath.split('/').at(-1)}`, 'relative.s']) {
+      assert.deepEqual(await invoke('readOrder', { documentNumber: 22790 }, path), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } }, path)
+    }
+  })
+
+  await t.test('a closed port refuses its next connection: the socket dies with the invocation', async () => {
+    await portA.close()
+    assert.deepEqual(await invoke('readOrder', { documentNumber: 22790 }, portA.socketPath), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } })
+  })
+})
+
+// M3 and M4 with the Node permission layer off, so the probe can stat and list what the namespaces
+// alone expose: the bound socket's owner, the uid bubblewrap runs the handler under, and a directory
+// holding only this invocation's socket.
+test('M3 and M4: the handler connects to the 0600 socket under its own uid and sees no other socket', async (t) => {
+  const { socketDir, open, invoke, project, otherProject, port } = await connectorSetup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
+  const portA = await open(project)
+  const portB = await open(otherProject)
+  const answer = await invoke('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`], port }, portA.socketPath)
+  assert.equal(answer.status, 200, JSON.stringify(answer.body))
+  const seen = JSON.parse(answer.body.text)
+  noSecretIn(JSON.stringify(seen))
+  const host = statSync(portA.socketPath)
+  t.diagnostic(`M3: host socket owner uid ${host.uid} mode ${(host.mode & 0o777).toString(8)}; runner uid ${process.getuid()}; inside the sandbox socket uid ${seen.socket.uid}, handler uid ${seen.uid}`)
+  assert.deepEqual({ uid: seen.uid, socket: seen.socket, listing: seen.listing, elsewhere: seen.elsewhere, tcp: seen.tcp === 'CONNECTED', fetch: seen.fetch === 'FETCHED', env: seen.env }, {
+    uid: process.getuid(),
+    socket: { uid: host.uid, mode: '600', isSocket: true },
+    listing: ['.s.connector'],
+    elsewhere: ['ENOENT', 'ENOENT', 'ENOENT'],
+    tcp: false,
+    fetch: false,
+    env: { PWD: '/' },
+  })
+  assert.equal((await invoke('readOrder', { documentNumber: 22790 }, portA.socketPath)).body.text, JSON.stringify({ ok: true, value: EXPECTED_ORDER_22790 }))
 })

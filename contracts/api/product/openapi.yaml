@@ -63,6 +63,16 @@ paths:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1builder-session~1runs~1{builderRunId}~1trace'
   /api/control/projects/{projectId}/conversations:
     $ref: './builder-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1conversations'
+  /api/control/workspaces/{workspaceId}/connections:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1connections'
+  /api/control/workspaces/{workspaceId}/connections/{connectionId}/authentication-check:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1connections~1{connectionId}~1authentication-check'
+  /api/control/workspaces/{workspaceId}/connections/{connectionId}:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1connections~1{connectionId}'
+  /api/control/projects/{projectId}/connector-grants:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connector-grants'
+  /api/control/projects/{projectId}/connector-grants/{grantId}:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connector-grants~1{grantId}'
 components:
   securitySchemes:
     ConexusSession:
@@ -133,6 +143,12 @@ components:
         type: string
         minLength: 1
   responses:
+    Problem400:
+      description: The request does not match the operation's schema, for example an identifier that is not a UUID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Problem401:
       description: No valid current Conexus principal/session for the protected human surface.
       content:

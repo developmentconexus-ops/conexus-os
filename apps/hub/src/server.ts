@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
 import { createApplicationRunnerClient } from './app-runner/module.js'
+import { createConnectorModule } from './connectors/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
@@ -46,6 +47,20 @@ const identityAccessDependencies = {
   allowInsecureForTest: config.oidc.allowInsecureForTest,
 } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
 const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
+// The Connector Connection's credential is sealed with the same installation key as an application
+// session's refresh token, so the module needs no login role of its own: connector.* functions run
+// as hub_iam_runtime, like application-access's do.
+const connectors = createConnectorModule({
+  pool,
+  envelope: identityAccessDependencies.envelope,
+  origin: config.origin,
+  resolveCurrentSession: identityAccess.resolveCurrentSession,
+  isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+  gatewayOrigin: config.connectors.gatewayOrigin,
+  socketDirectory: config.connectors.socketDirectory,
+})
+// A restarted Hub leaves no orphan handler socket still answering.
+await connectors.sweepHandlerPorts()
 const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
   commandPool: createPostgresPool({
     host: config.database.host,
@@ -115,6 +130,8 @@ const mar = config.preview ? createMarModule({
         })
       },
       invoke: applicationRunner.invoke,
+      // Each invocation gets its own connector port, minted by the Connector owner from the source.
+      openConnectorPort: (source) => connectors.openHandlerPort(source),
     },
   } : {}),
   ...(config.application && servedApplications ? {
@@ -157,6 +174,8 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+  // What the Builder learns about this Project's own granted connector operations.
+  connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
 }) : undefined
 const app = await createHttpApp({
   registerRoutes: async (server) => [
@@ -164,6 +183,7 @@ const app = await createHttpApp({
     ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
     ...(project ? await project.registerProjectRoutes(server) : []),
     ...(builder ? await builder.registerBuilderRoutes(server) : []),
+    ...(await connectors.registerConnectorRoutes(server)),
   ],
   staticRoot: resolve(import.meta.dirname, '../public'),
   ...(config.preview ? {

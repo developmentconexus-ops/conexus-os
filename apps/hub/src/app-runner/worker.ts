@@ -1,4 +1,5 @@
 import { writeSync } from 'node:fs'
+import { request } from 'node:http'
 import pg from 'pg'
 import { applyPendingMigrations } from './data-plane.js'
 import type { MigrationPlan } from './data-plane.js'
@@ -14,7 +15,7 @@ import type { Caller } from '../platform/caller.js'
 // upstream itself. Nothing in the sandbox holds a usable credential.
 export type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
 export type WorkerJob =
-  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number }>
+  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number; connector: boolean }>
   | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>
 export type WorkerResult =
   | Readonly<{ ok: true; value: unknown }>
@@ -22,6 +23,58 @@ export type WorkerResult =
 
 const RESULT_FD = 3
 const MAX_JOB_BYTES = 8 * 1024 * 1024
+// Where the runner binds the Hub's connector port for this invocation (sandbox.ts binds exactly this).
+const CONNECTOR_SOCKET = '/run/conexus/connector/.s.connector'
+const CONNECTOR_BODY_BYTES = 64 * 1024
+const CONNECTOR_ANSWER_BYTES = 2 * 1024 * 1024
+
+type ConnectorAnswer = Readonly<{ ok: true; value: unknown }> | Readonly<{ ok: false; code: string; issues?: readonly string[] }>
+
+const unconfigured: ConnectorAnswer = Object.freeze({ ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+
+// The handler's one way to a Connector: an operation id and its input over the bound socket. It
+// never throws, and it carries nothing that names a Project, a Connection or a provider.
+const connectorCall = (bound: boolean) => async (operationId: unknown, input?: unknown): Promise<ConnectorAnswer> => {
+  if (!bound) return unconfigured
+  if (typeof operationId !== 'string') return Object.freeze({ ok: false, code: 'OPERATION_UNKNOWN' })
+  let payload: Buffer
+  try {
+    payload = Buffer.from(JSON.stringify({ operation: operationId, input }))
+  } catch {
+    return Object.freeze({ ok: false, code: 'INPUT_REFUSED' })
+  }
+  if (payload.byteLength > CONNECTOR_BODY_BYTES) return Object.freeze({ ok: false, code: 'INPUT_REFUSED' })
+  return new Promise<ConnectorAnswer>((resolve) => {
+    const outgoing = request({
+      socketPath: CONNECTOR_SOCKET, path: '/v1/call', method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
+    }, (response) => {
+      const chunks: Buffer[] = []
+      let bytes = 0
+      response.on('data', (chunk: Buffer) => {
+        bytes += chunk.byteLength
+        if (bytes > CONNECTOR_ANSWER_BYTES) response.destroy()
+        else chunks.push(chunk)
+      })
+      response.on('end', () => {
+        try {
+          const answer = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { ok?: unknown; value?: unknown; code?: unknown; issues?: unknown }
+          if (answer.ok === true) return resolve(Object.freeze({ ok: true, value: answer.value }))
+          if (answer.ok === false && typeof answer.code === 'string') {
+            const issues = Array.isArray(answer.issues) ? answer.issues.filter((issue): issue is string => typeof issue === 'string') : []
+            return resolve(Object.freeze(issues.length > 0 ? { ok: false, code: answer.code, issues: Object.freeze(issues) } : { ok: false, code: answer.code }))
+          }
+        } catch {
+          // an unreadable answer is the port not being there
+        }
+        resolve(unconfigured)
+      })
+      response.on('error', () => resolve(unconfigured))
+    })
+    outgoing.on('error', () => resolve(unconfigured))
+    outgoing.end(payload)
+  })
+}
 
 const detail = (error: unknown): string => {
   const message = error instanceof Error ? error.message : String(error)
@@ -83,9 +136,10 @@ const run = async (): Promise<never> => {
     },
   })
   const caller = Object.freeze({ accountId: job.caller.accountId, email: job.caller.email, displayName: job.caller.displayName })
+  const connectors = Object.freeze({ call: connectorCall(job.connector) })
   let value: unknown
   try {
-    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller }))
+    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))
   } catch (error) {
     return finish({ ok: false, code: 'HANDLER_FAILED', detail: detail(error) })
   }

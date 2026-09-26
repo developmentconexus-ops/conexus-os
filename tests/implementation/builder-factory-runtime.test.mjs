@@ -22,7 +22,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer, connectorBrief } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -37,6 +37,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
+  const configuredInstructions = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
@@ -76,7 +77,10 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
       events.push(['open', input.conversationId, input.builderRunId])
       return {
         sandbox,
-        configure: async ({ mode: configured, instructions }) => { events.push(['configure', configured, instructions.includes('/workspace/app')]) },
+        configure: async ({ mode: configured, instructions }) => {
+          events.push(['configure', configured, instructions.includes('/workspace/app')])
+          configuredInstructions.push(instructions)
+        },
         hasModelSelection: () => true,
         sendTurn: async (_content, signal) => {
           events.push('turn')
@@ -89,6 +93,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     github: app,
     resolveRepository,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
+    ...(connectorBrief ? { connectorBrief } : {}),
     log: (line) => { logs.push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -153,7 +158,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled, configuredInstructions }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -582,4 +587,49 @@ test('the Factory agent is told to run the application check, and not that the c
   assert.ok(instructions.endsWith('Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'))
   assert.ok(instructions.includes(' The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history. '))
   assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
+})
+
+test('a non-empty connector brief is appended after the application check instruction, and an empty one changes nothing', () => {
+  const bare = factoryAgentInstructions('/workspace/app')
+  assert.equal(factoryAgentInstructions('/workspace/app', ''), bare)
+  assert.equal(factoryAgentInstructions('/workspace/app', 'CONNECTOR_BRIEF_MARKER'), `${bare} CONNECTOR_BRIEF_MARKER`)
+})
+
+test("the run appends its own Project's connector brief to the agent instructions, and appends nothing when the port is absent", async (t) => {
+  const seenProjectIds = []
+  const withBrief = await harness(t, { connectorBrief: async (givenProjectId) => { seenProjectIds.push(givenProjectId); return 'CONNECTOR_BRIEF_MARKER' } })
+  await withBrief.start()
+  await withBrief.service.close()
+  assert.deepEqual(seenProjectIds, [projectId])
+  assert.equal(withBrief.configuredInstructions.length, 1)
+
+  const withoutBrief = await harness(t)
+  await withoutBrief.start()
+  await withoutBrief.service.close()
+  assert.equal(withoutBrief.configuredInstructions.length, 1)
+  assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
+})
+
+test('a run whose connector grants cannot be read still runs, told only that connector data is out of reach', async (t) => {
+  const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+  const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+  const audited = []
+  const brief = createConnectorBrief({
+    connectors: [{ definition: sankhyaDefinition, adapter: null }],
+    store: { listGrantedCapabilities: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
+    audit: (line) => { audited.push(line) },
+  })
+  const run = await harness(t, { connectorBrief: (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId })) })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(run.calls.some(([kind]) => kind === 'fail' || kind === 'interrupt'), false, JSON.stringify(run.calls))
+  const plain = await harness(t)
+  await plain.start()
+  await plain.settled()
+  await plain.service.close()
+  assert.deepEqual(run.configuredInstructions, [`${plain.configuredInstructions[0]} ${CONNECTOR_BRIEF_UNAVAILABLE}`])
+  assert.deepEqual(audited, [`${JSON.stringify({ event: 'connector.brief', result: 'STORE_UNAVAILABLE' })}\n`])
+  assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics]).includes('STORE_DETAIL_MARKER'), false)
 })

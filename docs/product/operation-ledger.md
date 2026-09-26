@@ -10,7 +10,7 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 24
+fixed Product operations = 31
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
@@ -21,7 +21,9 @@ any provider the model router's registry knows. It became 18 on 2026-09-21, when
 `CLA` Model Connection operations left with the subsystem: Mastra owns model credentials
 and selection (C-022). `BLD-27` to `BLD-29` then raised the table to 21 while this line still read
 18. It became 24 on 2026-09-23, when Stage 2 Q3 let a Workspace Owner grant one person the use of
-a Project's application (`IAM-11` to `IAM-13`).
+a Project's application (`IAM-11` to `IAM-13`). It became 31 on 2026-09-24, when Stage 2 Q4 let an
+installation administrator hold a Workspace's Connector Connection and a Workspace Owner grant one
+Project one of its operations (`CON-01` to `CON-07`).
 
 ---
 
@@ -99,6 +101,13 @@ must agree exactly.
 | `BLD-27` | `ListFactoryConversations` | Builder over Factory storage | authorized Project bound to its Factory repository; conversations are Factory session rows | read |
 | `BLD-28` | `CreateFactoryConversation` | Builder over Factory storage | authorized Project bound to its Factory repository + client-chosen conversation id; a retry returns the existing row | command |
 | `BLD-29` | `CompareProjectSourceRevisions` | Project Git via Builder | authorized Project + two exact admitted source revisions; file content stays behind GetProjectSourceFile | read |
+| `CON-01` | `ListWorkspaceConnections` | Connector | the Workspace's Connections, never a credential field; installation administrator only | read |
+| `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it; the credential fields are write-only and never returned | command |
+| `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | read |
+| `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, revokes the Connection's open grants, and the rows stay as the record | narrowing command |
+| `CON-05` | `ListProjectConnectorGrants` | Connector | exact Project's open grants and the operations it could still be granted, in one projection; Owner of the Project's Workspace only | read |
+| `CON-06` | `GrantProjectConnectorOperation` | Connector | exact Project + one operation of one Connection of its own Workspace; Owner of the Project's Workspace only; an operation already granted through another Connection answers that grant | command |
+| `CON-07` | `RevokeProjectConnectorGrant` | Connector | exact Project's connector grant; narrowing, and the next call through it is refused; Owner of the Project's Workspace only | narrowing command |
 
 # 4. What is not an operation
 

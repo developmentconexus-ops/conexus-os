@@ -35,6 +35,10 @@ export const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
 
 export const SANDBOX_DATABASE_HOST = '/run/conexus/pg'
 const SANDBOX_SOCKET = `${SANDBOX_DATABASE_HOST}/.s.PGSQL.5432`
+// The Hub's connector port for this invocation (worker.ts connects here). Only that one socket is
+// bound, never its directory, and only for an invoke job.
+const SANDBOX_CONNECTOR_DIR = '/run/conexus/connector'
+const SANDBOX_CONNECTOR_SOCKET = `${SANDBOX_CONNECTOR_DIR}/.s.connector`
 const STREAM_LIMIT = 64 * 1024
 
 export type WorkerOutcome =
@@ -116,6 +120,7 @@ export const runWorker = (input: Readonly<{
   runtimeDir: string
   appDir?: string
   databaseSocket: string
+  connectorSocket?: string
   job: WorkerJob
   timeoutMs: number
   resultLimit: number
@@ -129,6 +134,7 @@ export const runWorker = (input: Readonly<{
     '--ro-bind', input.runtimeDir, '/runner',
     ...(input.appDir ? ['--ro-bind', input.appDir, '/app'] : []),
     '--dir', SANDBOX_DATABASE_HOST, '--bind', input.databaseSocket, SANDBOX_SOCKET,
+    ...(input.connectorSocket && input.job.kind === 'invoke' ? ['--dir', SANDBOX_CONNECTOR_DIR, '--bind', input.connectorSocket, SANDBOX_CONNECTOR_SOCKET] : []),
     '/runtime/node', ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/worker.js',
   ]
   return new Promise((resolve) => {
