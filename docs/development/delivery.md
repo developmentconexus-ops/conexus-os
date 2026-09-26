@@ -85,8 +85,8 @@ most 5 open pull requests.
 
 Research does not select a dependency. A dependency or framework enters the stack only with a
 current consumer, a named limitation, the exact API and version examined, a falsifiable probe, and
-evidence against a credible alternative. Existing repository dependencies win when they are
-sufficient. The roadmap records the current baseline and the deferred candidates. A pinned development-only check tool that never ships to users, such as knip, does not trigger this rule.
+evidence against a credible alternative. Existing repository dependencies win when sufficient; the
+roadmap records the baseline and deferred candidates. A pinned dev-only check tool (knip) is exempt.
 
 ## Builder proof rule
 

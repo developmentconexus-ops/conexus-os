@@ -1,12 +1,22 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "scripts/*.mjs",
-    "scripts/*.sh",
+    // Scripts that are run but never imported, and that no package.json script names. Name each one:
+    // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
+    "scripts/check-test-skips.mjs",
+    "scripts/generate-r1-connector-contracts.mjs",
+    "scripts/generate-wire-projection.mjs",
+    "scripts/hub-factory.mjs",
+    "scripts/issue-230-no-access-proof.mjs",
+    "scripts/keycloak-refresh-probe.mjs",
+    "scripts/q3-negative-proof.mjs",
+    "scripts/q3-sign-in.mjs",
+    "scripts/run-kubb-wire-probe.mjs",
+    "scripts/single-session-proof.mjs",
     "scripts/builder-eval/run.mjs",
     "tests/**/*.test.mjs",
     // Test-support files that are run or loaded but never imported. Name each one: a directory glob
-    // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards this).
+    // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
     "tests/implementation/connector-integrations-screenshot.mjs",
     "tests/implementation/guard-mutations.mjs",
