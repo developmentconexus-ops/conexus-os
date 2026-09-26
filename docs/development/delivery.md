@@ -24,8 +24,8 @@ A change is in the qualification lane when any Q trigger is true:
 | `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the Opus review on each pull request, and the bet's "done when" checked on the real artifact | operator |
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
-Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
-The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
+Decision D1 (2026-09-25): the manager approves the plan and merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
+The operator approves all other plans, and merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
 
 Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
 
@@ -132,9 +132,7 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 
 ## Git and pull requests
 
-- Trunk is `main`. Its rulesets require a pull request and the `verify` check with no bypass, and
-  only an administrator updates it, so the Factory never merges. Open every pull request against
-  `main`. Squash merge is the normal shape.
+- Trunk is `main`. Its rulesets are "main: PR e verify obrigatórios" and "main: só administrador mergeia". The Factory never merges. Open every pull request against `main`. Squash merge is the normal shape.
 - Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent
   writers get disjoint file sets and report to one named integrator.
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not

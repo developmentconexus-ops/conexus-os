@@ -44,7 +44,7 @@ orientation only. **Global coverage does not require global context.**
 - One writer per worktree. Work in an Ubuntu WSL2 worktree on the Linux filesystem.
 - Stop on a material product requirement, an owner or trust-boundary contradiction, an unauthorized production effect, or missing authority needed for correctness.
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create.
-- Never merge. The operator merges. [`delivery.md`](docs/development/delivery.md) owns the lanes and the merge gate.
+- Never merge. [`delivery.md`](docs/development/delivery.md) owns the lanes, who approves and merges, and the merge gate.
 - An approved increment includes its routine reversible implementation and checks. Do not seek approval for each mechanical step.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot.
 - A contract change and its [`docs/product/operation-ledger.md`](docs/product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.

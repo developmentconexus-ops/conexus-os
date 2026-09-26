@@ -5,7 +5,7 @@ Each route walks one lane from [the delivery rules](../../../../docs/development
 ## Fast lane
 
 1. Start from the issue. It carries `lane:fast` and the template fields: Objective, Context, Constraints, Done when.
-2. The dev Factory triages the issue and writes a plan. A plan routed to "Await approval" waits for the operator.
+2. The dev Factory triages the issue and writes a plan. A plan routed to "Await approval" waits for the manager or the operator, following the delivery rules.
 3. Build on a branch from `origin/main` in one WSL worktree. The change fits one pull request and appetite P.
 4. Open the pull request against `main`. Put "Closes #n" in the body and the lane label on it.
 5. Meet the fast-lane gates in the delivery rules. [Review by lane](review-and-delegation.md#review-by-lane) says how to triage Codex comments.
