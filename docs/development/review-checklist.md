@@ -9,8 +9,8 @@ failed item or a correctness defect, never for preference. Each item comes from
 
 The rules that judge a pull request come from `origin/main`, the approved reference, never from
 its head or its base. A stacked pull request's base is another open pull request, which may change
-the rules. The rules are this checklist, the pages, `areas.json`, and the browser path pattern in
-`.github/workflows/verify.yml`. The code is still compared with the pull request's base.
+the rules. The rules are this checklist, the pages, and `areas.json`. The code is still
+compared with the pull request's base.
 
 1. Fetch the approved reference first, because a local `origin/main` can be stale:
    `git fetch origin main`. Then read the map:
