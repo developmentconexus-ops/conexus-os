@@ -1,0 +1,10 @@
+{
+  "request": "Quero acompanhar os pedidos de compra. Para o pedido 22790, mostre os dados do pedido que estão no Sankhya e deixe a equipe registrar notas de acompanhamento.",
+  "checks": [
+    { "action": "expectText", "selector": "body", "text": "22790" },
+    { "action": "fill", "selector": "role=textbox[name=/conteúdo da nota|nota|acompanhamento/i] >> nth=0", "value": "Acompanhamento registrado no Q4.7" },
+    { "action": "click", "selector": "role=button[name=/adicionar nota|salvar nota|registrar nota|adicionar|salvar|registrar/i]" },
+    { "action": "expectText", "selector": "body", "text": "Acompanhamento registrado no Q4.7" }
+  ],
+  "reload": true
+}
