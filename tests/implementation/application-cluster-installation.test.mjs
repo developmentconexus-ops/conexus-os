@@ -154,4 +154,46 @@ test('the Applications cluster starts only on its own storage, and confinement u
     assert.equal(docker('restart', attackContainer).status, 0)
     await refusedAgain(attackContainer, started, 'docker restart on the unmounted directory')
   })
+
+  // The bug this guards against (#283): a host reboot remounts the same image but the kernel can
+  // assign it a different /dev/loopN, since loop numbers are handed out in mount order, not tied to
+  // the backing file. The old guard compared that raw device path, so a mere renumbering looked
+  // identical to an unmounted storage root and crash-looped the cluster on every boot.
+  await t.test('a renumbered loop device is not mistaken for unmounted storage', async (t2) => {
+    const renumberImage = join(secrets, 'apps-renumber.img')
+    const renumberRoot = join(secrets, 'apps-renumber-storage')
+    const renumberContainer = `conexus-install-renumber-${randomBytes(4).toString('hex')}`
+    const renumberPort = await freePort()
+    const dummyImage = join(secrets, 'dummy-loop.img')
+    let dummyDevice = ''
+    t2.after(() => {
+      docker('rm', '-f', renumberContainer)
+      if (dummyDevice) sudo('losetup', '-d', dummyDevice)
+      removeStorage(renumberImage, renumberRoot)
+    })
+
+    mountStorage(renumberImage, renumberRoot)
+    assert.equal(run(renumberContainer, renumberPort, renumberRoot, passwordFile).status, 0)
+    await until(() => ready(renumberContainer), 'the throwaway cluster to accept connections')
+    const oldDevice = sudo('findmnt', '-n', '-o', 'SOURCE', '--mountpoint', renumberRoot).stdout.trim()
+    assert.match(oldDevice, /^\/dev\/loop/)
+    assert.equal(docker('stop', renumberContainer).status, 0)
+
+    // Simulate a reboot renumbering the mount: unmount (the mount unit's loop option autoclears the
+    // device), occupy the number that freed so the remount lands on a different one, then remount the
+    // same image the installation script's way.
+    assert.equal(sudo('umount', renumberRoot).status, 0)
+    writeFileSync(dummyImage, Buffer.alloc(1024 * 1024))
+    const attach = sudo('losetup', '-f', '--show', dummyImage)
+    assert.equal(attach.status, 0, attach.stderr)
+    dummyDevice = attach.stdout.trim()
+    mountStorage(renumberImage, renumberRoot)
+    const newDevice = sudo('findmnt', '-n', '-o', 'SOURCE', '--mountpoint', renumberRoot).stdout.trim()
+    assert.notEqual(newDevice, oldDevice, 'the remount should land on a different loop device number')
+
+    const before = refusals(renumberContainer)
+    assert.equal(docker('start', renumberContainer).status, 0)
+    await until(() => ready(renumberContainer), 'the cluster to accept connections again, on a renumbered loop device')
+    assert.equal(refusals(renumberContainer), before, 'a mere renumbering must not trigger APPLICATION_CLUSTER_STORAGE_UNMOUNTED')
+  })
 })
