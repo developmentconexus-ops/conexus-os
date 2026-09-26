@@ -27,7 +27,7 @@ const CHIPS: Record<ProjectActivity, Readonly<{ label: string; tone: string }>> 
 const relative = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto', style: 'short' })
 const STEPS: readonly [Intl.RelativeTimeFormatUnit, number][] = [['minute', 60], ['hour', 24], ['day', 30], ['month', 12], ['year', Number.POSITIVE_INFINITY]]
 
-export function lastChangeLabel(iso: string, now: number = Date.now()): string {
+function lastChangeLabel(iso: string, now: number = Date.now()): string {
   let value = (new Date(iso).getTime() - now) / 60_000
   if (Math.abs(value) < 1) return 'Alterado agora'
   for (const [unit, size] of STEPS) {

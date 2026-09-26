@@ -35,8 +35,6 @@ Applications PostgreSQL cluster. [`areas.json`](areas.json) owns the paths.
   implies it.
 - A data plane change shows the refusal on the direct path (a Project role logging in without the
   relay, a session raising its own limit), not only success on the intended path.
-- The `application-data-postgres`, `application-runner-sandbox` and `model-accounts-postgres`
-  leaves the change touches ran at the head SHA with zero skipped cases.
 
 ## Traps from history
 

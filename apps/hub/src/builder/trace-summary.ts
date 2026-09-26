@@ -42,6 +42,7 @@ const spanModel = (span: ObservabilitySpanRecord): string | null => {
   return typeof model === 'string' ? model : null
 }
 
+/** @public Tests import this at runtime from the built module. */
 export const summarizeSpan = (span: ObservabilitySpanRecord): BuilderTraceSpan => Object.freeze({
   spanId: span.spanId,
   parentSpanId: span.parentSpanId ?? null,
@@ -54,7 +55,10 @@ export const summarizeSpan = (span: ObservabilitySpanRecord): BuilderTraceSpan =
   usage: spanUsage(span),
 })
 
-/** Where usage is not reported it is unavailable, never zero (contract.md §8). */
+/**
+ * Where usage is not reported it is unavailable, never zero (contract.md §8).
+ * @public Tests import this at runtime from the built module.
+ */
 export const summarizeRunUsage = (spans: readonly ObservabilitySpanRecord[]): BuilderTraceUsage | null => {
   let inputTokens: number | null = null
   let outputTokens: number | null = null
@@ -69,6 +73,7 @@ export const summarizeRunUsage = (spans: readonly ObservabilitySpanRecord[]): Bu
   return sawUsage ? Object.freeze({ inputTokens, outputTokens, totalTokens: totalOf(inputTokens, outputTokens) }) : null
 }
 
+/** @public Tests import this at runtime from the built module. */
 export const summarizeScore = (score: ObservabilityScoreRecord): BuilderTraceScore => Object.freeze({
   scorer: score.scorerId,
   score: score.score,

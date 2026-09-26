@@ -27,7 +27,6 @@ async function request<T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
 }
 
 const installationStatusSchema = z.object({ administrator: z.boolean() })
-export type InstallationStatus = z.infer<typeof installationStatusSchema>
 
 const administratorSchema = z.object({
   accountId: z.string(),

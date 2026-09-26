@@ -41,6 +41,7 @@ type BuilderObservabilityLifecycle = Readonly<{
   close(): Promise<void>
 }>
 
+/** @public Tests import this at runtime from the built module. */
 export const createBuilderObservabilityLifecycle = (
   observability: Pick<Observability, 'flush' | 'shutdown'>,
   flushTimeoutMs = BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS,
@@ -118,6 +119,7 @@ const noteMessage = (note: RunNote, resourceId: string) => ({
 })
 
 // A Factory conversation's thread lives under the conversation's own resourceId in Factory storage.
+/** @public Tests import this at runtime from the built module. */
 export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryComposition, 'mastra'>>) =>
   async (note: RunNote): Promise<void> => {
     const memory = await (await ready).mastra.getStorage()?.getStore('memory')

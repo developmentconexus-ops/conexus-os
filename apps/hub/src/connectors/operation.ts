@@ -3,7 +3,7 @@ import type { ConnectorId, OperationId } from './model.js'
 import type { ConsumerScope } from './scope.js'
 import type { IssuedToken, Redacted, TokenLease } from './token-cache.js'
 
-export type Effect = 'read' | 'write'
+type Effect = 'read' | 'write'
 
 /**
  * A plain function with its own contract. `createTool` wraps one for agents; it does not define it.
@@ -19,7 +19,7 @@ export type Operation<I, O, S> = Readonly<{
 }>
 
 /** Not yet implemented: Sankhya's Definition declares no events. */
-export type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
+type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
 /** Records each provider service a session called, by its constant name, for the audit line. */
 export type ServiceTrace = Readonly<{ called(service: string): void }>

@@ -1,9 +1,9 @@
 import { createAppAuth } from '@octokit/auth-app'
 import { request as octokitRequest } from '@octokit/request'
 
-export const GITHUB_API_URL = 'https://api.github.com'
+const GITHUB_API_URL = 'https://api.github.com'
 
-export type GithubAccountType = 'Organization' | 'User'
+type GithubAccountType = 'Organization' | 'User'
 export type GithubInstallation = Readonly<{ id: number; accountLogin: string; accountType: GithubAccountType }>
 export type GithubRepository = Readonly<{
   id: number

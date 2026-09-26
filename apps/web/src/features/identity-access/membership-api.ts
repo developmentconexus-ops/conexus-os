@@ -10,7 +10,7 @@ import { clearAuthorityCache } from '../../app/query-client'
 export const workspaceRosterQueryKey = (workspaceId: string) =>
   ['identity-access', 'workspace-roster', workspaceId] as const
 
-export type RosterEntry = WorkspaceRoster['entries'][number]
+type RosterEntry = WorkspaceRoster['entries'][number]
 export type MemberEntry = Extract<RosterEntry, { kind: 'member' }>
 export type InvitationEntry = Extract<RosterEntry, { kind: 'invitation' }>
 

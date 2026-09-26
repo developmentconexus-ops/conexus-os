@@ -10,7 +10,7 @@ export type ActiveTool = DisplayState['activeTools'][string]
 // The AgentController's own task-list snapshot (from @mastra/core's task_write/task_update/
 // task_check/task_complete tools), already carried on every display_state_changed event: the
 // canonical source the checklist reads, not something rebuilt from parsing tool-call args here.
-export type TaskSnapshot = DisplayState['tasks'][number]
+type TaskSnapshot = DisplayState['tasks'][number]
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
@@ -30,8 +30,8 @@ const clientAt = (apiPrefix: string) => new MastraClient({
 // creates and lists those conversations because each is a Factory session row.
 const factoryController = clientAt('/api/mastra-factory').getAgentController('code')
 
-export const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
-export const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
+const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
+const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
 export type Conversation = Readonly<{ id: string; title?: string | null | undefined }>
 

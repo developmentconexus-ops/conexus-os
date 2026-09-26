@@ -9,7 +9,7 @@ import { chmodSync, copyFileSync, existsSync, lstatSync, readFileSync, writeFile
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const ROLE_VARIABLE_RENAMES = Object.freeze([
+const ROLE_VARIABLE_RENAMES = Object.freeze([
   { from: 'CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE', to: 'CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE', fromFile: 'db-ws01-command', toFile: 'db-workspace-command' },
   { from: 'CONEXUS_DB_S2_READ_PASSWORD_FILE', to: 'CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE', fromFile: 'db-s2-read', toFile: 'db-workspace-read' },
   { from: 'CONEXUS_DB_S3_READ_PASSWORD_FILE', to: 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE', fromFile: 'db-s3-read', toFile: 'db-project-read' },
@@ -49,7 +49,7 @@ const renamedPath = (path, entry) => {
   return path.slice(0, path.length - name.length) + name.split(entry.fromFile).join(entry.toFile)
 }
 
-export const planCutover = (environmentFile, secretsDirectory) => {
+const planCutover = (environmentFile, secretsDirectory) => {
   const text = readFileSync(environmentFile, 'utf8')
   const values = environmentValues(text)
   const copies = []
@@ -75,7 +75,7 @@ export const planCutover = (environmentFile, secretsDirectory) => {
   return { environmentFile, copies, variables, notes, rewrite: variables.length > 0 }
 }
 
-export const applyCutover = (plan, now = new Date()) => {
+const applyCutover = (plan, now = new Date()) => {
   for (const copy of plan.copies) {
     if (copy.state === 'present') {
       assertSecretFile(copy.target)

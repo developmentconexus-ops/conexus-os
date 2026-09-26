@@ -6,8 +6,6 @@ import type {
 } from '../../generated/workspace-client'
 import { workspaceClient } from '../../generated/workspace-client'
 
-export const workspaceQueryKey = (workspaceId: string) => ['workspace', workspaceId] as const
-
 export class WorkspaceRequestError extends Error {
   constructor(readonly status: number | null) {
     super(
@@ -46,8 +44,4 @@ export async function getWorkspace(workspaceId: string): Promise<WorkspaceSummar
   }
   if (!response.ok) reject(response)
   return response.json() as Promise<WorkspaceSummary>
-}
-
-export function isWorkspaceAuthenticationRequired(error: unknown) {
-  return error instanceof WorkspaceRequestError && error.status === 401
 }

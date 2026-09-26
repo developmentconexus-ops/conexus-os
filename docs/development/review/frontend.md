@@ -24,11 +24,10 @@ are designed, built and verified. This page does not restate it.
 
 ## Proof required
 
-- For a web app or brand change, the browser leaves ran at the head SHA. The `verify` run log says
-  "browser-relevant change detected". If it says the browser suites will be skipped, the proof is
-  missing and the item fails. The path list that decides this is in `.github/workflows/verify.yml`.
+- For a web app or brand change, the browser leaves ran at the head SHA. Every `verify` run
+  executes the browser leaves. A skipped browser leaf is a failed item.
 - A sign-in theme change proves itself differently: no browser suite exercises
-  `apps/keycloak-theme/`, so a green "browser-relevant change detected" line is not proof for it.
+  `apps/keycloak-theme/`, so browser suites passing is not proof for it.
   The proof is `npm run keycloak-theme:check`'s output pasted in the pull request, plus the
   screenshots below.
 - Screenshots in both themes and under reduced motion, per the skill's

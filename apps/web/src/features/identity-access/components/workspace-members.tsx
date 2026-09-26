@@ -31,7 +31,7 @@ const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
 
 // Nothing is emailed yet: the invited person signs in at this address with the invited email.
-export const entryLink = () => `${window.location.origin}/`
+const entryLink = () => `${window.location.origin}/`
 
 async function copyEntryLink(email?: string) {
   const link = entryLink()

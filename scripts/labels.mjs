@@ -60,7 +60,7 @@ export function planLabels(declared, current) {
   return { actions, unchanged: declared.length - actions.length, unmanaged }
 }
 
-export function ghArguments(action, repo) {
+function ghArguments(action, repo) {
   const { name, color, description } = action.label
   const target = repo ? ['--repo', repo] : []
   return action.kind === 'create'

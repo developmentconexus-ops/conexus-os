@@ -8,7 +8,7 @@ export type RunView =
   | Readonly<{ kind: 'ACTIVE'; run: BuilderRun; step: string; stopping: boolean }>
   | Readonly<{ kind: 'SETTLED'; run: BuilderRun; outcome: SettledOutcome }>
 
-export type SettledOutcome =
+type SettledOutcome =
   | 'RESPONDED'
   | 'CHANGED'
   | 'BUILD_FAILED'
@@ -17,7 +17,7 @@ export type SettledOutcome =
   | 'DISCARDED'
   | 'FAILED'
 
-export const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
+const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
   PREPARING: 'Preparando o ambiente',
   AGENT: 'Agente trabalhando',
   SOURCE_ADMISSION: 'Aplicando a alteração',
@@ -63,13 +63,6 @@ export const statusLine = (view: RunView): string | null => {
   if (view.kind === 'IDLE') return null
   if (view.kind === 'ACTIVE') return view.stopping ? 'Parando' : view.step
   return view.outcome === 'FAILED' ? failureReason(view.run.failureCategory) : settledLines[view.outcome]
-}
-
-/** What the Preview says about the version after the one in use. */
-export const nextVersionLine = (view: RunView, sourceAhead: boolean): string => {
-  if (view.kind === 'ACTIVE') return view.stopping ? 'parando' : view.step.toLowerCase()
-  if (view.kind === 'SETTLED' && view.outcome === 'BUILD_FAILED') return 'não compilou'
-  return sourceAhead ? 'código atual ainda sem prévia' : 'nenhuma em andamento'
 }
 
 export const elapsedLabel = (milliseconds: number): string => {

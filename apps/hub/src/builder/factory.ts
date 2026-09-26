@@ -28,13 +28,14 @@ import type { BuilderAgentController } from './runtime.js'
 // memory settings are this user's row. No person is behind it: the operator runs the one-shot
 // commands from the Hub's own checkout.
 export const FACTORY_OPERATOR_ID = 'conexus-operator'
-export const FACTORY_SCHEMA = 'factory'
+const FACTORY_SCHEMA = 'factory'
 export const FACTORY_WORKING_DIRECTORY = '/workspace'
 export const FACTORY_INTEGRATION_ID = 'github'
 // Root's own Git: a mirror per repository, never the agent's checkout.
 export const HUB_GIT_ROOT = '/var/lib/conexus-git'
 // What every Factory caller gets as the repository credential. It opens nothing on GitHub, so a
 // clone command line, a remote URL or GH_TOKEN holding it holds no secret.
+/** @public Tests import this at runtime from the built module. */
 export const SANDBOX_CREDENTIAL = 'conexus-no-credential'
 
 type SandboxEnvironment = Record<string, string | undefined>
@@ -162,7 +163,7 @@ export const createFactoryPool = (database: Readonly<{ host: string; port: numbe
 // scratchpad/mastra-capabilities-study.md §4.2). Bounding their age is the only retention this PR
 // adds. Builder evidence lives in mastra_messages/mastra_threads, so memory is never a retention key
 // here, and Code SDK's own 90-day DEFAULT_RETENTION preset (which prunes memory) is never wired in.
-export const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: { maxAge: '30d' } } }
+const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: { maxAge: '30d' } } }
 
 // PgFactoryStorage creates its tables under unqualified names, so the pool's search_path decides
 // where they land. It is pinned to factory on every connection rather than trusted to the role.
@@ -173,6 +174,7 @@ export const createFactoryStorage = (pool: PostgresPool): PgFactoryStorage =>
 // (mastra-capabilities-study.md §4.1), so the exporter finds no store and silently drops every
 // span. This reads the Factory's own store, before Code SDK disables it, and refuses to compose
 // rather than boot with tracing silently broken again after a Mastra upgrade (study §7 trap 1).
+/** @public Tests import this at runtime from the built module. */
 export const requireObservabilityStore = async (
   storage: Pick<MastraCompositeStore, 'getStore'>,
 ): Promise<NonNullable<StorageDomains['observability']>> => {
@@ -234,6 +236,7 @@ export const customProvidersPrimer = (storage: CustomProvidersStorage, orgId: st
 // Google AI Pro is one installation-wide custom provider with no key of its own: each person's
 // credential is the bearer the router receives. Without a router the row is removed, so the picker
 // never offers a provider nobody can reach.
+/** @public Tests import this at runtime from the built module. */
 export const syncGoogleAiProProvider = async (storage: CustomProvidersStorage, orgId: string, routerUrl: string | undefined): Promise<void> => {
   await storage.ensureReady()
   if (routerUrl) {

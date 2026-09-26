@@ -31,7 +31,7 @@ export type OpenGrant = Readonly<{
   grantedAt: Date
 }>
 
-export type GrantableCapability = Readonly<{
+type GrantableCapability = Readonly<{
   kind: 'grantable'
   connectionId: ConnectionId
   connectorId: ConnectorId

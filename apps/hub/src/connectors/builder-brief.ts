@@ -38,6 +38,7 @@ const operationSection = (operation: AnyOperation): string => [
 // A run whose grants could not be read still runs: the Builder is told that connector data is out of
 // reach this run, so it neither invents an operation nor silently builds without one. The broker
 // checks the grant again on every call, so this notice grants nothing and hides nothing.
+/** @public Tests import this at runtime from the built module. */
 export const CONNECTOR_BRIEF_UNAVAILABLE = 'The connector operations this Project may call could not be read for this run. '
   + 'Do not call connectors.call in this run. If the request needs data from a connected system, tell the person '
   + 'that it is unavailable right now and that they can ask again later.'

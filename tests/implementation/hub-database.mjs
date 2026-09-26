@@ -18,7 +18,7 @@ export const adminConnection = () => ({
   password: required('CONEXUS_TEST_DB_PASSWORD'),
 })
 
-export const connectionStringFor = (connection, database) => {
+const connectionStringFor = (connection, database) => {
   const url = new URL('postgresql://localhost')
   url.hostname = connection.host
   url.port = String(connection.port)
