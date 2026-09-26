@@ -4,8 +4,9 @@
 on 2026-09-25. On 2026-09-26 the first real call, `POST /authenticate` only, answered `OK`, but
 the Q4.6 grant was not recorded until 23:10:46 UTC. Q4.7 run 1 therefore built the app without
 the connector ([q4.7-run1](q4.7-run1/README.md)). Q4.7 run 2's handler reads order 22790 through
-the broker ([q4.7-run2](q4.7-run2/README.md)): the first read failed with `PROVIDER_ERROR`, and
-the next two answered `OK`.
+the broker: the first read failed with `PROVIDER_ERROR`, and the next two answered `OK`. Q4.7's
+end-to-end proof is incomplete, because the note did not show after the reload. Run 3 closes it
+after the changes for issues #312 and #313 ([q4.7-run2](q4.7-run2/README.md#path-to-a-passing-check)).
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 

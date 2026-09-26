@@ -1,9 +1,12 @@
 # Q4.7 run 2 — the handler reads order 22790 through the broker
 
-**Result:** the handler calls `sankhya.purchase-order.read` through `connectors.call`, and the
-Preview's Sankhya card shows what the broker returns. Two of the three real reads answered `OK`
-with one order. The first answered `PROVIDER_ERROR`, which is under diagnosis. builder-eval graded
-`FAIL`: after the reload the saved note did not show, because the notes list was refused with 429.
+**Result: Q4.7's end-to-end proof is incomplete.** The Q4.7 check needs the Preview to show the
+real order beside its notes after a reload, and after the reload the saved note did not show.
+builder-eval graded `FAIL`. The handler does call `sankhya.purchase-order.read` through
+`connectors.call`, and two of the three real reads answered `OK` with one order. Those two reads
+show that the connector path works; they do not complete Q4.7. The first read answered
+`PROVIDER_ERROR`, which is under diagnosis. The [path to a passing check](#path-to-a-passing-check)
+is decided.
 
 ## The run
 
@@ -44,11 +47,30 @@ have the fields `$.orders[].number`, `internalId`, `date`, `supplier`, `status`,
 `items[]` (`sequence`, `productCode`, `description`, `quantity`, `unit`, `unitPrice`, `total`),
 with one order and one item each.
 
-## Open
+## Why the note check failed
 
-- `PROVIDER_ERROR` on the first read: under diagnosis with the operator, not fixed here.
-- The note after reload: the page sends `listPurchaseOrders`, `listNotes` and `readSankhyaOrders`
-  at once. The Hub admits two invocations per Project (`APPLICATION_PROJECT_BUSY`, 429), and the
-  page does not retry a refused call.
-- The handler keeps a copy of the order's values in the Preview's Project data, which the Q3 app
-  user's application also reads.
+After the reload the page sends `listPurchaseOrders`, `listNotes` and `readSankhyaOrders` at once.
+The Hub's application invoker admits two invocations per Project and refuses the next one with 429
+`APPLICATION_PROJECT_BUSY` (`apps/hub/src/mar/application-invoker.ts:76`). A Sankhya read holds its
+slot for up to 2 s. `listNotes` was refused at 23:18:18.650 UTC, and the page does not retry a
+refused call, so the note never rendered.
+
+## Path to a passing check
+
+Decided by the operator on 2026-09-26. Nothing below has run yet.
+
+1. [conexus-os#312](https://github.com/developmentconexus-ops/conexus-os/issues/312): the invoker
+   waits in a bounded first-in, first-out line instead of refusing when a Project's two slots are
+   busy.
+2. [conexus-os#313](https://github.com/developmentconexus-ops/conexus-os/issues/313): every connector
+   call is recorded natively with Mastra observability.
+3. The generated application must not keep a copy of Sankhya order data. It reads the order live
+   and stores only what the person writes. Run 2's handler writes the order's values into the
+   Project's `purchase_order` table, so run 3 removes that copy.
+4. Run 1's made-up values are cleaned from the Project's `purchase_order` table.
+5. After the changes for #312 and #313 merge and are deployed on the pilot, Q4.7 run 3 closes Q4.7.
+   Its note check passes after the reload, and its first read's evidence is recorded as for runs 1
+   and 2.
+
+The `PROVIDER_ERROR` of the first read stays under diagnosis with the operator and is not fixed
+here. Whether runs 1 and 2 count against the two-run budget waits for the operator's decision.
