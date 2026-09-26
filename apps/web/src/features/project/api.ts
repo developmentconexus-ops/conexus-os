@@ -35,7 +35,7 @@ export async function listProjects(workspaceId: string): Promise<ProjectSummary[
   return response.json() as Promise<ProjectSummary[]>
 }
 
-export type ProjectRunState = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+type ProjectRunState = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
 export type ProjectCardSummary = Readonly<{
   projectId: string
   name: string

@@ -4,7 +4,7 @@ import { providerName } from './provider-names.ts'
 // The providers an operator reaches for first: identity providers with subscription login, plus a
 // short curated list of the ones people actually use. Order here is display priority inside
 // "Principais", not alphabetical.
-export const CURATED_FEATURED_PROVIDERS = [
+const CURATED_FEATURED_PROVIDERS = [
   'anthropic', 'openai', 'google', 'openrouter', 'xai', 'groq', 'deepseek', 'mistral',
 ] as const
 

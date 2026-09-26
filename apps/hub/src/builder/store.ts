@@ -5,7 +5,7 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { BuilderPreviewSubject } from './preview.js'
 
 export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
-export type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
+type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
 
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
@@ -22,7 +22,7 @@ export type BuilderRunSummary = Readonly<{
   createdAt: string
   cancellationRequested?: boolean
 }>
-export type BuilderCodeChangingRun = Readonly<{
+type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
   projectId: string
   conversationId: string
@@ -30,7 +30,7 @@ export type BuilderCodeChangingRun = Readonly<{
   resultSourceRevision: string
   resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
 }>
-export type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
+type BuilderWorkingPreviewSubject = BuilderPreviewSubject & Readonly<{
   previewEligible: boolean
   workingSourceRevision: string
   lastPreviewSourceRevision: string | null
@@ -78,7 +78,7 @@ export type BuilderStore = Readonly<{
   close(): Promise<void>
 }>
 
-export type FactoryAdmissionRun = Readonly<{
+type FactoryAdmissionRun = Readonly<{
   builderRunId: string
   projectId: string
   conversationId: string

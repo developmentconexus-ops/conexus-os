@@ -15,7 +15,7 @@ import type { ConsumerScope } from './scope.js'
 
 export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number }>
 
-export const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2 })
+const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2 })
 
 export type HandlerPort = Readonly<{
   socketPath: string
@@ -54,7 +54,7 @@ const PORT_SOCKET_NAME = /^[A-Za-z0-9_-]{12}\.s$/
 /** Unlinks the port sockets a previous Hub left behind. It creates the directory owner-only when absent,
  * refuses one this process does not own with mode 0700, and touches no entry that is not a port socket,
  * so a misconfigured shared directory keeps its data. */
-export const sweepSocketDirectory = async (directory: string): Promise<void> => {
+const sweepSocketDirectory = async (directory: string): Promise<void> => {
   await mkdir(directory, { recursive: true, mode: 0o700 })
   const stat = await lstat(directory)
   if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) throw new Error('CONNECTOR_SOCKET_DIR_REFUSED')

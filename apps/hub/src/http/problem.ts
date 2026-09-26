@@ -2,7 +2,7 @@ import type { FastifyReply } from 'fastify'
 
 export type ProblemDetails = Readonly<{ type: string; title: string; status: number; detail?: string }> & Readonly<Record<string, unknown>>
 
-export const problem = (status: number, type: string, title: string, detail?: string, extra?: Readonly<Record<string, unknown>>): ProblemDetails => ({
+const problem = (status: number, type: string, title: string, detail?: string, extra?: Readonly<Record<string, unknown>>): ProblemDetails => ({
   type: `urn:conexus:problem:${type}`,
   title,
   status,

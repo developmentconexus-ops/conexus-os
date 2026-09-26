@@ -2,7 +2,7 @@ import { HUB_ROLES } from './hub-roles.generated.js'
 import { createPostgresPool } from './postgres.js'
 import { readSecretFile } from './secrets.js'
 
-export type ConnectionCensusState = 'ok' | 'invalid' | 'unreachable' | 'unreadable' | 'unconfigured'
+type ConnectionCensusState = 'ok' | 'invalid' | 'unreachable' | 'unreadable' | 'unconfigured'
 
 export type ConnectionCensusRow = Readonly<{
   role: string

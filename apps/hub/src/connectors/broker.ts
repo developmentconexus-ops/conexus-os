@@ -31,7 +31,7 @@ export type Broker = Readonly<{
   forget(connectionId: ConnectionId): void
 }>
 
-export const DEFAULT_DEADLINE_MS = 4000
+const DEFAULT_DEADLINE_MS = 4000
 
 /** A refusal decided by the broker itself, carried out of a closure the token cache runs. */
 class BrokerRefusal extends Error {

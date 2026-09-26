@@ -30,7 +30,7 @@ type CreateProjectInput = Readonly<{
   body: Prj03Body
 }>
 
-export type CreateProjectResult = Prj03Response & Readonly<{ replayed: boolean }>
+type CreateProjectResult = Prj03Response & Readonly<{ replayed: boolean }>
 
 type ReservationRow = QueryResultRow & Readonly<{
   state: 'RESERVED' | 'REPLAY' | 'CONFLICT'
@@ -52,7 +52,7 @@ type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 // The Projects home's card row: a Project's name and archived flag next to its latest Builder
 // activity, so the Hub answers one read instead of the browser paging one builder-session call
 // per Project.
-export type ProjectLatestRunSummary = Readonly<{
+type ProjectLatestRunSummary = Readonly<{
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
 }>

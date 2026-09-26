@@ -22,8 +22,8 @@ const ITEMS = Object.freeze({
   references: Object.freeze([Object.freeze({ path: 'Produto', fields: Object.freeze(['DESCRPROD']) })]),
 } as const)
 
-export const MAX_ORDERS = 10
-export const MAX_ITEMS = 200
+const MAX_ORDERS = 10
+const MAX_ITEMS = 200
 
 const decimal = z.string().regex(/^-?\d{1,15}(\.\d{1,10})?$/)
 const STATUS = ['pending', 'in-progress', 'confirmed', 'other'] as const
@@ -51,8 +51,8 @@ const purchaseOrder = z.object({
 // The largest document number the input admits, and so the largest one a response may carry back.
 const MAX_INTEGER = 2_147_483_647
 
-export const purchaseOrderReadInput = z.strictObject({ documentNumber: z.number().int().positive().max(MAX_INTEGER) })
-export const purchaseOrderReadOutput = z.object({ orders: z.array(purchaseOrder).max(MAX_ORDERS) })
+const purchaseOrderReadInput = z.strictObject({ documentNumber: z.number().int().positive().max(MAX_INTEGER) })
+const purchaseOrderReadOutput = z.object({ orders: z.array(purchaseOrder).max(MAX_ORDERS) })
 
 export type PurchaseOrderReadInput = z.infer<typeof purchaseOrderReadInput>
 export type PurchaseOrderReadOutput = z.infer<typeof purchaseOrderReadOutput>

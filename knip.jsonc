@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "scripts/*.mjs",
+    "scripts/*.sh",
+    "scripts/builder-eval/run.mjs",
+    "tests/**/*.test.mjs",
+    "tests/implementation/*.mjs",
+    "tests/implementation/sandbox-probe/*.mjs",
+    "apps/hub/src/server.ts",
+    "apps/hub/src/factory-cli.ts",
+    "apps/hub/src/app-runner/main.ts",
+    "apps/web/src/main.tsx",
+    "apps/hub/compiler-template/**",
+    "factory-skills/**"
+  ],
+  "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**"],
+  "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],
+  // @mastra/playground-ui publishes .d.ts files importing class-variance-authority but lists it
+  // only as its own devDependency; our pin supplies those types for the web typecheck.
+  "ignoreDependencies": [
+    "class-variance-authority"
+  ],
+  "ignoreBinaries": ["setpriv"]
+}

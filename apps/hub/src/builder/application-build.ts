@@ -16,7 +16,7 @@ export type ApplicationSourceCoordinates = Readonly<{
   sourceRevision: string
 }>
 
-export type ApplicationArtifactClient = Readonly<{
+type ApplicationArtifactClient = Readonly<{
   query(statement: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
 }>
 

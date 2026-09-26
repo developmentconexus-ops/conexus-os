@@ -62,7 +62,7 @@ type Startup =
   | Readonly<{ kind: 'INCOMPLETE' }>
 
 /** Reads the first client message the relay must judge before it opens anything upstream. */
-export const readStartup = (buffer: Buffer): Startup => {
+const readStartup = (buffer: Buffer): Startup => {
   if (buffer.length < 8) return { kind: 'INCOMPLETE' }
   const length = buffer.readInt32BE(0)
   if (length < 8 || length > MAX_STARTUP_BYTES) return { kind: 'REFUSED', reason: 'STARTUP_LENGTH' }

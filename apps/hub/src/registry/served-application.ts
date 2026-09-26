@@ -3,15 +3,15 @@ import { z } from 'zod'
 import type { PostgresPool } from '../platform/postgres.js'
 
 /** The artifact an application host serves, as its manifest: the paths and their media types. */
-export type ServedApplication = Readonly<{
+type ServedApplication = Readonly<{
   artifactRevisionId: string
   files: readonly Readonly<{ path: string; mediaType: string }>[]
 }>
 
-export type ServedApplicationFile = Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }>
+type ServedApplicationFile = Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }>
 
 /** One page or asset: nothing served (or no access), a served artifact without the file, or the file. */
-export type ServedFileRead =
+type ServedFileRead =
   | Readonly<{ kind: 'NOT_SERVED' }>
   | Readonly<{ kind: 'NOT_FOUND'; artifactRevisionId: string }>
   | Readonly<{ kind: 'FILE'; artifactRevisionId: string; file: ServedApplicationFile }>

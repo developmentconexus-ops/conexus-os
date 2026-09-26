@@ -116,7 +116,6 @@ type ApplicationMetadata = Readonly<{
   }>[]
 }>
 
-export type ApplicationArtifactMetadata = ApplicationMetadata
 export type ApplicationArtifactStore = Readonly<{
   retainApplication(client: RegistryQueryClient, input: Readonly<{
     accountId: string

@@ -9,11 +9,11 @@ import { clearAuthorityCache } from '../../app/query-client'
 export const applicationAccessQueryKey = (projectId: string) =>
   ['identity-access', 'application-access', projectId] as const
 
-export type AccessEntry = ApplicationAccess['entries'][number]
+type AccessEntry = ApplicationAccess['entries'][number]
 export type GrantEntry = Extract<AccessEntry, { kind: 'grant' }>
 export type InvitationEntry = Extract<AccessEntry, { kind: 'invitation' }>
 
-export class ApplicationAccessRequestError extends Error {
+class ApplicationAccessRequestError extends Error {
   constructor(readonly status: number | null) {
     super(
       status === null

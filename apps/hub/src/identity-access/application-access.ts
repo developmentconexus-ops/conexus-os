@@ -17,7 +17,7 @@ const projectParamsSchema = { type: 'object', additionalProperties: false, requi
 // entryKind stays a plain string so an unknown kind answers 404 like an unknown entry, not 400.
 const entryParamsSchema = { type: 'object', additionalProperties: false, required: ['projectId', 'entryKind', 'entryId'], properties: { projectId: uuid, entryKind: { type: 'string' }, entryId: uuid } } as const
 
-export type ApplicationGrantEntry = Readonly<{
+type ApplicationGrantEntry = Readonly<{
   kind: 'grant'
   grantId: string
   accountId: string
@@ -26,7 +26,7 @@ export type ApplicationGrantEntry = Readonly<{
   grantedAt: string
 }>
 
-export type ApplicationInvitationEntry = Readonly<{
+type ApplicationInvitationEntry = Readonly<{
   kind: 'invitation'
   invitationId: string
   email: string
@@ -34,8 +34,8 @@ export type ApplicationInvitationEntry = Readonly<{
   expiresAt: string
 }>
 
-export type ApplicationAccessEntry = ApplicationGrantEntry | ApplicationInvitationEntry
-export type ApplicationAccess = Readonly<{ slug: string | null; entries: readonly ApplicationAccessEntry[] }>
+type ApplicationAccessEntry = ApplicationGrantEntry | ApplicationInvitationEntry
+type ApplicationAccess = Readonly<{ slug: string | null; entries: readonly ApplicationAccessEntry[] }>
 
 /** Every refusal means the same two things to a caller: not told the Project exists, or not an Owner. */
 export type ApplicationAccessStore = Readonly<{
@@ -86,7 +86,7 @@ const accessOf = (rows: readonly AccessRow[]): ApplicationAccess => {
   return { slug, entries }
 }
 
-export const isApplicationNotFound = (error: unknown): boolean =>
+const isApplicationNotFound = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
   'message' in error && error.message === 'APPLICATION_NOT_FOUND'
 

@@ -1,8 +1,8 @@
 import type { ModelProvider } from './model-accounts-api'
 import { providerName } from './provider-names'
 
-export type ModelAccountConnection = 'api_key' | 'oauth'
-export type ModelAccountState = 'connected' | 'needs-reconnect' | 'shared'
+type ModelAccountConnection = 'api_key' | 'oauth'
+type ModelAccountState = 'connected' | 'needs-reconnect' | 'shared'
 
 // One row shape for every place a model account is listed. `needs-reconnect` is carried in the
 // type and has its own chip and action, but the Hub does not report which accounts need it yet, so
@@ -22,7 +22,7 @@ const OWN_CARD_PROVIDERS: ReadonlySet<string> = new Set(['google-ai-pro'])
 export const connectableProviders = (providers: readonly ModelProvider[]): ModelProvider[] =>
   providers.filter((provider) => !OWN_CARD_PROVIDERS.has(provider.provider))
 
-export const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
+const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
   providers.map((provider) => {
     const own = provider.userCredential ?? null
     const shared = provider.orgCredential ?? null

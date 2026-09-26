@@ -12,7 +12,7 @@ export const readSecretFile = (path: string): string => {
 }
 
 /** The installation's AES-256 credential key (CONEXUS_FACTORY_SECRET_KEY_FILE), as the Factory's encryptor names it. */
-export const factorySecretKey = (hexKey: string): FactorySecretEncryptionKey => {
+const factorySecretKey = (hexKey: string): FactorySecretEncryptionKey => {
   if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
   const key = Buffer.from(hexKey, 'hex')
   return { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key }

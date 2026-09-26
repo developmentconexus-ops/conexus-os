@@ -18,7 +18,7 @@ export const projectConnectorGrantsQueryKey = (projectId: string) =>
 export type ConnectorGrant = Extract<ConnectorGrantEntry, { kind: 'grant' }>
 export type ConnectorGrantable = Extract<ConnectorGrantEntry, { kind: 'grantable' }>
 
-export class ConnectorRequestError extends Error {
+class ConnectorRequestError extends Error {
   constructor(readonly status: number | null) {
     super(status === null ? 'Connector request did not complete' : `Connector request failed with ${status}`)
   }
