@@ -274,19 +274,20 @@ encrypted custody of client id, client secret and X-Token. The Connection stores
 password and its schema has no field for one. **Check:** unit tests show a stored Connection holds
 only ciphertext, and no Hub operation returns a credential field.
 
-The installation administrator creates the Connection in the Hub's **Integrações** screen, which is
-today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
-Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
-write-only fields that are never shown back), test it, and grant an operation to a Project. The test
-button calls `POST /authenticate` only, and only after G0. **Check:** a browser test
-creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
-page, the network responses or the Hub logs.
+The **Integrações** screen at `/projects/$projectId/integrations` (replacing the "Em breve"
+item in `apps/web/src/app/shell.tsx`) serves both roles: it lists the Workspace's Connections,
+lets an installation administrator add one (client id, client secret and X-Token as write-only
+fields that are never shown back), check it (`POST /authenticate` only, and only after G0), and
+disable it; and lets a Workspace Owner grant and revoke the operation for this Project (Q4.3).
+**Check:** a browser test creates a Connection through the screen as an installation administrator,
+verifies that an Owner grants and revokes an operation, reloads, and finds no credential value
+in the page, the network responses or the Hub logs.
 
 ### Q4.3 — Project Grant
 
-A Workspace Owner grants and revokes one operation of a Connection to one Project and environment.
-Only the Preview environment exists before Q5. **Check:** tests prove P7 and P8 against real
-PostgreSQL, and `npm run wire:bijection` passes.
+A Workspace Owner grants and revokes one operation of a Connection to one Project and environment
+on the **Integrações** screen. Only the Preview environment exists before Q5. **Check:** tests prove
+P7 and P8 against real PostgreSQL, and `npm run wire:bijection` passes.
 
 ### Q4.4 — Broker, token cache and handler relay
 
