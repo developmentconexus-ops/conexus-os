@@ -1,7 +1,7 @@
 # Stage 2 Q4 — Sankhya connector evidence
 
-**Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. Part 2 (G0 with the operator,
-then Q4.6 to Q4.11) has not started, and no Sankhya request of any kind has been made.
+**Verdict:** pending. Part 1 (Q4.0 to Q4.5) is built and tested offline. The operator approved G0
+on 2026-09-25. Q4.6 to Q4.11 have not started, and no Sankhya request of any kind has been made.
 
 Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-sankhya-connector-qualification.md).
 
@@ -16,23 +16,138 @@ Task: [Stage 2 Q4 — Sankhya connector qualification](../../tasks/stage2-q4-san
 ## Gate G0: read allow-list
 
 The operator decided on 2026-09-24 that Q4 proceeds without relying on the scope of the gateway
-credential. The broker is the barrier: it calls only the read services on its allow-list and refuses
-any other before a request leaves the Hub. The operator watches the first real call.
+credential. The broker is the barrier. It calls only the read services on its allow-list, plus the
+token call `POST /authenticate`, and refuses any other before a request leaves the Hub. The operator
+admitted the token call on 2026-09-26 and watches the first real call.
 
 | G0 item | State | Where |
 | --- | --- | --- |
-| The allow-list names only read services, each citing the documentation that shows it reads | Done | [census.md, "Sankhya read services admitted for G0"](census.md#sankhya-read-services-admitted-for-g0): the authentication and `CRUDServiceProvider.loadRecords`. `SANKHYA_SERVICES` in `apps/hub/src/connectors/sankhya/gateway.ts` holds `CRUDServiceProvider.loadRecords` alone. |
+| The allow-list names only read services, each citing the documentation that shows it reads, plus `POST /authenticate`, the one admitted non-read call | Done | [census.md, "Sankhya services admitted for G0"](census.md#sankhya-services-admitted-for-g0): `CRUDServiceProvider.loadRecords` and the token call. `SANKHYA_SERVICES` in `apps/hub/src/connectors/sankhya/gateway.ts` holds `CRUDServiceProvider.loadRecords` alone. |
 | A test proves the broker refuses a service outside the allow-list without any network call | Done | `tests/implementation/connector-broker.test.mjs`, "P4 (G0)": an operation asking for another service answers `SERVICE_REFUSED`, and a `write` operation answers `EFFECT_REFUSED`. In both cases the fake gateway records zero requests, the authentication included. |
 | The adapter's source has no write-capable service name | Done | `tests/implementation/connector-adapter-source.test.mjs`: the service literals in `apps/hub/src/connectors/sankhya/*.ts` are exactly `CRUDServiceProvider.loadRecords`, no known write service name appears, and only the gateway file carries wire vocabulary. |
 | The evidence records the decision and its date, never the credential | Done | This section. |
+
+### G0 verification for the operator, 2026-09-25
+
+This is re-checked on `feat/q4-sankhya-part2` at `1ceab4ea`, with no Sankhya request of any kind.
+
+**The documentation.** The two cited pages were read again on 2026-09-25:
+
+- [post_authenticate](https://developer.sankhya.com.br/reference/post_authenticate) says the
+  endpoint "Gera um access token JWT para autenticação em APIs do ecossistema Sankhya". It takes
+  the `X-Token` header and `client_id`, `client_secret` and `grant_type`, and names no business
+  record.
+- [get_loadrecords](https://developer.sankhya.com.br/reference/get_loadrecords.md), titled
+  "Consultas com loadRecords", calls `CRUDServiceProvider.loadRecords` "um serviço genérico para
+  aplicar consultas em todas as Entidades disponíveis no ERP". It is a query service. The operation
+  fixes the entity and the field list, so no consumer chooses what it reads.
+
+The page's example token has `expires_in` 300, not the hour that operator decision 9 assumed. The
+cache takes each token's own `expires_in`, so the design holds.
+
+**The barrier.** The code refuses at two points, and each fails its test when it is removed:
+
+| Removed or changed | Test that fails |
+| --- | --- |
+| The allow-list check in `callService` (`gateway.ts`) | `connector-broker`, "P4 (G0)": the other service reaches the fake gateway |
+| The `write` refusal in `broker.ts` | `connector-broker`, "P4 (G0)" |
+| `CRUDServiceProvider.saveRecord` added to `SANKHYA_SERVICES` | `connector-adapter-source` (both G0 tests) and `connector-broker`, "P4 (G0)" |
+
+Unchanged, `connector-broker` and `connector-adapter-source` pass 16 of 16. The paths
+`/authenticate` and `/gateway/v1/mge/service.sbr` are string constants in `gateway.ts`. No
+consumer input reaches a path, host, header or service name.
+
+**What G0 does not cover.** The allow-list bounds what the Hub asks for. It says nothing about
+what the gateway credential could do if it were used elsewhere. That credential stays in the
+Connection, sealed.
+
+**State.** The operator approved G0 on 2026-09-25, in the manager's chat. The approval is recorded
+on [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282#issuecomment-5840841862)
+and covers the allow-list (`CRUDServiceProvider.loadRecords` and the token call `POST /authenticate`),
+the no-network refusal test and the adapter source check, as this section records them. On
+2026-09-26 the operator recorded the token call in the task as the one admitted non-read call
+([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Part 1 is on `main`
+since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the same day (see the
+deploy record below). Q4.6, the first real call, still waits for the operator to load the credential
+and grant the operation in the Integrações screen. The operator watches that call.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
 `CONNECTOR_UNCONFIGURED` with no network, which `connector-broker.test.mjs` also proves.
 
+### Pilot deploy plan for part 1
+
+The procedure is [`infra/pilot/README.md`, "Deploy main"](../../../infra/pilot/README.md#deploy-main), run
+on `main` at or after `9ae2ff73`, the merge of #246. The operator approves every step in the executor's session before it runs, and
+each approval covers only that step. The deploy makes no Sankhya request:
+`CONEXUS_SANKHYA_GATEWAY_ORIGIN` stays absent, so every call and every "Testar" answers
+`CONNECTOR_UNCONFIGURED` without the network.
+
+1. **Fetch and list.** Run `git fetch` in `~/conexus-pilot` and diff the old head against the merged
+   `main`. Expected: one migration, `apps/hub/migrations/0029_connector.sql`, plus changes under
+   `apps/hub/src/app-runner`, so the runner restarts too. Check whether `package-lock.json` changed,
+   which decides whether step 4 runs `npm ci`.
+2. **Stop** the Hub (`server.js` and its `build-hub-local.mjs` parent) and the runner.
+3. **Create the connector socket directory, owner-only.** The Hub refuses to start
+   (`CONNECTOR_SOCKET_DIR_REFUSED`) when the directory exists and this user does not own it with
+   mode 0700. It also refuses a relative path. So create the directory before the first start, as the
+   user that runs both the Hub and the runner:
+
+   ```bash
+   install -d -m 0700 "$HOME/conexus-pilot-state/connector"
+   stat -c '%U %a' "$HOME/conexus-pilot-state/connector"   # expect: the pilot user, 700
+   ```
+
+   The path must leave room for a 15-byte socket name within the 107-byte unix socket limit. This
+   one does. The operator then adds `CONEXUS_CONNECTOR_SOCKET_DIR` with that same path to both the
+   Hub's and the runner's env files. The runner admits a socket only inside its own copy of the
+   directory, so the two values must be equal.
+4. **Move the checkout** to the merged head, and run `npm ci` only if step 1 showed a dependency
+   change.
+5. **Back up, then migrate.** `pg_dump -Fc` of `conexus_s7`, then `pg_restore --list` of the dump.
+   Record `backup ok` and the dump's name here. Then `scripts/run-hub-migrations.mjs` with
+   `CONEXUS_MIGRATION_DATABASE_URL_FILE`, which applies `0029` alone. Record its verdict and the
+   catalog digest (`ca37c492…` at 0029 in `contracts/technical/hub-catalog-snapshot.json`). The
+   migration is forward-only, so the dump is the only way back.
+6. **Start** `infra/pilot/hub.sh`, then `infra/pilot/runner.sh`, in the order of the procedure's
+   step 5.
+7. **Confirm.** The last `starting` line of each log names the merged head. The Hub log shows no
+   `CONNECTOR_SOCKET_DIR_REFUSED` and no `MIGRATION_` error. The Integrações screen lists no
+   Connection, and "Testar" is not pressed.
+
+**Deploy record, 2026-09-26.** Steps 1 to 7 ran on `9ae2ff73`, each approved by the operator. The
+backup `conexus_s7-before-9ae2ff73-20260926T160918.dump` passed `pg_restore --list`. The migration
+verdict was PASS with `0029` alone applied, and the catalog digest was `ca37c492…`, the snapshot's.
+The runner started at 16:44:18 UTC and the Hub at 16:44:33 UTC, both on `9ae2ff73`. That run used
+this plan's earlier order, runner first; step 6 now follows the pilot procedure. The Hub log since
+that start holds no `CONNECTOR_SOCKET_DIR_REFUSED`, no `MIGRATION_` line and no error. The pilot
+held no Connection and no grant, "Testar" was not pressed, and no Sankhya request was made.
+
+After the deploy:
+
+8. The operator, signed in as the installation administrator, adds the Sankhya Connection in the
+   Integrações screen to the Workspace that holds the Q3 Project, since a grant reaches only a
+   Connection of its own Workspace (P7). The operator types client id, client secret and X-Token
+   into its write-only fields. This is the one path the task's STOP law authorizes for the
+   credential (section 11, points 3 and 4; C-026 as amended on 2026-09-26). The executor never sees
+   them.
+9. **Q4.6 starts only here.** The operator, as Owner of that Workspace, grants
+   `sankhya.purchase-order.read` to the Q3 Project with **Conceder**.
+10. The operator names the gateway origin his credential belongs to. It must be one of the two
+    origins the Sankhya documentation publishes, because the Hub refuses any other at startup. With
+    the operator's go-ahead, the implementer adds `CONEXUS_SANKHYA_GATEWAY_ORIGIN` to the Hub's env
+    file, then stops the Hub and starts `infra/pilot/hub.sh` again. The Hub reads the origin only at
+    startup. The runner keeps running.
+11. The operator presses **Testar** and watches the first real call, `POST /authenticate` only. Each
+    call from then on gets one row in the table below. The first data read is the first handler read
+    of Q4.7 (task section 11, point 7).
+
 ### Real Sankhya calls
 
-None. Each real call in part 2 is logged here with the service name, time and status, never a value.
+None yet. Each real call is one row here, never a value, a token or a host.
+
+| # | Time (UTC) | Service | HTTP status | Outcome | Duration (ms) |
+| --- | --- | --- | --- | --- | --- |
 
 ## Part 1 proof
 
@@ -91,12 +206,14 @@ document number 22790 is the one exception.
 
 ## Open for part 2
 
-- The invocation timeout is 5 s and the broker deadline is 4 s. Q4.6 measures a cold call on the
-  pilot before any bound changes.
+- The invocation timeout is 5 s and the broker deadline is 4 s. The first read, in Q4.7, measures a
+  cold call on the pilot before any bound changes. "Testar" does not fill the token cache, so that
+  read is cold.
 - The field mapping in `sankhya/purchase-order.ts` is unverified: `NUMNOTA` with `TIPMOV = 'O'`, the
   status values, the date and decimal formats, and the reference field names. So is whether a
   refused token arrives as HTTP 401. Each lives in one file or one function.
 - One authentication serves every concurrent miss under the first caller's deadline. If that caller
   times out, the others waiting on it fail too.
-- The pilot needs `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner, and
-  `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub after G0. Both are operator configuration.
+- The pilot has `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner since the deploy. It
+  still needs `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub, which the implementer adds at Q4.6 with
+  the operator's go-ahead.
