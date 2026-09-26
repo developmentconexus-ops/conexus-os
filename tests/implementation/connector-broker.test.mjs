@@ -264,3 +264,27 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
   assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), { message: 'INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR' })
   assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { gatewayOrigin: undefined, socketDirectory: '/run/conexus-connectors' })
 })
+
+test('every document number the input admits reads back, up to 2,147,483,647; a larger one in the response is refused', async () => {
+  const { purchaseOrderRead } = await import(hubModuleUrl('connectors/sankhya/purchase-order.js'))
+  // What the broker does with an operation: run it on the session, then parse its output contract.
+  const read = async (documentNumber, answeredNumber = String(documentNumber)) => {
+    const queries = []
+    const session = {
+      loadRecords: async (query) => {
+        queries.push(query.parameters.map((parameter) => parameter.value))
+        return queries.length === 1
+          ? [{ NUNOTA: '9001', NUMNOTA: answeredNumber, DTNEG: '24/09/2026', STATUSNOTA: 'L', VLRNOTA: '10.00', Parceiro_NOMEPARC: 'Fornecedor Exemplo Ltda' }]
+          : [{ NUNOTA: '9001', SEQUENCIA: '1', CODPROD: '501', QTDNEG: '1', CODVOL: 'UN', VLRUNIT: '10.00', VLRTOT: '10.00', Produto_DESCRPROD: 'Parafuso' }]
+      },
+    }
+    const input = purchaseOrderRead.input.parse({ documentNumber })
+    const output = purchaseOrderRead.output.safeParse(await purchaseOrderRead.run(input, session))
+    return { queries, parsed: output.success ? output.data.orders.map((order) => order.number) : 'RESPONSE_REFUSED' }
+  }
+  for (const documentNumber of [1_000_000_000, 2_147_483_647]) {
+    assert.deepEqual(await read(documentNumber), { queries: [[String(documentNumber)], ['9001']], parsed: [documentNumber] }, String(documentNumber))
+  }
+  assert.equal(purchaseOrderRead.input.safeParse({ documentNumber: 2_147_483_648 }).success, false)
+  assert.equal((await read(2_147_483_647, '2147483648')).parsed, 'RESPONSE_REFUSED', 'a number the input could never admit is not a matching order')
+})
