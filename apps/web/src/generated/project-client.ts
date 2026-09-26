@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s3-contracts.mjs. Do not edit.
-export const S3_PRODUCT_OAS_DIGEST = "56d1cf98889f289c0dc07c81142163ec449f1eb5c411df2cc4c26903076e0b6c"
+export const S3_PRODUCT_OAS_DIGEST = "3522567e87503fd7ed2e81109b5a34fbf3009ada666adb20a96adb1bd9eb339d"
 export const S3_ROUTE_PROJECTION_DIGEST = "9750816573401de3df9bc3fd70007376aa3532242d48a2fbb766feabbacc53f5"
 export type ProjectSummary = { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }
 export type ProjectRepresentation = { "projectId": string; "workspaceId": string; "name": string; "projectRevision": string; "archived": boolean }

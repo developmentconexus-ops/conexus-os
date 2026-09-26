@@ -1,6 +1,6 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-connector-contracts.mjs. Do not edit.
-export const CONNECTOR_PRODUCT_OAS_DIGEST = "56d1cf98889f289c0dc07c81142163ec449f1eb5c411df2cc4c26903076e0b6c"
-export const CONNECTOR_ROUTE_PROJECTION_DIGEST = "3409f43526855255c7de0f8f94369489c412c1637be5794587ca2dda3b97a5b3"
+export const CONNECTOR_PRODUCT_OAS_DIGEST = "3522567e87503fd7ed2e81109b5a34fbf3009ada666adb20a96adb1bd9eb339d"
+export const CONNECTOR_ROUTE_PROJECTION_DIGEST = "6415a22b7da12ca6f419f7c634968974c46dbd23ced1f81243ca3252e41088d9"
 export type ConnectorConnection = { "connectionId": string; "connectorId": "sankhya"; "label": string; "createdAt": string; "disabledAt"?: string }
 export type CreateWorkspaceConnectionInput = { "connectionId": string; "connectorId": "sankhya"; "label": string; "credential": { "clientId": string; "clientSecret": string; "xToken": string } }
 export type CheckWorkspaceConnectionOutcome = { "outcome": "OK" | "CREDENTIAL_REFUSED" | "CONNECTOR_UNCONFIGURED" | "PROVIDER_UNAVAILABLE" | "PROVIDER_TIMEOUT" | "PROVIDER_ERROR" }
