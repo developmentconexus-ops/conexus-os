@@ -324,11 +324,12 @@ handler that calls the operation through the runner relay and the broker. The no
 data. The handler's first call is Q4's first data read. Budget: two Builder runs, one of them a
 repair.
 
-A run that fails for the connector does not count against the budget. It fails for the connector
-when the broker's `connector.call` audit line answers `CONNECTOR_UNCONFIGURED`, `CREDENTIAL_REFUSED`,
-`PROVIDER_TIMEOUT`, `PROVIDER_UNAVAILABLE`, `PROVIDER_ERROR`, `RESPONSE_REFUSED` or `SERVICE_REFUSED`,
-or when the read answers `OK` with no order although the handler asked for document number 22790.
-The fix goes into the Hub, and a reload of the same Preview retests it without a new Builder run.
+If the first read fails, the executor diagnoses it from the broker's `connector.call` audit line and
+the Builder's diff before any fix. Only a demonstrated Hub defect, such as a wrong field mapping in
+`sankhya/purchase-order.ts`, is fixed in the Hub. A reload of the same Preview retests that fix
+without spending a Builder run. A credential, configuration or Sankhya data problem goes to the
+operator. An external outage waits, and the same Preview is retried. A fault in the handler counts
+against the Builder's budget as before.
 
 **Check:** the Preview shows real Sankhya data for 22790 beside its notes after reload; the handler
 calls the operation, not a hard-coded value or a browser request; the Builder's diff and transcript
