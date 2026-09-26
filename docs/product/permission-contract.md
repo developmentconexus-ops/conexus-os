@@ -49,17 +49,27 @@ A Project has no authority of its own. It inherits the Workspace that owns it.
 ### 1.1 Installation administration
 
 An installation administrator may act on the whole installation. The actions it exists for
-are connecting or replacing the company GitHub organization and sharing a model account with
-everyone in the installation ([C-026](../decisions/index.md)). It is a fact about an Account,
-held in `iam.installation_administrator`. It is not a Workspace role and not an `iam.action`.
+are connecting or replacing the company GitHub organization, sharing a model account with
+everyone in the installation, and creating, listing or disabling a Workspace's integration
+Connections ([C-026](../decisions/index.md)). It is a fact about an Account, held in
+`iam.installation_administrator`. It is not a Workspace role and not an `iam.action`.
 
-Being an administrator grants nothing inside a Workspace or a Project. `iam.admit_workspace`,
-`iam.admit_project`, `iam.visible_workspaces` and `iam.visible_projects` never read the table,
-so an administrator with no membership sees and may do nothing in any Workspace.
+Being an administrator grants nothing inside a Workspace or a Project, with exactly one
+narrow carve-out: an administrator may create, list and disable that Workspace's Connections
+through `connector.create_connection`, `connector.list_connections` and
+`connector.disable_connection`. Those functions call only
+`connector.admit_installation_administrator` (which reads `iam.is_installation_administrator`),
+never `iam.admit_workspace`, so they do not require Workspace membership. Outside that
+carve-out, `iam.admit_workspace`, `iam.admit_project`, `iam.visible_workspaces` and
+`iam.visible_projects` never read the table, so an administrator with no membership sees and
+may do nothing else in any Workspace. In particular, granting or revoking an operation of a
+Connection to a Project (`connector.grant_capability`, `connector.revoke_grant`) is gated by
+`connector.admit_project_owner` (`iam.admit_workspace(..., 'members.manage')`), which stays
+reserved to an Owner of that Workspace.
 
 The role lives only in Conexus IAM. The Factory never holds a copy of the administrator list.
 The Hub calls `isInstallationAdministrator` on the identity-access module before it performs a
-Factory administration change on the actor's behalf.
+Factory administration change or a Connection administration change on the actor's behalf.
 
 | Function | Who may call it | Effect |
 | --- | --- | --- |
@@ -67,6 +77,9 @@ Factory administration change on the actor's behalf.
 | `iam.grant_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator and the Account must be active; granting a current administrator changes nothing |
 | `iam.revoke_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator; revoking somebody who is not one changes nothing |
 | `iam.bootstrap_installation_administrator(account)` | no Hub role | the operator shell sets the first administrator |
+| `connector.list_connections(actor, workspace_id)` | `hub_iam_runtime` | lists the Workspace's Connections; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.create_connection(actor, connection_id, workspace_id, ...)` | `hub_iam_runtime` | creates a Connection for the Workspace; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.disable_connection(actor, workspace_id, connection_id)` | `hub_iam_runtime` | disables the Connection and revokes its open grants; actor must be an administrator (`connector.admit_installation_administrator`) |
 
 Each row of the table is one tenure. It records how it was granted (`OPERATOR_BOOTSTRAP` or
 `ADMINISTRATOR`), who granted it and when, and, once closed, who revoked it and when. Closed

@@ -277,9 +277,9 @@ only ciphertext, and no Hub operation returns a credential field.
 The installation administrator creates the Connection in the Hub's **Integrações** screen, which is
 today a "coming soon" item in `apps/web/src/app/shell.tsx`. Q4 turns on its first version: list the
 Workspace's Connections, add a Sankhya Connection (client id, client secret and X-Token as
-write-only fields that are never shown back), test it, and grant an operation to a Project. The test
-button calls `POST /authenticate` only, and only after G0. **Check:** a browser test
-creates a Connection and a Grant through the screen, reloads, and finds no credential value in the
+write-only fields that are never shown back), and test it. The test
+button calls `POST /authenticate` only, and only after G0. (Granting an operation to a Project is performed separately by a Workspace Owner in Q4.3 per section 11 point 4). **Check:** a browser test
+creates a Connection through the screen, reloads, and finds no credential value in the
 page, the network responses or the Hub logs.
 
 ### Q4.3 — Project Grant
