@@ -66,10 +66,10 @@ on [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282#issuecom
 and covers the allow-list (`CRUDServiceProvider.loadRecords` and the token call `POST /authenticate`),
 the no-network refusal test and the adapter source check, as this section records them. On
 2026-09-26 the operator recorded the token call in the task as the one admitted non-read call
-([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Q4.6, the first
-real call, still waits for two things: the pilot deploy of part 1 and its migration, and the
-operator loading the credential in the Integrações screen. Part 1 is on `main` since #246 merged on
-2026-09-26 (`9ae2ff73`). The operator watches that call.
+([#298](https://github.com/developmentconexus-ops/conexus-os/pull/298)). Part 1 is on `main`
+since #246 merged on 2026-09-26 (`9ae2ff73`), and the pilot runs it since the same day (see the
+deploy record below). Q4.6, the first real call, still waits for the operator to load the credential
+in the Integrações screen. The operator watches that call.
 
 Until part 2, the Hub runs with no gateway destination configured
 (`CONEXUS_SANKHYA_GATEWAY_ORIGIN` absent). Every call and every credential check then answers
@@ -114,6 +114,14 @@ each approval covers only that step. The deploy makes no Sankhya request:
 7. **Confirm.** The last `starting` line of each log names the merged head. The Hub log shows no
    `CONNECTOR_SOCKET_DIR_REFUSED` and no `MIGRATION_` error. The Integrações screen lists no
    Connection, and "Testar" is not pressed.
+
+**Deploy record, 2026-09-26.** Steps 1 to 7 ran on `9ae2ff73`, each approved by the operator. The
+backup `conexus_s7-before-9ae2ff73-20260926T160918.dump` passed `pg_restore --list`. The migration
+verdict was PASS with `0029` alone applied, and the catalog digest was `ca37c492…`, the snapshot's.
+The runner started at 16:44:18 UTC and the Hub at 16:44:33 UTC, both on `9ae2ff73`. That run used
+this plan's earlier order, runner first; step 6 now follows the pilot procedure. The Hub log since
+that start holds no `CONNECTOR_SOCKET_DIR_REFUSED`, no `MIGRATION_` line and no error. The pilot
+held no Connection and no grant, "Testar" was not pressed, and no Sankhya request was made.
 
 After the deploy:
 
@@ -199,5 +207,5 @@ document number 22790 is the one exception.
   refused token arrives as HTTP 401. Each lives in one file or one function.
 - One authentication serves every concurrent miss under the first caller's deadline. If that caller
   times out, the others waiting on it fail too.
-- The pilot needs `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner, and
-  `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub after G0. Both are operator configuration.
+- The pilot has `CONEXUS_CONNECTOR_SOCKET_DIR` for the Hub and the runner since the deploy. It
+  still needs `CONEXUS_SANKHYA_GATEWAY_ORIGIN` for the Hub, which the operator adds at Q4.6.
