@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { once } from 'node:events'
+import { request } from 'node:http'
 import test from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import cookie from '@fastify/cookie'
 import Fastify from 'fastify'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -32,7 +35,7 @@ const preview = async (t, invokeApplication) => {
       previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
     },
     registryReader: async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
-    ...(invokeApplication === undefined ? {} : { invokeApplication: async ({ signal: _signal, ...input }) => { calls.push(input); return invokeApplication(input) } }),
+    ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { const { signal: _signal, ...recorded } = input; calls.push(recorded); return invokeApplication(input) } }),
     exactHubOrigin: 'https://hub.conexus.localhost:3443',
     previewPort: PORT,
     pendingRequests: new Set(),
@@ -97,4 +100,24 @@ test('the retained server tree is never served to the browser', async (t) => {
   }
   const page = await app.inject({ method: 'GET', url: '/index.html', headers: { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' } })
   assert.equal(page.statusCode, 200)
+})
+
+test('a page that disconnects while its call waits aborts that call\'s signal', async (t) => {
+  const invoked = Promise.withResolvers()
+  const { app } = await preview(t, ({ signal }) => {
+    invoked.resolve(signal)
+    return once(signal, 'abort').then(() => ({ status: 200, body: {} }))
+  })
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const client = request({
+    host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
+    headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: '__Host-conexus_preview=valid' },
+  })
+  client.on('error', () => {})
+  client.end('{}')
+  const signal = await invoked.promise
+  assert.equal(signal.aborted, false, 'the call waits with a live signal')
+  client.destroy()
+  const outcome = await Promise.race([once(signal, 'abort').then(() => 'aborted'), delay(2000, 'still waiting', { ref: false })])
+  assert.equal(outcome, 'aborted')
 })

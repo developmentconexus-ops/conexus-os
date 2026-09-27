@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createApplicationInvoker } = await import(hubModuleUrl('mar/application-invoker.js'))
@@ -54,7 +55,7 @@ const OK = { status: 200, body: { ok: true } }
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 const beforeNextTurn = (promise) => Promise.race([promise, new Promise((resolve) => setImmediate(resolve, 'still waiting'))])
 
-test('a call over its Project\'s limit waits and runs once a slot frees, while another Project\'s call is read at once', async () => {
+test('a call over its Project\'s limit waits and runs once a slot frees, while another Project\'s call is read at once, and a handed-over slot still counts', async () => {
   const { reader, invoker, readOrder } = admission({ globalConcurrency: 5, perProjectConcurrency: 2 })
   const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
   await tick()
@@ -66,8 +67,15 @@ test('a call over its Project\'s limit waits and runs once a slot frees, while a
   assert.deepEqual(await a, OK)
   await tick()
   assert.deepEqual(readOrder(), ['a', 'b', 'd', 'c'])
+  const e = call(invoker, 'p1', 'e')
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b', 'd', 'c'])
   reader.release(3)
   assert.deepEqual(await Promise.all([b, c, d]), [OK, OK, OK])
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await e, OK)
+  assert.deepEqual(readOrder(), ['a', 'b', 'd', 'c', 'e'])
 })
 
 test('a call whose wait for its Project expires answers 429 APPLICATION_PROJECT_BUSY without being read, and leaks no slot', async () => {
@@ -177,6 +185,53 @@ test('a caller that leaves the runner\'s line frees its Project slot, and both l
   reader.release(1)
   assert.deepEqual(await c, OK)
   assert.deepEqual(readOrder(), ['a', 'd', 'c'])
+})
+
+test('one deadline covers the wait in the Project\'s line and in the runner\'s line together', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 1, perProjectConcurrency: 1, admissionQueueTimeoutMs: 400 })
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p2', 'b')
+  const started = performance.now()
+  const c = call(invoker, 'p1', 'c')
+  await delay(250)
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  assert.ok(performance.now() - started < 550, 'c had 400 ms across both lines, not 400 ms in each')
+  reader.release(1)
+  assert.deepEqual(await b, OK)
+  assert.deepEqual(readOrder(), ['a', 'b'])
+})
+
+test('a caller admitted from the line that leaves while its call runs keeps its slot to the end, and the next waiter still runs', async () => {
+  const { reader, invoker, readOrder } = admission({ perProjectConcurrency: 1, admissionQueueTimeoutMs: 1000 })
+  const leaving = new AbortController()
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p1', 'b', leaving.signal)
+  const c = call(invoker, 'p1', 'c')
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  leaving.abort()
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b'])
+  reader.release(1)
+  assert.deepEqual(await b, OK)
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await c, OK)
+  assert.deepEqual(readOrder(), ['a', 'b', 'c'])
+})
+
+test('a caller that left before its call arrived still runs on a free slot, and never waits for one', async () => {
+  const { reader, invoker, readOrder } = admission({ perProjectConcurrency: 1 })
+  const a = call(invoker, 'p1', 'a', AbortSignal.abort())
+  await tick()
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'b', AbortSignal.abort())), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  assert.deepEqual(readOrder(), ['a'])
 })
 
 test('an admission slot is freed for the next request once its call finishes', async () => {

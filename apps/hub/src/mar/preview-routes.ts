@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
+import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 
@@ -37,20 +38,11 @@ type RegistryReader = (input: Readonly<{
   path: string
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
 
-// The admitted artifact's application API. The operation comes from the request path and must be one
-// the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
-type ApplicationInvoker = (input: Readonly<{
-  source: Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
-  serverFiles: readonly string[]
-  operation: string
-  input: unknown
-  caller: Caller
-  signal: AbortSignal
-}>) => Promise<Readonly<{ status: number; body: unknown }>>
-
 export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
   registryReader: RegistryReader
+  // The admitted artifact's application API. The operation comes from the request path and must be one
+  // the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
   invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
   previewPort: number

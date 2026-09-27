@@ -58,9 +58,11 @@ const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   perProjectConcurrency: 2,
   // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
   maxServerTreeBytes: 8 * 1024 * 1024,
-  // A Connector read can hold its slot for about 2 s; a call queued behind one still gets its turn.
+  // On the pilot a page's Connector read held its slot for up to 2 s, so a call queued behind it runs.
+  // A call that holds its slot longer, up to the broker's 4 s deadline, can still expire a wait.
   admissionQueueTimeoutMs: 3000,
-  // A page opens with a handful of calls; sixteen absorbs a few pages opening at once and bounds memory.
+  // The longest line, for each Project and for the runner. A page opens with a handful of calls, so
+  // sixteen absorbs a few pages opening at once.
   admissionQueueLimit: 16,
 })
 
@@ -78,31 +80,37 @@ type Gate = Readonly<{
 
 const createGate = (capacity: number, lineLimit: number): Gate => {
   let held = 0
-  const line: (() => void)[] = []
+  // In arrival order. Deleting a waiter that was already admitted does nothing, so a late abort can never
+  // remove another waiter.
+  const line = new Set<() => void>()
   return {
     enter: (signal) => {
       if (held < capacity) {
         held += 1
         return Promise.resolve(true)
       }
-      if (line.length >= lineLimit || signal.aborted) return Promise.resolve(false)
+      if (line.size >= lineLimit || signal.aborted) return Promise.resolve(false)
       return new Promise<boolean>((resolve) => {
         const admit = (): void => {
           signal.removeEventListener('abort', abandon)
           resolve(true)
         }
         const abandon = (): void => {
-          line.splice(line.indexOf(admit), 1)
+          line.delete(admit)
           resolve(false)
         }
-        line.push(admit)
+        line.add(admit)
         signal.addEventListener('abort', abandon, { once: true })
       })
     },
     leave: () => {
-      const next = line.shift()
-      if (next) next()
-      else held -= 1
+      const [next] = line
+      if (!next) {
+        held -= 1
+        return
+      }
+      line.delete(next)
+      next()
     },
     get idle() {
       return held === 0
