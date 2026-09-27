@@ -88,6 +88,24 @@ const project = config.project ? createConfiguredProjectModule({
       return prepare(input)
     },
   },
+  // Every deletion port reaches a module composed below through the same request-time indirection
+  // as repository.prepare above, since the Project module is composed before the Builder module is.
+  deletion: {
+    teardownFactoryProject: async (binding) => {
+      const teardown = builder?.teardownFactoryProject
+      if (!teardown) throw new Error('FACTORY_NOT_CONFIGURED')
+      return teardown(binding)
+    },
+    releaseApplicationData: async (projectId) => {
+      if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
+      return applicationRunner.release({ projectId })
+    },
+    deleteGithubRepository: async (repositoryId) => {
+      const deleteRepository = builder?.deleteFactoryGithubRepository
+      if (!deleteRepository) throw new Error('FACTORY_NOT_CONFIGURED')
+      return deleteRepository(repositoryId)
+    },
+  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
 }) : undefined

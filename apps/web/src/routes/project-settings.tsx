@@ -1,11 +1,19 @@
+import { AlertDialog } from '@mastra/playground-ui/components/AlertDialog'
 import { Button } from '@mastra/playground-ui/components/Button'
+import { Input } from '@mastra/playground-ui/components/Input'
+import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
-import { useQuery } from '@tanstack/react-query'
-import { createRoute, Link } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ExternalLink, KeyRound } from 'lucide-react'
+import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { getProject, getProjectRepository, ProjectRequestError, projectQueryKey, projectRepositoryQueryKey } from '../features/project/api'
+import {
+  deleteProject, getProject, getProjectRepository, projectDeleteMessage, ProjectRequestError,
+  projectQueryKey, projectRepositoryQueryKey, projectSummariesQueryKey,
+} from '../features/project/api'
+import { useInstallation } from '../features/settings/use-installation'
 import type { ProjectRepresentation } from '../generated/project-client'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
@@ -72,7 +80,61 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
         <dt>Revisão</dt><dd><code>{project.projectRevision}</code></dd>
       </dl>
     </details>
+    <DangerZone project={project} />
   </>
+}
+
+function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
+  const installation = useInstallation()
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const inputId = useId()
+  const [open, setOpen] = useState(false)
+  const [confirmName, setConfirmName] = useState('')
+  const [message, setMessage] = useState('')
+  const remove = useMutation({
+    mutationFn: () => deleteProject(project.projectId, confirmName),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
+      await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
+    },
+    onError: (error) => setMessage(projectDeleteMessage(error)),
+  })
+
+  if (installation.data?.administrator !== true) return null
+
+  return <section className="cx-danger" aria-labelledby="cx-danger-title">
+    <h2 id="cx-danger-title">Zona de risco</h2>
+    <p>Excluir {project.name} apaga o código, os dados e o repositório no GitHub, para sempre. Não é possível desfazer.</p>
+    <Button
+      type="button"
+      variant="destructive"
+      onClick={() => { setConfirmName(''); setMessage(''); setOpen(true) }}
+    >
+      Excluir Projeto
+    </Button>
+    <AlertDialog open={open} onOpenChange={(next) => { if (!remove.isPending) setOpen(next) }}>
+      <AlertDialog.Content>
+        <AlertDialog.Header>
+          <AlertDialog.Title>Excluir {project.name}?</AlertDialog.Title>
+          <AlertDialog.Description>
+            O código, os dados e o repositório {project.name} no GitHub somem para sempre. Para confirmar, digite o nome exato do Projeto.
+          </AlertDialog.Description>
+        </AlertDialog.Header>
+        <div className="cx-field cx-danger-confirm">
+          <Label htmlFor={inputId}>Nome do Projeto</Label>
+          <Input id={inputId} value={confirmName} onChange={(event) => setConfirmName(event.target.value)} autoComplete="off" placeholder={project.name} />
+        </div>
+        <AlertDialog.Footer>
+          <AlertDialog.Cancel disabled={remove.isPending}>Cancelar</AlertDialog.Cancel>
+          <AlertDialog.Action disabled={confirmName !== project.name || remove.isPending} onClick={() => remove.mutate()}>
+            {remove.isPending ? 'Excluindo…' : 'Excluir para sempre'}
+          </AlertDialog.Action>
+        </AlertDialog.Footer>
+      </AlertDialog.Content>
+    </AlertDialog>
+    {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
+  </section>
 }
 
 function RepositoryState({ projectId }: Readonly<{ projectId: string }>) {

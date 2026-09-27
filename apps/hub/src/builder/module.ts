@@ -27,6 +27,8 @@ import { registerInstallationGithubRoutes } from './installation-github-routes.j
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
+import { SessionRetirementCoordinator } from '@mastra/factory/sandbox/session-retirement'
+import { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
 import { createFactorySourceReads } from './factory-source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
@@ -252,6 +254,39 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     resolveRepository: (binding) => portsReady.then((ports) => ports.resolveRepository(binding)),
     github: githubApp,
   })
+  const sessionRetirement = new SessionRetirementCoordinator()
+  // Tears down every Mastra Factory record naming this Project: the repository's sessions (and
+  // their sandboxes), the project-repository link, the source-control connection, and finally the
+  // Factory project row itself. Called once, after the tombstone is written and before the Hub
+  // database purge, so nothing here has to reason about a Project that database rows still name.
+  const teardownProject = async (binding: Readonly<{ factoryProjectId: string; projectRepositoryId: string }>): Promise<void> => {
+    const composition = await ready
+    const sourceControl = composition.github.sourceControlStorage
+    await sessionRetirement.retireProjectRepositorySessions({
+      sourceControl, orgId: factory.orgId, projectRepositoryId: binding.projectRepositoryId,
+    })
+    const projectRepository = await sourceControl.projectRepositories.get({ orgId: factory.orgId, id: binding.projectRepositoryId })
+    await sourceControl.projectRepositories.unlink({ orgId: factory.orgId, id: binding.projectRepositoryId })
+    if (projectRepository) await sourceControl.connections.delete({ orgId: factory.orgId, id: projectRepository.connectionId })
+    await composition.storage.getDomain<FactoryProjectsStorage>('projects').delete({ orgId: factory.orgId, id: binding.factoryProjectId })
+  }
+  // Deletes the GitHub repository a Project's Factory binding named. Resolves the installation and
+  // repository from the Mastra source-control rows (still readable at this point in the teardown,
+  // since teardownProject never removes the repository row itself) and refuses to delete without a
+  // live Administration: write grant, so a stale or revoked installation cannot silently no-op.
+  const deleteGithubRepository = async (repositoryId: string): Promise<void> => {
+    const composition = await ready
+    const sourceControl = composition.github.sourceControlStorage
+    const row = await sourceControl.repositories.get({ orgId: factory.orgId, id: repositoryId })
+    if (!row) return
+    const installation = await sourceControl.installations.get({ orgId: factory.orgId, id: row.installationId })
+    if (!installation) return
+    const installationId = Number(installation.externalId)
+    const externalId = Number(row.externalId)
+    if (!Number.isSafeInteger(installationId) || !Number.isSafeInteger(externalId) || !row.slug) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+    if (!await githubApp.probeRepositoryAdminAccess(installationId, externalId)) throw new Error('FACTORY_GITHUB_PERMISSION_DENIED')
+    await githubApp.deleteRepository(installationId, { externalId, slug: row.slug })
+  }
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
@@ -273,6 +308,8 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     run,
     prepareRepository,
     repository,
+    teardownProject,
+    deleteGithubRepository,
     githubApp,
     githubAppSlug: factory.githubAppSlug,
     records,
@@ -423,6 +460,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     // Absent without the Factory, and then no Project can be created.
     prepareProjectRepository: factoryComposition?.prepareRepository,
+    teardownFactoryProject: factoryComposition.teardownProject,
+    deleteFactoryGithubRepository: factoryComposition.deleteGithubRepository,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,

@@ -5,6 +5,8 @@ import type { InvokeInput, PrepareResult, Reply, ServerFile } from './supervisor
 export type ApplicationRunnerClient = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[] }>): Promise<PrepareResult>
   invoke(input: InvokeInput): Promise<Reply>
+  /** Drops a Project's Preview schema and roles for good. Called once, when the Project itself is deleted. */
+  release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
 
 const call = (socketPath: string, path: string, body: unknown, timeoutMs: number): Promise<Reply> => new Promise((resolve, reject) => {
@@ -36,4 +38,8 @@ export const createApplicationRunnerClient = (socketPath: string): ApplicationRu
     throw new Error('APPLICATION_SERVER_REFUSED', { cause: reply.body })
   },
   invoke: (input) => call(socketPath, '/v1/invoke', input, 15_000),
+  release: async (input) => {
+    const reply = await call(socketPath, '/v1/release', input, 30_000)
+    if (reply.status !== 200) throw new Error('APPLICATION_RUNNER_RELEASE_REFUSED', { cause: reply.body })
+  },
 })

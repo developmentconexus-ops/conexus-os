@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
-import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
+import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, releasePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
 import type { PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
 import type { RelayTls } from './pg-relay.js'
@@ -210,6 +210,18 @@ export const createSupervisor = (config: SupervisorConfig) => {
     }
   }
 
+  /**
+   * Releases a Project's Preview allocation for good: its schema and its two roles. Called once, when
+   * the Project itself is deleted. Waits behind any migration already in flight for the Project so the
+   * drop never races a CREATE the migration worker still holds open.
+   */
+  const release = async (input: Readonly<{ projectId: string }>): Promise<void> => {
+    const allocation = previewAllocation(input.projectId)
+    const previous = preparing.get(allocation.projectId) ?? Promise.resolve()
+    await previous.catch(() => undefined)
+    await withProvisioner((client) => releasePreviewAllocation(client, allocation))
+  }
+
   const invoke = async (input: InvokeInput): Promise<Reply> => {
     const allocation = previewAllocation(input.projectId)
     let tree: ServerTree
@@ -261,6 +273,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     }),
     prepare,
     invoke,
+    release,
     close: async () => { await provisioner.end().catch(() => undefined) },
   })
 }
