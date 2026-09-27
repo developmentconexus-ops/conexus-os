@@ -18,7 +18,7 @@ A delegate does not widen its task. If it finds a material fork, it stops and re
 
 ## Review by lane
 
-The [review checklist](../../../../docs/development/review-checklist.md) and the pages it loads from `origin/main` apply to every pull request. The Factory's verdict at the head SHA is a gate in every lane, per the [merge gate](../../../../docs/development/delivery.md#merge-gate).
+The [review checklist](../../../../docs/development/review-checklist.md) and the pages it loads from `origin/main` apply to every pull request. Which review is required at the head SHA follows the [merge gate](../../../../docs/development/delivery.md#merge-gate).
 
 **Fast lane.** No independent review beyond the Factory's. The gates are the fast-lane gates in [the delivery rules](../../../../docs/development/delivery.md#pick-the-lane-by-risk). The Codex connector comments on the pull request. Triage each comment on its merits: fix it, dismiss it with a concrete reason, or ask on the thread.
 
