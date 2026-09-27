@@ -307,6 +307,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
     await page.getByRole('button', { name: 'Checklist de abertura de loja com fotos' }).waitFor()
     assert.equal(await page.locator('.cx-prompt-examples button').count(), 4)
+    await page.locator('.cx-home[data-empty]').waitFor()
     assert.equal(await page.locator('.cx-project-grid').count(), 0)
     await shoot(page, '11-projects-home-empty')
     await page.getByRole('button', { name: 'Cadastro de visitas a clientes' }).click()
