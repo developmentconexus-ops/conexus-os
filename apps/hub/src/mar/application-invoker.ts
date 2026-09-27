@@ -37,12 +37,15 @@ export type ApplicationInvoker = (input: Readonly<{
   operation: string
   input: unknown
   caller: Caller
+  callerLeft: AbortSignal
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationAdmissionLimits = Readonly<{
   globalConcurrency: number
   perProjectConcurrency: number
   maxServerTreeBytes: number
+  admissionQueueTimeoutMs: number
+  admissionQueueLimit: number
 }>
 
 const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
@@ -54,7 +57,57 @@ const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   perProjectConcurrency: 2,
   // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
   maxServerTreeBytes: 8 * 1024 * 1024,
+  // On the pilot a page's Connector read held its slot for up to 2 s; a call queued behind it runs.
+  admissionQueueTimeoutMs: 3000,
+  // Each Project's line and the runner's line hold up to this many. A page opens with a handful of calls,
+  // so sixteen absorbs a few pages opening at once.
+  admissionQueueLimit: 16,
 })
+
+// A line forms only while every slot is held, so a caller that takes a free slot never jumps the line.
+type Gate = Readonly<{
+  enter(signal: AbortSignal): Promise<boolean>
+  leave(): void
+  readonly idle: boolean
+}>
+
+const createGate = (capacity: number, lineLimit: number): Gate => {
+  let held = 0
+  const line = new Set<() => void>()
+  return {
+    enter: (signal) => {
+      if (held < capacity) {
+        held += 1
+        return Promise.resolve(true)
+      }
+      if (line.size >= lineLimit || signal.aborted) return Promise.resolve(false)
+      return new Promise<boolean>((resolve) => {
+        const admit = (): void => {
+          signal.removeEventListener('abort', abandon)
+          resolve(true)
+        }
+        const abandon = (): void => {
+          line.delete(admit)
+          resolve(false)
+        }
+        line.add(admit)
+        signal.addEventListener('abort', abandon, { once: true })
+      })
+    },
+    leave: () => {
+      const [next] = line
+      if (!next) {
+        held -= 1
+        return
+      }
+      line.delete(next)
+      next()
+    },
+    get idle() {
+      return held === 0
+    },
+  }
+}
 
 const refusal = (status: number, code: string): Readonly<{ status: number; body: unknown }> =>
   Object.freeze({ status, body: { error: { code } } })
@@ -66,16 +119,25 @@ export const createApplicationInvoker = (dependencies: Readonly<{
   limits?: ApplicationAdmissionLimits
 }>): ApplicationInvoker => {
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
-  let globalInFlight = 0
-  const perProjectInFlight = new Map<string, number>()
+  const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
+  const projects = new Map<string, Gate>()
 
   return async (input) => {
     const { projectId } = input.source
-    if (globalInFlight >= limits.globalConcurrency) return refusal(429, 'APPLICATION_RUNNER_BUSY')
-    const projectInFlight = perProjectInFlight.get(projectId) ?? 0
-    if (projectInFlight >= limits.perProjectConcurrency) return refusal(429, 'APPLICATION_PROJECT_BUSY')
-    globalInFlight += 1
-    perProjectInFlight.set(projectId, projectInFlight + 1)
+    const waitEnds = AbortSignal.any([input.callerLeft, AbortSignal.timeout(limits.admissionQueueTimeoutMs)])
+    const project = projects.get(projectId) ?? createGate(limits.perProjectConcurrency, limits.admissionQueueLimit)
+    projects.set(projectId, project)
+    const leaveProject = (): void => {
+      project.leave()
+      if (project.idle) projects.delete(projectId)
+    }
+    if (!(await project.enter(waitEnds))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
+    // The Project slot is taken first and held in the runner's line, which keeps each Project to its own
+    // limit there.
+    if (!(await runner.enter(waitEnds))) {
+      leaveProject()
+      return refusal(429, 'APPLICATION_RUNNER_BUSY')
+    }
     try {
       // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
       // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
@@ -99,10 +161,8 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         await port?.close()
       }
     } finally {
-      globalInFlight -= 1
-      const remaining = (perProjectInFlight.get(projectId) ?? 1) - 1
-      if (remaining <= 0) perProjectInFlight.delete(projectId)
-      else perProjectInFlight.set(projectId, remaining)
+      runner.leave()
+      leaveProject()
     }
   }
 }

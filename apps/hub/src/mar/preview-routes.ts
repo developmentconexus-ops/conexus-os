@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
+import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 
@@ -36,16 +37,6 @@ type RegistryReader = (input: Readonly<{
   artifactRevisionId: string
   path: string
 }> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
-
-// The admitted artifact's application API. The operation comes from the request path and must be one
-// the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
-type ApplicationInvoker = (input: Readonly<{
-  source: Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
-  serverFiles: readonly string[]
-  operation: string
-  input: unknown
-  caller: Caller
-}>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
@@ -88,6 +79,15 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
 export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
+
+// Fastify's `request.signal` aborts as soon as the body is read. Node's `request.raw.signal` behaves
+// like this helper, but @types/node 24.13.3 does not declare it.
+export const callerLeft = (reply: FastifyReply): AbortSignal => {
+  if (reply.raw.destroyed) return AbortSignal.abort()
+  const left = new AbortController()
+  reply.raw.once('close', () => { if (!reply.raw.writableEnded) left.abort() })
+  return left.signal
+}
 
 export const pathForRequest = (pathname: string): string | null => {
   if (pathname === '/') return 'index.html'
@@ -238,7 +238,7 @@ export const registerPreviewRoutes = async (
           via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
           sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
         },
-        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
+        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
