@@ -21,8 +21,8 @@ A change is in the qualification lane when any Q trigger is true:
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
 | `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage and plan; the Factory builds work that blocks no product gate, an implementer builds work that blocks a gate; pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
-| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the GPT-6 Sol review on each pull request, and the bet's "done when" checked on the real artifact | operator |
-| `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
+| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates, and the bet's "done when" checked on the real artifact | operator |
+| `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence | CI green; Factory review `approve`; evidence; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
 Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
 The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
@@ -110,7 +110,7 @@ operator dictating filenames or implementation.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
-  first. The GPT-6 Sol review never sees the other reviews. The lead adjudicates every finding against
+  first. An independent GPT-6 Sol review runs when the operator asks, and it never sees the other reviews. The lead adjudicates every finding against
   current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
   only when a correction invalidated a protected property or the deciding proof.
 - Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
@@ -121,15 +121,12 @@ operator dictating filenames or implementation.
 A pull request is ready when these hold at its exact head SHA, plus the lane's gates above:
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
   base. If no run exists at your head, merge `main` into your branch and push again.
-- A pull request the Factory built has the Factory's review verdict `approve`. On an
-  implementer's pull request, one review is required: the independent GPT-6 Sol review for
-  `needs:aprovo`, `lane:shaped` or `lane:qualification` work, and the Factory's review
-  otherwise. The Factory still reviews every implementer pull request; a finding there
-  blocks the merge only for a leak or a security gap, and any other finding goes to the
-  author once, without a second approval round. Every review follows
-  [the review checklist](review-checklist.md) from `origin/main`, with the census redone by
-  the reviewer. The manager runs the independent review without showing it the Factory's
-  verdict.
+- The Factory reviews every pull request, and its verdict `approve` is the required review. On a
+  pull request the Factory did not build, a finding that is not a leak or a security gap goes to
+  the author once and does not block; the operator decides whether to dismiss that review. An
+  independent GPT-6 Sol review runs only when the operator asks, without the Factory's verdict.
+  Every review follows [the review checklist](review-checklist.md) from `origin/main`, with the
+  census redone by the reviewer.
 - The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
 
 ## Git and pull requests
