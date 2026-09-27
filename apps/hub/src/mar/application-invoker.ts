@@ -131,39 +131,42 @@ export const createApplicationInvoker = (dependencies: Readonly<{
     const signal = AbortSignal.any([input.signal, AbortSignal.timeout(limits.admissionQueueTimeoutMs)])
     const project = projects.get(projectId) ?? createGate(limits.perProjectConcurrency, limits.admissionQueueLimit)
     projects.set(projectId, project)
-    if (!(await project.enter(signal))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
-    try {
-      // The Project slot stays held while this call waits for the runner, so one Project has at most its
-      // own limit in the runner's line and a freed runner slot never waits on a Project.
-      if (!(await runner.enter(signal))) return refusal(429, 'APPLICATION_RUNNER_BUSY')
-      try {
-        // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
-        // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
-        // tree.
-        let totalBytes = 0
-        const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
-        for (const path of input.serverFiles) {
-          const file = await dependencies.readFile({ source: input.source, path })
-          if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
-          totalBytes += file.bytes.byteLength
-          if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
-          reads.push({ path, sha256: file.sha256, bytes: file.bytes })
-        }
-        const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
-        const port = dependencies.openConnectorPort ? await dependencies.openConnectorPort(input.source) : null
-        try {
-          return await dependencies.invoke({
-            projectId, operation: input.operation, input: input.input, files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
-          })
-        } finally {
-          await port?.close()
-        }
-      } finally {
-        runner.leave()
-      }
-    } finally {
+    const leaveProject = (): void => {
       project.leave()
       if (project.idle) projects.delete(projectId)
+    }
+    if (!(await project.enter(signal))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
+    // The Project slot stays held while this call waits for the runner, so one Project has at most its
+    // own limit in the runner's line and a freed runner slot never waits on a Project.
+    if (!(await runner.enter(signal))) {
+      leaveProject()
+      return refusal(429, 'APPLICATION_RUNNER_BUSY')
+    }
+    try {
+      // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
+      // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
+      // tree.
+      let totalBytes = 0
+      const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
+      for (const path of input.serverFiles) {
+        const file = await dependencies.readFile({ source: input.source, path })
+        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
+        totalBytes += file.bytes.byteLength
+        if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
+        reads.push({ path, sha256: file.sha256, bytes: file.bytes })
+      }
+      const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
+      const port = dependencies.openConnectorPort ? await dependencies.openConnectorPort(input.source) : null
+      try {
+        return await dependencies.invoke({
+          projectId, operation: input.operation, input: input.input, files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
+        })
+      } finally {
+        await port?.close()
+      }
+    } finally {
+      runner.leave()
+      leaveProject()
     }
   }
 }

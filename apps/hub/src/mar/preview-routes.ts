@@ -90,11 +90,13 @@ export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
 
-// Aborts when the caller disconnects. The request stream closes as soon as its body is read, so only
-// the response's close means the caller left.
+// Aborts when the caller disconnects before its answer. The request stream, and Fastify's
+// `request.signal` with it, closes as soon as the body is read, so only the response tells. A caller
+// that left earlier finds the response already destroyed, and its close event is gone.
 export const callerLeft = (reply: FastifyReply): AbortSignal => {
+  if (reply.raw.destroyed) return AbortSignal.abort()
   const left = new AbortController()
-  reply.raw.once('close', () => left.abort())
+  reply.raw.once('close', () => { if (!reply.raw.writableEnded) left.abort() })
   return left.signal
 }
 
