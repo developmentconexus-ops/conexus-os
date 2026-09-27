@@ -327,6 +327,17 @@ test('the handler caller comes from the session; identifiers in the body, query 
   }])
 })
 
+const callOverSocket = async (app) => {
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const client = request({
+    host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
+    headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
+  })
+  client.on('error', () => {})
+  client.end('{}')
+  return client
+}
+
 test('a caller that disconnects while its call waits aborts that call\'s signal', async (t) => {
   let invoked
   const waiting = new Promise((resolve) => { invoked = resolve })
@@ -336,18 +347,37 @@ test('a caller that disconnects while its call waits aborts that call\'s signal'
       return once(signal, 'abort').then(() => ({ status: 200, body: {} }))
     },
   })
-  await app.listen({ host: '127.0.0.1', port: 0 })
-  const client = request({
-    host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
-    headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
-  })
-  client.on('error', () => {})
-  client.end('{}')
+  const client = await callOverSocket(app)
   const signal = await waiting
   assert.equal(signal.aborted, false, 'the call waits with a live signal')
   client.destroy()
   const outcome = await Promise.race([once(signal, 'abort').then(() => 'aborted'), delay(2000, 'still waiting', { ref: false })])
   assert.equal(outcome, 'aborted')
+})
+
+test('a caller that disconnects before its call reaches the invoker hands the invoker an aborted signal', async (t) => {
+  const authorizing = Promise.withResolvers()
+  const authorized = Promise.withResolvers()
+  const invoked = Promise.withResolvers()
+  const { app } = await harness(t, {
+    authorityFor: async () => {
+      authorizing.resolve()
+      await authorized.promise
+      return { kind: 'SIGNED_IN', caller: EMPLOYEE }
+    },
+    invokeApplication: async ({ signal }) => {
+      invoked.resolve(signal.aborted)
+      return { status: 200, body: {} }
+    },
+  })
+  const connection = once(app.server, 'connection')
+  const client = await callOverSocket(app)
+  const [socket] = await connection
+  await authorizing.promise
+  client.destroy()
+  await once(socket, 'close')
+  authorized.resolve()
+  assert.equal(await invoked.promise, true)
 })
 
 test('Keycloak unreachable when a check is due refuses with 503 and keeps nothing open', async (t) => {
