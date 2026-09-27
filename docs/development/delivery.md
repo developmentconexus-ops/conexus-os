@@ -20,7 +20,7 @@ A change is in the qualification lane when any Q trigger is true:
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage, plan, build, pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage and plan; the Factory builds work that blocks no product gate, an implementer builds work that blocks a gate; pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
 | `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates and the GPT-6 Sol review on each pull request, and the bet's "done when" checked on the real artifact | operator |
 | `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence, independent review | CI green; Factory review `approve`; evidence; independent review; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
@@ -29,14 +29,19 @@ The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `
 
 Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
 
+## Exploration spikes
+
+An implementer spike answers one question, on its own branch and worktree, and never merges. It reports what it tried and what it recommends.
+- One question per spike, on its own branch, never merged. Reused code is rebuilt on a fresh branch and fully reviewed.
+- No customer data enters this repository; on the pilot, record what changed and restore it.
+- A run counts as gate proof only when declared so before it runs.
+
 ## Ask for "Aprovo" on three kinds of change
 
 `needs:aprovo` is orthogonal to the lanes. Add it in any lane to:
-
 - a migration that touches real data;
 - a security or authentication change;
 - a screen the operator asked to see.
-
 The label blocks auto-merge. Nothing else needs a per-pull-request "Aprovo" or a live pilot test by
 the operator. `needs:operator` marks an issue that waits on the operator for a fact or an action.
 
@@ -48,20 +53,14 @@ meaning without a destination, needs an unauthorized production effect or secret
 authority needed for correctness. Take the decision first: Factory triage routes it to
 "Await approval". A downstream finding reopens the smallest upstream owner. Never invent authority to
 make a downstream artifact work.
-
 If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The
 manager reshapes the bet.
 
 ## Size work by appetite and limit work in progress
 
-- **P** (pequeno): up to 1 calendar day.
-- **M** (médio): up to 1 week.
-- **G** (grande): up to 2 weeks. Split anything larger.
-
+- **P** (pequeno): up to 1 calendar day. **M** (médio): up to 1 week. **G** (grande): up to 2 weeks. Split anything larger.
 A bet that passes its appetite stops. The manager records what was learned on the issue and returns
-it, reshaped, to the queue. It gets more time only through a new bet.
-
-At once, run at most 1 qualification bet and 2 shaped bets. The fast lane needs no bet and holds at
+it, reshaped, to the queue. It gets more time only through a new bet. At once, run at most 1 qualification bet and 2 shaped bets. The fast lane needs no bet and holds at
 most 5 open pull requests.
 
 ## Working rules
@@ -122,27 +121,24 @@ operator dictating filenames or implementation.
 A pull request is ready when these hold at its exact head SHA, plus the lane's gates above:
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
   base. If no run exists at your head, merge `main` into your branch and push again.
-- The Factory's review verdict is `approve`, in every lane. It follows [the review checklist](review-checklist.md) from `origin/main`, with the census
-  redone by the reviewer.
-- A serious change (`needs:aprovo`, `lane:qualification` or `lane:shaped`) also has an independent
-  GPT-6 Sol review. The manager runs it without showing it the Factory's verdict.
+- A pull request the Factory built has the Factory's review verdict `approve`. On an
+  implementer's pull request, one review is required: the independent GPT-6 Sol review for
+  `needs:aprovo`, `lane:shaped` or `lane:qualification` work, and the Factory's review
+  otherwise. The Factory still reviews every implementer pull request; a finding there
+  blocks the merge only for a leak or a security gap, and any other finding goes to the
+  author once, without a second approval round. Every review follows
+  [the review checklist](review-checklist.md) from `origin/main`, with the census redone by
+  the reviewer. The manager runs the independent review without showing it the Factory's
+  verdict.
 - The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
 
 ## Git and pull requests
 
-- Trunk is `main`. Its rulesets require a pull request and the `verify` check with no bypass, and
-  only an administrator updates it, so the Factory never merges. Open every pull request against
-  `main`. Squash merge is the normal shape.
-- Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent
-  writers get disjoint file sets and report to one named integrator.
-- Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not
-  create. Never rewrite shared history.
-- An approved increment includes its routine reversible implementation and checks. Do not ask for
-  approval of each mechanical step.
+- Trunk is `main`. Its rulesets require a pull request and the `verify` check with no bypass, and only an administrator updates it, so the Factory never merges. Open every pull request against `main`. Squash merge is the normal shape.
+- Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent writers get disjoint file sets and report to one named integrator.
+- Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create. Never rewrite shared history.
+- An approved increment includes its routine reversible implementation and checks. Do not ask for approval of each mechanical step.
 - One coherent increment per pull request. Link the issue. Use conventional commits.
-- Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and
-  commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
-- A contract change and its [operation ledger](../product/operation-ledger.md) change go in one
-  commit. `npm run wire:bijection` gates on an exact count.
-- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can
-  check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.
+- Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
+- A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
+- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.
