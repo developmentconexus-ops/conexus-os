@@ -156,7 +156,7 @@ export const registerApplicationHostRoutes = async (
         operation: request.params.operation,
         input: request.body,
         caller: authority.caller,
-        signal: callerLeft(reply),
+        callerLeft: callerLeft(reply),
       })
     } catch {
       return refuse(reply, 503, 'APPLICATION_RUNNER_UNAVAILABLE')

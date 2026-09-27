@@ -71,7 +71,7 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
             : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
         },
       },
-      invokeApplication: invokeApplication ?? (async ({ signal: _signal, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }),
+      invokeApplication: invokeApplication ?? (async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }),
     }),
   })
   t.after(() => app.close())
@@ -342,9 +342,9 @@ test('a caller that disconnects while its call waits aborts that call\'s signal'
   let invoked
   const waiting = new Promise((resolve) => { invoked = resolve })
   const { app } = await harness(t, {
-    invokeApplication: ({ signal }) => {
-      invoked(signal)
-      return once(signal, 'abort').then(() => ({ status: 200, body: {} }))
+    invokeApplication: ({ callerLeft }) => {
+      invoked(callerLeft)
+      return once(callerLeft, 'abort').then(() => ({ status: 200, body: {} }))
     },
   })
   const client = await callOverSocket(app)
@@ -365,8 +365,8 @@ test('a caller that disconnects before its call reaches the invoker hands the in
       await authorized.promise
       return { kind: 'SIGNED_IN', caller: EMPLOYEE }
     },
-    invokeApplication: async ({ signal }) => {
-      invoked.resolve(signal.aborted)
+    invokeApplication: async ({ callerLeft }) => {
+      invoked.resolve(callerLeft.aborted)
       return { status: 200, body: {} }
     },
   })

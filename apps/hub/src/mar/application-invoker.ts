@@ -37,8 +37,7 @@ export type ApplicationInvoker = (input: Readonly<{
   operation: string
   input: unknown
   caller: Caller
-  /** Ends this call's wait for a slot; an admitted call runs to its end. */
-  signal: AbortSignal
+  callerLeft: AbortSignal
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type ApplicationAdmissionLimits = Readonly<{
@@ -58,30 +57,22 @@ const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   perProjectConcurrency: 2,
   // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
   maxServerTreeBytes: 8 * 1024 * 1024,
-  // On the pilot a page's Connector read held its slot for up to 2 s, so a call queued behind it runs.
-  // A call that holds its slot longer, up to the broker's 4 s deadline, can still expire a wait.
+  // On the pilot a page's Connector read held its slot for up to 2 s; a call queued behind it runs.
   admissionQueueTimeoutMs: 3000,
-  // The longest line, for each Project and for the runner. A page opens with a handful of calls, so
-  // sixteen absorbs a few pages opening at once.
+  // Each Project's line and the runner's line hold up to this many. A page opens with a handful of calls,
+  // so sixteen absorbs a few pages opening at once.
   admissionQueueLimit: 16,
 })
 
-/**
- * A counting limit whose excess callers wait in a bounded first-in, first-out line. The line is
- * non-empty only while every slot is held, so a free slot means nobody is waiting.
- */
+// A line forms only while every slot is held, so a caller that takes a free slot never jumps the line.
 type Gate = Readonly<{
-  /** True once a slot is held; false when the line was full or the signal aborted first. */
   enter(signal: AbortSignal): Promise<boolean>
-  /** Frees a slot, handing it straight to the head of the line. */
   leave(): void
   readonly idle: boolean
 }>
 
 const createGate = (capacity: number, lineLimit: number): Gate => {
   let held = 0
-  // In arrival order. Deleting a waiter that was already admitted does nothing, so a late abort can never
-  // remove another waiter.
   const line = new Set<() => void>()
   return {
     enter: (signal) => {
@@ -129,24 +120,21 @@ export const createApplicationInvoker = (dependencies: Readonly<{
 }>): ApplicationInvoker => {
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
-  // A Project's gate is dropped once idle, so the Map holds only Projects with a call in flight.
   const projects = new Map<string, Gate>()
 
   return async (input) => {
     const { projectId } = input.source
-    // One deadline for both lines. The wait comes before the runner is invoked, so it spends the
-    // caller's request, not the sandbox's invocation timeout.
-    const signal = AbortSignal.any([input.signal, AbortSignal.timeout(limits.admissionQueueTimeoutMs)])
+    const waitEnds = AbortSignal.any([input.callerLeft, AbortSignal.timeout(limits.admissionQueueTimeoutMs)])
     const project = projects.get(projectId) ?? createGate(limits.perProjectConcurrency, limits.admissionQueueLimit)
     projects.set(projectId, project)
     const leaveProject = (): void => {
       project.leave()
       if (project.idle) projects.delete(projectId)
     }
-    if (!(await project.enter(signal))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
-    // The Project slot stays held while this call waits for the runner, so one Project has at most its
-    // own limit in the runner's line and a freed runner slot never waits on a Project.
-    if (!(await runner.enter(signal))) {
+    if (!(await project.enter(waitEnds))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
+    // The Project slot is taken first and held in the runner's line, which keeps each Project to its own
+    // limit there.
+    if (!(await runner.enter(waitEnds))) {
       leaveProject()
       return refusal(429, 'APPLICATION_RUNNER_BUSY')
     }

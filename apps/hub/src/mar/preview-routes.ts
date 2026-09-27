@@ -41,8 +41,6 @@ type RegistryReader = (input: Readonly<{
 export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
   registryReader: RegistryReader
-  // The admitted artifact's application API. The operation comes from the request path and must be one
-  // the artifact's own manifest declares; the Project, artifact and caller come from the Preview binding.
   invokeApplication?: ApplicationInvoker
   exactHubOrigin: string
   previewPort: number
@@ -82,9 +80,8 @@ export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
 
-// Aborts when the caller disconnects before its answer. The request stream, and Fastify's
-// `request.signal` with it, closes as soon as the body is read, so only the response tells. A caller
-// that left earlier finds the response already destroyed, and its close event is gone.
+// Fastify's `request.signal` aborts as soon as the body is read. Node's `request.raw.signal` behaves
+// like this helper, but @types/node 24.13.3 does not declare it.
 export const callerLeft = (reply: FastifyReply): AbortSignal => {
   if (reply.raw.destroyed) return AbortSignal.abort()
   const left = new AbortController()
@@ -241,7 +238,7 @@ export const registerPreviewRoutes = async (
           via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
           sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
         },
-        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, signal: callerLeft(reply),
+        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
