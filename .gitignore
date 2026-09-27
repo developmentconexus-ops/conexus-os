@@ -16,3 +16,4 @@ apps/hub/*-build-*/
 .DS_Store
 # Claude Code keeps local state here (launch.json, locks, worktrees).
 .claude/*
+.artifacts/
