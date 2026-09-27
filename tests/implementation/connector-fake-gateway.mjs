@@ -76,6 +76,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       }
       if (url.pathname === '/authenticate') {
         if (mode.authenticate === 'stall') return
+        if (mode.authenticate === 'echo-401') return send(401, `${record.xToken} ${record.form.client_id} ${record.form.client_secret} ${SECRET_MARKER} GTW3501`, SECRET_MARKER)
         if (mode.authenticate !== 'ok') return send(mode.authenticate, { error: 'invalid_client', error_description: SECRET_MARKER }, SECRET_MARKER)
         issued += 1
         return send(200, { access_token: `fake-token-${issued}`, expires_in: expiresInSeconds, refresh_expires_in: 0, token_type: 'Bearer', 'not-before-policy': 0, scope: 'profile' })
@@ -85,7 +86,6 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       if (service === 'stall') return
       if (service === 'refuse-first-token' && record.authorization === 'Bearer fake-token-1') return send(403, { error: { message: `GTW3403: Token de acesso expirado. ${SECRET_MARKER}` } }, SECRET_MARKER)
       if (service === 400) return send(400, { error: { message: `GTW3407: Não foi possível realizar login no ERP. ${SECRET_MARKER}` } }, SECRET_MARKER)
-      if (service === 'cut-code') return send(400, `${'x'.repeat(8 * 1024 - 11)} CORE_E01234 ${SECRET_MARKER}`, SECRET_MARKER)
       if (service === 'stalled-400') {
         response.writeHead(400, SECRET_MARKER, { 'content-type': 'application/json' })
         response.write(`{"error":{"message":"GTW3407: ${SECRET_MARKER}`)

@@ -21,7 +21,7 @@ export type Operation<I, O, S> = Readonly<{
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
-/** Made only by an adapter's strict pattern match on the provider's answer, never from its text as a whole. */
+/** Made only from an adapter's closed list of its provider's documented codes, never from provider text as such. */
 export type ProviderCode = string & { readonly __brand: 'ProviderCode' }
 export type EnvelopeStatus = string & { readonly __brand: 'EnvelopeStatus' }
 

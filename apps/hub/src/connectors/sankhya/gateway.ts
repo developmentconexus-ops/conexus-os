@@ -44,7 +44,14 @@ const RESPONSE_CAP_BYTES = 256 * 1024
 const FAILURE_READ_BYTES = 8 * 1024
 const FAILURE_READ_MS = 250
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
-const PROVIDER_CODE = /\b(GTW\d{4}|CORE_E\d{1,8})(?=\W)/
+// The prefixed codes of Sankhya's return-code table (developer.sankhya.com.br, "Códigos de retorno da
+// API"). Only one of these is recorded: provider text can echo a credential or an input shaped like a
+// code, and a closed list is the only match that cannot carry one.
+const SANKHYA_RETURN_CODES: ReadonlySet<string> = new Set([
+  'GTW2500', 'GTW2508', 'GTW2509', 'GTW2510', 'GTW2511', 'GTW3003',
+  'GTW3403', 'GTW3407', 'GTW3500', 'GTW3501', 'GTW3502', 'GTW3503',
+])
+const CODE_CANDIDATE = /\bGTW\d{4}\b/g
 const ENVELOPE_STATUS = /^\d{1,2}$/
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
@@ -64,7 +71,7 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
 const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
 const recordProviderCode = (text: string, answer: ProviderAnswer): void => {
-  const code = PROVIDER_CODE.exec(text)?.[1]
+  const code = text.match(CODE_CANDIDATE)?.find((candidate) => SANKHYA_RETURN_CODES.has(candidate))
   if (code) answer.providerCode = code as ProviderCode
 }
 

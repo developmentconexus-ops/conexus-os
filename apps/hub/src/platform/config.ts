@@ -344,5 +344,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.application && !config.builder) throw new Error('APPLICATION_BUILDER_RUNTIME_REQUIRED')
   // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
+  // Every Connector call to a provider is recorded in the Factory's Mastra storage (C-029); without the
+  // Factory there is no native record, so no gateway either.
+  if (config.connectors.gatewayOrigin && !config.factory) throw new Error('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
   return config
 }

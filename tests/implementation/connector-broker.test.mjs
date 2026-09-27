@@ -56,6 +56,7 @@ const setup = async (t, { extra = [], store = memoryStore(), deadlineMs, tokens,
 
 const CALL = Object.freeze({ consumer: 'handler', projectId: PROJECT, operation: READ })
 const LOAD = 'CRUDServiceProvider.loadRecords'
+const withoutRandomHexIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
 
 test('a handler call reads the order; the fake saw exactly authenticate and loadRecords with the fixed field lists', async (t) => {
   const { fake, facts, broker } = await setup(t)
@@ -224,7 +225,7 @@ test('P9 and P2: each gateway failure maps to its literal code and its span, and
     ]],
     [{ service: 'envelope-error' }, 'PROVIDER_ERROR', [
       auth({ error: false, httpStatus: 200, result: 'OK' }),
-      load({ error: true, httpStatus: 200, envelopeStatus: '0', providerCode: 'CORE_E01234', result: 'PROVIDER_ERROR' }),
+      load({ error: true, httpStatus: 200, envelopeStatus: '0', result: 'PROVIDER_ERROR' }),
     ]],
     [{ service: 'oversized' }, 'RESPONSE_REFUSED', [auth({ error: false, httpStatus: 200, result: 'OK' }), load({ error: true, httpStatus: 200, result: 'RESPONSE_REFUSED' })]],
   ]
@@ -252,8 +253,7 @@ test('a failing provider request is recorded with its HTTP status, envelope stat
   const cases = [
     [{ service: 400 }, { httpStatus: 400, providerCode: 'GTW3407' }],
     [{ service: 'stalled-400' }, { httpStatus: 400, providerCode: 'GTW3407' }],
-    [{ service: 'cut-code' }, { httpStatus: 400 }],
-    [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0', providerCode: 'CORE_E01234' }],
+    [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0' }],
   ]
   for (const [mode, answered] of cases) {
     const { fake, broker, facts, exporter } = await setup(t, { deadlineMs: 200 })
@@ -297,6 +297,28 @@ test('calls that share one authentication each record it: the issuer its request
   assert.deepEqual([names.filter(([name]) => name === 'authenticate'), names.filter(([name]) => name === LOAD).length], [[['authenticate', false]], 20], 'a shared success records one authentication and no shared failure')
 })
 
+test('a credential shaped like a provider code, echoed in an error body, is never recorded; a documented code is', async (t) => {
+  const shaped = Object.freeze({ clientId: 'GTW2468', clientSecret: 'CORE_E13579', xToken: 'GTW9753' })
+  const { fake, broker, facts, exporter, lines } = await setup(t, { store: memoryStore({ credential: await envelope.seal(JSON.stringify(shaped)) }) })
+  fake.mode.authenticate = 'echo-401'
+  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'CREDENTIAL_REFUSED' })
+  assert.deepEqual(await facts(), [
+    { name: 'connector.call', root: true, error: true, ...CALL, result: 'CREDENTIAL_REFUSED' },
+    { name: 'authenticate', root: false, error: true, ...CALL, step: 1, attempt: 1, httpStatus: 401, providerCode: 'GTW3501', result: 'AUTHENTICATION_REFUSED' },
+  ], 'only the documented code at the end of the body is recorded')
+  const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
+  for (const value of [...Object.values(shaped), SECRET_MARKER]) assert.equal(seen.includes(value), false, `${value} reached the record`)
+})
+
+test('an input refusal returns its key names to the calling handler only; the record keeps the code', async (t) => {
+  const { fake, broker, facts, exporter, lines } = await setup(t)
+  const key = `note-${SECRET_MARKER}`
+  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790, [key]: 1 }), { ok: false, code: 'INPUT_REFUSED', issues: [`/${key}`] })
+  assert.equal(fake.requests.length, 0)
+  assert.deepEqual(await facts(), [{ name: 'connector.call', root: true, error: true, ...CALL, result: 'INPUT_REFUSED' }])
+  assert.equal(JSON.stringify(exporter.events).includes(SECRET_MARKER) || lines.join('').includes(SECRET_MARKER), false, 'no input key reaches the record')
+})
+
 test('a refused first token is recorded as its attempt, and the retry as the next one', async (t) => {
   const { fake, broker, facts } = await setup(t)
   fake.mode.service = 'refuse-first-token'
@@ -323,12 +345,11 @@ test('a request reached after the deadline is never sent and never recorded', as
   assert.deepEqual(await facts(), [{ name: 'connector.call', root: true, error: true, result: 'PROVIDER_TIMEOUT' }])
 })
 
-const withoutRandomHexIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
 
 test('no credential, token, input, output or provider text reaches a tracing event or a log line, in any mode', async (t) => {
   const modes = [
     {}, { authenticate: 401 }, { authenticate: 500 }, { authenticate: 'stall' },
-    { service: 400 }, { service: 'stalled-400' }, { service: 'cut-code' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
+    { service: 400 }, { service: 'stalled-400' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
     { service: 'extra-field' }, { service: 'refuse-first-token' }, { service: 'stall' },
   ]
   const forbidden = [SECRET_MARKER, ...Object.values(FAKE_CREDENTIAL), 'fake-token-', '22790', 'Fornecedor Exemplo Ltda', 'Parafuso', '1520.50', '9001']
@@ -448,6 +469,7 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
   }
   assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })
   assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' })
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: SANKHYA_GATEWAY_ORIGINS[0] }), { message: 'CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED' }, 'no gateway without the Mastra storage that records its calls')
   assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), { message: 'INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR' })
   assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { gatewayOrigin: undefined, socketDirectory: '/run/conexus-connectors' })
 })

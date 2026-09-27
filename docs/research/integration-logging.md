@@ -90,9 +90,12 @@ Todas registram cada execução por padrão e tratam o conteúdo como uma quest�
   de comunicação interna (`GTW2508`, `GTW3003`, `GTW3500`) e falha de login no ERP (`GTW3407`).
   Erros de regra de negócio chegam com HTTP 200 e uma mensagem `[CORE_Exxxxx]`.
 - A página não documenta o formato JSON do corpo de erro nem os valores do `status` do envelope.
-  Por isso o gateway procura o código no texto da resposta com um padrão estrito
-  (`GTW` com quatro dígitos, ou `CORE_E` com dígitos) e só o código sai do arquivo. Dois códigos
-  de 403 da tabela (`4405`, `4303`) não têm prefixo, e o registro guarda só o status HTTP deles.
+  Por isso o gateway procura o código no texto da resposta e só registra um dos doze códigos
+  `GTW` da tabela, uma lista fechada. Um padrão aberto registraria também uma credencial ou uma
+  entrada com formato de código que o provedor ecoasse no erro, e o filtro por nome de campo não
+  pega isso. Os códigos `CORE_E` não têm lista publicada, e os dois de 403 sem prefixo (`4405`,
+  `4303`) não se distinguem de outros números. Nesses casos o registro guarda o status HTTP e o
+  `status` do envelope, sem código.
 - O limite é de 1.000 requisições por minuto, em produção e em sandbox.
 
 Um `GTW3407` num 400 logo depois de um token novo explicaria uma primeira leitura que falha e
