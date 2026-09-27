@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { Mastra } from '@mastra/core/mastra'
+import { SpanType } from '@mastra/core/observability'
+import { InMemoryStore } from '@mastra/core/storage'
+import { MastraStorageExporter } from '@mastra/observability'
 import { z } from 'zod'
 import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, HEADER_FIELDS, ITEM_FIELDS, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBuilderObservability } = await import(hubModuleUrl('builder/module.js'))
 const { createTokenCache } = await import(hubModuleUrl('connectors/token-cache.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -37,20 +43,21 @@ const memoryStore = ({ granted = [READ], credential = sealed } = {}) => {
 const setup = async (t, { extra = [], store = memoryStore(), deadlineMs, tokens, adapter = true, expiresInSeconds } = {}) => {
   const fake = await startFakeGateway({ ...(expiresInSeconds ? { expiresInSeconds } : {}) })
   t.after(() => fake.close())
-  const audit = []
+  const record = connectorRecord()
   const gateway = createSankhyaGateway({ origin: fake.origin })
   const broker = createBroker({
     connectors: [{ definition: sankhyaDefinition, adapter: adapter ? gateway : null }, ...extra.map((definition) => ({ definition, adapter: gateway }))],
-    store, envelope, audit: (line) => audit.push(line), clock: () => 0,
+    store, envelope, observability: record.observability,
     ...(deadlineMs ? { deadlineMs } : {}), ...(tokens ? { tokens } : {}),
   })
-  return { fake, audit, broker, store, gateway }
+  return { fake, broker, store, gateway, ...record }
 }
 
-const auditLine = (fields) => `${JSON.stringify({ event: 'connector.call', consumer: 'handler', projectId: PROJECT, operation: READ, services: [], result: 'OK', ms: 0, ...fields })}\n`
+const CALL = Object.freeze({ consumer: 'handler', projectId: PROJECT, operation: READ })
+const LOAD = 'CRUDServiceProvider.loadRecords'
 
 test('a handler call reads the order; the fake saw exactly authenticate and loadRecords with the fixed field lists', async (t) => {
-  const { fake, audit, broker } = await setup(t)
+  const { fake, facts, broker } = await setup(t)
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
   assert.deepEqual(fake.requests.map((request) => [request.method, request.path, request.serviceName, request.outputType]), [
     ['POST', '/authenticate', null, null],
@@ -75,7 +82,12 @@ test('a handler call reads the order; the fake saw exactly authenticate and load
     criteria: { expression: { $: 'this.NUNOTA IN (?)' }, parameter: [{ $: '9001', type: 'I' }] },
     entity: [{ path: '', fieldset: { list: ITEM_FIELDS } }, { path: 'Produto', fieldset: { list: 'DESCRPROD' } }],
   })
-  assert.deepEqual(audit, [auditLine({ services: ['CRUDServiceProvider.loadRecords', 'CRUDServiceProvider.loadRecords'] })])
+  assert.deepEqual(await facts(), [
+    { name: 'connector.call', root: true, error: false, ...CALL, result: 'OK' },
+    { name: 'authenticate', root: false, error: false, ...CALL, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...CALL, step: 2, attempt: 1, httpStatus: 200, envelopeStatus: '1', result: 'OK' },
+    { name: LOAD, root: false, error: false, ...CALL, step: 3, attempt: 1, httpStatus: 200, envelopeStatus: '1', result: 'OK' },
+  ])
 })
 
 test('a document number with no order answers an empty list after one loadRecords', async (t) => {
@@ -145,27 +157,31 @@ test('P4 (G0): a write operation is EFFECT_REFUSED and a service outside the all
     ],
   }
   const store = memoryStore({ granted: [READ, 'test.order.write', 'test.order.other-service'] })
-  const { fake, broker, audit } = await setup(t, { extra: [writer], store })
+  const { fake, broker, facts } = await setup(t, { extra: [writer], store })
   assert.deepEqual(await broker.call(consumer, 'test.order.write', {}), { ok: false, code: 'EFFECT_REFUSED' })
   assert.deepEqual(store.calls, [], 'refused before the database')
   assert.deepEqual(await broker.call(consumer, 'test.order.other-service', {}), { ok: false, code: 'SERVICE_REFUSED' })
   assert.deepEqual(fake.requests, [], 'refused before the network, authentication included')
-  assert.deepEqual(audit, [
-    auditLine({ operation: 'test.order.write', result: 'EFFECT_REFUSED' }),
-    auditLine({ operation: 'test.order.other-service', result: 'SERVICE_REFUSED' }),
-  ])
+  assert.deepEqual(await facts(), [
+    { name: 'connector.call', root: true, error: true, ...CALL, operation: 'test.order.write', result: 'EFFECT_REFUSED' },
+    { name: 'connector.call', root: true, error: true, ...CALL, operation: 'test.order.other-service', result: 'SERVICE_REFUSED' },
+  ], 'a refused service records no provider request')
 })
 
 test('an unknown operation, an ungranted one and an unminted scope refuse before the network', async (t) => {
   const store = memoryStore({ granted: [] })
-  const { fake, broker, audit } = await setup(t, { store })
+  const { fake, broker, facts } = await setup(t, { store })
   assert.deepEqual(await broker.call(consumer, 'sankhya.everything.read', {}), { ok: false, code: 'OPERATION_UNKNOWN' })
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'NOT_GRANTED' })
   store.grants.add(READ)
   const forged = { kind: 'handler', invocationId: 'x', scope: { projectId: PROJECT, environment: 'preview' } }
   assert.deepEqual(await broker.call(forged, READ, { documentNumber: 22790 }), { ok: false, code: 'NOT_GRANTED' })
   assert.equal(fake.requests.length, 0)
-  assert.equal(audit[0], auditLine({ operation: null, result: 'OPERATION_UNKNOWN' }))
+  assert.deepEqual(await facts(), [
+    { name: 'connector.call', root: true, error: true, ...CALL, operation: null, result: 'OPERATION_UNKNOWN' },
+    { name: 'connector.call', root: true, error: true, ...CALL, result: 'NOT_GRANTED' },
+    { name: 'connector.call', root: true, error: true, ...CALL, projectId: null, result: 'NOT_GRANTED' },
+  ], 'an unknown id is never recorded, and an unminted scope records no Project')
 })
 
 test('P5: an extra provider field is dropped, an oversized body is RESPONSE_REFUSED and a stalled gateway is PROVIDER_TIMEOUT', async (t) => {
@@ -191,22 +207,34 @@ test('P5: an extra provider field is dropped, an oversized body is RESPONSE_REFU
   assert.ok(Date.now() - started < 2000)
 })
 
-test('P9 and P2: each gateway failure maps to its literal code, and no provider value reaches a result or an audit line', async (t) => {
+test('P9 and P2: each gateway failure maps to its literal code and its span, and no provider value reaches a result or a record', async (t) => {
+  const auth = (fields) => ({ name: 'authenticate', root: false, ...CALL, step: 1, attempt: 1, ...fields })
+  const load = (fields) => ({ name: LOAD, root: false, ...CALL, step: 2, attempt: 1, ...fields })
   const cases = [
-    [{ authenticate: 401 }, 'CREDENTIAL_REFUSED'],
-    [{ authenticate: 500 }, 'PROVIDER_UNAVAILABLE'],
-    [{ authenticate: 'stall' }, 'PROVIDER_TIMEOUT'],
-    [{ service: 500 }, 'PROVIDER_UNAVAILABLE'],
-    [{ service: 401 }, 'CREDENTIAL_REFUSED'],
-    [{ service: 'envelope-error' }, 'PROVIDER_ERROR'],
-    [{ service: 'oversized' }, 'RESPONSE_REFUSED'],
+    [{ authenticate: 401 }, 'CREDENTIAL_REFUSED', [auth({ error: true, httpStatus: 401, result: 'AUTHENTICATION_REFUSED' })]],
+    [{ authenticate: 500 }, 'PROVIDER_UNAVAILABLE', [auth({ error: true, httpStatus: 500, result: 'UNAVAILABLE' })]],
+    [{ authenticate: 'stall' }, 'PROVIDER_TIMEOUT', [auth({ error: true, result: 'TIMEOUT' })]],
+    [{ service: 500 }, 'PROVIDER_UNAVAILABLE', [auth({ error: false, httpStatus: 200, result: 'OK' }), load({ error: true, httpStatus: 500, result: 'UNAVAILABLE' })]],
+    [{ service: 401 }, 'CREDENTIAL_REFUSED', [
+      auth({ error: false, httpStatus: 200, result: 'OK' }),
+      load({ error: true, httpStatus: 401, result: 'TOKEN_REFUSED' }),
+      auth({ error: false, step: 3, attempt: 2, httpStatus: 200, result: 'OK' }),
+      load({ error: true, step: 4, attempt: 2, httpStatus: 401, result: 'TOKEN_REFUSED' }),
+    ]],
+    [{ service: 'envelope-error' }, 'PROVIDER_ERROR', [
+      auth({ error: false, httpStatus: 200, result: 'OK' }),
+      load({ error: true, httpStatus: 200, envelopeStatus: '0', providerCode: 'CORE_E01234', result: 'PROVIDER_ERROR' }),
+    ]],
+    [{ service: 'oversized' }, 'RESPONSE_REFUSED', [auth({ error: false, httpStatus: 200, result: 'OK' }), load({ error: true, httpStatus: 200, result: 'RESPONSE_REFUSED' })]],
   ]
-  for (const [mode, code] of cases) {
-    const { fake, broker, audit } = await setup(t, { deadlineMs: 300 })
+  for (const [mode, code, requests] of cases) {
+    const { fake, broker, facts, lines } = await setup(t, { deadlineMs: 300 })
     Object.assign(fake.mode, mode)
     const result = await broker.call(consumer, READ, { documentNumber: 22790 })
     assert.deepEqual(result, { ok: false, code }, JSON.stringify(mode))
-    const seen = JSON.stringify(result) + audit.join('')
+    const spans = await facts()
+    assert.deepEqual(spans, [{ name: 'connector.call', root: true, error: true, ...CALL, result: code }, ...requests], JSON.stringify(mode))
+    const seen = JSON.stringify(result) + JSON.stringify(spans) + lines.join('')
     for (const secret of [SECRET_MARKER, FAKE_CREDENTIAL.clientSecret, FAKE_CREDENTIAL.xToken, FAKE_CREDENTIAL.clientId, 'fake-token-']) {
       assert.equal(seen.includes(secret), false, `${secret} leaked for ${JSON.stringify(mode)}`)
     }
@@ -214,9 +242,126 @@ test('P9 and P2: each gateway failure maps to its literal code, and no provider 
 
   const unreachable = createBroker({
     connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) }],
-    store: memoryStore(), envelope, audit: () => undefined,
+    store: memoryStore(), envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await unreachable.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
+})
+
+test('a failing provider request is recorded with its HTTP status, envelope status, provider code, step and attempt', async (t) => {
+  const cases = [
+    [{ service: 400 }, { httpStatus: 400, providerCode: 'GTW3407' }],
+    [{ service: 'stalled-400' }, { httpStatus: 400, providerCode: 'GTW3407' }],
+    [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0', providerCode: 'CORE_E01234' }],
+  ]
+  for (const [mode, answered] of cases) {
+    const { fake, broker, facts, exporter } = await setup(t)
+    Object.assign(fake.mode, mode)
+    assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'PROVIDER_ERROR' }, JSON.stringify(mode))
+    assert.deepEqual(await facts(), [
+      { name: 'connector.call', root: true, error: true, ...CALL, result: 'PROVIDER_ERROR' },
+      { name: 'authenticate', root: false, error: false, ...CALL, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
+      { name: LOAD, root: false, error: true, ...CALL, step: 2, attempt: 1, ...answered, result: 'PROVIDER_ERROR' },
+    ], JSON.stringify(mode))
+    const spans = exporter.getCompletedSpans()
+    const [root] = spans
+    for (const span of spans) {
+      assert.ok(span.startTime instanceof Date && span.endTime instanceof Date && span.endTime >= span.startTime, `${span.name} has a start and an end`)
+      assert.equal(span.traceId, root.traceId, `${span.name} belongs to the call's trace`)
+    }
+    assert.deepEqual(spans.map((span) => span.parentSpanId ?? null), [null, root.id, root.id], 'each request is a child of the call')
+    assert.deepEqual(spans.map((span) => span.errorInfo?.message ?? null), ['PROVIDER_ERROR', null, 'PROVIDER_ERROR'], 'an error carries its closed code only')
+  }
+})
+
+test('a refused first token is recorded as its attempt, and the retry as the next one', async (t) => {
+  const { fake, broker, facts } = await setup(t)
+  fake.mode.service = 'refuse-first-token'
+  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
+  assert.equal(fake.issued(), 2)
+  const loaded = { httpStatus: 200, envelopeStatus: '1', result: 'OK' }
+  assert.deepEqual(await facts(), [
+    { name: 'connector.call', root: true, error: false, ...CALL, result: 'OK' },
+    { name: 'authenticate', root: false, error: false, ...CALL, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
+    { name: LOAD, root: false, error: true, ...CALL, step: 2, attempt: 1, httpStatus: 403, providerCode: 'GTW3403', result: 'TOKEN_REFUSED' },
+    { name: 'authenticate', root: false, error: false, ...CALL, step: 3, attempt: 2, httpStatus: 200, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...CALL, step: 4, attempt: 2, ...loaded },
+    { name: LOAD, root: false, error: false, ...CALL, step: 5, attempt: 2, ...loaded },
+  ])
+})
+
+// Ids are random hex; a value could match inside one by chance, so they are left out of the scan.
+const withoutIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
+
+test('no credential, token, input, output or provider text reaches a tracing event or a log line, in any mode', async (t) => {
+  const modes = [
+    {}, { authenticate: 401 }, { authenticate: 500 }, { authenticate: 'stall' },
+    { service: 400 }, { service: 'stalled-400' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
+    { service: 'extra-field' }, { service: 'refuse-first-token' }, { service: 'stall' },
+  ]
+  const forbidden = [SECRET_MARKER, ...Object.values(FAKE_CREDENTIAL), 'fake-token-', '22790', 'Fornecedor Exemplo Ltda', 'Parafuso', '1520.50', '9001']
+  for (const mode of modes) {
+    const { fake, broker, observability, exporter, lines } = await setup(t, { deadlineMs: 300 })
+    Object.assign(fake.mode, mode)
+    await broker.call(consumer, READ, { documentNumber: 22790 })
+    await broker.checkCredential('sankhya', CONNECTION)
+    await observability.flush()
+    assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
+    const seen = withoutIds(exporter.events) + withoutIds(lines.map((line) => JSON.parse(line)))
+    for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} leaked for ${JSON.stringify(mode)}`)
+  }
+})
+
+test('a credential or token field a span carries by mistake is redacted by the Connector filter', async () => {
+  const { observability, exporter, lines } = connectorRecord()
+  const secrets = { clientId: FAKE_CREDENTIAL.clientId, clientSecret: FAKE_CREDENTIAL.clientSecret, xToken: FAKE_CREDENTIAL.xToken, access_token: 'fake-token-1' }
+  observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: secrets }).end()
+  await observability.flush()
+  const redacted = { clientId: '[REDACTED]', clientSecret: '[REDACTED]', xToken: '[REDACTED]', access_token: '[REDACTED]' }
+  assert.deepEqual(exporter.events.map((event) => [event.type, event.exportedSpan.metadata]), [['span_started', redacted], ['span_ended', redacted]])
+  assert.deepEqual(lines.map((line) => JSON.parse(line)).map(({ clientId, clientSecret, xToken, access_token }) => ({ clientId, clientSecret, xToken, access_token })), [redacted])
+  const seen = JSON.stringify(exporter.events) + lines.join('')
+  for (const value of Object.values(secrets)) assert.equal(seen.includes(value), false, `${value} reached the record`)
+})
+
+test('the log line of each ended span carries the stored span\'s own facts: one record, not two', async (t) => {
+  const { broker, observability, exporter, lines } = await setup(t)
+  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
+  await observability.flush()
+  const logged = lines.map((line) => JSON.parse(line))
+  assert.equal(lines.every((line) => line.endsWith('\n') && !line.slice(0, -1).includes('\n')), true, 'one line per span')
+  assert.deepEqual(logged.map((line) => line.span), ['authenticate', LOAD, LOAD, 'connector.call'], 'one line per ended span, in end order')
+  const bySpan = (entries) => [...entries].sort((a, b) => a.spanId.localeCompare(b.spanId))
+  const stored = exporter.getCompletedSpans().map((span) => ({
+    span: span.name, traceId: span.traceId, spanId: span.id, parentSpanId: span.parentSpanId ?? null,
+    startedAt: span.startTime.toISOString(), ms: span.endTime - span.startTime, ...span.metadata,
+  }))
+  assert.deepEqual(bySpan(logged), bySpan(stored))
+  const root = logged.find((line) => line.span === 'connector.call')
+  assert.deepEqual(logged.map((line) => [line.span, line.traceId === root.traceId, line.parentSpanId]), [
+    ['authenticate', true, root.spanId], [LOAD, true, root.spanId], [LOAD, true, root.spanId], ['connector.call', true, null],
+  ])
+})
+
+test('the Hub\'s Mastra keeps the Connector record in its own storage, and the Builder stays its default instance', async (t) => {
+  const fake = await startFakeGateway()
+  t.after(() => fake.close())
+  const record = connectorRecord({ store: new MastraStorageExporter() })
+  const observability = createBuilderObservability('conexus-builder-factory', record.observability)
+  const mastra = new Mastra({ storage: new InMemoryStore(), observability, logger: false })
+  t.after(() => observability.shutdown())
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store: memoryStore(), envelope, observability: record.observability })
+  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
+  await observability.flush()
+  const { traceId } = record.lines.map((line) => JSON.parse(line)).find((line) => line.span === 'connector.call')
+  const trace = await (await mastra.getStorage().getStore('observability')).getTrace({ traceId })
+  const stored = trace.spans.map((span) => ({ name: span.name, root: !span.parentSpanId, ...span.metadata })).sort((a, b) => (a.step ?? 0) - (b.step ?? 0))
+  assert.deepEqual(stored, [
+    { name: 'connector.call', root: true, ...CALL, result: 'OK' },
+    { name: 'authenticate', root: false, ...CALL, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
+    { name: LOAD, root: false, ...CALL, step: 2, attempt: 1, httpStatus: 200, envelopeStatus: '1', result: 'OK' },
+    { name: LOAD, root: false, ...CALL, step: 3, attempt: 1, httpStatus: 200, envelopeStatus: '1', result: 'OK' },
+  ])
+  assert.equal(observability.getDefaultInstance().getConfig().serviceName, 'conexus-builder-factory')
 })
 
 test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, for a call and for a credential check', async (t) => {
@@ -228,12 +373,21 @@ test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, f
 })
 
 test('a credential check runs the allow-listed authentication alone and caches nothing', async (t) => {
-  const { fake, broker } = await setup(t)
+  const { fake, broker, facts } = await setup(t)
   assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: true, value: null })
   fake.mode.authenticate = 401
   assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CREDENTIAL_REFUSED' })
   assert.deepEqual(fake.requests.map((request) => request.path), ['/authenticate', '/authenticate'])
   assert.deepEqual(await broker.checkCredential('sankhya', '44444444-4444-4444-8444-444444444444'), { ok: false, code: 'NOT_GRANTED' })
+  const check = { name: 'connector.check', root: true, connector: 'sankhya' }
+  const auth = { name: 'authenticate', root: false, connector: 'sankhya', step: 1, attempt: 1 }
+  assert.deepEqual(await facts(), [
+    { ...check, error: false, result: 'OK' },
+    { ...auth, error: false, httpStatus: 200, result: 'OK' },
+    { ...check, error: true, result: 'CREDENTIAL_REFUSED' },
+    { ...auth, error: true, httpStatus: 401, result: 'AUTHENTICATION_REFUSED' },
+    { ...check, error: true, result: 'NOT_GRANTED' },
+  ])
 })
 
 test('the broker lists only the granted operations of a minted scope', async (t) => {

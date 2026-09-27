@@ -1,14 +1,17 @@
+import type { ObservabilityInstance } from '@mastra/core/observability'
+import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
-import type { AuditSink, Broker, RegisteredConnector } from './broker.js'
+import type { Broker, RegisteredConnector } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
 import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
+import { createConnectorObservability } from './record.js'
 import type { CheckConnection, CheckConnectionOutcome } from './routes.js'
 import { registerConnectorRoutes } from './routes.js'
 import { sankhyaDefinition, SANKHYA_OPERATION_IDS } from './sankhya/definition.js'
@@ -30,6 +33,8 @@ export type ConnectorModule = Readonly<{
    * makes no network call. */
   builderBrief(projectId: string): Promise<string>
   broker: Broker
+  /** The Connector record; the Builder registers it on the Hub's Mastra, whose storage then keeps its traces. */
+  observability: ObservabilityInstance
 }>
 
 const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, CheckConnectionOutcome | 'NOT_FOUND'>>> = Object.freeze({
@@ -51,7 +56,7 @@ export const createConnectorModule = ({
   isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
-  audit = (line) => { process.stderr.write(line) },
+  log = (line) => { process.stderr.write(line) },
 }: Readonly<{
   /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
    * exactly as the application-access functions are (no new login role, no new pilot secret). */
@@ -63,15 +68,21 @@ export const createConnectorModule = ({
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
   socketDirectory?: string | undefined
-  audit?: AuditSink
+  /** Receives one JSON line per ended span of the Connector record. */
+  log?: (line: string) => void
 }>): ConnectorModule => {
   const store = createConnectorStore({ pool, envelope })
   const brokerStore = createBrokerStore(pool)
   const registeredConnectors: readonly RegisteredConnector[] = [
     { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
   ]
-  const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, audit })
-  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore, audit })
+  const observability = createConnectorObservability({
+    store: new MastraStorageExporter(),
+    log,
+    secretFields: registeredConnectors.flatMap(({ definition }) => definition.secretFields),
+  })
+  const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, observability })
+  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {
@@ -114,5 +125,6 @@ export const createConnectorModule = ({
       }
     },
     broker,
+    observability,
   })
 }

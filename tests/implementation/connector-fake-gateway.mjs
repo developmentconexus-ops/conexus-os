@@ -53,7 +53,10 @@ const loadRecords = (dataSet, options) => {
 
 /**
  * `mode` picks one failure at a time: authenticate one of 'ok' | 401 | 500 | 'stall'; service one of
- * 'ok' | 401 | 500 | 'envelope-error' | 'oversized' | 'extra-field' | 'stall' | 'refuse-first-token'.
+ * 'ok' | 400 | 'stalled-400' | 401 | 500 | 'envelope-error' | 'oversized' | 'extra-field' | 'stall' | 'refuse-first-token'.
+ * 'stalled-400' sends a 400 and the start of its body, then never ends it. Every failure carries the
+ * secret marker; the 400s, the refused first token and the error envelope also carry a code of
+ * Sankhya's return-code table, which a record may keep without the text around it.
  */
 export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
   const requests = []
@@ -87,9 +90,16 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       if (url.pathname !== '/gateway/v1/mge/service.sbr') return send(404, { error: SECRET_MARKER })
       const service = mode.service
       if (service === 'stall') return
-      if (service === 401 || (service === 'refuse-first-token' && record.authorization === 'Bearer fake-token-1')) return send(401, { error: 'invalid_token', detail: SECRET_MARKER }, SECRET_MARKER)
+      if (service === 'refuse-first-token' && record.authorization === 'Bearer fake-token-1') return send(403, { error: { message: `GTW3403: Token de acesso expirado. ${SECRET_MARKER}` } }, SECRET_MARKER)
+      if (service === 400) return send(400, { error: { message: `GTW3407: Não foi possível realizar login no ERP. ${SECRET_MARKER}` } }, SECRET_MARKER)
+      if (service === 'stalled-400') {
+        response.writeHead(400, SECRET_MARKER, { 'content-type': 'application/json' })
+        response.write(`{"error":{"message":"GTW3407: ${SECRET_MARKER}`)
+        return
+      }
+      if (service === 401) return send(401, { error: 'invalid_token', detail: SECRET_MARKER }, SECRET_MARKER)
       if (service === 500) return send(500, `<html>${SECRET_MARKER}</html>`, SECRET_MARKER)
-      if (service === 'envelope-error') return send(200, { serviceName: record.serviceName, status: '0', statusMessage: `Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
+      if (service === 'envelope-error') return send(200, { serviceName: record.serviceName, status: '0', statusMessage: `[CORE_E01234] Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'oversized') return send(200, { serviceName: record.serviceName, status: '1', padding: 'x'.repeat(300 * 1024) })
       return send(200, {
         serviceName: record.serviceName, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,

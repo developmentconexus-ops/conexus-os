@@ -21,13 +21,21 @@ export type Operation<I, O, S> = Readonly<{
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
-/** Records each provider service a session called, by its constant name, for the audit line. */
-export type ServiceTrace = Readonly<{ called(service: string): void }>
+/**
+ * What one provider request answered, as the adapter learns it. Value-free by construction: the
+ * adapter sets a field only from a number or a strict pattern, never from provider text.
+ */
+export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: string; providerCode?: string }
+
+/** Records the provider requests of one call: `request` runs `send` as one request, in order. */
+export type RequestTrace = Readonly<{
+  request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T>
+}>
 
 export type Adapter<Cred, S> = Readonly<{
-  authenticate(credential: Redacted<Cred>, signal: AbortSignal): Promise<IssuedToken>
+  authenticate(credential: Redacted<Cred>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken>
   /** The session asks `token` only after it has admitted the service, so a refused service never reaches the network. */
-  open(token: TokenLease, signal: AbortSignal, trace: ServiceTrace): S
+  open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): S
 }>
 
 export type ConnectorDefinition<Cred, S> = Readonly<{
@@ -38,9 +46,11 @@ export type ConnectorDefinition<Cred, S> = Readonly<{
   // biome-ignore lint/suspicious/noExplicitAny: design only, no event exists yet
   events: readonly ConnectorEvent<any>[]
   builderSkill: string
+  /** The field names that carry this Connector's credential or token; the call record's filter redacts them wherever they appear. */
+  secretFields: readonly string[]
 }>
 
-/** Who asks. Only the scope selects the grant; the kind and reference label the audit line. */
+/** Who asks. Only the scope selects the grant; the kind labels the call's record, the reference is never recorded. */
 export type Consumer =
   | Readonly<{ kind: 'handler'; invocationId: string; scope: ConsumerScope }>
   | Readonly<{ kind: 'agent'; sessionId: string; scope: ConsumerScope }>

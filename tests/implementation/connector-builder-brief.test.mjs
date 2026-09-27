@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { z } from 'zod'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
@@ -20,6 +21,7 @@ const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
 const storeOf = (granted) => ({ listGrantedCapabilities: async () => granted.map((capabilityId) => ({ capabilityKind: 'operation', capabilityId })) })
 
 const connectors = Object.freeze([{ definition: sankhyaDefinition, adapter: null }])
+const briefOf = (store, record = connectorRecord()) => createConnectorBrief({ connectors, store, observability: record.observability })
 
 // The wire vocabulary the brief and the Skill must never carry: Sankhya field, entity and service
 // names, credential material, and the pinned gateway origins.
@@ -31,12 +33,12 @@ const FORBIDDEN = [
 ]
 
 test('a Project with no open grant gets an empty brief', async () => {
-  const brief = createConnectorBrief({ connectors, store: storeOf([]) })
+  const brief = briefOf(storeOf([]))
   assert.equal(await brief(scope), '')
 })
 
 test('a Project with the grant gets a brief naming the operation and both its JSON Schemas', async () => {
-  const brief = createConnectorBrief({ connectors, store: storeOf([READ]) })
+  const brief = briefOf(storeOf([READ]))
   const text = await brief(scope)
   assert.ok(text.includes(READ))
   assert.ok(text.includes(sankhyaDefinition.operations[0].summary))
@@ -49,36 +51,33 @@ test('a Project with the grant gets a brief naming the operation and both its JS
 test('a revoked grant gets an empty brief again', async () => {
   const grants = new Set([READ])
   const store = { listGrantedCapabilities: async () => [...grants].map((capabilityId) => ({ capabilityKind: 'operation', capabilityId })) }
-  const brief = createConnectorBrief({ connectors, store })
+  const brief = briefOf(store)
   assert.ok((await brief(scope)).includes(READ))
   grants.delete(READ)
   assert.equal(await brief(scope), '')
 })
 
-test('an unreadable store answers the fixed notice, audits a code with no store detail, and names no operation', async () => {
+test('an unreadable store answers the fixed notice, records a code with no store detail, and names no operation', async () => {
   const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
-  const audited = []
-  const brief = createConnectorBrief({
-    connectors,
-    store: { listGrantedCapabilities: async () => { throw new Error('permission denied for function list_granted_capabilities STORE_DETAIL_MARKER') } },
-    audit: (line) => { audited.push(line) },
-  })
+  const record = connectorRecord()
+  const brief = briefOf({ listGrantedCapabilities: async () => { throw new Error('permission denied for function list_granted_capabilities STORE_DETAIL_MARKER') } }, record)
   const text = await brief(scope)
   assert.equal(text, CONNECTOR_BRIEF_UNAVAILABLE)
-  assert.deepEqual(audited.map((line) => JSON.parse(line)), [{ event: 'connector.brief', result: 'STORE_UNAVAILABLE' }])
+  assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId: PROJECT, result: 'STORE_UNAVAILABLE' }])
+  assert.equal(JSON.stringify(record.exporter.events).includes('STORE_DETAIL_MARKER') || record.lines.join('').includes('STORE_DETAIL_MARKER'), false, 'no store detail is recorded')
   for (const term of [READ, 'STORE_DETAIL_MARKER', sankhyaDefinition.builderSkill, ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
 
-  const sinkFails = createConnectorBrief({ connectors, store: { listGrantedCapabilities: async () => { throw new Error('down') } }, audit: () => { throw new Error('sink down') } })
+  const sinkFails = briefOf({ listGrantedCapabilities: async () => { throw new Error('down') } }, connectorRecord({ log: () => { throw new Error('sink down') } }))
   assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
 test('a scope this module did not mint gets an empty brief, whatever the store would answer', async () => {
-  const brief = createConnectorBrief({ connectors, store: storeOf([READ]) })
+  const brief = briefOf(storeOf([READ]))
   assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), '')
 })
 
 test('the brief and the Skill carry none of the forbidden wire vocabulary', async () => {
-  const brief = createConnectorBrief({ connectors, store: storeOf([READ]) })
+  const brief = briefOf(storeOf([READ]))
   const text = await brief(scope)
   for (const term of FORBIDDEN) {
     assert.equal(text.includes(term), false, `brief must not contain ${term}`)
@@ -94,7 +93,7 @@ test('the module answers an empty brief, never a throw, for a Project id it cann
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => null,
     isInstallationAdministrator: async () => false,
-    audit: () => {},
+    log: () => {},
   })
   assert.equal(await module.builderBrief('not-a-uuid'), '')
 })

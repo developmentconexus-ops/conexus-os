@@ -13,6 +13,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
 import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { connectorRecord } from './connector-record.mjs'
 
 // The real runner path: a supervisor that provisions with app_provisioner, migrates and invokes
 // through the rootless bubblewrap worker and the pinned database relay. Needs unprivileged user
@@ -398,7 +399,7 @@ const connectorSetup = async (t, sandbox) => {
     readConnectionCredential: async () => sealed,
     listGrantedCapabilities: async () => [],
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, audit: () => undefined })
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
   const ports = createHandlerPorts({ directory: socketDir, broker })
   await ports.sweep()
   const open = async (projectId) => {

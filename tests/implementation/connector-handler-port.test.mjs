@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, startFakeGateway } from './connector-fake-gateway.mjs'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
@@ -113,7 +114,7 @@ test('P6: another Project in the input or in extra body keys never changes the r
     readConnectionCredential: async () => sealed,
     listGrantedCapabilities: async () => [],
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, audit: () => undefined })
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
   const port = await createHandlerPorts({ directory: socketDirectory(t), broker }).open(scope)
   t.after(() => port.close())
 

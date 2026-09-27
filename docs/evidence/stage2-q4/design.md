@@ -84,7 +84,7 @@ type Broker = Readonly<{
 }>
 ```
 
-`Consumer.kind` and its reference only label the audit line. The scope alone selects the grant, and
+`Consumer.kind` labels the call's record, and its reference is never recorded. The scope alone selects the grant, and
 the input's Zod schema has no scope field, so no input can change the resolved grant (P6).
 
 `AccessToken` is an opaque class. `toJSON`, `toString` and `util.inspect.custom` render
@@ -127,12 +127,18 @@ header, status text or token crosses the broker.
    and authenticates; `work` runs the operation on a session opened with the token.
 7. Parse the output with the operation's Zod output. Unknown keys are dropped; a failed parse is
    `RESPONSE_REFUSED`.
-8. Write one audit line: consumer kind, Project, operation, the service names called (constants),
-   result and milliseconds. No input, output, token or credential. This is the per-call record G0
-   asks for.
+8. End the call's Mastra span, `connector.call`, with its result. The span holds the consumer kind,
+   the Project and the operation. Each provider request, `authenticate` included, is a child span with
+   its service or endpoint name, step, attempt, HTTP status, envelope status, a provider code only when
+   it matches `GTW\d{4}` or `CORE_E\d+`, and its result. No input, output, body, token or credential.
+   A Mastra exporter writes each ended span as one JSON line on stderr, so the log and the stored trace
+   are one record. This is the per-call record G0 asks for.
 
-The broker is not traced. The census explains why: `SensitiveDataFilter` would not redact `xToken` or
-`access_token`, so P2 holds by the credential and the token never entering a span.
+The broker is traced, under [C-029](../../decisions/index.md) (2026-09-26), in
+`apps/hub/src/connectors/record.ts`. P2 holds first because the broker and the gateway hand a span only
+closed codes, numbers, ids and constant names. As a second line, the Connector's observability instance
+runs `SensitiveDataFilter` twice: with Mastra's default list, and with each Definition's
+`secretFields` (`clientId`, `clientSecret`, `xToken`, `access_token`), which the defaults miss.
 
 ## 4. Token cache
 
@@ -324,7 +330,7 @@ id with a kind; the schema change is one widened CHECK, and there is no sibling 
 | # | Mechanism | Test |
 | --- | --- | --- |
 | P1 | Sealed column with the prefix CHECK; `envelope.open` only in the broker's step 6; the worker gets a socket, never a value; only `CON-02` accepts the credential and nothing returns it. | `connector-postgres.test.mjs`: a stored row matches the envelope prefix and holds no fragment of the credential. `connector-routes.test.mjs`: no response carries a credential field. `application-runner-sandbox.test.mjs`: a handler dumps `process.env`, readable files and its context; none holds the credential or token. Q4.10 case 1, Q4.11. |
-| P2 | Broker not traced; redacting `AccessToken` and credential; value-free audit line; the adapter forwards no body or header. | `connector-broker.test.mjs`: the fake answers 500, 401 and an error envelope carrying a secret marker; the marker, the fake's secret and its token appear in no result, audit line or port bytes. `connector-token-cache.test.mjs`: `JSON.stringify` and `inspect` print `[redacted]`. Q4.11. |
+| P2 | Broker spans value-free by construction, with `SensitiveDataFilter` on each Definition's `secretFields` as a second line ([C-029](../../decisions/index.md)); redacting `AccessToken` and credential; the adapter forwards no body or header, and keeps of the provider's answer only its HTTP status, its envelope status and a return-table code. | `connector-broker.test.mjs`: in every fake mode (400 `GTW3407`, a stalled 400, 401, 403 `GTW3403`, 500, an error envelope `[CORE_E01234]`, oversized, stalled), the marker, the fake's credential and token, the input and the output appear in no result, tracing event or log line; a failing request's span holds its status, envelope status, code, step and attempt; a span given the credential and token field names exports them as `[REDACTED]`. `connector-token-cache.test.mjs`: `JSON.stringify` and `inspect` print `[redacted]`. Q4.11. |
 | P3 | `call(operationId, input)` is the whole surface; strict Zod input; the session exposes `loadRecords` with a typed entity union and constant expressions. | `connector-broker.test.mjs`: inputs carrying a service, entity, expression, URL, header or token answer `INPUT_REFUSED` with zero fake requests. Q4.10 case 2. |
 | P4 | Step 2 before the database; `SANKHYA_SERVICES` checked before `fetch`. | `connector-broker.test.mjs`: a registered `write` operation answers `EFFECT_REFUSED`, and an operation asking for another service answers `SERVICE_REFUSED`, each with zero fake requests (G0). `connector-adapter-source.test.mjs`: the service literals in `sankhya/*.ts` are exactly `CRUDServiceProvider.loadRecords` (G0). Q4.10 case 5. |
 | P5 | Zod output strips unknown keys; 256 KiB cap; 4 s deadline; at most 10 orders and 200 items. | `connector-broker.test.mjs`: an extra field is absent from the result; an oversized body answers `RESPONSE_REFUSED`; a stalled fake answers `PROVIDER_TIMEOUT`. |

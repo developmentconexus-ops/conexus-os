@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, startFakeGateway } from './connector-fake-gateway.mjs'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase } from './hub-database.mjs'
 
@@ -67,7 +68,7 @@ const setup = async (t) => {
   t.after(() => fake.close())
   const broker = createBroker({
     connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
-    store: createBrokerStore(runtimePool), envelope, audit: () => undefined,
+    store: createBrokerStore(runtimePool), envelope, observability: connectorRecord().observability,
   })
   const directory = mkdtempSync(join(tmpdir(), 'cx-broker-pg-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
