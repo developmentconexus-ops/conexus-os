@@ -153,7 +153,6 @@ export const createBroker = ({
   return Object.freeze({
     async call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>> {
       const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
-      // Only registered ids and the minted Project: never the raw operation id, the input or a reference.
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: {
         consumer: typeof consumer?.kind === 'string' ? consumer.kind : null,
         projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,

@@ -5,14 +5,8 @@ import { AdapterFailure } from './errors.js'
 import type { AdapterFailureReason, BrokerErrorCode } from './errors.js'
 import type { ProviderAnswer, RequestTrace } from './operation.js'
 
-// The Connector record: one Mastra span per call and one child span per provider request. A span is
-// handed only closed codes, numbers, ids and constant names: never an input, output, body, token or
-// credential. The filters are the second line of defense, not the first.
-
-/** A closed code, so no provider text can become a span's error message. */
 type SpanResult = 'OK' | 'UNEXPECTED' | 'STORE_UNAVAILABLE' | BrokerErrorCode | AdapterFailureReason
 
-/** One JSON line per ended span, derived from the exported span, so the log and the stored trace are one record. */
 class SpanLineExporter extends BaseExporter {
   override name = 'connector-span-line'
   readonly #log: (line: string) => void
@@ -25,12 +19,10 @@ class SpanLineExporter extends BaseExporter {
   protected override async _exportTracingEvent(event: TracingEvent): Promise<void> {
     if (event.type !== TracingEventType.SPAN_ENDED) return
     const { name, traceId, id, parentSpanId, startTime, endTime, metadata } = event.exportedSpan
-    try {
-      this.#log(`${JSON.stringify({
-        span: name, traceId, spanId: id, parentSpanId: parentSpanId ?? null,
-        startedAt: startTime.toISOString(), ms: (endTime ?? startTime).getTime() - startTime.getTime(), ...metadata,
-      })}\n`)
-    } catch { /* a log write failure never fails a call */ }
+    this.#log(`${JSON.stringify({
+      span: name, traceId, spanId: id, parentSpanId: parentSpanId ?? null,
+      startedAt: startTime.toISOString(), ms: (endTime ?? startTime).getTime() - startTime.getTime(), ...metadata,
+    })}\n`)
   }
 }
 

@@ -46,8 +46,6 @@ export const CONNECTOR_BRIEF_UNAVAILABLE = 'The connector operations this Projec
   + 'Do not call connectors.call in this run. If the request needs data from a connected system, tell the person '
   + 'that it is unavailable right now and that they can ask again later.'
 
-/** Builds the per-run brief for one Project's scope. Never throws: an unreadable store answers
- * CONNECTOR_BRIEF_UNAVAILABLE and records one span that names no store detail. */
 export type ConnectorBrief = (scope: ConsumerScope) => Promise<string>
 
 export const createConnectorBrief = ({

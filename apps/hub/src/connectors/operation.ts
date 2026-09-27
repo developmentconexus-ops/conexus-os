@@ -21,13 +21,12 @@ export type Operation<I, O, S> = Readonly<{
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
-/**
- * What one provider request answered, as the adapter learns it. Value-free by construction: the
- * adapter sets a field only from a number or a strict pattern, never from provider text.
- */
-export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: string; providerCode?: string }
+/** Made only by an adapter's strict pattern match on the provider's answer, never from its text as a whole. */
+export type ProviderCode = string & { readonly __brand: 'ProviderCode' }
+export type EnvelopeStatus = string & { readonly __brand: 'EnvelopeStatus' }
 
-/** Records the provider requests of one call: `request` runs `send` as one request, in order. */
+export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; providerCode?: ProviderCode }
+
 export type RequestTrace = Readonly<{
   request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T>
 }>
@@ -46,11 +45,9 @@ export type ConnectorDefinition<Cred, S> = Readonly<{
   // biome-ignore lint/suspicious/noExplicitAny: design only, no event exists yet
   events: readonly ConnectorEvent<any>[]
   builderSkill: string
-  /** The field names that carry this Connector's credential or token; the call record's filter redacts them wherever they appear. */
   secretFields: readonly string[]
 }>
 
-/** Who asks. Only the scope selects the grant; the kind labels the call's record, the reference is never recorded. */
 export type Consumer =
   | Readonly<{ kind: 'handler'; invocationId: string; scope: ConsumerScope }>
   | Readonly<{ kind: 'agent'; sessionId: string; scope: ConsumerScope }>

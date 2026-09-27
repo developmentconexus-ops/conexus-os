@@ -1,15 +1,13 @@
 import { z } from 'zod'
 import { AdapterFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, ProviderAnswer, RequestTrace } from '../operation.js'
+import type { Adapter, EnvelopeStatus, ProviderAnswer, ProviderCode, RequestTrace } from '../operation.js'
 import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 
 // The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
-// expression, URL, header or token from a consumer. Of the provider's answer, only its HTTP status,
-// its envelope status and a code of the gateway's return-code table leave this file, never the text
-// around them.
+// expression, URL, header or token from a consumer.
 
 /**
  * The gateway origins the Sankhya documentation publishes: production and sandbox.
@@ -46,7 +44,6 @@ const RESPONSE_CAP_BYTES = 256 * 1024
 const FAILURE_READ_BYTES = 8 * 1024
 const FAILURE_READ_MS = 250
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
-/** The gateway's return-code table: `GTW` and four digits, or a `CORE_E` business code. */
 const PROVIDER_CODE = /\b(GTW\d{4}|CORE_E\d{1,8})\b/
 const ENVELOPE_STATUS = /^\d{1,2}$/
 
@@ -56,9 +53,7 @@ export const pinnedGatewayOrigin = (value: string): string => {
   return value
 }
 
-// One classification for every HTTP status the gateway answers. Sankhya's return-code table answers
-// an invalid or expired bearer with 403 GTW3403; whether a refusal also surfaces inside the response
-// envelope is unverified, so only the status is checked here.
+// Sankhya's return-code table answers an invalid or expired bearer with 403 GTW3403.
 const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): AdapterFailureReason | null => {
   if (status >= 200 && status < 300) return null
   if (status === 401 || status === 403 || (phase === 'authenticate' && status === 400)) return phase === 'authenticate' ? 'AUTHENTICATION_REFUSED' : 'TOKEN_REFUSED'
@@ -70,13 +65,10 @@ const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFai
 
 const recordProviderCode = (text: string, answer: ProviderAnswer): void => {
   const code = PROVIDER_CODE.exec(text)?.[1]
-  if (code) answer.providerCode = code
+  if (code) answer.providerCode = code as ProviderCode
 }
 
-// At most FAILURE_READ_BYTES of a failure body within FAILURE_READ_MS, then the rest is cancelled, so
-// a stalled body never turns the status failure into a timeout. A read that fails leaves what was
-// read: the status failure stands either way.
-const failureText = async (response: Response): Promise<string> => {
+const cappedFailureText = async (response: Response): Promise<string> => {
   const reader = response.body?.getReader()
   if (!reader) return ''
   const stop = setTimeout(() => { reader.cancel().catch(() => undefined) }, FAILURE_READ_MS)
@@ -89,7 +81,7 @@ const failureText = async (response: Response): Promise<string> => {
       chunks.push(value)
       bytes += value.byteLength
     }
-  } catch { /* keep what was read */ } finally {
+  } catch {} finally {
     clearTimeout(stop)
   }
   await reader.cancel().catch(() => undefined)
@@ -106,7 +98,7 @@ const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, sig
   answer.httpStatus = response.status
   const failure = failureOfStatus(response.status, phase)
   if (failure) {
-    recordProviderCode(await failureText(response), answer)
+    recordProviderCode(await cappedFailureText(response), answer)
     throw new AdapterFailure(failure)
   }
   const chunks: Uint8Array[] = []
@@ -163,7 +155,7 @@ const decodeRecords = (body: string, answer: ProviderAnswer): readonly SankhyaRe
   const parsed = envelope.safeParse(parseJson(body))
   if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
   const { status } = parsed.data
-  if (ENVELOPE_STATUS.test(status)) answer.envelopeStatus = status
+  if (ENVELOPE_STATUS.test(status)) answer.envelopeStatus = status as EnvelopeStatus
   if (status !== '1') {
     recordProviderCode(body, answer)
     throw new AdapterFailure('PROVIDER_ERROR')
@@ -217,7 +209,6 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
   open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): SankhyaSession {
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
       if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
-      // Leased before the request span starts, so the span times this request, not an authentication it waits on.
       const bearer = (await token()).bearer()
       return trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',

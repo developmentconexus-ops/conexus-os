@@ -33,7 +33,6 @@ export type ConnectorModule = Readonly<{
    * makes no network call. */
   builderBrief(projectId: string): Promise<string>
   broker: Broker
-  /** The Connector record; the Builder registers it on the Hub's Mastra, whose storage then keeps its traces. */
   observability: ObservabilityInstance
 }>
 
@@ -68,7 +67,6 @@ export const createConnectorModule = ({
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
   socketDirectory?: string | undefined
-  /** Receives one JSON line per ended span of the Connector record. */
   log?: (line: string) => void
 }>): ConnectorModule => {
   const store = createConnectorStore({ pool, envelope })

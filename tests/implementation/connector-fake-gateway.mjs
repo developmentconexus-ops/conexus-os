@@ -51,13 +51,6 @@ const loadRecords = (dataSet, options) => {
   return entities(fields, rows, options)
 }
 
-/**
- * `mode` picks one failure at a time: authenticate one of 'ok' | 401 | 500 | 'stall'; service one of
- * 'ok' | 400 | 'stalled-400' | 401 | 500 | 'envelope-error' | 'oversized' | 'extra-field' | 'stall' | 'refuse-first-token'.
- * 'stalled-400' sends a 400 and the start of its body, then never ends it. Every failure carries the
- * secret marker; the 400s, the refused first token and the error envelope also carry a code of
- * Sankhya's return-code table, which a record may keep without the text around it.
- */
 export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
   const requests = []
   const mode = { authenticate: 'ok', service: 'ok' }

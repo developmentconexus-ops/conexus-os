@@ -128,11 +128,7 @@ export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryCompo
     await memory.saveMessages({ messages: [noteMessage(note, note.conversationId)] })
   }
 
-/**
- * The Hub's one Mastra observability: the Builder's instance stays the default, and the Connector
- * record joins it so the Hub's Mastra storage keeps its traces too.
- * @public Tests import this at runtime from the built module.
- */
+/** @public Tests import this at runtime from the built module. */
 export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
   const observability = new Observability({
     sensitiveDataFilter: true,
@@ -202,7 +198,6 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
-  /** The Connector record, kept in this Mastra's storage; absent without a Connector module. */
   connectorObservability?: ObservabilityInstance
 }>) => {
   assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
@@ -311,7 +306,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
-  /** The Connector record, kept in this Mastra's storage; absent without a Connector module. */
   connectorObservability?: ObservabilityInstance
 }>) => {
   assertFactoryGlobalSkillsAvailable()

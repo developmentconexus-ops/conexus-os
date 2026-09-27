@@ -289,8 +289,7 @@ test('a refused first token is recorded as its attempt, and the retry as the nex
   ])
 })
 
-// Ids are random hex; a value could match inside one by chance, so they are left out of the scan.
-const withoutIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
+const withoutRandomHexIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
 
 test('no credential, token, input, output or provider text reaches a tracing event or a log line, in any mode', async (t) => {
   const modes = [
@@ -306,7 +305,7 @@ test('no credential, token, input, output or provider text reaches a tracing eve
     await broker.checkCredential('sankhya', CONNECTION)
     await observability.flush()
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
-    const seen = withoutIds(exporter.events) + withoutIds(lines.map((line) => JSON.parse(line)))
+    const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
     for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} leaked for ${JSON.stringify(mode)}`)
   }
 })
