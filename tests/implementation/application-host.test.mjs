@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { once } from 'node:events'
+import { request } from 'node:http'
 import { test } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
@@ -28,7 +31,7 @@ const files = {
   'conexus-server/manifest.json': { mediaType: 'application/json; charset=utf-8', text: '{}' },
 }
 
-const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
+const harness = async (t, { authorityFor, application = APPLICATION, invokeApplication } = {}) => {
   const calls = []
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
@@ -68,7 +71,7 @@ const harness = async (t, { authorityFor, application = APPLICATION } = {}) => {
             : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
         },
       },
-      invokeApplication: async (input) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } },
+      invokeApplication: invokeApplication ?? (async ({ signal: _signal, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }),
     }),
   })
   t.after(() => app.close())
@@ -322,6 +325,29 @@ test('the handler caller comes from the session; identifiers in the body, query 
       caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'funcionaria@example.test', displayName: 'Funcionária' },
     },
   }])
+})
+
+test('a caller that disconnects while its call waits aborts that call\'s signal', async (t) => {
+  let invoked
+  const waiting = new Promise((resolve) => { invoked = resolve })
+  const { app } = await harness(t, {
+    invokeApplication: ({ signal }) => {
+      invoked(signal)
+      return once(signal, 'abort').then(() => ({ status: 200, body: {} }))
+    },
+  })
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const client = request({
+    host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
+    headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
+  })
+  client.on('error', () => {})
+  client.end('{}')
+  const signal = await waiting
+  assert.equal(signal.aborted, false, 'the call waits with a live signal')
+  client.destroy()
+  const outcome = await Promise.race([once(signal, 'abort').then(() => 'aborted'), delay(2000, 'still waiting', { ref: false })])
+  assert.equal(outcome, 'aborted')
 })
 
 test('Keycloak unreachable when a check is due refuses with 503 and keeps nothing open', async (t) => {

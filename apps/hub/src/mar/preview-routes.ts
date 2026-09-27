@@ -45,6 +45,7 @@ type ApplicationInvoker = (input: Readonly<{
   operation: string
   input: unknown
   caller: Caller
+  signal: AbortSignal
 }>) => Promise<Readonly<{ status: number; body: unknown }>>
 
 export type PreviewRouteDependencies = Readonly<{
@@ -88,6 +89,14 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
 export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
+
+// Aborts when the caller disconnects. The request stream closes as soon as its body is read, so only
+// the response's close means the caller left.
+export const callerLeft = (reply: FastifyReply): AbortSignal => {
+  const left = new AbortController()
+  reply.raw.once('close', () => left.abort())
+  return left.signal
+}
 
 export const pathForRequest = (pathname: string): string | null => {
   if (pathname === '/') return 'index.html'
@@ -238,7 +247,7 @@ export const registerPreviewRoutes = async (
           via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
           sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
         },
-        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller,
+        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, signal: callerLeft(reply),
       })
     } catch {
       return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')

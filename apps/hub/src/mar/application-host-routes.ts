@@ -5,7 +5,7 @@ import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
-import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, OPERATION, pathForRequest, SERVER_ROOT } from './preview-routes.js'
+import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, callerLeft, OPERATION, pathForRequest, SERVER_ROOT } from './preview-routes.js'
 
 const SESSION_COOKIE = '__Host-conexus_app'
 const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
@@ -156,6 +156,7 @@ export const registerApplicationHostRoutes = async (
         operation: request.params.operation,
         input: request.body,
         caller: authority.caller,
+        signal: callerLeft(reply),
       })
     } catch {
       return refuse(reply, 503, 'APPLICATION_RUNNER_UNAVAILABLE')

@@ -32,7 +32,7 @@ const preview = async (t, invokeApplication) => {
       previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
     },
     registryReader: async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
-    ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { calls.push(input); return invokeApplication(input) } }),
+    ...(invokeApplication === undefined ? {} : { invokeApplication: async ({ signal: _signal, ...input }) => { calls.push(input); return invokeApplication(input) } }),
     exactHubOrigin: 'https://hub.conexus.localhost:3443',
     previewPort: PORT,
     pendingRequests: new Set(),

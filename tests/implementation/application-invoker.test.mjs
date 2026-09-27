@@ -35,50 +35,148 @@ const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444'
 
 const source = (projectId) => ({ via: 'PREVIEW', accountId: 'acct', projectId, sourceRevision: 'rev', artifactRevisionId: 'artifact' })
 
-const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs') => invoker({
-  source: source(projectId), serverFiles: [path], operation: 'op', input: {}, caller: CALLER,
+const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs', signal = new AbortController().signal) => invoker({
+  source: source(projectId), serverFiles: [path], operation: 'op', input: {}, caller: CALLER, signal,
 })
 
-test('the global bound admits up to its limit and refuses the rest with 429, without reading their files', async () => {
-  const reader = deferredReader()
-  const runner = spyInvoke()
-  const invoker = createApplicationInvoker({
-    readFile: reader.readFile, invoke: runner.invoke,
-    limits: { globalConcurrency: 2, perProjectConcurrency: 2, maxServerTreeBytes: 1_000_000 },
-  })
-  // Four distinct Projects so only the global bound, not the per-Project one, can be at play.
-  const results = Promise.all(['p1', 'p2', 'p3', 'p4'].map((projectId) => call(invoker, projectId)))
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(reader.calls.length, 2, 'only the admitted requests reached the file reader')
-  reader.release(2)
-  const settled = await results
-  const statuses = settled.map((reply) => reply.status).sort()
-  assert.deepEqual(statuses, [200, 200, 429, 429])
-  const refused = settled.filter((reply) => reply.status === 429)
-  assert.deepEqual(refused.map((reply) => reply.body), [{ error: { code: 'APPLICATION_RUNNER_BUSY' } }, { error: { code: 'APPLICATION_RUNNER_BUSY' } }])
-  assert.equal(runner.calls.length, 2, 'the runner was invoked only for the admitted requests')
+const limits = (overrides) => ({
+  globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1_000_000, admissionQueueTimeoutMs: 10_000, admissionQueueLimit: 16, ...overrides,
 })
 
-test('the per-Project bound refuses one Preview flooding requests, without reading the refused ones, while other Projects are unaffected', async () => {
+// Each call reads one file named after the call, so the read order is the admission order.
+const admission = (overrides) => {
   const reader = deferredReader()
-  const runner = spyInvoke()
-  const invoker = createApplicationInvoker({
-    readFile: reader.readFile, invoke: runner.invoke,
-    limits: { globalConcurrency: 5, perProjectConcurrency: 2, maxServerTreeBytes: 1_000_000 },
-  })
-  const flood = Promise.all([1, 2, 3, 4].map(() => call(invoker, 'flooding-project')))
-  const other = call(invoker, 'other-project')
-  await new Promise((resolve) => setImmediate(resolve))
-  // 2 admitted for the flooding Project, 1 for the other Project: 3 reads total.
-  assert.equal(reader.calls.length, 3)
+  const invoker = createApplicationInvoker({ readFile: reader.readFile, invoke: spyInvoke().invoke, limits: limits(overrides) })
+  return { reader, invoker, readOrder: () => reader.calls.map((read) => read.path) }
+}
+
+const OK = { status: 200, body: { ok: true } }
+const tick = () => new Promise((resolve) => setImmediate(resolve))
+const beforeNextTurn = (promise) => Promise.race([promise, new Promise((resolve) => setImmediate(resolve, 'still waiting'))])
+
+test('a call over its Project\'s limit waits and runs once a slot frees, while another Project\'s call is read at once', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 5, perProjectConcurrency: 2 })
+  const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b'])
+  const d = call(invoker, 'p2', 'd')
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b', 'd'])
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b', 'd', 'c'])
   reader.release(3)
-  const floodResults = await flood
-  const otherResult = await other
-  assert.equal(otherResult.status, 200, 'a different Project is not starved by one Preview flooding requests')
-  const statuses = floodResults.map((reply) => reply.status).sort()
-  assert.deepEqual(statuses, [200, 200, 429, 429])
-  const refused = floodResults.filter((reply) => reply.status === 429)
-  assert.deepEqual(refused.map((reply) => reply.body), [{ error: { code: 'APPLICATION_PROJECT_BUSY' } }, { error: { code: 'APPLICATION_PROJECT_BUSY' } }])
+  assert.deepEqual(await Promise.all([b, c, d]), [OK, OK, OK])
+})
+
+test('a call whose wait for its Project expires answers 429 APPLICATION_PROJECT_BUSY without being read, and leaks no slot', async () => {
+  const { reader, invoker, readOrder } = admission({ perProjectConcurrency: 2, admissionQueueTimeoutMs: 30 })
+  const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
+  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  reader.release(2)
+  assert.deepEqual(await Promise.all([a, b]), [OK, OK])
+  const d = call(invoker, 'p1', 'd')
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await d, OK)
+  assert.deepEqual(readOrder(), ['a', 'b', 'd'])
+})
+
+test('a call that finds its Project\'s line full answers 429 APPLICATION_PROJECT_BUSY at once', async () => {
+  const { reader, invoker, readOrder } = admission({ perProjectConcurrency: 2, admissionQueueLimit: 1 })
+  const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'd')), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  reader.release(2)
+  assert.deepEqual(await Promise.all([b, c]), [OK, OK])
+  assert.deepEqual(readOrder(), ['a', 'b', 'c'])
+})
+
+test('a call over the runner\'s limit waits and runs once a slot frees', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 2, perProjectConcurrency: 1 })
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p2', 'b')
+  const c = call(invoker, 'p3', 'c')
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b'])
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  assert.deepEqual(readOrder(), ['a', 'b', 'c'])
+  reader.release(2)
+  assert.deepEqual(await Promise.all([b, c]), [OK, OK])
+})
+
+test('a call whose wait for the runner expires answers 429 APPLICATION_RUNNER_BUSY without being read, and leaks no slot', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 2, perProjectConcurrency: 1, admissionQueueTimeoutMs: 30 })
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p2', 'b')
+  const c = call(invoker, 'p3', 'c')
+  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  reader.release(2)
+  assert.deepEqual(await Promise.all([a, b]), [OK, OK])
+  const d = call(invoker, 'p3', 'd')
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await d, OK)
+  assert.deepEqual(readOrder(), ['a', 'b', 'd'])
+})
+
+test('a call that finds the runner\'s line full answers 429 APPLICATION_RUNNER_BUSY at once', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 2, perProjectConcurrency: 1, admissionQueueLimit: 1 })
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p2', 'b')
+  const c = call(invoker, 'p3', 'c')
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p4', 'd')), { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  reader.release(2)
+  assert.deepEqual(await Promise.all([b, c]), [OK, OK])
+  assert.deepEqual(readOrder(), ['a', 'b', 'c'])
+})
+
+test('a caller that leaves its Project\'s line is refused at once and never read, and the line keeps its order', async () => {
+  const { reader, invoker, readOrder } = admission({ perProjectConcurrency: 1 })
+  const leaving = new AbortController()
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p1', 'b', leaving.signal)
+  const c = call(invoker, 'p1', 'c')
+  await tick()
+  leaving.abort()
+  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await c, OK)
+  assert.deepEqual(readOrder(), ['a', 'c'])
+})
+
+test('a caller that leaves the runner\'s line frees its Project slot, and both lines keep their order', async () => {
+  const { reader, invoker, readOrder } = admission({ globalConcurrency: 1, perProjectConcurrency: 1 })
+  const leaving = new AbortController()
+  const a = call(invoker, 'p1', 'a')
+  const b = call(invoker, 'p2', 'b', leaving.signal)
+  const c = call(invoker, 'p2', 'c')
+  const d = call(invoker, 'p3', 'd')
+  await tick()
+  leaving.abort()
+  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  reader.release(1)
+  assert.deepEqual(await a, OK)
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await d, OK)
+  await tick()
+  reader.release(1)
+  assert.deepEqual(await c, OK)
+  assert.deepEqual(readOrder(), ['a', 'd', 'c'])
 })
 
 test('an admission slot is freed for the next request once its call finishes', async () => {
@@ -86,7 +184,7 @@ test('an admission slot is freed for the next request once its call finishes', a
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
     readFile: reader.readFile, invoke: runner.invoke,
-    limits: { globalConcurrency: 1, perProjectConcurrency: 1, maxServerTreeBytes: 1_000_000 },
+    limits: limits({ globalConcurrency: 1, perProjectConcurrency: 1 }),
   })
   const first = call(invoker, 'p1')
   await new Promise((resolve) => setImmediate(resolve))
@@ -105,12 +203,12 @@ test('a server tree over the total byte limit is refused as soon as the running 
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
     readFile: reader.readFile, invoke: runner.invoke,
-    limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
+    limits: limits({ maxServerTreeBytes: 1000 }),
   })
   const result = await invoker({
     source: source('p1'),
     // 600 bytes each: the running total crosses 1000 on the second file, so the third is never read.
-    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {}, caller: CALLER,
+    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {}, caller: CALLER, signal: new AbortController().signal,
   })
   assert.equal(reader.calls.length, 2, 'the read stopped as soon as the total crossed the limit, not after the whole tree')
   assert.deepEqual(result, { status: 413, body: { error: { code: 'SERVER_TREE_TOO_LARGE' } } })
@@ -122,11 +220,11 @@ test('a server tree at or under the total byte limit reaches the runner', async 
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
     readFile: reader.readFile, invoke: runner.invoke,
-    limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
+    limits: limits({ maxServerTreeBytes: 1000 }),
   })
   const result = await invoker({
     source: source('p1'),
-    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {}, caller: CALLER,
+    serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs'], operation: 'op', input: {}, caller: CALLER, signal: new AbortController().signal,
   })
   assert.equal(result.status, 200)
   assert.equal(runner.calls.length, 1)
@@ -138,10 +236,10 @@ test('a missing file still refuses by throwing, as the Preview API layer expects
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
     readFile: async () => null, invoke: runner.invoke,
-    limits: { globalConcurrency: 4, perProjectConcurrency: 4, maxServerTreeBytes: 1000 },
+    limits: limits({ maxServerTreeBytes: 1000 }),
   })
   await assert.rejects(
-    () => invoker({ source: source('p1'), serverFiles: ['x'], operation: 'op', input: {}, caller: CALLER }),
+    () => call(invoker, 'p1', 'x'),
     /APPLICATION_SERVER_FILE_MISSING/,
   )
 })
