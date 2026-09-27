@@ -119,7 +119,7 @@ test('P6: another Project in the input or in extra body keys never changes the r
   t.after(() => port.close())
 
   assert.deepEqual(await post(port.socketPath, { operation: READ, input: { documentNumber: 22790 } }), { ok: true, value: EXPECTED_ORDER_22790 })
-  assert.deepEqual(await post(port.socketPath, { operation: READ, input: { documentNumber: 22790, projectId: OTHER_PROJECT } }), { ok: false, code: 'INPUT_REFUSED', issues: ['/projectId'] })
+  assert.deepEqual(await post(port.socketPath, { operation: READ, input: { documentNumber: 22790, projectId: OTHER_PROJECT } }), { ok: false, code: 'INPUT_REFUSED', issues: ['/<unrecognized>'] })
   for (const extra of [{ projectId: OTHER_PROJECT }, { scope: { projectId: OTHER_PROJECT, environment: 'preview' } }, { environment: 'published' }, { connectionId: CONNECTION }]) {
     assert.deepEqual(await post(port.socketPath, { operation: READ, input: { documentNumber: 22790 }, ...extra }), { ok: false, code: 'INPUT_REFUSED' }, JSON.stringify(extra))
   }

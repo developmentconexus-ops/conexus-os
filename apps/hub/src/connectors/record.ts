@@ -56,22 +56,20 @@ export const requestTrace = (parent: AnySpan, attemptOf: () => number, signal: A
       step += 1
       endSpan(parent.createChildSpan({ type: SpanType.GENERIC, name, metadata: { step, attempt: attemptOf(), shared: true } }), result)
     },
-    async request<T>(name: string, send: (answer: ProviderAnswer, annotate: (pending: Promise<void>) => void) => Promise<T>): Promise<T> {
+    async request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T> {
       // Past the deadline the request would never be sent, so it is not recorded as one.
       if (signal.aborted) throw new AdapterFailure('TIMEOUT')
       step += 1
       const span = parent.createChildSpan({ type: SpanType.GENERIC, name, metadata: { step, attempt: attemptOf() } })
       const answer: ProviderAnswer = {}
-      const pending: Promise<void>[] = []
-      const end = (result: SpanResult): void => { void Promise.allSettled(pending).then(() => endSpan(span, result, answer)) }
       let value: T
       try {
-        value = await send(answer, (work) => { pending.push(work) })
+        value = await send(answer)
       } catch (error) {
-        end(error instanceof AdapterFailure ? error.reason : 'UNEXPECTED')
+        endSpan(span, error instanceof AdapterFailure ? error.reason : 'UNEXPECTED', answer)
         throw error
       }
-      end('OK')
+      endSpan(span, 'OK', answer)
       return value
     },
   })

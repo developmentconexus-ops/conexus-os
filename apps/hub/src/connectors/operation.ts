@@ -21,15 +21,14 @@ export type Operation<I, O, S> = Readonly<{
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
-/** Made only from an adapter's closed list of its provider's documented codes, never from provider text as such. */
-export type ProviderCode = string & { readonly __brand: 'ProviderCode' }
+/** Made only by an adapter's strict pattern match on a structured status field. */
 export type EnvelopeStatus = string & { readonly __brand: 'EnvelopeStatus' }
 
-export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; providerCode?: ProviderCode }
+/** No provider text becomes a field here: a detailed error code comes only from content capture (C-029). */
+export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus }
 
-/** `annotate` hands over work that completes the answer after `send` settles; the caller never waits for it. */
 export type RequestTrace = Readonly<{
-  request<T>(name: string, send: (answer: ProviderAnswer, annotate: (pending: Promise<void>) => void) => Promise<T>): Promise<T>
+  request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T>
 }>
 
 export type Adapter<Cred, S> = Readonly<{

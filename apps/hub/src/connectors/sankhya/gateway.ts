@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AdapterFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, EnvelopeStatus, ProviderAnswer, ProviderCode, RequestTrace } from '../operation.js'
+import type { Adapter, EnvelopeStatus, ProviderAnswer, RequestTrace } from '../operation.js'
 import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
@@ -41,17 +41,7 @@ export type SankhyaSession = Readonly<{
 }>
 
 const RESPONSE_CAP_BYTES = 256 * 1024
-const FAILURE_READ_BYTES = 8 * 1024
-const FAILURE_READ_MS = 250
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
-// The prefixed codes of Sankhya's return-code table (developer.sankhya.com.br, "Códigos de retorno da
-// API"). Only one of these is recorded: provider text can echo a credential or an input shaped like a
-// code, and a closed list is the only match that cannot carry one.
-const SANKHYA_RETURN_CODES: ReadonlySet<string> = new Set([
-  'GTW2500', 'GTW2508', 'GTW2509', 'GTW2510', 'GTW2511', 'GTW3003',
-  'GTW3403', 'GTW3407', 'GTW3500', 'GTW3501', 'GTW3502', 'GTW3503',
-])
-const CODE_CANDIDATE = /\bGTW\d{4}\b/g
 const ENVELOPE_STATUS = /^\d{1,2}$/
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
@@ -70,34 +60,7 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
 
 const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
-const recordProviderCode = (text: string, answer: ProviderAnswer): void => {
-  const code = text.match(CODE_CANDIDATE)?.find((candidate) => SANKHYA_RETURN_CODES.has(candidate))
-  if (code) answer.providerCode = code as ProviderCode
-}
-
-const cappedFailureText = async (response: Response): Promise<string> => {
-  const reader = response.body?.getReader()
-  if (!reader) return ''
-  const stop = setTimeout(() => { reader.cancel().catch(() => undefined) }, FAILURE_READ_MS)
-  const chunks: Uint8Array[] = []
-  let bytes = 0
-  try {
-    while (bytes < FAILURE_READ_BYTES) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-      bytes += value.byteLength
-    }
-  } catch {} finally {
-    clearTimeout(stop)
-  }
-  await reader.cancel().catch(() => undefined)
-  return Buffer.concat(chunks).subarray(0, FAILURE_READ_BYTES).toString('utf8')
-}
-
-type Recording = Readonly<{ answer: ProviderAnswer; annotate: (pending: Promise<void>) => void }>
-
-const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', { answer, annotate }: Recording): Promise<string> => {
+const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', answer: ProviderAnswer): Promise<unknown> => {
   let response: Response
   try {
     response = await fetchImpl(url, { ...init, signal, redirect: 'error' })
@@ -107,8 +70,8 @@ const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, sig
   answer.httpStatus = response.status
   const failure = failureOfStatus(response.status, phase)
   if (failure) {
-    // The code is read after the failure is thrown, so a slow body never changes the call's result.
-    annotate(cappedFailureText(response).then((text) => recordProviderCode(text, answer)))
+    // The provider's body and status text never leave this file, not even into an error or a record.
+    await response.body?.cancel().catch(() => undefined)
     throw new AdapterFailure(failure)
   }
   const chunks: Uint8Array[] = []
@@ -130,12 +93,8 @@ const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, sig
     if (error instanceof AdapterFailure) throw error
     throw transportFailure(signal)
   }
-  return Buffer.concat(chunks).toString('utf8')
-}
-
-const parseJson = (text: string): unknown => {
   try {
-    return JSON.parse(text) as unknown
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
   } catch {
     throw new AdapterFailure('RESPONSE_REFUSED')
   }
@@ -161,15 +120,12 @@ const envelope = z.object({
 
 // Positional f0..fN, named through the metadata. A total of '0' is no record; a page that says more
 // results exist is refused rather than returned partial.
-const decodeRecords = (body: string, answer: ProviderAnswer): readonly SankhyaRecord[] => {
-  const parsed = envelope.safeParse(parseJson(body))
+const decodeRecords = (body: unknown, answer: ProviderAnswer): readonly SankhyaRecord[] => {
+  const parsed = envelope.safeParse(body)
   if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
   const { status } = parsed.data
   if (ENVELOPE_STATUS.test(status)) answer.envelopeStatus = status as EnvelopeStatus
-  if (status !== '1') {
-    recordProviderCode(body, answer)
-    throw new AdapterFailure('PROVIDER_ERROR')
-  }
+  if (status !== '1') throw new AdapterFailure('PROVIDER_ERROR')
   const entities = parsed.data.responseBody?.entities
   if (!entities) throw new AdapterFailure('RESPONSE_REFUSED')
   if (entities.total === '0') return []
@@ -206,12 +162,12 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
   async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> {
     const { clientId, clientSecret, xToken } = credential.reveal()
     if (/[\r\n]/.test(xToken)) throw new AdapterFailure('AUTHENTICATION_REFUSED')
-    return trace.request('authenticate', async (answer, annotate) => {
-      const parsed = tokenResponse.safeParse(parseJson(await send(fetchImpl, `${origin}/authenticate`, {
+    return trace.request('authenticate', async (answer) => {
+      const parsed = tokenResponse.safeParse(await send(fetchImpl, `${origin}/authenticate`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-token': xToken },
         body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }).toString(),
-      }, signal, 'authenticate', { answer, annotate })))
+      }, signal, 'authenticate', answer))
       if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
       return Object.freeze({ token: new AccessToken(parsed.data.access_token), expiresInSeconds: parsed.data.expires_in })
     })
@@ -220,11 +176,11 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
       if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
       const bearer = (await token()).bearer()
-      return trace.request(service, async (answer, annotate) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
+      return trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` },
         body: requestBody(service, query),
-      }, signal, 'service', { answer, annotate }), answer))
+      }, signal, 'service', answer), answer))
     }
     return Object.freeze({
       callService,

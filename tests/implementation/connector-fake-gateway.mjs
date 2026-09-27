@@ -76,7 +76,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       }
       if (url.pathname === '/authenticate') {
         if (mode.authenticate === 'stall') return
-        if (mode.authenticate === 'echo-401') return send(401, `${record.xToken} ${record.form.client_id} ${record.form.client_secret} ${SECRET_MARKER} GTW3501`, SECRET_MARKER)
+        if (mode.authenticate === 'echo-401') return send(401, `${record.xToken} ${record.form.client_id} ${record.form.client_secret} ${SECRET_MARKER} GTW3502`, SECRET_MARKER)
         if (mode.authenticate !== 'ok') return send(mode.authenticate, { error: 'invalid_client', error_description: SECRET_MARKER }, SECRET_MARKER)
         issued += 1
         return send(200, { access_token: `fake-token-${issued}`, expires_in: expiresInSeconds, refresh_expires_in: 0, token_type: 'Bearer', 'not-before-policy': 0, scope: 'profile' })

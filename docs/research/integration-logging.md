@@ -58,8 +58,9 @@ O desenho do Q4 decidiu não rastrear o broker porque a lista padrão não redig
   acesso, identificador de sessão, chave de criptografia ou string de conexão.
 
 O registro do Connector segue os dois: hora de início e fim, Project, consumidor, operação,
-nome do serviço, passo, tentativa, status HTTP, código do provedor e resultado, ligados pelo
-`traceId` do Mastra. O registro não guarda URL, cabeçalho, corpo nem mensagem.
+nome do serviço, passo, tentativa, status HTTP, `status` do envelope e resultado, ligados pelo
+`traceId` do Mastra. O registro não guarda URL, cabeçalho, corpo, mensagem nem código de erro
+tirado do texto do provedor.
 
 ## O que as plataformas de integração fazem
 
@@ -90,17 +91,19 @@ Todas registram cada execução por padrão e tratam o conteúdo como uma quest�
   de comunicação interna (`GTW2508`, `GTW3003`, `GTW3500`) e falha de login no ERP (`GTW3407`).
   Erros de regra de negócio chegam com HTTP 200 e uma mensagem `[CORE_Exxxxx]`.
 - A página não documenta o formato JSON do corpo de erro nem os valores do `status` do envelope.
-  Por isso o gateway procura o código no texto da resposta e só registra um dos doze códigos
-  `GTW` da tabela, uma lista fechada. Um padrão aberto registraria também uma credencial ou uma
-  entrada com formato de código que o provedor ecoasse no erro, e o filtro por nome de campo não
-  pega isso. Os códigos `CORE_E` não têm lista publicada, e os dois de 403 sem prefixo (`4405`,
-  `4303`) não se distinguem de outros números. Nesses casos o registro guarda o status HTTP e o
-  `status` do envelope, sem código.
+  O código só aparece no texto livre da resposta. Duas revisões independentes mostraram que
+  qualquer leitura desse texto pode registrar uma credencial com formato de código que o provedor
+  ecoe no erro, mesmo com a lista fechada dos doze códigos `GTW`: a tabela aceita `GTW3501` como
+  valor de `xToken`, e o filtro por nome de campo não pega isso. Por isso o registro sempre ligado
+  guarda só o status HTTP e o `status` do envelope, com passo e tentativa, que já separam um 400 de
+  um envelope de erro. O código detalhado do provedor fica para a captura de conteúdo ligada por
+  um administrador, por tempo limitado.
 - O limite é de 1.000 requisições por minuto, em produção e em sandbox.
 
 Um `GTW3407` num 400 logo depois de um token novo explicaria uma primeira leitura que falha e
-leituras seguintes que dão certo. É uma hipótese. O registro novo existe para confirmá-la ou
-descartá-la na próxima leitura real.
+leituras seguintes que dão certo. É uma hipótese. O registro novo mostra se a falha foi um 400 ou
+um envelope de erro, em qual passo e em qual tentativa. Confirmar o código exige a captura de
+conteúdo.
 
 ## O que a Mitra fazia
 
@@ -116,7 +119,8 @@ falha. Nada disso separa conteúdo de metadado.
 Registro sempre ligado, nativo do Mastra e sem valores: os fatos que diagnosticam uma chamada
 nunca precisam do conteúdo dela. Captura de conteúdo por tempo limitado, ligada por um
 administrador e registrando quem ligou e quando, fica para quando um diagnóstico real precisar
-dela, como a redação com revelação auditada do n8n. Credencial, token e chave nunca entram, nem
+dela, como a redação com revelação auditada do n8n. O código detalhado de erro do provedor também
+só vem dessa captura. Credencial, token e chave nunca entram, nem
 com captura.
 
 A linha em stderr continua porque o log do piloto (`~/conexus-pilot-logs/hub.log`) é onde o

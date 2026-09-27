@@ -432,7 +432,7 @@ test('a handler reads the order through the bound connector socket, and holds no
   assert.deepEqual(fake.requests.map((request) => request.path), ['/authenticate', '/gateway/v1/mge/service.sbr', '/gateway/v1/mge/service.sbr'])
   assert.deepEqual(await run('callShapes', {}), [
     { ok: false, code: 'OPERATION_UNKNOWN' },
-    { ok: false, code: 'INPUT_REFUSED', issues: ['/service'] },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/<unrecognized>'] },
     { ok: false, code: 'OPERATION_UNKNOWN' },
   ])
   assert.deepEqual(

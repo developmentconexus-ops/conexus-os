@@ -47,12 +47,12 @@ class BrokerRefusal extends Error {
 
 const ISSUE_LIMIT = 10
 
-const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string; keys?: readonly string[] }>[]): readonly string[] =>
-  issues.slice(0, ISSUE_LIMIT).flatMap((issue) => {
+// Schema paths only: an unrecognized key is the caller's own text, so it comes back as a placeholder.
+const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string }>[]): readonly string[] =>
+  [...new Set(issues.slice(0, ISSUE_LIMIT).map((issue) => {
     const path = `/${issue.path.map(String).join('/')}`
-    const paths = issue.code === 'unrecognized_keys' && issue.keys ? issue.keys.map((key) => `${path === '/' ? '' : path}/${key}`) : [path]
-    return paths.map((entry) => entry.slice(0, 200))
-  }).slice(0, ISSUE_LIMIT)
+    return (issue.code === 'unrecognized_keys' ? `${path === '/' ? '' : path}/<unrecognized>` : path).slice(0, 200)
+  }))]
 
 const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => {
   if (signal.aborted) return Promise.reject(new AdapterFailure('TIMEOUT'))

@@ -133,12 +133,12 @@ test('P10: a short-lived token is reused, then refreshed before it expires', asy
 test('P3: an input naming a service, entity, expression, URL, header or token is refused with zero fake requests', async (t) => {
   const { fake, broker, store } = await setup(t)
   const cases = [
-    [{ documentNumber: 22790, service: 'CRUDServiceProvider.saveRecord' }, ['/service']],
-    [{ documentNumber: 22790, entity: 'Parceiro' }, ['/entity']],
-    [{ documentNumber: 22790, expression: '1 = 1' }, ['/expression']],
-    [{ documentNumber: 22790, url: 'http://127.0.0.1/' }, ['/url']],
-    [{ documentNumber: 22790, headers: { authorization: 'Bearer x' } }, ['/headers']],
-    [{ documentNumber: 22790, token: 'fake-token-1' }, ['/token']],
+    [{ documentNumber: 22790, service: 'CRUDServiceProvider.saveRecord' }, ['/<unrecognized>']],
+    [{ documentNumber: 22790, entity: 'Parceiro' }, ['/<unrecognized>']],
+    [{ documentNumber: 22790, expression: '1 = 1' }, ['/<unrecognized>']],
+    [{ documentNumber: 22790, url: 'http://127.0.0.1/' }, ['/<unrecognized>']],
+    [{ documentNumber: 22790, headers: { authorization: 'Bearer x' } }, ['/<unrecognized>']],
+    [{ documentNumber: 22790, token: 'fake-token-1' }, ['/<unrecognized>']],
     [{ documentNumber: '22790 OR 1 = 1' }, ['/documentNumber']],
     [{ documentNumber: -1 }, ['/documentNumber']],
     [null, ['/']],
@@ -249,10 +249,10 @@ test('P9 and P2: each gateway failure maps to its literal code and its span, and
   assert.deepEqual(await unreachable.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
 })
 
-test('a failing provider request is recorded with its HTTP status, envelope status, provider code, step and attempt', async (t) => {
+test('a failing provider request is recorded with its HTTP status, envelope status, step and attempt', async (t) => {
   const cases = [
-    [{ service: 400 }, { httpStatus: 400, providerCode: 'GTW3407' }],
-    [{ service: 'stalled-400' }, { httpStatus: 400, providerCode: 'GTW3407' }],
+    [{ service: 400 }, { httpStatus: 400 }],
+    [{ service: 'stalled-400' }, { httpStatus: 400 }],
     [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0' }],
   ]
   for (const [mode, answered] of cases) {
@@ -297,23 +297,24 @@ test('calls that share one authentication each record it: the issuer its request
   assert.deepEqual([names.filter(([name]) => name === 'authenticate'), names.filter(([name]) => name === LOAD).length], [[['authenticate', false]], 20], 'a shared success records one authentication and no shared failure')
 })
 
-test('a credential shaped like a provider code, echoed in an error body, is never recorded; a documented code is', async (t) => {
-  const shaped = Object.freeze({ clientId: 'GTW2468', clientSecret: 'CORE_E13579', xToken: 'GTW9753' })
+test('a credential shaped like a provider code, even a documented one, echoed in an error body reaches no span or line', async (t) => {
+  const shaped = Object.freeze({ clientId: 'GTW2468', clientSecret: 'CORE_E13579', xToken: 'GTW3501' })
   const { fake, broker, facts, exporter, lines } = await setup(t, { store: memoryStore({ credential: await envelope.seal(JSON.stringify(shaped)) }) })
   fake.mode.authenticate = 'echo-401'
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'CREDENTIAL_REFUSED' })
   assert.deepEqual(await facts(), [
     { name: 'connector.call', root: true, error: true, ...CALL, result: 'CREDENTIAL_REFUSED' },
-    { name: 'authenticate', root: false, error: true, ...CALL, step: 1, attempt: 1, httpStatus: 401, providerCode: 'GTW3501', result: 'AUTHENTICATION_REFUSED' },
-  ], 'only the documented code at the end of the body is recorded')
+    { name: 'authenticate', root: false, error: true, ...CALL, step: 1, attempt: 1, httpStatus: 401, result: 'AUTHENTICATION_REFUSED' },
+  ], 'the failure records its status only')
   const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
   for (const value of [...Object.values(shaped), SECRET_MARKER]) assert.equal(seen.includes(value), false, `${value} reached the record`)
 })
 
-test('an input refusal returns its key names to the calling handler only; the record keeps the code', async (t) => {
+test('an input refusal names schema paths only: a caller\'s own key never comes back, and the record keeps the code', async (t) => {
   const { fake, broker, facts, exporter, lines } = await setup(t)
-  const key = `note-${SECRET_MARKER}`
-  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790, [key]: 1 }), { ok: false, code: 'INPUT_REFUSED', issues: [`/${key}`] })
+  const result = await broker.call(consumer, READ, { documentNumber: 22790, [`note-${SECRET_MARKER}`]: 1, [`other-${SECRET_MARKER}`]: 2 })
+  assert.deepEqual(result, { ok: false, code: 'INPUT_REFUSED', issues: ['/<unrecognized>'] })
+  assert.equal(JSON.stringify(result).includes(SECRET_MARKER), false, 'no caller key comes back')
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(await facts(), [{ name: 'connector.call', root: true, error: true, ...CALL, result: 'INPUT_REFUSED' }])
   assert.equal(JSON.stringify(exporter.events).includes(SECRET_MARKER) || lines.join('').includes(SECRET_MARKER), false, 'no input key reaches the record')
@@ -328,7 +329,7 @@ test('a refused first token is recorded as its attempt, and the retry as the nex
   assert.deepEqual(await facts(), [
     { name: 'connector.call', root: true, error: false, ...CALL, result: 'OK' },
     { name: 'authenticate', root: false, error: false, ...CALL, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: true, ...CALL, step: 2, attempt: 1, httpStatus: 403, providerCode: 'GTW3403', result: 'TOKEN_REFUSED' },
+    { name: LOAD, root: false, error: true, ...CALL, step: 2, attempt: 1, httpStatus: 403, result: 'TOKEN_REFUSED' },
     { name: 'authenticate', root: false, error: false, ...CALL, step: 3, attempt: 2, httpStatus: 200, result: 'OK' },
     { name: LOAD, root: false, error: false, ...CALL, step: 4, attempt: 2, ...loaded },
     { name: LOAD, root: false, error: false, ...CALL, step: 5, attempt: 2, ...loaded },
