@@ -17,6 +17,8 @@ results and every application API answer as paths, types, counts and a digest.
 
 - One Builder run, `9e4fcfc2`, `SUCCEEDED` with `SOURCE_CHANGED`, no repair. Source `7a58a198` to
   `16eaeb8e` in 378 s to a usable Preview.
+- This is the first run of the two-run Q4.7 Builder budget. Run 1 does not count, because it ran
+  before the grant existed (operator decision, 2026-09-27). Run 3 is the second and last.
 - The checks passed before the reload. After the reload, `22790` passed and the note failed.
 - The runner then hung for 17 minutes. Three answers refused with 429 around the reload never
   delivered a body, and the API recorder waited on them. The result was read from the runner's
@@ -73,4 +75,4 @@ Decided by the operator on 2026-09-26. Nothing below has run yet.
    and 2.
 
 The `PROVIDER_ERROR` of the first read stays under diagnosis with the operator and is not fixed
-here. Whether runs 1 and 2 count against the two-run budget waits for the operator's decision.
+here. Run 3 is the second and last run of the Q4.7 Builder budget.

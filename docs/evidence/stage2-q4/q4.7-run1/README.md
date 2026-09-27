@@ -2,7 +2,8 @@
 
 **Result:** the Q4.7 check fails. The handler does not call `sankhya.purchase-order.read`, and no
 Sankhya data was read. The cause is configuration: the Q3 Project held no grant, so the Builder
-had no operation to call. The run is the first of the two-run budget.
+had no operation to call. The run does not count toward the Q4.7 Builder budget: it ran before the
+grant existed, so it tested the setup, not the Builder. The operator decided this on 2026-09-27.
 
 ## The run
 
@@ -44,5 +45,5 @@ digest. The raw `result.json` and the screenshots stay outside the repository.
 ## Before run 2
 
 The Workspace Owner grants `sankhya.purchase-order.read` to the Q3 Project in the Integrações
-screen, and the grant appears in `connector.project_grant`. Whether run 1 counts against the
-budget is the operator's call: the task's Q4.7 starts from the Q4.6 grant, which did not exist.
+screen, and the grant appears in `connector.project_grant`. The grant was recorded at 23:10:46 UTC,
+and run 2 is the first run of the budget.
