@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { generateKeyPairSync } from 'node:crypto'
 import { test } from 'node:test'
 import { startFakeGithub } from './builder-factory-fake-github.mjs'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
@@ -614,11 +615,11 @@ test('a run whose connector grants cannot be read still runs, told only that con
   const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
   const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-  const audited = []
+  const record = connectorRecord()
   const brief = createConnectorBrief({
     connectors: [{ definition: sankhyaDefinition, adapter: null }],
     store: { listGrantedCapabilities: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
-    audit: (line) => { audited.push(line) },
+    observability: record.observability,
   })
   const run = await harness(t, { connectorBrief: (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId })) })
   await run.start()
@@ -630,6 +631,6 @@ test('a run whose connector grants cannot be read still runs, told only that con
   await plain.settled()
   await plain.service.close()
   assert.deepEqual(run.configuredInstructions, [`${plain.configuredInstructions[0]} ${CONNECTOR_BRIEF_UNAVAILABLE}`])
-  assert.deepEqual(audited, [`${JSON.stringify({ event: 'connector.brief', result: 'STORE_UNAVAILABLE' })}\n`])
-  assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics]).includes('STORE_DETAIL_MARKER'), false)
+  assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId, result: 'STORE_UNAVAILABLE' }])
+  assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics, record.exporter.events, record.lines]).includes('STORE_DETAIL_MARKER'), false)
 })

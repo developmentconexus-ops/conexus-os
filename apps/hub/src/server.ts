@@ -176,6 +176,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
   // What the Builder learns about this Project's own granted connector operations.
   connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
+  connectorObservability: connectors.observability,
 }) : undefined
 const app = await createHttpApp({
   registerRoutes: async (server) => [

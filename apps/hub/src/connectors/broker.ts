@@ -1,13 +1,17 @@
+import { SpanType } from '@mastra/core/observability'
+import type { AnySpan, ObservabilityInstance } from '@mastra/core/observability'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
-import type { ConnectionId, ConnectorId, OperationId } from './model.js'
-import type { Adapter, ConnectorDefinition, Consumer, Operation } from './operation.js'
+import type { ConnectionId, ConnectorId } from './model.js'
+import type { Adapter, ConnectorDefinition, Consumer, Operation, RequestTrace } from './operation.js'
+import { endSpan, requestTrace } from './record.js'
+import type { SpanResult } from './record.js'
 import type { ConsumerScope } from './scope.js'
 import { isMintedScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 import { createTokenCache, Redacted } from './token-cache.js'
-import type { IssuedToken, TokenCache } from './token-cache.js'
+import type { IssuedToken, TokenCache, TokenLease } from './token-cache.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
 type AnyDefinition = ConnectorDefinition<any, any>
@@ -19,8 +23,7 @@ type AnyOperation = Operation<any, any, any>
 /** A Definition and its adapter; `adapter` is null when server configuration pins no destination. */
 export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter: AnyAdapter | null }>
 
-/** Receives one value-free JSON line per call: never an input, output, token or credential. */
-export type AuditSink = (line: string) => void
+type Entry = Readonly<{ operation: AnyOperation; connector: RegisteredConnector }>
 
 export type Broker = Readonly<{
   /** Never throws. */
@@ -44,12 +47,12 @@ class BrokerRefusal extends Error {
 
 const ISSUE_LIMIT = 10
 
-const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string; keys?: readonly string[] }>[]): readonly string[] =>
-  issues.slice(0, ISSUE_LIMIT).flatMap((issue) => {
+// Schema paths only: an unrecognized key is the caller's own text, so it comes back as a placeholder.
+const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string }>[]): readonly string[] =>
+  [...new Set(issues.slice(0, ISSUE_LIMIT).map((issue) => {
     const path = `/${issue.path.map(String).join('/')}`
-    const paths = issue.code === 'unrecognized_keys' && issue.keys ? issue.keys.map((key) => `${path === '/' ? '' : path}/${key}`) : [path]
-    return paths.map((entry) => entry.slice(0, 200))
-  }).slice(0, ISSUE_LIMIT)
+    return (issue.code === 'unrecognized_keys' ? `${path === '/' ? '' : path}/<unrecognized>` : path).slice(0, 200)
+  }))]
 
 const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => {
   if (signal.aborted) return Promise.reject(new AdapterFailure('TIMEOUT'))
@@ -59,6 +62,11 @@ const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => 
     signal.addEventListener('abort', onAbort, { once: true })
   })
   return Promise.race([work, deadline]).finally(() => signal.removeEventListener('abort', onAbort))
+}
+
+const resultOf = (error: unknown): SpanResult => {
+  if (error instanceof AdapterFailure) return error.reason
+  return error instanceof BrokerRefusal ? error.code : 'UNEXPECTED'
 }
 
 const codeOf = (error: unknown, signal: AbortSignal): BrokerErrorCode => {
@@ -72,20 +80,18 @@ export const createBroker = ({
   connectors,
   store,
   envelope,
-  audit,
+  observability,
   tokens = createTokenCache(),
   deadlineMs = DEFAULT_DEADLINE_MS,
-  clock = () => performance.now(),
 }: Readonly<{
   connectors: readonly RegisteredConnector[]
   store: BrokerStore
   envelope: SecretEnvelope
-  audit: AuditSink
+  observability: ObservabilityInstance
   tokens?: TokenCache
   deadlineMs?: number
-  clock?: () => number
 }>): Broker => {
-  const operations = new Map<string, Readonly<{ operation: AnyOperation; connector: RegisteredConnector }>>()
+  const operations = new Map<string, Entry>()
   for (const connector of connectors) {
     for (const operation of connector.definition.operations) {
       if (operations.has(operation.id)) throw new Error(`CONNECTOR_OPERATION_DUPLICATE:${operation.id}`)
@@ -95,7 +101,7 @@ export const createBroker = ({
   const adapterOf = (connectorId: ConnectorId): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
 
   // Only this function opens the credential envelope.
-  const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal): Promise<IssuedToken> => {
+  const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
     let sealed: string | null
     try {
       sealed = await store.readConnectionCredential(connectionId)
@@ -111,18 +117,10 @@ export const createBroker = ({
     }
     const credential = connector.definition.credential.safeParse(plain)
     if (!credential.success) throw new BrokerRefusal('CREDENTIAL_REFUSED')
-    return adapter.authenticate(new Redacted(credential.data), signal)
+    return adapter.authenticate(new Redacted(credential.data), signal, trace)
   }
 
-  const line = (fields: Readonly<Record<string, unknown>>): void => {
-    try { audit(`${JSON.stringify(fields)}\n`) } catch { /* an audit sink failure never fails the call */ }
-  }
-
-  const attempt = async (consumer: Consumer, operationId: string, input: unknown, services: string[], known: { operation: OperationId | null }): Promise<BrokerResult<unknown>> => {
-    const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
-    if (!entry) return refused('OPERATION_UNKNOWN')
-    const { operation, connector } = entry
-    known.operation = operation.id
+  const execute = async ({ operation, connector }: Entry, consumer: Consumer, input: unknown, span: AnySpan): Promise<BrokerResult<unknown>> => {
     if (operation.effect === 'write') return refused('EFFECT_REFUSED')
     const parsed = operation.input.safeParse(input)
     if (!parsed.success) return refused('INPUT_REFUSED', inputIssues(parsed.error.issues))
@@ -138,13 +136,31 @@ export const createBroker = ({
     if (!adapter) return refused('CONNECTOR_UNCONFIGURED')
     const connectionId = grant.connectionId
     const signal = AbortSignal.timeout(deadlineMs)
-    const trace = Object.freeze({ called: (service: string) => { services.push(service) } })
+    let attempt = 0
+    let issued = 0
+    const trace = requestTrace(span, () => attempt, signal)
+    // A lease that fails while this call issued nothing failed on another call's authentication.
+    const recordJoined = (lease: TokenLease): TokenLease => async () => {
+      const before = issued
+      try {
+        return await lease()
+      } catch (error) {
+        if (issued === before) trace.joined('authenticate', resultOf(error))
+        throw error
+      }
+    }
     let value: unknown
     try {
       value = await untilDeadline(signal, tokens.withToken(
         connectionId,
-        () => authenticate(connector, adapter, connectionId, signal),
-        (lease) => operation.run(parsed.data, adapter.open(lease, signal, trace)),
+        () => {
+          issued += 1
+          return authenticate(connector, adapter, connectionId, signal, trace)
+        },
+        (lease) => {
+          attempt += 1
+          return operation.run(parsed.data, adapter.open(recordJoined(lease), signal, trace))
+        },
       ))
     } catch (error) {
       return refused(codeOf(error, signal))
@@ -156,24 +172,19 @@ export const createBroker = ({
 
   return Object.freeze({
     async call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>> {
-      const started = clock()
-      const services: string[] = []
-      const known: { operation: OperationId | null } = { operation: null }
+      const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
+      const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: {
+        consumer: typeof consumer?.kind === 'string' ? consumer.kind : null,
+        projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,
+        operation: entry?.operation.id ?? null,
+      } })
       let result: BrokerResult<unknown>
       try {
-        result = await attempt(consumer, operationId, input, services, known)
+        result = entry ? await execute(entry, consumer, input, span) : refused('OPERATION_UNKNOWN')
       } catch {
         result = refused('PROVIDER_UNAVAILABLE')
       }
-      line({
-        event: 'connector.call',
-        consumer: typeof consumer?.kind === 'string' ? consumer.kind : null,
-        projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,
-        operation: known.operation,
-        services,
-        result: result.ok ? 'OK' : result.code,
-        ms: Math.round(clock() - started),
-      })
+      endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
     async granted(scope: ConsumerScope): Promise<readonly Operation<unknown, unknown, unknown>[]> {
@@ -185,7 +196,7 @@ export const createBroker = ({
       })
     },
     async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
-      const started = clock()
+      const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: { connector: connectorId } })
       let result: BrokerResult<null>
       const connector = adapterOf(connectorId)
       const adapter = connector?.adapter
@@ -194,13 +205,13 @@ export const createBroker = ({
       } else {
         const signal = AbortSignal.timeout(deadlineMs)
         try {
-          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal))
+          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal, requestTrace(span, () => 1, signal)))
           result = Object.freeze({ ok: true, value: null })
         } catch (error) {
           result = refused(codeOf(error, signal))
         }
       }
-      line({ event: 'connector.check', connector: connectorId, result: result.ok ? 'OK' : result.code, ms: Math.round(clock() - started) })
+      endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
     forget: (connectionId: ConnectionId) => tokens.forget(connectionId),

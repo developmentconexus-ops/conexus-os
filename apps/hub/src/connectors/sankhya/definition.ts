@@ -16,6 +16,7 @@ export const sankhyaDefinition: ConnectorDefinition<SankhyaCredential, SankhyaSe
   operations: Object.freeze([purchaseOrderRead]),
   events: Object.freeze([]),
   builderSkill: SANKHYA_BUILDER_SKILL,
+  secretFields: Object.freeze([...Object.keys(sankhyaCredentialSchema.shape), 'access_token']),
 })
 
 export const SANKHYA_OPERATION_IDS: readonly OperationId[] = Object.freeze(sankhyaDefinition.operations.map((operation) => operation.id))

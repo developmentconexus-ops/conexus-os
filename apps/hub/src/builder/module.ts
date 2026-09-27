@@ -3,6 +3,7 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
+import type { ObservabilityInstance } from '@mastra/core/observability'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
@@ -127,16 +128,21 @@ export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryCompo
     await memory.saveMessages({ messages: [noteMessage(note, note.conversationId)] })
   }
 
-const createBuilderObservability = (serviceName: string): Observability => new Observability({
-  sensitiveDataFilter: true,
-  configs: {
-    default: {
-      serviceName,
-      requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
-      exporters: [new MastraStorageExporter()],
+/** @public Tests import this at runtime from the built module. */
+export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
+  const observability = new Observability({
+    sensitiveDataFilter: true,
+    configs: {
+      default: {
+        serviceName,
+        requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
+        exporters: [new MastraStorageExporter()],
+      },
     },
-  },
-})
+  })
+  if (connectorObservability) observability.registerInstance('connectors', connectorObservability)
+  return observability
+}
 
 const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 
@@ -179,7 +185,7 @@ const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) =>
 
 // The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
 // the Builder's traces.
-const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief }: Readonly<{
+const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief, connectorObservability }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   factory: FactoryRuntimeConfig
   secretKey: InstallationSecretKey
@@ -192,6 +198,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
+  connectorObservability?: ObservabilityInstance
 }>) => {
   assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
   const pool = createFactoryPool(database, readSecretFile(factory.databasePasswordFile))
@@ -205,7 +212,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   const stateSecret = readSecretFile(factory.stateSecretFile)
   const secretKey = readSecretFile(installationKey.file)
   const previousSecretKeys = installationKey.previousFiles.map(readSecretFile)
-  const observability = createBuilderObservability('conexus-builder-factory')
+  const observability = createBuilderObservability('conexus-builder-factory', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
   const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
   // A sandbox starts only after the composition is ready, so its seed reads the Factory's rows then.
@@ -282,7 +289,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   })
 }
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief, connectorObservability }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
@@ -299,6 +306,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
   connectorBrief?: (projectId: string) => Promise<string>
+  connectorObservability?: ObservabilityInstance
 }>) => {
   assertFactoryGlobalSkillsAvailable()
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
@@ -316,6 +324,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const factoryComposition = startFactoryComposition({
     database, factory, secretKey, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
     resolveCurrentSession, isInstallationAdministrator, ...(connectorBrief ? { connectorBrief } : {}),
+    ...(connectorObservability ? { connectorObservability } : {}),
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), factory: factoryComposition.run,

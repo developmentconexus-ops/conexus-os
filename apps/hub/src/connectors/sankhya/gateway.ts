@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AdapterFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, ServiceTrace } from '../operation.js'
+import type { Adapter, EnvelopeStatus, ProviderAnswer, RequestTrace } from '../operation.js'
 import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
@@ -42,6 +42,7 @@ export type SankhyaSession = Readonly<{
 
 const RESPONSE_CAP_BYTES = 256 * 1024
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
+const RECORDED_ENVELOPE_STATUSES: ReadonlySet<string> = new Set(['0', '1', '2', '3', '4'])
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
 export const pinnedGatewayOrigin = (value: string): string => {
@@ -49,8 +50,7 @@ export const pinnedGatewayOrigin = (value: string): string => {
   return value
 }
 
-// One classification for every HTTP status the gateway answers. Whether a refused token surfaces as
-// HTTP 401 or inside the response envelope is unverified; only the status is checked here.
+// Sankhya's return-code table answers an invalid or expired bearer with 403 GTW3403.
 const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): AdapterFailureReason | null => {
   if (status >= 200 && status < 300) return null
   if (status === 401 || status === 403 || (phase === 'authenticate' && status === 400)) return phase === 'authenticate' ? 'AUTHENTICATION_REFUSED' : 'TOKEN_REFUSED'
@@ -60,16 +60,17 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
 
 const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
-const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service'): Promise<unknown> => {
+const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', answer: ProviderAnswer): Promise<unknown> => {
   let response: Response
   try {
     response = await fetchImpl(url, { ...init, signal, redirect: 'error' })
   } catch {
     throw transportFailure(signal)
   }
+  answer.httpStatus = response.status
   const failure = failureOfStatus(response.status, phase)
   if (failure) {
-    // The provider's body and status text never leave this file, not even into an error.
+    // The provider's body and status text never leave this file, not even into an error or a record.
     await response.body?.cancel().catch(() => undefined)
     throw new AdapterFailure(failure)
   }
@@ -119,10 +120,12 @@ const envelope = z.object({
 
 // Positional f0..fN, named through the metadata. A total of '0' is no record; a page that says more
 // results exist is refused rather than returned partial.
-const decodeRecords = (body: unknown): readonly SankhyaRecord[] => {
+const decodeRecords = (body: unknown, answer: ProviderAnswer): readonly SankhyaRecord[] => {
   const parsed = envelope.safeParse(body)
   if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
-  if (parsed.data.status !== '1') throw new AdapterFailure('PROVIDER_ERROR')
+  const { status } = parsed.data
+  answer.envelopeStatus = RECORDED_ENVELOPE_STATUSES.has(status) ? status as EnvelopeStatus : 'other'
+  if (status !== '1') throw new AdapterFailure('PROVIDER_ERROR')
   const entities = parsed.data.responseBody?.entities
   if (!entities) throw new AdapterFailure('RESPONSE_REFUSED')
   if (entities.total === '0') return []
@@ -156,29 +159,28 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
 
 /** The adapter factory. The Hub passes the pinned origin; a test passes a local fake's origin directly. */
 export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fetch }: Readonly<{ origin: string; fetch?: typeof fetch }>): Adapter<SankhyaCredential, SankhyaSession> => Object.freeze({
-  async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal): Promise<IssuedToken> {
+  async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> {
     const { clientId, clientSecret, xToken } = credential.reveal()
     if (/[\r\n]/.test(xToken)) throw new AdapterFailure('AUTHENTICATION_REFUSED')
-    const body = await send(fetchImpl, `${origin}/authenticate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-token': xToken },
-      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }).toString(),
-    }, signal, 'authenticate')
-    const parsed = tokenResponse.safeParse(body)
-    if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
-    return Object.freeze({ token: new AccessToken(parsed.data.access_token), expiresInSeconds: parsed.data.expires_in })
+    return trace.request('authenticate', async (answer) => {
+      const parsed = tokenResponse.safeParse(await send(fetchImpl, `${origin}/authenticate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-token': xToken },
+        body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }).toString(),
+      }, signal, 'authenticate', answer))
+      if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
+      return Object.freeze({ token: new AccessToken(parsed.data.access_token), expiresInSeconds: parsed.data.expires_in })
+    })
   },
-  open(token: TokenLease, signal: AbortSignal, trace: ServiceTrace): SankhyaSession {
+  open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): SankhyaSession {
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
       if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
       const bearer = (await token()).bearer()
-      trace.called(service)
-      const body = await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
+      return trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` },
         body: requestBody(service, query),
-      }, signal, 'service')
-      return decodeRecords(body)
+      }, signal, 'service', answer), answer))
     }
     return Object.freeze({
       callService,
