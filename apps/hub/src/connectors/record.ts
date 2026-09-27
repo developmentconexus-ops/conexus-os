@@ -5,7 +5,10 @@ import { AdapterFailure } from './errors.js'
 import type { AdapterFailureReason, BrokerErrorCode } from './errors.js'
 import type { ProviderAnswer, RequestTrace } from './operation.js'
 
-type SpanResult = 'OK' | 'UNEXPECTED' | 'STORE_UNAVAILABLE' | BrokerErrorCode | AdapterFailureReason
+export type SpanResult = 'OK' | 'UNEXPECTED' | 'STORE_UNAVAILABLE' | BrokerErrorCode | AdapterFailureReason
+
+/** `joined` records a request another call made and this call waited on, and that failed it. */
+export type CallTrace = RequestTrace & Readonly<{ joined(name: string, result: SpanResult): void }>
 
 class SpanLineExporter extends BaseExporter {
   override name = 'connector-span-line'
@@ -42,24 +45,33 @@ export const createConnectorObservability = ({ store, log, secretFields }: Reado
 export const endSpan = (span: AnySpan, result: SpanResult, answer: ProviderAnswer = {}): void => {
   const metadata = { ...answer, result }
   if (result === 'OK') span.end({ metadata })
-  else span.error({ error: new Error(result), metadata })
+  else span.error({ error: Object.assign(new Error(result), { stack: undefined }), metadata })
 }
 
-export const requestTrace = (parent: AnySpan, attemptOf: () => number): RequestTrace => {
+export const requestTrace = (parent: AnySpan, attemptOf: () => number, signal: AbortSignal): CallTrace => {
   let step = 0
   return Object.freeze({
-    async request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T> {
+    joined(name: string, result: SpanResult): void {
+      if (signal.aborted) return
+      step += 1
+      endSpan(parent.createChildSpan({ type: SpanType.GENERIC, name, metadata: { step, attempt: attemptOf(), shared: true } }), result)
+    },
+    async request<T>(name: string, send: (answer: ProviderAnswer, annotate: (pending: Promise<void>) => void) => Promise<T>): Promise<T> {
+      // Past the deadline the request would never be sent, so it is not recorded as one.
+      if (signal.aborted) throw new AdapterFailure('TIMEOUT')
       step += 1
       const span = parent.createChildSpan({ type: SpanType.GENERIC, name, metadata: { step, attempt: attemptOf() } })
       const answer: ProviderAnswer = {}
+      const pending: Promise<void>[] = []
+      const end = (result: SpanResult): void => { void Promise.allSettled(pending).then(() => endSpan(span, result, answer)) }
       let value: T
       try {
-        value = await send(answer)
+        value = await send(answer, (work) => { pending.push(work) })
       } catch (error) {
-        endSpan(span, error instanceof AdapterFailure ? error.reason : 'UNEXPECTED', answer)
+        end(error instanceof AdapterFailure ? error.reason : 'UNEXPECTED')
         throw error
       }
-      endSpan(span, 'OK', answer)
+      end('OK')
       return value
     },
   })

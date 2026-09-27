@@ -11,6 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
 const { createBuilderObservability } = await import(hubModuleUrl('builder/module.js'))
+const { endSpan, requestTrace } = await import(hubModuleUrl('connectors/record.js'))
 const { createTokenCache } = await import(hubModuleUrl('connectors/token-cache.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -251,10 +252,11 @@ test('a failing provider request is recorded with its HTTP status, envelope stat
   const cases = [
     [{ service: 400 }, { httpStatus: 400, providerCode: 'GTW3407' }],
     [{ service: 'stalled-400' }, { httpStatus: 400, providerCode: 'GTW3407' }],
+    [{ service: 'cut-code' }, { httpStatus: 400 }],
     [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0', providerCode: 'CORE_E01234' }],
   ]
   for (const [mode, answered] of cases) {
-    const { fake, broker, facts, exporter } = await setup(t)
+    const { fake, broker, facts, exporter } = await setup(t, { deadlineMs: 200 })
     Object.assign(fake.mode, mode)
     assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'PROVIDER_ERROR' }, JSON.stringify(mode))
     assert.deepEqual(await facts(), [
@@ -269,8 +271,30 @@ test('a failing provider request is recorded with its HTTP status, envelope stat
       assert.equal(span.traceId, root.traceId, `${span.name} belongs to the call's trace`)
     }
     assert.deepEqual(spans.map((span) => span.parentSpanId ?? null), [null, root.id, root.id], 'each request is a child of the call')
-    assert.deepEqual(spans.map((span) => span.errorInfo?.message ?? null), ['PROVIDER_ERROR', null, 'PROVIDER_ERROR'], 'an error carries its closed code only')
+    assert.deepEqual(spans.map((span) => (span.errorInfo ? JSON.parse(JSON.stringify(span.errorInfo)) : null)), [{ message: 'PROVIDER_ERROR', name: 'Error' }, null, { message: 'PROVIDER_ERROR', name: 'Error' }], 'a stored error is its closed code, with no stack')
   }
+})
+
+test('calls that share one authentication each record it: the issuer its request, a joiner the shared failure', async (t) => {
+  const byTrace = (exporter) => Object.values(Object.groupBy(exporter.getCompletedSpans(), (span) => span.traceId))
+    .map((spans) => spans.map((span) => ({ name: span.name, ...span.metadata })))
+  const refused = await setup(t)
+  refused.fake.mode.authenticate = 401
+  const results = await Promise.all([1, 2].map(() => refused.broker.call(consumer, READ, { documentNumber: 22790 })))
+  assert.deepEqual(results, [{ ok: false, code: 'CREDENTIAL_REFUSED' }, { ok: false, code: 'CREDENTIAL_REFUSED' }])
+  assert.equal(refused.fake.requests.length, 1, 'one authentication was sent')
+  await refused.settled()
+  const failed = { name: 'connector.call', ...CALL, result: 'CREDENTIAL_REFUSED' }
+  assert.deepEqual(byTrace(refused.exporter).sort((a, b) => a.length - b.length || JSON.stringify(a).localeCompare(JSON.stringify(b))), [
+    [failed, { name: 'authenticate', ...CALL, step: 1, attempt: 1, httpStatus: 401, result: 'AUTHENTICATION_REFUSED' }],
+    [failed, { name: 'authenticate', ...CALL, step: 1, attempt: 1, shared: true, result: 'AUTHENTICATION_REFUSED' }],
+  ].sort((a, b) => a.length - b.length || JSON.stringify(a).localeCompare(JSON.stringify(b))))
+
+  const served = await setup(t)
+  await Promise.all(Array.from({ length: 10 }, () => served.broker.call(consumer, READ, { documentNumber: 22790 })))
+  await served.settled()
+  const names = served.exporter.getCompletedSpans().map((span) => [span.name, span.metadata.shared ?? false])
+  assert.deepEqual([names.filter(([name]) => name === 'authenticate'), names.filter(([name]) => name === LOAD).length], [[['authenticate', false]], 20], 'a shared success records one authentication and no shared failure')
 })
 
 test('a refused first token is recorded as its attempt, and the retry as the next one', async (t) => {
@@ -289,21 +313,31 @@ test('a refused first token is recorded as its attempt, and the retry as the nex
   ])
 })
 
+test('a request reached after the deadline is never sent and never recorded', async () => {
+  const { observability, facts } = connectorRecord()
+  const root = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call' })
+  let sent = false
+  await assert.rejects(requestTrace(root, () => 1, AbortSignal.abort()).request(LOAD, async () => { sent = true }), { message: 'TIMEOUT' })
+  endSpan(root, 'PROVIDER_TIMEOUT')
+  assert.equal(sent, false)
+  assert.deepEqual(await facts(), [{ name: 'connector.call', root: true, error: true, result: 'PROVIDER_TIMEOUT' }])
+})
+
 const withoutRandomHexIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
 
 test('no credential, token, input, output or provider text reaches a tracing event or a log line, in any mode', async (t) => {
   const modes = [
     {}, { authenticate: 401 }, { authenticate: 500 }, { authenticate: 'stall' },
-    { service: 400 }, { service: 'stalled-400' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
+    { service: 400 }, { service: 'stalled-400' }, { service: 'cut-code' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
     { service: 'extra-field' }, { service: 'refuse-first-token' }, { service: 'stall' },
   ]
   const forbidden = [SECRET_MARKER, ...Object.values(FAKE_CREDENTIAL), 'fake-token-', '22790', 'Fornecedor Exemplo Ltda', 'Parafuso', '1520.50', '9001']
   for (const mode of modes) {
-    const { fake, broker, observability, exporter, lines } = await setup(t, { deadlineMs: 300 })
+    const { fake, broker, settled, exporter, lines } = await setup(t, { deadlineMs: 300 })
     Object.assign(fake.mode, mode)
     await broker.call(consumer, READ, { documentNumber: 22790 })
     await broker.checkCredential('sankhya', CONNECTION)
-    await observability.flush()
+    await settled()
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
     const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
     for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} leaked for ${JSON.stringify(mode)}`)
@@ -323,9 +357,9 @@ test('a credential or token field a span carries by mistake is redacted by the C
 })
 
 test('the log line of each ended span carries the stored span\'s own facts: one record, not two', async (t) => {
-  const { broker, observability, exporter, lines } = await setup(t)
+  const { broker, settled, exporter, lines } = await setup(t)
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
-  await observability.flush()
+  await settled()
   const logged = lines.map((line) => JSON.parse(line))
   assert.equal(lines.every((line) => line.endsWith('\n') && !line.slice(0, -1).includes('\n')), true, 'one line per span')
   assert.deepEqual(logged.map((line) => line.span), ['authenticate', LOAD, LOAD, 'connector.call'], 'one line per ended span, in end order')

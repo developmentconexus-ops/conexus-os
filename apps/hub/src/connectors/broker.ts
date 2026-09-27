@@ -6,11 +6,12 @@ import type { BrokerErrorCode, BrokerResult } from './errors.js'
 import type { ConnectionId, ConnectorId } from './model.js'
 import type { Adapter, ConnectorDefinition, Consumer, Operation, RequestTrace } from './operation.js'
 import { endSpan, requestTrace } from './record.js'
+import type { SpanResult } from './record.js'
 import type { ConsumerScope } from './scope.js'
 import { isMintedScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 import { createTokenCache, Redacted } from './token-cache.js'
-import type { IssuedToken, TokenCache } from './token-cache.js'
+import type { IssuedToken, TokenCache, TokenLease } from './token-cache.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
 type AnyDefinition = ConnectorDefinition<any, any>
@@ -61,6 +62,11 @@ const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => 
     signal.addEventListener('abort', onAbort, { once: true })
   })
   return Promise.race([work, deadline]).finally(() => signal.removeEventListener('abort', onAbort))
+}
+
+const resultOf = (error: unknown): SpanResult => {
+  if (error instanceof AdapterFailure) return error.reason
+  return error instanceof BrokerRefusal ? error.code : 'UNEXPECTED'
 }
 
 const codeOf = (error: unknown, signal: AbortSignal): BrokerErrorCode => {
@@ -131,15 +137,29 @@ export const createBroker = ({
     const connectionId = grant.connectionId
     const signal = AbortSignal.timeout(deadlineMs)
     let attempt = 0
-    const trace = requestTrace(span, () => attempt)
+    let issued = 0
+    const trace = requestTrace(span, () => attempt, signal)
+    // A lease that fails while this call issued nothing failed on another call's authentication.
+    const recordJoined = (lease: TokenLease): TokenLease => async () => {
+      const before = issued
+      try {
+        return await lease()
+      } catch (error) {
+        if (issued === before) trace.joined('authenticate', resultOf(error))
+        throw error
+      }
+    }
     let value: unknown
     try {
       value = await untilDeadline(signal, tokens.withToken(
         connectionId,
-        () => authenticate(connector, adapter, connectionId, signal, trace),
+        () => {
+          issued += 1
+          return authenticate(connector, adapter, connectionId, signal, trace)
+        },
         (lease) => {
           attempt += 1
-          return operation.run(parsed.data, adapter.open(lease, signal, trace))
+          return operation.run(parsed.data, adapter.open(recordJoined(lease), signal, trace))
         },
       ))
     } catch (error) {
@@ -185,7 +205,7 @@ export const createBroker = ({
       } else {
         const signal = AbortSignal.timeout(deadlineMs)
         try {
-          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal, requestTrace(span, () => 1)))
+          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal, requestTrace(span, () => 1, signal)))
           result = Object.freeze({ ok: true, value: null })
         } catch (error) {
           result = refused(codeOf(error, signal))

@@ -27,8 +27,9 @@ export type EnvelopeStatus = string & { readonly __brand: 'EnvelopeStatus' }
 
 export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; providerCode?: ProviderCode }
 
+/** `annotate` hands over work that completes the answer after `send` settles; the caller never waits for it. */
 export type RequestTrace = Readonly<{
-  request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T>
+  request<T>(name: string, send: (answer: ProviderAnswer, annotate: (pending: Promise<void>) => void) => Promise<T>): Promise<T>
 }>
 
 export type Adapter<Cred, S> = Readonly<{

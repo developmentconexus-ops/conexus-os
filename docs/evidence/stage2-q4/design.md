@@ -130,9 +130,10 @@ header, status text or token crosses the broker.
 8. End the call's Mastra span, `connector.call`, with its result. The span holds the consumer kind,
    the Project and the operation. Each provider request, `authenticate` included, is a child span with
    its service or endpoint name, step, attempt, HTTP status, envelope status, a provider code only when
-   it matches `GTW\d{4}` or `CORE_E\d+`, and its result. No input, output, body, token or credential.
-   A Mastra exporter writes each ended span as one JSON line on stderr, so the log and the stored trace
-   are one record. This is the per-call record G0 asks for.
+   it is a whole `GTW\d{4}` or `CORE_E\d{1,8}`, and its result. No input, output, body, token or credential.
+   A call that failed on another call's shared authentication records it as `authenticate` with
+   `shared: true`. A Mastra exporter writes each ended span as one JSON line on stderr, so the log and
+   the stored trace are one record. This is the per-call record G0 asks for.
 
 The broker is traced, under [C-029](../../decisions/index.md) (2026-09-26), in
 `apps/hub/src/connectors/record.ts`. P2 holds first because the broker and the gateway hand a span only
