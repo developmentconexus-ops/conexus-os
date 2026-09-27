@@ -124,7 +124,7 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - The Factory reviews every pull request, and its verdict `approve` is the required review. On a
   pull request the Factory did not build, a finding that is not a leak or a security gap goes to
   the author once and does not block; the operator decides whether to dismiss that review, and
-  a review he dismissed no longer counts against the gate. An
+  his dismissal takes the place of the Factory's `approve` for that head. An
   independent GPT-6 Sol review runs only when the operator asks, without the Factory's verdict.
   Every review follows [the review checklist](review-checklist.md) from `origin/main`, with the
   census redone by the reviewer.
