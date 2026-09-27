@@ -189,8 +189,7 @@ reliability of its deciding proof.
 
 ### Independent assurance
 
-Independent review is risk-triggered: it runs in the qualification lane, whose
-Q triggers match the material conditions in this method. The procedure, the
+Independent review runs when the operator asks for it. The procedure, the
 adjudication of findings and the verification graph live in
 [`delivery.md`](delivery.md#proof-and-verification). Reviewer output is
 evidence, never authority, and never permits recursive review expansion.

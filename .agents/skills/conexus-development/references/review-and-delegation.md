@@ -22,9 +22,9 @@ The [review checklist](../../../../docs/development/review-checklist.md) and the
 
 **Fast lane.** No independent review beyond the Factory's. The gates are the fast-lane gates in [the delivery rules](../../../../docs/development/delivery.md#pick-the-lane-by-risk). The Codex connector comments on the pull request. Triage each comment on its merits: fix it, dismiss it with a concrete reason, or ask on the thread.
 
-**Shaped lane and `needs:aprovo`.** The [merge gate](../../../../docs/development/delivery.md#merge-gate) adds an independent GPT-6 Sol review. The manager runs it without the Factory's verdict.
+**Shaped lane and `needs:aprovo`.** The same as the fast lane. An independent GPT-6 Sol review runs only when the operator asks, per the [merge gate](../../../../docs/development/delivery.md#merge-gate).
 
-**Qualification lane.** Independent review follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification) and the [merge gate](../../../../docs/development/delivery.md#merge-gate). The manager's GPT-6 Sol review has seen no draft of the work. Also:
+**Qualification lane.** When the operator asks for an independent review, it follows [Proof and verification](../../../../docs/development/delivery.md#proof-and-verification), and the GPT-6 Sol reviewer has seen no draft of the work. Also:
 
 - A collaborative writer or design challenger is not an independent reviewer.
 - A reviewer finding is evidence, not a product requirement and not execution authority. The lead classifies it against current owners.

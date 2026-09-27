@@ -11,7 +11,7 @@
   description: "A shaped bet: across modules or more than one pull request, no Q trigger"
 - name: "lane:qualification"
   color: "5319e7"
-  description: "A Q trigger holds: task in docs/tasks, evidence, independent review"
+  description: "A Q trigger holds: task in docs/tasks, evidence"
 - name: "needs:aprovo"
   color: "d93f0b"
   description: "Operator Aprovo: real-data migration, security or auth, requested screen. No auto-merge"
