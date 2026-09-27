@@ -21,8 +21,8 @@ export type Operation<I, O, S> = Readonly<{
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
-/** Made only by an adapter's strict pattern match on a structured status field. */
-export type EnvelopeStatus = string & { readonly __brand: 'EnvelopeStatus' }
+/** A closed set, so a provider-chosen status value never reaches the record; any other value is 'other'. */
+export type EnvelopeStatus = '0' | '1' | '2' | '3' | '4' | 'other'
 
 /** No provider text becomes a field here: a detailed error code comes only from content capture (C-029). */
 export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus }

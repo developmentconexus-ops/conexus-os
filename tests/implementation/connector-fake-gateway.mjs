@@ -93,6 +93,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       }
       if (service === 401) return send(401, { error: 'invalid_token', detail: SECRET_MARKER }, SECRET_MARKER)
       if (service === 500) return send(500, `<html>${SECRET_MARKER}</html>`, SECRET_MARKER)
+      if (service === 'envelope-status-47') return send(200, { serviceName: record.serviceName, status: '47', statusMessage: `Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'envelope-error') return send(200, { serviceName: record.serviceName, status: '0', statusMessage: `[CORE_E01234] Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'oversized') return send(200, { serviceName: record.serviceName, status: '1', padding: 'x'.repeat(300 * 1024) })
       return send(200, {

@@ -254,6 +254,7 @@ test('a failing provider request is recorded with its HTTP status, envelope stat
     [{ service: 400 }, { httpStatus: 400 }],
     [{ service: 'stalled-400' }, { httpStatus: 400 }],
     [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0' }],
+    [{ service: 'envelope-status-47' }, { httpStatus: 200, envelopeStatus: 'other' }],
   ]
   for (const [mode, answered] of cases) {
     const { fake, broker, facts, exporter } = await setup(t, { deadlineMs: 200 })
@@ -350,7 +351,7 @@ test('a request reached after the deadline is never sent and never recorded', as
 test('no credential, token, input, output or provider text reaches a tracing event or a log line, in any mode', async (t) => {
   const modes = [
     {}, { authenticate: 401 }, { authenticate: 500 }, { authenticate: 'stall' },
-    { service: 400 }, { service: 'stalled-400' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'oversized' },
+    { service: 400 }, { service: 'stalled-400' }, { service: 401 }, { service: 500 }, { service: 'envelope-error' }, { service: 'envelope-status-47' }, { service: 'oversized' },
     { service: 'extra-field' }, { service: 'refuse-first-token' }, { service: 'stall' },
   ]
   const forbidden = [SECRET_MARKER, ...Object.values(FAKE_CREDENTIAL), 'fake-token-', '22790', 'Fornecedor Exemplo Ltda', 'Parafuso', '1520.50', '9001']
@@ -363,6 +364,8 @@ test('no credential, token, input, output or provider text reaches a tracing eve
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
     const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
     for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} leaked for ${JSON.stringify(mode)}`)
+    const statuses = [...exporter.events.map((event) => event.exportedSpan.metadata), ...lines.map((line) => JSON.parse(line))].flatMap((fields) => ('envelopeStatus' in fields ? [fields.envelopeStatus] : []))
+    for (const status of statuses) assert.ok(['0', '1', '2', '3', '4', 'other'].includes(status), `${status} is not a closed envelope status, for ${JSON.stringify(mode)}`)
   }
 })
 

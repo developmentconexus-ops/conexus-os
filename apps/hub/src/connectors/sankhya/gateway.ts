@@ -42,7 +42,7 @@ export type SankhyaSession = Readonly<{
 
 const RESPONSE_CAP_BYTES = 256 * 1024
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
-const ENVELOPE_STATUS = /^\d{1,2}$/
+const RECORDED_ENVELOPE_STATUSES: ReadonlySet<string> = new Set(['0', '1', '2', '3', '4'])
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
 export const pinnedGatewayOrigin = (value: string): string => {
@@ -124,7 +124,7 @@ const decodeRecords = (body: unknown, answer: ProviderAnswer): readonly SankhyaR
   const parsed = envelope.safeParse(body)
   if (!parsed.success) throw new AdapterFailure('RESPONSE_REFUSED')
   const { status } = parsed.data
-  if (ENVELOPE_STATUS.test(status)) answer.envelopeStatus = status as EnvelopeStatus
+  answer.envelopeStatus = RECORDED_ENVELOPE_STATUSES.has(status) ? status as EnvelopeStatus : 'other'
   if (status !== '1') throw new AdapterFailure('PROVIDER_ERROR')
   const entities = parsed.data.responseBody?.entities
   if (!entities) throw new AdapterFailure('RESPONSE_REFUSED')
