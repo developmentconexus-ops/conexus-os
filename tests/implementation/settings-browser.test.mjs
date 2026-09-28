@@ -29,7 +29,7 @@ const routeAccessContext = (page, account) =>
   }))
 
 const routeBuilderModels = (page) =>
-  page.route('**/api/control/model-accounts/models', (route) =>
+  page.route(/\/api\/control\/model-accounts\/models(\?.*)?$/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
 
 const routeInstallation = (page, administrator) =>
