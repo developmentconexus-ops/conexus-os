@@ -3,7 +3,8 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
-import type { ObservabilityInstance } from '@mastra/core/observability'
+import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
+import { SpanType } from '@mastra/core/observability'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
@@ -28,7 +29,7 @@ import { openFactoryRecords, prepareFactoryRepository } from './factory-provisio
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { SessionRetirementCoordinator } from '@mastra/factory/sandbox/session-retirement'
-import { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
+import type { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
 import { createFactorySourceReads } from './factory-source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
@@ -131,6 +132,19 @@ export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryCompo
   }
 
 /** @public Tests import this at runtime from the built module. */
+export const compactProcessorRunPayloads: SpanOutputProcessor = {
+  name: 'builder-compact-processor-run-payloads',
+  process: (span) => {
+    if (span && span.type === SpanType.PROCESSOR_RUN) {
+      if (Array.isArray(span.input)) span.input = { messageCount: span.input.length }
+      if (Array.isArray(span.output)) span.output = { messageCount: span.output.length }
+    }
+    return span
+  },
+  shutdown: async () => {},
+}
+
+/** @public Tests import this at runtime from the built module. */
 export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
   const observability = new Observability({
     sensitiveDataFilter: true,
@@ -139,6 +153,8 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
         serviceName,
         requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
         exporters: [new MastraStorageExporter()],
+        spanOutputProcessors: [compactProcessorRunPayloads],
+        serializationOptions: { maxStringLength: 32_768 },
       },
     },
   })
@@ -154,7 +170,8 @@ const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 // spans -- never memory threads/messages, which Builder evidence depends on.
 type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
 
-const scheduleRetentionPrune = (
+/** @public Tests import this at runtime from the built module. */
+export const scheduleRetentionPrune = (
   ready: Promise<Pick<FactoryComposition, 'storage'>>,
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
@@ -162,9 +179,11 @@ const scheduleRetentionPrune = (
   const tick = async (): Promise<void> => {
     const { storage } = await ready
     for (const result of await storage.getMastraStorage().prune()) {
+      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }
+  tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`))
   const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
   timer.unref()
   return Object.freeze({ tick, close: () => clearInterval(timer) })

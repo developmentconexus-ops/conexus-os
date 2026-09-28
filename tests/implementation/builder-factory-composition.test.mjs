@@ -475,8 +475,148 @@ test('composeFactory routes the observability domain back onto the Factory\'s ow
     { domain: 'observability', table: 'mastra_ai_spans', deleted: 1 },
   ])
 
+  // Pruning lazily creates the retention anchor index on the configured table
+  const indexCheck = await pool.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'factory' AND tablename = 'mastra_ai_spans' AND indexname = 'factory_mastra_spans_retention_idx'
+  `)
+  assert.equal(indexCheck.rows.length, 1, 'mastra retention anchor index exists in factory schema')
+
   const survivors = await observabilityStore.getTrace({ traceId })
   assert.deepEqual(survivors.spans.map((span) => span.spanId), [rootSpanId])
   const messages = await memory.listMessagesById({ messageIds: [messageId] })
   assert.equal(messages.messages.length, 1)
 })
+
+test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const logs = []
+  let pruneCalls = 0
+  let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
+
+  const fakeReady = Promise.resolve({
+    storage: {
+      getMastraStorage: () => ({
+        prune: async () => {
+          pruneCalls++
+          return pruneResult
+        },
+      }),
+    },
+  })
+
+  const schedule = scheduleRetentionPrune(fakeReady, (line) => logs.push(line), 60_000)
+  // Yield microtask so the immediate boot tick runs
+  await new Promise((r) => setImmediate(r))
+
+  assert.equal(pruneCalls, 1)
+  assert.deepEqual(logs, ['BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5'])
+
+  // Manual tick
+  pruneResult = [
+    { domain: 'observability', table: 'mastra_ai_spans', deleted: 2, done: false },
+    { domain: 'observability', table: 'other_table', deleted: 0, done: true },
+  ]
+  await schedule.tick()
+  assert.equal(pruneCalls, 2)
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5',
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:2',
+    'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
+    'BUILDER_RETENTION_PRUNED:observability.other_table:0',
+  ])
+
+  // Failed prune is caught and logged
+  const failingReady = Promise.resolve({
+    storage: {
+      getMastraStorage: () => ({
+        prune: async () => { throw new Error('DB_DISCONNECTED') },
+      }),
+    },
+  })
+  const failLogs = []
+  const failingSchedule = scheduleRetentionPrune(failingReady, (line) => failLogs.push(line), 60_000)
+  await new Promise((r) => setImmediate(r))
+  assert.deepEqual(failLogs, ['BUILDER_RETENTION_PRUNE_FAILED:DB_DISCONNECTED'])
+
+  schedule.close()
+  failingSchedule.close()
+})
+
+test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output message arrays to messageCount', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  assert.equal(compactProcessorRunPayloads.name, 'builder-compact-processor-run-payloads')
+
+  // PROCESSOR_RUN span with arrays
+  const processorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [{ id: '1', role: 'user', content: 'hello' }, { id: '2', role: 'assistant', content: 'hi' }],
+    output: [{ id: '3', role: 'user', content: 'more' }],
+  }
+  const processed = compactProcessorRunPayloads.process(processorSpan)
+  assert.deepEqual(processed.input, { messageCount: 2 })
+  assert.deepEqual(processed.output, { messageCount: 1 })
+
+  // Non-array input/output on PROCESSOR_RUN are preserved
+  const nonArraySpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: { someOtherField: 123 },
+    output: 'done',
+  }
+  const processedNonArray = compactProcessorRunPayloads.process(nonArraySpan)
+  assert.deepEqual(processedNonArray.input, { someOtherField: 123 })
+  assert.equal(processedNonArray.output, 'done')
+
+  // Other span types are not touched
+  const agentSpan = {
+    type: SpanType.AGENT_RUN,
+    input: [{ id: '1', content: 'test' }],
+    output: [{ id: '2', content: 'result' }],
+  }
+  const processedAgent = compactProcessorRunPayloads.process(agentSpan)
+  assert.deepEqual(processedAgent.input, [{ id: '1', content: 'test' }])
+  assert.deepEqual(processedAgent.output, [{ id: '2', content: 'result' }])
+
+  // null or undefined spans pass through safely
+  assert.equal(compactProcessorRunPayloads.process(undefined), undefined)
+})
+
+test('compactProcessorRunPayloads deterministically compacts processor_run span bytes', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  // Synthetic Builder turn with 25 conversation messages of typical turn context size (~1.5 KB each)
+  const syntheticMessages = Array.from({ length: 25 }, (_, i) => ({
+    id: `msg-${i}`,
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    content: `Builder prompt turn context chunk ${i}: `.padEnd(1500, 'x'),
+  }))
+
+  const rawProcessorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: syntheticMessages,
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const rawBytes = Buffer.byteLength(JSON.stringify(rawProcessorSpan.input)) + Buffer.byteLength(JSON.stringify(rawProcessorSpan.output))
+
+  // Clone before passing to span processor
+  const spanToProcess = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [...syntheticMessages],
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const processed = compactProcessorRunPayloads.process(spanToProcess)
+  const compactedBytes = Buffer.byteLength(JSON.stringify(processed.input)) + Buffer.byteLength(JSON.stringify(processed.output))
+
+  // Assert deterministic reduction: raw is ~54 KB, compacted is exactly 38 bytes (>99.9% reduction)
+  assert.ok(rawBytes > 50_000, `expected raw bytes > 50000, got ${rawBytes}`)
+  assert.deepEqual(processed.input, { messageCount: 25 })
+  assert.deepEqual(processed.output, { messageCount: 10 })
+  assert.equal(compactedBytes, 38)
+  assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
+})
+
