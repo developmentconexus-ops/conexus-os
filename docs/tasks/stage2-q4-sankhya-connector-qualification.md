@@ -93,8 +93,8 @@ destinations exist, and each gets a fixed form:
 | Destination | What it receives |
 | --- | --- |
 | The Builder's model, during the turn | The vendor body, bounded by P5. `connector_fetch` passes it through `toModelOutput`. |
-| The browser stream of the running turn | A projection: status, byte count, the truncated flag, and the body's field names and counts. No value. `connector_fetch` sets the Mastra `transform` for the `display` target. |
-| The conversation history, as the browser reads it | The same projection. `connector_fetch` sets `transform` for the `transcript` target. The Hub's thread messages route and stream route also apply the projection to every `connector_fetch` result they serve, because both routes serve Mastra's messages unmodified today (`apps/hub/src/builder/mastra-session-routes.ts`), and the web renders `toolInvocation.result` (`apps/web/src/features/builder/components/builder-conversation.tsx`). |
+| The browser stream of the running turn | A projection of every `connector_fetch` payload: the input, the input deltas, the output and the error. The input projection is the integrator, the service name and the names of the request's fields. The output projection is the status, byte count, the truncated flag, and the body's field names and counts. Neither carries a value, because the model builds later requests from values it read. `connector_fetch` sets the Mastra `transform` for the `display` target on each of those phases. Mastra suppresses input deltas that have no safe transform. |
+| The conversation history, as the browser reads it | The same projections. `connector_fetch` sets `transform` for the `transcript` target. The Hub's thread messages route and stream route also apply the projections to the arguments and the result of every `connector_fetch` call they serve. Both routes serve Mastra's messages unmodified today (`apps/hub/src/builder/mastra-session-routes.ts`), and the web renders the tool arguments and `toolInvocation.result` verbatim (`apps/web/src/features/builder/components/builder-conversation.tsx`). |
 | An application handler's caller | Only what the handler returns. The handler parses the vendor body and returns the fields the application needs. |
 
 `toModelOutput` and `transform` are `createTool` options in the installed `@mastra/core` 1.67.0
@@ -154,9 +154,11 @@ handler prove the claim, and the relay's only consumer is exploratory scripts.
   verdict is at most ACCEPT_WITH_BOUNDARY and names the boundary.
 - **No leak.** The Q4.11 scan, extended to the Builder sandbox's files and process arguments. The
   business-value scan over every file bound for the repository. One end-to-end run of the
-  investigation, with a marker value planted in the fake vendor's body, shows the marker in the
-  model's input and nowhere in the browser: not in the stream, not in the thread messages route
-  after a reload, and not in the rendered page. The Preview's responses carry only the fields the
+  investigation plants a marker value in the fake vendor's body, and the model's second read
+  filters by that marker. The run shows the marker in the model's input and in the second request
+  the fake vendor received, and nowhere in the browser. It is absent from the stream, from the
+  thread messages route after a reload, and from the rendered page. That covers the tool's
+  arguments as well as its results. The Preview's responses carry only the fields the
   application's handler returns, never a raw vendor body. The check does not pass by dropping the
   positive read.
 - **Generic seam.** A registered synthetic REST adapter and two Connections of it, bound under two
