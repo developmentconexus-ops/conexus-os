@@ -51,6 +51,6 @@ No customers, testimonials or metrics exist. The pilot runs inside one company. 
 ## Product Principles
 
 1. The person gets an app, not a process. Branches, pull requests and pipeline steps stay out of sight.
-2. The last good Preview never breaks. A failed run says what failed and keeps what worked.
+2. A failed run says what failed and leaves the source repairable. The Preview is a development surface, so it may be unavailable until a later run repairs it.
 3. One owner for each thing. What the Factory provides is used as the Factory provides it.
 4. Built for both readers. Anything a non-technical person sees has a plain meaning, and a developer can always open the code behind it.
