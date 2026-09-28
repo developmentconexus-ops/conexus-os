@@ -3,8 +3,9 @@ import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
 import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, releasePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
-import type { PreviewAllocation } from './data-plane.js'
+import type { LedgerRow, MigrationSource, PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
+import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import type { RelayTls } from './pg-relay.js'
 import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
@@ -54,6 +55,13 @@ export type InvokeInput = Readonly<{ projectId: string; operation: string; input
 export type PrepareResult =
   | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
   | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
+  | Readonly<{ state: 'MIGRATION_HISTORY_DIVERGED'; detail: string }>
+
+/**
+ * What the runner may do when the applied history is not a prefix of the artifact's migrations:
+ * refuse, or reset the Preview schema if the reset starts before resetBefore (epoch ms).
+ */
+export type OnDivergence = 'REFUSE' | Readonly<{ resetBefore: number }>
 
 const refusal = (status: number, code: string, detail?: string): Reply =>
   Object.freeze({ status, body: { error: detail === undefined ? { code } : { code, detail } } })
@@ -85,6 +93,13 @@ const admitServerTree = (files: readonly ServerFile[]): ServerTree => {
   for (const operation of Object.values(manifest.operations)) if (!modules.has(operation.module)) throw new Error('SERVER_TREE_REFUSED')
   return Object.freeze({ manifest, modules })
 }
+
+// The first applied migration the artifact no longer carries unchanged at the same position.
+const divergedMigration = (ledger: readonly LedgerRow[], migrations: readonly MigrationSource[]): string =>
+  ledger.find((entry, index) => entry.position !== index + 1 || entry.name !== migrations[index]?.name || entry.sha256 !== migrations[index]?.sha256)?.name ?? ''
+
+const divergenceDetail = (name: string): string =>
+  `A migração já aplicada ${name} foi alterada, removida ou reordenada. Este Project tem uma aplicação, então os dados dela não foram apagados. Restaure essa migração ao conteúdo aplicado e coloque a mudança em uma nova migração.`
 
 const STATUS_BY_CODE: Readonly<Record<string, number>> = Object.freeze({
   HANDLER_FAILED: 500,
@@ -167,16 +182,28 @@ export const createSupervisor = (config: SupervisorConfig) => {
     try { return await work(client) } finally { client.release() }
   }
 
-  const migrate = async (allocation: PreviewAllocation, manifest: ServerManifest): Promise<PrepareResult> => {
+  const migrate = async (allocation: PreviewAllocation, manifest: ServerManifest, onDivergence: OnDivergence): Promise<PrepareResult> => {
     const plan = await withProvisioner(async (client) => {
       const allocate = () => ensurePreviewAllocation(client, { allocation, database: config.database })
       await allocate()
-      const first = planMigrations(await readLedger(client, allocation), manifest.migrations)
+      const ledger = await readLedger(client, allocation)
+      const first = planMigrations(ledger, manifest.migrations)
       if (!first.reset) return first
-      await resetPreviewSchema(client, allocation)
+      if (onDivergence === 'REFUSE') return { diverged: divergedMigration(ledger, manifest.migrations) }
+      await client.query('BEGIN')
+      try {
+        await client.query(`SET LOCAL statement_timeout = ${RESET_STATEMENT_TIMEOUT_MS}`)
+        if (Date.now() >= onDivergence.resetBefore) throw new Error('PREVIEW_RESET_EXPIRED')
+        await resetPreviewSchema(client, allocation)
+        await client.query('COMMIT')
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw error
+      }
       await allocate()
-      return planMigrations([], manifest.migrations)
+      return { ...planMigrations([], manifest.migrations), reset: true }
     })
+    if ('diverged' in plan) return { state: 'MIGRATION_HISTORY_DIVERGED', detail: divergenceDetail(plan.diverged) }
     if (plan.pending.length === 0) return { state: 'READY', reset: plan.reset, applied: [] }
     const { outcome } = await inSandbox({
       role: allocation.migrationRole,
@@ -193,12 +220,12 @@ export const createSupervisor = (config: SupervisorConfig) => {
    * Converges the Project's Preview schema on the artifact's migrations before its Preview is offered.
    * One Project migrates at a time.
    */
-  const prepare = async (input: Readonly<{ projectId: string; files: readonly ServerFile[] }>): Promise<PrepareResult> => {
+  const prepare = async (input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareResult> => {
     const allocation = previewAllocation(input.projectId)
     const tree = admitServerTree(input.files)
     const previous = preparing.get(allocation.projectId) ?? Promise.resolve()
     const current = previous.catch(() => undefined).then(() => {
-      const migrated = migrationChain.catch(() => undefined).then(() => migrate(allocation, tree.manifest))
+      const migrated = migrationChain.catch(() => undefined).then(() => migrate(allocation, tree.manifest, input.onDivergence))
       migrationChain = migrated.catch(() => undefined)
       return migrated
     })
