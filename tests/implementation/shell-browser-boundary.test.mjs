@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -210,3 +210,24 @@ test('S5-P0 guards every realized browser command against synchronous double act
     assert.match(source, /onSettled/, file)
   }
 })
+
+test('fingerprinted assets under assets/ are cached immutably for a year; other static files are not', async (t) => {
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const staticRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-static-'))
+  t.after(() => rmSync(staticRoot, { recursive: true, force: true }))
+  writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
+  mkdirSync(resolve(staticRoot, 'assets'))
+  writeFileSync(resolve(staticRoot, 'assets/app-abc123.js'), 'console.log(1)')
+  writeFileSync(resolve(staticRoot, 'favicon.svg'), '<svg></svg>')
+  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  t.after(() => app.close())
+
+  const fingerprinted = await app.inject({ method: 'GET', url: '/assets/app-abc123.js' })
+  assert.equal(fingerprinted.statusCode, 200)
+  assert.equal(fingerprinted.headers['cache-control'], 'public, max-age=31536000, immutable')
+
+  const notFingerprinted = await app.inject({ method: 'GET', url: '/favicon.svg' })
+  assert.equal(notFingerprinted.statusCode, 200)
+  assert.notEqual(notFingerprinted.headers['cache-control'], 'public, max-age=31536000, immutable')
+})
+

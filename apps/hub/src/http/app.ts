@@ -4,7 +4,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js'
 import addFormatsModule from 'ajv-formats'
 import Fastify from 'fastify'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from './problem.js'
 
@@ -89,7 +89,14 @@ export const createHttpApp = async ({
 
   if (staticRoot) {
     const staticPlugin = (await import('@fastify/static')).default
-    await app.register(staticPlugin, { root: staticRoot })
+    await app.register(staticPlugin, {
+      root: staticRoot,
+      setHeaders: (reply, pathName) => {
+        if (pathName.includes(`${sep}assets${sep}`)) {
+          reply.header('cache-control', 'public, max-age=31536000, immutable')
+        }
+      },
+    })
     const indexHtml = readFileSync(join(staticRoot, 'index.html'), 'utf8')
     const spaRoutes = [
       '/',
