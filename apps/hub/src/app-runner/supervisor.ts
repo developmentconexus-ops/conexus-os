@@ -2,9 +2,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
-import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
+import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, releasePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
 import type { LedgerRow, MigrationSource, PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
+import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import type { RelayTls } from './pg-relay.js'
 import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
@@ -56,8 +57,11 @@ export type PrepareResult =
   | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
   | Readonly<{ state: 'MIGRATION_HISTORY_DIVERGED'; detail: string }>
 
-/** What the runner may do when the applied history is not a prefix of the artifact's migrations. */
-export type OnDivergence = 'RESET' | 'REFUSE'
+/**
+ * What the runner may do when the applied history is not a prefix of the artifact's migrations:
+ * refuse, or reset the Preview schema if the reset starts before resetBefore (epoch ms).
+ */
+export type OnDivergence = 'REFUSE' | Readonly<{ resetBefore: number }>
 
 const refusal = (status: number, code: string, detail?: string): Reply =>
   Object.freeze({ status, body: { error: detail === undefined ? { code } : { code, detail } } })
@@ -185,8 +189,17 @@ export const createSupervisor = (config: SupervisorConfig) => {
       const ledger = await readLedger(client, allocation)
       const first = planMigrations(ledger, manifest.migrations)
       if (!first.reset) return first
-      if (onDivergence !== 'RESET') return { diverged: divergedMigration(ledger, manifest.migrations) }
-      await resetPreviewSchema(client, allocation)
+      if (onDivergence === 'REFUSE') return { diverged: divergedMigration(ledger, manifest.migrations) }
+      await client.query('BEGIN')
+      try {
+        await client.query(`SET LOCAL statement_timeout = ${RESET_STATEMENT_TIMEOUT_MS}`)
+        if (Date.now() >= onDivergence.resetBefore) throw new Error('PREVIEW_RESET_EXPIRED')
+        await resetPreviewSchema(client, allocation)
+        await client.query('COMMIT')
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw error
+      }
       await allocate()
       return { ...planMigrations([], manifest.migrations), reset: true }
     })
@@ -222,6 +235,18 @@ export const createSupervisor = (config: SupervisorConfig) => {
     } finally {
       if (preparing.get(allocation.projectId) === current) preparing.delete(allocation.projectId)
     }
+  }
+
+  /**
+   * Releases a Project's Preview allocation for good: its schema and its two roles. Called once, when
+   * the Project itself is deleted. Waits behind any migration already in flight for the Project so the
+   * drop never races a CREATE the migration worker still holds open.
+   */
+  const release = async (input: Readonly<{ projectId: string }>): Promise<void> => {
+    const allocation = previewAllocation(input.projectId)
+    const previous = preparing.get(allocation.projectId) ?? Promise.resolve()
+    await previous.catch(() => undefined)
+    await withProvisioner((client) => releasePreviewAllocation(client, allocation))
   }
 
   const invoke = async (input: InvokeInput): Promise<Reply> => {
@@ -275,6 +300,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
     }),
     prepare,
     invoke,
+    release,
     close: async () => { await provisioner.end().catch(() => undefined) },
   })
 }

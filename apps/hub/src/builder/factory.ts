@@ -157,7 +157,7 @@ export const assertFactoryHost = ({ cwd, home }: Readonly<{ cwd: string; home: s
 }
 
 export const createFactoryPool = (database: Readonly<{ host: string; port: number; database: string }>, password: string): PostgresPool =>
-  createPostgresPool({ ...database, user: 'hub_factory', password, options: `-c search_path=${FACTORY_SCHEMA}` })
+  createPostgresPool({ ...database, user: 'hub_factory', password, options: `-c search_path=${FACTORY_SCHEMA}`, max: 20 })
 
 // Spans hold prompts, tool I/O and source text (docs/reference/builder-c020-mastra-native.md §4.4;
 // scratchpad/mastra-capabilities-study.md §4.2). Bounding their age is the only retention this PR

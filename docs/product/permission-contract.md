@@ -67,7 +67,9 @@ Outside that carve-out, `iam.admit_workspace`, `iam.admit_project`, `iam.visible
 may do nothing else in any Workspace. In particular, granting or revoking an operation of a
 Connection for an individual Project (`connector.grant_capability`, `connector.revoke_grant`) is gated by
 `connector.admit_project_owner` (`iam.admit_workspace(..., 'members.manage')`), which stays
-reserved to an Owner of that Workspace.
+reserved to an Owner of that Workspace. C-030 replaces that grant per operation with a binding of
+the whole Connection to a Project, still made by the Workspace owner. This section changes when the
+code does.
 
 The role lives only in Conexus IAM. The Factory never holds a copy of the administrator list.
 The Hub calls `isInstallationAdministrator` on the identity-access module before it performs a
@@ -199,7 +201,7 @@ owns the qualification sequence.
 | Application audience | who may use a published application without becoming a Workspace member | Workspace containment currently equates Project visibility with development membership; app use must be narrower and independent |
 | Control Plane eligibility | whether an authenticated Account may create/administer Workspaces or enter development surfaces | Account existence currently implies eligibility to create a Workspace; an app-only Account must not gain that authority |
 | Project capabilities | what a conversation, an application or an automation may call on the Project's behalf, and what it may never reach | `project.build` gates starting a run; it says nothing about a capability a generated application invokes at runtime |
-| Connector grants | which operations of a Workspace Connection a Project/environment may invoke | Workspace membership and installation administration do not express runtime authority over an enterprise credential |
+| Project Connection bindings | which Connections of its Workspace a Project and environment reach, under which Project-local name, at the Connection's access level (read now), per [C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030) | Workspace membership and installation administration do not express runtime authority over an enterprise credential |
 | Publication | that publishing is explicit, authorized and separate from editing and from a run settling | nothing publishes today, so no action gates it |
 | Work applied to a Project | that a reviewed candidate reaches the source only through the Project's own reconciliation and authorization | source advances inside a run the actor already holds `project.build` for; delegated work arrives from elsewhere |
 
