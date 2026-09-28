@@ -28,7 +28,6 @@ const consumer = Object.freeze({ kind: 'handler', invocationId: 'invocation-1', 
 const OTHER_CONNECTION = '55555555-5555-4555-8555-555555555555'
 const binding = (name, connectionId = CONNECTION, connectorId = 'sankhya') => ({ bindingId: `binding-${name}`, name, connectionId, connectorId })
 
-// The broker's two reads, in memory: the Project's open bindings, and the credential of CONNECTION.
 const memoryStore = ({ bound = [binding('erp')], credential = sealed } = {}) => {
   const bindings = [...bound]
   const calls = []
@@ -551,14 +550,6 @@ test('connector spans record consumer kind only when in the closed set, and conn
   const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(logged)
   assert.equal(seen.includes(rawKind), false, `${rawKind} reached the record`)
   assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
-})
-
-test('the broker lists the operations of a minted scope whose one binding of the integrator reaches them', async (t) => {
-  const { broker, store } = await setup(t)
-  assert.deepEqual((await broker.granted(consumer.scope)).map((operation) => operation.id), [READ])
-  assert.deepEqual(await broker.granted({ projectId: PROJECT, environment: 'preview' }), [])
-  store.bindings.push(binding('filial', OTHER_CONNECTION))
-  assert.deepEqual(await broker.granted(consumer.scope), [], 'two bindings of the integrator reach nothing')
 })
 
 test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {

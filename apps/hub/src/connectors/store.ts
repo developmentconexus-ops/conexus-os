@@ -21,7 +21,7 @@ const toConnection = (row: ConnectionRow): Connection => ({
   disabledAt: row.disabled_at,
 })
 
-type BindingRow = { binding_id: string; name: string; connection_id: string; connector_id: ConnectorId; label: string; bound_at: Date }
+type BindingRow = QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: ConnectorId; label: string; bound_at: Date }
 
 type BindingEntryRow = QueryResultRow & (
   | Readonly<{ kind: 'binding' } & BindingRow>
@@ -118,7 +118,7 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
     return result.rows.map(toBindingEntry)
   },
   async bindConnection({ actor, projectId, connectionId, name }) {
-    const result = await pool.query<QueryResultRow & BindingRow>(
+    const result = await pool.query<BindingRow>(
       'SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1, $2, $3, $4)',
       [actor, projectId, connectionId, name])
     const row = result.rows[0]

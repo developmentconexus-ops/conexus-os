@@ -7,7 +7,6 @@ import type { BoundConnection, ConnectionId, ConnectorId } from './model.js'
 import type { Adapter, ConnectorDefinition, Consumer, Operation, RequestTrace } from './operation.js'
 import { endSpan, requestTrace } from './record.js'
 import type { SpanResult } from './record.js'
-import type { ConsumerScope } from './scope.js'
 import { isMintedScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 import { createTokenCache, Redacted } from './token-cache.js'
@@ -28,7 +27,6 @@ type Entry = Readonly<{ operation: AnyOperation; connector: RegisteredConnector 
 export type Broker = Readonly<{
   /** Never throws. */
   call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>>
-  granted(scope: ConsumerScope): Promise<readonly Operation<unknown, unknown, unknown>[]>
   /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
   checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
@@ -36,9 +34,6 @@ export type Broker = Readonly<{
 
 const DEFAULT_DEADLINE_MS = 4000
 
-/** The one binding through which a Project reaches an integrator's operations: exactly one open
- * binding of that integrator. Zero or several reach nothing, so the operation path never picks a
- * Connection the Owner did not single out. Q-6 deletes it with the operation path. */
 export const operationBinding = (bindings: readonly BoundConnection[], connectorId: string): BoundConnection | null => {
   const matching = bindings.filter((binding) => binding.connectorId === connectorId)
   return matching.length === 1 ? matching[0] ?? null : null
@@ -201,11 +196,6 @@ export const createBroker = ({
       }
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
-    },
-    async granted(scope: ConsumerScope): Promise<readonly Operation<unknown, unknown, unknown>[]> {
-      if (!isMintedScope(scope)) return []
-      const bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
-      return connectors.flatMap((connector) => (operationBinding(bindings, connector.definition.id) ? connector.definition.operations : []))
     },
     async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
       const connector = adapterOf(connectorId)

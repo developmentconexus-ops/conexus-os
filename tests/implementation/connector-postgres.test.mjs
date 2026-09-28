@@ -45,8 +45,6 @@ const connectorDatabase = async (t) => {
   const fixture = await buildHubDatabase(t, 'connector')
   const client = new pg.Client(fixture.connection)
   await client.connect()
-  // buildHubDatabase drops the database WITH (FORCE) in its own t.after, which would otherwise race
-  // this client's own teardown and surface as an unhandled termination error; onCleanup runs first.
   fixture.onCleanup(() => client.end())
 
   const administrator = async (accountId) => {
@@ -380,8 +378,8 @@ test('0031 moves every grant to a binding: open grants of one Connection collaps
   await client.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by, created_at)
     VALUES ($1, $2, 'sankhya', 'ERP principal', 'mastra:factory-secret:v1:principal', $3, $4, '2026-09-22T10:00:00Z')`, [principal, workspaceId, DIGEST, owner])
 
-  const SPIKE = '0000000a-0000-4000-8000-000000000001'
-  const ORDER = '0000000a-0000-4000-8000-000000000002'
+  const ORDER = '0000000a-0000-4000-8000-000000000001'
+  const SPIKE = '0000000a-0000-4000-8000-000000000002'
   const WITHDRAWN = '0000000a-0000-4000-8000-000000000003'
   const BEFORE_DISABLE = '0000000a-0000-4000-8000-000000000004'
   const NOTES = '0000000a-0000-4000-8000-000000000005'
@@ -468,7 +466,6 @@ test('the Hub store tells an identical retry from a changed credential without o
   assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
   assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
 
-  // Two Owners, or one retrying client, binding the same Connection under the same name at once get the one open binding.
   const projectId = await project(other, 'race')
   const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ actor: admin, projectId, connectionId: racedId, name: 'erp' })))
   assert.equal(new Set(bindings.map((binding) => binding.bindingId)).size, 1)
