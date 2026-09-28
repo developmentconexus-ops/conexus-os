@@ -198,14 +198,14 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const streamScopes = []
   await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
-    const live = assistantMessage('assistant-live-1', 'Aplicando a alteração')
     setTimeout(() => {
       threadMessages.push(assistantMessage('assistant-live-1', 'Aplicando a alteração'), assistantMessage(`assistant-final-${threadMessages.length}`, 'Build concluído'))
       runFinished = true
     }, 300)
     return route.fulfill(sse(
       { type: 'message_start', message: assistantMessage('assistant-live-1', 'Inspecionando o app') },
-      { type: 'message_update', message: live },
+      { type: 'message_update', id: 'assistant-live-1', event: { type: 'part', index: 0, part: { type: 'text', text: 'Aplicando a alteração' } } },
+      { type: 'message_end', id: 'assistant-live-1' },
       { type: 'agent_end', reason: 'complete' },
     ))
   })
@@ -1161,6 +1161,47 @@ test('a suspended ask_user with options renders the options and submits the chos
   assert.equal(await page.locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
   await page.locator('[aria-label="Lista de tarefas"]').waitFor()
   await page.getByRole('progressbar', { name: 'Progresso das tarefas' }).waitFor()
+})
+
+test('a live reply streamed as deltas renders whole while the run is still working', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000221'
+  const projectId = '70000000-0000-4000-8000-000000000222'
+  const runId = '70000000-0000-4000-8000-000000000223'
+  const conversationId = 'conversation-live-deltas'
+  const sourceRevision = 'c'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const threadMessages = [userMessage('user-1', 'Mude o título')]
+  const state = factoryState([conversation(conversationId, 'Título')], { [conversationId]: threadMessages })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeFactory(page, projectId, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    mode: 'BUILD', runHistory: [],
+  }) }))
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'message_start', message: assistantMessage('live-delta-1', 'Vou trocar') },
+    { type: 'message_update', id: 'live-delta-1', event: { type: 'text-delta', delta: ' o título' } },
+    { type: 'message_update', id: 'live-delta-1', event: { type: 'text-delta', delta: ' agora.' } },
+    { type: 'message_update', id: 'unknown-message', event: { type: 'text-delta', delta: ' perdido' } },
+    { type: 'message_end', id: 'live-delta-1' },
+  )))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.cx-messages').getByText('Vou trocar o título agora.', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-messages').getByText('perdido').count(), 0,
+    'a delta for a message that never started is dropped')
 })
 
 // A free-text ask_user (no options on the suspend payload) drives AskUserPt's other branch: the

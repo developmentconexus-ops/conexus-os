@@ -42,13 +42,7 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderRunId',
 ])
 
-// Mastra Code throws a plain Error, not its ProviderAuthRequiredError, when the person has no account
-// for the model's provider and none is shared, so its text is the only signal, until
-// https://github.com/mastra-ai/mastra/issues/24687 lands.
-const NO_MODEL_ACCOUNT = /^No usable \S+ credential is configured/
-
 const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {
-  if (error instanceof Error && NO_MODEL_ACCOUNT.test(error.message)) return 'BUILDER_MODEL_AUTH_FAILED'
   const { type } = parseError(error)
   if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
   if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'
@@ -58,7 +52,7 @@ const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_M
 type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
 
 // A processor that aborts (observational memory does when it cannot reach its store) ends the run
-// with a lone `tripwire` chunk that Mastra 1.67's AgentController has no case for, so sendMessage
+// with a lone `tripwire` chunk that Mastra's AgentController has no case for, so sendMessage
 // never settles (docs/reference/mastra-boundary.md, U6).
 const watchTripwire = async (session: BuilderSession, onTripwire: (tripwire: Tripwire) => void): Promise<() => void> => {
   const subscription = await session.machinery.subscribeToThread({
