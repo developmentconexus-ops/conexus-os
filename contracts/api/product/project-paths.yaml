@@ -86,11 +86,11 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current disclosable Project identity and owner state without sibling data-plane facts.
+          description: Exact current disclosable Project identity and owner state without sibling data-plane facts. While an installation administrator's deletion of this Project is recorded but unfinished, this stays disclosable to that administrator alone, with deleting true, so a reload after a crash still shows the retry.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectRepresentation'
+                $ref: '#/components/schemas/ProjectDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
@@ -187,6 +187,30 @@ components:
           minLength: 1
         archived:
           type: boolean
+    ProjectDetail:
+      type: object
+      additionalProperties: false
+      required: [projectId, workspaceId, name, projectRevision, archived, deleting]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        workspaceId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Project identity fixed for F1 after creation; rename is not admitted by this schema.
+        projectRevision:
+          type: string
+          description: Empty once an installation administrator's deletion has purged the underlying record; deleting is true whenever this happens.
+        archived:
+          type: boolean
+        deleting:
+          type: boolean
+          description: True while an installation administrator's deletion of this Project has been recorded but not finished. Every other property may already reflect a purged database record kept disclosable only by the deletion tombstone.
     ProjectSourceBootstrap:
       description: Creation-time establishment of exactly one canonical Project Git source; mechanism/provider credentials remain server-side and post-create source switching is not admitted.
       oneOf:

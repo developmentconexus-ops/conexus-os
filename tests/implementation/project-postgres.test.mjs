@@ -248,6 +248,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     name: 'Visible Project',
     project_revision: 'revision-visible',
     archived: false,
+    deleting: false,
   }])
   assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, crossWorkspaceProjectId])).rows, [])
 

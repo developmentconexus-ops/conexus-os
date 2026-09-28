@@ -168,7 +168,12 @@ GRANT ALL ON FUNCTION builder.read_factory_binding_for_project(p_project_id uuid
 -- tombstone, so the orchestrator can preflight the GitHub repository permission the deletion needs
 -- before the first destructive or durable step. Nothing ties the two calls together atomically, so
 -- begin_project_deletion repeats every one of these checks itself rather than trusting the plan.
-CREATE FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) RETURNS text
+-- is_retry tells the orchestrator whether this deletion already has a tombstone: only a brand-new
+-- request needs the live Administration: write probe, because a retry's repository may already be
+-- gone (the previous attempt's own idempotent GitHub delete), and a live grant can no longer be
+-- proven for a repository that no longer exists. The probe would refuse the retry forever instead
+-- of letting the already-idempotent delete step observe the 404 it already tolerates.
+CREATE FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) RETURNS TABLE(repository_id text, is_retry boolean)
     LANGUAGE plpgsql SECURITY DEFINER STABLE
     SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
@@ -184,7 +189,8 @@ BEGIN
   SELECT * INTO existing FROM project.project_deletion WHERE project_id = p_project_id;
   IF FOUND THEN
     IF existing.name <> p_confirm_name THEN RAISE EXCEPTION 'PROJECT_NAME_MISMATCH'; END IF;
-    RETURN existing.repository_id;
+    RETURN QUERY SELECT existing.repository_id, true;
+    RETURN;
   END IF;
 
   SELECT * INTO target FROM project.project WHERE project_id = p_project_id;
@@ -195,7 +201,7 @@ BEGIN
   END IF;
 
   binding := builder.read_factory_binding_for_project(p_project_id);
-  RETURN binding->>'repositoryId';
+  RETURN QUERY SELECT binding->>'repositoryId', false;
 END;
 $$;
 
@@ -294,5 +300,49 @@ ALTER FUNCTION project.complete_project_deletion(p_project_id uuid) OWNER TO pro
 
 REVOKE ALL ON FUNCTION project.complete_project_deletion(p_project_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION project.complete_project_deletion(p_project_id uuid) TO hub_project_command;
+
+-- purge_project deletes the project.project row before the GitHub repository is gone, so the
+-- recovery path iam.visible_projects/iam.admit_project open for the installation administrator
+-- above still needs somewhere to read once that row no longer exists. get_project now falls back
+-- to the tombstone itself for that one caller while completed_at is still null, so GetProject keeps
+-- answering and the settings screen keeps offering retry instead of the request 404ing right when
+-- the administrator most needs to see and finish it. The return type changes (a new deleting
+-- column), which CREATE OR REPLACE refuses, so the old function is dropped first; the input
+-- signature is unchanged, so its grants below re-establish the same access.
+DROP FUNCTION project.get_project(p_account_id uuid, p_project_id uuid);
+
+CREATE FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) RETURNS TABLE(project_id uuid, workspace_id uuid, name text, project_revision text, archived boolean, deleting boolean)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  live project.project%ROWTYPE;
+  tomb project.project_deletion%ROWTYPE;
+BEGIN
+  SELECT stored_project.* INTO live
+  FROM project.project AS stored_project
+  JOIN iam.visible_projects(p_account_id) AS visible
+    ON visible.project_id = stored_project.project_id
+  WHERE stored_project.project_id = p_project_id;
+
+  IF FOUND THEN
+    RETURN QUERY SELECT live.project_id, live.workspace_id, live.name, live.project_revision, live.archived,
+      EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = p_project_id AND deletion.completed_at IS NULL);
+    RETURN;
+  END IF;
+
+  IF iam.is_installation_administrator(p_account_id) THEN
+    SELECT * INTO tomb FROM project.project_deletion WHERE project_id = p_project_id AND completed_at IS NULL;
+    IF FOUND THEN
+      RETURN QUERY SELECT tomb.project_id, tomb.workspace_id, tomb.name, ''::text, false, true;
+    END IF;
+  END IF;
+END;
+$$;
+
+ALTER FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) OWNER TO project_owner;
+
+REVOKE ALL ON FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) TO hub_project_read;
 
 COMMIT;

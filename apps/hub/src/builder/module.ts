@@ -272,10 +272,10 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
   }
   // Resolves the installation and repository a Project's Factory binding named, from the Mastra
   // source-control rows (still readable here since teardownProject never removes the repository row
-  // itself), and confirms a live Administration: write grant. Missing metadata is never treated as
-  // "already deleted" -- Mastra losing track of a repository is not proof GitHub lost it too -- so
-  // this fails closed rather than letting the caller silently no-op past a real repository.
-  const resolveDeletableRepository = async (repositoryId: string): Promise<Readonly<{ installationId: number; externalId: number; slug: string }>> => {
+  // itself). Missing metadata is never treated as "already deleted" -- Mastra losing track of a
+  // repository is not proof GitHub lost it too -- so this fails closed rather than letting the
+  // caller silently no-op past a real repository.
+  const resolveRepositoryIdentity = async (repositoryId: string): Promise<Readonly<{ installationId: number; externalId: number; slug: string }>> => {
     const composition = await ready
     const sourceControl = composition.github.sourceControlStorage
     const row = await sourceControl.repositories.get({ orgId: factory.orgId, id: repositoryId })
@@ -285,16 +285,23 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     const installationId = Number(installation.externalId)
     const externalId = Number(row.externalId)
     if (!Number.isSafeInteger(installationId) || !Number.isSafeInteger(externalId) || !row.slug) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-    if (!await githubApp.probeRepositoryAdminAccess(installationId, externalId)) throw new Error('FACTORY_GITHUB_PERMISSION_DENIED')
     return { installationId, externalId, slug: row.slug }
   }
-  // Runs the same resolution and permission probe a delete needs, without deleting, so a Project
-  // deletion request can be refused before the tombstone or any other destructive step is written.
+  // Confirms a live Administration: write grant before the tombstone or any other destructive step
+  // is written, so a repository the Factory App can no longer manage refuses the request up front.
+  // Only the preflight asks this: a retry's actual delete below must not repeat it, because a
+  // repository an earlier attempt already deleted answers this probe with the same refusal a real
+  // permission loss would, and that would block the retry from ever observing the 404 it tolerates.
   const probeGithubRepositoryDeletable = async (repositoryId: string): Promise<void> => {
-    await resolveDeletableRepository(repositoryId)
+    const { installationId, externalId } = await resolveRepositoryIdentity(repositoryId)
+    if (!await githubApp.probeRepositoryAdminAccess(installationId, externalId)) throw new Error('FACTORY_GITHUB_PERMISSION_DENIED')
   }
+  // Never probes permission up front: githubApp.deleteRepository reads the repository first with a
+  // metadata-only token and returns quietly on 404 (already gone, from this attempt or an earlier
+  // one), and only mints the Administration: write token once it has confirmed there is still a
+  // repository to delete. That keeps a retry idempotent after the repository is already gone.
   const deleteGithubRepository = async (repositoryId: string): Promise<void> => {
-    const { installationId, externalId, slug } = await resolveDeletableRepository(repositoryId)
+    const { installationId, externalId, slug } = await resolveRepositoryIdentity(repositoryId)
     await githubApp.deleteRepository(installationId, { externalId, slug })
   }
   const run: FactoryRunDependencies = Object.freeze({

@@ -49,6 +49,7 @@ type ProjectSummaryRow = QueryResultRow & Readonly<{
   archived: boolean
 }>
 type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision: string }>
+type ProjectDetailRow = ProjectRepresentationRow & Readonly<{ deleting: boolean }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 // The Projects home's card row: a Project's name and archived flag next to its latest Builder
@@ -150,9 +151,9 @@ export const createProjectStore = ({
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
-      const result = await client.query<ProjectRepresentationRow>(`
+      const result = await client.query<ProjectDetailRow>(`
         SELECT detail.project_id, detail.workspace_id, detail.name,
-          detail.project_revision, detail.archived
+          detail.project_revision, detail.archived, detail.deleting
         FROM project.get_project($1, $2) detail
       `, [accountId, projectId])
       const row = result.rows[0] ?? null
@@ -163,6 +164,7 @@ export const createProjectStore = ({
         name: row.name,
         projectRevision: row.project_revision,
         archived: row.archived,
+        deleting: row.deleting,
       } : null
     } catch (error) {
       await client.query('ROLLBACK')

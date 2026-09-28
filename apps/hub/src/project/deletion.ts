@@ -34,18 +34,20 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
 }>) => {
   // plan_project_deletion raises every refusal begin_project_deletion would, without writing the
   // tombstone, so a GitHub permission problem is reported before anything durable or destructive
-  // happens. On a retry this repeats the same lookup the first attempt already tombstoned; that is
-  // wasted work, not a wrong answer, since plan_project_deletion reads the existing tombstone by then.
-  const plan = async (input: DeleteProjectInput): Promise<string | null> => {
+  // happens. On a retry (isRetry true) this reads the existing tombstone instead of the live Project,
+  // and its repositoryId may already be gone from GitHub -- the previous attempt's own idempotent
+  // delete step, not a new problem -- so the caller only probes the live Administration: write grant
+  // on the first attempt, when the repository is still known to exist.
+  const plan = async (input: DeleteProjectInput): Promise<Readonly<{ repositoryId: string | null; isRetry: boolean }>> => {
     const client = await commandPool.connect()
     try {
-      const result = await client.query<QueryResultRow & Readonly<{ plan_project_deletion: string | null }>>(
-        'SELECT project.plan_project_deletion($1, $2, $3) AS plan_project_deletion',
+      const result = await client.query<QueryResultRow & Readonly<{ repository_id: string | null; is_retry: boolean }>>(
+        'SELECT * FROM project.plan_project_deletion($1, $2, $3)',
         [input.accountId, input.projectId, input.confirmName],
       )
       const row = result.rows[0]
       if (!row) throw projectError('OUTCOME_UNKNOWN')
-      return row.plan_project_deletion
+      return { repositoryId: row.repository_id, isRetry: row.is_retry }
     } catch (error) {
       if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
       const text = errorText(error)
@@ -115,12 +117,14 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
   // The tombstone is the only step that can refuse: not admitted, not found, the wrong name, or a
   // Project still busy building. Every step after it names the tombstone's own recorded identifiers,
   // never the caller's input again, so a retry with the same confirmName resumes instead of refusing.
-  // Before any of that, the GitHub repository permission the last step needs is checked while the
-  // Project still fully exists, so a repository the Factory App can no longer manage refuses the
-  // request instead of leaving the Project half-deleted with no way to finish.
+  // Before the first attempt writes that tombstone, the GitHub repository permission the last step
+  // needs is checked while the Project still fully exists, so a repository the Factory App can no
+  // longer manage refuses the request instead of leaving the Project half-deleted with no way to
+  // finish. A retry skips that probe: its repository may already be gone from GitHub because an
+  // earlier attempt's own delete step already succeeded, and that step tolerates the 404 on its own.
   const deleteProject = async (input: DeleteProjectInput): Promise<void> => {
-    const repositoryId = await plan(input)
-    if (repositoryId) {
+    const { repositoryId, isRetry } = await plan(input)
+    if (repositoryId && !isRetry) {
       try {
         await ports.probeGithubRepositoryDeletable(repositoryId)
       } catch (error) {

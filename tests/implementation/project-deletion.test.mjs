@@ -24,6 +24,7 @@ const tombstone = (overrides = {}) => ({
 // statement is recorded so a test can assert on the sequence.
 const fakePool = ({
   planResult = () => tombstone().repository_id,
+  planIsRetry = false,
   planThrows = null,
   beginResult = () => tombstone(),
   beginThrows = null,
@@ -38,7 +39,7 @@ const fakePool = ({
         if (statement === 'BEGIN' || statement === 'COMMIT' || statement === 'ROLLBACK') return { rows: [] }
         if (statement.includes('plan_project_deletion')) {
           if (planThrows) throw planThrows
-          return { rows: [{ plan_project_deletion: planResult() }] }
+          return { rows: [{ repository_id: planResult(), is_retry: planIsRetry }] }
         }
         if (statement.includes('begin_project_deletion')) {
           if (beginThrows) throw beginThrows
@@ -119,22 +120,41 @@ test('#322 a GitHub failure after the database purge leaves a tombstoned, hidden
 
   // A rerun on the same tombstone (still completed_at: null) repeats every step for free — the
   // teardown and the purge are idempotent — and this time GitHub succeeds, so the tombstone completes.
-  const rerunPool = fakePool()
+  // plan_project_deletion reports is_retry true because the tombstone already exists, so the
+  // orchestrator skips the live Administration: write probe: the repository this tombstone recorded
+  // may already be gone from GitHub, the first attempt's own idempotent delete step, not a new
+  // problem, and that step tolerates the 404 on its own.
+  const rerunPool = fakePool({ planIsRetry: true })
   const rerunPorts = fakePorts()
   const rerunOrchestrator = createProjectDeletionOrchestrator({ commandPool: rerunPool, ports: rerunPorts.ports })
 
   await rerunOrchestrator.deleteProject(input)
-  assert.deepEqual(rerunPorts.calls.map(([name]) => name), ['probeGithubRepositoryDeletable', 'teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
+  assert.deepEqual(rerunPorts.calls.map(([name]) => name), ['teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
   assert.equal(rerunPool.statements.some((statement) => statement.includes('complete_project_deletion')), true)
 })
 
 test('#322 orchestrator skips every port once the tombstone is already complete', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const commandPool = fakePool({ beginResult: () => tombstone({ completed_at: '2026-09-27T00:00:00Z' }) })
+  const commandPool = fakePool({ planIsRetry: true, beginResult: () => tombstone({ completed_at: '2026-09-27T00:00:00Z' }) })
   const { ports, calls } = fakePorts()
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
   await orchestrator.deleteProject(input)
-  assert.deepEqual(calls.map(([name]) => name), ['probeGithubRepositoryDeletable'])
+  assert.deepEqual(calls.map(([name]) => name), [])
   assert.equal(commandPool.statements.some((statement) => statement.includes('project.purge_project')), false)
+})
+
+test('#322 a retry never blocks on the live GitHub probe once the repository is already gone', async () => {
+  const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
+
+  // A probe that would refuse every call proves the retry never reaches it: the repository this
+  // tombstone recorded was already deleted by the first attempt, so a live Administration: write
+  // check on it would refuse forever, not recover, and the delete step below tolerates the 404 the
+  // same way GitHub already told the first attempt it would.
+  const refusingProbe = async () => { throw new Error('FACTORY_GITHUB_REPOSITORY_NOT_FOUND') }
+  const commandPool = fakePool({ planIsRetry: true })
+  const { ports, calls } = fakePorts({ probeGithubRepositoryDeletable: refusingProbe })
+
+  await createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input)
+  assert.deepEqual(calls.map(([name]) => name), ['teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
 })
