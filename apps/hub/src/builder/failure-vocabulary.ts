@@ -131,6 +131,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // E2B, Postgres and fetch faults arrive here. Calling it a preparation failure would name a cause
   // nobody established.
   BUILDER_PREPARATION_FAILED: 'INTERNAL_ERROR',
+  BUILDER_AGENT_TRIPWIRE: 'INTERNAL_ERROR',
   BUILDER_RUN_INPUT_REFUSED: 'INTERNAL_ERROR',
   BUILDER_RUN_CREATE_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_CLAIM_REFUSED: 'INTERNAL_ERROR',
