@@ -345,4 +345,70 @@ ALTER FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) OWNER T
 REVOKE ALL ON FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION project.get_project(p_account_id uuid, p_project_id uuid) TO hub_project_read;
 
+-- The Projects home is the other place a purged-but-incomplete tombstone would otherwise vanish
+-- without a trace: once purge_project removes the project.project row, the ordinary join below
+-- stops naming it at all, for every account including the installation administrator who has to
+-- finish it. A second branch, administrator-only, adds exactly those tombstones back from
+-- project.project_deletion itself, carrying deleting true so the card can point at the retry
+-- screen instead of the Project just disappearing mid-deletion.
+CREATE OR REPLACE FUNCTION project.list_project_summaries_with_activity(p_account_id uuid, p_workspace_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+  SELECT COALESCE(jsonb_agg(jsonb_build_object(
+    'projectId', combined.project_id,
+    'name', combined.name,
+    'archived', combined.archived,
+    'lastActivityAt', to_char(combined.last_activity_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'latestRun', combined.latest_run,
+    'hasPreview', combined.has_preview,
+    'deleting', combined.deleting
+  ) ORDER BY combined.last_activity_at DESC, combined.project_id), '[]'::jsonb)
+  FROM (
+    SELECT
+      stored_project.project_id, stored_project.name, stored_project.archived,
+      COALESCE(latest_run.created_at, stored_project.created_at) AS last_activity_at,
+      -- A tombstoned Project stops taking new builder-session or Preview activity, so its card
+      -- shows neither once the deletion it cannot outlive has started.
+      CASE WHEN deletion.project_id IS NOT NULL OR latest_run.builder_run_id IS NULL THEN NULL
+        ELSE jsonb_build_object('state', latest_run.state, 'resultKind', latest_run.result_kind) END AS latest_run,
+      deletion.project_id IS NULL AND working.last_preview_source_revision IS NOT NULL AS has_preview,
+      deletion.project_id IS NOT NULL AS deleting
+    FROM project.project AS stored_project
+    JOIN iam.visible_projects(p_account_id) AS visible
+      ON visible.project_id = stored_project.project_id
+    LEFT JOIN LATERAL (
+      SELECT run.builder_run_id, run.state, run.result_kind, run.created_at
+      FROM builder.builder_run AS run
+      WHERE run.project_id = stored_project.project_id
+      ORDER BY run.created_at DESC, run.builder_run_id DESC
+      LIMIT 1
+    ) AS latest_run ON true
+    LEFT JOIN builder.project_working_state AS working
+      ON working.project_id = stored_project.project_id
+    LEFT JOIN project.project_deletion AS deletion
+      ON deletion.project_id = stored_project.project_id AND deletion.completed_at IS NULL
+    WHERE stored_project.workspace_id = p_workspace_id
+
+    UNION ALL
+
+    SELECT
+      tomb.project_id, tomb.name, false AS archived,
+      tomb.requested_at AS last_activity_at,
+      NULL::jsonb AS latest_run,
+      false AS has_preview,
+      true AS deleting
+    FROM project.project_deletion AS tomb
+    WHERE tomb.workspace_id = p_workspace_id
+      AND tomb.completed_at IS NULL
+      AND iam.is_installation_administrator(p_account_id)
+      AND NOT EXISTS (SELECT 1 FROM project.project AS purged WHERE purged.project_id = tomb.project_id)
+  ) AS combined;
+$$;
+
+ALTER FUNCTION project.list_project_summaries_with_activity(p_account_id uuid, p_workspace_id uuid) OWNER TO project_owner;
+
+REVOKE ALL ON FUNCTION project.list_project_summaries_with_activity(p_account_id uuid, p_workspace_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION project.list_project_summaries_with_activity(p_account_id uuid, p_workspace_id uuid) TO hub_project_read;
+
 COMMIT;

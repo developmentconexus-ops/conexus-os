@@ -91,10 +91,15 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
 // screen still exists to retry from instead of the Project 404ing right when finishing it matters
 // most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
 // since that recorded name is the only one this Project still has.
+//
+// projectRevision is only ever empty once get_project has fallen back to the tombstone, which only
+// happens after the Hub purge has run -- so it is the one signal this screen has for which side of
+// that purge the crash landed on, and the copy below must not claim the data is gone before it is.
 function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [message, setMessage] = useState('')
+  const purged = project.projectRevision === ''
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
@@ -106,7 +111,11 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation
 
   return <div className="cx-state" role="alert">
     <h2>Exclusão de {project.name} não terminou</h2>
-    <p>O código e os dados deste Projeto já foram apagados. O repositório no GitHub ainda não. Nada disso pode ser desfeito; termine a exclusão para concluir.</p>
+    <p>
+      {purged
+        ? 'O código e os dados deste Projeto já foram apagados. O repositório no GitHub ainda não.'
+        : 'A exclusão deste Projeto está em andamento.'} Nada do que já foi apagado pode ser desfeito; termine a exclusão para concluir.
+    </p>
     <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
       {retry.isPending ? 'Excluindo…' : 'Terminar exclusão'}
     </Button>

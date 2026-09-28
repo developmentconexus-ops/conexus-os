@@ -43,6 +43,7 @@ export type ProjectCardSummary = Readonly<{
   lastActivityAt: string
   latestRun: Readonly<{ state: ProjectRunState; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null }> | null
   hasPreview: boolean
+  deleting: boolean
 }>
 export type ProjectRepositoryState =
   | Readonly<{ state: 'REACHABLE'; fullName: string; url: string }>

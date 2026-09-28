@@ -66,6 +66,7 @@ export type ProjectSummaryWithActivity = Readonly<{
   lastActivityAt: string
   latestRun: ProjectLatestRunSummary | null
   hasPreview: boolean
+  deleting: boolean
 }>
 
 export type ProjectStore = Readonly<{
