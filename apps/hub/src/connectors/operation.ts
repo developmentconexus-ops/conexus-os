@@ -25,17 +25,15 @@ type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 /** A closed set, so a provider-chosen status value never reaches the record; any other value is 'other'. */
 export type EnvelopeStatus = '0' | '1' | '2' | '3' | '4' | 'other'
 
-/** No provider text becomes a field here: a detailed error code comes only from content capture (C-029).
- * `bytes` and `truncated` describe a native answer's body as the executor read it. */
+/** No provider text becomes a field here: a detailed error code comes only from content capture (C-029). */
 export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; bytes?: number; truncated?: boolean }
 
 export type RequestTrace = Readonly<{
-  /** Records one provider request. It ends as `resultOf(value)` when `send` resolves (OK by default), and as its failure when it throws. */
   request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>, resultOf?: (value: T) => 'OK' | BrokerErrorCode): Promise<T>
 }>
 
 export type Adapter<Cred, S> = Readonly<{
-  /** The pinned origin, normalized with `new URL(x).origin`. A native request reaches this origin and no other. */
+  /** The pinned origin, normalized with `new URL(x).origin`: the executor compares it to a resolved URL's origin. */
   origin: string
   authenticate(credential: Redacted<Cred>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken>
   /** The session asks `token` only after it has admitted the service, so a refused service never reaches the network. */
@@ -49,7 +47,6 @@ export type NativeProtocol = Readonly<{
     /** `service`: the rule's own constant for records, never caller text. */
     | Readonly<{ ok: true; service: string }>
     | Readonly<{ ok: false; code: 'SERVICE_REFUSED' | 'INPUT_REFUSED'; issues?: readonly string[] }>
-  /** A complete 2xx answer: the vendor's success, the vendor's own error status, or not its envelope. */
   answer(body: unknown): Readonly<{ kind: 'success' }> | Readonly<{ kind: 'vendor-error'; vendorStatus: string }> | Readonly<{ kind: 'unreadable' }>
   /** One request in flight per token, shared with the operation path's lane (Sankhya). */
   oneRequestPerToken: boolean

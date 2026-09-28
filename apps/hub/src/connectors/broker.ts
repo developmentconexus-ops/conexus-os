@@ -26,7 +26,6 @@ export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter:
 
 type Entry = Readonly<{ operation: AnyOperation; connector: RegisteredConnector }>
 
-/** A native request every refusal step admitted: what the send needs, and nothing else. */
 type NativeTarget = Readonly<{
   connector: RegisteredConnector; adapter: AnyAdapter; connectionId: ConnectionId
   service: string; method: string; url: URL; body: ParsedNativeRequest['body']
@@ -232,7 +231,6 @@ export const createBroker = ({
     }
   }
 
-  // Every refusal here comes before the network, and before the credential is read.
   const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan): Promise<FetchResult> => {
     const parsed = parseNativeRequest(request, nativeLimits)
     if (!parsed.ok) return refused('INPUT_REFUSED', parsed.issues)
@@ -280,7 +278,7 @@ export const createBroker = ({
     async call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>> {
       const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: {
-        consumer: typeof consumer?.kind === 'string' && Object.hasOwn(RECORDED_CONSUMER_KINDS, consumer.kind) ? consumer.kind : 'other',
+        consumer: recordedKind(consumer),
         projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,
         operation: entry?.operation.id ?? null,
       } })

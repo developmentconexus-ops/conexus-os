@@ -23,7 +23,6 @@ export class AccessToken extends Redacted<string> {
 // https://developer.sankhya.com.br/docs/09_service). One lane per token serves the operation and the native paths alike.
 const lanes = new WeakMap<AccessToken, Promise<unknown>>()
 
-/** Runs `work` after every earlier piece of work on this token has settled. */
 export const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
   const turn = (lanes.get(token) ?? Promise.resolve()).then(work)
   lanes.set(token, turn.catch(() => undefined))

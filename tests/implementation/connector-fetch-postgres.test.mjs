@@ -83,7 +83,6 @@ const setup = async (t) => {
   })
   const fetchAs = (projectId, request) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId }) }, request)
   const sent = () => fake.requests.length + other.requests.length + rest.requests.length
-  // Every request any fake received reached its pinned origin, and the host outside it received none.
   const assertPinned = () => {
     assert.deepEqual([...new Set(fake.requests.map(({ origin }) => origin))], fake.requests.length ? [fake.origin] : [])
     assert.deepEqual([...new Set(rest.requests.map(({ origin }) => origin))], rest.requests.length ? [rest.origin] : [])

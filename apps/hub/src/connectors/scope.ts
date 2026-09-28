@@ -29,7 +29,6 @@ export const isMintedScope = (value: unknown, now: number = Date.now()): value i
   return term !== undefined && !term.revoked && (term.expiresAt === null || now < term.expiresAt)
 }
 
-/** Spends one call of the scope's budget; false once it is spent. A scope with no budget always answers true. */
 export const spendCall = (scope: ConsumerScope): boolean => {
   const term = terms.get(scope)
   if (!term) return false
@@ -39,10 +38,7 @@ export const spendCall = (scope: ConsumerScope): boolean => {
   return true
 }
 
-/**
- * Every later check refuses the scope. Idempotent.
- * @public The Builder run that mints a scope revokes it when the run ends (Q-5); tests import it until then.
- */
+/** @public The Builder run that mints a scope revokes it when the run ends (Q-5); tests import it until then. */
 export const revokeScope = (scope: ConsumerScope): void => {
   const term = terms.get(scope)
   if (term) term.revoked = true

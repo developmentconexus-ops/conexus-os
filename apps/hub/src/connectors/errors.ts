@@ -52,6 +52,8 @@ export class AdapterFailure extends Error {
   }
 }
 
+export const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
+
 export const brokerCodeOf = (reason: AdapterFailureReason): BrokerErrorCode => {
   switch (reason) {
     case 'AUTHENTICATION_REFUSED': return 'CREDENTIAL_REFUSED'

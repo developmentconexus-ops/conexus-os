@@ -1,13 +1,10 @@
 import { z } from 'zod'
-import { AdapterFailure } from '../errors.js'
+import { AdapterFailure, transportFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
 import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../operation.js'
 import { AccessToken, inLane } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
-
-// The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
-// expression, URL, header or token from a consumer.
 
 /**
  * The gateway origins the Sankhya documentation publishes: production and sandbox.
@@ -19,7 +16,6 @@ export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https:
 const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
 type SankhyaService = typeof SANKHYA_SERVICES[number]
 
-/** The gateway's one service route. */
 const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
 
 type SankhyaEntity = 'CabecalhoNota' | 'ItemNota'
@@ -60,8 +56,6 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
   if (status >= 500) return 'UNAVAILABLE'
   return 'PROVIDER_ERROR'
 }
-
-const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
 const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', answer: ProviderAnswer): Promise<unknown> => {
   let response: Response
@@ -160,7 +154,8 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
   },
 })
 
-const isJsonObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const jsonObject = z.record(z.string(), z.unknown())
+const envelopeStatus = envelope.pick({ status: true })
 
 const SERVICE_REFUSED = Object.freeze({ ok: false, code: 'SERVICE_REFUSED' } as const)
 const inputRefused = (issue: string) => Object.freeze({ ok: false, code: 'INPUT_REFUSED', issues: Object.freeze([issue]) } as const)
@@ -178,13 +173,16 @@ export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
     if ([...url.searchParams.keys()].some((key) => key !== 'serviceName' && key !== 'outputType')) return inputRefused('/query')
     const output = url.searchParams.getAll('outputType')
     if (output.length !== 1 || output[0] !== 'json') return inputRefused('/query/outputType')
-    if (!isJsonObject(body)) return inputRefused('/body')
-    if (body.serviceName !== service) return SERVICE_REFUSED
+    const request = jsonObject.safeParse(body)
+    if (!request.success) return inputRefused('/body')
+    if (request.data.serviceName !== service) return SERVICE_REFUSED
     return Object.freeze({ ok: true, service })
   },
   answer(body: unknown) {
-    if (!isJsonObject(body) || typeof body.status !== 'string') return Object.freeze({ kind: 'unreadable' })
-    return body.status === '1' ? Object.freeze({ kind: 'success' }) : Object.freeze({ kind: 'vendor-error', vendorStatus: body.status })
+    const parsed = envelopeStatus.safeParse(body)
+    if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
+    const { status } = parsed.data
+    return status === '1' ? Object.freeze({ kind: 'success' }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status })
   },
   oneRequestPerToken: true,
 })
