@@ -68,7 +68,9 @@ const read = (overrides = {}) => ({
   ...overrides,
 })
 
-const ORDER_READ = Object.freeze({ ok: true, status: 200, body: EXPECTED_NATIVE_ORDER })
+// The fakes answer `JSON.stringify(body)`, so that is the size the executor read.
+const answered = (body) => Object.freeze({ ok: true, status: 200, bytes: Buffer.byteLength(JSON.stringify(body)), body })
+const ORDER_READ = answered(EXPECTED_NATIVE_ORDER)
 
 // What undici sends with every request; the executor adds only accept, authorization and content-type.
 const TRANSPORT_HEADERS = ['accept-encoding', 'accept-language', 'connection', 'content-length', 'host', 'sec-fetch-mode', 'user-agent']
@@ -255,8 +257,10 @@ test('P9: a bearer the vendor echoes is redacted from a parsed body in any JSON 
   const { fake, broker } = await setup(t, { tokenPrefix: 'fake/token/' })
   fake.mode.service = 'echo-bearer'
   const complete = await broker.fetch(handler(), read())
+  const echoed = [...'fake/token/1'].map((character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`).join('')
   assert.deepEqual(complete, {
     ok: true, status: 200,
+    bytes: Buffer.byteLength(`{"serviceName":"${LOAD}","status":"1","echo":"fake/token/1","escaped":"fake\\/token\\/1","unicode":"${echoed}","${echoed}":"key"}`),
     body: { serviceName: LOAD, status: '1', echo: '[redacted]', escaped: '[redacted]', unicode: '[redacted]', '[redacted]': 'key' },
   })
 
@@ -370,11 +374,9 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
   assert.deepEqual(await broker.fetch(handler(), { ...records('crm-a'), method: 'POST', body: { name: 'novo' } }), { ok: false, code: 'SERVICE_REFUSED' })
   assert.deepEqual(rest.requests, [], 'refused before the network')
 
-  assert.deepEqual(await broker.fetch(handler(), records('crm-a')), { ok: true, status: 200, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
-  assert.deepEqual(await broker.fetch(handler(), records('crm-b')), {
-    ok: true, status: 200, body: { account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] },
-  })
-  assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-a')), { ok: true, status: 200, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
+  assert.deepEqual(await broker.fetch(handler(), records('crm-a')), answered({ account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] }))
+  assert.deepEqual(await broker.fetch(handler(), records('crm-b')), answered({ account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] }))
+  assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-a')), answered({ account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] }))
   assert.deepEqual(rest.requests.map(({ origin, method, path, account }) => [origin === rest.origin, method, path, account]), [
     [true, 'POST', '/oauth/token', null],
     [true, 'GET', '/v1/records', 'account-a'],

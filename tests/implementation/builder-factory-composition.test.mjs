@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
+import { RequestContext } from '@mastra/core/request-context'
 import { createSessionSetupHook, getSessionSandbox } from '@mastra/factory/sandbox/session-sandbox'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -713,3 +714,45 @@ test('compactProcessorRunPayloads deterministically compacts processor_run span 
   assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
 })
 
+
+test('composeFactory gives connector_fetch to an agent step whose request context carries a Builder run, and to no other', async (t) => {
+  const { createConnectorFetchIntegration, openBuilderRun } = await import(built('connectors/builder-tool.js'))
+  const { admin, connection, onCleanup } = await createEmptyDatabase(t, 'conexus_factory_connector_tool')
+  const role = `factory_probe_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+  const password = randomUUID()
+  await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`)
+  onCleanup(() => admin.query(`DROP ROLE IF EXISTS ${role}`))
+  const owner = new pg.Client(connection)
+  await owner.connect()
+  await owner.query(`CREATE SCHEMA factory AUTHORIZATION ${role}`)
+  await owner.end()
+  onCleanup(async () => {
+    const dropper = new pg.Client(connection)
+    await dropper.connect()
+    await dropper.query('DROP SCHEMA IF EXISTS factory CASCADE')
+    await dropper.end()
+  })
+
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const pool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
+  const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }
+  const composition = await composeFactory({
+    pool,
+    github: { appId: '1', clientId: 'client', clientSecret: 'secret', slug: 'conexus-probe', privateKey: privateKey.export({ type: 'pkcs1', format: 'pem' }) },
+    stateSecret: 'state-secret-for-the-probe-only-0123456789',
+    secretKey: 'a1'.repeat(32),
+    publicUrl: 'https://hub.test',
+    sandbox: createFactorySandbox({ apiKey: 'unused', templateId: 'conexus:tpl' }),
+    integrations: [createConnectorFetchIntegration(broker)],
+  })
+  onCleanup(() => composition.close())
+
+  const [agent] = Object.values(composition.mastra.listAgents())
+  const toolsFor = async (bind) => {
+    const requestContext = new RequestContext()
+    bind?.(requestContext)
+    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name === 'connector_fetch')
+  }
+  const run = await openBuilderRun({ brief: async () => '', projectId: '22222222-2222-4222-8222-222222222222', builderRunId: '11111111-1111-4111-8111-111111111111' })
+  assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
+})

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
 
@@ -38,10 +38,10 @@ test('G0: no known write service name appears anywhere in the Sankhya adapter so
   }
 })
 
-test('G0: only the gateway file carries wire vocabulary: the allow-list literal, the service path and the authentication path', () => {
-  for (const path of files) {
-    const literals = stringLiterals(path)
-    const wire = literals.some((text) => text.includes('CRUDServiceProvider') || text.includes('service.sbr') || text.includes('/authenticate'))
-    assert.equal(wire, path.endsWith('/gateway.ts'), path)
-  }
+test('G0: the gateway carries the wire vocabulary, and the Skill only the read it teaches (C-030), never the authentication path', () => {
+  const terms = ['CRUDServiceProvider', 'service.sbr', '/authenticate']
+  const wire = Object.fromEntries(files.map((path) => [basename(path), terms.filter((term) => stringLiterals(path).some((text) => text.includes(term)))]))
+  assert.deepEqual(wire, {
+    'credential.ts': [], 'definition.ts': [], 'gateway.ts': terms, 'purchase-order.ts': [], 'skill.ts': ['CRUDServiceProvider', 'service.sbr'],
+  })
 })

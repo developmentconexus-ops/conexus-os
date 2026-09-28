@@ -10,6 +10,7 @@ const { createBuilderService } = await import(built('builder/service.js'))
 const { createFactoryCodingWorkerRuntime, factoryAgentInstructions, recoverFactoryAdmissions } = await import(built('builder/factory-runtime.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 const { createFactorySourceReads } = await import(built('builder/factory-source.js'))
+const { EXTERNAL_DATA_INSTRUCTION } = await import(built('builder/application-starter.js'))
 
 const BASE = 'b'.repeat(40)
 const RESULT = 'c'.repeat(40)
@@ -23,7 +24,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer, connectorBrief, onHoldOpen } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer, openConnectorRun, openError, onHoldOpen } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -39,6 +40,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const rootInvocations = []
   const builtFrom = []
   const configuredInstructions = []
+  // What the run put in its session's request context.
+  const sessionContext = new Map()
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
@@ -77,6 +80,8 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const runtime = createFactoryCodingWorkerRuntime({
     openSession: async (input) => {
       events.push(['open', input.conversationId, input.builderRunId])
+      if (openError) throw openError
+      input.bindContext?.({ setRaw: (key, value) => sessionContext.set(key, value) })
       return {
         sandbox,
         configure: async ({ mode: configured, instructions }) => {
@@ -95,7 +100,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     github: app,
     resolveRepository,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
-    ...(connectorBrief ? { connectorBrief } : {}),
+    ...(openConnectorRun ? { openConnectorRun } : {}),
     log: (line) => { logs.push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: BASE, resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -160,7 +165,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled, configuredInstructions }
+  return { github, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, commands, rootScripts, pushed, admissions, buildRunning, builtFrom, settled, configuredInstructions, sessionContext }
 }
 
 test('a writer that moves main between the read and the update, even to an ancestor of the result, is refused and keeps its move', async (t) => {
@@ -631,23 +636,26 @@ test('an unbound Project is refused a run before a sandbox is opened', async (t)
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {
   const instructions = factoryAgentInstructions('/workspace/app')
   assert.match(instructions, /^Work only in the exact Session Workspace at \/workspace\/app\./)
-  assert.ok(instructions.endsWith('Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'))
+  assert.ok(instructions.includes(' Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports. '))
   assert.ok(instructions.includes(' The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history. '))
   assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
 })
 
-test('a non-empty connector brief is appended after the application check instruction, and an empty one changes nothing', () => {
+test('a non-empty connector brief is appended right after the external-data rule, and an empty one changes nothing', () => {
   const bare = factoryAgentInstructions('/workspace/app')
+  assert.ok(bare.endsWith(` ${EXTERNAL_DATA_INSTRUCTION}`))
   assert.equal(factoryAgentInstructions('/workspace/app', ''), bare)
   assert.equal(factoryAgentInstructions('/workspace/app', 'CONNECTOR_BRIEF_MARKER'), `${bare} CONNECTOR_BRIEF_MARKER`)
 })
 
+const briefOnly = (brief) => async () => ({ brief, bind: () => {}, end: () => {} })
+
 test("the run appends its own Project's connector brief to the agent instructions, and appends nothing when the port is absent", async (t) => {
-  const seenProjectIds = []
-  const withBrief = await harness(t, { connectorBrief: async (givenProjectId) => { seenProjectIds.push(givenProjectId); return 'CONNECTOR_BRIEF_MARKER' } })
+  const opened = []
+  const withBrief = await harness(t, { openConnectorRun: async (input) => { opened.push(input); return briefOnly('CONNECTOR_BRIEF_MARKER')() } })
   await withBrief.start()
   await withBrief.service.close()
-  assert.deepEqual(seenProjectIds, [projectId])
+  assert.deepEqual(opened, [{ projectId, builderRunId: runId }])
   assert.equal(withBrief.configuredInstructions.length, 1)
 
   const withoutBrief = await harness(t)
@@ -657,17 +665,49 @@ test("the run appends its own Project's connector brief to the agent instruction
   assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
 })
 
-test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
-  const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
+const connectorRuns = async (store, record = connectorRecord()) => {
+  const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
   const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-  const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+  const brief = createConnectorBrief({ connectors: [{ definition: sankhyaDefinition, adapter: null }], store, observability: record.observability })
+  return (input) => openBuilderRun({ brief, ...input })
+}
+
+test("a Project with no binding is told the external-data rule and nothing about another Project's Connection", async (t) => {
+  const otherProjectId = '55555555-5555-4555-8555-555555555555'
+  const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
+  const openRun = await connectorRuns({ listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) })
+  const other = await openRun({ projectId: otherProjectId, builderRunId: runId })
+  assert.ok(other.brief.includes('`other-project-binding` (integrator sankhya)'), 'the other Project is told its own binding')
+
+  const run = await harness(t, { openConnectorRun: openRun })
+  await run.start()
+  await run.service.close()
+  const [instructions] = run.configuredInstructions
+  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  assert.ok(instructions.endsWith(`${EXTERNAL_DATA_INSTRUCTION} ${CONNECTOR_BRIEF_UNBOUND}`), 'told it has no Connection, and what to do')
+  for (const leak of ['sankhya.purchase-order.read', 'other-project-binding', otherBinding.connectionId, 'connectors.call']) {
+    assert.equal(instructions.includes(leak), false, leak)
+  }
+})
+
+test('a Project bound to Sankhya gets the same provenance rule and its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
+  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
+  const run = await harness(t, { openConnectorRun: await connectorRuns({ listBindings: async () => [binding] }) })
+  await run.start()
+  await run.service.close()
+  const [instructions] = run.configuredInstructions
+  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION), 'the same static rule runs for a bound Project too')
+  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('sankhya.purchase-order.read'), 'its own brief lists its binding and the read it can make')
+  assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
+})
+
+test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
+  const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const record = connectorRecord()
-  const brief = createConnectorBrief({
-    connectors: [{ definition: sankhyaDefinition, adapter: null }],
-    store: { listBindings: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
-    observability: record.observability,
-  })
-  const run = await harness(t, { connectorBrief: (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId })) })
+  const openRun = await connectorRuns({ listBindings: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } }, record)
+  const run = await harness(t, { openConnectorRun: openRun })
   await run.start()
   assert.equal(await run.settled(), true)
   await run.service.close()
@@ -679,4 +719,63 @@ test('a run whose connector bindings cannot be read still runs, told only that c
   assert.deepEqual(run.configuredInstructions, [`${plain.configuredInstructions[0]} ${CONNECTOR_BRIEF_UNAVAILABLE}`])
   assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId, result: 'STORE_UNAVAILABLE' }])
   assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics, record.exporter.events, record.lines]).includes('STORE_DETAIL_MARKER'), false)
+})
+
+test("the run's connector scope reaches its session, is live during the agent turn, and is revoked when the run ends however it ends", async (t) => {
+  const { isMintedScope } = await import(hubModuleUrl('connectors/scope.js'))
+  const openRun = await connectorRuns({ listBindings: async () => [] })
+  const consumerOf = (run) => [...run.sessionContext.values()][0]
+  const cases = {
+    'the run succeeds': {},
+    'the agent turn fails': { turn: () => ({ reason: 'error', endedAt: new Date(), userMessageId: 'user-message', summary: '' }) },
+    'the person stops the run during the turn': { stop: true },
+    'the compile fails after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
+  }
+  const outcomes = {}
+  for (const [name, { stop, ...options }] of Object.entries(cases)) {
+    const context = {}
+    let liveInTurn
+    const run = await harness(t, {
+      ...options,
+      openConnectorRun: openRun,
+      turn: async (turn) => {
+        liveInTurn = isMintedScope(consumerOf(context.run).scope)
+        if (stop) await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+        return options.turn ? options.turn(turn) : { reason: stop ? 'aborted' : 'complete', endedAt: new Date(), userMessageId: 'user-message', summary: 'Pronto.' }
+      },
+    })
+    context.run = run
+    await run.start()
+    await run.settled()
+    await run.service.close()
+    const consumer = consumerOf(run)
+    outcomes[name] = { kind: consumer.kind, sessionId: consumer.sessionId, projectId: consumer.scope.projectId, liveInTurn, liveAfter: isMintedScope(consumer.scope), settled: run.calls.at(-1)[0] }
+  }
+  const scoped = { kind: 'agent', sessionId: runId, projectId, liveInTurn: true, liveAfter: false }
+  assert.deepEqual(outcomes, {
+    'the run succeeds': { ...scoped, settled: 'settleBuild' },
+    'the agent turn fails': { ...scoped, settled: 'fail' },
+    'the person stops the run during the turn': { ...scoped, settled: 'interrupt' },
+    'the compile fails after the turn': { ...scoped, settled: 'settleBuild' },
+  })
+})
+
+test('a run whose session cannot open still revokes the scope it minted', async (t) => {
+  const { isMintedScope } = await import(hubModuleUrl('connectors/scope.js'))
+  const { openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+  const minted = []
+  const bound = new Map()
+  const run = await harness(t, {
+    openError: new Error('BUILDER_SESSION_OPEN_FAILED'),
+    openConnectorRun: async (input) => {
+      const opened = await openBuilderRun({ brief: async () => '', ...input })
+      opened.bind({ setRaw: (key, value) => bound.set(key, value) })
+      minted.push([...bound.values()][0].scope)
+      return opened
+    },
+  })
+  await run.start()
+  await run.settled()
+  await run.service.close()
+  assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'BUILDER_SESSION_OPEN_FAILED'], [false]])
 })
