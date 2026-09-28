@@ -122,14 +122,52 @@ test('a comparison keeps the dataset version it started on after a case changes;
   ])
 })
 
+test('a case removed from cases/erp leaves the dataset, so a new comparison never runs it again', async (t) => {
+  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore())
+  const cases = [CASES[0], { ...CASES[0], id: 'sales-by-seller' }]
+
+  await run({ arms: [ARMS[0]], cases, concurrency: 1 })
+  await run({ comparisonId: 'c2', arms: [ARMS[0]], cases: [CASES[0]], concurrency: 1 })
+
+  assert.deepEqual(driver.calls.map((call) => [call.experimentId, call.item]), [
+    ['be:c1:flash:t0', 'sales-by-seller'], ['be:c1:flash:t0', 'sales-dashboard'],
+    ['be:c2:flash:t0', 'sales-dashboard'],
+  ])
+  const dataset = await mastra.datasets.get({ id: 'conexus-builder-eval-erp' })
+  const current = await dataset.listItems({ page: 0, perPage: 10 })
+  assert.deepEqual(current.items.map((item) => item.externalId).sort(), ['sales-dashboard'])
+  // Prior history still has the retired item: past experiment results stay readable.
+  const v1 = await dataset.listItems({ version: 1, page: 0, perPage: 10 })
+  assert.deepEqual(v1.items.map((item) => item.externalId).sort(), ['sales-by-seller', 'sales-dashboard'])
+})
+
 test('a comparison refuses to continue after an arm changed its model', async (t) => {
-  const { driver, run } = await experimentHarness(t, new InMemoryStore())
+  const { driver, simulator, run } = await experimentHarness(t, new InMemoryStore())
   await run()
 
   await assert.rejects(run({ arms: [ARMS[0], { id: 'luna', model: 'm-other' }] }), {
-    message: 'builder-eval: be:c1:luna:t0 ran with model m-luna; arms/luna.json now says m-other. Start a new --comparison.',
+    message: 'builder-eval: be:c1:luna:t0 ran with a different setup '
+      + `({"baseUrl":"https://hub.test","hubVersion":"unknown","simulatorOrigin":"${simulator.origin}","maxRepairs":2,"model":"m-luna"}); `
+      + `this run wants {"baseUrl":"https://hub.test","hubVersion":"unknown","simulatorOrigin":"${simulator.origin}","maxRepairs":2,"model":"m-other"}. `
+      + 'Start a new --comparison.',
   })
   assert.equal(driver.calls.length, 2)
+})
+
+test('a comparison refuses to resume after a non-arm setup value changed mid-run, so results are never mixed', async (t) => {
+  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['MODEL_RATE_LIMITED'] } })
+  const cases = [CASES[0], { ...CASES[0], id: 'sales-by-seller' }]
+
+  const first = await run({ arms: [ARMS[1]], cases, concurrency: 1, hubVersion: 'sha-1' })
+  assert.equal(first[0].status, 'running')
+
+  await assert.rejects(run({ arms: [ARMS[1]], cases, concurrency: 1, hubVersion: 'sha-2' }), {
+    message: /^builder-eval: be:c1:luna:t0 ran with a different setup/,
+  })
+
+  assert.equal(driver.calls.length, 2)
+  const rows = (await resultsOf(mastra, 'be:c1:luna:t0'))
+  assert.deepEqual(rows.map((row) => row.error?.code ?? null).sort(), ['MODEL_RATE_LIMITED', null])
 })
 
 test('two arms, two trials run trial by trial, two Builder runs at a time', async (t) => {

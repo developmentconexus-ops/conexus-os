@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -8,6 +9,12 @@ import { DEFAULT_BASE_URL, DEFAULT_MAX_REPAIRS, resolveStatePath, runCase } from
 import { fixtureById, SIM_DEFAULT_PORT } from './sankhya-sim.mjs'
 import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers.mjs'
 
+/**
+ * Everything that changes what one arm's experiment measures, besides the case set (pinned separately
+ * as the dataset version). Two runs with the same setup may share an experiment; a different setup
+ * never may, so the digest is the experiment's identity check on resume.
+ * @typedef {Readonly<{ baseUrl: string, hubVersion: string, simulatorOrigin: string, maxRepairs: number, model: string }>} Setup
+ */
 /** @typedef {Readonly<{ id: string, model: string }>} Arm  id is the file stem; the file admits only "model". */
 /** @typedef {Readonly<{ request: string, fixture: string }>} CaseInput  the dataset item's input */
 /**
@@ -212,19 +219,29 @@ async function syncDataset(mastra, cases) {
       await dataset.updateItem({ itemId: item.id, ...content })
     }
   }
+  // A case file removed from cases/erp must stop being enumerated; deleting keeps prior versions intact.
+  const current = new Set(payloads.map((payload) => payload.externalId))
+  const retired = [...stored.values()].filter((item) => !current.has(item.externalId))
+  if (retired.length > 0) await dataset.deleteItems({ itemIds: retired.map((item) => item.id) })
   return dataset
 }
 
-async function openExperiment(dataset, { comparisonId, arm, trial, version, baseUrl, hubVersion }) {
+// The digest is the identity check, not the storage: it never leaves this file, so a different
+// hash algorithm later cannot invalidate anything already stored (sourceVersion is just a string).
+const setupDigest = (setup) => createHash('sha256').update(JSON.stringify(setup)).digest('hex').slice(0, 16)
+
+async function openExperiment(dataset, { comparisonId, arm, trial, version, setup }) {
   const id = `be:${comparisonId}:${arm.id}:t${trial}`
+  const digest = setupDigest(setup)
   await dataset.createExperiment({
     id, name: `${comparisonId} · ${arm.id} · t${trial}`, version, metadata: { arm },
-    provenance: { source: 'conexus-builder-eval', sourceId: baseUrl, sourceVersion: hubVersion ?? 'unknown' },
+    provenance: { source: 'conexus-builder-eval', sourceId: setup.baseUrl, sourceVersion: digest, metadata: setup },
     grouping: { experimentSetId: 'builder-eval', comparisonId, variantId: arm.id, trialIndex: trial },
   })
   const stored = await dataset.getExperiment({ experimentId: id })
-  const storedModel = stored.metadata?.arm?.model
-  if (storedModel !== arm.model) fail(`${id} ran with model ${storedModel}; arms/${arm.id}.json now says ${arm.model}. Start a new --comparison.`)
+  if (stored.provenance?.sourceVersion !== digest) {
+    fail(`${id} ran with a different setup (${JSON.stringify(stored.provenance?.metadata)}); this run wants ${JSON.stringify(setup)}. Start a new --comparison.`)
+  }
   return { id, arm, trial, status: stored.status, rows: await resultsOf(dataset, id) }
 }
 
@@ -314,7 +331,11 @@ export async function runExperiment(deps, options) {
 
   const experiments = []
   for (let trial = 0; trial < trials; trial += 1) {
-    for (const arm of arms) experiments.push(await openExperiment(dataset, { comparisonId, arm, trial, version, baseUrl: options.baseUrl, hubVersion: options.hubVersion }))
+    for (const arm of arms) {
+      /** @type {Setup} */
+      const setup = { baseUrl: options.baseUrl, hubVersion: options.hubVersion ?? 'unknown', simulatorOrigin, maxRepairs: options.maxRepairs, model: arm.model }
+      experiments.push(await openExperiment(dataset, { comparisonId, arm, trial, version, setup }))
+    }
   }
   // Trial, then item, then arm: one trial's arms run side by side under the same load.
   const jobs = []
