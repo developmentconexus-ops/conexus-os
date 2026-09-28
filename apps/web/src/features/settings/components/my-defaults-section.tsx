@@ -78,7 +78,7 @@ export function MyDefaultsSection() {
     {effectiveBuild && effectiveFast
       ? <p className="cxs-effective">Agora: Construção usa <ModelBadge id={effectiveBuild} models={covered} /> e Rápido usa <ModelBadge id={effectiveFast} models={covered} /> ({origin}).</p>
       : <p>A empresa ainda não definiu padrões.</p>}
-    <RadioGroup className="cxs-toggle" aria-label="Origem dos meus padrões" value={selected} onValueChange={(value) => {
+    <RadioGroup className="cxs-radio-group" aria-label="Origem dos meus padrões" value={selected} onValueChange={(value) => {
       const next = value as Selection
       if (next === 'company') { setSelected('company'); if (mine) clear.mutate() } else if (next === 'custom') setSelected('custom')
       else { const pack = recommendedPacks.find((candidate) => `pack:${candidate.id}` === next); if (pack) choosePack(pack) }

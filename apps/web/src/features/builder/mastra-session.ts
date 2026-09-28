@@ -66,10 +66,11 @@ export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | '
  * installation's shared ones. The controller's own list reads only the host's keys, the same for
  * everyone. The product stores neither the list nor the choice.
  */
-export const useBuilderModels = () => useQuery({
-  queryKey: ['builder-models'],
+export const useBuilderModels = (scope?: 'installation') => useQuery({
+  queryKey: ['builder-models', scope ?? 'mine'],
   queryFn: async (): Promise<readonly BuilderModel[]> => {
-    const response = await fetch('/api/control/model-accounts/models', { credentials: 'same-origin' })
+    const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
+    const response = await fetch(url, { credentials: 'same-origin' })
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
     return (await response.json() as Readonly<{ models: readonly BuilderModel[] }>).models
   },

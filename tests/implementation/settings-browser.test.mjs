@@ -111,6 +111,39 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
 })
 
+test('Minhas contas de modelo shows a warning for an account that needs to sign in again, and restarts the flow', async (t) => {
+  const { page, origin } = await withServer(t)
+  const providers = [
+    { provider: 'anthropic', source: 'stored-user', userCredential: 'oauth', health: 'needs-reconnect', oauth: { supported: true, modes: ['device-code'] } },
+  ]
+  await routeAccessContext(page, { accountId: 'a5', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  let polls = 0
+  await page.route('**/web/config/providers/*/oauth/start', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-2', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-9876', nextPollMs: 50 }) }))
+  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
+    polls += 1
+    if (polls < 2) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 50 }) })
+    providers[0] = { ...providers[0], health: 'ok' }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'complete' }) })
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  const row = page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' })
+  await row.getByText('Precisa entrar de novo').waitFor()
+  await row.getByRole('button', { name: 'Entrar de novo' }).click()
+  await page.getByText('WXYZ-9876').waitFor()
+  await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
+  await row.getByText('Conectada').waitFor({ timeout: 5000 })
+  assert.equal(await row.getByText('Precisa entrar de novo').count(), 0)
+})
+
 test('Meus padrões offers the company defaults, a provider pack and a custom choice', async (t) => {
   const { page, origin } = await withServer(t)
   let mine = null

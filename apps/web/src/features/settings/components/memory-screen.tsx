@@ -12,7 +12,7 @@ const FACTORY_DEFAULT_MEMORY_MODEL = 'google/gemini-3.5-flash'
 
 export function MemoryScreen() {
   const memory = useQuery({ queryKey: installationMemoryQueryKey, queryFn: getMemoryModel })
-  const models = useBuilderModels()
+  const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
   const [message, setMessage] = useState<string | null>(null)
