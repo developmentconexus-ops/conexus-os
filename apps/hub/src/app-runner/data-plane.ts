@@ -191,6 +191,21 @@ export const resetPreviewSchema = async (provisioner: Sql, allocation: PreviewAl
 }
 
 /**
+ * Removes a Project's Preview allocation entirely: the schema and the two roles derived from its
+ * id. Called once, when the Project itself is deleted, never as part of the ordinary migrate path.
+ * Idempotent: a role or schema already gone is not an error.
+ */
+export const releasePreviewAllocation = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+  await resetPreviewSchema(provisioner, allocation)
+  for (const role of [allocation.migrationRole, allocation.runtimeRole]) {
+    const { rows } = await provisioner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role])
+    if (rows.length === 0) continue
+    await provisioner.query(`DROP OWNED BY ${identifier(role)} CASCADE`)
+    await provisioner.query(`DROP ROLE ${identifier(role)}`)
+  }
+}
+
+/**
  * Applies pending migrations in one transaction on a session authenticated as the migration role, so a
  * failure leaves the schema as it was. Runs inside the sandboxed worker in production.
  */

@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import Fastify from 'fastify'
 import { readRelayTls } from './pg-relay.js'
-import { invokeBody, prepareBody } from './requests.js'
+import { invokeBody, prepareBody, releaseBody } from './requests.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
 import { createSupervisor } from './supervisor.js'
 
@@ -59,6 +59,18 @@ app.post('/v1/invoke', async (request, reply) => {
   const result = await supervisor.invoke(body.data)
   process.stderr.write(`${JSON.stringify({ event: 'invoke', projectId: body.data.projectId, operation: body.data.operation, status: result.status, ms: Math.round(performance.now() - started) })}\n`)
   return reply.code(result.status).send(result.body)
+})
+
+app.post('/v1/release', async (request, reply) => {
+  const body = releaseBody.safeParse(request.body)
+  if (!body.success) return reply.code(400).send({ error: { code: 'RELEASE_REFUSED' } })
+  try {
+    await supervisor.release(body.data)
+    return reply.code(200).send({ ok: true })
+  } catch (error) {
+    const code = error instanceof Error && /^[A-Z_]+/.test(error.message) ? error.message.split(':', 1)[0] : 'RELEASE_FAILED'
+    return reply.code(422).send({ error: { code, detail: error instanceof Error ? error.message.slice(0, 400) : undefined } })
+  }
 })
 
 rmSync(socketPath, { force: true })

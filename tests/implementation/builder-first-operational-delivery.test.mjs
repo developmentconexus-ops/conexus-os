@@ -21,15 +21,15 @@ const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 
 const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
 const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs')).href)
 
-test('Project composition registers exactly the three surviving Project routes', async () => {
+test('Project composition registers exactly the four surviving Project routes', async () => {
   const routes = []
   const registered = await registerProjectRoutes({ route: (definition) => routes.push(definition) }, {
     store: {},
     resolveCurrentSession: async () => null,
     origin: 'https://control.example.test',
   })
-  assert.deepEqual(registered, ['PRJ-01', 'PRJ-02', 'PRJ-03'])
-  assert.equal(routes.length, 3)
+  assert.deepEqual(registered, ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04'])
+  assert.equal(routes.length, 4)
   assert.ok(routes.every((route) => !String(route.url).includes('baseline') && !String(route.url).includes('inception')))
 })
 

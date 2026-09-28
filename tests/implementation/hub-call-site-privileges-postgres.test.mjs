@@ -119,6 +119,12 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
     'workspace.list_visible_workspace_summaries': 'hub_workspace_read',
   }),
+  'project/deletion.ts': Object.freeze({
+    'project.plan_project_deletion': 'hub_project_command',
+    'project.begin_project_deletion': 'hub_project_command',
+    'project.purge_project': 'hub_project_command',
+    'project.complete_project_deletion': 'hub_project_command',
+  }),
   'project/store.ts': Object.freeze({
     'project.list_project_summaries': 'hub_project_read',
     'project.list_project_summaries_with_activity': 'hub_project_read',

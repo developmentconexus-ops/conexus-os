@@ -86,17 +86,48 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Exact current disclosable Project identity and owner state without sibling data-plane facts.
+          description: Exact current disclosable Project identity and owner state without sibling data-plane facts. While an installation administrator's deletion of this Project is recorded but unfinished, this stays disclosable to that administrator alone, with deleting true, so a reload after a crash still shows the retry.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectRepresentation'
+                $ref: '#/components/schemas/ProjectDetail'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
         '403':
           $ref: './openapi.yaml#/components/responses/Problem403'
         '404':
           $ref: './openapi.yaml#/components/responses/Problem404'
+    delete:
+      summary: DeleteProject
+      operationId: DeleteProject
+      x-conexus-4a-id: PRJ-04
+      x-conexus-ingress: [CONTROL_PLANE]
+      x-conexus-current-state-carrier: NONE
+      x-conexus-contract-state: SCHEMA_CLOSED
+      description: Installation-administrator only. The caller must repeat the Project's exact current name to confirm; every Hub row naming the Project, its Mastra Factory state, its application's preview data and its GitHub repository are torn down together. A 503 means the request is durably recorded and safe to repeat unchanged; the Project stays gone from every disclosure meanwhile.
+      parameters:
+        - name: confirmName
+          in: query
+          required: true
+          description: Must equal the Project's exact current name; any other value refuses the request unchanged.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '204':
+          description: The Project, its data and its GitHub repository are gone.
+        '400':
+          $ref: './openapi.yaml#/components/responses/Problem400'
+        '401':
+          $ref: './openapi.yaml#/components/responses/Problem401'
+        '403':
+          $ref: './openapi.yaml#/components/responses/Problem403'
+        '404':
+          $ref: './openapi.yaml#/components/responses/Problem404'
+        '409':
+          $ref: './openapi.yaml#/components/responses/Problem409'
+        '503':
+          $ref: './openapi.yaml#/components/responses/Problem503'
 
 components:
   parameters:
@@ -156,6 +187,30 @@ components:
           minLength: 1
         archived:
           type: boolean
+    ProjectDetail:
+      type: object
+      additionalProperties: false
+      required: [projectId, workspaceId, name, projectRevision, archived, deleting]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        workspaceId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Project identity fixed for F1 after creation; rename is not admitted by this schema.
+        projectRevision:
+          type: string
+          description: Empty once an installation administrator's deletion has purged the underlying record; deleting is true whenever this happens.
+        archived:
+          type: boolean
+        deleting:
+          type: boolean
+          description: True while an installation administrator's deletion of this Project has been recorded but not finished. Every other property may already reflect a purged database record kept disclosable only by the deletion tombstone.
     ProjectSourceBootstrap:
       description: Creation-time establishment of exactly one canonical Project Git source; mechanism/provider credentials remain server-side and post-create source switching is not admitted.
       oneOf:
