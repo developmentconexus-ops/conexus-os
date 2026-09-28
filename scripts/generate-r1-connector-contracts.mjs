@@ -94,6 +94,7 @@ try {
     `export type ConnectionBindingEntry = ${toTypeScript(byId.get('CON-08').schema.response['200'].properties.entries.items)}`,
     `export type BindProjectConnectionInput = ${toTypeScript(byId.get('CON-09').schema.body)}`,
     `export type ConnectionBinding = ${toTypeScript(byId.get('CON-09').schema.response['200'])}`,
+    `export const BINDING_NAME_PATTERN = new RegExp(${JSON.stringify(byId.get('CON-09').schema.body.properties.name.pattern)})`,
     "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')",
     "const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })",
     'export const connectorClient = Object.freeze({',

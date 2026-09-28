@@ -18,8 +18,6 @@ export const projectConnectionBindingsQueryKey = (projectId: string) =>
 export type ProjectConnectionBinding = Extract<ConnectionBindingEntry, { kind: 'binding' }>
 export type BindableConnection = Extract<ConnectionBindingEntry, { kind: 'bindable' }>
 
-export const BINDING_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
-
 class ConnectorRequestError extends Error {
   constructor(readonly status: number | null) {
     super(status === null ? 'Connector request did not complete' : `Connector request failed with ${status}`)

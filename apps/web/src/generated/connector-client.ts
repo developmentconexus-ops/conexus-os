@@ -7,6 +7,7 @@ export type CheckWorkspaceConnectionOutcome = { "outcome": "OK" | "CREDENTIAL_RE
 export type ConnectionBindingEntry = { "kind": "binding"; "bindingId": string; "name": string; "connectionId": string; "connectorId": "sankhya"; "label": string; "boundAt": string } | { "kind": "bindable"; "connectionId": string; "connectorId": "sankhya"; "label": string }
 export type BindProjectConnectionInput = { "connectionId": string; "name": string }
 export type ConnectionBinding = { "kind": "binding"; "bindingId": string; "name": string; "connectionId": string; "connectorId": "sankhya"; "label": string; "boundAt": string }
+export const BINDING_NAME_PATTERN = new RegExp("^[a-z][a-z0-9-]{0,39}$")
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
 const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })
 export const connectorClient = Object.freeze({

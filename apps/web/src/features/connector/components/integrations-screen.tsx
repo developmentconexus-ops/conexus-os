@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import type { CheckWorkspaceConnectionOutcome, ConnectorConnection } from '../../../generated/connector-client'
+import { BINDING_NAME_PATTERN } from '../../../generated/connector-client'
 import {
-  BINDING_NAME_PATTERN,
   type BindableConnection,
   bindProjectConnection,
   checkConnectionMessage,
@@ -44,8 +44,6 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
   const queryClient = useQueryClient()
   const queryKey = workspaceConnectionsQueryKey(workspaceId)
   const connections = useQuery({ queryKey, queryFn: () => listWorkspaceConnections(workspaceId) })
-  // A new or disabled Connection changes what the Bindings section can offer too, so both sections
-  // refresh together rather than drifting until the next reload.
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['connector'] })
 
   if (connections.isPending) {
@@ -314,7 +312,7 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
       <Label htmlFor={nameId} className="cx-connection-meta">Nome no Projeto</Label>
     </div>
     <form className="cx-connection-actions" onSubmit={submit} noValidate>
-      <Input id={nameId} name="name" type="text" size="sm" autoComplete="off" required maxLength={40} pattern="[a-z][a-z0-9\-]{0,39}" placeholder="erp" />
+      <Input id={nameId} name="name" type="text" size="sm" autoComplete="off" required maxLength={40} placeholder="erp" />
       <Button type="submit" variant="primary" size="sm" disabled={bind.isPending}>{bind.isPending ? 'Vinculando…' : 'Vincular'}</Button>
     </form>
     {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
