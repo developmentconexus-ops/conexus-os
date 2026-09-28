@@ -210,7 +210,6 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
-  // What the Builder learns about this Project's own granted connector operations.
   connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
   connectorObservability: connectors.observability,
 }) : undefined

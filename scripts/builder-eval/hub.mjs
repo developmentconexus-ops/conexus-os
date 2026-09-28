@@ -5,11 +5,11 @@ import { chromium } from '@playwright/test'
 import { SIM_CREDENTIAL } from './sankhya-sim.mjs'
 
 /**
- * The simulator's Hub side is undecided (#346: main accepts connectorId 'sankhya' only and has no
- * sankhya.read). This constant and openSimulatorBinding are the only code that names either.
+ * The simulator's Hub side is undecided (#346: main accepts connectorId 'sankhya' only). This constant
+ * and openSimulatorBinding are the only code that names it.
  */
 const SIMULATOR_BINDING = Object.freeze({
-  connectorId: 'sankhya-sim', operationIds: Object.freeze(['sankhya.read']), label: 'Sankhya simulado (avaliação)',
+  connectorId: 'sankhya-sim', name: 'erp', label: 'Sankhya simulado (avaliação)',
 })
 
 /**
@@ -77,12 +77,7 @@ export async function openHub({ baseUrl, statePath }) {
         return {
           connectionId,
           bindProject: async (projectId) => {
-            const grantsPath = `/api/control/projects/${projectId}/connector-grants`
-            const granted = new Set((await call('GET', grantsPath)).entries
-              .filter((entry) => entry.kind === 'grant' && entry.connectionId === connectionId).map((entry) => entry.capabilityId))
-            for (const operationId of SIMULATOR_BINDING.operationIds) {
-              if (!granted.has(operationId)) await call('POST', grantsPath, { body: { connectionId, operationId } })
-            }
+            await call('POST', `/api/control/projects/${projectId}/connection-bindings`, { body: { connectionId, name: SIMULATOR_BINDING.name } })
           },
         }
       },

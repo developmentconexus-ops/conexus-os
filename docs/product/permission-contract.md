@@ -61,15 +61,16 @@ narrow carve-out: an administrator may manage that Workspace's enterprise Connec
 operation (CON-03, which tests authentication via `connector.list_connections` and the broker). Those functions call only
 `connector.admit_installation_administrator` (which reads `iam.is_installation_administrator`),
 never `iam.admit_workspace`, so they do not require Workspace membership. Disabling a Connection
-is terminal and revokes all of its open grants, recording the administrator as `revoked_by`.
-Outside that carve-out, `iam.admit_workspace`, `iam.admit_project`, `iam.visible_workspaces` and
-`iam.visible_projects` never read the table, so an administrator with no membership sees and
-may do nothing else in any Workspace. In particular, granting or revoking an operation of a
-Connection for an individual Project (`connector.grant_capability`, `connector.revoke_grant`) is gated by
+is terminal and ends all of its open Project bindings, recording the administrator as
+`unbound_by`. Outside that carve-out, `iam.admit_workspace`, `iam.admit_project`,
+`iam.visible_workspaces` and `iam.visible_projects` never read the table, so an administrator with
+no membership sees and may do nothing else in any Workspace. In particular, binding a Connection
+to an individual Project or unbinding it (`connector.list_project_bindings`,
+`connector.bind_connection`, `connector.unbind_connection`) is gated by
 `connector.admit_project_owner` (`iam.admit_workspace(..., 'members.manage')`), which stays
-reserved to an Owner of that Workspace. C-030 replaces that grant per operation with a binding of
-the whole Connection to a Project, still made by the Workspace owner. This section changes when the
-code does.
+reserved to an Owner of that Workspace. Per C-030, a binding names a whole Connection of the
+Project's own Workspace under a Project-local name, such as `erp`, and it is the whole grant. There
+is no grant per operation.
 
 The role lives only in Conexus IAM. The Factory never holds a copy of the administrator list.
 The Hub calls `isInstallationAdministrator` on the identity-access module before it performs a
@@ -83,7 +84,10 @@ Factory administration change or a Connection administration change on the actor
 | `iam.bootstrap_installation_administrator(account)` | no Hub role | the operator shell sets the first administrator |
 | `connector.list_connections(actor, workspace_id)` | `hub_iam_runtime` | lists the Workspace's Connections; actor must be an administrator (`connector.admit_installation_administrator`) |
 | `connector.create_connection(actor, connection_id, workspace_id, ...)` | `hub_iam_runtime` | creates a Connection for the Workspace; actor must be an administrator (`connector.admit_installation_administrator`) |
-| `connector.disable_connection(actor, workspace_id, connection_id)` | `hub_iam_runtime` | disables the Connection and revokes its open grants; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.disable_connection(actor, workspace_id, connection_id)` | `hub_iam_runtime` | disables the Connection and ends its open Project bindings; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.list_project_bindings(actor, project_id)` | `hub_iam_runtime` | lists the Project's open bindings and the Workspace's enabled Connections it has not bound; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
+| `connector.bind_connection(actor, project_id, connection_id, name)` | `hub_iam_runtime` | binds an enabled Connection of the Project's own Workspace under a Project-local name; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
+| `connector.unbind_connection(actor, project_id, binding_id)` | `hub_iam_runtime` | ends one open binding of the named Project and keeps its row as the record; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
 
 Each row of the table is one tenure. It records how it was granted (`OPERATOR_BOOTSTRAP` or
 `ADMINISTRATOR`), who granted it and when, and, once closed, who revoked it and when. Closed

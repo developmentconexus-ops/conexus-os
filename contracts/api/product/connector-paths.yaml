@@ -113,25 +113,25 @@ paths:
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
-        '204': { description: "The Connection is disabled and every open grant through it is revoked. Both rows stay as the record, and every Project's next call through it is refused." }
+        '204': { description: "The Connection is disabled and every open binding of it ends. The rows stay as the record, and every Project's next call through it is refused." }
         '400': { $ref: './openapi.yaml#/components/responses/Problem400' }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
 
-  /api/control/projects/{projectId}/connector-grants:
+  /api/control/projects/{projectId}/connection-bindings:
     parameters:
       - $ref: './identity-workspace-paths.yaml#/components/parameters/ProjectId'
     get:
-      summary: ListProjectConnectorGrants
-      operationId: ListProjectConnectorGrants
-      x-conexus-4a-id: CON-05
+      summary: ListProjectConnectionBindings
+      operationId: ListProjectConnectionBindings
+      x-conexus-4a-id: CON-08
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: The Project's open grants, and beside them the operations of the Workspace's Connections it could still be granted.
+          description: The Project's open bindings, and beside them the Workspace's enabled Connections it has not bound.
           content:
             application/json:
               schema:
@@ -142,14 +142,14 @@ paths:
                   entries:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ConnectorGrantEntry'
+                      $ref: '#/components/schemas/ConnectionBindingEntry'
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
     post:
-      summary: GrantProjectConnectorOperation
-      operationId: GrantProjectConnectorOperation
-      x-conexus-4a-id: CON-06
+      summary: BindProjectConnection
+      operationId: BindProjectConnection
+      x-conexus-4a-id: CON-09
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
@@ -161,46 +161,46 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [connectionId, operationId]
+              required: [connectionId, name]
               properties:
                 connectionId:
                   type: string
                   format: uuid
                   description: Untrusted reference to a Connection of this Project's own Workspace; resolved and checked server-side.
-                operationId:
+                name:
                   type: string
-                  minLength: 1
-                  description: One operation id the granting Connector's Definition admits. An id it does not admit is refused as a 422, never forwarded.
+                  pattern: '^[a-z][a-z0-9-]{0,39}$'
+                  description: The Project-local name the Project's consumers use for this Connection, such as erp.
       responses:
         '200':
-          description: The Project's current open grant of this exact capability. A capability already granted through another Connection is unaffected; the answer is the grant that already exists.
+          description: The Project's open binding of this Connection under this name. A repeated request answers the binding that already exists.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConnectorOpenGrant'
+                $ref: '#/components/schemas/ConnectionBinding'
         '400': { $ref: './openapi.yaml#/components/responses/Problem400' }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
-  /api/control/projects/{projectId}/connector-grants/{grantId}:
+  /api/control/projects/{projectId}/connection-bindings/{bindingId}:
     parameters:
       - $ref: './identity-workspace-paths.yaml#/components/parameters/ProjectId'
-      - name: grantId
+      - name: bindingId
         in: path
         required: true
         description: Untrusted reference only; current containment and authority are resolved server-side.
         schema: { type: string, format: uuid }
     delete:
-      summary: RevokeProjectConnectorGrant
-      operationId: RevokeProjectConnectorGrant
-      x-conexus-4a-id: CON-07
+      summary: UnbindProjectConnection
+      operationId: UnbindProjectConnection
+      x-conexus-4a-id: CON-10
       x-conexus-ingress: [CONTROL_PLANE]
       x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
-        '204': { description: "The grant is revoked. The next call through it, from a handler or an agent tool, is refused." }
+        '204': { description: "The binding ends and its row stays as the record. The next call through it, from a handler or an agent tool, is refused." }
         '400': { $ref: './openapi.yaml#/components/responses/Problem400' }
         '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
         '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
@@ -249,32 +249,33 @@ components:
         clientId: { type: string, minLength: 1, maxLength: 200, writeOnly: true }
         clientSecret: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
         xToken: { type: string, minLength: 1, maxLength: 500, writeOnly: true }
-    ConnectorOpenGrant:
+    ConnectionBinding:
       type: object
       additionalProperties: false
-      required: [kind, grantId, connectionId, connectorId, capabilityId, grantedAt]
+      required: [kind, bindingId, name, connectionId, connectorId, label, boundAt]
       properties:
-        kind: { const: grant }
-        grantId: { type: string, format: uuid }
+        kind: { const: binding }
+        bindingId: { type: string, format: uuid }
+        name: { type: string, pattern: '^[a-z][a-z0-9-]{0,39}$' }
         connectionId: { type: string, format: uuid }
         connectorId:
           type: string
           enum: [sankhya]
-        capabilityId: { type: string, minLength: 1 }
-        grantedAt: { type: string, format: date-time }
-    ConnectorGrantableCapability:
+        label: { type: string, minLength: 1 }
+        boundAt: { type: string, format: date-time }
+    BindableConnection:
       type: object
       additionalProperties: false
-      required: [kind, connectionId, connectorId, capabilityId]
-      description: An operation of one of the Project's Workspace's enabled Connections that is not yet granted to this Project.
+      required: [kind, connectionId, connectorId, label]
+      description: An enabled Connection of the Project's Workspace that this Project has not bound.
       properties:
-        kind: { const: grantable }
+        kind: { const: bindable }
         connectionId: { type: string, format: uuid }
         connectorId:
           type: string
           enum: [sankhya]
-        capabilityId: { type: string, minLength: 1 }
-    ConnectorGrantEntry:
+        label: { type: string, minLength: 1 }
+    ConnectionBindingEntry:
       oneOf:
-        - $ref: '#/components/schemas/ConnectorOpenGrant'
-        - $ref: '#/components/schemas/ConnectorGrantableCapability'
+        - $ref: '#/components/schemas/ConnectionBinding'
+        - $ref: '#/components/schemas/BindableConnection'

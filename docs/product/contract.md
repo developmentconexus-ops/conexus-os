@@ -45,7 +45,7 @@ Inside a Workspace an Account holds one of two roles.
 There are no other Workspace roles. Workspace membership owns development-plane authority over
 the Project. A published application's audience and its runtime grants are separate Project-scoped
 authority: using an application does not make a person a Workspace member or grant Builder access.
-Connector grants are also Project-scoped runtime authority, not Workspace roles. These Stage 2
+Project Connection bindings are also Project-scoped runtime authority, not Workspace roles. These Stage 2
 surfaces are direction under C-028 until their qualification lands.
 
 Outside every Workspace, an Account may also be an installation administrator. An

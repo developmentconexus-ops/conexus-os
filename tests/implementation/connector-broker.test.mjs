@@ -25,19 +25,20 @@ const envelope = createSecretEnvelope('cd'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const consumer = Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }) })
 
-// The broker's three reads, in memory: one open grant per granted operation id.
-const memoryStore = ({ granted = [READ], credential = sealed } = {}) => {
-  const grants = new Set(granted)
+const OTHER_CONNECTION = '55555555-5555-4555-8555-555555555555'
+const binding = (name, connectionId = CONNECTION, connectorId = 'sankhya') => ({ bindingId: `binding-${name}`, name, connectionId, connectorId })
+
+const memoryStore = ({ bound = [binding('erp')], credential = sealed } = {}) => {
+  const bindings = [...bound]
   const calls = []
   return {
-    grants,
+    bindings,
     calls,
-    resolveGrant: async (input) => {
-      calls.push(['resolveGrant', input])
-      return input.projectId === PROJECT && input.environment === 'preview' && grants.has(input.capabilityId) ? { grantId: 'grant-1', connectionId: CONNECTION } : null
+    listBindings: async (input) => {
+      calls.push(['listBindings', input])
+      return input.projectId === PROJECT && input.environment === 'preview' ? [...bindings] : []
     },
     readConnectionCredential: async (connectionId) => { calls.push(['readConnectionCredential', connectionId]); return connectionId === CONNECTION ? credential : null },
-    listGrantedCapabilities: async () => [...grants].map((capabilityId) => ({ capabilityKind: 'operation', capabilityId })),
   }
 }
 
@@ -203,7 +204,7 @@ test('P4 (G0): a write operation is EFFECT_REFUSED and a service outside the all
       { id: 'test.order.other-service', effect: 'read', summary: 'asks another service', input: z.object({}), output: z.object({}), run: async (_input, session) => session.callService('CRUDServiceProvider.saveRecord', {}) },
     ],
   }
-  const store = memoryStore({ granted: [READ, 'test.order.write', 'test.order.other-service'] })
+  const store = memoryStore()
   const { fake, broker, facts } = await setup(t, { extra: [writer], store })
   assert.deepEqual(await broker.call(consumer, 'test.order.write', {}), { ok: false, code: 'EFFECT_REFUSED' })
   assert.deepEqual(store.calls, [], 'refused before the database')
@@ -215,20 +216,30 @@ test('P4 (G0): a write operation is EFFECT_REFUSED and a service outside the all
   ], 'a refused service records no provider request')
 })
 
-test('an unknown operation, an ungranted one and an unminted scope refuse before the network', async (t) => {
-  const store = memoryStore({ granted: [] })
+test('an unknown operation, no binding of the integrator, two bindings of it and an unminted scope refuse before the network', async (t) => {
+  const store = memoryStore({ bound: [] })
   const { fake, broker, facts } = await setup(t, { store })
+  const input = { documentNumber: 22790 }
+  const notGranted = { ok: false, code: 'NOT_GRANTED' }
   assert.deepEqual(await broker.call(consumer, 'sankhya.everything.read', {}), { ok: false, code: 'OPERATION_UNKNOWN' })
-  assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'NOT_GRANTED' })
-  store.grants.add(READ)
+  assert.deepEqual(await broker.call(consumer, READ, input), notGranted, 'no binding')
+  store.bindings.push(binding('crm', OTHER_CONNECTION, 'synthetic-rest'))
+  assert.deepEqual(await broker.call(consumer, READ, input), notGranted, "only another integrator's binding")
+  store.bindings.push(binding('erp'), binding('filial', OTHER_CONNECTION))
+  assert.deepEqual(await broker.call(consumer, READ, input), notGranted, 'two bindings of the integrator: the broker never picks one')
+  store.bindings.pop()
   const forged = { kind: 'handler', invocationId: 'x', scope: { projectId: PROJECT, environment: 'preview' } }
-  assert.deepEqual(await broker.call(forged, READ, { documentNumber: 22790 }), { ok: false, code: 'NOT_GRANTED' })
+  assert.deepEqual(await broker.call(forged, READ, input), notGranted, 'a scope this module did not mint')
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(await facts(), [
     { name: 'connector.call', root: true, error: true, ...CALL, operation: null, result: 'OPERATION_UNKNOWN' },
     { name: 'connector.call', root: true, error: true, ...CALL, result: 'NOT_GRANTED' },
+    { name: 'connector.call', root: true, error: true, ...CALL, result: 'NOT_GRANTED' },
+    { name: 'connector.call', root: true, error: true, ...CALL, result: 'NOT_GRANTED' },
     { name: 'connector.call', root: true, error: true, ...CALL, projectId: null, result: 'NOT_GRANTED' },
   ], 'an unknown id is never recorded, and an unminted scope records no Project')
+  assert.deepEqual(await broker.call(consumer, READ, input), { ok: true, value: EXPECTED_ORDER_22790 }, "one Sankhya binding beside another integrator's reads")
+  assert.deepEqual(store.calls.filter(([name]) => name === 'readConnectionCredential'), [['readConnectionCredential', CONNECTION]])
 })
 
 test('P5: an extra provider field is dropped, an oversized body is RESPONSE_REFUSED and a stalled gateway is PROVIDER_TIMEOUT', async (t) => {
@@ -240,7 +251,7 @@ test('P5: an extra provider field is dropped, an oversized body is RESPONSE_REFU
     id: 'sankhya', credential: sankhyaDefinition.credential, events: [], builderSkill: '',
     operations: [{ id: 'test.order.extra', effect: 'read', summary: 'extra key', input: z.object({}), output: z.object({ kept: z.string() }), run: async () => ({ kept: 'yes', password: SECRET_MARKER }) }],
   }
-  const strip = await setup(t, { extra: [stripping], store: memoryStore({ granted: ['test.order.extra'] }) })
+  const strip = await setup(t, { extra: [stripping] })
   assert.deepEqual(await strip.broker.call(consumer, 'test.order.extra', {}), { ok: true, value: { kept: 'yes' } })
 
   const oversized = await setup(t)
@@ -472,7 +483,7 @@ test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, f
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   assert.equal(fake.requests.length, 0)
-  assert.deepEqual(store.calls.map(([name]) => name), ['resolveGrant'])
+  assert.deepEqual(store.calls.map(([name]) => name), ['listBindings'])
 })
 
 test('a credential check runs the allow-listed authentication alone and caches nothing', async (t) => {
@@ -539,12 +550,6 @@ test('connector spans record consumer kind only when in the closed set, and conn
   const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(logged)
   assert.equal(seen.includes(rawKind), false, `${rawKind} reached the record`)
   assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
-})
-
-test('the broker lists only the granted operations of a minted scope', async (t) => {
-  const { broker } = await setup(t)
-  assert.deepEqual((await broker.granted(consumer.scope)).map((operation) => operation.id), [READ])
-  assert.deepEqual(await broker.granted({ projectId: PROJECT, environment: 'preview' }), [])
 })
 
 test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {
