@@ -20,4 +20,4 @@ set -a
 source "$env_file"
 set +a
 echo "runner starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
-node "$build/app-runner/main.js"
+node --max-old-space-size=512 "$build/app-runner/main.js"

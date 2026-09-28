@@ -33,7 +33,7 @@ export const buildHubLocal = async () => {
 
 const main = async () => {
   const buildRoot = await buildHubLocal()
-  const server = spawnSync(process.execPath, [join(buildRoot, 'server.js')], { cwd: repositoryRoot, stdio: 'inherit' })
+  const server = spawnSync(process.execPath, ['--max-old-space-size=512', join(buildRoot, 'server.js')], { cwd: repositoryRoot, stdio: 'inherit' })
   await rm(buildRoot, { recursive: true, force: true })
   process.exitCode = server.status ?? 1
 }

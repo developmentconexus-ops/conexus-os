@@ -80,6 +80,7 @@ test('Hub and live proof commands load the operator configuration explicitly', a
   assert.match(localBuildScript, /apps\/hub\/tsconfig\.json/)
   assert.match(localBuildScript, /vite\.js/)
   assert.match(localBuildScript, /apps\/web\/vite\.config\.mjs/)
+  assert.match(localBuildScript, /--max-old-space-size=512/)
   assert.match(composedRunner, /server\.js/)
   assert.match(composedRunner, /builder-production-composed-live\.test\.mjs/)
   assert.match(composedRunner, /https:/)

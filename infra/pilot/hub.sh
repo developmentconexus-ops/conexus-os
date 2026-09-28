@@ -13,4 +13,4 @@ logs="${CONEXUS_PILOT_LOGS:-$HOME/conexus-pilot-logs}"
 mkdir -p "$logs"
 exec > >(tee -a "$logs/hub.log") 2>&1
 echo "hub starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
-exec node --env-file="$env_file" scripts/build-hub-local.mjs
+exec node --max-old-space-size=512 --env-file="$env_file" scripts/build-hub-local.mjs
