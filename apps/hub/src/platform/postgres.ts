@@ -34,6 +34,11 @@ export const createPostgresPool = (
     max: connection.max ?? 6,
     connectionTimeoutMillis: 5000,
   })
-  pool.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
+  // Listen on client directly so checked-out clients don't crash on dropped connections.
+  // Pool-level error handler prevents duplicate unhandled errors from idle client drops.
+  pool.on('connect', (client) => {
+    client.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
+  })
+  pool.on('error', () => {})
   return pool
 }
