@@ -1,9 +1,9 @@
 import { request } from 'node:http'
-import type { InvokeInput, PrepareResult, Reply, ServerFile } from './supervisor.js'
+import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
 
 /** The Hub's only way to the application runner: HTTP over its owner-only unix socket. */
 export type ApplicationRunnerClient = Readonly<{
-  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[] }>): Promise<PrepareResult>
+  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareResult>
   invoke(input: InvokeInput): Promise<Reply>
 }>
 

@@ -169,7 +169,12 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   secretKey: config.secretKey,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
-  ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),
+  // A Project with an application keeps its Preview data: a divergent migration history is refused, never reset.
+  ...(applicationRunner ? {
+    applicationServer: {
+      prepare: async (input) => applicationRunner.prepare({ ...input, onDivergence: await identityAccess.hasApplication(input.projectId) ? 'REFUSE' : 'RESET' }),
+    },
+  } : {}),
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,

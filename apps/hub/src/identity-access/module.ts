@@ -25,6 +25,8 @@ export type IdentityAccessModule = Readonly<{
   installationAdministration: InstallationAdministration
   /** The sessions of application and Preview hosts. */
   hostSessions: HostSessions
+  /** Whether the Project has an application, whose Preview data must then never be erased. */
+  hasApplication(projectId: string): Promise<boolean>
   close(): Promise<void>
 }>
 
@@ -112,6 +114,7 @@ export const createIdentityAccessModule = async ({
     },
     installationAdministration,
     hostSessions,
+    hasApplication: (projectId) => applicationAccess.hasApplication(projectId),
     close: async () => {
       await Promise.all([oidc.close(), store.close()])
     },

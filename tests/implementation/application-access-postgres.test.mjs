@@ -202,6 +202,23 @@ test('upgrading a database at 0025 with open sessions ends every Hub and applica
     before, 'Accounts, invitations and memberships are untouched')
 })
 
+test('the Hub reads a Project as having an application only once its application exists', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
+  const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_presence')
+  const pool = new pg.Pool({ ...connection, max: 2 })
+  closeFirst(() => pool.end())
+  const store = createApplicationAccessStore({ pool })
+  const owner = await account('owner-p')
+  const workspaceId = await workspace('presence-p', [[owner, 'owner']])
+  const withApplication = await project(workspaceId, 'Com Aplicação')
+  const withoutApplication = await project(workspaceId, 'Sem Aplicação')
+  assert.equal(await store.hasApplication(withApplication), false)
+  await client.query('SELECT iam.grant_application_access($1,$2,$3,$4,$5)', [owner, withApplication, randomUUID(), 'presenca@application.test', inTwoWeeks()])
+  assert.equal(await store.hasApplication(withApplication), true)
+  assert.equal(await store.hasApplication(withoutApplication), false)
+  assert.equal(await store.hasApplication(randomUUID()), false)
+})
+
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))

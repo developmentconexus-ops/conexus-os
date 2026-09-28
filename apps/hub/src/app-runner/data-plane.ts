@@ -173,8 +173,9 @@ export const readLedger = async (provisioner: Sql, allocation: PreviewAllocation
 
 /**
  * The applied history must be an exact prefix of the artifact's migrations. Anything else (an edited,
- * removed or reordered migration) cannot apply cleanly, so the Preview schema is reset and every
- * migration runs again; Preview data is disposable and the caller says so.
+ * removed or reordered migration) cannot apply cleanly: `reset` says the Preview schema would have to be
+ * dropped and every migration run again. The caller decides whether that is allowed; a Project with an
+ * application refuses instead, so its data is never erased.
  */
 export const planMigrations = (ledger: readonly LedgerRow[], migrations: readonly MigrationSource[]): MigrationPlan => {
   const prefix = ledger.length <= migrations.length && ledger.every((row, index) =>

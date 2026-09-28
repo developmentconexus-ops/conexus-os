@@ -227,6 +227,13 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   assert.deepEqual(failed.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, 'APPLICATION_MIGRATION_FAILED']])
   assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '42P01 relation "missing_table" does not exist']])
 
+  const divergedDetail = 'A migração já aplicada 001_notes.sql foi alterada, removida ou reordenada.'
+  const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_HISTORY_DIVERGED', detail: divergedDetail }) } })
+  await diverged.start()
+  await diverged.service.close()
+  assert.deepEqual(diverged.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', RESULT, 'APPLICATION_MIGRATION_HISTORY_DIVERGED']])
+  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', divergedDetail]])
+
   const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'READY', reset: true, applied: ['001_notes.sql'] }) } })
   await reset.start()
   await reset.service.close()

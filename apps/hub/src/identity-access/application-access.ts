@@ -44,6 +44,8 @@ export type ApplicationAccessStore = Readonly<{
   grant(input: Readonly<{ actor: AccountId; projectId: string; email: EmailAddress; now?: Date }>): Promise<ApplicationAccessEntry>
   cancelInvitation(input: Readonly<{ actor: AccountId; projectId: string; invitationId: string }>): Promise<boolean>
   revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: string }>): Promise<boolean>
+  /** Whether the Project has an application; a platform read, not scoped to an actor. */
+  hasApplication(projectId: string): Promise<boolean>
 }>
 
 type AccessRow = QueryResultRow & {
@@ -114,6 +116,11 @@ export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: Postgres
     const result = await pool.query<QueryResultRow & { found: boolean }>(
       'SELECT iam.revoke_application_grant($1, $2, $3) AS found', [actor, projectId, grantId])
     return result.rows[0]?.found === true
+  },
+  async hasApplication(projectId) {
+    const result = await pool.query<QueryResultRow & { present: boolean }>(
+      'SELECT iam.application_slug($1) IS NOT NULL AS present', [projectId])
+    return result.rows[0]?.present === true
   },
 })
 
