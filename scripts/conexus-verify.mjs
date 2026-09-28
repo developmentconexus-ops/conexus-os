@@ -82,6 +82,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('factory-provisioning', 'node --test --test-concurrency=1 tests/implementation/builder-factory-provisioning.test.mjs', 'postgres'),
   candidateStep('application-data-postgres', 'node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs tests/implementation/application-cluster-installation.test.mjs', 'postgres'),
   candidateStep('application-runner-sandbox', 'node --test --test-concurrency=1 tests/implementation/application-runner-sandbox.test.mjs', 'postgres'),
+  candidateStep('app-runner-http', 'node --test --test-concurrency=1 tests/implementation/app-runner-module.test.mjs tests/implementation/app-runner-http.test.mjs'),
   candidateStep('application-server', 'node --test --test-concurrency=1 tests/implementation/application-server-build.test.mjs tests/implementation/preview-application-api.test.mjs'),
   candidateStep('application-host', 'node --test tests/implementation/application-host.test.mjs'),
   candidateStep('foundation-postgres', 'node --test --test-concurrency=1 tests/implementation/identity-access-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/project-postgres.test.mjs', 'postgres'),
