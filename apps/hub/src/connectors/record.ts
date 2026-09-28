@@ -56,7 +56,7 @@ export const requestTrace = (parent: AnySpan, attemptOf: () => number, signal: A
       step += 1
       endSpan(parent.createChildSpan({ type: SpanType.GENERIC, name, metadata: { step, attempt: attemptOf(), shared: true } }), result)
     },
-    async request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T> {
+    async request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>, resultOf: (value: T) => SpanResult = () => 'OK'): Promise<T> {
       // Past the deadline the request would never be sent, so it is not recorded as one.
       if (signal.aborted) throw new AdapterFailure('TIMEOUT')
       step += 1
@@ -69,7 +69,7 @@ export const requestTrace = (parent: AnySpan, attemptOf: () => number, signal: A
         endSpan(span, error instanceof AdapterFailure ? error.reason : 'UNEXPECTED', answer)
         throw error
       }
-      endSpan(span, 'OK', answer)
+      endSpan(span, resultOf(value), answer)
       return value
     },
   })

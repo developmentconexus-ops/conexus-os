@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import type { BrokerErrorCode } from './errors.js'
 import type { ConnectorId, OperationId } from './model.js'
 import type { ConsumerScope } from './scope.js'
 import type { IssuedToken, Redacted, TokenLease } from './token-cache.js'
@@ -24,17 +25,34 @@ type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 /** A closed set, so a provider-chosen status value never reaches the record; any other value is 'other'. */
 export type EnvelopeStatus = '0' | '1' | '2' | '3' | '4' | 'other'
 
-/** No provider text becomes a field here: a detailed error code comes only from content capture (C-029). */
-export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus }
+/** No provider text becomes a field here: a detailed error code comes only from content capture (C-029).
+ * `bytes` and `truncated` describe a native answer's body as the executor read it. */
+export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; bytes?: number; truncated?: boolean }
 
 export type RequestTrace = Readonly<{
-  request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>): Promise<T>
+  /** Records one provider request. It ends as `resultOf(value)` when `send` resolves (OK by default), and as its failure when it throws. */
+  request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>, resultOf?: (value: T) => 'OK' | BrokerErrorCode): Promise<T>
 }>
 
 export type Adapter<Cred, S> = Readonly<{
+  /** The pinned origin, normalized with `new URL(x).origin`. A native request reaches this origin and no other. */
+  origin: string
   authenticate(credential: Redacted<Cred>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken>
   /** The session asks `token` only after it has admitted the service, so a refused service never reaches the network. */
   open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): S
+}>
+
+/** An integrator's native protocol: pure, no network, no token. */
+export type NativeProtocol = Readonly<{
+  /** The read rule. `url` is already resolved against the pinned origin and origin-checked; `body` is a plain copy of the exact bytes that will be sent. */
+  admit(read: Readonly<{ method: string; url: URL; body: unknown }>):
+    /** `service`: the rule's own constant for records, never caller text. */
+    | Readonly<{ ok: true; service: string }>
+    | Readonly<{ ok: false; code: 'SERVICE_REFUSED' | 'INPUT_REFUSED'; issues?: readonly string[] }>
+  /** A complete 2xx answer: the vendor's success, the vendor's own error status, or not its envelope. */
+  answer(body: unknown): Readonly<{ kind: 'success' }> | Readonly<{ kind: 'vendor-error'; vendorStatus: string }> | Readonly<{ kind: 'unreadable' }>
+  /** One request in flight per token, shared with the operation path's lane (Sankhya). */
+  oneRequestPerToken: boolean
 }>
 
 export type ConnectorDefinition<Cred, S> = Readonly<{
@@ -46,6 +64,7 @@ export type ConnectorDefinition<Cred, S> = Readonly<{
   events: readonly ConnectorEvent<any>[]
   builderSkill: string
   secretFields: readonly string[]
+  native: NativeProtocol
 }>
 
 export type Consumer =
