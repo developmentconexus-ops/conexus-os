@@ -74,11 +74,13 @@ type FactoryCheckoutSource = Readonly<{ repositorySlug: string; read(): Promise<
 // GH_TOKEN is still filtered, for an organization PAT the Factory would hand out as it is.
 export class ConexusFactoryE2BSandbox extends E2BSandbox {
   readonly #checkout: FactoryCheckoutSource | undefined
+  readonly #timeoutMs: number
 
-  constructor(options: E2BSandboxOptions = {}, checkout?: FactoryCheckoutSource) {
+  constructor(options: E2BSandboxOptions & Readonly<{ timeout: number }>, checkout?: FactoryCheckoutSource) {
     super({ ...options, env: withoutGithubTokens(options.env ?? {}) })
     if (checkout && !REPOSITORY_SLUG.test(checkout.repositorySlug)) throw new Error('FACTORY_CHECKOUT_REFUSED')
     this.#checkout = checkout
+    this.#timeoutMs = options.timeout
   }
 
   override setEnv(update: (environment: SandboxEnvironment) => SandboxEnvironment): void {
@@ -106,6 +108,19 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
       `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/${repositorySlug}.git'`,
     ].join(' && '), tokenEnvironment(token))
     if (seeded.exitCode !== 0) throw new Error(`FACTORY_CHECKOUT_SEED_FAILED:${seeded.exitCode}`)
+  }
+
+  async #extend(): Promise<void> {
+    await this.e2b.setTimeout(this.#timeoutMs)
+  }
+
+  // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
+  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
+  async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
+    await this.#extend()
+    const heartbeat = setInterval(() => { this.#extend().catch(onLapse) }, Math.floor(this.#timeoutMs / 3))
+    heartbeat.unref()
+    return () => clearInterval(heartbeat)
   }
 
   async runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult> {

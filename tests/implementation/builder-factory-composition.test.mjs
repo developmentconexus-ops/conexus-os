@@ -47,7 +47,7 @@ const factoryEnvironment = {
 }
 
 test('the sandbox never lets GH_TOKEN or GITHUB_TOKEN into its environment', () => {
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'probe', env: { GH_TOKEN: 'ghs_constructor', GITHUB_TOKEN: 'ghs_constructor', KEEP: '1' } })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'probe', timeout: 900_000, env: { GH_TOKEN: 'ghs_constructor', GITHUB_TOKEN: 'ghs_constructor', KEEP: '1' } })
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1' })
   sandbox.setEnv((env) => ({ ...env, GH_TOKEN: 'ghs_injected', GITHUB_TOKEN: 'ghs_injected', OTHER: '2' }))
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1', OTHER: '2' })
@@ -67,7 +67,7 @@ const fakeVm = (sandboxId) => {
 }
 
 const offlineSandbox = ({ existing, created }) => {
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 })
   sandbox.findExistingSandbox = async () => existing
   sandbox.createSdkSandbox = async () => created
   return sandbox
@@ -116,6 +116,49 @@ test('the Factory sandbox is created closed to public inbound traffic', async ()
   })
 })
 
+test('holdOpen extends the deadline now and every third of the budget until released', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold' })
+  const setTimeoutCalls = []
+  const vm = fakeVm('vm-fresh')
+  vm.setTimeout = async (ms) => { setTimeoutCalls.push(ms) }
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vm
+  await sandbox.start()
+  const release = await sandbox.holdOpen(() => {})
+  assert.deepEqual(setTimeoutCalls, [600_000])
+  t.mock.timers.tick(200_000)
+  t.mock.timers.tick(200_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+  release()
+  t.mock.timers.tick(600_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+})
+
+test('holdOpen reports a failed extension to onLapse, and refuses when the first extension fails', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold-lapse' })
+  const vm = fakeVm('vm-fresh')
+  let calls = 0
+  vm.setTimeout = async () => { calls += 1; if (calls >= 2) throw new Error('E2B_TIMEOUT_REFUSED') }
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vm
+  await sandbox.start()
+  const lapses = []
+  await sandbox.holdOpen((error) => { lapses.push(error) })
+  t.mock.timers.tick(200_000)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(lapses.length, 1)
+  assert.equal(lapses[0].message, 'E2B_TIMEOUT_REFUSED')
+
+  const failingFirst = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold-lapse-first' })
+  const firstVm = fakeVm('vm-fresh-2')
+  firstVm.setTimeout = async () => { throw new Error('E2B_TIMEOUT_REFUSED') }
+  failingFirst.findExistingSandbox = async () => undefined
+  failingFirst.createSdkSandbox = async () => firstVm
+  await failingFirst.start()
+  await assert.rejects(failingFirst.holdOpen(() => {}), { message: 'E2B_TIMEOUT_REFUSED' })
+})
 
 // A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
 const localShellSandbox = (env) => ({
@@ -162,7 +205,7 @@ test('the Factory\'s own clone and branch checkout, holding the credential that 
 
 test('every start seeds root\'s mirror with a read token in root\'s environment before the Factory\'s start hook runs', async () => {
   const created = fakeVm('vm-fresh')
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' }, {
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
     repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
   })
   sandbox.findExistingSandbox = async () => undefined

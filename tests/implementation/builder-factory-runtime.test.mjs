@@ -23,7 +23,7 @@ const conversationId = '44444444-4444-4444-8444-444444444444'
 const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' })
 const listing = `100644 blob ${'d'.repeat(40)}      120\tapp/index.html\n`
 
-const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer, connectorBrief } = {}) => {
+const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, build, starter, pushExit = 0, pinExit = 0, agentUser = 'conexus-agent', onStart, onCommand, conversationRepository = 'project-repository', lostAdvances = 0, bound = true, close, applicationServer, connectorBrief, onHoldOpen } = {}) => {
   const github = await startFakeGithub()
   t.after(() => github.close())
   const repository = github.addRepository({ owner: 'acme-org', name: 'app', head })
@@ -43,6 +43,7 @@ const harness = async (t, { mode = 'BUILD', result = RESULT, head = BASE, turn, 
   const buildRunning = new Promise((started) => { buildStarted = started })
   const sandbox = {
     sandboxId: 'sbx-1',
+    holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
     runAsRoot: async (script, env) => {
@@ -317,6 +318,43 @@ test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNAT
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
   assert.equal(run.pushed(), false)
+})
+
+test('a run holds its sandbox open before its first command', async (t) => {
+  const run = await harness(t)
+  await run.start()
+  await run.service.close()
+  const holdOpenIndex = run.events.indexOf('hold-open')
+  const firstCommandIndex = run.events.indexOf('id -un')
+  assert.ok(holdOpenIndex >= 0, 'the run holds the sandbox open at all')
+  assert.ok(holdOpenIndex < firstCommandIndex, `hold-open (${holdOpenIndex}) must run before the first command (${firstCommandIndex})`)
+})
+
+test('a sandbox that cannot be held open refuses the run before the agent', async (t) => {
+  const run = await harness(t, {
+    onHoldOpen: () => { throw new Error('E2B_SANDBOX_NOT_FOUND') },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_KEEPALIVE_FAILED'])
+  assert.equal(run.events.includes('turn'), false, 'the run never reaches the agent on a sandbox about to die')
+})
+
+test('a run releases its sandbox after the turn, and logs a lapse without failing', async (t) => {
+  const run = await harness(t, {
+    onHoldOpen: (onLapse) => { onLapse(new Error('E2B_TIMEOUT_REFUSED')) },
+  })
+  await run.start()
+  await run.service.close()
+  const turnIndex = run.events.indexOf('turn')
+  const releaseIndex = run.events.indexOf('release')
+  assert.ok(turnIndex >= 0 && releaseIndex >= 0, 'the run both turns and releases')
+  assert.ok(turnIndex < releaseIndex, `release (${releaseIndex}) must run after the turn (${turnIndex})`)
+  const plain = await harness(t)
+  await plain.start()
+  await plain.service.close()
+  assert.deepEqual(run.calls.at(-1), plain.calls.at(-1), 'the lapse never changes how the run settles')
+  assert.ok(run.logs.some((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:') && line.endsWith(':E2B_TIMEOUT_REFUSED')), JSON.stringify(run.logs))
 })
 
 test('a build failure still admits the source by a push leased on the base and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
