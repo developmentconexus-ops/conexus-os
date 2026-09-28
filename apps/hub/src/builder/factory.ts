@@ -139,6 +139,8 @@ export const createFactorySandbox = ({ apiKey, templateId, readCheckout, timeout
   apiKey,
   timeout: timeoutMs,
   lifecycle: { onTimeout: 'kill' },
+  // E2B otherwise serves every listening port at a public URL, loopback-bound ones included.
+  network: { allowPublicTraffic: false },
   env: {},
   workingDirectory: FACTORY_WORKING_DIRECTORY,
   metadata: { 'conexus-factory-session': context.sessionId },
