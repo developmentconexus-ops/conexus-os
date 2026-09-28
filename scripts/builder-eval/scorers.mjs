@@ -220,9 +220,53 @@ const BRL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFr
 const brl = (cents) => `R$ ${BRL.format(cents / 100)}`
 const firstFive = (items) => items.slice(0, 5).join(', ') + (items.length > 5 ? ` e mais ${items.length - 5}` : '')
 
+// A dashboard that rounds to whole reais still shows the right number.
+const matchesCents = (amount, cents) => amount.cents === cents || (amount.wholeReais && amount.cents === Math.round(cents / 100) * 100)
+
+// A per-seller-month label is "APELIDO · mon/yyyy" (fixtures/sales-v1.mjs); "total geral" has no split.
+const sellerMonthOf = (label) => {
+  const at = label.indexOf(' · ')
+  return at < 0 ? null : { seller: label.slice(0, at), month: label.slice(at + 3) }
+}
+
 /**
- * Pure. 1 when every name and required amount is on screen and no mistake amount is; else 0.
- * An output that is not a RunOutput throws, so Studio scoring an arbitrary trace gets an error, not a false 0.
+ * A Preview's plain text is a browser's `innerText` of the rendered dashboard: an HTML table reads
+ * back as one tab-separated line per row, header included. Binds each seller-month amount to the
+ * cell at its own row and column, so amounts swapped between sellers or months are told apart even
+ * though every number and name is still somewhere on screen. Returns null when the text carries no
+ * such table (at least two of the truth's month labels in one line's cells), so the caller falls
+ * back to whole-text matching.
+ * @returns {Map<string, { cents: Cents, wholeReais: boolean }> | null}
+ */
+function tableOf(text, { names, monthTokens }) {
+  const foldedNames = new Set(names.map(fold))
+  const observed = new Map()
+  let columnMonth = null
+  for (const line of text.split('\n')) {
+    if (!line.includes('\t')) continue
+    const cells = line.split('\t')
+    const headerRow = cells.map((cell) => (monthTokens.has(fold(cell.trim())) ? fold(cell.trim()) : undefined))
+    if (headerRow.filter(Boolean).length >= 2) {
+      columnMonth = headerRow
+      continue
+    }
+    if (!columnMonth) continue
+    const sellerCell = cells.find((cell) => foldedNames.has(fold(cell.trim())))
+    if (!sellerCell) continue
+    const seller = fold(sellerCell.trim())
+    cells.forEach((cell, index) => {
+      const month = columnMonth[index]
+      const [amount] = month ? parseAmounts(cell) : []
+      if (amount) observed.set(`${seller}|${month}`, amount)
+    })
+  }
+  return observed.size > 0 ? observed : null
+}
+
+/**
+ * Pure. 1 when every name is on screen, every seller-month amount is at its own seller and month,
+ * the grand total is on screen, and no mistake amount is; else 0. An output that is not a RunOutput
+ * throws, so Studio scoring an arbitrary trace gets an error, not a false 0.
  * @param {ScreenTruth} truth
  * @returns {{ score: 0 | 1, reason: string }}
  */
@@ -232,11 +276,18 @@ function gradeScreen(output, truth) {
   if (preview?.kind === 'not-built') return { score: 0, reason: `A prévia não ficou pronta (${preview.reason})` }
   if (preview?.kind !== 'observed' || typeof preview.text !== 'string') throw new Error('o output não é o resultado de um Builder run')
   const amounts = parseAmounts(preview.text)
-  // A dashboard that rounds to whole reais still shows the right number.
-  const shown = (cents) => amounts.some((amount) => amount.cents === cents || (amount.wholeReais && amount.cents === Math.round(cents / 100) * 100))
+  const shown = (cents) => amounts.some((amount) => matchesCents(amount, cents))
   const text = fold(preview.text)
   const missingNames = truth.names.filter((name) => !text.includes(fold(name)))
-  const missingAmounts = truth.amounts.filter((amount) => !shown(amount.cents))
+
+  const monthTokens = new Set(truth.amounts.map((amount) => sellerMonthOf(amount.label)).filter(Boolean).map((pair) => fold(pair.month)))
+  const table = tableOf(preview.text, { names: truth.names, monthTokens })
+  const missingAmounts = truth.amounts.filter((amount) => {
+    const pair = sellerMonthOf(amount.label)
+    if (!pair || !table) return !shown(amount.cents)
+    const cell = table.get(`${fold(pair.seller)}|${fold(pair.month)}`)
+    return !cell || !matchesCents(cell, amount.cents)
+  })
   const mistakesShown = truth.mistakes.filter((mistake) => shown(mistake.cents))
   const problems = [
     ...(missingNames.length > 0 ? [`faltam nomes: ${firstFive(missingNames)}`] : []),

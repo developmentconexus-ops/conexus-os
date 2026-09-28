@@ -7,6 +7,22 @@ import { builderTrace, SALES_PREVIEW_TEXT, SALES_SCREEN, seedSpans } from './bui
 const groundTruth = { fixture: 'sales-v1', screen: SALES_SCREEN, figures: {} }
 const observed = (text) => ({ preview: { kind: 'observed', text, sourceRevision: 'rev-1' } })
 
+// Two sellers, each with two months, so a seller swap and a month swap are each expressible.
+const twoSellersTwoMonths = {
+  fixture: 'sales-v1',
+  screen: {
+    names: ['ANA', 'BRUNO'],
+    amounts: [
+      { cents: 100000, label: 'ANA · jan/2026' },
+      { cents: 200000, label: 'ANA · fev/2026' },
+      { cents: 300000, label: 'BRUNO · jan/2026' },
+      { cents: 400000, label: 'BRUNO · fev/2026' },
+      { cents: 1000000, label: 'total geral' },
+    ],
+    mistakes: [],
+  },
+}
+
 const evalMastra = () => {
   const storage = new InMemoryStore()
   return { storage, mastra: createEvalMastra({ storage }) }
@@ -89,6 +105,24 @@ test('app-correct fails a Preview with a known wrong total, a missing name or no
   })
   assert.deepEqual(await grade({ preview: { kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' } }), {
     score: 0, reason: 'A prévia não ficou pronta (FINAL_RUN_NOT_BUILT)',
+  })
+})
+
+test('app-correct fails a Preview whose table swaps two sellers\' totals or two months, even though every number and name is on screen', async () => {
+  const { mastra } = evalMastra()
+  const grade = async (text) => {
+    const { score, reason } = await mastra.getScorer('app-correct').run({ output: observed(text), groundTruth: twoSellersTwoMonths })
+    return { score, reason }
+  }
+  const header = 'Vendedor\tjan/2026\tfev/2026'
+  const correct = `${header}\nANA\tR$ 1.000,00\tR$ 2.000,00\nBRUNO\tR$ 3.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`
+
+  assert.deepEqual(await grade(correct), { score: 1, reason: 'Os 2 nomes e 5 valores aparecem, e nenhum total errado conhecido.' })
+  assert.deepEqual(await grade(`${header}\nANA\tR$ 3.000,00\tR$ 2.000,00\nBRUNO\tR$ 1.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 0, reason: 'faltam valores: R$ 1.000,00 (ANA · jan/2026), R$ 3.000,00 (BRUNO · jan/2026)',
+  })
+  assert.deepEqual(await grade(`${header}\nANA\tR$ 2.000,00\tR$ 1.000,00\nBRUNO\tR$ 3.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 0, reason: 'faltam valores: R$ 1.000,00 (ANA · jan/2026), R$ 2.000,00 (ANA · fev/2026)',
   })
 })
 
