@@ -406,8 +406,8 @@ now. Writing waits until Conexus validates writes with a real application. A Con
 read-only because the vendor-side principal it uses can only read. There is no operation catalog,
 no request DSL and no grant per operation ([C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)).
 
-Data that an application presents as coming from an external system comes from a read through a
-bound Connection, every time. When a request needs a system that the Project has no Connection bound
+Every value that an application presents as coming from an external system traces back to a read
+through a bound Connection, made live or stored earlier by a sync job through the same executor. When a request needs a system that the Project has no Connection bound
 for, the Builder tells the person which system is missing and what to bind in Integrações, and
 builds nothing that stands in for its data. It never writes invented or sample records and labels
 them as that system's. A read that fails shows as a failure in the application, never as empty or
