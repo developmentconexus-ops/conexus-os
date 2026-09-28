@@ -88,11 +88,12 @@ export const createHttpApp = async ({
   const registered = [...await registerRoutes(app)].sort()
 
   if (staticRoot) {
+    const assetsPrefix = join(staticRoot, 'assets') + sep
     const staticPlugin = (await import('@fastify/static')).default
     await app.register(staticPlugin, {
       root: staticRoot,
       setHeaders: (reply, pathName) => {
-        if (pathName.includes(`${sep}assets${sep}`)) {
+        if (pathName.startsWith(assetsPrefix)) {
           reply.header('cache-control', 'public, max-age=31536000, immutable')
         }
       },

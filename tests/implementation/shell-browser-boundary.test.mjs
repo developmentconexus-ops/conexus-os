@@ -213,8 +213,10 @@ test('S5-P0 guards every realized browser command against synchronous double act
 
 test('fingerprinted assets under assets/ are cached immutably for a year; other static files are not', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
-  const staticRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-static-'))
-  t.after(() => rmSync(staticRoot, { recursive: true, force: true }))
+  const parentWithAssetsName = mkdtempSync(resolve(repositoryRoot, 'apps/hub/assets-test-parent-'))
+  t.after(() => rmSync(parentWithAssetsName, { recursive: true, force: true }))
+  const staticRoot = resolve(parentWithAssetsName, 'public')
+  mkdirSync(staticRoot, { recursive: true })
   writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
   mkdirSync(resolve(staticRoot, 'assets'))
   writeFileSync(resolve(staticRoot, 'assets/app-abc123.js'), 'console.log(1)')
@@ -226,8 +228,12 @@ test('fingerprinted assets under assets/ are cached immutably for a year; other 
   assert.equal(fingerprinted.statusCode, 200)
   assert.equal(fingerprinted.headers['cache-control'], 'public, max-age=31536000, immutable')
 
-  const notFingerprinted = await app.inject({ method: 'GET', url: '/favicon.svg' })
-  assert.equal(notFingerprinted.statusCode, 200)
-  assert.notEqual(notFingerprinted.headers['cache-control'], 'public, max-age=31536000, immutable')
+  const favicon = await app.inject({ method: 'GET', url: '/favicon.svg' })
+  assert.equal(favicon.statusCode, 200)
+  assert.notEqual(favicon.headers['cache-control'], 'public, max-age=31536000, immutable')
+
+  const index = await app.inject({ method: 'GET', url: '/index.html' })
+  assert.equal(index.statusCode, 200)
+  assert.notEqual(index.headers['cache-control'], 'public, max-age=31536000, immutable')
 })
 
