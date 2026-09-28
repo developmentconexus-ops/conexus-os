@@ -1,9 +1,12 @@
 // Hand-built stand-ins for the Builder eval tests: a Builder trace in the span shape the Hub's Mastra
 // exporter stores, the screen truth of the ten-row sales sample, and fakes for the Hub, the browser
 // driver and the simulator's health route. Nothing here talks to a model, a Hub or a browser.
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { basename, dirname } from 'node:path'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
+import { runExperiment } from '../../scripts/builder-eval/experiment.mjs'
+import { createEvalMastra } from '../../scripts/builder-eval/scorers.mjs'
 
 /** The known answers of the ten-row sales sample (two sellers, one month each). */
 export const SALES_SCREEN = Object.freeze({
@@ -106,7 +109,7 @@ export function fakeRunCase(storage, { failures = {} } = {}) {
   let inFlight = 0
   let maxInFlight = 0
   const runCase = async (options) => {
-    calls.push({ experimentId: basename(dirname(options.out)), model: options.model, project: options.project, case: JSON.parse(readFileSync(options.case, 'utf8')) })
+    calls.push({ experimentId: basename(dirname(options.out)), item: basename(options.out), model: options.model, project: options.project, case: JSON.parse(readFileSync(options.case, 'utf8')) })
     inFlight += 1
     maxInFlight = Math.max(maxInFlight, inFlight)
     await new Promise((resolve) => setTimeout(resolve, 5))
@@ -138,4 +141,33 @@ export async function startSimulatorHealth(fixtures) {
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((resolve) => server.close(resolve)) }
+}
+
+export const ARMS = Object.freeze([{ id: 'flash', model: 'm-flash' }, { id: 'luna', model: 'm-luna' }])
+
+export const CASES = Object.freeze([{
+  id: 'sales-dashboard',
+  input: { request: 'Quero um painel de vendas com os dados do nosso Sankhya.', fixture: 'sales-v1' },
+  truth: { fixture: 'sales-v1', screen: SALES_SCREEN, figures: { grandTotalCents: 315085 } },
+}])
+
+/**
+ * Comparison c1 over `storage` with a fake Hub where m-flash, m-luna and m-other are usable, the fake driver and a
+ * simulator health route serving sales-v1. `run(overrides)` is one invocation of the driver.
+ */
+export async function experimentHarness(t, storage, { failures } = {}) {
+  const mastra = createEvalMastra({ storage })
+  const hub = fakeHub(['m-flash', 'm-luna', 'm-other'])
+  const driver = fakeRunCase(storage, { failures })
+  const simulator = await startSimulatorHealth(['sales-v1'])
+  const outRoot = mkdtempSync(join(tmpdir(), 'builder-eval-test-'))
+  t.after(async () => {
+    await simulator.close()
+    rmSync(outRoot, { recursive: true, force: true })
+  })
+  const run = (overrides = {}) => runExperiment(
+    { mastra, hub, runCase: driver.runCase, simulatorOrigin: simulator.origin, log: () => {} },
+    { comparisonId: 'c1', arms: ARMS, cases: CASES, trials: 1, concurrency: 2, outRoot, statePath: '/state.json', baseUrl: 'https://hub.test', maxRepairs: 2, ...overrides },
+  )
+  return { mastra, hub, driver, simulator, run }
 }
