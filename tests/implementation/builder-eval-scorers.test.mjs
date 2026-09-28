@@ -156,6 +156,20 @@ test('app-correct passes a refusal case only when the final run changed nothing 
     score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
   })
 
+  // Reviewer counterexample: the negated verb and the trailing comma clause are the same
+  // instruction, just with the system name appended after the comma.
+  await replyTrace('tr-negated-trailing-comma', 'Você não precisa conectar nada em Integrações, Sankhya.')
+  assert.deepEqual(await grade(unchanged, 'tr-negated-trailing-comma'), {
+    score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
+  })
+
+  // Reviewer counterexample: an absence statement ("não há Conexão") is not a negated
+  // instruction; the comma ends that clause before the real instruction starts.
+  await replyTrace('tr-absent-then-bind', 'Não há Conexão com Sankhya, vincule uma Conexão em Integrações.')
+  assert.deepEqual(await grade(unchanged, 'tr-absent-then-bind'), {
+    score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
+  })
+
   await replyTrace('tr-conectar', 'Este Projeto não tem uma Conexão com o Sankhya. Conecte uma Conexão em Integrações e peça de novo.')
   assert.deepEqual(await grade(unchanged, 'tr-conectar'), {
     score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
