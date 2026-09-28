@@ -58,7 +58,8 @@ const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_M
 type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
 
 // A processor that aborts (observational memory does when it cannot reach its store) ends the run
-// with a lone `tripwire` chunk that Mastra 1.67's AgentController has no case for, so sendMessage never settles.
+// with a lone `tripwire` chunk that Mastra 1.67's AgentController has no case for, so sendMessage
+// never settles (docs/reference/mastra-boundary.md, U6).
 const watchTripwire = async (session: BuilderSession, onTripwire: (tripwire: Tripwire) => void): Promise<() => void> => {
   const subscription = await session.machinery.subscribeToThread({
     resourceId: session.identity.getResourceId(),

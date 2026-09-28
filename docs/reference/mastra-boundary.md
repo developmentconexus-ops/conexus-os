@@ -32,6 +32,9 @@ embedded doc page.
 | 6a | Classifying model errors | A, plus B for one message | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Planned |
 | 7 | Mounting the Mastra Code agent controller | A, with four traps | Implemented |
+| 8 | Ending a turn that a processor stopped | B | Implemented; waits on U6 |
+| 9 | Keeping a run's sandbox alive | A, plus B for the timeout | Implemented; waits on U7 |
+| 10 | Starting the agent's shell in the Project checkout | A | Implemented |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -311,10 +314,56 @@ searching for `hasSelection`, `saveForMode` and `requireOwnedThread`.
 
 **Decision.** A. The traps are behaviors of public APIs, not missing APIs.
 
+## 8. Ending a turn that a processor stopped
+
+**Current code.** `watchTripwire` in `apps/hub/src/builder/runtime.ts` subscribes to the turn's thread
+through `session.machinery.subscribeToThread`. On a `tripwire` chunk it aborts the session, and
+`sendBuilderSessionMessage` fails the run with `BUILDER_AGENT_TRIPWIRE`.
+
+**What Mastra offers.** An input processor that calls `abort()` ends the agent's stream with a
+`tripwire` chunk. Observational memory does this when it cannot reach its store.
+`AgentController.processStreamChunk` has no case for that chunk
+(`core/dist/agent-controller-CKgKFyMR.js:384`), so the session emits neither `agent_end` nor `error`,
+and `sendMessage` never settles. `Session.machinery` is a public getter
+(`core/dist/agent-controller/session.d.ts:1181`), but Mastra documents `SessionMachinery` as what the
+controller injects into a session, not as a host API.
+
+**Decision.** B (U6). The watcher stays until the controller settles `sendMessage` on a tripwire.
+
+## 9. Keeping a run's sandbox alive
+
+**Current code.** `ConexusFactoryE2BSandbox.holdOpen` in `apps/hub/src/builder/factory.ts` extends the
+deadline with `this.e2b.setTimeout` before a run's first command and every third of the budget until
+the run releases it.
+
+**What Mastra offers.** `E2BSandbox` sends its `timeout` to E2B once, when it creates the VM
+(`e2b/dist/index.js:825`). E2B counts it from creation, command activity never moves it, and nothing
+in `@mastra/e2b` extends it. The field is private in the type declarations. `E2BSandbox.e2b` is the
+documented way to reach an E2B feature that the `WorkspaceSandbox` interface lacks, and E2B's
+`Sandbox.setTimeout` moves the deadline.
+
+**Decision.** A for the extension through `e2b`. B (U7) for a timeout that the sandbox exposes and
+extends itself. Until then the subclass takes the budget as a required option and never copies the
+private default.
+
+## 10. Starting the agent's shell in the Project checkout
+
+**Current code.** `ConexusFactoryE2BSandbox` sets its working directory to `/workspace` before the
+Factory's start hook runs and to the checkout after it, with `setWorkingDirectory`.
+
+**What Mastra offers.** A command with no `cwd` runs in the sandbox's `workingDirectory`
+(`e2b/dist/index.js:553`). The Factory derives a remote checkout as `<workingDirectory>/<repo>`
+(`factory/dist/sandbox/workdir.js:34-37`) and runs its checkout scripts with no `cwd`. So one
+directory set at construction cannot serve as both the checkout's parent and the agent's shell.
+`MastraSandbox.setWorkingDirectory` is protected, for a subclass that resolves its own directory
+(`core/dist/workspace/sandbox/mastra-sandbox.d.ts:262`).
+
+**Decision.** A.
+
 ## Upstream proposals
 
-These are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. Each names the installed
-version it was checked against.
+U1 to U4 are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. U6 and U7 are drafts
+that are not opened yet. Each names the installed version it was checked against.
 
 ### U1 ([mastra-ai/mastra#24687](https://github.com/mastra-ai/mastra/issues/24687)). Throw `ProviderAuthRequiredError` when no credential is configured
 
@@ -379,3 +428,27 @@ Proposal: a `GithubIntegrationConfig` option, for example `repositoryAccess?: (i
 repositoryId; defaultAccess }) => Promise<RepositoryAccess>`, which the integration's
 `getRepositoryAccess` calls when it is set. `mintInstallationToken` then keeps meaning "a real
 installation token".
+
+### U6 (not opened yet). Settle `sendMessage` when a processor stops the run
+
+**Package.** `@mastra/core` 1.67.0, `dist/agent-controller-CKgKFyMR.js:384`.
+
+When a processor calls `abort()`, the agent's stream ends with a `tripwire` chunk.
+`AgentController.processStreamChunk` has no case for it, so the session emits neither `agent_end` nor
+`error`, and `Session.sendMessage` never settles. A host learns that the run ended only by subscribing
+to the thread itself.
+
+Proposal: handle `tripwire` in `processStreamChunk`. Emit `agent_end` with its own reason, or an
+`error` event that carries the processor id and the reason, and settle `sendMessage`.
+
+### U7 (not opened yet). Let `E2BSandbox` extend its own timeout
+
+**Package.** `@mastra/e2b` 0.12.0, `dist/index.js:712` and `dist/index.js:825`.
+
+`E2BSandbox` sends `timeout` to E2B once, when it creates the VM. E2B counts that deadline from
+creation, and command activity never moves it, so a long agent run loses its VM in the middle of its
+work. The field is private in the type declarations, so a subclass cannot read the budget back, and
+nothing calls `Sandbox.setTimeout`.
+
+Proposal: expose the budget as a `timeout` getter and add `extendTimeout(ms?)`, which resets the
+deadline to the budget from now. Optionally, extend the deadline while a command or a process runs.
