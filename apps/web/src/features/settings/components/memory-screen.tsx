@@ -10,7 +10,7 @@ import { SectionError, SectionLoading, StatusLine } from './states'
 
 export function MemoryScreen() {
   const memory = useQuery({ queryKey: installationMemoryQueryKey, queryFn: getMemoryModel })
-  const models = useBuilderModels()
+  const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
   const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)

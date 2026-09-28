@@ -392,14 +392,21 @@ or to production. A product's own data and data that belongs to an external syst
 
 ### 12.6 Integrations
 
-Enterprise connections belong to the Workspace. Stage 2 realizes them through the
-Connector boundary: a reusable Connector defines the external system contract, a Workspace
-Connection is one configured instance, and a Project Grant selects the operations the Project
-may invoke. Conversations, applications and later automations may reuse the same admitted
-operation. Consumers never receive the underlying secret or arbitrary authenticated transport.
+Enterprise connections belong to the Workspace. Each external system has one integrator, such as
+Sankhya, Google, TOTVS or Mercado Livre, and every integrator follows one platform pattern. A
+Connection is one configured account of an integrator, and a Workspace may hold several Connections
+of one integrator. An installation administrator creates a Connection and types its credential. A
+Workspace owner binds a Connection to a Project under a Project-local name, such as `erp`.
 
-Q4 qualifies this shape first with the smallest real read-only Sankhya operation. This
-authorizes nobody to share an account or work around a provider's rules.
+The Builder, the Project's applications and later automations send requests in the vendor's own
+format, through one Conexus executor, to the Connection a Project-local name binds. Consumers never
+receive the credential, the vendor token or arbitrary authenticated transport. A Connection reads
+now. Writing waits until Conexus validates writes with a real application. A Connection is
+read-only because the vendor-side principal it uses can only read. There is no operation catalog,
+no request DSL and no grant per operation ([C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)).
+
+Q4 qualifies this shape first, with Sankhya as the first integrator. This authorizes nobody to
+share an account or work around a provider's rules.
 
 ### 12.7 Brain
 
@@ -450,7 +457,7 @@ placeholder task.
 Q1 generated-handler runtime/isolation realization
 Q2 application data programming model
 Q3 application-session/grant realization
-Q4 exact first Sankhya Connector contract
+Q4 exact contract of the first integrator, Sankhya
 Q5 exact Release/Publish ingress realization
 what becomes of BuilderRun beyond the current Builder path
 conversation privacy transitions
@@ -466,4 +473,5 @@ bindings, the capability gateway and the old Managed Application Runtime were re
 the product on 2026-09-19. They are not paused and no seam waits for them. C-028's managed
 application profile is a new realization on the Factory-centered base, not revival of that
 removed runtime or its authority model. Brain, Releases, publication, integrations and
-automations arrive only through their current owners and qualification.
+automations arrive only through their current owners and qualification. The Project binding of
+C-030 is a new record qualified by Q4. It does not restore the removed connection bindings.

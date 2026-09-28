@@ -1,5 +1,5 @@
 name: Change
-description: A unit of work on Conexus OS. Bets and ideas go to conexus-hq.
+description: A unit of work on Conexus OS. Workstreams and ideas go to conexus-hq.
 labels: ["type:change"]
 body:
   - type: markdown
@@ -18,7 +18,7 @@ body:
     id: context
     attributes:
       label: Context
-      description: Why now. Links to the bet, the owning document, or the code involved.
+      description: Why now. Links to the workstream, the owning document, or the code involved.
     validations:
       required: true
   - type: textarea

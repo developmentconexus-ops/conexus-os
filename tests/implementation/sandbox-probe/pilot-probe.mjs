@@ -51,7 +51,7 @@ const supervisor = createSupervisor({
 })
 try {
   const files = probeServerTree()
-  const prepared = await supervisor.prepare({ projectId: PROBE_PROJECT, files })
+  const prepared = await supervisor.prepare({ projectId: PROBE_PROJECT, files, onDivergence: 'RESET' })
   if (prepared.state !== 'READY') throw new Error(`PROBE_PREPARE_FAILED: ${JSON.stringify(prepared)}`)
   const run = async (name, input) => {
     const answer = await supervisor.invoke({ projectId: PROBE_PROJECT, operation: probeOperations[name], input, files, caller: PROBE_CALLER })

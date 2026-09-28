@@ -18,9 +18,22 @@ export type PostgresConnection = PoolConfig
 export const capabilityFor = (role: string | undefined): string =>
   (role && CAPABILITY_BY_ROLE[role]) || role || 'unlabelled'
 
-export const createPostgresPool = (connection: PostgresConnection): PostgresPool => new pg.Pool({
-  ...connection,
-  application_name: `conexus-hub:${capabilityFor(connection.user)}`,
-  max: 6,
-  connectionTimeoutMillis: 5000,
-})
+const errorCode = (error: unknown): string | undefined =>
+  typeof error === 'object' && error !== null && 'code' in error && typeof (error as { code: unknown }).code === 'string'
+    ? (error as { code: string }).code
+    : undefined
+
+export const createPostgresPool = (
+  connection: PostgresConnection,
+  write: (line: string) => void = (line) => { process.stderr.write(line) },
+): PostgresPool => {
+  const capability = capabilityFor(connection.user)
+  const pool = new pg.Pool({
+    ...connection,
+    application_name: `conexus-hub:${capability}`,
+    max: connection.max ?? 6,
+    connectionTimeoutMillis: 5000,
+  })
+  pool.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
+  return pool
+}

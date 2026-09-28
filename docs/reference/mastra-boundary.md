@@ -151,7 +151,8 @@ single-owner map and the decision register record it.
    lookup and the casts are deleted.
 4. The Hub keeps only what the Factory does not own: sharing with everyone, Google AI Pro (C-027),
    model defaults and the memory model. `/api/control/model-accounts/models` reads the Factory's
-   `/web/config/models` through the Hub's own HTTP surface. It then adds Google AI Pro's models from the
+   `/web/config/models` through the Hub's own HTTP surface (optionally filtered by `?scope=installation` to
+   reflect shared account coverage). It then adds Google AI Pro's models from the
    Hub's own list when the router runs and the caller has the credential. A Google AI Pro sign-in
    writes the person's row through the Factory's credential storage, because it settles on a later
    poll that carries no write's CSRF.

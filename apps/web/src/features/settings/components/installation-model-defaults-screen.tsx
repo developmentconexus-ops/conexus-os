@@ -10,7 +10,7 @@ import { SectionError, SectionLoading, StatusLine } from './states'
 
 export function InstallationModelDefaultsScreen() {
   const defaults = useQuery({ queryKey: modelDefaultsQueryKey, queryFn: readModelDefaults })
-  const models = useBuilderModels()
+  const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')

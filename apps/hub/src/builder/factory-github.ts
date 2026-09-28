@@ -120,6 +120,39 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
       return parseRepository(await call('GET /repos/{owner}/{repo}', token, { owner, repo }))
     },
     repositoryToken,
+    // True when the installation still grants Administration: write on this one repository, without
+    // deleting anything. A precondition check, so a refused permission stops before any row moves.
+    probeRepositoryAdminAccess: async (installationId: number, repositoryExternalId: number): Promise<boolean> => {
+      try {
+        await installationToken(installationId, { repositoryIds: [repositoryExternalId], permissions: { administration: 'write' } })
+        return true
+      } catch (error) {
+        if (error instanceof GithubRequestError && (error.status === 403 || error.status === 404 || error.status === 422)) return false
+        throw error
+      }
+    },
+    // Idempotent: verifies the repository at `slug` is still the one identified by `externalId`, then
+    // deletes it. A 404 on either read or delete counts as already done.
+    deleteRepository: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>): Promise<void> => {
+      if (!REPOSITORY_SLUG.test(repository.slug)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
+      const [owner, repo] = repository.slug.split('/') as [string, string]
+      const readToken = await installationToken(installationId, { repositoryIds: [repository.externalId], permissions: { metadata: 'read' } })
+      let current: GithubRepository
+      try {
+        current = parseRepository(await call('GET /repos/{owner}/{repo}', readToken, { owner, repo }))
+      } catch (error) {
+        if (error instanceof GithubRequestError && error.status === 404) return
+        throw error
+      }
+      if (current.id !== repository.externalId) throw new Error('FACTORY_REPOSITORY_IDENTITY_CHANGED')
+      const deleteToken = await installationToken(installationId, { repositoryIds: [repository.externalId], permissions: { administration: 'write' } })
+      try {
+        await call('DELETE /repos/{owner}/{repo}', deleteToken, { owner, repo })
+      } catch (error) {
+        if (error instanceof GithubRequestError && error.status === 404) return
+        throw error
+      }
+    },
     readBranchHead: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string): Promise<string | null> => {
       if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
       const [owner, repo] = repository.slug.split('/') as [string, string]

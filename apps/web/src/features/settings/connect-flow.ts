@@ -4,18 +4,20 @@ export type ConnectState =
   | { step: 'choose-provider' }
   | { step: 'choose-method'; provider: string }
   | { step: 'api-key'; provider: string }
-  | { step: 'paste-code'; provider: string; sessionId: string; url: string }
-  | { step: 'device-code'; provider: string; sessionId: string; url: string; userCode: string; nextPollMs: number }
+  | { step: 'paste-code'; provider: string; sessionId: string; url: string; expiresAt?: string | undefined }
+  | { step: 'device-code'; provider: string; sessionId: string; url: string; userCode: string; nextPollMs: number; expiresAt?: string | undefined }
+  | { step: 'expired'; provider: string }
   | { step: 'done'; provider: string }
-  | { step: 'failed'; provider: string; message: string }
+  | { step: 'failed'; provider: string; message: string; detail?: string | undefined }
 
 export type ConnectAction =
   | { type: 'provider-chosen'; provider: string }
   | { type: 'method-api-key' }
-  | { type: 'method-paste-code'; sessionId: string; url: string }
-  | { type: 'method-device-code'; sessionId: string; url: string; userCode: string; nextPollMs: number }
+  | { type: 'method-paste-code'; sessionId: string; url: string; expiresAt?: string | undefined }
+  | { type: 'method-device-code'; sessionId: string; url: string; userCode: string; nextPollMs: number; expiresAt?: string | undefined }
+  | { type: 'expired' }
   | { type: 'succeeded' }
-  | { type: 'failed'; message: string }
+  | { type: 'failed'; message: string; detail?: string | undefined }
   | { type: 'reset' }
 
 export const initialConnectState: ConnectState = { step: 'choose-provider' }
@@ -32,13 +34,17 @@ export function connectFlowReducer(state: ConnectState, action: ConnectAction): 
     }
     case 'method-paste-code': {
       const provider = providerOf(state)
-      return provider ? { step: 'paste-code', provider, sessionId: action.sessionId, url: action.url } : state
+      return provider ? { step: 'paste-code', provider, sessionId: action.sessionId, url: action.url, expiresAt: action.expiresAt } : state
     }
     case 'method-device-code': {
       const provider = providerOf(state)
       return provider
-        ? { step: 'device-code', provider, sessionId: action.sessionId, url: action.url, userCode: action.userCode, nextPollMs: action.nextPollMs }
+        ? { step: 'device-code', provider, sessionId: action.sessionId, url: action.url, userCode: action.userCode, nextPollMs: action.nextPollMs, expiresAt: action.expiresAt }
         : state
+    }
+    case 'expired': {
+      const provider = providerOf(state)
+      return provider ? { step: 'expired', provider } : state
     }
     case 'succeeded': {
       const provider = providerOf(state)
@@ -46,7 +52,7 @@ export function connectFlowReducer(state: ConnectState, action: ConnectAction): 
     }
     case 'failed': {
       const provider = providerOf(state)
-      return provider ? { step: 'failed', provider, message: action.message } : state
+      return provider ? { step: 'failed', provider, message: action.message, detail: action.detail } : state
     }
     case 'reset':
       return initialConnectState
