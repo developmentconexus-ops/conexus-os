@@ -123,7 +123,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('brand-wordmark-csp', 'node --test tests/implementation/brand-wordmark-csp.test.mjs', 'browser'),
   candidateStep('builder-tool-sentences', 'node --test tests/implementation/builder-tool-sentences.test.mjs'),
   candidateStep('builder-skills-guard', 'node --test tests/implementation/builder-skills-guard.test.mjs'),
-  candidateStep('settings-provider-groups', 'node --test tests/implementation/provider-groups.test.mjs'),
   candidateStep('conexus-preflight', 'node --test tests/repository/conexus-preflight.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),

@@ -2,7 +2,6 @@ import { MastraClient, isKnownAgentControllerEvent } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { createFactoryConversation, listFactoryConversations } from './api'
 
 export type { MastraDBMessage }
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
@@ -25,12 +24,18 @@ const clientAt = (apiPrefix: string) => new MastraClient({
   }),
 })
 
-// Every Project is developed through the Factory mount. Each conversation is its own session on
-// the Factory's mount, keyed by the conversation id and holding one thread of that id, and the Hub
-// creates and lists those conversations because each is a Factory session row.
-const factoryController = clientAt('/api/mastra-factory').getAgentController('code')
+// The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
+// under /api/builder. A Project's conversations are the threads of its resource; each is opened as
+// its own session (scope conversation:<id>) bound to its thread, and each run has its own session
+// (scope builder:<runId>) on the same thread.
+const builderController = clientAt('/api/builder').getAgentController('conexus-builder')
+const projectResource = (projectId: string): string => `project:${projectId}`
+const projectSessions = (projectId: string) => builderController.session(projectResource(projectId))
+const conversationSession = (projectId: string, conversationId: string) =>
+  builderController.session(projectResource(projectId), `conversation:${conversationId}`)
+const runSession = (projectId: string, builderRunId: string) =>
+  builderController.session(projectResource(projectId), `builder:${builderRunId}`)
 
-const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
 export type Conversation = Readonly<{ id: string; title?: string | null | undefined }>
@@ -38,13 +43,26 @@ export type Conversation = Readonly<{ id: string; title?: string | null | undefi
 const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
 const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
 
+/** The Project's conversations, newest first, as its threads. */
+export const listConversations = async (projectId: string): Promise<readonly Conversation[]> =>
+  (await projectSessions(projectId).listThreads()).map((thread) => ({ id: thread.id, title: thread.title ?? null }))
+
+/**
+ * Opens a conversation on the id the browser chose; opening it again answers the same thread, so a
+ * retry after a lost response never makes a second one.
+ */
+export const openConversation = async (projectId: string, conversationId: string): Promise<Conversation> => {
+  await conversationSession(projectId, conversationId).create({ threadId: conversationId })
+  return { id: conversationId, title: null }
+}
+
 /**
  * The Project's conversations. The Hub titles a conversation from its first request once a run has
  * saved it, so while `awaitingTitleOf` has a run working and no title yet, the list is read again.
  */
 export const useProjectConversations = (projectId: string, awaitingTitleOf?: string | null) => useQuery({
   queryKey: conversationsKey(projectId),
-  queryFn: (): Promise<readonly Conversation[]> => listFactoryConversations(projectId),
+  queryFn: () => listConversations(projectId),
   enabled: Boolean(projectId),
   refetchInterval: (query) => awaitingTitleOf && !query.state.data?.find((entry) => entry.id === awaitingTitleOf)?.title?.trim() ? 1_000 : false,
 })
@@ -53,7 +71,7 @@ export const useConversationActions = (projectId: string) => {
   const queryClient = useQueryClient()
   const refresh = () => queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) })
   const create = useMutation({
-    mutationFn: (): Promise<Conversation> => createFactoryConversation(projectId, crypto.randomUUID()),
+    mutationFn: (): Promise<Conversation> => openConversation(projectId, crypto.randomUUID()),
     onSuccess: refresh,
   })
   return { create }
@@ -62,9 +80,8 @@ export const useConversationActions = (projectId: string) => {
 export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'>>
 
 /**
- * The models this person can reach, as the Factory answers for their own credentials and the
- * installation's shared ones. The controller's own list reads only the host's keys, the same for
- * everyone. The product stores neither the list nor the choice.
+ * The models this person can reach with their own model account or the installation's shared one.
+ * The controller's own list reads only the host's keys, the same for everyone, so the Hub answers.
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
@@ -81,13 +98,22 @@ export type ReasoningLevel = typeof reasoningLevels[number]
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   reasoningLevels.find((level) => level === value) ?? null
 
-// The model chosen before a Project exists has nowhere to live yet: the controller only persists a
-// choice on a conversation's own thread. Once the home prompt creates that first conversation, this
-// applies the choice to it, the same write useSessionModel's own mutations make.
-export const applyThreadModel = async (conversationId: string, modelId: string, reasoning: ReasoningLevel | null): Promise<void> => {
-  const session = factoryController.session(conversationId)
-  await session.switchModel(modelId, { scope: 'thread' })
-  if (reasoning) await session.setState({ thinkingLevel: reasoning })
+// The Builder's two modes, Planejar and Construir, held by the conversation's thread; a new
+// conversation starts in Planejar.
+const builderModes = ['plan', 'build'] as const
+export type BuilderMode = typeof builderModes[number]
+const asBuilderMode = (value: unknown): BuilderMode => value === 'build' ? 'build' : 'plan'
+
+// The choices made before a Project exists have nowhere to live yet: the controller only persists
+// them on a conversation's own thread. Once the home prompt opens that first conversation, this
+// applies them to it, the same writes useSessionModel's own mutations make.
+export const applyThreadSettings = async (projectId: string, conversationId: string, settings: Readonly<{
+  modelId: string | undefined; reasoning: ReasoningLevel | null; mode: BuilderMode
+}>): Promise<void> => {
+  const session = conversationSession(projectId, conversationId)
+  await session.switchMode(settings.mode)
+  if (settings.modelId) await session.switchModel(settings.modelId, { scope: 'thread' })
+  if (settings.reasoning) await session.setState({ thinkingLevel: settings.reasoning })
 }
 
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
@@ -97,8 +123,8 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const state = useQuery({
     queryKey: [...sessionModelKey(projectId), conversationId],
     queryFn: async () => {
-      const current = await factoryController.session(conversationId ?? '').state()
-      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel) }
+      const current = await conversationSession(projectId, conversationId ?? '').state()
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), mode: asBuilderMode(current.modeId) }
     },
     enabled: Boolean(conversationId),
   })
@@ -107,7 +133,7 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const chooseReasoning = useMutation({
     mutationFn: (level: ReasoningLevel) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return factoryController.session(conversationId).setState({ thinkingLevel: level })
+      return conversationSession(projectId, conversationId).setState({ thinkingLevel: level })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
@@ -116,16 +142,24 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const choose = useMutation({
     mutationFn: (modelId: string) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return factoryController.session(conversationId).switchModel(modelId, { scope: 'thread' })
+      return conversationSession(projectId, conversationId).switchModel(modelId, { scope: 'thread' })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, choose, chooseReasoning }
+  // The Hub refuses a switch while a run is in flight (AC-5); the next run starts in this mode.
+  const chooseMode = useMutation({
+    mutationFn: (mode: BuilderMode) => {
+      if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
+      return conversationSession(projectId, conversationId).switchMode(mode)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
+  })
+  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, mode: state.data?.mode ?? 'plan', choose, chooseReasoning, chooseMode }
 }
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
   queryKey: builderThreadMessagesKey(projectId, threadId ?? ''),
-  queryFn: () => factoryController.session(threadId ?? '').listMessages(threadId ?? '', 200),
+  queryFn: () => projectSessions(projectId).listMessages(threadId ?? '', 200),
   enabled: Boolean(threadId),
 })
 
@@ -141,7 +175,12 @@ export type LiveTurn = Readonly<{
   error: string | null
 }>
 
-export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
+// A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve.
+export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
+// submit_plan resumes with the controller's PlanResume: approved moves the run on to Construir,
+// rejected keeps it in Planejar with the person's feedback.
+type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
 
 const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
 
@@ -200,14 +239,16 @@ const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
     case 'tool_end':
     case 'tool_suspension_cancelled':
       return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
     case 'error':
       return { ...turn, error: event.error.message }
+    // A turn parked on the person ends its agent run as suspended; the call stays open until they
+    // answer, and the same run goes on.
     case 'agent_end':
-      return { ...turn, status: 'ENDED', waiting: {} }
+      return event.reason === 'suspended' ? turn : { ...turn, status: 'ENDED', waiting: {} }
     default:
       return turn
   }
@@ -225,7 +266,7 @@ export const useBuilderLiveTurn = (
   const conversationId = run?.conversationId
   useEffect(() => {
     if (!builderRunId || !conversationId || !agentActive) return undefined
-    const session = factoryController.session(conversationId, builderRunScope(builderRunId))
+    const session = runSession(projectId, builderRunId)
     let closed = false
     let unsubscribe = () => {}
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -263,11 +304,11 @@ export const useBuilderLiveTurn = (
  * Hub refuses anything but approve or decline there, so there is no "always allow" to send.
  */
 // respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
-// from a single-select AskUser question) or a string array (the options chosen from a multi-select
-// question).
-export const answerPendingCall = (conversationId: string, builderRunId: string, pending: PendingAnswer, answer: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>): Promise<void> => {
-  const session = factoryController.session(conversationId, builderRunScope(builderRunId))
-  return 'approved' in answer
-    ? session.approveTool(pending.toolCallId, answer.approved)
-    : session.respondToToolSuspension(pending.toolCallId, answer.text)
+// from a single-select AskUser question), a string array (the options chosen from a multi-select
+// question), or a PlanResume for submit_plan.
+export const answerPendingCall = (projectId: string, builderRunId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
+  const session = runSession(projectId, builderRunId)
+  if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
+  if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
+  return session.respondToToolSuspension(pending.toolCallId, answer.text)
 }

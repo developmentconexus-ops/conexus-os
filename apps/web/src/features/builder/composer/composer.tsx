@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/c
 import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { type BuilderMode, type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
@@ -27,6 +27,11 @@ const commands: readonly ComposerCommand[] = [
   { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
 ]
 
+const agentModes: readonly Readonly<{ mode: BuilderMode; label: string; hint: string }>[] = [
+  { mode: 'plan', label: 'Planejar', hint: 'O agente lê o app e propõe um plano antes de mudar qualquer arquivo' },
+  { mode: 'build', label: 'Construir', hint: 'O agente muda o app e o Conexus publica a prévia' },
+]
+
 const modelName = (model: BuilderModel | undefined): string => model ? humanizeModelName(model.modelName) : 'Escolha um modelo'
 
 // Not built yet, and said so: focusable for its tooltip, inert to clicks, never a fake action.
@@ -44,7 +49,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  placeholder = 'O que vamos construir ou melhorar?',
+  agentMode, onAgentModeChange, placeholder = 'O que vamos construir ou melhorar?',
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -59,6 +64,9 @@ export function BuilderComposer({
   onModelChange: (modelId: string) => void
   reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
+  // Planejar or Construir, the conversation's own mode; it switches only while nothing runs (AC-5).
+  agentMode: BuilderMode
+  onAgentModeChange: (mode: BuilderMode) => void
   placeholder?: string
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -127,6 +135,17 @@ export function BuilderComposer({
         <ComposerActions className="cx-composer-actions">
           <div className="cx-composer-tools">
             <Soon label="Anexar arquivo"><Paperclip size={17} aria-hidden="true" /></Soon>
+            <fieldset className="cx-agent-mode" aria-label="Modo do agente">
+              {agentModes.map((entry) => <button
+                key={entry.mode}
+                type="button"
+                className="cx-agent-mode-option"
+                aria-pressed={agentMode === entry.mode}
+                title={entry.hint}
+                disabled={working || mode.kind === 'SENDING'}
+                onClick={() => { if (agentMode !== entry.mode) onAgentModeChange(entry.mode) }}
+              >{entry.label}</button>)}
+            </fieldset>
           </div>
           <div className="cx-composer-tools">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>

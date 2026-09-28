@@ -136,3 +136,7 @@
 .cx-effort-slider[aria-disabled="true"] .cx-effort-fill { opacity: .45; }
 .cx-effort-slider[aria-disabled="true"] .cx-effort-thumb { box-shadow: none; }
 .cx-effort-locked { margin: 0; color: var(--cx-text-2); font-size: .75rem; }
+.cx-agent-mode { display: inline-flex; gap: 2px; min-width: 0; margin: 0; padding: 2px; border: 0; border-radius: 999px; background: var(--cx-surface-3); }
+.cx-agent-mode-option { height: 28px; padding: 0 .7rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text-2); font: 500 .8125rem/1 var(--cx-font-body); }
+.cx-agent-mode-option[aria-pressed="true"] { background: var(--cx-surface); color: var(--cx-text); box-shadow: 0 0 0 1px var(--cx-line); }
+.cx-agent-mode-option:disabled { opacity: .55; cursor: default; }

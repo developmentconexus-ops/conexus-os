@@ -27,7 +27,6 @@ export type BuilderSession = Readonly<{
     lastGoodArtifactRevisionId: string | null
     lastGoodArtifactDigest: string | null
   }>
-  mode: 'BUILD' | 'PLAN'
   runHistory?: readonly BuilderRun[]
 }>
 export type BuilderRun = Readonly<{
@@ -107,13 +106,14 @@ export const getBuilderSession = async (projectId: string): Promise<BuilderSessi
   if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderSession>
 }
+// The run starts in the conversation's own mode, which the conversation's session switches.
 export const sendBuilderMessage = async (
-  projectId: string, conversationId: string, content: string, mode: 'BUILD' | 'PLAN', idempotencyKey: string,
+  projectId: string, conversationId: string, content: string, idempotencyKey: string,
 ): Promise<BuilderMessageAccepted> => {
   const response = await request(`${sessionBase(projectId)}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-    body: JSON.stringify({ content, mode, conversationId }),
+    body: JSON.stringify({ content, conversationId }),
   })
   if (response.status !== 201) await reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
@@ -152,25 +152,6 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
   })
   if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderMessageAccepted>
-}
-
-type FactoryConversation = Readonly<{ conversationId: string; title: string | null; createdAt: string }>
-const conversationsUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/conversations`
-const asConversation = (entry: FactoryConversation) => ({ id: entry.conversationId, title: entry.title })
-
-export const listFactoryConversations = async (projectId: string): Promise<readonly Readonly<{ id: string; title: string | null }>[]> => {
-  const response = await request(conversationsUrl(projectId))
-  if (!response.ok) await reject(response)
-  return ((await response.json()) as { conversations: readonly FactoryConversation[] }).conversations.map(asConversation)
-}
-
-// The browser chooses the id, so a retry of a lost response lands on the row the first attempt wrote.
-export const createFactoryConversation = async (projectId: string, conversationId: string): Promise<Readonly<{ id: string; title: string | null }>> => {
-  const response = await request(conversationsUrl(projectId), {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId }),
-  })
-  if (response.status !== 201 && response.status !== 200) await reject(response)
-  return asConversation(((await response.json()) as { conversation: FactoryConversation }).conversation)
 }
 
 export const getBuilderRunTrace =async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {

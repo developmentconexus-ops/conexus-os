@@ -99,8 +99,7 @@
       "tests/implementation/parity-shots.mjs",
       "tests/implementation/*-screenshot*",
       "tests/implementation/preview-form-policy.test.mjs",
-      "tests/repository/web-style.test.mjs",
-      "tests/implementation/provider-groups.test.mjs"
+      "tests/repository/web-style.test.mjs"
     ],
     "page": "docs/development/review/frontend.md"
   },

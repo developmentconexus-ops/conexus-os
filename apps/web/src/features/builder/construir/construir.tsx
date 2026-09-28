@@ -15,7 +15,6 @@ import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectS
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
-import { getProjectRepository, projectRepositoryQueryKey } from '../../project/api'
 import {
   answerPendingCall, type Conversation, type LiveTurn, useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions,
   useProjectConversations, useSessionModel,
@@ -165,7 +164,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     mutationFn: (content: string) => {
       const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
       retainedKey.current = { key, content }
-      return sendBuilderMessage(projectId, conversationId, content, 'BUILD', key)
+      return sendBuilderMessage(projectId, conversationId, content, key)
     },
     onSuccess: async (result, content) => {
       retainedKey.current = null
@@ -188,8 +187,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   })
 
   const preview = usePreview(projectId, session.data?.preview)
-  const repository = useQuery({ queryKey: projectRepositoryQueryKey(projectId), queryFn: () => getProjectRepository(projectId) })
-  const blocked = repository.data?.state === 'UNREACHABLE'
   const working = view.kind === 'ACTIVE'
   const now = useNow(working)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
@@ -209,7 +206,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const composerMode: ComposerMode = runHere && isActive(runHere)
     ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
-    : blocked ? { kind: 'BLOCKED' }
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
@@ -298,7 +294,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
-                onAnswer={(answer) => answerPendingCall(conversationId, runHere.builderRunId, entry, answer)}
+                onAnswer={(answer) => answerPendingCall(projectId, runHere.builderRunId, entry, answer)}
               />)}
               {resultCardShown && runHere && <ResultCard
                 projectId={projectId}
@@ -318,9 +314,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         <ChatShell.Dock className="cx-dock">
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
-        {blocked && <div className="cx-note" data-tone="warning" role="alert">
-          <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
-        </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own
             task_write/task_update/task_check/task_complete calls, never the settled result of a
@@ -344,6 +337,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onModelChange={(modelId) => sessionModel.choose.mutate(modelId)}
           reasoning={sessionModel.reasoning}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
+          agentMode={sessionModel.mode}
+          onAgentModeChange={(next) => sessionModel.chooseMode.mutate(next, {
+            onSuccess: () => setSendError(null),
+            onError: () => setSendError('O modo só muda quando o Builder está parado.'),
+          })}
         />
       </ChatShell.Column>
         </ChatShell.Dock>

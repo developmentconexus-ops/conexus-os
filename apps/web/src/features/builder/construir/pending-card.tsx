@@ -3,7 +3,7 @@ import { type AskUserAnswer, type AskUserOption, type AskUserPayload } from '@ma
 import { AskUserPt } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
-import type { PendingAnswer } from '../mastra-session'
+import type { PendingAnswer, PendingReply } from '../mastra-session'
 import { toolRequest } from './tool-sentences'
 
 const questionText = (pending: PendingAnswer): string => {
@@ -11,6 +11,18 @@ const questionText = (pending: PendingAnswer): string => {
     if (source && typeof source === 'object' && 'question' in source && typeof source.question === 'string') return source.question
   }
   return 'O agente precisa de uma resposta sua para continuar.'
+}
+
+// submit_plan's suspend payload carries the plan it points at; like ask_user's, it is untrusted
+// wire data, so only a string field is shown.
+const planField = (pending: PendingAnswer, name: 'title' | 'plan'): string | null => {
+  for (const source of [pending.prompt, pending.args]) {
+    if (source && typeof source === 'object' && name in source) {
+      const value = (source as Record<string, unknown>)[name]
+      if (typeof value === 'string' && value.trim()) return value
+    }
+  }
+  return null
 }
 
 const isOptionList = (value: unknown): value is readonly AskUserOption[] =>
@@ -36,15 +48,34 @@ const askUserPayload = (pending: PendingAnswer): AskUserPayload => {
  */
 export function PendingCard({ pending, onAnswer }: Readonly<{
   pending: PendingAnswer
-  onAnswer: (answer: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>) => Promise<void>
+  onAnswer: (answer: PendingReply) => Promise<void>
 }>) {
   const [state, setState] = useState<'OPEN' | 'SENDING' | 'FAILED'>('OPEN')
-  const answer = (value: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>) => {
+  const [feedback, setFeedback] = useState('')
+  const answer = (value: PendingReply) => {
     setState('SENDING')
     onAnswer(value).catch(() => setState('FAILED'))
   }
   const detail = presentTool(pending.toolName, pending.args).detail
   const technical = stringifyToolValue(pending.args)
+
+  if (pending.kind === 'PLAN') {
+    const title = planField(pending, 'title')
+    const plan = planField(pending, 'plan')
+    return <section className="cx-pending" aria-label="Plano para aprovar">
+      <p className="cx-pending-text">{title ? <>O agente propõe um plano: <strong>{title}</strong>.</> : 'O agente propõe um plano.'} Aprovar e construir?</p>
+      {plan && <details className="cx-pending-detail" open>
+        <summary>Plano</summary>
+        <pre>{plan}</pre>
+      </details>}
+      <textarea className="cx-pending-feedback" aria-label="O que mudar no plano" placeholder="Se quiser ajustes, diga o que mudar" value={feedback} onChange={(event) => setFeedback(event.target.value)} />
+      <div className="cx-pending-actions">
+        <Button className="cx-button-ink" size="sm" disabled={state === 'SENDING'} onClick={() => answer({ plan: { action: 'approved' } })}>Aprovar e construir</Button>
+        <Button variant="default" size="sm" disabled={state === 'SENDING' || !feedback.trim()} onClick={() => answer({ plan: { action: 'rejected', feedback: feedback.trim() } })}>Pedir ajustes</Button>
+      </div>
+      {state === 'FAILED' && <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p>}
+    </section>
+  }
 
   if (pending.kind === 'QUESTION') {
     const submit = (value: AskUserAnswer) => answer({ text: value })
