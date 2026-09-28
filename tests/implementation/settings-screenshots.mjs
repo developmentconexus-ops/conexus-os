@@ -59,8 +59,6 @@ const targets = [
   { name: 'models', path: '/settings/models' },
   { name: 'github', path: '/settings/installation/github' },
   { name: 'installation-models', path: '/settings/installation/models' },
-  { name: 'model-defaults', path: '/settings/installation/model-defaults' },
-  { name: 'memory', path: '/settings/installation/memory' },
   { name: 'admins', path: '/settings/installation/admins' },
 ]
 
