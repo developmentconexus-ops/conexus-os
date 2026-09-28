@@ -266,6 +266,7 @@ test('requireObservabilityStore resolves the store the Factory storage carries, 
 
 test('the Factory pool connects as hub_factory with its search_path pinned to factory', async () => {
   const pool = createFactoryPool({ host: '127.0.0.1', port: 1, database: 'unreachable' }, 'unused')
+  assert.equal(pool.options.max, 20)
   assert.equal(pool.options.user, 'hub_factory')
   assert.equal(pool.options.options, '-c search_path=factory')
   assert.equal(pool.options.application_name, 'conexus-hub:factory-storage')

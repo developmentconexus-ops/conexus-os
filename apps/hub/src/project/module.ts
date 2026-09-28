@@ -9,9 +9,10 @@ import type { ProjectSummaryOperationId } from './summary-routes.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
+import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
-  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | ProjectSummaryOperationId)[]>
+  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04' | ProjectSummaryOperationId)[]>
   close(): Promise<void>
 }>
 
@@ -19,16 +20,18 @@ const createProjectModule = ({
   commandPool,
   readPool,
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>): ProjectModule => {
-  const store = createProjectStore({ commandPool, readPool, repository })
+  const store = createProjectStore({ commandPool, readPool, repository, deletion })
   return Object.freeze({
     registerProjectRoutes: async (app: FastifyInstance) => [
       ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
@@ -44,12 +47,14 @@ export const createConfiguredProjectModule = ({
   database,
   project,
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
 }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
 }>): ProjectModule => createProjectModule({
@@ -64,6 +69,7 @@ export const createConfiguredProjectModule = ({
     password: readSecretFile(project.readPasswordFile),
   }),
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
 })

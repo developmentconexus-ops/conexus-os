@@ -8,6 +8,8 @@ import type {
   Prj03Response,
 } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createProjectDeletionOrchestrator } from './deletion.js'
+import type { ProjectDeletionPorts } from './deletion.js'
 import { projectError, repositoryRefused } from './errors.js'
 import { isProjectIdentity } from './identity.js'
 
@@ -47,6 +49,7 @@ type ProjectSummaryRow = QueryResultRow & Readonly<{
   archived: boolean
 }>
 type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision: string }>
+type ProjectDetailRow = ProjectRepresentationRow & Readonly<{ deleting: boolean }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 // The Projects home's card row: a Project's name and archived flag next to its latest Builder
@@ -63,6 +66,7 @@ export type ProjectSummaryWithActivity = Readonly<{
   lastActivityAt: string
   latestRun: ProjectLatestRunSummary | null
   hasPreview: boolean
+  deleting: boolean
 }>
 
 export type ProjectStore = Readonly<{
@@ -70,6 +74,7 @@ export type ProjectStore = Readonly<{
   listProjects(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<Prj01Response>
   getProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj02Response | null>
   listProjectSummariesWithActivity(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<readonly ProjectSummaryWithActivity[]>
+  deleteProject(input: Readonly<{ accountId: string; projectId: string; confirmName: string }>): Promise<void>
 }>
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
@@ -99,17 +104,20 @@ export const createProjectStore = ({
   commandPool,
   readPool,
   repository,
+  deletion,
   mintIdentity = randomUUID,
 }: Readonly<{
   commandPool: PostgresPool
   readPool?: PostgresPool
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   mintIdentity?: () => string
 }>): ProjectStore => {
   const requireReadPool = (): PostgresPool => {
     if (!readPool) throw new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
     return readPool
   }
+  const deletionOrchestrator = createProjectDeletionOrchestrator({ commandPool, ports: deletion })
 
   const listProjects = async ({ accountId, workspaceId }: Readonly<{
     accountId: string
@@ -144,9 +152,9 @@ export const createProjectStore = ({
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
-      const result = await client.query<ProjectRepresentationRow>(`
+      const result = await client.query<ProjectDetailRow>(`
         SELECT detail.project_id, detail.workspace_id, detail.name,
-          detail.project_revision, detail.archived
+          detail.project_revision, detail.archived, detail.deleting
         FROM project.get_project($1, $2) detail
       `, [accountId, projectId])
       const row = result.rows[0] ?? null
@@ -157,6 +165,7 @@ export const createProjectStore = ({
         name: row.name,
         projectRevision: row.project_revision,
         archived: row.archived,
+        deleting: row.deleting,
       } : null
     } catch (error) {
       await client.query('ROLLBACK')
@@ -283,5 +292,6 @@ export const createProjectStore = ({
     listProjects,
     getProject,
     listProjectSummariesWithActivity,
+    deleteProject: deletionOrchestrator.deleteProject,
   })
 }

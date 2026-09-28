@@ -23,6 +23,8 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
     createdCommits: [],
     // Answers repository creation with this status instead of creating it.
     creationStatus: null,
+    // Permission names ('administration', 'contents', ...) that a token mint refuses with 403.
+    deniedPermissions: new Set(),
   }
   const descends = (sha, ancestor) => {
     for (let at = sha; at; at = state.parents.get(at)) if (at === ancestor) return true
@@ -50,6 +52,10 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       const tokenRequest = at('POST', /^\/app\/installations\/(\d+)\/access_tokens$/)
       if (tokenRequest) {
         const match = tokenRequest
+        const requestedPermissions = Object.keys(body?.permissions ?? {})
+        if (requestedPermissions.some((name) => state.deniedPermissions.has(name))) {
+          return send(response, 403, { message: 'Resource not accessible by integration' })
+        }
         const token = `ghs_fake_${state.tokens.length + 1}`
         state.tokens.push({ token, installationId: Number(match[1]), repositoryIds: body?.repository_ids ?? null, permissions: body?.permissions ?? null })
         return send(response, 201, { token, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: body?.permissions ?? {}, repository_selection: body?.repository_ids ? 'selected' : 'all' })
@@ -72,6 +78,16 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       if (repositoryRead) {
         const repository = state.repositories.get(`${repositoryRead[1]}/${repositoryRead[2]}`)
         return repository ? send(response, 200, repositoryJson(repository)) : send(response, 404, { message: 'Not Found' })
+      }
+      const repositoryDelete = at('DELETE', /^\/repos\/([^/]+)\/([^/]+)$/)
+      if (repositoryDelete) {
+        const fullName = `${repositoryDelete[1]}/${repositoryDelete[2]}`
+        if (!state.repositories.has(fullName)) return send(response, 404, { message: 'Not Found' })
+        state.repositories.delete(fullName)
+        for (const key of [...state.refs.keys()]) if (key.startsWith(`${fullName}:`)) state.refs.delete(key)
+        for (const key of [...state.commits.keys()]) if (key.startsWith(`${fullName}@`)) state.commits.delete(key)
+        response.writeHead(204)
+        return response.end()
       }
       const compare = at('GET', /^\/repos\/([^/]+)\/([^/]+)\/compare\/([0-9a-f]{40})\.\.\.(.+)$/)
       if (compare) {
@@ -177,6 +193,8 @@ export const startFakeGithub = async ({ installations = [{ id: 163574754, accoun
       state.commits.set(`${repository.fullName}@${head}`, new Map(Object.entries(files).map(([file, content]) => [file, { mode: '100644', content }])))
       return repository
     },
+    denyPermission: (name) => state.deniedPermissions.add(name),
+    allowPermission: (name) => state.deniedPermissions.delete(name),
     // Answers a root script that is one leased `git push --porcelain` the way git and receive-pack
     // would: the ref moves only while it still holds the lease's expected id. Undefined otherwise.
     leasedPush: (script) => {

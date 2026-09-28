@@ -12,6 +12,7 @@ const expectedOperations = [
   { ownerId: 'PRJ-01', operationId: 'ListProjects', method: 'GET', path: '/api/control/workspaces/{workspaceId}/projects' },
   { ownerId: 'PRJ-02', operationId: 'GetProject', method: 'GET', path: '/api/control/projects/{projectId}' },
   { ownerId: 'PRJ-03', operationId: 'CreateProject', method: 'POST', path: '/api/control/workspaces/{workspaceId}/projects' },
+  { ownerId: 'PRJ-04', operationId: 'DeleteProject', method: 'DELETE', path: '/api/control/projects/{projectId}' },
 ]
 
 const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-s3-wire-'))
@@ -57,7 +58,7 @@ try {
     "import type { FastifySchema } from 'fastify'", '',
     `export const S3_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const S3_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
-    "export type S3OwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03'",
+    "export type S3OwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04'",
     `export type Prj01Params = ${toTypeScript(byId.get('PRJ-01').schema.params)}`,
     `export type Prj01Response = ${toTypeScript(byId.get('PRJ-01').schema.response['200'])}`,
     `export type Prj02Params = ${toTypeScript(byId.get('PRJ-02').schema.params)}`,
@@ -65,7 +66,9 @@ try {
     `export type Prj03Params = ${toTypeScript(byId.get('PRJ-03').schema.params)}`,
     `export type Prj03Body = ${toTypeScript(byId.get('PRJ-03').schema.body)}`,
     `export type Prj03Response = ${toTypeScript(byId.get('PRJ-03').schema.response['201'])}`,
-    "export type S3RouteDefinition = Readonly<{ ownerId: S3OwnerId; operationId: string; method: 'GET' | 'POST'; url: string; schema: FastifySchema }>",
+    `export type Prj04Params = ${toTypeScript(byId.get('PRJ-04').schema.params)}`,
+    `export type Prj04Querystring = ${toTypeScript(byId.get('PRJ-04').schema.querystring)}`,
+    "export type S3RouteDefinition = Readonly<{ ownerId: S3OwnerId; operationId: string; method: 'GET' | 'POST' | 'DELETE'; url: string; schema: FastifySchema }>",
     `export const S3_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<S3OwnerId, S3RouteDefinition>)`, '',
   ].join('\n')
   const client = [
@@ -77,11 +80,12 @@ try {
     `export type CreateProjectInput = ${toTypeScript(byId.get('PRJ-03').schema.body)}`,
     `export type CreateProjectResponse = ${toTypeScript(byId.get('PRJ-03').schema.response['201'])}`,
     "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')",
-    "const request = async (url: string, init: RequestInit = {}) => { const method = (init.method ?? 'GET').toUpperCase(); return fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(method === 'POST' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } }) }",
+    "const request = async (url: string, init: RequestInit = {}) => { const method = (init.method ?? 'GET').toUpperCase(); return fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(method === 'POST' || method === 'DELETE' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } }) }",
     'export const projectClient = Object.freeze({',
     `  listProjects: (workspaceId: string) => request(${JSON.stringify(byId.get('PRJ-01').url.replace(':workspaceId/projects', ''))} + encodeURIComponent(workspaceId) + '/projects'),`,
     `  getProject: (projectId: string) => request(${JSON.stringify(byId.get('PRJ-02').url.replace(':projectId', ''))} + encodeURIComponent(projectId)),`,
     `  createProject: (workspaceId: string, body: CreateProjectInput, idempotencyKey: string) => request(${JSON.stringify(byId.get('PRJ-03').url.replace(':workspaceId/projects', ''))} + encodeURIComponent(workspaceId) + '/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, body: JSON.stringify(body) }),`,
+    `  deleteProject: (projectId: string, confirmName: string) => request(${JSON.stringify(byId.get('PRJ-04').url.replace(':projectId', ''))} + encodeURIComponent(projectId) + '?confirmName=' + encodeURIComponent(confirmName), { method: 'DELETE' }),`,
     '})', '',
   ].join('\n')
   mkdirSync(dirname(target), { recursive: true })
