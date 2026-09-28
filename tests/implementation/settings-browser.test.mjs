@@ -112,6 +112,52 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
 })
 
+test('Minhas contas de modelo device-code wait mark has no phone overflow and holds still under reduced motion', async (t) => {
+  const { page, origin } = await withServer(t)
+  const providers = [
+    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
+  ]
+  await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/web/config/providers/*/oauth/start', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-9', kind: 'device-code', url: 'https://provider.example/device', userCode: 'PHNE-0001', nextPollMs: 60_000 }) }))
+  await page.route('**/web/config/providers/*/oauth/poll', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60_000 }) }))
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
+  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+  await page.getByText('PHNE-0001').waitFor()
+  const mark = page.locator('.cx-mark--working')
+  await mark.waitFor()
+
+  // 390px width, no zoom: the wait mark and its surrounding step must not force a horizontal scrollbar.
+  const overflowAtPhoneWidth = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  assert.ok(overflowAtPhoneWidth <= 1, `expected no horizontal overflow at 390px, got ${overflowAtPhoneWidth}px`)
+
+  // Same layout at 200% zoom. Chromium's non-standard `style.zoom` does not reproduce real
+  // browser zoom here: the app shell picks its desktop/mobile layout from `matchMedia`, which
+  // `style.zoom` leaves keyed to the unzoomed width, so it can pick the wrong layout for the
+  // zoomed viewport. A real 200% zoom instead halves the effective CSS viewport that both layout
+  // and matchMedia see, so we reproduce that directly by shrinking the viewport.
+  await page.setViewportSize({ width: 195, height: 422 })
+  const overflowAtZoom = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  assert.ok(overflowAtZoom <= 1, `expected no horizontal overflow at 200% zoom, got ${overflowAtZoom}px`)
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  const animationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
+  assert.notEqual(animationName, 'none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const stillAnimationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
+  assert.equal(stillAnimationName, 'none')
+})
+
 test('Minhas contas de modelo shows a warning for an account that needs to sign in again, and restarts the flow', async (t) => {
   const { page, origin } = await withServer(t)
   const providers = [
