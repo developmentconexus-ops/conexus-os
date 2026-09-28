@@ -10,6 +10,9 @@ const withServer = async (t) => {
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: false, shared: false }] }),
+  }))
   return { page, origin }
 }
 
@@ -182,4 +185,50 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   assert.equal(await link.getAttribute('href'), signIn)
   assert.equal(await link.getAttribute('data-variant'), 'primary')
   await page.getByText('Não conseguimos abrir a aba automaticamente', { exact: false }).waitFor()
+})
+
+test('Minhas contas de modelo signs a person in to ChatGPT with a device code, and the page never holds a token', async (t) => {
+  const { page, origin } = await withServer(t)
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000002'
+  const deviceUrl = 'https://auth.openai.com/codex/device'
+  let connected = false
+  let polls = 0
+  const calls = []
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: connected, shared: false }] }),
+  }))
+  await page.route('**/api/control/model-accounts/openai-codex/oauth/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    calls.push([request.method(), url.pathname.replace('/api/control/model-accounts/openai-codex/oauth', ''), 'x-conexus-csrf' in request.headers()])
+    if (url.pathname.endsWith('/start')) return json({ loginId, url: deviceUrl, userCode: 'ABCD-1234', intervalMs: 0, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString() })
+    if (url.pathname.endsWith('/poll')) {
+      assert.equal(url.searchParams.get('loginId'), loginId)
+      polls += 1
+      if (polls < 2) return json({ state: 'waiting' })
+      connected = true
+      return json({ state: 'succeeded' })
+    }
+    return route.fulfill({ status: 404 })
+  })
+  await page.context().route('https://auth.openai.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'ChatGPT' }).waitFor()
+  await page.getByRole('button', { name: 'Conectar com o ChatGPT' }).click()
+  await page.getByText('ABCD-1234').waitFor()
+  await page.getByText('O código expira em', { exact: false }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'abra a página de entrada da OpenAI' }).getAttribute('href'), deviceUrl)
+  const [popup] = await Promise.all([
+    page.context().waitForEvent('page'),
+    page.getByRole('button', { name: 'Copiar código e abrir o ChatGPT' }).click(),
+  ])
+  await popup.waitForURL(deviceUrl)
+  await page.getByText('ChatGPT conectado.').waitFor()
+  await page.getByText('Conectado com a sua conta do ChatGPT.').waitFor()
+  assert.deepEqual(calls.filter(([method]) => method === 'POST'), [['POST', '/start', true]])
+  assert.equal(await page.evaluate(() => document.body.innerText.includes('access')), false)
 })
