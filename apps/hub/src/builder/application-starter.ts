@@ -81,28 +81,6 @@ export const APPLICATION_CHECK_FILES = Object.freeze([
 // The check links the compiler's dependencies into app/, and that link must never reach the tree.
 export const APPLICATION_CHECK_EXCLUDED = Object.freeze(['app/node_modules'])
 
-export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'
-
-// The provenance rule of docs/product/contract.md, Integrations, stated once. What a request that
-// needs an external system should do next depends on this Project's own bindings, so the connector
-// brief says it, from the bindings it read.
-export const EXTERNAL_DATA_INSTRUCTION = 'Data that the application presents as coming from an external company system (an ERP, a CRM, a bank '
-  + 'or any other system outside this Project) may only come from a read of a Connection bound to this Project. Never write '
-  + 'invented, sample or placeholder records for such a system, whether in a migration, a seed, a handler or the interface, '
-  + 'and never label data as coming from a system it was not read from.'
-
-export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
-  'Work only in the exact Session Workspace at /workspace/repo.',
-  'Keep application edits under /workspace/repo/app/**, except server logic and saved data under /workspace/repo/conexus/**; load the `conexus-server` skill before editing those.',
-  'Use the fixed REACT_VITE_V1 application shape.',
-  'Do not install or add package dependencies.',
-  'Do not mutate Conexus platform or generated owner files.',
-  'Do not add Git remotes or read credentials.',
-  'Inspect before editing and run focused local checks when useful.',
-  'Reply to the operator in português brasileiro unless explicitly asked otherwise.',
-  'Keep progress brief and never reveal chain-of-thought.',
-])
-
 const EVIDENCE_LIMIT = 400
 
 // A failed command's output is the only record of why it failed, so it is kept, but it can carry a
@@ -179,8 +157,8 @@ const STALE_SERVER_SKILL_PATH = '.agents/skills/conexus-server'
 
 /**
  * Deletes a checkout's own copy of the server/data guide, which earlier BUILD runs wrote as
- * `.agents/skills/conexus-server/SKILL.md`. The guide is now a Hub-global Factory skill (served
- * from the local `factory-skills/` mount), so a leftover Project copy is a platform-owned path,
+ * `.agents/skills/conexus-server/SKILL.md`. The guide is now an agent level skill of the Hub (served
+ * from the Hub's `builder-skills/` folder), so a leftover Project copy is a platform-owned path,
  * like the other generated owner files, and must never shadow the global one.
  */
 export const removeStaleServerSkill = async ({

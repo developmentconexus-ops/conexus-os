@@ -1,5 +1,6 @@
 import type { ObservabilityInstance } from '@mastra/core/observability'
-import type { FactoryIntegration } from '@mastra/factory'
+import type { ToolsInput } from '@mastra/core/agent'
+import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -9,7 +10,7 @@ import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
 import type { Broker, RegisteredConnector } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
-import { createConnectorFetchIntegration, openBuilderRun } from './builder-tool.js'
+import { createConnectorFetchTools, openBuilderRun } from './builder-tool.js'
 import type { BuilderConnectorRun } from './builder-tool.js'
 import { createToolPayloadProjection } from './fetch-projection.js'
 import type { ToolPayloadProjection } from './fetch-projection.js'
@@ -36,8 +37,8 @@ export type ConnectorModule = Readonly<{
   /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief opens
    * no credential and makes no network call. */
   openBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
-  /** Contributes `connector_fetch` to the Factory session of a run bound with `openBuilderRun`. */
-  builderIntegration: FactoryIntegration
+  /** Contributes `connector_fetch` to the Builder run bound with `openBuilderRun`. */
+  builderTools(context: Readonly<{ requestContext: RequestContext }>): ToolsInput
   /** The route-level projection of `connector_fetch` payloads the Builder's session routes serve. */
   toolPayloadProjection: ToolPayloadProjection
   broker: Broker
@@ -122,7 +123,7 @@ export const createConnectorModule = ({
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
     openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId }),
-    builderIntegration: createConnectorFetchIntegration(broker),
+    builderTools: createConnectorFetchTools(broker),
     toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,
     observability,

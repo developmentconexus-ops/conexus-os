@@ -219,7 +219,6 @@ test('a Hub killed without cleaning up takes its proxies with it', async (t) => 
 })
 
 const origin = 'https://conexus.test'
-const ORG = 'conexus-installation'
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
 const authentic = {
@@ -227,7 +226,7 @@ const authentic = {
   cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
 }
 
-// The Factory's own key handler runs for real; only model.model_account is a recording stand-in
+// The sign-in routes run for real; only model.model_account is a recording stand-in
 // (the Postgres-backed store is proven separately in model-account-postgres.test.mjs).
 const fakeGoogleAiProAccounts = () => {
   const own = new Map()
@@ -245,15 +244,11 @@ const fakeGoogleAiProAccounts = () => {
 const createLoginApp = async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
-  const patches = []
   const googleAiProAccounts = fakeGoogleAiProAccounts()
-  const memorySettings = { ensureReady: async () => undefined, patch: async (input) => { patches.push(input) } }
   let caller = ana
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        domains: { credentials: { getCredential: async () => null }, modelPacks: {}, memorySettings },
-        orgId: ORG,
         origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => false,
@@ -265,7 +260,7 @@ const createLoginApp = async (t) => {
     staticRoot: null,
   })
   t.after(() => app.close())
-  return { app, stateDir, writes: googleAiProAccounts.writes, patches, share: googleAiProAccounts.share, as: (accountId) => { caller = accountId } }
+  return { app, stateDir, writes: googleAiProAccounts.writes, share: googleAiProAccounts.share, as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/google-ai-pro/login'
@@ -283,8 +278,8 @@ const pollUntilSettled = async (app, loginId) => {
   return 'waiting'
 }
 
-test('signing in from Settings stores the record as the person\'s own model.model_account row and seeds a memory model', async (t) => {
-  const { app, stateDir, writes, patches } = await createLoginApp(t)
+test('signing in from Settings stores the record as the person\'s own model.model_account row', async (t) => {
+  const { app, stateDir, writes } = await createLoginApp(t)
   const started = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(started.statusCode, 200)
   const { loginId, url } = started.json()
@@ -301,10 +296,6 @@ test('signing in from Settings stores the record as the person\'s own model.mode
   const stored = decodeKey(parseKey(writes[0].key))
   assert.equal(stored.fileName, 'antigravity-person@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
-  assert.deepEqual(patches, [{
-    orgId: ORG, userId: ana, patch: {},
-    fillIfUnset: { observerModelId: 'google-ai-pro/gemini-3.5-flash-lite', reflectorModelId: 'google-ai-pro/gemini-3.5-flash-lite' },
-  }])
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
 
   const connection = await app.inject({ method: 'GET', url: '/api/control/model-accounts/google-ai-pro/connection', ...authentic })
@@ -341,6 +332,21 @@ test('one sign-in at a time: another person is told to wait, and the same person
   const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
   assert.notEqual(second.loginId, first.loginId)
   assert.deepEqual((await app.inject({ method: 'GET', url: `${base}/${first.loginId}`, ...authentic })).json(), { state: 'expired' })
+})
+
+test('the Builder offers the Google AI Pro models only to a person who can use them, own or shared', async (t) => {
+  const { app, as, share } = await createLoginApp(t)
+  const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models.map(({ id }) => id)
+  assert.deepEqual([await offered(), await offered('?scope=installation')], [[], []])
+  const { loginId, url } = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
+  await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url) } })
+  assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
+  const all = ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map((model) => `google-ai-pro/${model}`)
+  assert.deepEqual([await offered(), await offered('?scope=installation')], [all, []])
+  as(bia)
+  assert.deepEqual(await offered(), [], 'another person without an account is offered nothing')
+  share(ana)
+  assert.deepEqual([await offered(), await offered('?scope=installation')], [all, all])
 })
 
 test('the sign-in routes need a Hub session, and their writes need the CSRF pair', async (t) => {

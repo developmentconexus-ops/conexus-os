@@ -61,6 +61,7 @@ export type BuilderStore = Readonly<{
   recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
   bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
+  bindBuilderRunModelAccount(builderRunId: string, modelAccountId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
   advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
   settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
@@ -162,6 +163,12 @@ export const createBuilderStore = ({
       'SELECT builder.bind_builder_run_sandbox($1,$2) AS value', [builderRunId, sandboxId],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_SANDBOX_BIND_REFUSED')
+  },
+  bindBuilderRunModelAccount: async (builderRunId, modelAccountId) => {
+    const result = await executorPool.query<{ value: boolean }>(
+      'SELECT builder.bind_builder_run_model_account($1,$2) AS value', [builderRunId, modelAccountId],
+    )
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_MODEL_ACCOUNT_BIND_REFUSED')
   },
   settleBuilderRun: async ({ builderRunId, resultSourceRevision, resultKind, failureCode }) => {
     const result = await executorPool.query<{ value: boolean }>(

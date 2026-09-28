@@ -7,8 +7,13 @@ const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabul
 
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
 // so each test only overrides the pieces it exercises.
+// A conversation's mode is its thread's; these tests name the mode through the conversation id.
 const makeRuns = ({ execute, appendDiagnostic }) => ({
   runtime: { execute },
+  conversations: {
+    modeOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? null : conversationId === 'conv-plan' ? 'plan' : 'build'),
+    titleFromRequest: async () => {},
+  },
   git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
   appendDiagnostic: appendDiagnostic ?? (async () => {}),
   source: {
@@ -45,7 +50,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
     }),
     applicationArtifacts: {},
   })
-  const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
+  const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', conversationId: 'conv-plan' })
   await service.close()
   assert.equal(result.builderRunId, runId)
   assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
@@ -65,7 +70,7 @@ test('createBuilderRun hands the store a base read from main in the Conexus Git'
   }
   const runs = { ...makeRuns({ execute: async () => { throw new Error('must not execute a settled run') } }), git: { readMain: async (id) => { reads.push(id); return main }, mainContains: async () => false } }
   const service = createBuilderService({ store, runs, applicationArtifacts: {} })
-  const run = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
+  const run = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', conversationId: 'conv-plan' })
   await service.close()
   assert.equal(run.baseSourceRevision, main)
   assert.deepEqual(reads, [projectId])
@@ -99,7 +104,7 @@ test('a failure before the agent keeps the operator request on the run and names
     }),
     applicationArtifacts: {},
   })
-  const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
+  const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', conversationId: 'conv-build' })
   await service.close()
   assert.equal(stored, 'Crie um contador')
   assert.equal(accepted.requestText, 'Crie um contador')
@@ -142,7 +147,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', conversationId: 'conv-build' })
   await startedPromise
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
   await service.close()
@@ -176,7 +181,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', conversationId: 'conv-build' })
   await startedPromise
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
   await service.close()
@@ -215,7 +220,7 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
     }),
     applicationArtifacts: { retainApplication: async (input) => { calls.push(['retain', input.compiled]); return { artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) } } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['phase', 'PREPARING'], ['phase', 'COMPILING'],
@@ -258,7 +263,7 @@ test('a build or smoke failure still admits and advances the source, and settles
     }),
     applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['phase', 'PREPARING'], ['phase', 'COMPILING'],
@@ -292,7 +297,7 @@ test('a runtime failure that is not a build or smoke failure still fails the run
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [['fail', 'APPLICATION_COMPILER_WORKSPACE_REFUSED']])
 })
@@ -332,7 +337,7 @@ test('a source-shape refusal from the application server settles with the runner
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
     applicationServer: { prepare: async () => { throw new Error('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['advance', resultRevision],
@@ -372,7 +377,7 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
     applicationServer: { prepare: async () => { throw new Error('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['advance', resultRevision],
@@ -380,4 +385,18 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
     ['fail', 'APPLICATION_SERVER_REFUSED'],
   ])
+})
+
+test("a run starts in its conversation's own mode, and a conversation that is not the Project's is refused before a run exists", async () => {
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const created = []
+  const store = {
+    createBuilderRun: async (input) => { created.push(input.mode); throw new Error('STOP_AFTER_CREATE') },
+    close: async () => {},
+  }
+  const service = createBuilderService({ store, runs: makeRuns({ execute: async () => { throw new Error('not reached') } }), applicationArtifacts: {} })
+  const attempt = (conversationId) => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: conversationId, content: 'altere', conversationId }).catch((error) => error.message)
+  assert.deepEqual([await attempt('conv-plan'), await attempt('conv-build'), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'STOP_AFTER_CREATE', 'BUILDER_CONVERSATION_NOT_FOUND'])
+  assert.deepEqual(created, ['PLAN', 'BUILD'])
+  await service.close()
 })

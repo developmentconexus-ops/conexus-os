@@ -28,7 +28,7 @@ const killEverySandboxSeen = async (apiKey, sandboxIds) => {
 
 test('on a real E2B VM the checkout is seeded from a bundle only root can change, and the Hub takes the run back as one commit on the base', { skip, timeout: 5 * 60_000 }, async (t) => {
   const hub = await loadHub()
-  const { ConexusFactoryE2BSandbox, SANDBOX_CHECKOUT } = await hub('builder/factory.js')
+  const { ConexusRunSandbox, SANDBOX_CHECKOUT } = await hub('builder/sandbox.js')
   const { createConexusGit, pullCandidate, seedSandbox } = await hub('builder/conexus-git.js')
   const { templateId, apiKey } = liveConfig()
   const gitRoot = mkdtempSync(join(tmpdir(), 'conexus-live-git-'))
@@ -37,7 +37,7 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
   const projectId = randomUUID()
   const runId = randomUUID()
   const base = await git.ensureRepository(projectId)
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
+  const sandbox = new ConexusRunSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const agent = (script, cwd = '/workspace') => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd })
   const source = {
     direct: (command, args) => sandbox.executeCommand(command, args, { env: {}, cwd: '/workspace' }),
@@ -63,9 +63,9 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
 })
 
 test('a VM that E2B killed for idling is replaced by the next command, and root commands reach the new one', { skip, timeout: 5 * 60_000 }, async () => {
-  const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
+  const { ConexusRunSandbox } = await (await loadHub())('builder/sandbox.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {} })
+  const sandbox = new ConexusRunSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
     const dead = sandbox.sandboxId
@@ -81,10 +81,10 @@ test('a VM that E2B killed for idling is replaced by the next command, and root 
 
 test('the application check builds the starter in the real template, keeps its link out of Git, and fails on broken code', { skip, timeout: 5 * 60_000 }, async () => {
   const hub = await loadHub()
-  const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
+  const { ConexusRunSandbox } = await hub('builder/sandbox.js')
   const { APPLICATION_CHECK_EXCLUDED, APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
+  const sandbox = new ConexusRunSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const root = '/workspace/check-probe'
   const sh = (script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: root })
   try {
@@ -109,9 +109,9 @@ const TIMEOUT_MS = 15_000
 const PAST_DEADLINE_MS = TIMEOUT_MS * 2
 
 const openLiveSandbox = async (loadHub, label) => {
-  const { createFactorySandbox } = await (await loadHub())('builder/factory.js')
+  const { createRunSandbox } = await (await loadHub())('builder/sandbox.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = createFactorySandbox({ apiKey, templateId, timeoutMs: TIMEOUT_MS })({ sessionId: `live-keepalive-${label}-${randomUUID()}` })
+  const sandbox = createRunSandbox({ apiKey, templateId, builderRunId: `live-keepalive-${label}-${randomUUID()}`, timeoutMs: TIMEOUT_MS })
   await sandbox.start()
   return { sandbox, apiKey }
 }

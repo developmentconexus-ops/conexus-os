@@ -14,7 +14,7 @@ const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
 const ALGORITHM = 'aes-256-gcm'
 const IV_BYTES = 12
 
-export type DecryptedFactorySecret<T> = Readonly<{ value: T; needsReencryption: boolean }>
+type DecryptedFactorySecret<T> = Readonly<{ value: T; needsReencryption: boolean }>
 
 export type FactorySecretEncryption = Readonly<{
   encrypt<T>(value: T): Promise<string>

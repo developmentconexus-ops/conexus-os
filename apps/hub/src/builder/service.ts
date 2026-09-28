@@ -1,5 +1,7 @@
 import type { ConexusGit } from './conexus-git.js'
-import type { FactoryCodingWorkerRuntime } from './factory-runtime.js'
+import type { Conversations } from './conversations.js'
+import { CandidateRefused } from './run-runtime.js'
+import type { BuilderRunRuntime } from './run-runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
@@ -7,7 +9,8 @@ import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 
 export type BuilderService = Readonly<{
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN' }>): Promise<BuilderRunSummary>
+  /** The run starts in the conversation's own mode, which lives only in its thread (AC-2). */
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
@@ -24,7 +27,7 @@ export type RunNote = Readonly<{
   conversationId: string
   builderRunId: string
   code: string
-  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET'
+  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'CANDIDATE_REFUSED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET'
   // The revision the files are at after the run: its base when discarded, its result when admitted.
   sourceRevision: string
   // The Project's own diagnostic, such as the database's error for its migration.
@@ -35,8 +38,9 @@ type DiagnosticAppender = (note: RunNote) => Promise<void>
 
 // A run works on its Project's repository in the Conexus Git, whose `main` is the admitted source.
 export type BuilderRunDependencies = Readonly<{
-  runtime: FactoryCodingWorkerRuntime
+  runtime: BuilderRunRuntime
   git: Pick<ConexusGit, 'readMain' | 'mainContains'>
+  conversations: Pick<Conversations, 'modeOf' | 'titleFromRequest'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
   reconcileEveryMs?: number
@@ -74,6 +78,8 @@ const recoverAdmissions = async ({ store, git, active }: Readonly<{
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
+
+const RUN_MODE = Object.freeze({ plan: 'PLAN', build: 'BUILD' } as const)
 
 export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs }: Readonly<{
   store: BuilderStore
@@ -128,6 +134,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           if (phase === 'AGENT') unadmittedAgentRun = claimed
         },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
+        bindModelAccount: (modelAccountId: string) => store.bindBuilderRunModelAccount(claimed.builderRunId, modelAccountId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
         recordCandidate: async (sourceRevision: string) => {
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
@@ -196,9 +203,12 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }
       const discarded: BuilderRunSummary | null = unadmittedAgentRun
       if (discarded) {
+        // A refused candidate says why, so the next turn in this conversation can fix it.
+        const refused = error instanceof CandidateRefused ? error : null
         await runs.appendDiagnostic({
           projectId: discarded.projectId, conversationId: discarded.conversationId, builderRunId: discarded.builderRunId, code,
-          outcome: code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED', sourceRevision: discarded.baseSourceRevision,
+          outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
+          sourceRevision: discarded.baseSourceRevision, ...(refused ? { detail: refused.detail.slice(0, 1_200) } : {}),
         }).catch(() => undefined)
       }
       // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
@@ -238,9 +248,14 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
+      const mode = await runs.conversations.modeOf(input.projectId, input.conversationId)
+      if (!mode) throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
       // The base is `main`, read only once the database holds the Project's run lock.
-      const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
-      if (run.state === 'QUEUED') dispatchBuilderRun(run, input)
+      const run = await store.createBuilderRun({ ...input, mode: RUN_MODE[mode], readBase: () => runs.git.readMain(input.projectId) })
+      if (run.state === 'QUEUED') {
+        await runs.conversations.titleFromRequest(input.projectId, input.conversationId, input.content).catch(() => undefined)
+        dispatchBuilderRun(run, input)
+      }
       return run
     },
     cancelBuilderRun: async (input) => {

@@ -46,7 +46,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
   'builder-harness',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'model-account-postgres', 'google-ai-pro', 'factory-runtime', 'run-recovery-postgres', 'factory-routes', 'factory-provisioning', 'conexus-git',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
@@ -56,7 +56,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'repository-check', 'repository-import-law', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
   'repository-contract-checks', 'knip', 'biome',
-  'brand-wordmark-csp', 'builder-tool-sentences', 'factory-skills-guard', 'settings-provider-groups', 'conexus-preflight',
+  'brand-wordmark-csp', 'builder-tool-sentences', 'builder-skills-guard', 'settings-provider-groups', 'conexus-preflight',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
@@ -217,9 +217,9 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
-  const factoryRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'factory-runtime').command
-  assert.equal(factoryRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
-    'the tripwire test runs with the Factory runtime suites')
+  const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
+  assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
+    'the tripwire test runs with the run runtime suites')
 
   const result = runVerification({
     processEnvironment: {},

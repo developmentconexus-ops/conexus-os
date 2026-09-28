@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-const oas = JSON.parse(fs.readFileSync('/tmp/conexus-product-openapi.bundle.json', 'utf8'))
+const oas = JSON.parse(fs.readFileSync(process.env.CONEXUS_PRODUCT_OAS_BUNDLE ?? '/tmp/conexus-product-openapi.bundle.json', 'utf8'))
 const methods = new Set(['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'trace'])
 const operations = new Map()
 for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
@@ -17,8 +17,6 @@ const expected = {
   'BLD-24': ['/builder-session/messages', 'post'],
   'BLD-25': ['/builder-session/runs/{builderRunId}/cancel', 'post'],
   'BLD-26': ['/builder-session/runs/{builderRunId}/trace', 'get'],
-  'BLD-27': ['/conversations', 'get'],
-  'BLD-28': ['/conversations', 'post'],
 }
 for (const [id, [suffix, method]] of Object.entries(expected)) {
   const entry = operations.get(id)
@@ -53,16 +51,22 @@ const closed = (value, label) => {
 const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
 required(session, 'projectId', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'runHistory')
 if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
-// A Project's conversations and the model are Mastra's. Projecting either one here would put a
-// second authority beside the one C-022 chose.
-for (const name of ['threadId', 'modelChoices']) {
+// A Project's conversations, their mode and the model are Mastra's. Projecting any of them here
+// would put a second authority beside the one C-022 chose.
+for (const name of ['threadId', 'modelChoices', 'mode']) {
   if (session.properties?.[name]) throw new Error(`BLD-23 exposes ${name}`)
 }
 const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
 const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
-required(message, 'content', 'mode', 'conversationId')
-if (message.properties?.modelChoiceId) throw new Error('BLD-24 exposes modelChoiceId')
+required(message, 'content', 'conversationId')
+// A run starts in its conversation's own mode, switched through the conversation's session.
+for (const name of ['modelChoiceId', 'mode']) {
+  if (message.properties?.[name]) throw new Error(`BLD-24 exposes ${name}`)
+}
+for (const id of ['BLD-27', 'BLD-28']) {
+  if (operations.has(id)) throw new Error(`${id} is Mastra's thread route now, not a Product operation`)
+}
 const cancel = closed(schema('BLD-25', 'request'), 'BLD-25 request')
 if (Object.keys(cancel.properties ?? {}).length !== 0 || (cancel.required ?? []).length !== 0) throw new Error('BLD-25 request must be empty')
 for (const path of Object.keys(oas.paths ?? {})) {

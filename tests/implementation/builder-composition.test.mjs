@@ -1,0 +1,369 @@
+import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
+import { test } from 'node:test'
+import pg from 'pg'
+import { createEmptyDatabase, testPool } from './hub-database.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
+
+const built = hubModuleUrl
+const { ConexusRunSandbox, createRunSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
+const { createBuilderStorage } = await import(built('builder/module.js'))
+const { readHubConfig } = await import(built('platform/config.js'))
+
+const baseEnvironment = {
+  NODE_ENV: 'test',
+  CONEXUS_ORIGIN: 'https://hub.test',
+  CONEXUS_BOOTSTRAP_SUBJECT: 'subject',
+  CONEXUS_DB_HOST: '127.0.0.1',
+  CONEXUS_DB_PORT: '5432',
+  CONEXUS_DB_NAME: 'conexus',
+  CONEXUS_DB_USER: 'hub_iam_runtime',
+  CONEXUS_DB_PASSWORD_FILE: '/secrets/iam',
+  CONEXUS_OIDC_ISSUER: 'https://issuer.test',
+  CONEXUS_OIDC_CLIENT_ID: 'hub',
+  CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
+  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
+  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
+  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
+  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/ingress',
+  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/executor',
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
+  CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
+  CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
+}
+const storageEnvironment = { CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db' }
+const RUN = '11111111-1111-4111-8111-111111111111'
+
+const fakeVm = (sandboxId) => {
+  const vm = { sandboxId, killed: false, runs: [] }
+  vm.kill = async () => { vm.killed = true }
+  vm.commands = {
+    run: async (script, options) => {
+      vm.runs.push({ script, options })
+      if (script === 'exit 128') throw Object.assign(new Error('exit status 128'), { exitCode: 128, stdout: '', stderr: 'fatal: refused' })
+      return { exitCode: 0, stdout: 'ok\n', stderr: '' }
+    },
+  }
+  return vm
+}
+
+const offlineRunSandbox = (vm, { timeoutMs } = {}) => {
+  const sandbox = createRunSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', builderRunId: RUN, ...(timeoutMs ? { timeoutMs } : {}) })
+  const created = []
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async (templateId, options) => { created.push({ templateId, options }); return vm }
+  return { sandbox, created }
+}
+
+test("a run's sandbox is its own E2B sandbox, named for the run, with no environment and the agent's commands starting in the checkout", () => {
+  const sandbox = createRunSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', builderRunId: RUN })
+  assert.ok(sandbox instanceof ConexusRunSandbox)
+  assert.deepEqual({ id: sandbox.id, workingDirectory: sandbox.workingDirectory, env: sandbox.getEnv() }, { id: `conexus-run-${RUN}`, workingDirectory: '/workspace/repo', env: {} })
+  const workspace = createRunWorkspace(sandbox)
+  assert.equal(workspace.sandbox, sandbox)
+})
+
+test("a run's sandbox is created from the template, closed to public inbound traffic", async () => {
+  const { sandbox, created } = offlineRunSandbox(fakeVm('vm-fresh'))
+  await sandbox.start()
+  assert.deepEqual(created.map(({ templateId, options }) => ({ templateId, network: options.network })), [{ templateId: 'conexus:tpl', network: { allowPublicTraffic: false } }])
+})
+
+test('a Hub root command runs as root from / with exactly the environment given, and a nonzero exit is returned, not thrown', async () => {
+  const vm = fakeVm('vm-fresh')
+  const { sandbox } = offlineRunSandbox(vm)
+  await sandbox.start()
+  const ran = await sandbox.runAsRoot('git --version', { GIT_TERMINAL_PROMPT: '0' })
+  assert.deepEqual({ exitCode: ran.exitCode, stdout: ran.stdout }, { exitCode: 0, stdout: 'ok\n' })
+  assert.deepEqual(vm.runs.at(-1), { script: 'git --version', options: { user: 'root', cwd: '/', envs: { GIT_TERMINAL_PROMPT: '0' }, timeoutMs: 120_000 } })
+  const refused = await sandbox.runAsRoot('exit 128', {})
+  assert.deepEqual({ exitCode: refused.exitCode, stderr: refused.stderr, success: refused.success }, { exitCode: 128, stderr: 'fatal: refused', success: false })
+})
+
+test('holdOpen extends the deadline now and every third of the budget until released', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const setTimeoutCalls = []
+  const vm = fakeVm('vm-fresh')
+  vm.setTimeout = async (ms) => { setTimeoutCalls.push(ms) }
+  const { sandbox } = offlineRunSandbox(vm, { timeoutMs: 600_000 })
+  await sandbox.start()
+  const release = await sandbox.holdOpen(() => {})
+  assert.deepEqual(setTimeoutCalls, [600_000])
+  t.mock.timers.tick(200_000)
+  t.mock.timers.tick(200_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+  release()
+  t.mock.timers.tick(600_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+})
+
+test('holdOpen reports a failed extension to onLapse, and refuses when the first extension fails', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const vm = fakeVm('vm-fresh')
+  let calls = 0
+  vm.setTimeout = async () => { calls += 1; if (calls >= 2) throw new Error('E2B_TIMEOUT_REFUSED') }
+  const { sandbox } = offlineRunSandbox(vm, { timeoutMs: 600_000 })
+  await sandbox.start()
+  const lapses = []
+  await sandbox.holdOpen((error) => { lapses.push(error) })
+  t.mock.timers.tick(200_000)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(lapses.map((error) => error.message), ['E2B_TIMEOUT_REFUSED'])
+
+  const firstVm = fakeVm('vm-fresh-2')
+  firstVm.setTimeout = async () => { throw new Error('E2B_TIMEOUT_REFUSED') }
+  const { sandbox: failingFirst } = offlineRunSandbox(firstVm, { timeoutMs: 600_000 })
+  await failingFirst.start()
+  await assert.rejects(failingFirst.holdOpen(() => {}), { message: 'E2B_TIMEOUT_REFUSED' })
+})
+
+const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: _modelAccount, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
+
+test('with no Builder and no storage role the Hub boots, with the installation credential key', () => {
+  assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
+  assert.deepEqual(readHubConfig(environmentWithoutBuilder).secretKey, { file: '/secrets/installation-secret-key', previousFiles: [] })
+  const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
+  assert.throws(() => readHubConfig(keyless), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/, 'every Hub seals its sessions\' refresh tokens')
+})
+
+test("a Builder without its Mastra storage role is refused, and with it the role's password file is all the Hub reads", () => {
+  assert.throws(() => readHubConfig(baseEnvironment), /^Error: BUILDER_FACTORY_RUNTIME_REQUIRED$/)
+  assert.deepEqual(readHubConfig({ ...baseEnvironment, ...storageEnvironment }).factory, { databasePasswordFile: '/secrets/factory-db' })
+})
+
+test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the storage role', () => {
+  const sha256 = 'ab'.repeat(32)
+  const complete = { ...baseEnvironment, ...storageEnvironment }
+  assert.equal(readHubConfig(complete).googleAiPro, undefined)
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }).googleAiPro, { binary: '/opt/cliproxy/cli-proxy-api', sha256 })
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_BIN$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: 'cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_BIN$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: 'AB'.repeat(32) }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
+  assert.throws(() => readHubConfig({ ...environmentWithoutBuilder, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED$/)
+})
+
+test('after a key rotation a secret sealed under a previous key still opens, and only through the keys the installation names', async () => {
+  const { createSecretEnvelope } = await import(built('platform/secrets.js'))
+  const previous = 'c3'.repeat(32)
+  const current = 'd4'.repeat(32)
+  const sealedBefore = await createSecretEnvelope(previous).seal('refresh-before-rotation')
+  assert.equal(await createSecretEnvelope(current, [previous]).open(sealedBefore), 'refresh-before-rotation')
+  await assert.rejects(createSecretEnvelope(current).open(sealedBefore))
+})
+
+test('previous credential keys are named by absolute paths, separated by commas', () => {
+  const complete = { ...baseEnvironment, ...storageEnvironment }
+  assert.deepEqual(readHubConfig(complete).secretKey.previousFiles, [])
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).secretKey.previousFiles,
+    ['/secrets/key-2025', '/secrets/key-2026'])
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), /^Error: INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES$/)
+})
+
+// A probe role owning a `factory` schema, as hub_factory owns it in production.
+const storageRole = async (t, name) => {
+  const { admin, connection, onCleanup } = await createEmptyDatabase(t, name)
+  const role = `factory_probe_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+  const password = randomUUID()
+  await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`)
+  onCleanup(() => admin.query(`DROP ROLE IF EXISTS ${role}`))
+  const owner = new pg.Client(connection)
+  await owner.connect()
+  await owner.query(`CREATE SCHEMA factory AUTHORIZATION ${role}`)
+  await owner.end()
+  onCleanup(async () => {
+    const dropper = new pg.Client(connection)
+    await dropper.connect()
+    await dropper.query('DROP SCHEMA IF EXISTS factory CASCADE')
+    await dropper.end()
+  })
+  const pool = testPool({ ...connection, user: role, password, options: '-c search_path=factory', max: 4 })
+  onCleanup(() => pool.end())
+  return { connection, role, pool, onCleanup }
+}
+
+test("the Builder's storage lands every table in factory: its threads, messages and spans, and nothing in public", async (t) => {
+  const { connection, role, pool, onCleanup } = await storageRole(t, 'conexus_builder_storage')
+  const storage = createBuilderStorage(pool)
+  await storage.init()
+  const inspector = new pg.Client(connection)
+  await inspector.connect()
+  onCleanup(() => inspector.end())
+  const { rows } = await inspector.query(`
+    SELECT n.nspname AS schema, c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind IN ('r', 'p') AND pg_get_userbyid(c.relowner) = $1 ORDER BY 1, 2`, [role])
+  assert.deepEqual([...new Set(rows.map((row) => row.schema))], ['factory'])
+  const tables = rows.map((row) => row.name)
+  for (const expected of ['mastra_threads', 'mastra_messages', 'mastra_ai_spans']) assert.ok(tables.includes(expected), `${expected} is created in factory`)
+  const publicTables = await inspector.query("SELECT count(*)::int AS count FROM pg_tables WHERE schemaname = 'public'")
+  assert.equal(publicTables.rows[0].count, 0)
+})
+
+test("the Builder's spans persist, and the 30-day retention prunes only stale spans, never a conversation's messages", async (t) => {
+  const { pool } = await storageRole(t, 'conexus_builder_tracing')
+  const storage = createBuilderStorage(pool)
+  await storage.init()
+  const observabilityStore = await storage.getStore('observability')
+  assert.ok(observabilityStore, 'the storage carries a real observability store')
+
+  const traceId = randomUUID().replaceAll('-', '')
+  const rootSpanId = randomUUID().replaceAll('-', '').slice(0, 16)
+  const staleSpanId = randomUUID().replaceAll('-', '').slice(0, 16)
+  const now = new Date()
+  const stale = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000)
+  await observabilityStore.batchCreateSpans({
+    records: [
+      {
+        traceId, spanId: rootSpanId, name: 'agent run', spanType: 'agent_run', isEvent: false, startedAt: now, endedAt: now,
+        metadata: { conexusBuilderProjectId: 'project-1', conexusBuilderRunId: 'run-1' },
+      },
+      {
+        traceId, spanId: staleSpanId, parentSpanId: rootSpanId, name: 'old model call', spanType: 'model_generation', isEvent: false,
+        startedAt: stale, endedAt: stale, attributes: { model: 'google-ai-pro/gemini', usage: { inputTokens: 10, outputTokens: 5 } },
+      },
+    ],
+  })
+  const found = await observabilityStore.listTraces({
+    filters: { metadata: { conexusBuilderProjectId: 'project-1', conexusBuilderRunId: 'run-1' } },
+    pagination: { page: 0, perPage: 1 },
+  })
+  assert.equal(found.spans.at(0)?.traceId, traceId)
+
+  const memory = await storage.getStore('memory')
+  await memory.saveThread({ thread: { id: 'thread-1', resourceId: 'project:1', title: 'probe thread', createdAt: now, updatedAt: now } })
+  const messageId = randomUUID()
+  await memory.saveMessages({
+    messages: [{ id: messageId, role: 'user', createdAt: stale, threadId: 'thread-1', resourceId: 'project:1', content: { format: 2, parts: [{ type: 'text', text: 'hi' }] } }],
+  })
+
+  const results = await storage.prune()
+  assert.deepEqual(results.map((result) => ({ domain: result.domain, table: result.table, deleted: result.deleted })), [
+    { domain: 'observability', table: 'mastra_ai_spans', deleted: 1 },
+  ])
+  const survivors = await observabilityStore.getTrace({ traceId })
+  assert.deepEqual(survivors.spans.map((span) => span.spanId), [rootSpanId])
+  const messages = await memory.listMessagesById({ messageIds: [messageId] })
+  assert.equal(messages.messages.length, 1)
+})
+
+test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const logs = []
+  let pruneCalls = 0
+  let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
+
+  const storage = {
+    prune: async () => {
+      pruneCalls++
+      return pruneResult
+    },
+  }
+
+  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  // Yield microtask so the immediate boot tick runs
+  await new Promise((r) => setImmediate(r))
+
+  assert.equal(pruneCalls, 1)
+  assert.deepEqual(logs, ['BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5'])
+
+  // Manual tick
+  pruneResult = [
+    { domain: 'observability', table: 'mastra_ai_spans', deleted: 2, done: false },
+    { domain: 'observability', table: 'other_table', deleted: 0, done: true },
+  ]
+  await schedule.tick()
+  assert.equal(pruneCalls, 2)
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5',
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:2',
+    'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
+    'BUILDER_RETENTION_PRUNED:observability.other_table:0',
+  ])
+
+  // Failed prune is caught and logged
+  const failing = { prune: async () => { throw new Error('DB_DISCONNECTED') } }
+  const failLogs = []
+  const failingSchedule = scheduleRetentionPrune(failing, (line) => failLogs.push(line), 60_000)
+  await new Promise((r) => setImmediate(r))
+  assert.deepEqual(failLogs, ['BUILDER_RETENTION_PRUNE_FAILED:DB_DISCONNECTED'])
+
+  schedule.close()
+  failingSchedule.close()
+})
+
+test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output message arrays to messageCount', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  assert.equal(compactProcessorRunPayloads.name, 'builder-compact-processor-run-payloads')
+
+  // PROCESSOR_RUN span with arrays
+  const processorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [{ id: '1', role: 'user', content: 'hello' }, { id: '2', role: 'assistant', content: 'hi' }],
+    output: [{ id: '3', role: 'user', content: 'more' }],
+  }
+  const processed = compactProcessorRunPayloads.process(processorSpan)
+  assert.deepEqual(processed.input, { messageCount: 2 })
+  assert.deepEqual(processed.output, { messageCount: 1 })
+
+  // Non-array input/output on PROCESSOR_RUN are preserved
+  const nonArraySpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: { someOtherField: 123 },
+    output: 'done',
+  }
+  const processedNonArray = compactProcessorRunPayloads.process(nonArraySpan)
+  assert.deepEqual(processedNonArray.input, { someOtherField: 123 })
+  assert.equal(processedNonArray.output, 'done')
+
+  // Other span types are not touched
+  const agentSpan = {
+    type: SpanType.AGENT_RUN,
+    input: [{ id: '1', content: 'test' }],
+    output: [{ id: '2', content: 'result' }],
+  }
+  const processedAgent = compactProcessorRunPayloads.process(agentSpan)
+  assert.deepEqual(processedAgent.input, [{ id: '1', content: 'test' }])
+  assert.deepEqual(processedAgent.output, [{ id: '2', content: 'result' }])
+
+  // null or undefined spans pass through safely
+  assert.equal(compactProcessorRunPayloads.process(undefined), undefined)
+})
+
+test('compactProcessorRunPayloads deterministically compacts processor_run span bytes', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  // Synthetic Builder turn with 25 conversation messages of typical turn context size (~1.5 KB each)
+  const syntheticMessages = Array.from({ length: 25 }, (_, i) => ({
+    id: `msg-${i}`,
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    content: `Builder prompt turn context chunk ${i}: `.padEnd(1500, 'x'),
+  }))
+
+  const rawProcessorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: syntheticMessages,
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const rawBytes = Buffer.byteLength(JSON.stringify(rawProcessorSpan.input)) + Buffer.byteLength(JSON.stringify(rawProcessorSpan.output))
+
+  // Clone before passing to span processor
+  const spanToProcess = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [...syntheticMessages],
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const processed = compactProcessorRunPayloads.process(spanToProcess)
+  const compactedBytes = Buffer.byteLength(JSON.stringify(processed.input)) + Buffer.byteLength(JSON.stringify(processed.output))
+
+  // Assert deterministic reduction: raw is ~54 KB, compacted is exactly 38 bytes (>99.9% reduction)
+  assert.ok(rawBytes > 50_000, `expected raw bytes > 50000, got ${rawBytes}`)
+  assert.deepEqual(processed.input, { messageCount: 25 })
+  assert.deepEqual(processed.output, { messageCount: 10 })
+  assert.equal(compactedBytes, 38)
+  assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
+})

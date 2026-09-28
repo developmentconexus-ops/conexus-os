@@ -19,7 +19,8 @@ const bundle = (relativeSourcePath) => {
   return import(pathToFileURL(outfile).href)
 }
 
-const { createFactoryDiagnosticAppender } = await bundle('apps/hub/src/builder/module.ts')
+const { createDiagnosticAppender } = await bundle('apps/hub/src/builder/module.ts')
+const { createConversations } = await bundle('apps/hub/src/builder/conversations.ts')
 
 const projectId = '44444444-4444-4444-8444-444444444444'
 // A diagnostic belongs to the conversation the run was asked in, which is a thread of the Project's
@@ -27,20 +28,22 @@ const projectId = '44444444-4444-4444-8444-444444444444'
 const conversationId = '77777777-7777-4777-8777-777777777777'
 const runId = '55555555-5555-4555-8555-555555555555'
 
-const factoryThread = async () => {
-  const storage = new LibSQLStore({ id: 'factory-diagnostic-appender-test', url: ':memory:' })
+const conversationThread = async () => {
+  const storage = new LibSQLStore({ id: 'builder-diagnostic-appender-test', url: ':memory:' })
   await storage.init()
-  const appendDiagnostic = createFactoryDiagnosticAppender(Promise.resolve({ mastra: { getStorage: () => storage } }))
+  const memory = await storage.getStore('memory')
+  const now = new Date()
+  await memory.saveThread({ thread: { id: conversationId, resourceId: `project:${projectId}`, title: '', createdAt: now, updatedAt: now } })
+  const appendDiagnostic = createDiagnosticAppender(createConversations(async () => memory))
   const texts = async () => {
-    const memoryStore = await storage.getStore('memory')
-    const { messages } = await memoryStore.listMessages({ threadId: conversationId, resourceId: conversationId })
+    const { messages } = await memory.listMessages({ threadId: conversationId, resourceId: `project:${projectId}` })
     return messages.map((message) => [message.role, message.content.parts.map((part) => part.text).join('')])
   }
   return { appendDiagnostic, texts }
 }
 
-test('a Factory run whose edits were discarded leaves exactly one note, and a retried append does not add a second', async () => {
-  const { appendDiagnostic, texts } = await factoryThread()
+test('a run whose edits were discarded leaves exactly one note in its conversation, and a retried append does not add a second', async () => {
+  const { appendDiagnostic, texts } = await conversationThread()
   const note = { projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: 'd'.repeat(40) }
   await appendDiagnostic(note)
   await appendDiagnostic(note)
@@ -48,9 +51,16 @@ test('a Factory run whose edits were discarded leaves exactly one note, and a re
     `A execução ${runId} não terminou e nada dela foi aplicado. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_MODEL_INCOMPLETE.`]])
 })
 
-test('a Factory run that lost the compare-and-swap says its edits were discarded and the next request starts from the current source', async () => {
-  const { appendDiagnostic, texts } = await factoryThread()
+test('a run that lost the compare-and-swap says its edits were discarded and the next request starts from the current source', async () => {
+  const { appendDiagnostic, texts } = await conversationThread()
   await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: 'd'.repeat(40) })
   assert.deepEqual(await texts(), [['assistant',
     `A execução ${runId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_SOURCE_BASE_MOVED. Envie o pedido novamente: ele começará da versão atual da fonte.`]])
+})
+
+test("a refused candidate's note says why, so the next turn in the conversation can fix it (AC-9)", async () => {
+  const { appendDiagnostic, texts } = await conversationThread()
+  await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_AGENTS_MD_REFUSED', outcome: 'CANDIDATE_REFUSED', sourceRevision: 'd'.repeat(40), detail: 'AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB.' })
+  assert.deepEqual(await texts(), [['assistant',
+    `A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_AGENTS_MD_REFUSED. Motivo: AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB. Corrija isso na próxima execução.`]])
 })

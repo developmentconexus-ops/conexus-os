@@ -25,8 +25,8 @@ const cachedPromptFile = (name: string, promptDir: string): string => {
   return text
 }
 
-export const conexusPromptText = (promptDir: string = defaultPromptDir()): string => cachedPromptFile('conexus.md', promptDir)
-export const modePromptText = (mode: BuilderModeDefinition, promptDir: string = defaultPromptDir()): string => cachedPromptFile(mode.promptFile, promptDir)
+const conexusPromptText = (promptDir: string = defaultPromptDir()): string => cachedPromptFile('conexus.md', promptDir)
+const modePromptText = (mode: BuilderModeDefinition, promptDir: string = defaultPromptDir()): string => cachedPromptFile(mode.promptFile, promptDir)
 
 /**
  * Builds the agent's dynamic `instructions` function: the Conexus prompt, the current mode's prompt,

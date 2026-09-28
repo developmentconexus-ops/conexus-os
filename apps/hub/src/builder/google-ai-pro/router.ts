@@ -9,7 +9,7 @@ const refuse = (response: ServerResponse, status: number, message: string): void
 
 const BEARER = /^Bearer\s+(\S+)$/i
 
-// The Factory's gateway calls this with the person's credential as the bearer. The router swaps it
+// A run's model calls reach this with the person's credential as the bearer. The router swaps it
 // for the person's proxy key and streams the call through. It never logs a header: the bearer is the
 // person's Google sign-in.
 const route = (pool: Pick<CliproxyPool, 'acquire'>) => async (request: IncomingMessage, response: ServerResponse): Promise<void> => {

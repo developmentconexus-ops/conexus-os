@@ -17,13 +17,15 @@ const pathOf = (input: unknown): string => {
 export const DEFAULT_REPOSITORY_ROOT = '/workspace/repo'
 
 /**
- * A path a workspace tool received, as a path inside the repository, or null when it leaves the
- * repository (an absolute path elsewhere, or a `..` that climbs out). Every write-root check reads
- * this, never the raw string, so `.conexus/plans/../../app/x` is `app/x`.
+ * A path a workspace tool received, as a path inside the repository, or null when it climbs out
+ * of it. It reads a path the way the sandbox filesystem resolves one: an absolute path under the
+ * repository root is that path, and any other leading `/` means the repository root. Every
+ * write-root check reads this, never the raw string, so `.conexus/plans/../../app/x` is `app/x`.
  */
-export const repositoryPath = (path: string, repositoryRoot: string = DEFAULT_REPOSITORY_ROOT): string | null => {
-  const relative = posix.isAbsolute(path) ? posix.relative(repositoryRoot, path) : posix.normalize(path)
-  if (relative === '' || relative === '.' || relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) return null
+const repositoryPath = (path: string, repositoryRoot: string = DEFAULT_REPOSITORY_ROOT): string | null => {
+  const underRoot = path === repositoryRoot || path.startsWith(`${repositoryRoot}/`)
+  const relative = posix.normalize(underRoot ? posix.relative(repositoryRoot, path) : path.replace(/^\/+/, ''))
+  if (relative === '' || relative === '.' || relative === '..' || relative.startsWith('../')) return null
   return relative
 }
 
@@ -32,6 +34,8 @@ export const isUnderWriteRoot = (path: string, writeRoot: string, repositoryRoot
   repositoryPath(path, repositoryRoot)?.startsWith(writeRoot) === true
 
 /**
+ * @public Tests import this at runtime from the built module.
+ *
  * The one mode guard (Key invariants, Tool contract). It runs before every workspace tool call
  * (`Workspace`'s own `beforeToolCall` hook, evaluated at execution time, not a listing snapshot), so
  * it stays correct across a suspend/resume where a mode's `availableTools` narrowing does not (blast

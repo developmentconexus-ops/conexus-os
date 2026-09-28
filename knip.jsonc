@@ -6,7 +6,6 @@
     "scripts/check-test-skips.mjs",
     "scripts/generate-r1-connector-contracts.mjs",
     "scripts/generate-wire-projection.mjs",
-    "scripts/hub-factory.mjs",
     "scripts/issue-230-no-access-proof.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/q3-negative-proof.mjs",
@@ -33,11 +32,9 @@
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
     "apps/hub/src/server.ts",
-    "apps/hub/src/factory-cli.ts",
     "apps/hub/src/app-runner/main.ts",
     "apps/web/src/main.tsx",
-    "apps/hub/compiler-template/**",
-    "factory-skills/**"
+    "apps/hub/compiler-template/**"
   ],
   "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**"],
   "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],

@@ -8,11 +8,12 @@ import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const {
-  BUILDER_MODES, DEFAULT_BUILDER_MODE, PLAN_WRITE_ROOT,
-  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY,
-  attachBuilderModeGuard, conexusInstructions, createBuilderController, createBuilderModeGuard, createSubmitPlanTool, defaultBuilderSkillsRoot,
-} = await import(hubModuleUrl('builder/harness/index.js'))
+const { BUILDER_MODES, DEFAULT_BUILDER_MODE, PLAN_WRITE_ROOT } = await import(hubModuleUrl('builder/harness/modes.js'))
+const { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY } = await import(hubModuleUrl('builder/harness/request-context.js'))
+const { conexusInstructions } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { attachBuilderModeGuard, createBuilderModeGuard } = await import(hubModuleUrl('builder/harness/guard.js'))
+const { createSubmitPlanTool } = await import(hubModuleUrl('builder/harness/tools.js'))
+const { createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
@@ -214,6 +215,9 @@ test('the plan write check reads the path inside the repository, so a .. escape 
   assert.equal(await guard(writeCall('.conexus/plans/p.md')), undefined)
   assert.equal(await guard(writeCall('./.conexus/plans/nested/p.md')), undefined)
   assert.equal(await guard(writeCall('/workspace/repo/.conexus/plans/p.md')), undefined)
+  // The sandbox filesystem reads any other leading slash as the repository root.
+  assert.equal(await guard(writeCall('/.conexus/plans/p.md')), undefined)
+  assert.deepEqual(await guard(writeCall('/app/x.ts')), PLAN_REFUSAL)
   assert.equal(await guard(writeCall('app/x.ts', 'build')), undefined)
 })
 
@@ -288,4 +292,63 @@ test('a submit_plan refused outside Planejar never suspends, so answering it as 
   assert.equal(events.length, before, 'answering a call that never suspended emits nothing')
   assert.deepEqual(calls, [0, 1], 'the model was not called again')
   assert.equal(session.mode.get(), 'build')
+})
+
+test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {
+  const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+  const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }
+  const controller = createBuilderController({
+    model: scriptedModel().model, storage: new InMemoryStore(), connectorFetch: createConnectorFetchTools(broker),
+    skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+  })
+  const session = await controller.createSession({ resourceId: 'project:probe-connector', scope: 'probe-connector' })
+  const agent = controller.getCurrentAgent(session)
+  const toolsFor = async (bind) => {
+    const requestContext = new RequestContext()
+    bind?.(requestContext)
+    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name === 'connector_fetch')
+  }
+  const run = await openBuilderRun({ brief: async () => '', projectId: '22222222-2222-4222-8222-222222222222', builderRunId: '11111111-1111-4111-8111-111111111111' })
+  assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
+})
+
+test("a run's turn lasts through the person's answer and the plan approval, on the run's own session and workspace, and closing it forgets both (AC-16)", async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(resolve(root, '.conexus/plans'), { recursive: true })
+  writeFileSync(resolve(root, '.conexus/plans/p.md'), '# Plano\n\n1. Fazer a tela.\n')
+  const workspace = new Workspace({ id: 'run-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const runContexts = new Map()
+  const runWorkspaces = new Map()
+  const { model, calls } = scriptedModel()
+  const { Memory } = await import('@mastra/memory')
+  const storage = new InMemoryStore()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const builderRunId = '11111111-1111-4111-8111-111111111111'
+  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces })
+  const run = await openSession({
+    projectId, conversationId: '44444444-4444-4444-8444-444444444444', builderRunId, workspace,
+    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+  })
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const answered = []
+  live.subscribe((event) => {
+    if (event.type !== 'tool_suspended') return
+    answered.push(event.toolName)
+    const resumeData = event.toolName === 'ask_user' ? 'azul' : { action: 'approved' }
+    setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData }) }, 20)
+  })
+  const turn = await run.sendTurn('faça um app')
+  assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length, mode: live.mode.get() }, { reason: 'complete', summary: 'ok', answered: ['ask_user', 'submit_plan'], calls: 5, mode: 'build' })
+  assert.equal(typeof turn.userMessageId, 'string')
+  assert.deepEqual([[...runContexts.keys()], [...runWorkspaces.keys()]], [[`builder:${builderRunId}`], [builderRunId]])
+  await run.close()
+  assert.deepEqual([runContexts.size, runWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)], [0, 0, undefined])
 })

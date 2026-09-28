@@ -130,7 +130,8 @@ test('Google AI Pro credential read and write through model.model_account, seale
 
   const key = encodeKey({ fileName: 'antigravity-alice.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: 'refresh-1' })) })
   await accounts.write(alice, key)
-  assert.equal(await accounts.read(alice), key)
+  const aliceRow = (await query(connectionString, 'SELECT model_account_id FROM model.model_account WHERE owner_account_id = $1', [alice])).rows[0].model_account_id
+  assert.deepEqual(await accounts.read(alice), { modelAccountId: aliceRow, key })
   assert.deepEqual(await accounts.connection(alice), { mine: true, shared: false })
   assert.equal(await accounts.hasShared(), false, 'a personal account is not the shared one')
 
@@ -143,13 +144,23 @@ test('Google AI Pro credential read and write through model.model_account, seale
   // A refreshed write-back keeps reading the newest bytes, and Bob still has nothing of his own.
   const refreshedKey = encodeKey({ fileName: 'antigravity-alice.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: 'refresh-2' })) })
   await accounts.write(alice, refreshedKey)
-  assert.equal(await accounts.read(alice), refreshedKey)
+  assert.deepEqual(await accounts.read(alice), { modelAccountId: aliceRow, key: refreshedKey })
   assert.equal(await accounts.read(bob), null)
 
   // Bob reads Alice's key once it is the shared one, through the fallback in the Value sourcing
   // rule (spec 0002): the caller's own account, else the one shared with everyone.
   await query(connectionString, "UPDATE model.model_account SET sharing = 'everyone' WHERE owner_account_id = $1", [alice])
   assert.equal(await accounts.hasShared(), true)
-  assert.equal(await accounts.read(bob), refreshedKey)
+  assert.deepEqual(await accounts.read(bob), { modelAccountId: aliceRow, key: refreshedKey }, 'the run records the shared row as the account that paid')
   assert.deepEqual(await accounts.connection(bob), { mine: false, shared: true })
+})
+
+test("the installation's default model for a role reads as NULL until it is set, and hub_model_account reads it only through the function", async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_model_installation_default')
+  const admin = await account(connectionString, 'admin')
+  const read = async (role) => (await callAs(connectionString, 'hub_model_account', 'SELECT model.read_installation_default($1) AS model_id', [role]))[0].model_id
+  assert.deepEqual([await read('plan'), await read('build')], [null, null])
+  await query(connectionString, 'INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ($1,$2,$3)', ['build', 'google-ai-pro/gemini-3-flash', admin])
+  assert.deepEqual([await read('plan'), await read('build')], [null, 'google-ai-pro/gemini-3-flash'])
+  assert.equal((await refusalAs(connectionString, 'hub_model_account', 'SELECT model_id FROM model.installation_default'))?.code, '42501')
 })

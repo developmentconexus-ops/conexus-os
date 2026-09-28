@@ -1,11 +1,10 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
-import type { MastraCodeState } from '@mastra/code-sdk/schema'
 import { parseError } from '@mastra/code-sdk/utils/errors'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 
 type CodingWorkerResultScope = Readonly<{
-  runtimeId: 'mastra-factory-e2b-v1'
+  runtimeId: 'conexus-builder-e2b-v1'
   projectId: string
   executionId: string
   sandboxId: string
@@ -30,9 +29,7 @@ export type SourceAdmittedResult = CodingWorkerResultScope & Readonly<{
   applicationBuild: ApplicationBuildOutcome
 }>
 
-/** The Builder's controller is Mastra Code's, so it carries Mastra Code's own session state. */
-export type BuilderAgentController = AgentController<MastraCodeState>
-type BuilderSession = Awaited<ReturnType<BuilderAgentController['createSession']>>
+type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
 
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
 type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>

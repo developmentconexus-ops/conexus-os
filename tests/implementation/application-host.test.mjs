@@ -125,13 +125,6 @@ const builderEnvironment = {
   CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
-  CONEXUS_FACTORY_ORG_ID: 'conexus-installation',
-  CONEXUS_FACTORY_GITHUB_APP_ID: '5015512',
-  CONEXUS_FACTORY_GITHUB_CLIENT_ID: 'Iv23-client',
-  CONEXUS_FACTORY_GITHUB_APP_SLUG: 'conexus-app',
-  CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: '/secrets/factory.pem',
-  CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: '/secrets/factory-client',
-  CONEXUS_FACTORY_STATE_SECRET_FILE: '/secrets/factory-state',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
 }

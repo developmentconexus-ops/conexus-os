@@ -1,5 +1,5 @@
 import type { RequestContext } from '@mastra/core/request-context'
-import { BUILDER_MODES, isBuilderModeId, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
+import { isBuilderModeId, type BuilderModeId } from './modes.js'
 
 /**
  * Raw request-context keys the caller sets before a turn reaches the harness, so
@@ -21,14 +21,6 @@ export const readModeId = (requestContext: RequestContext | undefined): BuilderM
   const controller = requestContext?.get('controller') as ControllerContextValue | undefined
   const modeId = controller?.session?.modeId
   return isBuilderModeId(modeId) ? modeId : undefined
-}
-
-export const readCurrentMode = (
-  requestContext: RequestContext | undefined,
-  modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>> = BUILDER_MODES,
-): BuilderModeDefinition | undefined => {
-  const modeId = readModeId(requestContext)
-  return modeId ? modes[modeId] : undefined
 }
 
 const readRawString = (requestContext: RequestContext | undefined, key: string): string => {

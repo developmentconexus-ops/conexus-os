@@ -52,12 +52,11 @@ const management = async (instance: LoginInstance, path: string, body?: unknown)
 /**
  * One sign-in at a time for the whole installation, because Google redirects to a fixed port. The
  * sign-in runs in a throwaway CLIProxyAPI whose auth dir starts empty; the record it writes becomes
- * the person's Factory credential, and the instance is then discarded.
+ * the person's model account, and the instance is then discarded.
  */
-export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential, seedMemory, timeoutMs = 5 * 60_000 }: Readonly<{
+export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential, timeoutMs = 5 * 60_000 }: Readonly<{
   pool: Pick<CliproxyPool, 'startLogin'>
   writeCredential(caller: C, key: GoogleAiProKey): Promise<void>
-  seedMemory(caller: C): Promise<void>
   timeoutMs?: number
 }>): GoogleAiProLogin<C> => {
   let current: Attempt<C> | undefined
@@ -88,7 +87,6 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
       if (!key) return finish(attempt, 'failed')
     }
     await writeCredential(attempt.caller, key)
-    await seedMemory(attempt.caller).catch(() => undefined)
     return finish(attempt, 'succeeded')
   }
 

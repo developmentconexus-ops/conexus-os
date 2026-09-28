@@ -11,7 +11,6 @@ mkdirSync(cacheRoot, { recursive: true })
 
 const {
   APPLICATION_CHECK_FILES,
-  APPLICATION_CHECK_INSTRUCTION,
   materializeApplicationCheck,
   FIXED_APPLICATION_STARTER_FILES,
   materializeFixedApplicationStarter,
@@ -117,11 +116,10 @@ test('the application check builds app/ and then the server half into /tmp/conex
     'node /opt/conexus/server-build.mjs "$root" /tmp/conexus-check-dist',
     '',
   ].join('\n'))
-  assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
 })
 
 test('the global conexus-server skill matches the check it documents', () => {
-  const guide = readFileSync(resolve(repositoryRoot, 'factory-skills/conexus-server/SKILL.md'), 'utf8')
+  const guide = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
   assert.deepEqual(Object.keys(example.operations), ['listItems'])

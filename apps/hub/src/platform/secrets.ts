@@ -19,7 +19,7 @@ const factorySecretKey = (hexKey: string): FactorySecretEncryptionKey => {
 }
 
 /** Encrypts with the current key; the keys a rotation retired only decrypt. */
-export const factorySecretEncryption = (hexKey: string, previousHexKeys: readonly string[]): FactorySecretEncryption =>
+const factorySecretEncryption = (hexKey: string, previousHexKeys: readonly string[]): FactorySecretEncryption =>
   createFactorySecretEncryption({ primary: factorySecretKey(hexKey), previous: previousHexKeys.map(factorySecretKey) })
 
 const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
@@ -34,7 +34,7 @@ export type SecretEnvelope = Readonly<{
   fingerprints(value: string): readonly [string, ...string[]]
 }>
 
-/** Seals a secret the Hub keeps at rest with the same key and AES-256-GCM envelope as the Factory's stored credentials. */
+/** Seals a secret the Hub keeps at rest with the installation key, in the AES-256-GCM envelope copied from @mastra/factory. */
 export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly string[] = []): SecretEnvelope => {
   const encryption = factorySecretEncryption(hexKey, previousHexKeys)
   const fingerprintKeyOf = (key: string) => Buffer.from(hkdfSync('sha256', factorySecretKey(key).key, Buffer.alloc(0), 'conexus:secret-fingerprint:v1', 32))

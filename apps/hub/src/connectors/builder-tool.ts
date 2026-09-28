@@ -1,6 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import { createTool } from '@mastra/core/tools'
-import type { FactoryIntegration, IntegrationTools } from '@mastra/factory'
+import type { ToolsInput } from '@mastra/core/agent'
 import type { Broker, FetchDescription } from './broker.js'
 import type { ConnectorBrief } from './builder-brief.js'
 import { BROKER_ERROR_CODES } from './errors.js'
@@ -81,14 +81,8 @@ const connectorFetchTool = (broker: Broker, consumer: Consumer) => {
   })
 }
 
-/** Contributes `connector_fetch` to a Factory session whose request context carries a Builder run's consumer, and to no other. */
-export const createConnectorFetchIntegration = (broker: Broker): FactoryIntegration => Object.freeze({
-  id: 'conexus-connectors',
-  routes: () => [],
-  diagnostics: () => ({}),
-  sessionTools: ({ requestContext }: Readonly<{ requestContext: RequestContext }>) => {
-    const consumer = runConsumerOf(requestContext)
-    // createTool always sets `execute`; its declared type keeps it optional, which exactOptionalPropertyTypes refuses here.
-    return consumer ? { [CONNECTOR_FETCH_TOOL]: connectorFetchTool(broker, consumer) as IntegrationTools[string] } : {}
-  },
-})
+/** Contributes `connector_fetch` to a Builder run whose request context carries the run's consumer, and to no other. */
+export const createConnectorFetchTools = (broker: Broker) => ({ requestContext }: Readonly<{ requestContext: RequestContext }>): ToolsInput => {
+  const consumer = runConsumerOf(requestContext)
+  return consumer ? { [CONNECTOR_FETCH_TOOL]: connectorFetchTool(broker, consumer) } : {}
+}

@@ -11,7 +11,8 @@ import type { Workspace } from '@mastra/core/workspace'
 import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { conexusInstructions } from './prompt.js'
-import { createSubmitPlanTool, webFetchTool, webSearchTool } from './tools.js'
+import { webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { createSubmitPlanTool } from './tools.js'
 
 /** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). */
 export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills', 'conexus-server')

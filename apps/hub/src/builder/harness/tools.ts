@@ -1,6 +1,5 @@
 import { submitPlanTool } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
-import { webFetchTool, webSearchTool } from '@mastra/core/tools'
 import { DEFAULT_REPOSITORY_ROOT, isUnderWriteRoot } from './guard.js'
 import { BUILDER_MODES, PLAN_WRITE_ROOT, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { readModeId } from './request-context.js'
@@ -40,4 +39,3 @@ export const createSubmitPlanTool = (
   },
 })
 
-export { webFetchTool, webSearchTool }

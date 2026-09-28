@@ -9,33 +9,36 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
-const { createFactoryCodingWorkerRuntime, factoryAgentInstructions } = await import(built('builder/factory-runtime.js'))
+const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
-const { EXTERNAL_DATA_INSTRUCTION } = await import(built('builder/application-starter.js'))
 
 const runId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
 const accountId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '44444444-4444-4444-8444-444444444444'
+const AGENTS_MD = '# Project knowledge\n\nA base app.\n'
 const STARTER = [
+  { path: 'AGENTS.md', content: AGENTS_MD },
   { path: 'app/index.html', content: '<h1>base</h1>\n' },
   { path: 'conexus/check.sh', content: '#!/bin/sh\nexit 0\n' },
 ]
+const BASE_FILES = ['AGENTS.md', 'app/index.html', 'conexus/check.sh']
+const MODEL_ACCOUNT = '55555555-5555-4555-8555-555555555555'
 const GIT_ENV = { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@t' }
-const completed = (summary = 'Pronto.') => ({ reason: 'complete', endedAt: new Date(), userMessageId: 'user-message', summary })
+const completed = (summary = 'Pronto.') => ({ reason: 'complete', userMessageId: 'user-message', summary })
 const listFiles = (root) => readdirSync(root, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile()).map((entry) => relative(root, join(entry.parentPath, entry.name))).sort()
 
 // A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
-// runtime names under /workspace, /var/lib or /opt lands under the harness's own `vm` directory, and
-// the agent user's `kill -KILL -1` is recorded, never run.
-const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward } = {}) => {
+// runtime names under /workspace, /var/lib, /opt or its /tmp check folder lands under the harness's
+// own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run.
+const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
-  for (const directory of ['workspace', 'opt/conexus']) mkdirSync(join(vm, directory), { recursive: true })
-  const conexusGit = createConexusGit({ root: join(scratch, 'git'), starter: STARTER })
+  for (const directory of ['workspace', 'opt/conexus', 'tmp']) mkdirSync(join(vm, directory), { recursive: true })
+  const conexusGit = createConexusGit({ root: join(scratch, 'git'), starter: starterFiles })
   const base = await conexusGit.ensureRepository(projectId)
   const bare = join(scratch, 'git', `${projectId}.git`)
   const inBare = (...args) => spawnSync('git', ['--git-dir', bare, ...args], { encoding: 'utf8', env: GIT_ENV }).stdout.trim()
@@ -52,6 +55,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     },
   }
   const local = (text) => text.replaceAll('/workspace', `${vm}/workspace`).replaceAll('/var/lib/', `${vm}/var/lib/`).replaceAll('/opt/conexus', `${vm}/opt/conexus`)
+    .replaceAll('/tmp/conexus-candidate-check', `${vm}/tmp/conexus-candidate-check`)
   const shell = (command, args, cwd) => {
     const ran = spawnSync(command, args, { cwd, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: scratch, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } })
     return { exitCode: ran.status ?? 1, success: ran.status === 0, stdout: ran.stdout ?? '', stderr: ran.stderr ?? '' }
@@ -63,7 +67,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
-  const configuredInstructions = []
+  const destroyed = []
   // What the run put in its session's request context.
   const sessionContext = new Map()
   let buildStarted
@@ -71,6 +75,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
   const checkout = join(vm, 'workspace/repo')
   const sandbox = {
     sandboxId: 'sbx-1',
+    workspace: { id: 'run-workspace' },
+    destroy: async () => { events.push('destroy'); destroyed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
@@ -96,26 +102,26 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
       if (line.startsWith('sh -c kill -KILL -1')) return { exitCode: 0, success: true, stdout: '', stderr: '' }
       return shell(command, args.map(local), local(options.cwd ?? '/workspace'))
     },
-    buildApplication: async (buildRoot, signal) => {
+    buildApplication: async (buildRoot) => {
       events.push('build')
-      builtFrom.push({ buildRoot, files: listFiles(local(buildRoot)), index: readFileSync(join(local(buildRoot), 'app/index.html'), 'utf8') })
+      builtFrom.push({ buildRoot, files: listFiles(local(buildRoot)), index: readFileSync(join(local(buildRoot), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
       buildStarted()
-      if (build) return build(signal)
+      if (build) return build()
       return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
     },
   }
-  const runtime = createFactoryCodingWorkerRuntime({
+  const runtime = createBuilderRunRuntime({
+    createSandbox: (builderRunId) => { events.push(['sandbox', builderRunId]); return sandbox },
+    holdModelAccount: async ({ builderRunId, accountId: payer }) => {
+      events.push(['model-account', builderRunId, payer])
+      if (!modelAccount) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+      return { modelAccountId: modelAccount, release: () => { events.push('model-account-released') } }
+    },
     openSession: async (input) => {
-      events.push(['open', input.conversationId, input.builderRunId])
+      events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
       if (openError) throw openError
-      input.bindContext?.({ setRaw: (key, value) => sessionContext.set(key, value) })
+      input.bindContext({ setRaw: (key, value) => sessionContext.set(key, value) })
       return {
-        sandbox,
-        configure: async ({ mode: configured, instructions }) => {
-          events.push(['configure', configured, instructions.includes('/workspace/repo')])
-          configuredInstructions.push(instructions)
-        },
-        hasModelSelection: () => true,
         sendTurn: async (_content, signal) => {
           events.push('turn')
           if (turn) return turn({ signal, sandbox, checkout })
@@ -144,6 +150,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
+    bindBuilderRunModelAccount: async (_id, modelAccountId) => { calls.push(['model-account', modelAccountId]) },
     settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
     advanceBuilderRunSource: async (_id, revision) => {
       if (lostAdvances-- > 0) {
@@ -176,12 +183,16 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     runs: {
       runtime,
       git,
+      conversations: {
+        modeOf: async () => (mode === 'PLAN' ? 'plan' : 'build'),
+        titleFromRequest: async () => {},
+      },
       source: createProjectSourceReads({ git }),
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
       reconcileEveryMs: 5,
     },
   })
-  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', mode })
+  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
   // The same run row started once more on the same sandbox, as the next run of the conversation would.
   const again = async () => {
     await new Promise((wake) => { setTimeout(wake, 20) })
@@ -196,7 +207,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, settled, configuredInstructions, sessionContext, checkout, outside, moveMain }
+  return { base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, settled, sessionContext, checkout, outside, moveMain, destroyed, bare }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -236,25 +247,30 @@ test('a writer that moves main between the read and the update is refused and ke
   }])
 })
 
-test('a stop during the compile never offers main the result and settles the run interrupted', async (t) => {
+test('a stop during the compile is too late: main already holds the candidate and the run settles admitted', async (t) => {
+  let release
+  const building = new Promise((resume) => { release = resume })
   const run = await harness(t, {
-    build: (signal) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('APPLICATION_COMPILER_CANCELLED')), { once: true })),
+    build: async () => {
+      await building
+      return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
+    },
   })
   await run.start()
   await run.buildRunning
   await run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  release()
   await run.service.close()
-  assert.equal(await run.main(), run.base)
-  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
-  assert.equal(run.calls.some(([kind]) => kind === 'advance'), false)
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
 })
 
-test('a stop that lands after the compile is still refused the admission', async (t) => {
+test('a stop that lands while the candidate is checked is refused the admission', async (t) => {
   const context = {}
   const run = await harness(t, {
-    build: async () => {
-      await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
-      return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
+    onCommand: (_sandbox, line) => {
+      if (line.includes('conexus/check.sh')) void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
     },
   })
   context.run = run
@@ -262,7 +278,7 @@ test('a stop that lands after the compile is still refused the admission', async
   await run.service.close()
   assert.equal(await run.main(), run.base)
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
-  assert.equal(run.calls.some(([kind, phase]) => kind === 'candidate' || (kind === 'phase' && phase === 'SOURCE_ADMISSION')), false)
+  assert.equal(run.calls.some(([kind]) => kind === 'candidate' || kind === 'advance'), false)
 })
 
 const withServerTree = async () => [
@@ -430,7 +446,7 @@ test('the checkout is seeded from a bundle of the base that root wrote, and hold
   })
   await run.start()
   await run.service.close()
-  assert.deepEqual(before, { index: '<h1>base</h1>\n', files: ['app/index.html', 'conexus/check.sh'] })
+  assert.deepEqual(before, { index: '<h1>base</h1>\n', files: BASE_FILES })
   const seedWrite = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === `/var/lib/conexus-seed/${runId}.bundle`)
   const seeded = run.events.findIndex((event) => typeof event === 'string' && event.includes(`/var/lib/conexus-seed/${runId}.bundle`))
   assert.ok(run.events.indexOf('start') < seedWrite && seedWrite < seeded && seeded < run.events.indexOf('turn'), 'start, root writes the seed, the checkout fetches it, then the agent')
@@ -444,7 +460,7 @@ test('the next run discards what a failed run left in the checkout', async (t) =
       seen.push({ index: readFileSync(join(checkout, 'app/index.html'), 'utf8'), files: listFiles(checkout).filter((path) => !path.startsWith('.git/')) })
       writeFileSync(join(checkout, 'stray.txt'), 'left behind\n')
       writeFileSync(join(checkout, 'app/index.html'), '<h1>edited</h1>\n')
-      return { reason: 'error', endedAt: new Date(), userMessageId: 'user-message', summary: '' }
+      return { reason: 'error', userMessageId: 'user-message', summary: '' }
     },
   })
   await run.start()
@@ -452,7 +468,7 @@ test('the next run discards what a failed run left in the checkout', async (t) =
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  const base = { index: '<h1>base</h1>\n', files: ['app/index.html', 'conexus/check.sh'] }
+  const base = { index: '<h1>base</h1>\n', files: BASE_FILES }
   assert.deepEqual(seen, [base, base])
   assert.equal(await run.main(), run.base)
 })
@@ -485,7 +501,7 @@ test('the build compiles the candidate from the Conexus Git in a root-only direc
   await run.start()
   await run.service.close()
   const buildRoot = `/var/lib/conexus-build/${runId}`
-  assert.deepEqual(run.builtFrom, [{ buildRoot, files: ['app/index.html'], index: '<h1>UNIT1</h1>\n' }])
+  assert.deepEqual(run.builtFrom, [{ buildRoot, files: ['app/index.html'], index: '<h1>UNIT1</h1>\n', main: run.result() }], 'main already holds the candidate when the compile starts')
   const killed = run.events.indexOf('sh -c kill -KILL -1 2>/dev/null; true')
   const prepared = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].startsWith("rm -rf '/var/lib/conexus-build'"))
   const written = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === `/var/lib/conexus-build/${runId}.tar`)
@@ -512,18 +528,17 @@ test('every agent-user command states an empty environment, and root commands ge
 })
 
 test('an agent that aborts with no stop from the person fails with a named reason, never as cancelled by them', async (t) => {
-  const endedAt = new Date('2026-09-21T15:00:00.000Z')
-  const run = await harness(t, { turn: () => ({ reason: 'aborted', endedAt, userMessageId: 'user-message', summary: '' }) })
+  const run = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.logs, [`BUILDER_FACTORY_AGENT_END:aborted:${runId}:2026-09-21T15:00:00.000Z`])
+  assert.deepEqual(run.logs, [`BUILDER_AGENT_END:aborted:${runId}`])
   assert.notDeepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.ok(JSON.stringify(run.calls.at(-1)).includes('BUILDER_MODEL_INCOMPLETE'), JSON.stringify(run.calls.at(-1)))
   assert.equal(await run.main(), run.base)
 })
 
 test('a run that reached the agent and admitted nothing leaves one note that its edits were discarded at the base', async (t) => {
-  const run = await harness(t, { turn: () => ({ reason: 'error', endedAt: new Date(), userMessageId: 'user-message', summary: 'Concluído.' }) })
+  const run = await harness(t, { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: 'Concluído.' }) })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_MODEL_INCOMPLETE'])
@@ -537,7 +552,7 @@ test('a run the person stopped during the agent turn also leaves the discarded n
   const run = await harness(t, {
     turn: async () => {
       await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
-      return { reason: 'aborted', endedAt: new Date(), userMessageId: 'user-message', summary: '' }
+      return { reason: 'aborted', userMessageId: 'user-message', summary: '' }
     },
   })
   context.run = run
@@ -547,13 +562,113 @@ test('a run the person stopped during the agent turn also leaves the discarded n
   assert.deepEqual(run.diagnostics.map(({ code, outcome, sourceRevision }) => [code, outcome, sourceRevision]), [['BUILDER_RUN_CANCELLED', 'RUN_NOT_FINISHED', run.base]])
 })
 
+const refusedCandidate = async (t, turn) => {
+  const run = await harness(t, { turn: ({ checkout }) => { turn(checkout); return completed() } })
+  await run.start()
+  await run.service.close()
+  return run
+}
+
+test('a candidate whose AGENTS.md is missing, over 8 KB, or not UTF-8 is refused before its check, and main stays at the base (AC-9)', async (t) => {
+  const cases = {
+    missing: (checkout) => rmSync(join(checkout, 'AGENTS.md')),
+    'over 8 KB': (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), 'x'.repeat(8193)),
+    'not UTF-8': (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a])),
+  }
+  const outcomes = {}
+  for (const [name, change] of Object.entries(cases)) {
+    const run = await refusedCandidate(t, (checkout) => {
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      change(checkout)
+    })
+    outcomes[name] = {
+      settled: run.calls.at(-1),
+      main: await run.main() === run.base,
+      checked: run.commands().some((line) => line.includes('conexus/check.sh')),
+      note: run.diagnostics.map(({ outcome, detail }) => [outcome, detail]),
+    }
+  }
+  const refused = { settled: ['fail', 'BUILDER_AGENTS_MD_REFUSED'], main: true, checked: false }
+  assert.deepEqual(outcomes, {
+    missing: { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB.']] },
+    'over 8 KB': { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md has 8193 bytes; the limit is 8192 bytes (8 KB). Shorten it, keeping only confirmed facts.']] },
+    'not UTF-8': { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md is not valid UTF-8. Rewrite it as plain UTF-8 text.']] },
+  })
+})
+
+test("a candidate whose own check fails is refused with the check's output, main stays at the base, and nothing compiles", async (t) => {
+  const run = await refusedCandidate(t, (checkout) => {
+    writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+    writeFileSync(join(checkout, 'conexus/check.sh'), '#!/bin/sh\necho "typecheck: app/index.tsx broke"\nexit 3\n')
+  })
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_CHECK_FAILED'])
+  assert.equal(await run.main(), run.base)
+  assert.equal(run.events.includes('build'), false)
+  assert.deepEqual(run.diagnostics.map(({ outcome, detail }) => [outcome, detail]), [['CANDIDATE_REFUSED', 'typecheck: app/index.tsx broke']])
+})
+
+test("the check runs on the candidate's own tree from the Conexus Git, not on the checkout the agent can still change", async (t) => {
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      return completed()
+    },
+    onCommand: (_sandbox, line) => {
+      if (line.startsWith('sh -c kill -KILL -1')) writeFileSync(join(run_.checkout, 'conexus/check.sh'), '#!/bin/sh\nexit 9\n')
+    },
+  })
+  const run_ = run
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['advance', run.result()], ['settleBuild', run.result(), null]])
+})
+
+test("the session context carries the base's AGENTS.md, cut at 8 KB with the note when it is longer (AC-8)", async (t) => {
+  const short = await harness(t)
+  await short.start()
+  await short.service.close()
+  assert.equal(short.sessionContext.get('conexusProjectKnowledge'), AGENTS_MD.trim())
+
+  const long = `# Knowledge\n${'ção '.repeat(3_000)}`
+  const run = await harness(t, { starterFiles: [{ path: 'AGENTS.md', content: long }, ...STARTER.slice(1)] })
+  await run.start()
+  await run.service.close()
+  const knowledge = run.sessionContext.get('conexusProjectKnowledge')
+  assert.ok(knowledge.endsWith('\n\nAGENTS.md truncated at 8 KB; shorten it.'), knowledge.slice(-60))
+  const kept = knowledge.slice(0, -'\n\nAGENTS.md truncated at 8 KB; shorten it.'.length)
+  assert.ok(Buffer.byteLength(kept) <= 8192 && long.startsWith(kept), 'a prefix of the file within 8 KB, cut between characters')
+})
+
+test('a person with no model account is refused before a sandbox exists', async (t) => {
+  const run = await harness(t, { modelAccount: null })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_MODEL_NOT_SELECTED'])
+  assert.equal(run.events.some((event) => Array.isArray(event) && event[0] === 'sandbox'), false)
+})
+
+test('a run records the model account it used, and destroys its own sandbox and releases the account however it ends', async (t) => {
+  const ok = await harness(t)
+  await ok.start()
+  await ok.service.close()
+  const failed = await harness(t, { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) })
+  await failed.start()
+  await failed.service.close()
+  for (const run of [ok, failed]) {
+    assert.deepEqual(run.calls.filter(([kind]) => kind === 'model-account'), [['model-account', MODEL_ACCOUNT]])
+    assert.deepEqual(run.destroyed, ['sbx-1'])
+    assert.equal(run.events.filter((event) => event === 'model-account-released').length >= 1, true)
+    assert.equal(run.events.at(-1), 'destroy')
+  }
+})
+
 test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUSED before the agent runs', async (t) => {
   const run = await harness(t, { corruptSeed: true })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SOURCE_BASE_PIN_REFUSED'])
   assert.equal(run.logs.length, 1)
-  assert.match(run.logs[0], new RegExp(`^BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_SOURCE_BASE_PIN_REFUSED \\{"exitCode":128,`))
+  assert.match(run.logs[0], new RegExp(`^BUILDER_RUN_FAILED:${runId}:BUILDER_SOURCE_BASE_PIN_REFUSED \\{"exitCode":128,`))
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.events.includes('turn'), false)
 })
@@ -592,39 +707,23 @@ test('a starter inspection that fails writes its command evidence to the Hub log
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED'])
-  assert.deepEqual(run.logs, [`BUILDER_FACTORY_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`])
-})
-
-test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {
-  const instructions = factoryAgentInstructions('/workspace/app')
-  assert.match(instructions, /^Work only in the exact Session Workspace at \/workspace\/app\./)
-  assert.ok(instructions.includes(' Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports. '))
-  assert.ok(instructions.includes(' The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history. '))
-  assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
-})
-
-test('a non-empty connector brief is appended right after the external-data rule, and an empty one changes nothing', () => {
-  const bare = factoryAgentInstructions('/workspace/app')
-  assert.ok(bare.endsWith(` ${EXTERNAL_DATA_INSTRUCTION}`))
-  assert.equal(factoryAgentInstructions('/workspace/app', ''), bare)
-  assert.equal(factoryAgentInstructions('/workspace/app', 'CONNECTOR_BRIEF_MARKER'), `${bare} CONNECTOR_BRIEF_MARKER`)
+  assert.deepEqual(run.logs, [`BUILDER_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`])
 })
 
 const briefOnly = (brief) => async () => ({ brief, bind: () => {}, end: () => {} })
 
-test("the run appends its own Project's connector brief to the agent instructions, and appends nothing when the port is absent", async (t) => {
+test("the run hands its own Project's connector brief to the session context, and an empty one when the port is absent", async (t) => {
   const opened = []
   const withBrief = await harness(t, { openConnectorRun: async (input) => { opened.push(input); return briefOnly('CONNECTOR_BRIEF_MARKER')() } })
   await withBrief.start()
   await withBrief.service.close()
   assert.deepEqual(opened, [{ projectId, builderRunId: runId }])
-  assert.equal(withBrief.configuredInstructions.length, 1)
+  assert.equal(withBrief.sessionContext.get('conexusConnectorBrief'), 'CONNECTOR_BRIEF_MARKER')
 
   const withoutBrief = await harness(t)
   await withoutBrief.start()
   await withoutBrief.service.close()
-  assert.equal(withoutBrief.configuredInstructions.length, 1)
-  assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
+  assert.equal(withoutBrief.sessionContext.get('conexusConnectorBrief'), '')
 })
 
 const connectorRuns = async (store, record = connectorRecord()) => {
@@ -635,7 +734,7 @@ const connectorRuns = async (store, record = connectorRecord()) => {
   return (input) => openBuilderRun({ brief, ...input })
 }
 
-test("a Project with no binding is told the external-data rule and nothing about another Project's Connection", async (t) => {
+test("a Project with no binding is told it has no Connection and nothing about another Project's Connection", async (t) => {
   const otherProjectId = '55555555-5555-4555-8555-555555555555'
   const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
   const openRun = await connectorRuns({ listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) })
@@ -645,22 +744,21 @@ test("a Project with no binding is told the external-data rule and nothing about
   const run = await harness(t, { openConnectorRun: openRun })
   await run.start()
   await run.service.close()
-  const [instructions] = run.configuredInstructions
+  const instructions = run.sessionContext.get('conexusConnectorBrief')
   const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
-  assert.ok(instructions.endsWith(`${EXTERNAL_DATA_INSTRUCTION} ${CONNECTOR_BRIEF_UNBOUND}`), 'told it has no Connection, and what to do')
+  assert.equal(instructions, CONNECTOR_BRIEF_UNBOUND, 'told it has no Connection, and what to do')
   for (const leak of ['sankhya.purchase-order.read', 'other-project-binding', otherBinding.connectionId, 'connectors.call']) {
     assert.equal(instructions.includes(leak), false, leak)
   }
 })
 
-test('a Project bound to Sankhya gets the same provenance rule and its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
+test('a Project bound to Sankhya gets its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
   const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
   const run = await harness(t, { openConnectorRun: await connectorRuns({ listBindings: async () => [binding] }) })
   await run.start()
   await run.service.close()
-  const [instructions] = run.configuredInstructions
-  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION), 'the same static rule runs for a bound Project too')
+  const instructions = run.sessionContext.get('conexusConnectorBrief')
   assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('sankhya.purchase-order.read'), 'its own brief lists its binding and the read it can make')
   assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
 })
@@ -674,22 +772,18 @@ test('a run whose connector bindings cannot be read still runs, told only that c
   assert.equal(await run.settled(), true)
   await run.service.close()
   assert.equal(run.calls.some(([kind]) => kind === 'fail' || kind === 'interrupt'), false, JSON.stringify(run.calls))
-  const plain = await harness(t)
-  await plain.start()
-  await plain.settled()
-  await plain.service.close()
-  assert.deepEqual(run.configuredInstructions, [`${plain.configuredInstructions[0]} ${CONNECTOR_BRIEF_UNAVAILABLE}`])
+  assert.equal(run.sessionContext.get('conexusConnectorBrief'), CONNECTOR_BRIEF_UNAVAILABLE)
   assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId, result: 'STORE_UNAVAILABLE' }])
-  assert.equal(JSON.stringify([run.configuredInstructions, run.logs, run.diagnostics, record.exporter.events, record.lines]).includes('STORE_DETAIL_MARKER'), false)
+  assert.equal(JSON.stringify([[...run.sessionContext.values()].filter((value) => typeof value === 'string'), run.logs, run.diagnostics, record.exporter.events, record.lines]).includes('STORE_DETAIL_MARKER'), false)
 })
 
 test("the run's connector scope reaches its session, is live during the agent turn, and is revoked when the run ends however it ends", async (t) => {
   const { isMintedScope } = await import(hubModuleUrl('connectors/scope.js'))
   const openRun = await connectorRuns({ listBindings: async () => [] })
-  const consumerOf = (run) => [...run.sessionContext.values()][0]
+  const consumerOf = (run) => run.sessionContext.get('conexusConnectorConsumer')
   const cases = {
     'the run succeeds': {},
-    'the agent turn fails': { turn: () => ({ reason: 'error', endedAt: new Date(), userMessageId: 'user-message', summary: '' }) },
+    'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
     'the compile fails after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
   }
@@ -705,7 +799,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
         if (stop) await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
         if (options.turn) return options.turn(turn)
         writeFileSync(join(turn.checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-        return { reason: stop ? 'aborted' : 'complete', endedAt: new Date(), userMessageId: 'user-message', summary: 'Pronto.' }
+        return { reason: stop ? 'aborted' : 'complete', userMessageId: 'user-message', summary: 'Pronto.' }
       },
     })
     context.run = run

@@ -200,7 +200,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
   connectors: {
     openRun: connectors.openBuilderRun,
-    integration: connectors.builderIntegration,
+    tools: connectors.builderTools,
     toolPayloadProjection: connectors.toolPayloadProjection,
   },
   connectorObservability: connectors.observability,

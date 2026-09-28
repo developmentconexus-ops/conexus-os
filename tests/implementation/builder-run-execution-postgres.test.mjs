@@ -86,13 +86,18 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1) AS value', [runId])).rows[0].value.state, 'RUNNING')
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_message($1,$2)', [runId, 'mastra-message-1'])).rows[0].bind_builder_run_message, true)
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_sandbox($1,$2)', [runId, 'sandbox-1'])).rows[0].bind_builder_run_sandbox, true)
+  // The account that pays for the run is bound once; the same one again converges, another is refused.
+  const modelAccount = randomUUID()
+  const bindModelAccount = async (value) => (await executorClient.query('SELECT builder.bind_builder_run_model_account($1,$2) AS bound', [runId, value])).rows[0].bound
+  assert.deepEqual([await bindModelAccount(modelAccount), await bindModelAccount(modelAccount), await bindModelAccount(randomUUID()), await bindModelAccount(null)], [true, true, false, false])
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [runId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.record_builder_run_candidate($1,$2)', [runId, nextSource])).rows[0].record_builder_run_candidate, true)
   assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [runId, nextSource])).rows[0].advance_builder_run_source, true)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5)', [runId, nextSource, null, null, 'COMPILE_FAILED'])).rows[0].settle_builder_run_build, true)
-  assert.deepEqual((await adminClient.query('SELECT state, trigger_message_id, sandbox_id, conversation_id, candidate_revision, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows[0], {
-    state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', conversation_id: `conversa-${projectId}`, candidate_revision: nextSource, result_source_revision: nextSource,
+  assert.deepEqual((await adminClient.query('SELECT state, trigger_message_id, sandbox_id, model_account_id, conversation_id, candidate_revision, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows[0], {
+    state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', model_account_id: modelAccount, conversation_id: `conversa-${projectId}`, candidate_revision: nextSource, result_source_revision: nextSource,
   })
+  assert.equal(await bindModelAccount(modelAccount), false, 'a settled run takes no binding')
   await executorClient.end()
   executorClient = undefined
   await assert.rejects(() => create(ingressClient, secondRunId, '4'.repeat(64), '5'.repeat(64), 'main'), /BUILDER_RUN_INPUT_REFUSED/)

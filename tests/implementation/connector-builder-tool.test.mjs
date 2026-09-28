@@ -16,13 +16,13 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
-const { BUILDER_RUN_TERMS, createConnectorFetchIntegration, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+const { BUILDER_RUN_TERMS, createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
 const { createToolPayloadProjection } = await import(hubModuleUrl('connectors/fetch-projection.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
-const { registerFactoryMastraRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
+const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { sendBuilderSessionMessage } = await import(hubModuleUrl('builder/runtime.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -50,7 +50,7 @@ const connectorsOf = async (t, { now } = {}) => {
   const brief = createConnectorBrief({ connectors, store, observability: record.observability })
   return {
     fake, record, broker,
-    integration: createConnectorFetchIntegration(broker),
+    tools: createConnectorFetchTools(broker),
     projection: createToolPayloadProjection(new Map([['sankhya', new Set(sankhyaDefinition.native.services)]])),
     openRun: (projectId = PROJECT) => openBuilderRun({ brief, projectId, builderRunId: RUN }),
   }
@@ -68,41 +68,41 @@ const contextOf = (run) => {
   run?.bind(requestContext)
   return requestContext
 }
-const toolOf = (integration, run) => integration.sessionTools({ requestContext: contextOf(run) }).connector_fetch
+const toolOf = (tools, run) => tools({ requestContext: contextOf(run) }).connector_fetch
 const fetchThrough = (tool, request) => tool.execute(request, {})
 
 test('the tool is contributed only to a session whose request context carries a run this module opened', async (t) => {
-  const { integration, openRun } = await connectorsOf(t)
+  const { tools, openRun } = await connectorsOf(t)
   const run = await openRun()
-  assert.deepEqual(Object.keys(integration.sessionTools({ requestContext: contextOf(run) })), ['connector_fetch'])
-  assert.deepEqual(integration.sessionTools({ requestContext: contextOf() }), {})
+  assert.deepEqual(Object.keys(tools({ requestContext: contextOf(run) })), ['connector_fetch'])
+  assert.deepEqual(tools({ requestContext: contextOf() }), {})
   const forged = new RequestContext()
   forged.setRaw('conexusConnectorConsumer', { kind: 'agent', sessionId: RUN, scope: { projectId: PROJECT, environment: 'preview' } })
-  assert.deepEqual(integration.sessionTools({ requestContext: forged }), {}, 'a look-alike consumer is not a run')
+  assert.deepEqual(tools({ requestContext: forged }), {}, 'a look-alike consumer is not a run')
 })
 
 test("a run reads through its own binding, and another Project's run is refused the same name before the network", async (t) => {
-  const { fake, integration, openRun } = await connectorsOf(t)
-  const own = toolOf(integration, await openRun())
+  const { fake, tools, openRun } = await connectorsOf(t)
+  const own = toolOf(tools, await openRun())
   assert.deepEqual(await fetchThrough(own, read()), answered(EXPECTED_NATIVE_ORDER))
   assert.equal(services(fake).length, 1)
 
-  const other = toolOf(integration, await openRun(OTHER_PROJECT))
+  const other = toolOf(tools, await openRun(OTHER_PROJECT))
   assert.deepEqual(await fetchThrough(other, read()), { ok: false, code: 'NOT_GRANTED' })
   assert.equal(services(fake).length, 1, 'the other Project reached no vendor')
 })
 
 test('a run that ended is refused, and so is a run past its lifetime, each after a read that succeeded', async (t) => {
   let clock = Date.now()
-  const { fake, integration, openRun } = await connectorsOf(t, { now: () => clock })
+  const { fake, tools, openRun } = await connectorsOf(t, { now: () => clock })
   const ended = await openRun()
-  const endedTool = toolOf(integration, ended)
+  const endedTool = toolOf(tools, ended)
   assert.deepEqual(await fetchThrough(endedTool, read()), answered(EXPECTED_NATIVE_ORDER))
   ended.end()
   ended.end()
   assert.deepEqual(await fetchThrough(endedTool, read()), { ok: false, code: 'NOT_GRANTED' })
 
-  const expiring = toolOf(integration, await openRun())
+  const expiring = toolOf(tools, await openRun())
   assert.deepEqual(await fetchThrough(expiring, read()), answered(EXPECTED_NATIVE_ORDER))
   clock += BUILDER_RUN_TERMS.ttlMs + 60_000
   assert.deepEqual(await fetchThrough(expiring, read()), { ok: false, code: 'NOT_GRANTED' })
@@ -110,8 +110,8 @@ test('a run that ended is refused, and so is a run past its lifetime, each after
 })
 
 test("a run's calls are bounded: the call after the budget is CALL_LIMIT, before the network", async (t) => {
-  const { fake, integration, openRun } = await connectorsOf(t)
-  const tool = toolOf(integration, await openRun())
+  const { fake, tools, openRun } = await connectorsOf(t)
+  const tool = toolOf(tools, await openRun())
   const answers = []
   for (let call = 0; call <= BUILDER_RUN_TERMS.calls; call++) answers.push((await fetchThrough(tool, read())).ok ? 'OK' : 'REFUSED')
   assert.deepEqual(answers, [...Array(BUILDER_RUN_TERMS.calls).fill('OK'), 'REFUSED'])
@@ -206,14 +206,14 @@ const scriptedModel = ({ reads = true } = {}) => {
 }
 
 test('a Builder turn reads through the tool; the model receives the vendor body, and the browser and the history receive only the projection', async (t) => {
-  const { fake, record, integration, projection, openRun } = await connectorsOf(t)
+  const { fake, record, tools, projection, openRun } = await connectorsOf(t)
   const root = mkdtempSync(join(tmpdir(), 'conexus-connector-tool-'))
   const storage = new LibSQLStore({ id: `connector-tool-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
   const scripted = scriptedModel()
   const agent = new Agent({
     id: 'builder', name: 'builder', instructions: 'Build.', model: scripted.model, memory,
-    tools: ({ requestContext }) => integration.sessionTools({ requestContext }),
+    tools,
   })
   const controller = new AgentController({ id: 'code', storage, memory, agent, modes: [{ id: 'build', name: 'Build', default: true }], defaultModeId: 'build' })
   await controller.init()
@@ -221,10 +221,13 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
   const conversation = randomUUID()
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
-      await registerFactoryMastraRoutes(instance, {
-        mastra, controllerId: 'code', controller, origin, orgId: 'conexus-installation',
+      await registerBuilderSessionRoutes(instance, {
+        mastra, controllerId: 'code', controller, origin,
         resolveCurrentSession: async (request) => (request.cookies['__Host-conexus_session'] ? { account: { accountId: randomUUID(), displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null),
+        admitProject: async ({ projectId }) => projectId === PROJECT,
         admitConversation: async () => true,
+        projectBusy: async () => false,
+        runContext: () => undefined,
         toolPayloads: projection,
       })
       return []
@@ -238,14 +241,14 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  const base = `http://127.0.0.1:${app.server.address().port}/api/mastra-factory/agent-controller/code/sessions/${conversation}`
+  const base = `http://127.0.0.1:${app.server.address().port}/api/builder/agent-controller/code/sessions/project:${PROJECT}`
   const headers = { cookie: '__Host-conexus_session=session-1' }
 
   const run = await openRun()
   const requestContext = contextOf(run)
   const scope = `builder:${RUN}`
-  const session = await controller.createSession({ resourceId: conversation, ownerId: conversation, scope, threadId: conversation, requestContext })
-  // As the Factory run configures it: no tool waits for a person's approval.
+  const session = await controller.createSession({ resourceId: `project:${PROJECT}`, scope, threadId: conversation, requestContext })
+  // As the run configures it: no tool waits for a person's approval.
   await session.state.set({ yolo: true })
   const sessionEvents = []
   session.subscribe((event) => { sessionEvents.push(event) })
@@ -325,7 +328,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
   const later = scriptedModel({ reads: false })
   const laterAgent = new Agent({ id: 'builder', name: 'builder', instructions: 'Build.', model: later.model, memory })
   const laterPrompts = later.prompts
-  await laterAgent.generate('E agora?', { memory: { thread: conversation, resource: conversation } })
+  await laterAgent.generate('E agora?', { memory: { thread: conversation, resource: `project:${PROJECT}` } })
   const laterText = JSON.stringify(laterPrompts)
   assert.deepEqual([laterText.includes('connector_fetch'), laterText.includes('1520.50')], [true, true], 'a later turn receives the body from the stored thread')
 })

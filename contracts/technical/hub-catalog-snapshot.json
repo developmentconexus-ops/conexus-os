@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0033",
+ "head": "0034",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -56,6 +56,7 @@
    "column builder.builder_run.finished_at timestamp with time zone notnull=false default= acl=",
    "column builder.builder_run.idempotency_digest text notnull=true default= acl=",
    "column builder.builder_run.mode text notnull=true default= acl=",
+   "column builder.builder_run.model_account_id uuid notnull=false default= acl=",
    "column builder.builder_run.phase text notnull=false default= acl=",
    "column builder.builder_run.project_id uuid notnull=true default= acl=",
    "column builder.builder_run.request_digest text notnull=true default= acl=",
@@ -501,6 +502,7 @@
    "function builder.admit_verified_application_source(p_account_id uuid, p_project_id uuid, p_execution_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,registry_owner:EXECUTE:false body=0f0fa2f636ba9d41c00efea0919372d9",
    "function builder.advance_builder_run_source(p_builder_run_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=f002633912f76f61e7cf77cdbd216fee",
    "function builder.bind_builder_run_message(p_builder_run_id uuid, p_message_id text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=795dd93551026c16f117ebfe2537ec2c",
+   "function builder.bind_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=6d79a209c3bb6dfc60e625c6bedda2fd",
    "function builder.bind_builder_run_sandbox(p_builder_run_id uuid, p_sandbox_id text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=f7ea9f7c38c18be9c35931f23881e070",
    "function builder.claim_builder_run(p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=a866a6dfeaeb59ca2c783cd32d65e846",
    "function builder.clear_builder_run_phase() returns trigger kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false body=fc9424126844c87a9aa52843ccbffde9",
@@ -577,8 +579,9 @@
    "function iam.set_workspace_member_role(p_actor uuid, p_workspace_id uuid, p_member uuid, p_role iam.workspace_role) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=41d1de1bf23d120b22e2758e4ed5b76e",
    "function iam.visible_projects(p_account_id uuid) returns TABLE(project_id uuid, workspace_id uuid) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,iam_owner:EXECUTE:false,project_owner:EXECUTE:false,registry_owner:EXECUTE:false body=29275e8191dd99d3a7ab6553263f6081",
    "function iam.visible_workspaces(p_account_id uuid) returns TABLE(workspace_id uuid, role iam.workspace_role) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,connector_owner:EXECUTE:false,iam_owner:EXECUTE:false,project_owner:EXECUTE:false,workspace_owner:EXECUTE:false body=ae95fa6cd736b5de9076e096db672545",
-   "function model.read_model_account(p_owner_account_id uuid, p_provider text) returns TABLE(secret text, kind text, sharing text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=db24dc2c83d0cdc9a2ecb4e21ee532c9",
-   "function model.read_shared_model_account(p_provider text) returns TABLE(secret text, kind text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=b854244235e578c6fe758c5ce8a53fcb",
+   "function model.read_installation_default(p_role text) returns text kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=799ac8f1aff4f0bbaefce0e34b03cf42",
+   "function model.read_model_account(p_owner_account_id uuid, p_provider text) returns TABLE(model_account_id uuid, secret text, kind text, sharing text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=a67e4bfe067b8280d1c69dd3e15a2a14",
+   "function model.read_shared_model_account(p_provider text) returns TABLE(model_account_id uuid, secret text, kind text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=4075ba3ab464a5fe1a1da968720b38f2",
    "function model.upsert_model_account(p_owner_account_id uuid, p_provider text, p_kind text, p_secret text, p_sharing text) returns uuid kind=f owner=model_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=2120127c0a3a723b2efb05cec696b3d7",
    "function project.begin_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) returns project.project_deletion kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=5296c0a0096fe794706db2b562b721b6",
    "function project.complete_create_project_receipt(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid, p_response_status integer, p_response_digest text, p_response_body jsonb) returns void kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=a0bbf5afa982f5dd67ed4feb197ccefe",

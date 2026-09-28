@@ -25,7 +25,7 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
-| `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
+| `hub_factory` | `factory-storage` | `builder/module.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 | `hub_model_account` | `model-account` | `builder/module.ts` | `CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE` |
 
 These nine and the seven owner roles `iam_owner`, `workspace_owner`, `project_owner`,
