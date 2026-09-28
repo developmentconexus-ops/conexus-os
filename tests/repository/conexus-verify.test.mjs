@@ -209,6 +209,9 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
+  const factoryRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'factory-runtime').command
+  assert.equal(factoryRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
+    'the tripwire test runs with the Factory runtime suites')
 
   const result = runVerification({
     processEnvironment: {},
