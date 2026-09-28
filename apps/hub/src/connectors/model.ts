@@ -1,7 +1,3 @@
-// Ids and shapes shared by the store, the routes and the broker. The broker's own types (Consumer,
-// BrokerResult, the token cache) live in broker.ts and token-cache.ts; this module administers
-// Connections and Project bindings.
-
 export type ConnectorId = 'sankhya'
 export type ConnectionId = string & { readonly __brand: 'ConnectionId' }
 export type BindingId = string & { readonly __brand: 'BindingId' }

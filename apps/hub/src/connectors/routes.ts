@@ -17,8 +17,6 @@ import type { ConnectorStore } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
-// The contract types connectionId and bindingId as uuids, and a binding name by its pattern, so
-// Fastify refuses a malformed one with 400.
 // workspaceId and projectId are shared parameters typed only as non-empty strings, so a reference
 // PostgreSQL could not read as a uuid is answered here as the resource it cannot name.
 const UUID = z.guid()

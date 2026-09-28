@@ -13,11 +13,6 @@ const PROJECT = '22222222-2222-4222-8222-222222222222'
 const READ = 'sankhya.purchase-order.read'
 const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
 
-// This test builds the store dependency as a stub, not against real PostgreSQL: `createConnectorBrief`
-// consumes only `listBindings`, and that function's own PostgreSQL-backed behaviour (a binding that
-// opens and closes, P7, P8) is already proved against real PostgreSQL by
-// connector-broker-postgres.test.mjs and connector-postgres.test.mjs. This file is a unit test of the
-// brief's own construction from whatever the store answers.
 const bound = (name, connectorId = 'sankhya', connectionId = '33333333-3333-4333-8333-333333333333') =>
   ({ bindingId: '44444444-4444-4444-8444-444444444444', name, connectionId, connectorId })
 const storeOf = (bindings) => ({ listBindings: async () => bindings })

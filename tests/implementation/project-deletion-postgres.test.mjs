@@ -186,7 +186,6 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       [randomBytes(32), accountId, previewId, hubDigest],
     )
 
-    // connector.connection and its project_binding.
     const connectionId = randomUUID()
     await client.query(
       `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)

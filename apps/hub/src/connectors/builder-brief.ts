@@ -10,12 +10,6 @@ import { isMintedScope } from './scope.js'
 import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 
-// What the Builder learns about the connector operations a Project may call. It applies the broker's
-// own rule (operationBinding), so it never lists an operation the broker would refuse. A Project that
-// reaches none sees nothing; otherwise it sees exactly those operations, their contracts, one handler
-// snippet, and each reached Definition's own Skill. This never reaches the network and never opens a
-// credential: it only reads the Project's bindings and the in-memory registry the broker is built from.
-
 // biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
 type AnyOperation = Operation<any, any, any>
 
@@ -39,9 +33,6 @@ const operationSection = (operation: AnyOperation): string => [
   ].join('\n'),
 ].join('\n\n')
 
-// A run whose bindings could not be read still runs: the Builder is told that connector data is out of
-// reach this run, so it neither invents an operation nor silently builds without one. The broker
-// reads the bindings again on every call, so this notice grants nothing and hides nothing.
 /** @public Tests import this at runtime from the built module. */
 export const CONNECTOR_BRIEF_UNAVAILABLE = 'The connector operations this Project may call could not be read for this run. '
   + 'Do not call connectors.call in this run. If the request needs data from a connected system, tell the person '

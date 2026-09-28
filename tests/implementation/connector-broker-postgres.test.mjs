@@ -35,8 +35,6 @@ const call = (socketPath, body) => new Promise((resolve) => {
   outgoing.end(payload)
 })
 
-// The broker against real PostgreSQL, as the Hub runs it: hub_iam_runtime executes the broker's
-// functions, and the Project's bindings are read on every call.
 const setup = async (t, { database, beforeBindings = async () => {} } = {}) => {
   const fixture = database ?? await buildHubDatabase(t, 'connector_broker')
   const owner = new pg.Client({ connectionString: fixture.connectionString })
