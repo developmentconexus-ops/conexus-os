@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { loadCases } from '../../scripts/builder-eval/experiment.mjs'
 import { SALES_V1, salesFigures } from '../../scripts/builder-eval/fixtures/sales-v1.mjs'
+import { SIM_CREDENTIAL, startSimulator } from '../../scripts/builder-eval/sankhya-sim.mjs'
 
 const GRAND_TOTAL_CENTS = 97_156_194
 
@@ -113,4 +116,148 @@ test('sales-v1 known answers can be told apart on a page: large, with cents, dis
       .map((mistake) => `mistake ${mistake.label} equals a required amount`),
   ]
   assert.deepEqual(failures, [])
+})
+
+const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
+
+const authenticate = (origin, { clientId, clientSecret, xToken }) =>
+  fetch(`${origin}/authenticate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...(xToken === undefined ? {} : { 'x-token': xToken }) },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }).toString(),
+  })
+
+/** A simulator on a free loopback port, closed after the test, and a signed-in caller of its services. */
+async function simulator(t) {
+  const sim = await startSimulator({ port: 0 })
+  t.after(() => sim.close())
+  const { access_token: token } = await (await authenticate(sim.origin, SIM_CREDENTIAL)).json()
+  const call = async (serviceName, dataSet) => {
+    const response = await fetch(`${sim.origin}${SERVICE_PATH}?serviceName=${serviceName}&outputType=json`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ serviceName, requestBody: { dataSet } }),
+    })
+    return response.json()
+  }
+  return { ...sim, call, loadRecords: (dataSet) => call('CRUDServiceProvider.loadRecords', dataSet) }
+}
+
+/** The rows of a loadRecords answer by column name, as a Builder app decodes f0..fN. */
+const decode = ({ entities }) =>
+  [entities.entity ?? []].flat().map((row) => Object.fromEntries(entities.metadata.fields.field.map(({ name }, index) => [name, row[`f${index}`].$])))
+
+test('the simulator admits only its credential and the tokens it issued', async (t) => {
+  const sim = await simulator(t)
+  const wrongSecret = await authenticate(sim.origin, { ...SIM_CREDENTIAL, clientSecret: 'not-the-secret' })
+  assert.deepEqual([wrongSecret.status, await wrongSecret.json()], [401, { error: 'invalid_client', error_description: 'credencial recusada' }])
+  const noToken = await authenticate(sim.origin, { ...SIM_CREDENTIAL, xToken: undefined })
+  assert.equal(noToken.status, 401)
+  const good = await authenticate(sim.origin, SIM_CREDENTIAL)
+  assert.deepEqual([good.status, (await good.json()).expires_in], [200, 3600])
+  const unsigned = await fetch(`${sim.origin}${SERVICE_PATH}?serviceName=CRUDServiceProvider.loadRecords&outputType=json`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer sim-token-99', 'content-type': 'application/json' },
+    body: JSON.stringify({ serviceName: 'CRUDServiceProvider.loadRecords', requestBody: { dataSet: { rootEntity: 'Vendedor' } } }),
+  })
+  assert.deepEqual([unsigned.status, await unsigned.json()], [401, { error: 'invalid_token' }])
+})
+
+const RIGHT_CRITERIA = Object.freeze({
+  expression: { $: "this.DTNEG BETWEEN ? AND ? AND this.STATUSNOTA = 'L' AND this.TIPMOV IN ('V', 'D')" },
+  parameter: [
+    { $: '01/01/2026', type: 'D' },
+    { $: '30/06/2026', type: 'D' },
+  ],
+})
+const NOTE_FIELDS = { fieldset: { list: 'NUNOTA,CODVEND,DTNEG,TIPMOV,STATUSNOTA,VLRNOTA' } }
+const centsOf = (text) => Number(text.replace('.', ''))
+
+test('reading every page of the right criteria and applying the rule gives the known grand total', async (t) => {
+  const sim = await simulator(t)
+  const pages = []
+  for (let page = 0; page === 0 || pages.at(-1).responseBody.entities.hasMoreResult === 'true'; page += 1) {
+    pages.push(await sim.loadRecords({ rootEntity: 'CabecalhoNota', offsetPage: String(page), criteria: RIGHT_CRITERIA, entity: NOTE_FIELDS }))
+  }
+  assert.deepEqual(
+    pages.map(({ status, responseBody: { entities } }) => [status, entities.offsetPage, entities.total, entities.hasMoreResult]),
+    [
+      ['1', '0', '50', 'true'],
+      ['1', '1', '50', 'true'],
+      ['1', '2', '50', 'true'],
+      ['1', '3', '42', 'false'],
+    ],
+  )
+  const signedCents = (rows) => rows.reduce((total, row) => total + (row.TIPMOV === 'D' ? -1 : 1) * centsOf(row.VLRNOTA), 0)
+  assert.equal(signedCents(pages.flatMap((page) => decode(page.responseBody))), GRAND_TOTAL_CENTS)
+  assert.equal(signedCents(decode(pages[0].responseBody)), 25_847_143)
+  assert.deepEqual(sim.counters(), { loadRecords: 4, refusals: 0, writes: 0 })
+})
+
+test('a reference column reads through its reference, a missing value is {}, and one row answers an object entity', async (t) => {
+  const sim = await simulator(t)
+  const answer = await sim.loadRecords({
+    rootEntity: 'CabecalhoNota',
+    criteria: { expression: { $: 'this.NUNOTA IN (?, ?)' }, parameter: [{ $: '10001', type: 'I' }, { $: '10141', type: 'I' }] },
+    entity: [{ fieldset: { list: 'NUNOTA,TIPMOV,VLRNOTA' } }, { path: 'Vendedor', fieldset: { list: 'APELIDO' } }],
+  })
+  assert.deepEqual(answer.responseBody.entities, {
+    total: '2',
+    hasMoreResult: 'false',
+    offsetPage: '0',
+    offset: '0',
+    metadata: { fields: { field: [{ name: 'NUNOTA' }, { name: 'TIPMOV' }, { name: 'VLRNOTA' }, { name: 'Vendedor_APELIDO' }] } },
+    entity: [
+      { f0: { $: '10001' }, f1: { $: 'V' }, f2: { $: '5955.43' }, f3: { $: 'DIEGO' } },
+      { f0: { $: '10141' }, f1: {}, f2: { $: '7716.76' }, f3: { $: 'ELISA' } },
+    ],
+  })
+  const one = await sim.loadRecords({ rootEntity: 'Vendedor', criteria: { expression: 'this.CODVEND = ?', parameter: { $: '12', type: 'I' } }, entity: { fieldset: { list: '*' } } })
+  assert.deepEqual(one.responseBody.entities.entity, { f0: { $: '12' }, f1: { $: 'BRUNO' } })
+  const april = await sim.loadRecords({
+    rootEntity: 'CabecalhoNota',
+    criteria: { expression: 'this.DTNEG BETWEEN ? AND ?', parameter: [{ $: '01/04/2026', type: 'D' }, { $: '30/04/2026', type: 'D' }] },
+    entity: NOTE_FIELDS,
+  })
+  assert.deepEqual([april.status, april.responseBody.entities.total, april.responseBody.entities.hasMoreResult, 'entity' in april.responseBody.entities], ['1', '0', 'false', false])
+})
+
+test('wrong requests answer status 0 like Sankhya, unmodelled reads carry the [simulador] marker, and writes are refused and counted', async (t) => {
+  const sim = await simulator(t)
+  const statusOf = ({ status, statusMessage }) => [status, statusMessage]
+  const notes = (criteria, entity = NOTE_FIELDS) => sim.loadRecords({ rootEntity: 'CabecalhoNota', criteria, entity })
+  assert.deepEqual(
+    [
+      statusOf(await notes({ expression: { $: 'this.NOPE = ?' }, parameter: [{ $: 'V', type: 'S' }] })),
+      statusOf(await notes(undefined, [NOTE_FIELDS, { path: 'Vendedor', fieldset: { list: 'NOME' } }])),
+      statusOf(await sim.loadRecords({ rootEntity: 'Pedido', entity: NOTE_FIELDS })),
+      statusOf(await notes({ expression: { $: 'EXTRACT(MONTH FROM this.DTNEG) = ?' }, parameter: [{ $: '3', type: 'I' }] })),
+      statusOf(await sim.loadRecords({ rootEntity: 'CabecalhoNota', entity: NOTE_FIELDS, modifiedSince: '01/01/2026' })),
+      statusOf(await sim.call('CRUDServiceProvider.loadRecord', { rootEntity: 'CabecalhoNota', rows: { row: { NUNOTA: { $: '10001' } } } })),
+      statusOf(await sim.call('CRUDServiceProvider.saveRecord', { rootEntity: 'CabecalhoNota' })),
+    ],
+    [
+      ['0', 'campo inexistente: NOPE'],
+      ['0', 'campo inexistente: Vendedor.NOME'],
+      ['0', 'entidade inexistente: "Pedido"'],
+      ['0', '[simulador] função não suportada: EXTRACT'],
+      ['0', '[simulador] modifiedSince não simulado'],
+      ['0', '[simulador] serviço não simulado: CRUDServiceProvider.loadRecord'],
+      ['3', 'serviço não autorizado para esta credencial'],
+    ],
+  )
+  const health = await (await fetch(`${sim.origin}/__sim/health`)).json()
+  assert.deepEqual(health, { fixtures: ['sales-v1'], counters: { loadRecords: 5, refusals: 3, writes: 1 } })
+})
+
+test('loadCases computes the committed sales-dashboard case truth from sales-v1', () => {
+  const cases = loadCases(fileURLToPath(new URL('../../scripts/builder-eval/cases/erp', import.meta.url)))
+  assert.deepEqual(
+    cases.map((entry) => [entry.id, entry.input.fixture, entry.truth.fixture, entry.truth.figures.grandTotalCents]),
+    [['sales-dashboard', 'sales-v1', 'sales-v1', GRAND_TOTAL_CENTS]],
+  )
+  assert.deepEqual(
+    cases[0].truth.screen.amounts.filter((amount) => amount.cents === GRAND_TOTAL_CENTS),
+    [{ cents: GRAND_TOTAL_CENTS, label: 'total geral' }],
+  )
 })
