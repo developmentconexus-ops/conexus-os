@@ -2,10 +2,12 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { resolve } from 'node:path'
+import { isAbsolute, relative, resolve } from 'node:path'
 import test from 'node:test'
+import { pathToFileURL } from 'node:url'
 
-import { resolveHubBuild } from './hub-build.mjs'
+import { CANDIDATE_GRAPH, repositoryRoot as verifyRepositoryRoot } from '../../scripts/conexus-verify.mjs'
+import { DEFAULT_HUB_BUILD_CACHE_DIR, resolveHubBuild } from './hub-build.mjs'
 
 const hubBuildModuleUrl = new URL('./hub-build.mjs', import.meta.url).href
 
@@ -109,6 +111,80 @@ test('a changed source file produces a different build directory', () => {
   assert.equal(existsSync(resolve(directoryAfter, 'server.js')), true)
 
   rmSync(fixture.root, { recursive: true, force: true })
+})
+
+test('a compiled module resolves a real cross-package relative import from the shared cache depth', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'hub-build-depth-'))
+
+  const landmarkDir = resolve(root, 'landmark')
+  mkdirSync(landmarkDir, { recursive: true })
+  writeFileSync(resolve(landmarkDir, 'value.mjs'), 'export const value = "ok"\n')
+  writeFileSync(resolve(landmarkDir, 'value.d.mts'), 'export declare const value: string\n')
+
+  const sourceDir = resolve(root, 'apps/hub/src')
+  const nestedDir = resolve(sourceDir, 'nested')
+  mkdirSync(nestedDir, { recursive: true })
+  writeFileSync(
+    resolve(nestedDir, 'module.ts'),
+    "import { value } from '../../../../landmark/value.mjs'\nexport { value }\n",
+  )
+
+  const tsconfigPath = resolve(root, 'tsconfig.json')
+  writeFileSync(tsconfigPath, JSON.stringify({
+    extends: './tsconfig.base.json',
+    compilerOptions: { rootDir: sourceDir },
+    include: [`${sourceDir}/**/*.ts`],
+  }))
+  const baseTsconfigPath = resolve(root, 'tsconfig.base.json')
+  writeFileSync(baseTsconfigPath, JSON.stringify({
+    compilerOptions: {
+      module: 'NodeNext',
+      moduleResolution: 'NodeNext',
+      target: 'ES2022',
+      strict: true,
+      noEmit: false,
+      skipLibCheck: true,
+    },
+  }))
+
+  const cacheDir = resolve(root, 'node_modules/.cache-hub')
+
+  const directory = resolveHubBuild({
+    sourceDir,
+    tsconfigPath,
+    baseTsconfigPath,
+    cacheDir,
+    typescriptVersion: 'fixture-version',
+    env: {},
+  })
+
+  const compiledModule = resolve(directory, 'nested/module.js')
+  assert.equal(existsSync(compiledModule), true)
+
+  const importResult = spawnSync(process.execPath, [
+    '-e',
+    `import(${JSON.stringify(pathToFileURL(compiledModule).href)}).then(m => process.stdout.write(m.value))`,
+  ], { encoding: 'utf8' })
+
+  assert.equal(importResult.status, 0, importResult.stderr)
+  assert.equal(importResult.stdout, 'ok')
+
+  rmSync(root, { recursive: true, force: true })
+})
+
+function isNestedInside(childDir, parentDir) {
+  const relativePath = relative(parentDir, childDir)
+  return relativePath !== '' && !relativePath.startsWith('..') && !isAbsolute(relativePath)
+}
+
+test('the default shared-cache root never collides with the directory Verify wipes on every run', () => {
+  const hubTypecheckStep = CANDIDATE_GRAPH.find(step => step.scope === 'c020-hub-typecheck')
+  assert.ok(hubTypecheckStep, 'c020-hub-typecheck step must exist in the candidate graph')
+  const verifyHubBuildDir = resolve(verifyRepositoryRoot, hubTypecheckStep.publishes.CONEXUS_HUB_BUILD)
+
+  assert.notEqual(DEFAULT_HUB_BUILD_CACHE_DIR, verifyHubBuildDir)
+  assert.equal(isNestedInside(DEFAULT_HUB_BUILD_CACHE_DIR, verifyHubBuildDir), false)
+  assert.equal(isNestedInside(verifyHubBuildDir, DEFAULT_HUB_BUILD_CACHE_DIR), false)
 })
 
 test('a stale lock from a dead PID is taken over instead of waited out', () => {

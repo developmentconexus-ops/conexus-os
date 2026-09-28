@@ -16,6 +16,14 @@ import { pathToFileURL } from 'node:url'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
+// Two segments below the repository root, not three: `tsc` preserves each source file's relative
+// import specifiers verbatim, and an outDir at the wrong depth breaks every "../"-chain import Hub
+// sources use to reach shared packages (for example
+// `../../../../packages/canonical-json/src/index.mjs`); see hub-build.test.mjs's depth regression
+// test. Exported so `hub-build.test.mjs` can assert this never collides with the directory
+// `scripts/conexus-verify.mjs`'s `c020-hub-typecheck` step wipes with `rm -rf`.
+export const DEFAULT_HUB_BUILD_CACHE_DIR = resolve(repositoryRoot, 'node_modules/.cache-hub')
+
 // Every suite that imports the Hub reads one compiled copy, keyed by a hash of the Hub source and
 // its typecheck config. The first process to ask for a given hash compiles it; every other process,
 // in this run or a later one, finds the directory already there and reads it. A source change
@@ -89,11 +97,6 @@ function isProcessAlive(pid) {
 
 const HASH_NAME_PATTERN = /^[0-9a-f]{20}$/
 
-// Keeps the newest `keepCount` build directories (by mtime) plus the one just built, and removes
-// the rest, skipping any directory a lock still guards (mid-compile or mid-takeover). Only names
-// shaped like our own hash are candidates: the cache directory is shared with other writers (the
-// verify pipeline's own one-shot Hub compile lands beside it), and this must never touch their
-// files.
 function pruneOldBuilds(baseDir, currentHash, keepCount) {
   let entries
   try {
@@ -123,11 +126,11 @@ function pruneOldBuilds(baseDir, currentHash, keepCount) {
   }
 }
 
-function busyWaitSync(ms) {
-  const until = Date.now() + ms
-  while (Date.now() < until) {
-    // Node has no synchronous sleep; a short spin is the bounded-wait poll interval.
-  }
+// Node has no synchronous sleep primitive; Atomics.wait blocks this thread on a SharedArrayBuffer
+// that nothing else writes to, so it always times out after `ms` without spinning a CPU core.
+function blockingSleepSync(ms) {
+  const signal = new Int32Array(new SharedArrayBuffer(4))
+  Atomics.wait(signal, 0, 0, ms)
 }
 
 /**
@@ -148,14 +151,14 @@ export function resolveHubBuild(options = {}) {
   const sourceDir = options.sourceDir ?? resolve(repositoryRoot, 'apps/hub/src')
   const tsconfigPath = options.tsconfigPath ?? resolve(repositoryRoot, 'apps/hub/tsconfig.json')
   const baseTsconfigPath = options.baseTsconfigPath ?? resolve(repositoryRoot, 'tsconfig.base.json')
-  const cacheDir = options.cacheDir ?? resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build')
+  const cacheDir = options.cacheDir ?? DEFAULT_HUB_BUILD_CACHE_DIR
   const typescriptVersion = options.typescriptVersion ?? readTypescriptVersion(tscBin)
   const compile = options.compile ?? ((tmpDir) => compileWithTsc(tmpDir, { tscBin, tsconfigPath }))
   const keepCount = options.keepCount ?? DEFAULT_KEEP_COUNT
   const lockPollMs = options.lockPollMs ?? DEFAULT_LOCK_POLL_MS
   const lockWaitMs = options.lockWaitMs ?? DEFAULT_LOCK_WAIT_MS
   const now = options.now ?? (() => Date.now())
-  const sleep = options.sleep ?? busyWaitSync
+  const sleep = options.sleep ?? blockingSleepSync
 
   const hash = computeHash({ sourceDir, tsconfigPath, baseTsconfigPath, typescriptVersion })
   mkdirSync(cacheDir, { recursive: true })
