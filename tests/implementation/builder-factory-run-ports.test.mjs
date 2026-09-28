@@ -37,7 +37,9 @@ const fakeSession = ({ messages = [], turnUserMessageId = 'user-2' } = {}) => {
       for (const listener of listeners) listener({ type: 'message_end', message: { id: turnUserMessageId, role: 'user' } })
       for (const listener of listeners) listener({ type: 'agent_end', reason: 'complete' })
     },
-    thread: { listActiveMessages: async () => messages },
+    thread: { listActiveMessages: async () => messages, requireId: () => conversationId },
+    identity: { getResourceId: () => conversationId },
+    machinery: { subscribeToThread: async () => ({ stream: (async function* () {})(), unsubscribe: () => undefined }) },
   }
 }
 

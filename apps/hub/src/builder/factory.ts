@@ -74,11 +74,13 @@ type FactoryCheckoutSource = Readonly<{ repositorySlug: string; read(): Promise<
 // GH_TOKEN is still filtered, for an organization PAT the Factory would hand out as it is.
 export class ConexusFactoryE2BSandbox extends E2BSandbox {
   readonly #checkout: FactoryCheckoutSource | undefined
+  readonly #timeoutMs: number
 
-  constructor(options: E2BSandboxOptions = {}, checkout?: FactoryCheckoutSource) {
-    super({ ...options, env: withoutGithubTokens(options.env ?? {}) })
+  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>, checkout?: FactoryCheckoutSource) {
+    super({ ...options, env: withoutGithubTokens(options.env ?? {}), workingDirectory: FACTORY_WORKING_DIRECTORY })
     if (checkout && !REPOSITORY_SLUG.test(checkout.repositorySlug)) throw new Error('FACTORY_CHECKOUT_REFUSED')
     this.#checkout = checkout
+    this.#timeoutMs = options.timeout
   }
 
   override setEnv(update: (environment: SandboxEnvironment) => SandboxEnvironment): void {
@@ -89,7 +91,14 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
     super.setOnStart((previous) => {
       const next = update(previous)
       const checkout = this.#checkout
-      return checkout ? async (args) => { await this.#seedCheckout(checkout); await next(args) } : next
+      // The Factory's start hook runs its checkout scripts with no cwd of its own, so the default
+      // directory must already exist while it runs, including after a dead VM is replaced.
+      return checkout ? async (args) => {
+        this.setWorkingDirectory(FACTORY_WORKING_DIRECTORY)
+        await this.#seedCheckout(checkout)
+        await next(args)
+        this.setWorkingDirectory(repoDirUnder(FACTORY_WORKING_DIRECTORY, checkout.repositorySlug))
+      } : next
     })
   }
 
@@ -106,6 +115,19 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
       `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/${repositorySlug}.git'`,
     ].join(' && '), tokenEnvironment(token))
     if (seeded.exitCode !== 0) throw new Error(`FACTORY_CHECKOUT_SEED_FAILED:${seeded.exitCode}`)
+  }
+
+  async #extend(): Promise<void> {
+    await this.e2b.setTimeout(this.#timeoutMs)
+  }
+
+  // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
+  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
+  async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
+    await this.#extend()
+    const heartbeat = setInterval(() => { this.#extend().catch(onLapse) }, Math.floor(this.#timeoutMs / 3))
+    heartbeat.unref()
+    return () => clearInterval(heartbeat)
   }
 
   async runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult> {
@@ -142,7 +164,6 @@ export const createFactorySandbox = ({ apiKey, templateId, readCheckout, timeout
   // E2B otherwise serves every listening port at a public URL, loopback-bound ones included.
   network: { allowPublicTraffic: false },
   env: {},
-  workingDirectory: FACTORY_WORKING_DIRECTORY,
   metadata: { 'conexus-factory-session': context.sessionId },
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
 }, context.repoFullName ? { repositorySlug: context.repoFullName, read: () => readCheckout(context.repoFullName ?? '') } : undefined)
