@@ -33,7 +33,7 @@ import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine } from './
 function SharedAccountsGroup() {
   const accounts = useQuery({ queryKey: modelAccountsQueryKey, queryFn: listModelAccounts })
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
   const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
   const stop = useMutation({
     mutationFn: (provider: string) => stopSharing(provider),
@@ -159,7 +159,7 @@ function InstallationModelDefaultsGroup() {
   const queryClient = useQueryClient()
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
 
   useEffect(() => {
     if (!defaults.data?.installation) return
@@ -170,7 +170,7 @@ function InstallationModelDefaultsGroup() {
   const save = useMutation({
     mutationFn: () => saveInstallationDefaults({ build, fast }),
     onSuccess: () => {
-      setMessage({ text: 'Padrões salvos.' })
+      setMessage({ text: 'Padrões salvos.', tone: 'positive' })
       void queryClient.invalidateQueries({ queryKey: modelDefaultsQueryKey })
     },
     onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
@@ -224,7 +224,7 @@ function MemoryGroup() {
   const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
 
   useEffect(() => {
     setModel(memory.data?.model ?? '')
@@ -233,7 +233,7 @@ function MemoryGroup() {
   const save = useMutation({
     mutationFn: () => saveMemoryModel(model || null),
     onSuccess: () => {
-      setMessage({ text: 'Padrão salvo.' })
+      setMessage({ text: 'Padrão salvo.', tone: 'positive' })
       void queryClient.invalidateQueries({ queryKey: installationMemoryQueryKey })
     },
     onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
