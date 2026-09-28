@@ -131,6 +131,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-deletion-postgres', 'node --test --test-concurrency=1 tests/implementation/project-deletion-postgres.test.mjs', 'postgres'),
   candidateStep('builder-factory-github-deletion', 'node --test tests/implementation/builder-factory-github-deletion.test.mjs'),
   candidateStep('project-browser', 'node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs', 'browser'),
+  candidateStep('project-settings-deletion-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-deletion-browser.test.mjs', 'browser'),
   candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),

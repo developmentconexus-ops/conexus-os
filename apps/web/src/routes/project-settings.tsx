@@ -94,7 +94,9 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
 //
 // projectRevision is only ever empty once get_project has fallen back to the tombstone, which only
 // happens after the Hub purge has run -- so it is the one signal this screen has for which side of
-// that purge the crash landed on, and the copy below must not claim the data is gone before it is.
+// that purge the crash landed on. The GitHub delete itself runs after that purge and before the
+// tombstone is marked complete, so an empty revision does not tell us whether GitHub succeeded before
+// the crash -- the copy below must not claim either way, only that a retry is safe and needed.
 function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -113,7 +115,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation
     <h2>Exclusão de {project.name} não terminou</h2>
     <p>
       {purged
-        ? 'O código e os dados deste Projeto já foram apagados. O repositório no GitHub ainda não.'
+        ? 'O código e os dados deste Projeto já foram apagados. A exclusão do repositório no GitHub pode não ter sido concluída.'
         : 'A exclusão deste Projeto está em andamento.'} Nada do que já foi apagado pode ser desfeito; termine a exclusão para concluir.
     </p>
     <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
