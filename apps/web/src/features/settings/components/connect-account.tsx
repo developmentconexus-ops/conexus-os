@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation } from '@tanstack/react-query'
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
+import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { connectFlowReducer, initialConnectState } from '../connect-flow'
 import {
   apiKeySaveErrorMessage, oauthFailureMessage,
@@ -49,7 +50,7 @@ export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs,
     <Button type="button" variant="outline" onClick={() => { void navigator.clipboard.writeText(userCode).then(() => setCopied(true)).catch(() => setCopied(false)) }}>Copiar código</Button>
     {copied && <StatusLine>Copiado.</StatusLine>}
     <p><a href={url} target="_blank" rel="noreferrer">Abrir a página de entrada</a></p>
-    <p className="cxs-waiting"><span className="cxs-spinner" aria-hidden="true" />Aguardando você concluir a entrada na outra aba</p>
+    <p className="cxs-waiting"><ConexusMark size={16} working />Aguardando você concluir a entrada na outra aba</p>
     <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancelar</Button>
   </div>
 }
@@ -205,7 +206,7 @@ export function ConnectAccount({ providers, onConnected }: Readonly<{ providers:
 
   if (state.step === 'failed') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
-      <p role="alert">{state.message}</p>
+      <StatusLine tone="danger">{state.message}</StatusLine>
       <Button type="button" variant="outline" onClick={restart}>Tentar de novo</Button>
     </section>
   }

@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { startOAuth } from '../model-accounts-api'
 import { DeviceCodeStep, PasteCodeStep } from './connect-account'
+import { StatusLine } from './states'
 
 type ReconnectState =
   | { step: 'idle' }
@@ -23,7 +24,7 @@ export function ReconnectAccount({ provider, onDone }: Readonly<{ provider: stri
   const startFlow = start.mutate
   useEffect(() => { startFlow() }, [startFlow])
   if (state.step === 'idle') return null
-  if (state.step === 'failed') return <p role="alert">{state.message}</p>
+  if (state.step === 'failed') return <StatusLine tone="danger">{state.message}</StatusLine>
   if (state.step === 'paste-code') return <PasteCodeStep provider={provider} sessionId={state.sessionId} url={state.url} onDone={onDone} />
   return <DeviceCodeStep provider={provider} sessionId={state.sessionId} url={state.url} userCode={state.userCode} nextPollMs={state.nextPollMs} onDone={onDone} />
 }

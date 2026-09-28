@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { modelAccountsQueryKey, removeApiKey, signOut } from '../model-accounts-api'
 import type { ModelAccountRow as Row } from '../model-account-rows'
-import { Chip } from './states'
+import { Chip, StatusLine } from './states'
 
 const connectionLabel = (kind: 'api_key' | 'oauth') => kind === 'oauth' ? 'Assinatura' : 'Chave de API'
 
@@ -41,7 +41,7 @@ export function OwnAccountRow({ row, onReconnect }: Readonly<{ row: Row; onRecon
         </AlertDialog.Portal>
       </AlertDialog>
     </div>
-    {failed && <p role="alert">Não foi possível concluir. Tente novamente.</p>}
+    {failed && <StatusLine tone="danger">Não foi possível concluir. Tente de novo.</StatusLine>}
   </li>
 }
 

@@ -14,7 +14,7 @@ export function InstallationModelDefaultsScreen() {
   const queryClient = useQueryClient()
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
   useEffect(() => {
     if (!defaults.data?.installation) return
     setBuild(defaults.data.installation.build)
@@ -22,8 +22,8 @@ export function InstallationModelDefaultsScreen() {
   }, [defaults.data])
   const save = useMutation({
     mutationFn: () => saveInstallationDefaults({ build, fast }),
-    onSuccess: () => { setMessage('Padrões salvos.'); void queryClient.invalidateQueries({ queryKey: modelDefaultsQueryKey }) },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onSuccess: () => { setMessage({ text: 'Padrões salvos.', tone: 'positive' }); void queryClient.invalidateQueries({ queryKey: modelDefaultsQueryKey }) },
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
 
   return <main className="cxs-page">
@@ -39,7 +39,7 @@ export function InstallationModelDefaultsScreen() {
         <RoleModelSelect label="Construção" models={covered} value={build} onChange={setBuild} />
         <RoleModelSelect label="Rápido" models={covered} value={fast} onChange={setFast} />
         <Button type="submit" variant="primary" disabled={!build || !fast || save.isPending}>Salvar padrões</Button>
-        {message && <StatusLine>{message}</StatusLine>}
+        {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
         <p className="cxs-hint">Vale só para conversas novas.</p>
       </form>
     })()}

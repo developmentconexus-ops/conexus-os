@@ -96,6 +96,7 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
   await page.getByText('ABCD-1234').waitFor()
   await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
+  assert.equal(await page.locator('.cxs-spinner').count(), 0)
   await page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
 
   await page.getByRole('button', { name: 'Conectar conta' }).click()
@@ -141,6 +142,67 @@ test('Meus padrões saves my defaults and clears back to the company ones', asyn
   await page.getByRole('button', { name: 'Usar os padrões da empresa' }).click()
   await page.getByText('Voltou a usar os padrões da empresa.').waitFor()
   assert.equal(mine, null)
+})
+
+test('Memória shows a danger alert when saving the model fails', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await routeBuilderModels(page)
+  await page.route('**/api/control/installation/memory', (route) => {
+    if (route.request().method() === 'PUT') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }) })
+  })
+
+  await page.goto(`${origin}/settings/installation/memory`)
+  await page.getByRole('heading', { name: 'Memória' }).waitFor()
+  await page.getByText('Valor atual: Padrão do Conexus').waitFor()
+  assert.equal(await page.getByText('gemini-3.5-flash').count(), 0)
+  await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
+  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  const alert = page.getByRole('alert')
+  await alert.getByText('Não foi possível salvar.').waitFor()
+  assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
+  assert.equal(await page.getByRole('status').count(), 0)
+})
+
+test('GitHub shows the removed-app notice with Projetos vocabulary', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await page.route('**/api/control/installation/github', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'gone', organization: { login: 'acme-org', type: 'Organization' },
+      installUrl: 'https://github.com/apps/conexus/installations/new', manageUrl: null, repositories: [],
+    }),
+  }))
+
+  await page.goto(`${origin}/settings/installation/github`)
+  await page.getByRole('heading', { name: 'GitHub' }).waitFor()
+  await page.getByText('Os Projetos não aceitam pedidos').waitFor()
+})
+
+test('Administradores shows a danger alert when granting fails', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await page.route('**/api/control/installation/administrators', (route) => {
+    if (route.request().method() === 'POST') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ administrators: [{ accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
+    })
+  })
+
+  await page.goto(`${origin}/settings/installation/admins`)
+  await page.getByRole('heading', { name: 'Administradores' }).waitFor()
+  await page.getByLabel('E-mail').fill('alguem@example.com')
+  await page.getByRole('button', { name: 'Tornar administrador' }).click()
+  const alert = page.getByRole('alert')
+  await alert.waitFor()
+  assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
 })
 
 test('GitHub connect shows the sentence for a personal account', async (t) => {
