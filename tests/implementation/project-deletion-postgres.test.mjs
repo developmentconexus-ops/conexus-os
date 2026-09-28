@@ -186,7 +186,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       [randomBytes(32), accountId, previewId, hubDigest],
     )
 
-    // connector.connection and its project_grant.
+    // connector.connection and its project_binding.
     const connectionId = randomUUID()
     await client.query(
       `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
@@ -194,8 +194,8 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       [connectionId, workspaceId, digest('4'), accountId],
     )
     await client.query(
-      `INSERT INTO connector.project_grant(workspace_id, project_id, environment, connection_id, capability_kind, capability_id, granted_by)
-       VALUES ($1, $2, 'preview', $3, 'operation', 'deletion-op', $4)`,
+      `INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by)
+       VALUES ($1, $2, 'preview', $3, 'erp', $4)`,
       [workspaceId, projectId, connectionId, accountId],
     )
 
@@ -217,7 +217,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
         [projectId, previewId],
       ).then((result) => result.rows[0].count),
       handoff: await client.query('SELECT count(*)::integer AS count FROM iam.handoff WHERE preview_id = $1', [previewId]).then((result) => result.rows[0].count),
-      projectGrant: await countRows('SELECT count(*)::integer AS count FROM connector.project_grant WHERE project_id = $1'),
+      projectBinding: await countRows('SELECT count(*)::integer AS count FROM connector.project_binding WHERE project_id = $1'),
     }
     for (const [label, count] of Object.entries(before)) assert.equal(count, label === 'artifact' || label === 'application' || label === 'factoryBinding' || label === 'workingState' || label === 'project' || label === 'preview' ? 1 : count >= 1 ? count : 0, `seed row missing for ${label}`)
     // The HUB session itself names no Project or Preview directly -- it is a Workspace-level session
@@ -264,7 +264,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
         [projectId, previewId],
       ).then((result) => result.rows[0].count),
       handoff: await client.query('SELECT count(*)::integer AS count FROM iam.handoff WHERE preview_id = $1', [previewId]).then((result) => result.rows[0].count),
-      projectGrant: await countRows('SELECT count(*)::integer AS count FROM connector.project_grant WHERE project_id = $1'),
+      projectBinding: await countRows('SELECT count(*)::integer AS count FROM connector.project_binding WHERE project_id = $1'),
     }
     for (const [label, count] of Object.entries(after)) assert.equal(count, 0, `row survived purge for ${label}`)
 
