@@ -15,10 +15,8 @@ type NativeRequest = Readonly<{
 }>
 
 export type FetchResult =
-  /** The vendor's parsed JSON, bearer scrubbed. */
-  | Readonly<{ ok: true; status: number; truncated: false; body: unknown }>
-  /** The first `responseBytes` of the answer, as text, with the bearer's plain and `\/`-escaped forms scrubbed. */
-  | Readonly<{ ok: true; status: number; truncated: true; text: string }>
+  /** The vendor's parsed JSON, bearer redacted. A 2xx answer that does not parse, or is over `responseBytes`, is a refusal with no vendor byte. */
+  | Readonly<{ ok: true; status: number; body: unknown }>
   | Readonly<{
       ok: false
       code: BrokerErrorCode
@@ -28,7 +26,7 @@ export type FetchResult =
       status?: number
       /** A vendor error inside a 2xx answer: the vendor's own status (Sankhya's envelope status). */
       vendorStatus?: string
-      /** That vendor error answer, bearer scrubbed; only for a 2xx vendor error. */
+      /** That vendor error answer, bearer redacted; only for a 2xx vendor error. */
       body?: unknown
     }>
 
@@ -96,7 +94,7 @@ export const pinnedUrl = (path: string, query: Readonly<Record<string, string>>,
 
 const REDACTED = '[redacted]'
 
-// A parsed body is scrubbed value by value, so no JSON escape of the bearer survives.
+// A parsed body is redacted value by value, so no JSON escape of the bearer survives.
 const redacted = (value: unknown, bearer: string): unknown => {
   if (typeof value === 'string') return value.replaceAll(bearer, REDACTED)
   if (Array.isArray(value)) return value.map((item) => redacted(item, bearer))
@@ -104,34 +102,19 @@ const redacted = (value: unknown, bearer: string): unknown => {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key.replaceAll(bearer, REDACTED), redacted(item, bearer)]))
 }
 
-/** A cut text cannot be parsed: its plain and `\/`-escaped bearer become `[redacted]`, and it loses a tail that could begin one. */
-const scrubbedCut = (text: string, bearer: string): string => {
-  const forms = [...new Set([bearer, bearer.replaceAll('/', '\\/')])]
-  let clean = forms.reduce((current, form) => current.replaceAll(form, REDACTED), text)
-  for (const form of forms) {
-    for (let length = Math.min(form.length - 1, clean.length); length > 0; length -= 1) {
-      if (clean.endsWith(form.slice(0, length))) {
-        clean = clean.slice(0, -length)
-        break
-      }
-    }
-  }
-  return clean
-}
-
-const readUpTo = async (response: Response, limit: number, signal: AbortSignal): Promise<Readonly<{ bytes: Buffer; cut: boolean }>> => {
+/** The whole answer, or null once it passes `limit`. */
+const readWithin = async (response: Response, limit: number, signal: AbortSignal): Promise<Buffer | null> => {
   const reader = response.body?.getReader()
-  if (!reader) return { bytes: Buffer.alloc(0), cut: false }
+  if (!reader) return Buffer.alloc(0)
   const chunks: Uint8Array[] = []
   let size = 0
   try {
     for (;;) {
       const { done, value } = await reader.read()
-      if (done) return { bytes: Buffer.concat(chunks, size), cut: false }
+      if (done) return Buffer.concat(chunks, size)
       if (size + value.byteLength > limit) {
-        chunks.push(value.subarray(0, limit - size))
         await reader.cancel().catch(() => undefined)
-        return { bytes: Buffer.concat(chunks, limit), cut: true }
+        return null
       }
       chunks.push(value)
       size += value.byteLength
@@ -172,20 +155,18 @@ export const sendNative = async (
     if (status === 401 || status === 403) throw new AdapterFailure('TOKEN_REFUSED')
     return failed(status === 429 || status >= 500 ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_ERROR', status)
   }
-  const { bytes, cut } = await readUpTo(response, responseBytes, signal)
+  const bytes = await readWithin(response, responseBytes, signal)
+  if (!bytes) return failed('RESPONSE_TOO_LARGE', status)
   answer.bytes = bytes.byteLength
-  answer.truncated = cut
-  const text = bytes.toString('utf8')
-  if (cut) return Object.freeze({ ok: true, status, truncated: true, text: scrubbedCut(text, bearer) })
   let vendorBody: unknown
   try {
-    vendorBody = redacted(JSON.parse(text), bearer)
+    vendorBody = redacted(JSON.parse(bytes.toString('utf8')), bearer)
   } catch {
     return failed('RESPONSE_REFUSED', status)
   }
   const verdict = protocol.answer(vendorBody)
   switch (verdict.kind) {
-    case 'success': return Object.freeze({ ok: true, status, truncated: false, body: vendorBody })
+    case 'success': return Object.freeze({ ok: true, status, body: vendorBody })
     case 'vendor-error': return failed('PROVIDER_ERROR', status, { vendorStatus: verdict.vendorStatus, body: vendorBody })
     case 'unreadable': return failed('RESPONSE_REFUSED', status)
   }

@@ -20,7 +20,7 @@ const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'
 
 const LOAD = 'CRUDServiceProvider.loadRecords'
 const ROUTE = '/gateway/v1/mge/service.sbr'
-const ORDER_READ = Object.freeze({ ok: true, status: 200, truncated: false, body: EXPECTED_NATIVE_ORDER })
+const ORDER_READ = Object.freeze({ ok: true, status: 200, body: EXPECTED_NATIVE_ORDER })
 const NOT_GRANTED = Object.freeze({ ok: false, code: 'NOT_GRANTED' })
 
 const read = (connection, overrides = {}) => ({
@@ -171,10 +171,10 @@ test('the generic seam on stored rows: two Connections of the synthetic REST int
   assert.deepEqual(await fetchAs(onlyA, records('crm-b')), NOT_GRANTED)
   assert.equal(sent(), 0, 'refused before the network')
 
-  const accountA = { ok: true, status: 200, truncated: false, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } }
+  const accountA = { ok: true, status: 200, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } }
   assert.deepEqual(await fetchAs(both, records('crm-a')), accountA)
   assert.deepEqual(await fetchAs(both, records('crm-b')), {
-    ok: true, status: 200, truncated: false, body: { account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] },
+    ok: true, status: 200, body: { account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] },
   })
   assert.deepEqual(await fetchAs(onlyA, records('crm-a')), accountA)
   assert.deepEqual(rest.requests.map(({ method, path, account }) => [method, path, account]), [

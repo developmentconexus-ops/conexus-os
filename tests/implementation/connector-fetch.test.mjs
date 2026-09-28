@@ -68,7 +68,7 @@ const read = (overrides = {}) => ({
   ...overrides,
 })
 
-const ORDER_READ = Object.freeze({ ok: true, status: 200, truncated: false, body: EXPECTED_NATIVE_ORDER })
+const ORDER_READ = Object.freeze({ ok: true, status: 200, body: EXPECTED_NATIVE_ORDER })
 
 // What undici sends with every request; the executor adds only accept, authorization and content-type.
 const TRANSPORT_HEADERS = ['accept-encoding', 'accept-language', 'connection', 'content-length', 'host', 'sec-fetch-mode', 'user-agent']
@@ -222,17 +222,16 @@ test('P4: a vendor redirect is never followed: PROVIDER_ERROR with its status, a
   assert.deepEqual(fake.requests.map(({ path }) => path), ['/authenticate', ROUTE])
 })
 
-test('P5: an answer over the size limit is cut and marked truncated; one within it is parsed', async (t) => {
+test('P5: an answer over the size limit is RESPONSE_TOO_LARGE with no vendor byte; one within it is parsed', async (t) => {
   const { fake, broker, facts } = await setup(t, { nativeLimits: { deadlineMs: 2000, responseBytes: 1024, requestBytes: 64 * 1024 } })
   fake.mode.service = 'oversized'
-  const expected = JSON.stringify({ serviceName: LOAD, status: '1', padding: 'x'.repeat(300 * 1024) }).slice(0, 1024)
-  assert.deepEqual(await broker.fetch(handler(), read()), { ok: true, status: 200, truncated: true, text: expected })
+  assert.deepEqual(await broker.fetch(handler(), read()), { ok: false, code: 'RESPONSE_TOO_LARGE', status: 200 })
   fake.mode.service = 'ok'
   assert.deepEqual(await broker.fetch(handler(), read()), ORDER_READ)
-  const services = (await facts()).filter(({ name }) => name === LOAD).map(({ bytes, truncated, result }) => ({ bytes, truncated, result }))
+  const services = (await facts()).filter(({ name }) => name === LOAD).map(({ bytes, result }) => ({ bytes, result }))
   assert.deepEqual(services, [
-    { bytes: 1024, truncated: true, result: 'OK' },
-    { bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), truncated: false, result: 'OK' },
+    { bytes: undefined, result: 'RESPONSE_TOO_LARGE' },
+    { bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), result: 'OK' },
   ])
 })
 
@@ -252,25 +251,26 @@ test('P9: a vendor error inside a 200 is PROVIDER_ERROR with its status and body
   assert.deepEqual(await broker.fetch(handler(), read()), { ok: false, code: 'RESPONSE_REFUSED', status: 200 })
 })
 
-test('P9: a bearer the vendor echoes is scrubbed from a parsed body in any JSON escape, and from a cut text in plain and \\/-escaped form', async (t) => {
+test('P9: a bearer the vendor echoes is redacted from a parsed body in any JSON escape; over the size limit the answer is RESPONSE_TOO_LARGE with no vendor byte', async (t) => {
   const { fake, broker } = await setup(t, { tokenPrefix: 'fake/token/' })
   fake.mode.service = 'echo-bearer'
   const complete = await broker.fetch(handler(), read())
   assert.deepEqual(complete, {
-    ok: true, status: 200, truncated: false,
+    ok: true, status: 200,
     body: { serviceName: LOAD, status: '1', echo: '[redacted]', escaped: '[redacted]', unicode: '[redacted]', '[redacted]': 'key' },
   })
 
-  const answer = `{"serviceName":"${LOAD}","status":"1","echo":"fake/token/1","escaped":"fake\\/token\\/1"}`
-  const cutInsideEscaped = answer.indexOf('fake\\/token\\/1') + 'fake\\/to'.length
+  const beforeUnicode = `{"serviceName":"${LOAD}","status":"1","echo":"fake/token/2","escaped":"fake\\/token\\/2","unicode":"`
+  const cutInsideUnicode = beforeUnicode.length + '\\u0066\\u0061\\u006b\\u0065'.length
   const cutBroker = createBroker({
     connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
-    nativeLimits: { deadlineMs: 2000, responseBytes: cutInsideEscaped, requestBytes: 64 * 1024 },
+    nativeLimits: { deadlineMs: 2000, responseBytes: cutInsideUnicode, requestBytes: 64 * 1024 },
   })
   const cut = await cutBroker.fetch(handler(), read())
-  assert.deepEqual(cut, { ok: true, status: 200, truncated: true, text: `{"serviceName":"${LOAD}","status":"1","echo":"[redacted]","escaped":"` })
-  for (const leaked of ['fake/token/', 'fake\\/token', 'fake\\/to']) assert.equal(JSON.stringify([complete, cut]).includes(leaked), false, leaked)
+  assert.deepEqual(cut, { ok: false, code: 'RESPONSE_TOO_LARGE', status: 200 })
+  assert.equal(fake.requests.at(-1).authorization, 'Bearer fake/token/2', 'the cut answer echoed a live bearer')
+  for (const leaked of ['fake/token/', 'fake\\/token', '\\u0066', 'u0066']) assert.equal(JSON.stringify([complete, cut]).includes(leaked), false, leaked)
 })
 
 test('P10: a refused token is reissued once; refused again it is CREDENTIAL_REFUSED with the vendor status', async (t) => {
@@ -331,9 +331,9 @@ test('P2: the records carry the binding name, the integrator and closed facts, n
   assert.deepEqual(await facts(), [
     { name: 'connector.fetch', root: true, error: false, ...call, result: 'OK' },
     { name: 'authenticate', root: false, error: false, ...call, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), truncated: false, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), result: 'OK' },
     { name: 'connector.fetch', root: true, error: true, ...call, result: 'PROVIDER_ERROR' },
-    { name: LOAD, root: false, error: true, ...call, step: 1, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(errorAnswer), truncated: false, result: 'PROVIDER_ERROR' },
+    { name: LOAD, root: false, error: true, ...call, step: 1, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(errorAnswer), result: 'PROVIDER_ERROR' },
     { name: 'connector.fetch', root: true, error: true, ...call, connection: null, connector: null, result: 'NOT_GRANTED' },
   ])
   const seen = JSON.stringify(exporter.events) + lines.join('')
@@ -370,11 +370,11 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
   assert.deepEqual(await broker.fetch(handler(), { ...records('crm-a'), method: 'POST', body: { name: 'novo' } }), { ok: false, code: 'SERVICE_REFUSED' })
   assert.deepEqual(rest.requests, [], 'refused before the network')
 
-  assert.deepEqual(await broker.fetch(handler(), records('crm-a')), { ok: true, status: 200, truncated: false, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
+  assert.deepEqual(await broker.fetch(handler(), records('crm-a')), { ok: true, status: 200, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
   assert.deepEqual(await broker.fetch(handler(), records('crm-b')), {
-    ok: true, status: 200, truncated: false, body: { account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] },
+    ok: true, status: 200, body: { account: 'account-b', records: [{ id: 'b-1', name: 'Registro B1' }, { id: 'b-2', name: 'Registro B2' }] },
   })
-  assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-a')), { ok: true, status: 200, truncated: false, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
+  assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-a')), { ok: true, status: 200, body: { account: 'account-a', records: [{ id: 'a-1', name: 'Registro A1' }] } })
   assert.deepEqual(rest.requests.map(({ origin, method, path, account }) => [origin === rest.origin, method, path, account]), [
     [true, 'POST', '/oauth/token', null],
     [true, 'GET', '/v1/records', 'account-a'],
