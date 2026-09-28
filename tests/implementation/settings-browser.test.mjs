@@ -50,12 +50,12 @@ test('/settings redirects to Minha conta, and a member sees no Instalação grou
   await page.getByText('Esta seção é só para administradores da instalação.').waitFor()
 })
 
-test('an administrator sees all five installation items in the rail', async (t) => {
+test('an administrator sees all three installation items in the rail', async (t) => {
   const { page, origin } = await withServer(t)
   await routeAccessContext(page, { accountId: 'a2', displayName: 'Administradora', email: 'admin@example.com' })
   await routeInstallation(page, true)
   await page.goto(`${origin}/settings/account`)
-  for (const label of ['GitHub', 'Contas compartilhadas', 'Modelos padrão', 'Memória', 'Administradores']) {
+  for (const label of ['GitHub', 'Modelos da empresa', 'Administradores']) {
     await page.getByRole('link', { name: label }).waitFor()
   }
 })
@@ -182,6 +182,30 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await page.getByLabel('E-mail').fill('ninguem@example.com')
   await page.getByRole('button', { name: 'Tornar administrador' }).click()
   await page.getByText('Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.').waitFor()
+})
+
+test('retired installation routes redirect to Modelos da empresa', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await routeBuilderModels(page)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [] }),
+  }))
+  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: true }),
+  }))
+  await page.route('**/api/control/installation/memory', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }),
+  }))
+
+  await page.goto(`${origin}/settings/installation/model-defaults`)
+  await page.waitForURL(`${origin}/settings/installation/models`)
+  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
+
+  await page.goto(`${origin}/settings/installation/memory`)
+  await page.waitForURL(`${origin}/settings/installation/models`)
+  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
 })
 
 test('Minhas contas de modelo signs a person in to Google AI Pro through a pasted Google address, and hides the card where the Hub runs no CLIProxyAPI', async (t) => {
