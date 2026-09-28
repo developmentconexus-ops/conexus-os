@@ -144,6 +144,74 @@ test('Minhas contas de modelo shows a warning for an account that needs to sign 
   assert.equal(await row.getByText('Precisa entrar de novo').count(), 0)
 })
 
+test('Minhas contas de modelo recovers from transient poll failures, and shows the technical detail when the device code fails for good', async (t) => {
+  const { page, origin } = await withServer(t)
+  const providers = [
+    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
+  ]
+  await routeAccessContext(page, { accountId: 'a7', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString()
+  await page.route('**/web/config/providers/*/oauth/start', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-3', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-9876', nextPollMs: 30, expiresAt }) }))
+  let polls = 0
+  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
+    polls += 1
+    if (polls <= 2) return route.fulfill({ status: 503 })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'failed', error: 'device_code_expired' }) })
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
+  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+  await page.getByText('WXYZ-9876').waitFor()
+  await page.getByText(/Expira em \d:\d\d/).waitFor()
+  // Two transient poll failures are absorbed silently; the third failed poll surfaces the error.
+  await page.getByRole('alert').waitFor({ timeout: 5000 })
+  await page.getByText('Detalhe técnico').click()
+  await page.getByText('device_code_expired').waitFor()
+})
+
+test('Minhas contas de modelo lets a person generate another device code once it expires', async (t) => {
+  const { page, origin } = await withServer(t)
+  const providers = [
+    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
+  ]
+  await routeAccessContext(page, { accountId: 'a8', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  let starts = 0
+  await page.route('**/web/config/providers/*/oauth/start', (route) => {
+    starts += 1
+    const expiresAt = new Date(Date.now() + (starts === 1 ? 1_000 : 5 * 60_000)).toISOString()
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ sessionId: `session-expire-${starts}`, kind: 'device-code', url: 'https://provider.example/device', userCode: `CODE-${starts}`, nextPollMs: 60_000, expiresAt }),
+    })
+  })
+  await page.route('**/web/config/providers/*/oauth/poll', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60_000 }) }))
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
+  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+  await page.getByText('CODE-1').waitFor()
+  await page.getByText('O código expirou.').waitFor({ timeout: 5000 })
+  await page.getByRole('button', { name: 'Gerar outro código' }).click()
+  await page.getByText('CODE-2').waitFor()
+})
+
 test('Meus padrões offers the company defaults, a provider pack and a custom choice', async (t) => {
   const { page, origin } = await withServer(t)
   let mine = null
