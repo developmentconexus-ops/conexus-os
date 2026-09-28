@@ -340,6 +340,7 @@ try {
 
   await send('Runtime.enable')
   await send('Page.enable')
+  await send('Emulation.setDeviceMetricsOverride', { width: 640, height: 400, deviceScaleFactor: 1, mobile: false })
   await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] })
   const loaded = new Promise((resolveLoad) => {
     const handler = (event) => {

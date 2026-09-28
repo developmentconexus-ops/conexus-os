@@ -1,6 +1,6 @@
-import type { OperationId } from '../model.js'
 import type { ConnectorDefinition } from '../operation.js'
 import type { SankhyaSession } from './gateway.js'
+import { sankhyaNativeProtocol } from './gateway.js'
 import { sankhyaCredentialSchema } from './credential.js'
 import type { SankhyaCredential } from './credential.js'
 import { purchaseOrderRead } from './purchase-order.js'
@@ -17,6 +17,5 @@ export const sankhyaDefinition: ConnectorDefinition<SankhyaCredential, SankhyaSe
   events: Object.freeze([]),
   builderSkill: SANKHYA_BUILDER_SKILL,
   secretFields: Object.freeze([...Object.keys(sankhyaCredentialSchema.shape), 'access_token']),
+  native: sankhyaNativeProtocol,
 })
-
-export const SANKHYA_OPERATION_IDS: readonly OperationId[] = Object.freeze(sankhyaDefinition.operations.map((operation) => operation.id))

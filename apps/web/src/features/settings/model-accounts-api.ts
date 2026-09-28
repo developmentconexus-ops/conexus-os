@@ -10,7 +10,7 @@ export type ModelProvider = Readonly<{
   health?: 'ok' | 'needs-reconnect'
 }>
 export type ModelAccounts = Readonly<{ providers: readonly ModelProvider[]; orgKeyAdmin?: boolean }>
-export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'device-code'; url: string; userCode?: string; instructions?: string; nextPollMs?: number }>
+export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'device-code'; url: string; userCode?: string; instructions?: string; nextPollMs?: number; expiresAt?: string }>
 export type OAuthStep = Readonly<{ status: 'complete' | 'pending' | 'failed'; nextPollMs?: number; error?: string }>
 export type ModelDefaults = Readonly<{ build: string; fast: string }>
 export type ModelDefaultsView = Readonly<{ installation: ModelDefaults | null; mine: ModelDefaults | null; administrator: boolean }>
@@ -36,8 +36,8 @@ const request = async <T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string; expiresAt?: string } | null
-    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? null, problem?.expiresAt ?? null)
+    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string; error?: string; message?: string; expiresAt?: string } | null
+    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? problem?.error ?? problem?.message ?? null, problem?.expiresAt ?? null)
   }
   return (response.status === 204 ? undefined : await response.json()) as T
 }

@@ -11,9 +11,10 @@ import type { ProjectThumbnailOperationId, ProjectThumbnailReader } from './thum
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
+import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
-  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | ProjectSummaryOperationId | ProjectThumbnailOperationId)[]>
+  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04' | ProjectSummaryOperationId | ProjectThumbnailOperationId)[]>
   close(): Promise<void>
 }>
 
@@ -21,6 +22,7 @@ const createProjectModule = ({
   commandPool,
   readPool,
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
   thumbnailReader,
@@ -28,11 +30,12 @@ const createProjectModule = ({
   commandPool: PostgresPool
   readPool: PostgresPool
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => {
-  const store = createProjectStore({ commandPool, readPool, repository })
+  const store = createProjectStore({ commandPool, readPool, repository, deletion })
   return Object.freeze({
     registerProjectRoutes: async (app: FastifyInstance) => [
       ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
@@ -49,6 +52,7 @@ export const createConfiguredProjectModule = ({
   database,
   project,
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
   thumbnailReader,
@@ -56,6 +60,7 @@ export const createConfiguredProjectModule = ({
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   thumbnailReader?: ProjectThumbnailReader | undefined
@@ -71,6 +76,7 @@ export const createConfiguredProjectModule = ({
     password: readSecretFile(project.readPasswordFile),
   }),
   repository,
+  deletion,
   origin,
   resolveCurrentSession,
   ...(thumbnailReader ? { thumbnailReader } : {}),

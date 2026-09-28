@@ -90,6 +90,9 @@ async function mockHub(page, hub) {
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/repository')) return json(route, 200, hub.repository)
     if (p.match(/^\/api\/control\/projects\/[^/]+\/thumbnail$/)) {
+      if (p.includes(ids.checklist) || p.includes(ids.stock)) {
+        return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ type: 'project-thumbnail-not-found' }) })
+      }
       // 1x1 transparent PNG
       const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex')
       return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Cache-Control': 'private, no-cache', 'ETag': '"thumb-rev-1"' }, body: png })
@@ -221,6 +224,13 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 
   await t.test('the Projects home shows cards most recent first, with state and last change', async () => {
     await reset()
+    const previewRequests = []
+    page.on('request', (req) => {
+      const url = req.url()
+      if (url.includes('/builder-session/preview') || url.includes('/__preview/')) {
+        previewRequests.push(url)
+      }
+    })
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
     await expect(page.locator('.cx-project-card')).toHaveCount(4)
     assert.deepEqual(await page.locator('.cx-project-card h3').allTextContents(), ['Pedidos de férias', 'Visitas a clientes', 'Checklist de abertura da loja', 'Estoque do almoxarifado'])
@@ -230,6 +240,14 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
     assert.equal(await page.locator('.cx-thumb img').first().getAttribute('alt'), 'Prévia de Pedidos de férias')
     assert.equal(await page.locator('.cx-thumb img').first().getAttribute('loading'), 'lazy')
+    // Cards without preview (Checklist de abertura da loja, Estoque do almoxarifado) show neutral placeholder and no img element
+    const cards = page.locator('.cx-project-card')
+    assert.equal(await cards.nth(2).locator('.cx-thumb img').count(), 0, 'card without preview has no img')
+    assert.ok(await cards.nth(2).locator('.cx-thumb-placeholder').isVisible(), 'card without preview displays neutral placeholder')
+    assert.equal(await cards.nth(3).locator('.cx-thumb img').count(), 0, 'card without preview has no img')
+    assert.ok(await cards.nth(3).locator('.cx-thumb-placeholder').isVisible(), 'card without preview displays neutral placeholder')
+    // No builder-session preview or live preview iframe requests are made when viewing projects list
+    assert.deepEqual(previewRequests, [], 'zero builder-session/preview or /__preview/ requests on projects list')
     assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
       'the grid is a uniform 3-column layout, with no card spanning more than one')
     const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))

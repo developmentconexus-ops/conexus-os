@@ -1,0 +1,4 @@
+{
+  "fixture": "sales-v1",
+  "request": "Quero um painel de vendas com os dados do nosso Sankhya. Mostre uma tabela com o total vendido por cada vendedor em cada mês do primeiro semestre de 2026 (de janeiro a junho) e, embaixo, o total geral do semestre. Conte só as vendas confirmadas e desconte as devoluções. Pedidos e notas que ainda não foram confirmadas não entram na conta."
+}

@@ -2,8 +2,8 @@ import type { QueryResultRow } from 'pg'
 import type { AccountId } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { CapabilityKind, Connection, ConnectionId, ConnectorId, Environment, GrantId, OpenGrant, OperationId, ProjectGrantEntry } from './model.js'
-import { connectionId as toConnectionId, grantId as toGrantId, operationId as toOperationId } from './model.js'
+import type { BindingId, BindingName, BoundConnection, Connection, ConnectionId, ConnectorId, Environment, ProjectBinding, ProjectBindingEntry } from './model.js'
+import { bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'
 
 type ConnectionRow = QueryResultRow & {
   connection_id: string
@@ -21,35 +21,32 @@ const toConnection = (row: ConnectionRow): Connection => ({
   disabledAt: row.disabled_at,
 })
 
-type GrantRow = QueryResultRow & {
-  kind: 'grant' | 'grantable'
-  grant_id: string | null
-  connection_id: string
-  connector_id: ConnectorId
-  capability_id: string
-  granted_at: Date | null
-}
+type BindingRow = QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: ConnectorId; label: string; bound_at: Date }
 
-const toGrantEntry = (row: GrantRow): ProjectGrantEntry =>
-  row.kind === 'grant'
-    ? {
-        kind: 'grant',
-        grantId: toGrantId(row.grant_id ?? ''),
-        connectionId: toConnectionId(row.connection_id),
-        connectorId: row.connector_id,
-        capabilityId: toOperationId(row.capability_id),
-        grantedAt: row.granted_at ?? new Date(0),
-      }
-    : {
-        kind: 'grantable',
-        connectionId: toConnectionId(row.connection_id),
-        connectorId: row.connector_id,
-        capabilityId: toOperationId(row.capability_id),
-      }
+type BindingEntryRow = QueryResultRow & (
+  | Readonly<{ kind: 'binding' } & BindingRow>
+  | Readonly<{ kind: 'bindable'; binding_id: null; name: null; connection_id: string; connector_id: ConnectorId; label: string; bound_at: null }>
+)
+
+const toProjectBinding = (row: BindingRow): ProjectBinding => ({
+  kind: 'binding',
+  bindingId: toBindingId(row.binding_id),
+  name: toBindingName(row.name),
+  connectionId: toConnectionId(row.connection_id),
+  connectorId: row.connector_id,
+  label: row.label,
+  boundAt: row.bound_at,
+})
+
+const toBindingEntry = (row: BindingEntryRow): ProjectBindingEntry =>
+  row.kind === 'binding'
+    ? toProjectBinding(row)
+    : { kind: 'bindable', connectionId: toConnectionId(row.connection_id), connectorId: row.connector_id, label: row.label }
 
 /** Every method's authority error is one of `isConnectorNotAdmitted`, `isConnectorProjectNotFound`,
- * `isConnectorConnectionNotAvailable` or `isConnectorConnectionConflict` (`model.js`). The store never
- * returns a credential field, in either direction: the caller can only ever supply one. */
+ * `isConnectorConnectionNotAvailable`, `isConnectorConnectionConflict` or `isConnectorBindingConflict`
+ * (`model.js`). The store never returns a credential field, in either direction: the caller can only
+ * ever supply one. */
 export type ConnectorStore = Readonly<{
   listConnections(input: Readonly<{ actor: AccountId; workspaceId: string }>): Promise<readonly Connection[]>
   /** `credential`'s fields are sealed together as one JSON envelope; the store never inspects them.
@@ -59,36 +56,35 @@ export type ConnectorStore = Readonly<{
     label: string; credential: Readonly<Record<string, string>>
   }>): Promise<Readonly<{ connection: Connection; created: boolean }>>
   disableConnection(input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: ConnectionId }>): Promise<boolean>
-  listProjectGrants(input: Readonly<{ actor: AccountId; projectId: string; operationIds: readonly OperationId[] }>): Promise<readonly ProjectGrantEntry[]>
-  grantCapability(input: Readonly<{ actor: AccountId; projectId: string; connectionId: ConnectionId; operationId: OperationId }>): Promise<OpenGrant>
-  revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: GrantId }>): Promise<boolean>
+  listProjectBindings(input: Readonly<{ actor: AccountId; projectId: string }>): Promise<readonly ProjectBindingEntry[]>
+  /** The same Connection under the same name answers the open binding; the store never rebinds. */
+  bindConnection(input: Readonly<{ actor: AccountId; projectId: string; connectionId: ConnectionId; name: BindingName }>): Promise<ProjectBinding>
+  unbindConnection(input: Readonly<{ actor: AccountId; projectId: string; bindingId: BindingId }>): Promise<boolean>
 }>
 
-/** The broker's three reads. Only the sealed envelope leaves PostgreSQL. */
+/** The broker's two reads. Only the sealed envelope leaves PostgreSQL. */
 export type BrokerStore = Readonly<{
-  /** An open grant on an enabled Connection of a Project that is not archived, or null. */
-  resolveGrant(input: Readonly<{ projectId: string; environment: Environment; capabilityKind: CapabilityKind; capabilityId: OperationId }>): Promise<Readonly<{ grantId: GrantId; connectionId: ConnectionId }> | null>
+  /** The Project's open bindings on enabled Connections, for a Project that is not archived. */
+  listBindings(input: Readonly<{ projectId: string; environment: Environment }>): Promise<readonly BoundConnection[]>
   /** The sealed credential of an enabled Connection, or null. */
   readConnectionCredential(connectionId: ConnectionId): Promise<string | null>
-  listGrantedCapabilities(input: Readonly<{ projectId: string; environment: Environment }>): Promise<readonly Readonly<{ capabilityKind: CapabilityKind; capabilityId: OperationId }>[]>
 }>
 
 export const createBrokerStore = (pool: PostgresPool): BrokerStore => Object.freeze({
-  async resolveGrant({ projectId, environment, capabilityKind, capabilityId }) {
-    const result = await pool.query<QueryResultRow & { grant_id: string; connection_id: string }>(
-      'SELECT grant_id, connection_id FROM connector.resolve_grant($1, $2, $3, $4)', [projectId, environment, capabilityKind, capabilityId])
-    const row = result.rows[0]
-    return row ? { grantId: toGrantId(row.grant_id), connectionId: toConnectionId(row.connection_id) } : null
+  async listBindings({ projectId, environment }) {
+    const result = await pool.query<QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: string }>(
+      'SELECT binding_id, name, connection_id, connector_id FROM connector.list_bound_connections($1, $2)', [projectId, environment])
+    return result.rows.map((row) => ({
+      bindingId: toBindingId(row.binding_id),
+      name: toBindingName(row.name),
+      connectionId: toConnectionId(row.connection_id),
+      connectorId: row.connector_id,
+    }))
   },
   async readConnectionCredential(connectionId) {
     const result = await pool.query<QueryResultRow & { sealed: string | null }>(
       'SELECT connector.read_connection_credential($1) AS sealed', [connectionId])
     return result.rows[0]?.sealed ?? null
-  },
-  async listGrantedCapabilities({ projectId, environment }) {
-    const result = await pool.query<QueryResultRow & { capability_kind: CapabilityKind; capability_id: string }>(
-      'SELECT capability_kind, capability_id FROM connector.list_granted_capabilities($1, $2)', [projectId, environment])
-    return result.rows.map((row) => ({ capabilityKind: row.capability_kind, capabilityId: toOperationId(row.capability_id) }))
   },
 })
 
@@ -115,30 +111,23 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
       'SELECT connector.disable_connection($1, $2, $3) AS found', [actor, workspaceId, connectionId])
     return result.rows[0]?.found === true
   },
-  async listProjectGrants({ actor, projectId, operationIds }) {
-    const result = await pool.query<GrantRow>(
-      'SELECT kind, grant_id, connection_id, connector_id, capability_id, granted_at FROM connector.list_project_grants($1, $2, $3)',
-      [actor, projectId, operationIds])
-    return result.rows.map(toGrantEntry)
+  async listProjectBindings({ actor, projectId }) {
+    const result = await pool.query<BindingEntryRow>(
+      'SELECT kind, binding_id, name, connection_id, connector_id, label, bound_at FROM connector.list_project_bindings($1, $2)',
+      [actor, projectId])
+    return result.rows.map(toBindingEntry)
   },
-  async grantCapability({ actor, projectId, connectionId, operationId }) {
-    const result = await pool.query<QueryResultRow & { grant_id: string; connection_id: string; connector_id: ConnectorId; capability_id: string; granted_at: Date }>(
-      'SELECT grant_id, connection_id, connector_id, capability_id, granted_at FROM connector.grant_capability($1, $2, $3, $4)',
-      [actor, projectId, connectionId, operationId])
+  async bindConnection({ actor, projectId, connectionId, name }) {
+    const result = await pool.query<BindingRow>(
+      'SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1, $2, $3, $4)',
+      [actor, projectId, connectionId, name])
     const row = result.rows[0]
-    if (!row) throw new Error('CONNECTOR_GRANT_NOT_READABLE')
-    return {
-      kind: 'grant',
-      grantId: toGrantId(row.grant_id),
-      connectionId: toConnectionId(row.connection_id),
-      connectorId: row.connector_id,
-      capabilityId: toOperationId(row.capability_id),
-      grantedAt: row.granted_at,
-    }
+    if (!row) throw new Error('CONNECTOR_BINDING_NOT_READABLE')
+    return toProjectBinding(row)
   },
-  async revokeGrant({ actor, projectId, grantId }) {
+  async unbindConnection({ actor, projectId, bindingId }) {
     const result = await pool.query<QueryResultRow & { found: boolean }>(
-      'SELECT connector.revoke_grant($1, $2, $3) AS found', [actor, projectId, grantId])
+      'SELECT connector.unbind_connection($1, $2, $3) AS found', [actor, projectId, bindingId])
     return result.rows[0]?.found === true
   },
 })

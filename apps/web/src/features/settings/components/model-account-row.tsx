@@ -5,15 +5,16 @@ import { type ReactNode, useState } from 'react'
 import { modelAccountsQueryKey, removeApiKey, signOut, startOAuth } from '../model-accounts-api'
 import type { ModelAccountRow as Row } from '../model-account-rows'
 import { DeviceCodeStep, PasteCodeStep } from './connect-account'
-import { Chip } from './states'
+import { Chip, StatusLine } from './states'
 
 const connectionLabel = (kind: 'api_key' | 'oauth') => kind === 'oauth' ? 'Assinatura' : 'Chave de API'
 
 type ReconnectState =
   | { step: 'idle' }
-  | { step: 'paste-code'; sessionId: string; url: string }
-  | { step: 'device-code'; sessionId: string; url: string; userCode: string; nextPollMs: number }
-  | { step: 'failed'; message: string }
+  | { step: 'paste-code'; sessionId: string; url: string; expiresAt: string | undefined }
+  | { step: 'device-code'; sessionId: string; url: string; userCode: string; nextPollMs: number; expiresAt: string | undefined }
+  | { step: 'expired' }
+  | { step: 'failed'; message: string; detail: string | undefined }
 
 export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
   const queryClient = useQueryClient()
@@ -28,16 +29,18 @@ export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
   const startReconnect = useMutation({
     mutationFn: () => startOAuth(row.provider),
     onSuccess: (flow) => setReconnect(flow.kind === 'device-code'
-      ? { step: 'device-code', sessionId: flow.sessionId, url: flow.url, userCode: flow.userCode ?? '', nextPollMs: flow.nextPollMs ?? 2000 }
-      : { step: 'paste-code', sessionId: flow.sessionId, url: flow.url }),
-    onError: () => setReconnect({ step: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.' }),
+      ? { step: 'device-code', sessionId: flow.sessionId, url: flow.url, userCode: flow.userCode ?? '', nextPollMs: flow.nextPollMs ?? 2000, expiresAt: flow.expiresAt }
+      : { step: 'paste-code', sessionId: flow.sessionId, url: flow.url, expiresAt: flow.expiresAt }),
+    onError: () => setReconnect({ step: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.', detail: undefined }),
   })
-  const onReconnectDone = (error?: string) => {
+  const onReconnectDone = (error?: string, detail?: string) => {
+    if (error) { setReconnect({ step: 'failed', message: error, detail }); return }
     setReconnect({ step: 'idle' })
-    if (error) { setFailed(true); return }
     setFailed(false)
     void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
+    void queryClient.invalidateQueries({ queryKey: ['builder-models'] })
   }
+  const onReconnectExpired = () => setReconnect({ step: 'expired' })
   if (!row.own) return null
   return <li className="cxs-row">
     <div className="cxs-row-main">
@@ -62,10 +65,17 @@ export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
         </AlertDialog.Portal>
       </AlertDialog>
     </div>
-    {reconnect.step === 'failed' && <p role="alert">{reconnect.message}</p>}
-    {reconnect.step === 'paste-code' && <PasteCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} onDone={onReconnectDone} />}
-    {reconnect.step === 'device-code' && <DeviceCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} userCode={reconnect.userCode} nextPollMs={reconnect.nextPollMs} onDone={onReconnectDone} />}
-    {failed && <p role="alert">Não foi possível concluir. Tente novamente.</p>}
+    {reconnect.step === 'failed' && <StatusLine tone="danger">
+      {reconnect.message}
+      {reconnect.detail && <details className="cxs-disclosure"><summary>Detalhe técnico</summary><code>{reconnect.detail}</code></details>}
+    </StatusLine>}
+    {reconnect.step === 'expired' && <>
+      <StatusLine tone="danger">O código expirou.</StatusLine>
+      <Button type="button" variant="primary" disabled={startReconnect.isPending} onClick={() => startReconnect.mutate()}>Gerar outro código</Button>
+    </>}
+    {reconnect.step === 'paste-code' && <PasteCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} expiresAt={reconnect.expiresAt} onDone={onReconnectDone} onExpired={onReconnectExpired} />}
+    {reconnect.step === 'device-code' && <DeviceCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} userCode={reconnect.userCode} nextPollMs={reconnect.nextPollMs} expiresAt={reconnect.expiresAt} onDone={onReconnectDone} onExpired={onReconnectExpired} />}
+    {failed && <StatusLine tone="danger">Não foi possível concluir. Tente de novo.</StatusLine>}
   </li>
 }
 

@@ -61,6 +61,7 @@ CX_USERS="$users_file" node -e '
 admin_password="$(openssl rand -hex 24)"
 args=(--name "$CONTAINER" -p "127.0.0.1:$PORT:$([ "$tls" = 1 ] && echo 8443 || echo 8080)"
   -e KC_BOOTSTRAP_ADMIN_USERNAME=conexus-admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$admin_password"
+  -e JAVA_OPTS_KC_HEAP="-Xms128m -Xmx384m" --memory=512m
   -v "$CONTAINER-data:/opt/keycloak/data")
 # Plain HTTP stays on for kcadm inside the container; only the HTTPS port is published to the host.
 cmd=(start-dev --import-realm --hostname "$HOSTNAME_URL" --http-enabled=true)

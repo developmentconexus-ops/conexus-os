@@ -4,14 +4,15 @@ import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
 import { reasoningLevels } from '../mastra-session'
-import { groupModelsByProvider, providerIcon, providerLabel } from './model-order'
+import { groupModelsByProvider, providerIcon } from './model-order'
 import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
+import { providerName } from '../../settings/provider-names'
 
 const matches = (model: BuilderModel, query: string): boolean => {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
-  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
+  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || providerName(model.provider).toLowerCase().includes(needle)
 }
 
 /**
@@ -99,7 +100,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
           {groups.map((group) => !group.models.length ? null : (() => {
             const Icon = providerIcon(group.provider)
             return <div className="cx-model-group" key={group.provider}>
-              <p className="cx-model-group-label">{providerLabel(group.provider)}</p>
+              <p className="cx-model-group-label">{providerName(group.provider)}</p>
               {group.models.map((model) => <button
                 key={model.id}
                 type="button"

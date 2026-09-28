@@ -20,8 +20,6 @@ CREATE TABLE reg.application_thumbnail (
 
 ALTER TABLE reg.application_thumbnail OWNER TO registry_owner;
 
-GRANT SELECT(last_preview_artifact_revision_id) ON TABLE builder.project_working_state TO registry_owner;
-
 CREATE FUNCTION reg.retain_application_thumbnail(
     p_account_id uuid,
     p_project_id uuid,

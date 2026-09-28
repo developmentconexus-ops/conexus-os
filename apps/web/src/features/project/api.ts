@@ -43,6 +43,7 @@ export type ProjectCardSummary = Readonly<{
   lastActivityAt: string
   latestRun: Readonly<{ state: ProjectRunState; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null }> | null
   hasPreview: boolean
+  deleting: boolean
 }>
 export type ProjectRepositoryState =
   | Readonly<{ state: 'REACHABLE'; fullName: string; url: string }>
@@ -80,4 +81,28 @@ export async function createProject(
   const response = await responseFrom(projectClient.createProject(workspaceId, input, idempotencyKey))
   if (response.status !== 201) reject(response)
   return response.json() as Promise<CreateProjectResponse>
+}
+
+class ProjectDeleteError extends Error {
+  constructor(readonly status: number, readonly type: string | null = null) {
+    super(`Project deletion failed with ${status}`)
+  }
+}
+
+export async function deleteProject(projectId: string, confirmName: string): Promise<void> {
+  const response = await responseFrom(projectClient.deleteProject(projectId, confirmName))
+  if (response.status === 204) return
+  if (response.status === 401) clearAuthorityCache()
+  const problem = await response.json().catch(() => null) as { type?: string } | null
+  throw new ProjectDeleteError(response.status, problem?.type ?? null)
+}
+
+export function projectDeleteMessage(error: unknown): string {
+  if (!(error instanceof ProjectDeleteError)) return 'O servidor não respondeu desta vez. Nada foi excluído.'
+  if (error.type === 'project-name-mismatch') return 'O nome digitado não corresponde ao Projeto. Confira e digite exatamente como aparece.'
+  if (error.type === 'project-busy') return 'O Projeto está processando uma tarefa agora. Espere terminar e tente de novo.'
+  if (error.status === 403) return 'Só administradores da instalação podem excluir Projetos.'
+  if (error.status === 404) return 'Este Projeto já não existe.'
+  if (error.status === 503) return 'A exclusão não terminou. O que já foi apagado não volta atrás; tente de novo para concluir.'
+  return 'O servidor não respondeu desta vez. Nada foi excluído.'
 }

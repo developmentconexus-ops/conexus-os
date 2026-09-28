@@ -21,12 +21,19 @@ const bundle = (relativeSourcePath) => {
 const { sendBuilderSessionMessage } = await bundle('apps/hub/src/builder/runtime.ts')
 const { ProviderAuthRequiredError } = await import('@mastra/code-sdk/auth/provider-auth-error')
 
+const fakeThreadFields = {
+  thread: { requireId: () => 'conversation' },
+  identity: { getResourceId: () => 'conversation' },
+  machinery: { subscribeToThread: async () => ({ stream: (async function* () {})(), unsubscribe: () => undefined }) },
+}
+
 test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
   let listener
   const providerError = new Error('invalid x-api-key header, secret-token-xyz')
   providerError.statusCode = 401
   const session = {
     subscribe: (callback) => { listener = callback; return () => {} },
+    ...fakeThreadFields,
     sendMessage: async () => {
       listener({ type: 'error', error: providerError })
       listener({ type: 'agent_end', reason: 'error' })
@@ -42,6 +49,7 @@ test('Mastra Code\'s provider-auth error is an auth failure, whether the run rep
   let listener
   const reported = {
     subscribe: (callback) => { listener = callback; return () => {} },
+    ...fakeThreadFields,
     sendMessage: async () => {
       listener({ type: 'error', error: new ProviderAuthRequiredError('Kimi For Coding credentials are invalid, token kimi-secret') })
       listener({ type: 'agent_end', reason: 'error' })
@@ -49,6 +57,7 @@ test('Mastra Code\'s provider-auth error is an auth failure, whether the run rep
   }
   const thrown = {
     subscribe: () => () => {},
+    ...fakeThreadFields,
     sendMessage: async () => { throw new ProviderAuthRequiredError('Not logged in to Kimi For Coding.') },
   }
   for (const session of [reported, thrown]) {
@@ -56,18 +65,11 @@ test('Mastra Code\'s provider-auth error is an auth failure, whether the run rep
   }
 })
 
-test('Mastra Code\'s missing-credential message is an auth failure', async () => {
-  const session = {
-    subscribe: () => () => {},
-    sendMessage: async () => { throw new Error('No usable anthropic credential is configured for this signed-in Factory account. Connect the provider or add an organization credential, then try again.') },
-  }
-  await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), { message: 'BUILDER_MODEL_AUTH_FAILED' })
-})
-
 test('sendBuilderSessionMessage preserves a generic agent error as a safe named code, not the raw provider message', async () => {
   let listener
   const session = {
     subscribe: (callback) => { listener = callback; return () => {} },
+    ...fakeThreadFields,
     sendMessage: async () => {
       listener({ type: 'error', error: new Error('upstream 500 with internal trace id abc123') })
       listener({ type: 'agent_end', reason: 'error' })
@@ -82,6 +84,7 @@ test('sendBuilderSessionMessage preserves a generic agent error as a safe named 
 test('sendBuilderSessionMessage still reports rate limiting distinctly', async () => {
   const session = {
     subscribe: () => () => {},
+    ...fakeThreadFields,
     sendMessage: async () => { const err = new Error('Too Many Requests'); err.statusCode = 429; throw err },
   }
   await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), (error) => {
@@ -93,6 +96,7 @@ test('sendBuilderSessionMessage still reports rate limiting distinctly', async (
 test('sendBuilderSessionMessage propagates a model-selection refusal unchanged, with no agent_end event required', async () => {
   const session = {
     subscribe: () => () => {},
+    ...fakeThreadFields,
     sendMessage: async () => { throw new Error('BUILDER_MODEL_NOT_SELECTED') },
   }
   await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), (error) => {
@@ -105,6 +109,7 @@ test('sendBuilderSessionMessage returns complete on success', async () => {
   let listener
   const session = {
     subscribe: (callback) => { listener = callback; return () => {} },
+    ...fakeThreadFields,
     sendMessage: async () => { listener({ type: 'agent_end', reason: 'complete' }) },
   }
   const reason = await sendBuilderSessionMessage(session, { content: 'hi' })

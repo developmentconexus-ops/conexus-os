@@ -88,6 +88,29 @@ const project = config.project ? createConfiguredProjectModule({
       return prepare(input)
     },
   },
+  // Every deletion port reaches a module composed below through the same request-time indirection
+  // as repository.prepare above, since the Project module is composed before the Builder module is.
+  deletion: {
+    teardownFactoryProject: async (binding) => {
+      const teardown = builder?.teardownFactoryProject
+      if (!teardown) throw new Error('FACTORY_NOT_CONFIGURED')
+      return teardown(binding)
+    },
+    releaseApplicationData: async (projectId) => {
+      if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
+      return applicationRunner.release({ projectId })
+    },
+    probeGithubRepositoryDeletable: async (repositoryId) => {
+      const probe = builder?.probeFactoryGithubRepositoryDeletable
+      if (!probe) throw new Error('FACTORY_NOT_CONFIGURED')
+      return probe(repositoryId)
+    },
+    deleteGithubRepository: async (repositoryId) => {
+      const deleteRepository = builder?.deleteFactoryGithubRepository
+      if (!deleteRepository) throw new Error('FACTORY_NOT_CONFIGURED')
+      return deleteRepository(repositoryId)
+    },
+  },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   thumbnailReader: {
@@ -168,6 +191,7 @@ const launchPreview = mar ? async (request: import('fastify').FastifyRequest, in
     expiresAt: new Date(opened.expiresAt).toISOString(),
   }
 } : undefined
+let preparing: Promise<unknown> = Promise.resolve()
 builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
   database: {
     host: config.database.host,
@@ -179,12 +203,23 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   secretKey: config.secretKey,
   ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
   applicationArtifacts: createApplicationArtifactStore(),
-  ...(applicationRunner ? { applicationServer: { prepare: applicationRunner.prepare } } : {}),
+  // A Project with an application keeps its Preview data: a divergent migration history is refused, never
+  // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
+  // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.
+  ...(applicationRunner ? {
+    applicationServer: {
+      prepare: (input) => {
+        const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
+          (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))
+        preparing = prepared
+        return prepared
+      },
+    },
+  } : {}),
   ...(launchPreview ? { launchPreview } : {}),
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
-  // What the Builder learns about this Project's own granted connector operations.
   connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
   connectorObservability: connectors.observability,
 }) : undefined

@@ -159,4 +159,17 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.equal(thumbnail?.mediaType, 'image/png')
   assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
   assert.equal(await store.getApplicationThumbnail(runtime, { accountId: randomUUID(), projectId }), null)
+
+  // Test real served application reader against Postgres get_application_thumbnail
+  const servedReader = createServedApplicationReader(runtime)
+  const servedThumbnail = await servedReader.readThumbnail({ accountId, projectId })
+  assert.equal(servedThumbnail.kind, 'THUMBNAIL')
+  assert.equal(servedThumbnail.artifactRevisionId, retained.artifactRevisionId)
+  assert.equal(servedThumbnail.thumbnail?.mediaType, 'image/png')
+  assert.equal(servedThumbnail.thumbnail?.byteLength, thumbnailBytes.length)
+  assert.equal(Buffer.from(servedThumbnail.thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
+  assert.equal(servedThumbnail.thumbnail?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
+
+  const unauthServed = await servedReader.readThumbnail({ accountId: randomUUID(), projectId })
+  assert.equal(unauthServed.kind, 'NOT_SERVED')
 })

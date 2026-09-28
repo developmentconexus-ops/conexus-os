@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as sleep } from 'node:timers/promises'
 import test from 'node:test'
+import { Sandbox } from 'e2b'
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -22,10 +23,14 @@ const liveConfig = () => {
 // environment into /workspace/stolen.
 const WATCHER = `nohup setsid sh -c 'while :; do for p in /proc/[0-9]*; do tr "\\0" "\\n" < "$p/environ" 2>/dev/null; done | grep AUTHORIZATION >> /workspace/stolen; sleep 0.2; done' >/dev/null 2>&1 &`
 
+const killEverySandboxSeen = async (apiKey, sandboxIds) => {
+  for (const id of new Set(sandboxIds)) await Sandbox.kill(id, { apiKey }).catch(() => undefined)
+}
+
 test('on a real E2B VM the agent user cannot read a root git environment, and root still moves commits through its own mirror', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const agent = (script, cwd = '/workspace') => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd })
   try {
     await sandbox.start()
@@ -69,7 +74,7 @@ test('on a real E2B VM the agent user cannot read a root git environment, and ro
 test('a VM that E2B killed for idling is replaced by the next command, and root commands reach the new one', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
     const dead = sandbox.sandboxId
@@ -88,7 +93,7 @@ test('the application check builds the starter in the real template, keeps its l
   const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
   const { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const root = '/workspace/check-probe'
   const sh = (script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: root })
   try {
@@ -105,5 +110,53 @@ test('the application check builds the starter in the real template, keeps its l
     assert.notEqual(failed.exitCode, 0, 'broken code fails the check')
   } finally {
     await sandbox.destroy().catch(() => undefined)
+  }
+})
+
+const TIMEOUT_MS = 15_000
+const PAST_DEADLINE_MS = TIMEOUT_MS * 2
+
+const openLiveSandbox = async (loadHub, label) => {
+  const { createFactorySandbox } = await (await loadHub())('builder/factory.js')
+  const { templateId, apiKey } = liveConfig()
+  const sandbox = createFactorySandbox({
+    apiKey, templateId, timeoutMs: TIMEOUT_MS,
+    readCheckout: async () => { throw new Error('no checkout in this proof') },
+  })({ sessionId: `live-keepalive-${label}-${randomUUID()}` })
+  await sandbox.start()
+  return { sandbox, apiKey }
+}
+
+test('a sandbox left alone past its timeout is gone: the next command silently gets a new incarnation', { skip, timeout: 90_000 }, async () => {
+  const { sandbox, apiKey } = await openLiveSandbox(loadHub, 'baseline')
+  const seen = [sandbox.sandboxId]
+  try {
+    await sandbox.executeCommand('true', [], { env: {} })
+    assert.equal(sandbox.sandboxId, seen[0], 'still the sandbox it created')
+    await sleep(PAST_DEADLINE_MS)
+    await sandbox.executeCommand('true', [], { env: {} })
+    seen.push(sandbox.sandboxId)
+    assert.notEqual(sandbox.sandboxId, seen[0], 'E2B killed the sandbox at its deadline; the next command got a different incarnation')
+  } finally {
+    await killEverySandboxSeen(apiKey, seen)
+  }
+})
+
+test('holdOpen() pushes a real sandbox\'s deadline out: the same incarnation survives past its original timeout', { skip, timeout: 90_000 }, async () => {
+  const { sandbox, apiKey } = await openLiveSandbox(loadHub, 'fix')
+  const seen = [sandbox.sandboxId]
+  let release
+  try {
+    await sandbox.executeCommand('true', [], { env: {} })
+    release = await sandbox.holdOpen(() => {})
+    await sleep(PAST_DEADLINE_MS)
+    release()
+    release = undefined
+    await sandbox.executeCommand('true', [], { env: {} })
+    seen.push(sandbox.sandboxId)
+    assert.equal(sandbox.sandboxId, seen[0], 'holdOpen kept the same incarnation alive past its original deadline')
+  } finally {
+    if (release) release()
+    await killEverySandboxSeen(apiKey, seen)
   }
 })

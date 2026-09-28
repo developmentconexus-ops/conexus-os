@@ -54,6 +54,7 @@ const thumbnailRow = z.object({
   artifact_revision_id: uuid,
   media_type: z.literal('image/png'),
   bytes: z.instanceof(Uint8Array),
+  byte_length: z.number().int().positive().max(512000),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict()
 const READ_THUMBNAIL_SQL = 'SELECT artifact_revision_id, media_type, bytes, byte_length, sha256 FROM reg.get_application_thumbnail($1, $2)'

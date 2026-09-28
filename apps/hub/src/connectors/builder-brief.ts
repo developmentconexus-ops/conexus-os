@@ -2,18 +2,13 @@ import { SpanType } from '@mastra/core/observability'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import { z } from 'zod'
 import { BROKER_ERROR_CODES } from './errors.js'
+import { operationBinding } from './broker.js'
 import type { RegisteredConnector } from './broker.js'
 import type { Operation } from './operation.js'
 import { endSpan } from './record.js'
 import { isMintedScope } from './scope.js'
 import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
-
-// What the Builder learns about a Project's granted connector operations. A Project with no open
-// grant sees nothing; a Project with a grant sees exactly the operations it may call, their contracts,
-// one handler snippet, and the granted Definition's own Skill, once per connector. This never reaches
-// the network and never opens a credential: it only reads the granted capability ids and the in-memory
-// operation registry the broker itself is built from.
 
 // biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
 type AnyOperation = Operation<any, any, any>
@@ -38,9 +33,6 @@ const operationSection = (operation: AnyOperation): string => [
   ].join('\n'),
 ].join('\n\n')
 
-// A run whose grants could not be read still runs: the Builder is told that connector data is out of
-// reach this run, so it neither invents an operation nor silently builds without one. The broker
-// checks the grant again on every call, so this notice grants nothing and hides nothing.
 /** @public Tests import this at runtime from the built module. */
 export const CONNECTOR_BRIEF_UNAVAILABLE = 'The connector operations this Project may call could not be read for this run. '
   + 'Do not call connectors.call in this run. If the request needs data from a connected system, tell the person '
@@ -54,40 +46,24 @@ export const createConnectorBrief = ({
   observability,
 }: Readonly<{
   connectors: readonly RegisteredConnector[]
-  store: Pick<BrokerStore, 'listGrantedCapabilities'>
+  store: Pick<BrokerStore, 'listBindings'>
   observability: ObservabilityInstance
-}>): ConnectorBrief => {
-  const operations = new Map<string, Readonly<{ operation: AnyOperation; connectorId: string; skill: string }>>()
-  for (const connector of connectors) {
-    for (const operation of connector.definition.operations) {
-      operations.set(operation.id, Object.freeze({ operation, connectorId: connector.definition.id, skill: connector.definition.builderSkill }))
-    }
+}>): ConnectorBrief => async (scope) => {
+  if (!isMintedScope(scope)) return ''
+  let bindings: Awaited<ReturnType<typeof store.listBindings>>
+  try {
+    bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+  } catch {
+    endSpan(observability.startSpan({ type: SpanType.GENERIC, name: 'connector.brief', metadata: { projectId: scope.projectId } }), 'STORE_UNAVAILABLE')
+    return CONNECTOR_BRIEF_UNAVAILABLE
   }
-  return async (scope) => {
-    if (!isMintedScope(scope)) return ''
-    let capabilities: Awaited<ReturnType<typeof store.listGrantedCapabilities>>
-    try {
-      capabilities = await store.listGrantedCapabilities({ projectId: scope.projectId, environment: scope.environment })
-    } catch {
-      endSpan(observability.startSpan({ type: SpanType.GENERIC, name: 'connector.brief', metadata: { projectId: scope.projectId } }), 'STORE_UNAVAILABLE')
-      return CONNECTOR_BRIEF_UNAVAILABLE
-    }
-    const entries = capabilities.flatMap((capability) => {
-      const entry = capability.capabilityKind === 'operation' ? operations.get(capability.capabilityId) : undefined
-      return entry ? [entry] : []
-    })
-    if (entries.length === 0) return ''
-    const skills = new Map<string, string>()
-    const sections = entries.map(({ operation, connectorId, skill }) => {
-      skills.set(connectorId, skill)
-      return operationSection(operation)
-    })
-    return [
-      'Connector operations granted to this Project. Call them only through '
-        + "connectors.call(operationId, input) from a server handler; no operation beyond this run's own "
-        + 'instructions exists for this Project.',
-      ...sections,
-      ...[...skills.values()],
-    ].join('\n\n')
-  }
+  const reached = connectors.filter(({ definition }) => definition.operations.length > 0 && operationBinding(bindings, definition.id))
+  if (reached.length === 0) return ''
+  return [
+    'Connector operations granted to this Project. Call them only through '
+      + "connectors.call(operationId, input) from a server handler; no operation beyond this run's own "
+      + 'instructions exists for this Project.',
+    ...reached.flatMap(({ definition }) => definition.operations.map(operationSection)),
+    ...new Set(reached.map(({ definition }) => definition.builderSkill)),
+  ].join('\n\n')
 }

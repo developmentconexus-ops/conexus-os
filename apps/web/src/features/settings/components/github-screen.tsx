@@ -8,7 +8,7 @@ import {
   connectGithub, getGithubStatus, type GithubRepository, type GithubStatus, installationGithubQueryKey, type InstallationRequestError,
 } from '../installation-api'
 import { PageHeader } from './page-header'
-import { Chip, SectionError, SectionLoading } from './states'
+import { Chip, SectionError, SectionLoading, StatusLine } from './states'
 
 const repositoryChip = (state: GithubRepository['state']) => {
   if (state === 'reachable') return <Chip tone="positive">Acessível</Chip>
@@ -50,14 +50,14 @@ export function GithubScreen() {
   const data = status.data
 
   return <main className="cxs-page">
-    <PageHeader title="GitHub" lead="A organização do GitHub da empresa guarda o repositório de cada Project." />
+    <PageHeader title="GitHub" lead="A organização do GitHub da empresa guarda o repositório de cada Projeto." />
     {data.state === 'unreachable' && <SectionError description="Não foi possível falar com o GitHub agora." onRetry={() => void status.refetch()} />}
     {data.state === 'gone' && data.organization && <div className="cxs-notice" role="alert">
-      <p>O app foi removido da organização {data.organization.login} no GitHub. Os Projects não aceitam pedidos até reconectar.</p>
+      <p>O app foi removido da organização {data.organization.login} no GitHub. Os Projetos não aceitam pedidos até reconectar.</p>
     </div>}
     {(data.state === 'not-connected' || data.state === 'gone') && <ConnectSteps status={data} onVerify={() => connect.mutate()} pending={connect.isPending} />}
     {data.state === 'not-connected' && <p className="cxs-hint">Instale em todos os repositórios. Precisa ser uma organização, não uma conta pessoal.</p>}
-    {connectError && <p role="alert">{connectError}</p>}
+    {connectError && <StatusLine tone="danger">{connectError}</StatusLine>}
     {data.state === 'connected' && data.organization && <section aria-labelledby="cxs-github-org-title">
       <h2 id="cxs-github-org-title">{data.organization.login} <Chip tone="positive">Conectada</Chip></h2>
       <p>{data.repositories.length} {data.repositories.length === 1 ? 'repositório' : 'repositórios'}</p>
@@ -66,7 +66,7 @@ export function GithubScreen() {
           <span>{repository.slug}</span>
           {repositoryChip(repository.state)}
           {(repository.state === 'missing' || repository.state === 'identity-changed') && (
-            <p className="cxs-hint">O Project deste repositório fica bloqueado; o Conexus não cria um substituto.</p>
+            <p className="cxs-hint">O Projeto deste repositório fica bloqueado; o Conexus não cria um substituto.</p>
           )}
         </li>)}
       </ul>
@@ -79,7 +79,7 @@ export function GithubScreen() {
             <AlertDialog.Content>
               <AlertDialog.Header><AlertDialog.Title>Desconectar o GitHub</AlertDialog.Title></AlertDialog.Header>
               <AlertDialog.Body><AlertDialog.Description>
-                Todo Project para de aceitar pedidos até a organização ser conectada de novo. A desconexão é feita no GitHub, removendo o app da organização.
+                Todo Projeto para de aceitar pedidos até a organização ser conectada de novo. A desconexão é feita no GitHub, removendo o app da organização.
               </AlertDialog.Description></AlertDialog.Body>
               <AlertDialog.Footer>
                 <AlertDialog.Cancel render={<Button type="button" variant="outline">Cancelar</Button>} />
@@ -94,7 +94,7 @@ export function GithubScreen() {
         </AlertDialog>
       </div>
       {reconnectResult && <div>
-        <p role="status">Projects religados pelo id do repositório no GitHub.</p>
+        <p role="status">Projetos religados pelo id do repositório no GitHub.</p>
         <ul className="cxs-list">
           {reconnectResult.repositories.map((repository) => <li key={repository.slug} className="cxs-row"><span>{repository.slug}</span>{repositoryChip(repository.state)}</li>)}
         </ul>

@@ -360,3 +360,94 @@ test('a runtime failure that is not a build or smoke failure still fails the run
   await service.close()
   assert.deepEqual(calls, [['fail', 'APPLICATION_COMPILER_WORKSPACE_REFUSED']])
 })
+
+const withServerTree = (projectId, runId, resultRevision) => ({
+  projectId, executionId: runId, sourceRevision: resultRevision, templateRef: 'x', recipeSha256: 'y',
+  files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json', bytes: new Uint8Array(), sha256: 'a'.repeat(64) }],
+})
+
+test('a source-shape refusal from the application server settles with the runner\'s own code, as a build failure the agent can read', async () => {
+  const runId = '44444444-4444-4444-8444-444444444447'
+  const projectId = '55555555-5555-4555-8555-555555555556'
+  const accountId = '66666666-6666-4666-8666-666666666666'
+  const base = 'b'.repeat(40)
+  const resultRevision = 'c'.repeat(40)
+  const binding = makeBinding(projectId)
+  const calls = []
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-1' }
+  const store = {
+    createBuilderRun: async () => run,
+    readFactoryBinding: async () => binding,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
+    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
+  }
+  const service = createBuilderService({
+    store,
+    factory: makeFactory({
+      binding,
+      execute: async () => ({
+        projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_ADMITTED',
+        resultSourceRevision: resultRevision,
+        applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree(projectId, runId, resultRevision) },
+      }),
+      appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
+    }),
+    applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
+    applicationServer: { prepare: async () => { throw new Error('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.close()
+  assert.deepEqual(calls, [
+    ['advance', resultRevision],
+    ['build-settle', 'SERVER_TREE_REFUSED'],
+    ['note', 'SERVER_TREE_REFUSED', 'BUILD_FAILED', 'SERVER_TREE_REFUSED'],
+    ['fail', 'SERVER_TREE_REFUSED'],
+  ])
+})
+
+test('a platform-side prepare fault settles as a platform failure, not a build failure, and still carries its reason', async () => {
+  const runId = '44444444-4444-4444-8444-444444444448'
+  const projectId = '55555555-5555-4555-8555-555555555557'
+  const accountId = '66666666-6666-4666-8666-666666666666'
+  const base = 'b'.repeat(40)
+  const resultRevision = 'c'.repeat(40)
+  const binding = makeBinding(projectId)
+  const calls = []
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-2' }
+  const store = {
+    createBuilderRun: async () => run,
+    readFactoryBinding: async () => binding,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
+    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
+  }
+  const service = createBuilderService({
+    store,
+    factory: makeFactory({
+      binding,
+      execute: async () => ({
+        projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_ADMITTED',
+        resultSourceRevision: resultRevision,
+        applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree(projectId, runId, resultRevision) },
+      }),
+      appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
+    }),
+    applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
+    applicationServer: { prepare: async () => { throw new Error('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.close()
+  assert.deepEqual(calls, [
+    ['advance', resultRevision],
+    ['build-settle', 'APPLICATION_SERVER_REFUSED'],
+    ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
+    ['fail', 'APPLICATION_SERVER_REFUSED'],
+  ])
+})

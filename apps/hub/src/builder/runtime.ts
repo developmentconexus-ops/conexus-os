@@ -42,17 +42,29 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderRunId',
 ])
 
-// Mastra Code throws a plain Error, not its ProviderAuthRequiredError, when the person has no account
-// for the model's provider and none is shared, so its text is the only signal, until
-// https://github.com/mastra-ai/mastra/issues/24687 lands.
-const NO_MODEL_ACCOUNT = /^No usable \S+ credential is configured/
-
 const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {
-  if (error instanceof Error && NO_MODEL_ACCOUNT.test(error.message)) return 'BUILDER_MODEL_AUTH_FAILED'
   const { type } = parseError(error)
   if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
   if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'
   return null
+}
+
+type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
+
+// A processor that aborts (observational memory does when it cannot reach its store) ends the run
+// with a lone `tripwire` chunk that Mastra's AgentController has no case for, so sendMessage
+// never settles (docs/reference/mastra-boundary.md, U6).
+const watchTripwire = async (session: BuilderSession, onTripwire: (tripwire: Tripwire) => void): Promise<() => void> => {
+  const subscription = await session.machinery.subscribeToThread({
+    resourceId: session.identity.getResourceId(),
+    threadId: session.thread.requireId(),
+  })
+  void (async () => {
+    for await (const chunk of subscription.stream) {
+      if (chunk.type === 'tripwire' && !chunk.payload.retry) onTripwire({ processorId: chunk.payload.processorId, reason: chunk.payload.reason })
+    }
+  })().catch(() => undefined)
+  return () => subscription.unsubscribe()
 }
 
 export const sendBuilderSessionMessage = async (
@@ -62,6 +74,11 @@ export const sendBuilderSessionMessage = async (
 ): Promise<SendableAgentEndReason> => {
   let terminalReason: AgentEndReason | undefined
   let agentError: Error | undefined
+  let tripwire: Tripwire | undefined
+  const stopWatching = await watchTripwire(session, (tripped) => {
+    tripwire = tripped
+    session.abort()
+  })
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'agent_end') terminalReason = event.reason
     if (event.type === 'error') agentError = event.error
@@ -73,11 +90,13 @@ export const sendBuilderSessionMessage = async (
       const failure = modelFailure(error)
       throw failure ? new Error(failure) : error
     }
+    if (tripwire) throw new Error('BUILDER_AGENT_TRIPWIRE', { cause: tripwire })
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
     if (terminalReason === 'error') throw new Error((agentError && modelFailure(agentError)) || 'BUILDER_MODEL_STREAM_FAILED')
     return terminalReason
   } finally {
     unsubscribe()
+    stopWatching()
   }
 }
 

@@ -55,7 +55,28 @@ function PreviewThumbnail({ projectId, name, hasPreview }: Readonly<{ projectId:
   </div>
 }
 
+// A tombstoned Project cannot open the Construir page anymore: its data may already be purged, so
+// the card instead points at the settings screen's own recovery view, the only place left to finish
+// or watch the deletion the administrator started.
+function DeletingProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
+  return <li className="cx-project-cell">
+    <Link to="/projects/$projectId/settings" params={{ projectId: summary.projectId }} className="cx-project-card">
+      <div className="cx-thumb" data-loaded>
+        <div className="cx-thumb-placeholder" aria-hidden><ConexusMark size={28} /></div>
+      </div>
+      <div className="cx-project-body">
+        <h3>{summary.name}</h3>
+        <div className="cx-project-meta">
+          <span className="cx-chip" data-tone="failed">Exclusão pendente</span>
+          <span className="cx-project-time">{lastChangeLabel(summary.lastActivityAt)}</span>
+        </div>
+      </div>
+    </Link>
+  </li>
+}
+
 function ProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
+  if (summary.deleting) return <DeletingProjectCard summary={summary} />
   const activity = projectActivity(summary)
   const chip = CHIPS[activity]
   return <li className="cx-project-cell">

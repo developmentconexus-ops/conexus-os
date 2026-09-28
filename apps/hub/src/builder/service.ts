@@ -166,8 +166,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
               mediaType: thumbnail.mediaType,
               bytes: Buffer.from(thumbnail.base64, 'base64'),
             })
-          } catch {
+          } catch (error) {
             // Best-effort: thumbnail persistence failure never fails the build.
+            console.warn('[builder] failed to retain application thumbnail:', error)
           }
         }
         await finalizing()

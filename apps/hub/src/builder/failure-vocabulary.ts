@@ -29,6 +29,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SANDBOX_FRESH_CREATE_REQUIRED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SANDBOX_INCARNATION_CHANGED: 'ENVIRONMENT_PREPARATION_FAILED',
+  BUILDER_SANDBOX_KEEPALIVE_FAILED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ENTRY_INSPECTION_FAILED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ENTRY_UNSAFE: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ROOT_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
@@ -70,10 +71,20 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // The Hub could not reach its application runner. Nothing in the source can fix that, and naming
   // it a build failure sends the author to delete the server code that was correct.
   APPLICATION_RUNNER_UNAVAILABLE: 'ENVIRONMENT_PREPARATION_FAILED',
+  // module.ts throws this for any /v1/prepare refusal that isn't one of the runner's own named
+  // admission refusals below: a database or allocation fault, a malformed request, or anything else
+  // the runner's process itself hit. Nothing in the source caused that either, so it is routed the
+  // same as APPLICATION_RUNNER_UNAVAILABLE, not named a build failure.
+  APPLICATION_SERVER_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
 
   APPLICATION_COMPILATION_FAILED: 'APPLICATION_BUILD_FAILED',
   APPLICATION_MIGRATION_FAILED: 'APPLICATION_BUILD_FAILED',
-  APPLICATION_SERVER_REFUSED: 'APPLICATION_BUILD_FAILED',
+  APPLICATION_MIGRATION_HISTORY_DIVERGED: 'APPLICATION_BUILD_FAILED',
+  // The runner's own admission refused the Project's compiled server tree: a manifest or handler
+  // bundling problem the Project's source caused. module.ts carries the runner's exact code here
+  // instead of the generic APPLICATION_SERVER_REFUSED above.
+  SERVER_TREE_REFUSED: 'APPLICATION_BUILD_FAILED',
+  MANIFEST_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_SOURCE_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_REQUEST_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_RESULT_SCOPE_REFUSED: 'APPLICATION_BUILD_FAILED',
@@ -120,6 +131,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // E2B, Postgres and fetch faults arrive here. Calling it a preparation failure would name a cause
   // nobody established.
   BUILDER_PREPARATION_FAILED: 'INTERNAL_ERROR',
+  BUILDER_AGENT_TRIPWIRE: 'INTERNAL_ERROR',
   BUILDER_RUN_INPUT_REFUSED: 'INTERNAL_ERROR',
   BUILDER_RUN_CREATE_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_CLAIM_REFUSED: 'INTERNAL_ERROR',

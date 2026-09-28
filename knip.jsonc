@@ -14,6 +14,9 @@
     "scripts/run-kubb-wire-probe.mjs",
     "scripts/single-session-proof.mjs",
     "scripts/builder-eval/run.mjs",
+    "scripts/builder-eval/experiment.mjs",
+    "scripts/builder-eval/sankhya-sim.mjs",
+    "scripts/builder-eval/serve.mjs",
     "tests/**/*.test.mjs",
     // Test-support files that are run or loaded but never imported. Name each one: a directory glob
     // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
