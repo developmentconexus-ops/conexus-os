@@ -213,9 +213,9 @@ test('S5-P0 guards every realized browser command against synchronous double act
 
 test('fingerprinted assets under assets/ are cached immutably for a year; other static files are not', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
-  const parentWithAssetsName = mkdtempSync(resolve(repositoryRoot, 'apps/hub/assets-test-parent-'))
-  t.after(() => rmSync(parentWithAssetsName, { recursive: true, force: true }))
-  const staticRoot = resolve(parentWithAssetsName, 'public')
+  const tempDir = mkdtempSync(resolve(repositoryRoot, 'apps/hub/test-tmp-'))
+  t.after(() => rmSync(tempDir, { recursive: true, force: true }))
+  const staticRoot = resolve(tempDir, 'assets', 'public')
   mkdirSync(staticRoot, { recursive: true })
   writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
   mkdirSync(resolve(staticRoot, 'assets'))
