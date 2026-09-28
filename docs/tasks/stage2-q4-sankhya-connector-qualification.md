@@ -75,7 +75,7 @@ operations. These rows change:
 
 | # | Restated property | Why it changed |
 | --- | --- | --- |
-| P3 | A consumer names a bound Connection and a native request. It cannot name a host, a scheme, an absolute or `//host` path, a header or a token. | A native request names vendor services and entities on purpose. |
+| P3 | A consumer names a bound Connection and a native request. It cannot name a host, a scheme, a header or a token. The executor resolves the path against the Connection's pinned origin, and sends the request only when the resolved URL's origin equals the pinned origin. A check of the raw path string is not enough, because URL resolution reads a leading backslash as a slash, and it drops leading spaces and tabs. So `\\host`, `/\host`, `\/host`, and `//host` after a leading space, all resolve to another host. | A native request names vendor services and entities on purpose. |
 | P4 | The executor sends only the integrator's qualified read services and refuses every other service and a mismatched Sankhya `serviceName` before the network. It never follows a redirect. It is a tripwire. The read-only guarantee is the vendor-side principal. | C-030 moves the read boundary to the vendor. A fixed field list no longer exists. |
 | P5 | The executor bounds the response size, the call time and the calls per Builder run, and marks a truncated body. | The vendor's body passes through. No output contract drops fields. |
 | P6 | Authority is resolved per call from the consumer's context and the Project's bindings. Nothing in the request changes the Project, the environment or the Connection. | Bindings replace operation grants. |
@@ -83,6 +83,27 @@ operations. These rows change:
 | P8 | Removing a binding refuses the next call. Disabling a Connection ends its bindings and refuses the next call of every Project. | Bindings replace grants. |
 | P9 | A failure returns a closed Conexus code, with the vendor status where one exists. A vendor error inside an HTTP 200 is a failure, never an empty success. The token and the provider's headers never reach a consumer. No vendor body reaches the browser in an error. | The vendor body reaches the calling consumer on success. |
 | P11 | The Builder sees the Project-local names of its Project's bindings and the integrator's skill. It never sees the credential, the origin or a Connection its Project is not bound to. | Operations no longer exist. |
+| P14 | The Builder's model receives the vendor body. The browser and the conversation history receive only a projection, as the next section defines. | The native result must reach the model to investigate, and must not reach the browser. |
+
+### Where a vendor body may go
+
+The executor returns the vendor body to the consumer that asked for it. Past that point, four
+destinations exist, and each gets a fixed form:
+
+| Destination | What it receives |
+| --- | --- |
+| The Builder's model, during the turn | The vendor body, bounded by P5. `connector_fetch` passes it through `toModelOutput`. |
+| The browser stream of the running turn | A projection: status, byte count, the truncated flag, and the body's field names and counts. No value. `connector_fetch` sets the Mastra `transform` for the `display` target. |
+| The conversation history, as the browser reads it | The same projection. `connector_fetch` sets `transform` for the `transcript` target. The Hub's thread messages route and stream route also apply the projection to every `connector_fetch` result they serve, because both routes serve Mastra's messages unmodified today (`apps/hub/src/builder/mastra-session-routes.ts`), and the web renders `toolInvocation.result` (`apps/web/src/features/builder/components/builder-conversation.tsx`). |
+| An application handler's caller | Only what the handler returns. The handler parses the vendor body and returns the fields the application needs. |
+
+`toModelOutput` and `transform` are `createTool` options in the installed `@mastra/core` 1.67.0
+(`dist/docs/references/docs-agents-tools.md`, "Transform tool payloads for UI and transcripts").
+In that version the transformed payload is kept in message metadata
+(`dist/tools/payload-transform.d.ts`, `getTransformedToolPayload`). Whether the stored message
+also keeps the raw result is measured, not assumed. The route-level projection holds either way.
+The evidence also records what a later turn of the same conversation receives, the body or the
+projection.
 
 ### Closure set
 
@@ -112,19 +133,28 @@ handler prove the claim, and the relay's only consumer is exploratory scripts.
 ### Evidence the verdict needs
 
 - **Positive.** A real Sankhya read through the tool and through a handler, recorded as field
-  names, counts, duration and a digest. The application's handler reads through the binding in
+  names, counts, duration and a digest. The investigation proof shows that the model received the
+  vendor body: its next step uses a field name or a count that only the body holds. The application's handler reads through the binding in
   Preview, and the Q3 app user sees the result, with every business value masked.
 - **Negative.** Each case is refused before the network, and the fake vendor counts zero requests:
-  a write service, a mismatched `serviceName`, an absolute or `//host` path, a consumer header,
+  a write service, a mismatched `serviceName`, an absolute URL, a path that starts with `//host`,
+  `\\host`, `/\host` or `\/host`, the same prefixes after a leading space or tab, a consumer header,
   another Project, a missing or removed binding, a disabled Connection, an expired run scope and an
   exhausted budget. The executor does not follow a vendor redirect, and it cuts a response over the
-  size limit and marks it truncated. Each refusal has a successful control in the same run. On the pilot, another Project and a removed binding are refused.
+  size limit and marks it truncated. Each refusal has a successful control in the same run. The
+  origin cases have their own control: a relative path that resolves inside the pinned origin is
+  sent. The proof asserts the resolved origin of every sent request, not the raw path, and a fake
+  host outside the pinned origin counts zero requests. On the pilot, another Project and a removed binding are refused.
 - **Read-only.** The tripwire tests, and the vendor-side confirmation recorded on the Connection:
   who confirmed that the integration user can only read, and when. Without that confirmation, the
   verdict is at most ACCEPT_WITH_BOUNDARY and names the boundary.
 - **No leak.** The Q4.11 scan, extended to the Builder sandbox's files and process arguments. The
-  business-value scan over every file bound for the repository. A browser check that the
-  conversation's thread route and the Preview's responses carry no vendor body.
+  business-value scan over every file bound for the repository. One end-to-end run of the
+  investigation, with a marker value planted in the fake vendor's body, shows the marker in the
+  model's input and nowhere in the browser: not in the stream, not in the thread messages route
+  after a reload, and not in the rendered page. The Preview's responses carry only the fields the
+  application's handler returns, never a raw vendor body. The check does not pass by dropping the
+  positive read.
 - **Generic seam.** A registered synthetic REST adapter and two Connections of it, bound under two
   Project-local names, read through the same executor. Each binding reaches only its own
   Connection's account, and a Project bound to one cannot read the other. A refusal of an
@@ -282,7 +312,7 @@ These bind Q4 and are not reopened by the executor.
 
 ## 6. Design
 
-The [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic) restates the shape and properties P3 to P9 and P11.
+The [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic) restates the shape and properties P3 to P9 and P11, and adds P14.
 
 ### 6.1 Shape
 
