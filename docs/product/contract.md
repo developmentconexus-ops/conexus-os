@@ -223,6 +223,7 @@ model narration != Hub progress
 working         != blocked       != waiting for the user != finished
 Preview ready   != the application works
 a grant issued  != a Preview that loaded != a working application
+read from a system != written to look like it
 ```
 
 The Hub owns run state and progress. A model's own narration never marks work
@@ -404,6 +405,14 @@ receive the credential, the vendor token or arbitrary authenticated transport. A
 now. Writing waits until Conexus validates writes with a real application. A Connection is
 read-only because the vendor-side principal it uses can only read. There is no operation catalog,
 no request DSL and no grant per operation ([C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)).
+
+Every value that an application presents as coming from an external system traces back to a read
+through a bound Connection, made live or stored earlier by a sync job through the same executor.
+When a request needs a system that the Project has no Connection bound for, the Builder tells the
+person which system is missing and what to bind in Integrações, and builds nothing that stands in
+for its data. It never writes invented or sample records and labels them as that system's. A read
+that fails shows as a failure in the application, never as empty or made-up data. The operator
+decided this rule on 2026-09-28, from issue #310.
 
 Q4 qualifies this shape first, with Sankhya as the first integrator. This authorizes nobody to
 share an account or work around a provider's rules.
