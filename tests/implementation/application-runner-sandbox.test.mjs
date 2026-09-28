@@ -440,9 +440,8 @@ const connectorSetup = async (t, sandbox) => {
   const envelope = createSecretEnvelope('fe'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    resolveGrant: async (input) => (input.projectId === project ? { grantId: 'grant', connectionId: '33333333-3333-4333-8333-333333333333' } : null),
+    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
-    listGrantedCapabilities: async () => [],
   }
   const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
   const ports = createHandlerPorts({ directory: socketDir, broker })
@@ -482,7 +481,7 @@ test('a handler reads the order through the bound connector socket, and holds no
   ])
   assert.deepEqual(
     await run('readOrder', { documentNumber: 22790 }, portB.socketPath), { ok: false, code: 'NOT_GRANTED' },
-    "the other Project's own open port grants nothing here: the grant belongs to the socket that resolved it",
+    "the other Project's own open port reaches nothing here: the binding belongs to the socket that resolved it",
   )
 
   const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`, socketDir], port })

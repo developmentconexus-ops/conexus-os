@@ -657,14 +657,14 @@ test("the run appends its own Project's connector brief to the agent instruction
   assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
 })
 
-test('a run whose connector grants cannot be read still runs, told only that connector data is out of reach', async (t) => {
+test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
   const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
   const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
   const record = connectorRecord()
   const brief = createConnectorBrief({
     connectors: [{ definition: sankhyaDefinition, adapter: null }],
-    store: { listGrantedCapabilities: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
+    store: { listBindings: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } },
     observability: record.observability,
   })
   const run = await harness(t, { connectorBrief: (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId })) })

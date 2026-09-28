@@ -27,14 +27,16 @@ async function mockRoutes(page) {
     body: JSON.stringify({
       entries: [
         { connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-20T13:00:00.000Z' },
+        { connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial', createdAt: '2026-09-27T09:00:00.000Z' },
       ],
     }),
   }))
-  await page.route(`**/api/control/projects/${PROJECT_ID}/connector-grants`, (route) => route.fulfill({
+  await page.route(`**/api/control/projects/${PROJECT_ID}/connection-bindings`, (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       entries: [
-        { kind: 'grant', grantId: 'grant-1', connectionId: 'conn-1', connectorId: 'sankhya', capabilityId: 'sankhya.purchase-order.read', grantedAt: '2026-09-24T10:00:00.000Z' },
+        { kind: 'binding', bindingId: 'binding-1', name: 'erp', connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T10:00:00.000Z' },
+        { kind: 'bindable', connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial' },
       ],
     }),
   }))
@@ -52,7 +54,7 @@ async function main() {
     await mockRoutes(page)
     await page.goto(`${origin}/projects/${PROJECT_ID}/integrations`)
     await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
-    await page.getByText('ERP principal').waitFor()
+    await page.getByText('ERP filial').first().waitFor()
     await page.waitForTimeout(150)
     await page.screenshot({ path: resolve(outDir, 'integrations-screen.png'), fullPage: true })
     await context.close()

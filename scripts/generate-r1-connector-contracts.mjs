@@ -15,7 +15,7 @@ const target = resolve(repositoryRoot, 'apps/hub/src/generated/connector-routes.
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/connector-client.ts')
 const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-connector-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
-const ownerIds = new Set(['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-05', 'CON-06', 'CON-07'])
+const ownerIds = new Set(['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-08', 'CON-09', 'CON-10'])
 const stagedTarget = `${target}.tmp-${process.pid}`
 const stagedClientTarget = `${clientTarget}.tmp-${process.pid}`
 
@@ -73,13 +73,13 @@ try {
     `export type ConnectorConnectionModel = ${toTypeScript(byId.get('CON-01').schema.response['200'].properties.entries.items)}`,
     `export type CreateWorkspaceConnectionBody = ${toTypeScript(byId.get('CON-02').schema.body)}`,
     `export type CheckWorkspaceConnectionResponse = ${toTypeScript(byId.get('CON-03').schema.response['200'])}`,
-    `export type ConnectorGrantEntryModel = ${toTypeScript(byId.get('CON-05').schema.response['200'].properties.entries.items)}`,
-    `export type GrantProjectConnectorOperationBody = ${toTypeScript(byId.get('CON-06').schema.body)}`,
-    `export type ConnectorOpenGrantModel = ${toTypeScript(byId.get('CON-06').schema.response['200'])}`,
+    `export type ConnectionBindingEntryModel = ${toTypeScript(byId.get('CON-08').schema.response['200'].properties.entries.items)}`,
+    `export type BindProjectConnectionBody = ${toTypeScript(byId.get('CON-09').schema.body)}`,
+    `export type ConnectionBindingModel = ${toTypeScript(byId.get('CON-09').schema.response['200'])}`,
     `export type WorkspaceConnectionsParams = ${JSON.stringify({ workspaceId: 'string' }).replaceAll('"', '')}`,
     `export type WorkspaceConnectionParams = ${JSON.stringify({ workspaceId: 'string', connectionId: 'string' }).replaceAll('"', '')}`,
-    `export type ProjectConnectorGrantsParams = ${JSON.stringify({ projectId: 'string' }).replaceAll('"', '')}`,
-    `export type ProjectConnectorGrantParams = ${JSON.stringify({ projectId: 'string', grantId: 'string' }).replaceAll('"', '')}`,
+    `export type ProjectConnectionBindingsParams = ${JSON.stringify({ projectId: 'string' }).replaceAll('"', '')}`,
+    `export type ProjectConnectionBindingParams = ${JSON.stringify({ projectId: 'string', bindingId: 'string' }).replaceAll('"', '')}`,
     "export type ConnectorRouteDefinition = Readonly<{ ownerId: ConnectorOwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; url: string; schema: FastifySchema }>",
     `export const CONNECTOR_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<ConnectorOwnerId, ConnectorRouteDefinition>)`,
     '',
@@ -91,9 +91,9 @@ try {
     `export type ConnectorConnection = ${toTypeScript(byId.get('CON-01').schema.response['200'].properties.entries.items)}`,
     `export type CreateWorkspaceConnectionInput = ${toTypeScript(byId.get('CON-02').schema.body)}`,
     `export type CheckWorkspaceConnectionOutcome = ${toTypeScript(byId.get('CON-03').schema.response['200'])}`,
-    `export type ConnectorGrantEntry = ${toTypeScript(byId.get('CON-05').schema.response['200'].properties.entries.items)}`,
-    `export type GrantProjectConnectorOperationInput = ${toTypeScript(byId.get('CON-06').schema.body)}`,
-    `export type ConnectorOpenGrant = ${toTypeScript(byId.get('CON-06').schema.response['200'])}`,
+    `export type ConnectionBindingEntry = ${toTypeScript(byId.get('CON-08').schema.response['200'].properties.entries.items)}`,
+    `export type BindProjectConnectionInput = ${toTypeScript(byId.get('CON-09').schema.body)}`,
+    `export type ConnectionBinding = ${toTypeScript(byId.get('CON-09').schema.response['200'])}`,
     "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')",
     "const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })",
     'export const connectorClient = Object.freeze({',
@@ -101,9 +101,9 @@ try {
     `  createWorkspaceConnection: (workspaceId: string, body: CreateWorkspaceConnectionInput) => request(${templateUrl(byId.get('CON-02').path)}, { method: ${JSON.stringify(byId.get('CON-02').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
     `  checkWorkspaceConnection: (workspaceId: string, connectionId: string) => request(${templateUrl(byId.get('CON-03').path)}, { method: ${JSON.stringify(byId.get('CON-03').method)} }),`,
     `  disableWorkspaceConnection: (workspaceId: string, connectionId: string) => request(${templateUrl(byId.get('CON-04').path)}, { method: ${JSON.stringify(byId.get('CON-04').method)} }),`,
-    `  listProjectConnectorGrants: (projectId: string) => request(${templateUrl(byId.get('CON-05').path)}),`,
-    `  grantProjectConnectorOperation: (projectId: string, body: GrantProjectConnectorOperationInput) => request(${templateUrl(byId.get('CON-06').path)}, { method: ${JSON.stringify(byId.get('CON-06').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
-    `  revokeProjectConnectorGrant: (projectId: string, grantId: string) => request(${templateUrl(byId.get('CON-07').path)}, { method: ${JSON.stringify(byId.get('CON-07').method)} }),`,
+    `  listProjectConnectionBindings: (projectId: string) => request(${templateUrl(byId.get('CON-08').path)}),`,
+    `  bindProjectConnection: (projectId: string, body: BindProjectConnectionInput) => request(${templateUrl(byId.get('CON-09').path)}, { method: ${JSON.stringify(byId.get('CON-09').method)}, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),`,
+    `  unbindProjectConnection: (projectId: string, bindingId: string) => request(${templateUrl(byId.get('CON-10').path)}, { method: ${JSON.stringify(byId.get('CON-10').method)} }),`,
     '})',
     '',
   ].join('\n')

@@ -14,7 +14,7 @@ import type { HandlerPort } from './handler-port.js'
 import { createConnectorObservability } from './record.js'
 import type { CheckConnection, CheckConnectionOutcome } from './routes.js'
 import { registerConnectorRoutes } from './routes.js'
-import { sankhyaDefinition, SANKHYA_OPERATION_IDS } from './sankhya/definition.js'
+import { sankhyaDefinition } from './sankhya/definition.js'
 import { createSankhyaGateway, pinnedGatewayOrigin } from './sankhya/gateway.js'
 import { scopeFromArtifactSource } from './scope.js'
 import { createBrokerStore, createConnectorStore } from './store.js'
@@ -28,9 +28,9 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
-  /** The Builder's per-run brief for this Project's own open grants. Empty for a Project with no open
-   * grant, a fixed notice when the grants cannot be read. Never throws, never opens a credential and
-   * makes no network call. */
+  /** The Builder's per-run brief of the operations this Project's own bindings reach. Empty for a
+   * Project that reaches none, a fixed notice when the bindings cannot be read. Never throws, never
+   * opens a credential and makes no network call. */
   builderBrief(projectId: string): Promise<string>
   broker: Broker
   observability: ObservabilityInstance
@@ -109,12 +109,11 @@ export const createConnectorModule = ({
       isInstallationAdministrator,
       checkConnection,
       credentialSchemas: { sankhya: sankhyaDefinition.credential },
-      admittedOperationIds: new Set(SANKHYA_OPERATION_IDS),
       config: { origin },
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    // A Project id this module cannot mint a scope for has no grant to describe.
+    // A Project id this module cannot mint a scope for has no binding to describe.
     builderBrief: async (projectId) => {
       try {
         return await connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))

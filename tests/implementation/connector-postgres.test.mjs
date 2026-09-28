@@ -420,8 +420,8 @@ test('0031 moves every grant to a binding: open grants of one Connection collaps
   })
 })
 
-test('the Hub store tells an identical retry from a changed credential without opening the stored one', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { fixture, client, account, workspace, administrator } = await connectorDatabase(t)
+test('the Hub store tells an identical retry from a changed credential without opening the stored one, and settles concurrent binds on one binding', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { fixture, client, account, workspace, project, administrator } = await connectorDatabase(t)
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
   const { createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
   const { isConnectorConnectionConflict } = await import(hubModuleUrl('connectors/model.js'))
@@ -467,4 +467,15 @@ test('the Hub store tells an identical retry from a changed credential without o
   const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', credential })))
   assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
   assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
+
+  // Two Owners, or one retrying client, binding the same Connection under the same name at once get the one open binding.
+  const projectId = await project(other, 'race')
+  const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ actor: admin, projectId, connectionId: racedId, name: 'erp' })))
+  assert.equal(new Set(bindings.map((binding) => binding.bindingId)).size, 1)
+  const { bindingId: _settled, boundAt: _at, ...settled } = bindings[0]
+  assert.deepEqual(settled, { kind: 'binding', name: 'erp', connectionId: racedId, connectorId: 'sankhya', label: 'ERP' })
+  const open = await client.query('SELECT count(*)::int AS open FROM connector.project_binding WHERE project_id = $1 AND unbound_at IS NULL', [projectId])
+  assert.deepEqual(open.rows, [{ open: 1 }])
+  const listed = await store.listProjectBindings({ actor: admin, projectId })
+  assert.deepEqual(listed, [bindings[0]])
 })

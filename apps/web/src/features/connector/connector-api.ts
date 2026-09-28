@@ -1,10 +1,10 @@
 import type {
+  BindProjectConnectionInput,
   CheckWorkspaceConnectionOutcome,
+  ConnectionBinding,
+  ConnectionBindingEntry,
   ConnectorConnection,
-  ConnectorGrantEntry,
-  ConnectorOpenGrant,
   CreateWorkspaceConnectionInput,
-  GrantProjectConnectorOperationInput,
 } from '../../generated/connector-client'
 import { connectorClient } from '../../generated/connector-client'
 import { clearAuthorityCache } from '../../app/query-client'
@@ -12,11 +12,13 @@ import { clearAuthorityCache } from '../../app/query-client'
 export const workspaceConnectionsQueryKey = (workspaceId: string) =>
   ['connector', 'workspace-connections', workspaceId] as const
 
-export const projectConnectorGrantsQueryKey = (projectId: string) =>
-  ['connector', 'project-grants', projectId] as const
+export const projectConnectionBindingsQueryKey = (projectId: string) =>
+  ['connector', 'project-bindings', projectId] as const
 
-export type ConnectorGrant = Extract<ConnectorGrantEntry, { kind: 'grant' }>
-export type ConnectorGrantable = Extract<ConnectorGrantEntry, { kind: 'grantable' }>
+export type ProjectConnectionBinding = Extract<ConnectionBindingEntry, { kind: 'binding' }>
+export type BindableConnection = Extract<ConnectionBindingEntry, { kind: 'bindable' }>
+
+export const BINDING_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
 
 class ConnectorRequestError extends Error {
   constructor(readonly status: number | null) {
@@ -68,22 +70,19 @@ export async function disableWorkspaceConnection(workspaceId: string, connection
   await send(() => connectorClient.disableWorkspaceConnection(workspaceId, connectionId), 204)
 }
 
-export async function listProjectConnectorGrants(projectId: string): Promise<readonly ConnectorGrantEntry[]> {
-  const response = await send(() => connectorClient.listProjectConnectorGrants(projectId), 200)
-  const body = (await response.json()) as { entries: ConnectorGrantEntry[] }
+export async function listProjectConnectionBindings(projectId: string): Promise<readonly ConnectionBindingEntry[]> {
+  const response = await send(() => connectorClient.listProjectConnectionBindings(projectId), 200)
+  const body = (await response.json()) as { entries: ConnectionBindingEntry[] }
   return body.entries
 }
 
-export async function grantProjectConnectorOperation(
-  projectId: string,
-  input: GrantProjectConnectorOperationInput,
-): Promise<ConnectorOpenGrant> {
-  const response = await send(() => connectorClient.grantProjectConnectorOperation(projectId, input), 200)
-  return response.json() as Promise<ConnectorOpenGrant>
+export async function bindProjectConnection(projectId: string, input: BindProjectConnectionInput): Promise<ConnectionBinding> {
+  const response = await send(() => connectorClient.bindProjectConnection(projectId, input), 200)
+  return response.json() as Promise<ConnectionBinding>
 }
 
-export async function revokeProjectConnectorGrant(projectId: string, grantId: string): Promise<void> {
-  await send(() => connectorClient.revokeProjectConnectorGrant(projectId, grantId), 204)
+export async function unbindProjectConnection(projectId: string, bindingId: string): Promise<void> {
+  await send(() => connectorClient.unbindProjectConnection(projectId, bindingId), 204)
 }
 
 // The viewer isn't an installation administrator; the Connections section explains that
@@ -94,20 +93,20 @@ export function isConnectorAdminRequired(error: unknown): boolean {
 
 export function workspaceConnectionsMessage(error: unknown): string {
   if (!(error instanceof ConnectorRequestError)) return 'A alteração não foi confirmada.'
-  if (error.status === 409) return 'Este Workspace já tem uma conexão Sankhya ativa.'
+  if (error.status === 409) return 'Uma tentativa anterior já salvou esta conexão com outros dados. Recarregue a página para ver o que foi salvo.'
   if (error.status === 422) return 'As credenciais informadas não foram aceitas.'
   return 'A alteração não foi confirmada.'
 }
 
 // The viewer isn't the Project's Workspace Owner (403), or the Project doesn't exist for them
-// at all (404, kept non-disclosing) — the Grants section explains either instead of retrying.
-export function isConnectorGrantsForbidden(error: unknown): boolean {
+// at all (404, kept non-disclosing). The Bindings section explains either instead of retrying.
+export function isConnectorBindingsForbidden(error: unknown): boolean {
   return error instanceof ConnectorRequestError && (error.status === 403 || error.status === 404)
 }
 
-export function projectGrantsMessage(error: unknown): string {
+export function projectBindingsMessage(error: unknown): string {
   if (!(error instanceof ConnectorRequestError)) return 'A alteração não foi confirmada.'
-  if (error.status === 422) return 'Esta operação não pode mais ser concedida.'
+  if (error.status === 409) return 'Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.'
   if (error.status === 404) return 'Esta conexão não está mais disponível para o Projeto.'
   return 'A alteração não foi confirmada.'
 }
@@ -133,12 +132,4 @@ export function disableConnectionMessage(error: unknown): string {
 export function checkConnectionMessage(error: unknown): string {
   if (error instanceof ConnectorRequestError && error.status === 404) return 'Esta conexão não existe mais.'
   return 'Não foi possível testar a conexão agora.'
-}
-
-const OPERATION_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  'sankhya.purchase-order.read': 'Ler pedido de compra do Sankhya',
-}
-
-export function describeOperation(operationId: string): string {
-  return OPERATION_DESCRIPTIONS[operationId] ?? operationId
 }

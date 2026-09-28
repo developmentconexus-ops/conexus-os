@@ -3,7 +3,7 @@ import type { AnySpan, ObservabilityInstance } from '@mastra/core/observability'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
-import type { ConnectionId, ConnectorId } from './model.js'
+import type { BoundConnection, ConnectionId, ConnectorId } from './model.js'
 import type { Adapter, ConnectorDefinition, Consumer, Operation, RequestTrace } from './operation.js'
 import { endSpan, requestTrace } from './record.js'
 import type { SpanResult } from './record.js'
@@ -35,6 +35,14 @@ export type Broker = Readonly<{
 }>
 
 const DEFAULT_DEADLINE_MS = 4000
+
+/** The one binding through which a Project reaches an integrator's operations: exactly one open
+ * binding of that integrator. Zero or several reach nothing, so the operation path never picks a
+ * Connection the Owner did not single out. Q-6 deletes it with the operation path. */
+export const operationBinding = (bindings: readonly BoundConnection[], connectorId: string): BoundConnection | null => {
+  const matching = bindings.filter((binding) => binding.connectorId === connectorId)
+  return matching.length === 1 ? matching[0] ?? null : null
+}
 
 /** A refusal decided by the broker itself, carried out of a closure the token cache runs. */
 class BrokerRefusal extends Error {
@@ -131,16 +139,17 @@ export const createBroker = ({
     const parsed = operation.input.safeParse(input)
     if (!parsed.success) return refused('INPUT_REFUSED', inputIssues(parsed.error.issues))
     if (!isMintedScope(consumer?.scope)) return refused('NOT_GRANTED')
-    let grant: Awaited<ReturnType<BrokerStore['resolveGrant']>>
+    let bindings: readonly BoundConnection[]
     try {
-      grant = await store.resolveGrant({ projectId: consumer.scope.projectId, environment: consumer.scope.environment, capabilityKind: 'operation', capabilityId: operation.id })
+      bindings = await store.listBindings({ projectId: consumer.scope.projectId, environment: consumer.scope.environment })
     } catch {
       return refused('PROVIDER_UNAVAILABLE')
     }
-    if (!grant) return refused('NOT_GRANTED')
+    const binding = operationBinding(bindings, connector.definition.id)
+    if (!binding) return refused('NOT_GRANTED')
     const { adapter } = connector
     if (!adapter) return refused('CONNECTOR_UNCONFIGURED')
-    const connectionId = grant.connectionId
+    const connectionId = binding.connectionId
     const signal = AbortSignal.timeout(deadlineMs)
     let attempt = 0
     let issued = 0
@@ -195,11 +204,8 @@ export const createBroker = ({
     },
     async granted(scope: ConsumerScope): Promise<readonly Operation<unknown, unknown, unknown>[]> {
       if (!isMintedScope(scope)) return []
-      const capabilities = await store.listGrantedCapabilities({ projectId: scope.projectId, environment: scope.environment })
-      return capabilities.flatMap((capability) => {
-        const entry = capability.capabilityKind === 'operation' ? operations.get(capability.capabilityId) : undefined
-        return entry ? [entry.operation] : []
-      })
+      const bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+      return connectors.flatMap((connector) => (operationBinding(bindings, connector.definition.id) ? connector.definition.operations : []))
     },
     async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
       const connector = adapterOf(connectorId)
