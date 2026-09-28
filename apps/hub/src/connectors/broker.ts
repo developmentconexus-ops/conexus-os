@@ -47,6 +47,8 @@ class BrokerRefusal extends Error {
 
 const ISSUE_LIMIT = 10
 
+const RECORDED_CONSUMER_KINDS: ReadonlySet<string> = new Set(['handler', 'agent', 'integrator'])
+
 // Schema paths only: an unrecognized key is the caller's own text, so it comes back as a placeholder.
 const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string }>[]): readonly string[] =>
   [...new Set(issues.slice(0, ISSUE_LIMIT).map((issue) => {
@@ -174,7 +176,7 @@ export const createBroker = ({
     async call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>> {
       const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: {
-        consumer: typeof consumer?.kind === 'string' ? consumer.kind : null,
+        consumer: RECORDED_CONSUMER_KINDS.has(consumer?.kind) ? consumer.kind : 'other',
         projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,
         operation: entry?.operation.id ?? null,
       } })
@@ -196,10 +198,12 @@ export const createBroker = ({
       })
     },
     async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
-      const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: { connector: connectorId } })
-      let result: BrokerResult<null>
       const connector = adapterOf(connectorId)
       const adapter = connector?.adapter
+      const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {
+        connector: connector ? connectorId : 'unknown',
+      } })
+      let result: BrokerResult<null>
       if (!connector || !adapter) {
         result = refused('CONNECTOR_UNCONFIGURED')
       } else {

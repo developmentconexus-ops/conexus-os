@@ -448,6 +448,23 @@ test('a credential check runs the allow-listed authentication alone and caches n
   ])
 })
 
+test('connector spans record consumer kind only when in the closed set, and connector id only when registered', async (t) => {
+  const { broker, facts } = await setup(t)
+  // Consumer kind validation: unrecognised or invalid kinds become 'other' in the span
+  const invalidConsumer = Object.freeze({ kind: 'arbitrary-consumer', scope: consumer.scope })
+  await broker.call(invalidConsumer, READ, { documentNumber: 22790 })
+
+  // Connector id validation: unregistered connector id becomes 'unknown' in the span
+  await broker.checkCredential('unregistered-connector', CONNECTION)
+
+  const recorded = await facts()
+  const callSpan = recorded.find((span) => span.name === 'connector.call')
+  assert.equal(callSpan.consumer, 'other', 'unrecognised consumer kind must be recorded as other')
+
+  const checkSpan = recorded.find((span) => span.name === 'connector.check' && span.result === 'CONNECTOR_UNCONFIGURED')
+  assert.equal(checkSpan.connector, 'unknown', 'unregistered connector must be recorded as unknown')
+})
+
 test('the broker lists only the granted operations of a minted scope', async (t) => {
   const { broker } = await setup(t)
   assert.deepEqual((await broker.granted(consumer.scope)).map((operation) => operation.id), [READ])
