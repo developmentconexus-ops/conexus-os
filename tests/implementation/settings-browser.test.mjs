@@ -91,20 +91,53 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  await page.getByText('Nenhuma conta conectada').waitFor()
-  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
+  const anthropicRow = page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' })
+  await anthropicRow.getByText('Não conectado').waitFor()
+  await anthropicRow.getByRole('button', { name: 'Conectar' }).click()
   await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
   await page.getByText('ABCD-1234').waitFor()
   await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
-  await page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
+  await anthropicRow.getByText('Conectada').waitFor({ timeout: 5000 })
 
-  await page.getByRole('button', { name: 'Conectar conta' }).click()
-  await page.getByRole('button', { name: 'Google (Gemini)' }).click()
+  const googleRow = page.locator('.cxs-row', { hasText: 'Google (Gemini)' })
+  await googleRow.getByText('Não conectado').waitFor()
+  await googleRow.getByRole('button', { name: 'Conectar' }).click()
   await page.getByLabel('Chave de API').fill('AIza-my-key')
   await page.getByRole('button', { name: 'Salvar chave' }).click()
   await page.getByText('Conta conectada.').waitFor()
   assert.deepEqual(writes.at(-1), ['PUT', { key: 'AIza-my-key' }])
-  await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
+  await googleRow.getByText('Conectada').waitFor()
+})
+
+test('Minhas contas de modelo connects a personal key when a provider is shared by the installation', async (t) => {
+  const { page, origin } = await withServer(t)
+  const writes = []
+  const providers = [
+    { provider: 'anthropic', source: 'stored-org', orgCredential: 'api_key' },
+  ]
+  await routeAccessContext(page, { accountId: 'a3b', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/web/config/providers/*/key', (route) => {
+    writes.push(['PUT', route.request().postDataJSON()])
+    providers[0] = { ...providers[0], source: 'stored-user', userCredential: 'api_key' }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
+  const anthropicRow = page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' })
+  await anthropicRow.getByText('Compartilhada pela instalação').waitFor()
+  await anthropicRow.getByRole('button', { name: 'Conectar a sua conta' }).click()
+  await page.getByLabel('Chave de API').fill('sk-ant-my-key')
+  await page.getByRole('button', { name: 'Salvar chave' }).click()
+  await page.getByText('Conta conectada.').waitFor()
+  assert.deepEqual(writes.at(-1), ['PUT', { key: 'sk-ant-my-key' }])
+  await anthropicRow.getByText('Conectada').waitFor()
 })
 
 test('Meus padrões saves my defaults and clears back to the company ones', async (t) => {
@@ -221,14 +254,13 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
 
   await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
-  const generic = page.getByRole('region', { name: 'Conectar uma conta' })
-  await generic.getByRole('button', { name: 'Google (Gemini)' }).waitFor()
-  assert.equal(await generic.getByRole('button', { name: 'Google AI Pro' }).count(), 0)
+  const googleRow = page.locator('.cxs-row', { hasText: 'Google AI Pro' })
+  await googleRow.waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Conectar outro provedor' }).count(), 0)
 
   const [popup] = await Promise.all([
     page.context().waitForEvent('page'),
-    page.getByRole('button', { name: 'Conectar com o Google' }).click(),
+    googleRow.getByRole('button', { name: 'Conectar com o Google' }).click(),
   ])
   await page.getByText('Preparando a entrada do Google…').waitFor()
   await popup.waitForURL(signIn)
@@ -254,7 +286,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.reload()
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
   await page.getByRole('heading', { name: 'Meus padrões' }).waitFor()
-  assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
+  assert.equal(await page.locator('.cxs-row', { hasText: 'Google AI Pro' }).count(), 0)
 })
 
 test('Minhas contas de modelo falls back to the primary sign-in link when the popup is blocked', async (t) => {
@@ -264,9 +296,9 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   await routeAccessContext(page, { accountId: 'a10', displayName: 'Pessoa Bloqueada', email: 'bloqueada@example.com' })
   await routeInstallation(page, false)
   await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+  await page.route('**/web/config/providers', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }], orgKeyAdmin: false }),
+    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }, { provider: 'google', source: 'none' }], orgKeyAdmin: false }),
   }))
   await page.route('**/api/control/model-defaults', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
@@ -282,8 +314,9 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   await page.addInitScript(() => { window.open = () => null })
 
   await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
-  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  const googleRow = page.locator('.cxs-row', { hasText: 'Google AI Pro' })
+  await googleRow.waitFor()
+  await googleRow.getByRole('button', { name: 'Conectar com o Google' }).click()
   const link = page.getByRole('link', { name: 'Abrir a entrada do Google' })
   await link.waitFor()
   assert.equal(await link.getAttribute('href'), signIn)

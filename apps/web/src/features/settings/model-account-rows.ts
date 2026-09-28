@@ -1,8 +1,9 @@
 import type { ModelProvider } from './model-accounts-api'
 import { providerName } from './provider-names'
+import { groupProviders } from './provider-groups'
 
 type ModelAccountConnection = 'api_key' | 'oauth'
-type ModelAccountState = 'connected' | 'needs-reconnect' | 'shared'
+export type ModelAccountState = 'connected' | 'needs-reconnect' | 'shared' | 'not-connected'
 
 // One row shape for every place a model account is listed. `needs-reconnect` is carried in the
 // type and has its own chip and action, but the Hub does not report which accounts need it yet, so
@@ -31,9 +32,15 @@ const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
       label: providerName(provider.provider),
       own,
       shared,
-      state: own ? 'connected' : 'shared',
+      state: own ? 'connected' : shared ? 'shared' : 'not-connected',
     }
   })
+
+export const unifiedRows = (providers: readonly ModelProvider[]): ModelAccountRow[] => {
+  const groups = groupProviders(connectableProviders(providers), '')
+  const featured = 'featured' in groups ? groups.featured : []
+  return toRows(featured)
+}
 
 export const ownRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
   toRows(connectableProviders(providers)).filter((row) => row.own !== null)

@@ -93,7 +93,6 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
 /** Absent when the Hub does not run CLIProxyAPI: the connection read answers 404 then. */
 export function GoogleAiProAccount() {
   const queryClient = useQueryClient()
-  const titleId = useId()
   const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call<Connection>('GET', `${base}/connection`), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [autoOpened, setAutoOpened] = useState(true)
@@ -132,16 +131,19 @@ export function GoogleAiProAccount() {
     onError: () => fail('Não foi possível concluir. Tente novamente.'),
   })
   if (connection.isPending || (connection.isError && statusOf(connection.error) === 404)) return null
-  if (connection.isError) return <section aria-labelledby={titleId}>
-    <h2 id={titleId}>Google AI Pro</h2>
+  if (connection.isError) return <li className="cxs-row">
+    <div className="cxs-row-main"><strong>Google AI Pro</strong></div>
     <SectionError description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
-  </section>
+  </li>
   const { mine, shared, administrator } = connection.data
-  return <section aria-labelledby={titleId}>
-    <h2 id={titleId}>Google AI Pro</h2>
-    <p className="cxs-hint">Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>
+  return <li className="cxs-row">
+    <div className="cxs-row-main">
+      <strong>Google AI Pro</strong>
+      <span className="cxs-row-meta">Assinatura</span>
+    </div>
     {mine && <div><Chip tone="positive">Conectado com a sua conta Google.</Chip></div>}
     {!mine && shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
+    {!mine && !shared && <div><Chip tone="neutral">Não conectado</Chip></div>}
     {login
       ? <SignIn login={login} autoOpened={autoOpened} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
       : <div className="cxs-row-actions cxs-actions-start">
@@ -153,5 +155,5 @@ export function GoogleAiProAccount() {
         {administrator && shared && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => stopSharing(PROVIDER))}>Parar de compartilhar</Button>}
       </div>}
     {message && (message.failed ? <p role="alert" className="cxs-alert">{message.text}</p> : <StatusLine>{message.text}</StatusLine>)}
-  </section>
+  </li>
 }

@@ -2,7 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation } from '@tanstack/react-query'
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
-import { connectFlowReducer, initialConnectState } from '../connect-flow'
+import { type ConnectState, connectFlowReducer, initialConnectState } from '../connect-flow'
 import {
   apiKeySaveErrorMessage, oauthFailureMessage,
 } from '../error-messages'
@@ -138,8 +138,12 @@ function ProviderPicker({ providers, onChoose }: Readonly<{ providers: readonly 
   </div>
 }
 
-export function ConnectAccount({ providers, onConnected }: Readonly<{ providers: readonly ModelProvider[]; onConnected: () => void }>) {
-  const [state, dispatch] = useReducer(connectFlowReducer, initialConnectState)
+export function ConnectAccount({ providers, initialProvider, onConnected }: Readonly<{ providers: readonly ModelProvider[]; initialProvider?: string; onConnected: () => void }>) {
+  const [state, dispatch] = useReducer(
+    connectFlowReducer,
+    initialProvider,
+    (seed): ConnectState => (seed ? { step: 'choose-method', provider: seed } : initialConnectState),
+  )
   const start = useMutation({
     mutationFn: (provider: string) => startOAuth(provider),
     onSuccess: (flow) => dispatch(flow.kind === 'device-code'

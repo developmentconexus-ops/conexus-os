@@ -107,8 +107,8 @@ async function main() {
         }
         if (viewport.name === 'desktop' && scheme === 'light') {
           await page.goto(`${origin}/settings/models`)
-          await page.getByRole('button', { name: 'Conectar conta' }).click()
-          await page.getByRole('button', { name: 'Google (Gemini)' }).click()
+          const googleRow = page.locator('.cxs-row', { hasText: 'Google (Gemini)' })
+          await googleRow.getByRole('button', { name: 'Conectar' }).click()
           await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
           await page.getByText('WXYZ-7890').waitFor()
           await page.waitForTimeout(150)

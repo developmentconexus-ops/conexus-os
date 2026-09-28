@@ -56,3 +56,44 @@ export function SharedAccountRow({ row, manageAction }: Readonly<{ row: Row; man
     {manageAction && <div className="cxs-row-actions">{manageAction}</div>}
   </li>
 }
+
+export function ProviderCard({
+  row,
+  onConnect,
+  onReconnect,
+}: Readonly<{
+  row: Row
+  onConnect: (provider: string) => void
+  onReconnect: (provider: string) => void
+}>) {
+  if (row.state === 'connected' || row.state === 'needs-reconnect') {
+    return <OwnAccountRow row={row} onReconnect={onReconnect} />
+  }
+
+  if (row.state === 'shared') {
+    return <li className="cxs-row">
+      <div className="cxs-row-main">
+        <strong>{row.label}</strong>
+        {row.shared && <span className="cxs-row-meta">{connectionLabel(row.shared)}</span>}
+      </div>
+      <Chip tone="neutral">Compartilhada pela instalação</Chip>
+      <div className="cxs-row-actions">
+        <Button type="button" variant="outline" onClick={() => onConnect(row.provider)}>
+          Conectar a sua conta
+        </Button>
+      </div>
+    </li>
+  }
+
+  return <li className="cxs-row">
+    <div className="cxs-row-main">
+      <strong>{row.label}</strong>
+    </div>
+    <Chip tone="neutral">Não conectado</Chip>
+    <div className="cxs-row-actions">
+      <Button type="button" variant="primary" onClick={() => onConnect(row.provider)}>
+        Conectar
+      </Button>
+    </div>
+  </li>
+}
