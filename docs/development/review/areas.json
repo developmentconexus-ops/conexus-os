@@ -72,6 +72,9 @@
       "apps/hub/src/app-runner/pg-relay.ts",
       "apps/hub/src/builder/model-accounts.ts",
       "apps/hub/src/builder/google-ai-pro/**",
+      "apps/hub/src/builder/openai-codex/**",
+      "apps/hub/src/builder/model-account-store.ts",
+      "apps/hub/src/builder/model-routing.ts",
       "apps/hub/src/platform/secrets.ts",
       "scripts/builder-e2b-template.mjs",
       "scripts/provision-application-database.mjs",
@@ -82,6 +85,7 @@
       "tests/implementation/application-cluster*",
       "tests/implementation/sandbox-probe/**",
       "tests/implementation/builder-google-*",
+      "tests/implementation/builder-openai-*",
       "tests/implementation/builder-model-*",
       "tests/implementation/builder-e2b-*"
     ],

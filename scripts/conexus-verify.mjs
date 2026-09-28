@@ -79,6 +79,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('builder-composition', 'node --test --test-concurrency=1 tests/implementation/builder-composition.test.mjs', 'postgres'),
   candidateStep('model-account-postgres', 'node --test --test-concurrency=1 tests/implementation/model-account-postgres.test.mjs', 'postgres'),
   candidateStep('google-ai-pro', 'node --test --test-concurrency=1 tests/implementation/builder-google-ai-pro.test.mjs'),
+  candidateStep('openai-codex', 'node --test --test-concurrency=1 tests/implementation/builder-openai-codex.test.mjs'),
   candidateStep('run-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-run-runtime.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-trace-summary.test.mjs tests/implementation/builder-session-tripwire.test.mjs'),
   candidateStep('run-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-recovery-postgres.test.mjs', 'postgres'),
   candidateStep('builder-session-routes', 'node --test --test-concurrency=1 tests/implementation/builder-session-routes.test.mjs'),

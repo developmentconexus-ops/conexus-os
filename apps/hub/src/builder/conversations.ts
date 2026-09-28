@@ -10,8 +10,10 @@ import { DEFAULT_BUILDER_MODE, isBuilderModeId, type BuilderModeId } from './har
  */
 export const projectResourceId = (projectId: string): string => `project:${projectId}`
 
-// Where AgentController keeps a thread's current mode (its MODE_ID_KEY thread setting).
+// Where AgentController keeps a thread's current mode (its MODE_ID_KEY thread setting) and the
+// model chosen for each mode (`modeModelId_<mode>`, written by a thread-scoped model switch).
 const MODE_SETTING = 'currentModeId'
+const modeModelSetting = (mode: BuilderModeId): string => `modeModelId_${mode}`
 const TITLE_LIMIT = 80
 
 export type Conversations = ReturnType<typeof createConversations>
@@ -35,6 +37,12 @@ export const createConversations = (memory: () => Promise<MemoryStorage>) => {
       if (!thread) return null
       const mode = thread.metadata?.[MODE_SETTING]
       return isBuilderModeId(mode) ? mode : DEFAULT_BUILDER_MODE
+    },
+
+    /** The model this conversation chose for a mode, or null when it chose none. */
+    modelOf: async (projectId: string, conversationId: string, mode: BuilderModeId): Promise<string | null> => {
+      const model = (await threadOf(projectId, conversationId))?.metadata?.[modeModelSetting(mode)]
+      return typeof model === 'string' && model ? model : null
     },
 
     /** Titles an untitled conversation from the first request sent in it. */

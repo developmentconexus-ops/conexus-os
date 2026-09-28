@@ -14,6 +14,7 @@ const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
+const { createGoogleAiProAccounts } = await import(built('builder/google-ai-pro/store.js'))
 
 const record = (account) => ({ fileName: `antigravity-${account}.json`, bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: `refresh-${account}` })) })
 
@@ -228,23 +229,26 @@ const authentic = {
 
 // The sign-in routes run for real; only model.model_account is a recording stand-in
 // (the Postgres-backed store is proven separately in model-account-postgres.test.mjs).
-const fakeGoogleAiProAccounts = () => {
+const fakeModelAccounts = () => {
   const own = new Map()
   let sharedAccountId = null
   const writes = []
-  const port = {
-    hasShared: async () => sharedAccountId !== null,
-    read: async (accountId) => own.get(accountId) ?? (sharedAccountId !== null ? own.get(sharedAccountId) : null),
-    connection: async (accountId) => ({ mine: own.has(accountId), shared: sharedAccountId !== null }),
-    write: async (accountId, key) => { own.set(accountId, key); writes.push({ accountId, key }) },
+  const held = (accountId) => own.has(accountId) ? { modelAccountId: `row-${accountId}`, kind: 'google_ai_pro', secret: own.get(accountId) } : null
+  // Only Google AI Pro rows exist here; every other provider has none.
+  const google = (provider) => provider === 'google-ai-pro'
+  const store = {
+    hasShared: async (provider) => google(provider) && sharedAccountId !== null,
+    usable: async (accountId, provider) => google(provider) ? held(accountId) ?? (sharedAccountId !== null ? held(sharedAccountId) : null) : null,
+    connection: async (accountId, provider) => ({ mine: google(provider) && own.has(accountId), shared: google(provider) && sharedAccountId !== null }),
+    write: async (accountId, _provider, _kind, key) => { own.set(accountId, key); writes.push({ accountId, key }) },
   }
-  return { port, writes, share: (accountId) => { sharedAccountId = accountId } }
+  return { store, writes, share: (accountId) => { sharedAccountId = accountId } }
 }
 
 const createLoginApp = async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
-  const googleAiProAccounts = fakeGoogleAiProAccounts()
+  const modelAccounts = fakeModelAccounts()
   let caller = ana
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
@@ -252,15 +256,16 @@ const createLoginApp = async (t) => {
         origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => false,
+        modelAccounts: modelAccounts.store,
         googleAiPro: pool,
-        googleAiProAccounts: googleAiProAccounts.port,
+        googleAiProAccounts: createGoogleAiProAccounts(modelAccounts.store),
       })
       return []
     },
     staticRoot: null,
   })
   t.after(() => app.close())
-  return { app, stateDir, writes: googleAiProAccounts.writes, share: googleAiProAccounts.share, as: (accountId) => { caller = accountId } }
+  return { app, stateDir, writes: modelAccounts.writes, share: modelAccounts.share, as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/google-ai-pro/login'

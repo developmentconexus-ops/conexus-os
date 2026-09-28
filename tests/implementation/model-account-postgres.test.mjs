@@ -123,18 +123,24 @@ test('Google AI Pro credential read and write through model.model_account, seale
   onCleanup(() => pool.end())
 
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  const accounts = createGoogleAiProAccounts(createModelAccountStore({ pool, envelope }))
+  const store = createModelAccountStore({ pool, envelope })
+  const accounts = createGoogleAiProAccounts(store)
+  // What a run takes for a Google AI Pro model: the caller's own row, else the shared one.
+  const readGoogle = async (accountId) => {
+    const held = await store.usable(accountId, 'google-ai-pro')
+    return held && { modelAccountId: held.modelAccountId, key: held.secret }
+  }
 
-  assert.equal(await accounts.hasShared(), false)
+  assert.equal(await store.hasShared('google-ai-pro'), false)
   assert.deepEqual(await accounts.connection(alice), { mine: false, shared: false })
-  assert.equal(await accounts.read(alice), null)
+  assert.equal(await readGoogle(alice), null)
 
   const key = encodeKey({ fileName: 'antigravity-alice.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: 'refresh-1' })) })
   await accounts.write(alice, key)
   const aliceRow = (await query(connectionString, 'SELECT model_account_id FROM model.model_account WHERE owner_account_id = $1', [alice])).rows[0].model_account_id
-  assert.deepEqual(await accounts.read(alice), { modelAccountId: aliceRow, key })
+  assert.deepEqual(await readGoogle(alice), { modelAccountId: aliceRow, key })
   assert.deepEqual(await accounts.connection(alice), { mine: true, shared: false })
-  assert.equal(await accounts.hasShared(), false, 'a personal account is not the shared one')
+  assert.equal(await store.hasShared('google-ai-pro'), false, 'a personal account is not the shared one')
 
   // The stored row is sealed: raw bytes of the key never sit in the table. Read as the admin
   // connection, since hub_model_account has no direct table grant (proven above).
@@ -145,14 +151,14 @@ test('Google AI Pro credential read and write through model.model_account, seale
   // A refreshed write-back keeps reading the newest bytes, and Bob still has nothing of his own.
   const refreshedKey = encodeKey({ fileName: 'antigravity-alice.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: 'refresh-2' })) })
   await accounts.write(alice, refreshedKey)
-  assert.deepEqual(await accounts.read(alice), { modelAccountId: aliceRow, key: refreshedKey })
-  assert.equal(await accounts.read(bob), null)
+  assert.deepEqual(await readGoogle(alice), { modelAccountId: aliceRow, key: refreshedKey })
+  assert.equal(await readGoogle(bob), null)
 
   // Bob reads Alice's key once it is the shared one, through the fallback in the Value sourcing
   // rule (spec 0002): the caller's own account, else the one shared with everyone.
   await query(connectionString, "UPDATE model.model_account SET sharing = 'everyone' WHERE owner_account_id = $1", [alice])
-  assert.equal(await accounts.hasShared(), true)
-  assert.deepEqual(await accounts.read(bob), { modelAccountId: aliceRow, key: refreshedKey }, 'the run records the shared row as the account that paid')
+  assert.equal(await store.hasShared('google-ai-pro'), true)
+  assert.deepEqual(await readGoogle(bob), { modelAccountId: aliceRow, key: refreshedKey }, 'the run records the shared row as the account that paid')
   assert.deepEqual(await accounts.connection(bob), { mine: false, shared: true })
 })
 

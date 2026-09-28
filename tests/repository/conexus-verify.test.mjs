@@ -46,7 +46,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
   'builder-harness',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'openai-codex', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',

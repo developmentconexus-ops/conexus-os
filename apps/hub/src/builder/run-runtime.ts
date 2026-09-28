@@ -51,8 +51,11 @@ export type BuilderRunPorts = Readonly<{
   openSession(input: Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
   }>): Promise<RunSession>
-  /** Chooses the model account the run's calls use and holds it for the run; refuses when the person has none. */
-  holdModelAccount(input: Readonly<{ builderRunId: string; accountId: string }>): Promise<Readonly<{ modelAccountId: string; release(): void }>>
+  /**
+   * Chooses the model account the run's calls use, for the provider of the model its conversation
+   * runs in that mode, and holds it for the run; refuses when the person has none.
+   */
+  holdModelAccount(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<Readonly<{ modelAccountId: string; release(): void }>>
   git: Pick<ConexusGit, 'seedBundle' | 'acceptCandidate' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
@@ -113,7 +116,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
 
     // The person's own account, else the installation's shared one; none refuses the run before a
     // sandbox exists, with the same "connect a model" answer as before.
-    const modelAccount = await ports.holdModelAccount({ builderRunId: input.executionId, accountId: input.accountId })
+    const modelAccount = await ports.holdModelAccount({
+      builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId, mode: input.mode,
+    })
     const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }).catch((error: unknown) => {
       modelAccount.release()
       throw error

@@ -1,3 +1,4 @@
+import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -5,6 +6,9 @@ import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
+import type { ModelAccountStore } from './model-account-store.js'
+import { OPENAI_CODEX_NAME, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
+import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { isExactOrigin } from '../platform/origin.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -24,14 +28,29 @@ const GOOGLE_AI_PRO_OFFER: readonly Omit<OfferedModel, 'hasApiKey'>[] = Object.f
   id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: `${GOOGLE_AI_PRO_NAME} ${model}`,
 })))
 
+// Mastra's model router catalog lists every OpenAI model, and Mastra Code offers all of them on a
+// ChatGPT subscription. The catalog carries no capability field, so the ones that cannot chat are
+// left out by name, as the Hub did for the Factory catalog, with the retired ones the catalog marks.
+const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|transcribe|realtime|rerank|moderation)([-_.]|$)/i
+const openaiCatalog = getProviderConfig(OPENAI_MODEL_PROVIDER)
+const retired = new Set(openaiCatalog?.deprecatedModels ?? [])
+/** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
+const OPENAI_CODEX_OFFER: readonly Omit<OfferedModel, 'hasApiKey'>[] = Object.freeze((openaiCatalog?.models ?? [])
+  .filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
+  .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: `${OPENAI_CODEX_NAME} ${model}` })))
+
 /**
- * Model accounts on the Builder's own tables (spec 0002). Slice 1 carries the Google AI Pro account
- * a run uses; API keys, subscription sign-in, sharing and the defaults screen arrive in slice 5.
+ * Model accounts on the Builder's own tables (spec 0002): the Google AI Pro account and the ChatGPT
+ * subscription a run uses. API keys, the Claude subscription, sharing and the defaults screen are
+ * the rest of slice 5.
  */
-export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, googleAiPro, googleAiProAccounts }: Readonly<{
+export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, googleAiPro, googleAiProAccounts }: Readonly<{
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  modelAccounts: ModelAccountStore
+  // OpenAI's device-code endpoints; only tests replace them.
+  openaiCodexDevice?: CodexDevice
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
   // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
@@ -59,11 +78,46 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
-    if (!googleAiProAccounts) return { models: [] }
-    const usable = request.query.scope === 'installation'
-      ? await googleAiProAccounts.hasShared()
-      : await googleAiProAccounts.connection(caller.accountId).then(({ mine, shared }) => mine || shared)
-    return { models: usable ? GOOGLE_AI_PRO_OFFER.map((model) => ({ ...model, hasApiKey: true })) : [] }
+    const usable = async (provider: string): Promise<boolean> => request.query.scope === 'installation'
+      ? modelAccounts.hasShared(provider)
+      : modelAccounts.connection(caller.accountId, provider).then(({ mine, shared }) => mine || shared)
+    const offers = [
+      ...(googleAiProAccounts && await usable(GOOGLE_AI_PRO_PROVIDER) ? GOOGLE_AI_PRO_OFFER : []),
+      ...(await usable(OPENAI_CODEX_PROVIDER) ? OPENAI_CODEX_OFFER : []),
+    ]
+    return { models: offers.map((model) => ({ ...model, hasApiKey: true })) }
+  })
+
+  // The caller's accounts for the providers this Hub signs in to, never their secrets.
+  app.get('/api/control/model-accounts', async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const [administrator, codex] = await Promise.all([
+      isInstallationAdministrator(caller.accountId),
+      modelAccounts.connection(caller.accountId, OPENAI_CODEX_PROVIDER),
+    ])
+    return { administrator, accounts: [{ provider: OPENAI_CODEX_PROVIDER, ...codex }] }
+  })
+
+  const codexLogin = createCodexLogin<Caller>({
+    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, OPENAI_CODEX_PROVIDER, 'oauth', serializeCodexTokens(tokens)),
+    ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
+  })
+  const codexBase = `/api/control/model-accounts/${OPENAI_CODEX_PROVIDER}/oauth`
+  app.post(`${codexBase}/start`, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return codexLogin.start(caller).then(
+      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
+      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+    )
+  })
+  app.get<{ Querystring: { loginId?: string } }>(`${codexBase}/poll`, {
+    schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } },
+  }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return { state: await codexLogin.poll(caller, request.query.loginId ?? '') }
   })
 
   if (googleAiPro && googleAiProAccounts) {

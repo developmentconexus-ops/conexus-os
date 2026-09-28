@@ -1,7 +1,7 @@
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { PostgresPool } from '../platform/postgres.js'
 
-export type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
+type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
 
 /** A row the Hub reads to call a model: its id (what a run records as the account that paid) and its opened secret. */
 export type HeldModelAccount = Readonly<{ modelAccountId: string; kind: ModelAccountKind; secret: string }>

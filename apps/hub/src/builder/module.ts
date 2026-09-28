@@ -31,15 +31,17 @@ import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
-import { createBuilderController, readModeId } from './harness/index.js'
-import type { BuilderModeId } from './harness/index.js'
+import { createBuilderController } from './harness/index.js'
 import { starterProjectKnowledge } from './project-knowledge.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
-import { GOOGLE_AI_PRO_PROVIDER, type GoogleAiProKey } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_PROVIDER, parseKey } from './google-ai-pro/credential.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { createModelAccountStore } from './model-account-store.js'
+import { createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
+import { createCodexHolds, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens } from './openai-codex/credential.js'
+import { openaiCodexModel } from './openai-codex/model.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies, RunNote } from './service.js'
 
@@ -229,33 +231,6 @@ export type BuilderConnectorPort = Readonly<{
 }>
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
-const RUN_ID_KEY = 'conexusBuilderRunId'
-const ROLE_OF_MODE: Readonly<Record<BuilderModeId, 'plan' | 'build'>> = Object.freeze({ plan: 'plan', build: 'build' })
-
-type RunModel = Readonly<{ key: GoogleAiProKey }>
-
-/**
- * The model a turn runs on (spec 0002, Value sourcing): the thread's selection for the current mode,
- * else the installation's default for that role, called through the Hub's Google AI Pro router
- * with the run's own account. Only Google AI Pro is wired in slice 1; any other model refuses the
- * turn the same way a missing account does.
- */
-const createModelResolver = ({ runModels, readDefault, routerUrl }: Readonly<{
-  runModels: ReadonlyMap<string, RunModel>
-  readDefault(role: 'plan' | 'build'): Promise<string | null>
-  routerUrl: () => Promise<string | undefined>
-}>) => async ({ requestContext }: Readonly<{ requestContext: RequestContext }>) => {
-  const runId = requestContext.getRaw(RUN_ID_KEY)
-  const run = typeof runId === 'string' ? runModels.get(runId) : undefined
-  const url = await routerUrl()
-  if (!run || !url) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-  const controller = requestContext.get('controller') as Readonly<{ session?: Readonly<{ modelId?: unknown }> }> | undefined
-  const selected = typeof controller?.session?.modelId === 'string' && controller.session.modelId ? controller.session.modelId : null
-  const modelId = selected ?? await readDefault(ROLE_OF_MODE[readModeId(requestContext) ?? 'plan'])
-  const prefix = `${GOOGLE_AI_PRO_PROVIDER}/`
-  if (!modelId?.startsWith(prefix)) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-  return { providerId: GOOGLE_AI_PRO_PROVIDER, modelId: modelId.slice(prefix.length), url: `${url}/v1`, apiKey: run.key }
-}
 
 export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectors, connectorObservability }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
@@ -310,16 +285,49 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro) : Promise.resolve(undefined)
   googleAiProReady.catch(() => undefined)
 
-  const runModels = new Map<string, RunModel>()
+  const codexHolds = createCodexHolds({ store: modelAccounts })
+  const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
+    // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
+    [GOOGLE_AI_PRO_PROVIDER]: {
+      accountProvider: GOOGLE_AI_PRO_PROVIDER,
+      take: (account) => {
+        const key = parseKey(account.secret)
+        if (!key) throw new Error('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
+        return {
+          modelProvider: GOOGLE_AI_PRO_PROVIDER,
+          model: async (modelName) => {
+            const url = (await googleAiProReady.catch(() => undefined))?.url
+            if (!url) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+            return { providerId: GOOGLE_AI_PRO_PROVIDER, modelId: modelName, url: `${url}/v1`, apiKey: key }
+          },
+        }
+      },
+    },
+    // Called from the Hub on the ChatGPT subscription's Codex endpoint; the token never leaves the Hub.
+    [OPENAI_MODEL_PROVIDER]: {
+      accountProvider: OPENAI_CODEX_PROVIDER,
+      take: (account) => {
+        const bearer = codexHolds.hold(account.modelAccountId, parseCodexTokens(account.secret))
+        return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, bearer) }
+      },
+    },
+  })
   const runContexts = new Map<string, RunContextBinder>()
   const runWorkspaces = new Map<string, Workspace>()
+  const modelRouting = createModelRouting({
+    routes,
+    modelAccounts,
+    // Read when a run starts, long after the conversations below exist.
+    modelOf: (projectId, conversationId, mode) => conversations.modelOf(projectId, conversationId, mode),
+    readDefault,
+  })
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
     workspace: ({ requestContext }) => {
       const runId = requestContext.getRaw(RUN_ID_KEY)
       return typeof runId === 'string' ? runWorkspaces.get(runId) : undefined
     },
-    model: createModelResolver({ runModels, readDefault, routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url }),
+    model: modelRouting.resolve,
     memory: new Memory({ options: { lastMessages: 40, semanticRecall: false } }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
   })
@@ -345,12 +353,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       await ready
       return openSession(input)
     },
-    holdModelAccount: async ({ builderRunId, accountId }) => {
-      const account = await googleAiProAccounts.read(accountId)
-      if (!account) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-      runModels.set(builderRunId, { key: account.key })
-      return { modelAccountId: account.modelAccountId, release: () => { runModels.delete(builderRunId) } }
-    },
+    holdModelAccount: modelRouting.hold,
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
     log,
@@ -423,6 +426,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         origin,
         resolveCurrentSession,
         isInstallationAdministrator,
+        modelAccounts,
         ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
       })
       return builderOperations
