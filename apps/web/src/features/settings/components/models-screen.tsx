@@ -9,14 +9,11 @@ import { GoogleAiProAccount } from './google-ai-pro-account'
 import { MyDefaultsSection } from './my-defaults-section'
 import { ProviderCard } from './model-account-row'
 import { PageHeader } from './page-header'
-import { ReconnectAccount } from './reconnect-account'
 import { SectionError, SectionLoading, StatusLine } from './states'
 
-function ProvidersCard({ connecting, setConnecting, reconnecting, setReconnecting, refresh, administrator }: Readonly<{
+function ProvidersCard({ connecting, setConnecting, refresh, administrator }: Readonly<{
   connecting: string | 'other' | null
   setConnecting: (value: string | 'other' | null) => void
-  reconnecting: string | null
-  setReconnecting: (value: string | null) => void
   refresh: () => void
   administrator: boolean
 }>) {
@@ -29,20 +26,16 @@ function ProvidersCard({ connecting, setConnecting, reconnecting, setReconnectin
       data={accounts.data}
       connecting={connecting}
       setConnecting={setConnecting}
-      reconnecting={reconnecting}
-      setReconnecting={setReconnecting}
       refresh={refresh}
       administrator={administrator}
     />}
   </section>
 }
 
-function ProvidersBody({ data, connecting, setConnecting, reconnecting, setReconnecting, refresh, administrator }: Readonly<{
+function ProvidersBody({ data, connecting, setConnecting, refresh, administrator }: Readonly<{
   data: ModelAccounts
   connecting: string | 'other' | null
   setConnecting: (value: string | 'other' | null) => void
-  reconnecting: string | null
-  setReconnecting: (value: string | null) => void
   refresh: () => void
   administrator: boolean
 }>) {
@@ -60,18 +53,17 @@ function ProvidersBody({ data, connecting, setConnecting, reconnecting, setRecon
           key={row.provider}
           row={row}
           onConnect={(provider) => { setNotice(null); setConnecting(provider) }}
-          onReconnect={setReconnecting}
         />,
         ...(row.provider === 'google' ? [<GoogleAiProAccount key="google-ai-pro" />] : []),
       ])}
       {!hasGoogle && <GoogleAiProAccount key="google-ai-pro" />}
     </ul>
-    {reconnecting && <ReconnectAccount provider={reconnecting} onDone={() => { setReconnecting(null); refresh() }} />}
     {connecting === 'other' && (
       <ConnectAccount
         key="other"
         providers={rest}
         onConnected={() => { setNotice('Conta conectada.'); setConnecting(null); refresh() }}
+        onCancel={() => setConnecting(null)}
       />
     )}
     {connecting && connecting !== 'other' && (() => {
@@ -82,9 +74,10 @@ function ProvidersBody({ data, connecting, setConnecting, reconnecting, setRecon
         providers={[selected]}
         initialProvider={connecting}
         onConnected={() => { setNotice('Conta conectada.'); setConnecting(null); refresh() }}
+        onCancel={() => setConnecting(null)}
       />
     })()}
-    {!reconnecting && !connecting && rest.length > 0 && (
+    {!connecting && rest.length > 0 && (
       <div className="cxs-row-actions cxs-actions-start">
         <Button type="button" variant="outline" onClick={() => { setNotice(null); setConnecting('other') }}>
           Conectar outro provedor
@@ -110,7 +103,6 @@ function MyDefaultsCard() {
 export function ModelsScreen({ administrator }: Readonly<{ administrator: boolean }>) {
   const queryClient = useQueryClient()
   const [connecting, setConnecting] = useState<string | 'other' | null>(null)
-  const [reconnecting, setReconnecting] = useState<string | null>(null)
   const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
 
   return <main className="cxs-page">
@@ -118,8 +110,6 @@ export function ModelsScreen({ administrator }: Readonly<{ administrator: boolea
     <ProvidersCard
       connecting={connecting}
       setConnecting={setConnecting}
-      reconnecting={reconnecting}
-      setReconnecting={setReconnecting}
       refresh={refresh}
       administrator={administrator}
     />

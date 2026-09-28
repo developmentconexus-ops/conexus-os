@@ -580,12 +580,12 @@ test('Minhas contas de modelo preserves non-featured connected accounts and allo
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
 
   // Non-featured provider with active key ('together') is preserved as a card
-  const togetherRow = page.locator('.cxs-row', { hasText: 'Together AI' })
+  const togetherRow = page.locator('.cxs-row', { hasText: 'Together' })
   await togetherRow.waitFor()
   await togetherRow.getByText('Conectada').waitFor()
 
   // Non-featured provider without active key ('fireworks') is NOT in the cards list
-  assert.equal(await page.locator('.cxs-row', { hasText: 'Fireworks AI' }).count(), 0)
+  assert.equal(await page.locator('.cxs-row', { hasText: 'Fireworks' }).count(), 0)
 
   // Clicking "Conectar" on Anthropic opens Anthropic's connect form directly
   const anthropicRow = page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' })
@@ -598,9 +598,14 @@ test('Minhas contas de modelo preserves non-featured connected accounts and allo
   await page.getByRole('region', { name: 'Conectar OpenAI' }).waitFor()
   assert.equal(await page.getByRole('region', { name: 'Conectar Anthropic' }).count(), 0)
 
+  // Clicking "Cancelar" closes the inline connect form, revealing "Conectar outro provedor"
+  await page.getByRole('button', { name: 'Cancelar' }).click()
+
   // Clicking "Conectar outro provedor" shows the picker containing unlisted providers
+  const otherRow = page.locator('.cxs-row-actions', { hasText: 'Conectar outro provedor' })
+  await otherRow.waitFor()
   await page.getByRole('button', { name: 'Conectar outro provedor' }).click()
-  await page.getByRole('button', { name: 'Fireworks AI' }).waitFor()
+  await page.getByRole('button', { name: 'Fireworks' }).waitFor()
 })
 
 test('Minhas contas de modelo displays Google AI Pro card independently of google provider and shows connected state', async (t) => {
@@ -618,7 +623,7 @@ test('Minhas contas de modelo displays Google AI Pro card independently of googl
   await page.route('**/api/control/model-defaults', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: true }) }))
   await page.route('**/api/control/model-accounts/google-ai-pro/connection', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ mine: true, shared: true, administrator: true }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ mine: true, shared: false, administrator: true }) }))
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
@@ -626,7 +631,7 @@ test('Minhas contas de modelo displays Google AI Pro card independently of googl
   // Google AI Pro is still rendered even without 'google' in providers
   const proRow = page.locator('.cxs-row', { hasText: 'Google AI Pro' })
   await proRow.waitFor()
-  await proRow.getByText('Conectada').waitFor()
-  await proRow.getByText('Compartilhada').waitFor()
+  await proRow.getByText('Conectado com a sua conta Google.').waitFor()
   await proRow.getByRole('button', { name: 'Desconectar' }).waitFor()
+  await proRow.getByRole('button', { name: 'Compartilhar com todos' }).waitFor()
 })

@@ -191,7 +191,7 @@ function ProviderPicker({ providers, onChoose }: Readonly<{ providers: readonly 
   </div>
 }
 
-export function ConnectAccount({ providers, initialProvider, onConnected }: Readonly<{ providers: readonly ModelProvider[]; initialProvider?: string; onConnected: () => void }>) {
+export function ConnectAccount({ providers, initialProvider, onConnected, onCancel }: Readonly<{ providers: readonly ModelProvider[]; initialProvider?: string; onConnected: () => void; onCancel?: () => void }>) {
   const [state, dispatch] = useReducer(
     connectFlowReducer,
     initialProvider,
@@ -216,7 +216,7 @@ export function ConnectAccount({ providers, initialProvider, onConnected }: Read
 
   const onDone = (error?: string, detail?: string) => {
     if (error) { dispatch({ type: 'failed', message: error, detail }); return }
-    dispatch({ type: 'done' })
+    dispatch({ type: 'succeeded' })
     refresh()
     onConnected()
   }
@@ -224,19 +224,25 @@ export function ConnectAccount({ providers, initialProvider, onConnected }: Read
   const restart = () => { dispatch({ type: 'reset' }); refresh() }
   const regenerate = (provider: string) => { start.mutate(provider) }
 
-  if (state.step === 'pick-provider') {
+  if (state.step === 'choose-provider') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
-      <h3>Conectar uma conta</h3>
+      <div className="cxs-connect-header">
+        <h3>Conectar uma conta</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <ProviderPicker providers={providers} onChoose={(provider) => dispatch({ type: 'provider-chosen', provider })} />
     </section>
   }
 
-  const chosen = providers.find((provider) => provider.provider === state.provider)
+  const chosen = 'provider' in state ? providers.find((provider) => provider.provider === state.provider) : undefined
 
   if (state.step === 'choose-method' && chosen) {
     if (!chosen.oauth?.supported) return null
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(chosen.provider)}`}>
-      <h3>{providerName(chosen.provider)}</h3>
+      <div className="cxs-connect-header">
+        <h3>{providerName(chosen.provider)}</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <div className="cxs-connect-methods">
         <Button type="button" variant="primary" disabled={start.isPending} onClick={() => start.mutate(chosen.provider)}>Entrar com a assinatura</Button>
         <Button type="button" variant="outline" onClick={() => dispatch({ type: 'method-api-key' })}>Usar uma chave de API</Button>
@@ -246,7 +252,10 @@ export function ConnectAccount({ providers, initialProvider, onConnected }: Read
 
   if (state.step === 'api-key') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
-      <h3>{providerName(state.provider)}</h3>
+      <div className="cxs-connect-header">
+        <h3>{providerName(state.provider)}</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <ApiKeyStep provider={state.provider} onDone={onDone} />
     </section>
   }

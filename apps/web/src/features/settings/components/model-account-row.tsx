@@ -94,14 +94,12 @@ export function SharedAccountRow({ row, manageAction }: Readonly<{ row: Row; man
 export function ProviderCard({
   row,
   onConnect,
-  onReconnect,
 }: Readonly<{
   row: Row
   onConnect: (provider: string) => void
-  onReconnect: (provider: string) => void
 }>) {
   if (row.state === 'connected' || row.state === 'needs-reconnect') {
-    return <OwnAccountRow row={row} onReconnect={onReconnect} />
+    return <OwnAccountRow row={row} />
   }
 
   if (row.state === 'shared') {
