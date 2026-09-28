@@ -251,7 +251,7 @@ test('hub_factory owns the factory schema and holds nothing anywhere else', asyn
           OR (c.relkind = 'S' AND has_sequence_privilege('hub_factory', c.oid, 'USAGE,SELECT,UPDATE')))
       UNION ALL
       SELECT 'function ' || n.nspname || '.' || p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg') AND has_function_privilege('hub_factory', p.oid, 'EXECUTE')`)).rows
+      WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model') AND has_function_privilege('hub_factory', p.oid, 'EXECUTE')`)).rows
     assert.deepEqual(granted, [])
   })
 

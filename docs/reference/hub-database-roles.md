@@ -26,10 +26,11 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
 | `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
+| `hub_model_account` | `model-account` | `builder/module.ts` | `CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE` |
 
-These eight and the six owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner`, `builder_owner` and `connector_owner` are every role the product has. A cluster
-built from `apps/hub/migrations/` holds exactly those fourteen. `0009_remove_model_connections.sql`
+These nine and the seven owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+`registry_owner`, `builder_owner`, `connector_owner` and `model_owner` are every role the product
+has. A cluster built from `apps/hub/migrations/` holds exactly those sixteen. `0009_remove_model_connections.sql`
 dropped `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and
 leaves either one in place while another database on the cluster still grants to it.
 `connector_owner`, added by `0029_connector.sql`, is `NOLOGIN` like every owner role: it owns the

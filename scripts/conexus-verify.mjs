@@ -56,6 +56,7 @@ const hubBuildStep = Object.freeze({
 export const CANDIDATE_GRAPH = Object.freeze([
   hubBuildStep,
   candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs tests/implementation/hub-database-cleanup-postgres.test.mjs', 'postgres'),
+  candidateStep('secrets-envelope-interop', 'node --test tests/implementation/secrets-envelope-interop.test.mjs'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs'),
   candidateStep('c020-migration-postgres', 'node --test --test-concurrency=1 tests/implementation/hub-migration-postgres.test.mjs', 'postgres'),
   candidateStep('iam-membership-authority', 'node --test --test-concurrency=1 tests/implementation/membership-authority-postgres.test.mjs', 'postgres'),
@@ -76,6 +77,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
   candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
   candidateStep('model-accounts-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-model-accounts-postgres.test.mjs', 'postgres'),
+  candidateStep('model-account-postgres', 'node --test --test-concurrency=1 tests/implementation/model-account-postgres.test.mjs', 'postgres'),
   candidateStep('google-ai-pro', 'node --test --test-concurrency=1 tests/implementation/builder-google-ai-pro.test.mjs'),
   candidateStep('factory-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-factory-runtime.test.mjs tests/implementation/builder-factory-run-ports.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-factory-run-ports-priming-order.test.mjs tests/implementation/builder-trace-summary.test.mjs tests/implementation/builder-session-tripwire.test.mjs'),
   candidateStep('factory-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-recovery-postgres.test.mjs tests/implementation/builder-factory-source-head-postgres.test.mjs', 'postgres'),
