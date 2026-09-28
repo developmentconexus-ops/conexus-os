@@ -7,7 +7,7 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
-import type { CompiledApplication, CompiledApplicationFiles } from './application-artifact-runtime.js'
+import type { CompiledApplicationFiles } from './application-artifact-runtime.js'
 import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { ConexusFactoryE2BSandbox, customProvidersPrimer, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
 import type { FactoryComposition } from './factory.js'
