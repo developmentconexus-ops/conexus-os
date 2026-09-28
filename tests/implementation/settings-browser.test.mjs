@@ -16,6 +16,10 @@ const withServer = async (t) => {
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
+  // No provider recommended packs unless a test says otherwise.
+  await page.route('**/web/config/model-packs', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ packs: [], activePackId: null }),
+  }))
   return { page, origin }
 }
 
@@ -107,15 +111,22 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
 })
 
-test('Meus padrões saves my defaults and clears back to the company ones', async (t) => {
+test('Meus padrões offers the company defaults, a provider pack and a custom choice', async (t) => {
   const { page, origin } = await withServer(t)
   let mine = null
+  const pack = {
+    id: 'anthropic-pack', name: 'Anthropic recomendado', description: 'Pacote recomendado pela Anthropic',
+    models: { build: BUILDER_MODELS[1].id, fast: BUILDER_MODELS[0].id }, custom: false, active: false,
+  }
   await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await routeBuilderModels(page)
   await page.route('**/web/config/providers', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ providers: [{ provider: 'anthropic', source: 'stored-user', userCredential: 'api_key' }], orgKeyAdmin: false }),
+  }))
+  await page.route('**/web/config/model-packs', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ packs: [pack], activePackId: null }),
   }))
   await page.route('**/api/control/model-defaults', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ installation: { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id }, mine, administrator: false }),
@@ -128,17 +139,30 @@ test('Meus padrões saves my defaults and clears back to the company ones', asyn
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Meus padrões', exact: false }).waitFor()
-  await page.getByRole('button', { name: 'Escolher os meus' }).click()
+  await page.getByText(/\(da empresa\)/).waitFor()
+  await page.getByRole('radio', { name: 'Usar os padrões da empresa' }).waitFor()
+
+  await page.getByRole('radio', { name: 'Usar o pacote recomendado: Anthropic recomendado' }).click()
+  await page.getByText('Padrões salvos.').waitFor()
+  assert.deepEqual(mine, pack.models)
+
+  await page.getByRole('radio', { name: 'Escolher o modelo' }).click()
   await page.getByRole('combobox', { name: 'Construção' }).click()
   await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
   await page.getByRole('listbox').waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Salvar meus padrões' }).click()
+  await page.getByText('Padrões salvos.').waitFor()
+  assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[0].id })
+
+  await page.getByRole('button', { name: 'Mais opções' }).click()
   await page.getByRole('combobox', { name: 'Rápido' }).click()
   await page.getByRole('option', { name: /claude-sonnet-4-5/ }).click()
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
   await page.getByRole('button', { name: 'Salvar meus padrões' }).click()
   await page.getByText('Padrões salvos.').waitFor()
   assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id })
 
-  await page.getByRole('button', { name: 'Usar os padrões da empresa' }).click()
+  await page.getByRole('radio', { name: 'Usar os padrões da empresa' }).click()
   await page.getByText('Voltou a usar os padrões da empresa.').waitFor()
   assert.equal(mine, null)
 })

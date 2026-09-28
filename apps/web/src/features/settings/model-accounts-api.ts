@@ -13,6 +13,8 @@ export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'dev
 export type OAuthStep = Readonly<{ status: 'complete' | 'pending' | 'failed'; nextPollMs?: number; error?: string }>
 export type ModelDefaults = Readonly<{ build: string; fast: string }>
 export type ModelDefaultsView = Readonly<{ installation: ModelDefaults | null; mine: ModelDefaults | null; administrator: boolean }>
+export type ModelPack = Readonly<{ id: string; name: string; description: string; models: ModelDefaults; custom: boolean; active: boolean }>
+export type ModelPacksView = Readonly<{ packs: readonly ModelPack[]; activePackId: string | null }>
 
 export class ModelAccountsRequestError extends Error {
   constructor(readonly status: number, readonly type: string | null = null, readonly reason: string | null = null, readonly expiresAt: string | null = null) {
@@ -44,6 +46,7 @@ const sharing = (provider: string) => `/api/control/model-accounts/${encodeURICo
 
 export const modelAccountsQueryKey = ['model-accounts'] as const
 export const modelDefaultsQueryKey = ['model-defaults'] as const
+export const modelPacksQueryKey = ['model-packs'] as const
 
 export const listModelAccounts = () => request<ModelAccounts>('GET', '/web/config/providers')
 export const saveApiKey = (provider: string, key: string) => request<unknown>('PUT', `${account(provider)}/key`, { key })
@@ -57,6 +60,7 @@ export const shareWithEveryone = (provider: string) => request<void>('POST', sha
 export const stopSharing = (provider: string) => request<void>('DELETE', sharing(provider))
 
 export const readModelDefaults = () => request<ModelDefaultsView>('GET', '/api/control/model-defaults')
+export const readModelPacks = () => request<ModelPacksView>('GET', '/web/config/model-packs')
 export const saveInstallationDefaults = (defaults: ModelDefaults) => request<unknown>('PUT', '/api/control/model-defaults/installation', defaults)
 export const saveMyDefaults = (defaults: ModelDefaults) => request<unknown>('PUT', '/api/control/model-defaults/mine', defaults)
 export const clearMyDefaults = () => request<void>('DELETE', '/api/control/model-defaults/mine')

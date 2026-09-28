@@ -46,6 +46,7 @@ type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; 
 export const FACTORY_CREDENTIAL_ROUTES: ReadonlySet<string> = new Set([
   'GET /web/config/providers',
   'GET /web/config/models',
+  'GET /web/config/model-packs',
   'PUT /web/config/providers/:provider/key',
   'DELETE /web/config/providers/:provider/key',
   'POST /web/config/providers/:provider/oauth/start',
