@@ -188,7 +188,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
       if (onDivergence !== 'RESET') return { diverged: divergedMigration(ledger, manifest.migrations) }
       await resetPreviewSchema(client, allocation)
       await allocate()
-      return planMigrations([], manifest.migrations)
+      return { ...planMigrations([], manifest.migrations), reset: true }
     })
     if ('diverged' in plan) return { state: 'MIGRATION_HISTORY_DIVERGED', detail: divergenceDetail(plan.diverged) }
     if (plan.pending.length === 0) return { state: 'READY', reset: plan.reset, applied: [] }
