@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+const { CONNECTOR_BRIEF_UNAVAILABLE, CONNECTOR_BRIEF_UNBOUND, createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { SANKHYA_GATEWAY_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
@@ -26,8 +26,10 @@ const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-toke
 
 const BINDING_LINE = (names) => `Connections bound to this Project, each named by the Project-local name a request passes as \`connection\`: ${names}.`
 
-test('a Project with no binding gets an empty brief; every binding it has is named with its integrator, whatever the integrator', async () => {
-  assert.equal(await briefOf(storeOf([]))(scope), '')
+test('a Project with no binding is told to change nothing and ask for a Conexão; every binding a Project has is named with its integrator', async () => {
+  assert.equal(await briefOf(storeOf([]))(scope), CONNECTOR_BRIEF_UNBOUND)
+  assert.equal(CONNECTOR_BRIEF_UNBOUND, 'This Project has no Connection bound to it, so it reads no external system. When a request needs data from one, '
+    + 'change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.')
   const other = await briefOf(storeOf([bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(other.startsWith(BINDING_LINE('`crm` (integrator synthetic-rest)')), other)
   assert.equal(other.includes(READ) || other.includes(sankhyaDefinition.builderSkill), false, 'an unregistered integrator reaches no operation and no Skill')
@@ -40,6 +42,12 @@ test('a Project with no binding gets an empty brief; every binding it has is nam
   const mixed = await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(mixed.startsWith(BINDING_LINE('`erp` (integrator sankhya), `crm` (integrator synthetic-rest)')), mixed)
   assert.ok(mixed.includes(READ), 'one Sankhya binding beside another integrator reaches the operation')
+})
+
+test('a Project with a binding is never told it has none, and is told to ask for a Conexão only for a system none of its bindings reaches', async () => {
+  const text = await briefOf(storeOf([bound('erp')]))(scope)
+  assert.equal(text.includes(CONNECTOR_BRIEF_UNBOUND) || text.includes('has no Connection'), false)
+  assert.ok(text.includes('When a request needs a system none of these Connections reaches, change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.'))
 })
 
 test('the brief tells the Builder to narrow a read that answers RESPONSE_TOO_LARGE', async () => {
@@ -59,16 +67,15 @@ test('a Project with one Sankhya binding gets a brief naming the operation and b
   assert.ok(text.includes(sankhyaDefinition.builderSkill))
 })
 
-test('an unbound Connection gets an empty brief again', async () => {
+test('an unbound Connection leaves the Project told it has none', async () => {
   const bindings = [bound('erp')]
   const brief = briefOf({ listBindings: async () => bindings })
   assert.ok((await brief(scope)).includes('`erp` (integrator sankhya)'))
   bindings.pop()
-  assert.equal(await brief(scope), '')
+  assert.equal(await brief(scope), CONNECTOR_BRIEF_UNBOUND)
 })
 
 test('an unreadable store answers the fixed notice, records a code with no store detail, and names no operation', async () => {
-  const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const record = connectorRecord()
   const brief = briefOf({ listBindings: async () => { throw new Error('permission denied for function list_bound_connections STORE_DETAIL_MARKER') } }, record)
   const text = await brief(scope)
@@ -81,9 +88,9 @@ test('an unreadable store answers the fixed notice, records a code with no store
   assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
-test('a scope this module did not mint gets an empty brief, whatever the store would answer', async () => {
+test('a scope this module did not mint is told connector data is unavailable, whatever the store would answer', async () => {
   const brief = briefOf(storeOf([bound('erp')]))
-  assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), '')
+  assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
 test('the brief and the Skill carry no credential material and no gateway origin', async () => {

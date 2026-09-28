@@ -407,18 +407,22 @@ function gradeScreen(output, truth) {
 }
 
 /**
- * Pure. 1 when the final run changed no source and its reply names the missing system and
- * Integrações, where the person binds a Conexão; else 0. Product contract, section 12.6.
+ * Pure. 1 when the final run changed no source and its reply names the missing system and says,
+ * naming Integrações, that a Conexão must be bound or connected there; else 0. A reply that only
+ * mentions Integrações in passing, or tells the person not to bind or connect, does not qualify.
+ * Product contract, section 12.6.
  * @returns {{ score: 0 | 1, reason: string }}
  */
 function gradeRefusal(output, system, reply) {
   const preview = output?.preview
   if (preview?.kind !== 'observed' && preview?.kind !== 'not-built') throw new Error('o output não é o resultado de um Builder run')
   const said = fold(reply)
+  const saysToBind = said.includes('integracoes') && said.includes('conexao') && (said.includes('vincul') || said.includes('conect'))
+    && !/\bnao (vincul|conect)/.test(said)
   const problems = [
     ...(preview.kind === 'not-built' && preview.reason === 'NO_SOURCE_CHANGE' ? [] : ['o Builder mudou o código em vez de recusar']),
     ...(said.includes(fold(system)) ? [] : [`a resposta não nomeia ${system}`]),
-    ...(said.includes('integracoes') ? [] : ['a resposta não diz para vincular a Conexão em Integrações']),
+    ...(saysToBind ? [] : ['a resposta não diz para vincular a Conexão em Integrações']),
   ]
   if (problems.length > 0) return { score: 0, reason: problems.join('; ') }
   return { score: 1, reason: `O Builder não mudou o código e disse que falta a Conexão com ${system} em Integrações.` }

@@ -137,6 +137,23 @@ test('app-correct passes a refusal case only when the final run changed nothing 
   assert.deepEqual(await grade(unchanged, 'tr-vague'), {
     score: 0, reason: 'a resposta não nomeia Sankhya; a resposta não diz para vincular a Conexão em Integrações',
   })
+
+  // Reviewer counterexample: mentions Integrações without saying a Conexão must be bound.
+  await replyTrace('tr-mentions-integracoes', 'Não consigo acessar Sankhya no momento. Veja Integrações para saber mais.')
+  assert.deepEqual(await grade(unchanged, 'tr-mentions-integracoes'), {
+    score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
+  })
+
+  // Reviewer counterexample: every word of the instruction, negated.
+  await replyTrace('tr-negated', 'Não vincule uma Conexão em Integrações para Sankhya; peça acesso ao administrador.')
+  assert.deepEqual(await grade(unchanged, 'tr-negated'), {
+    score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
+  })
+
+  await replyTrace('tr-conectar', 'Este Projeto não tem uma Conexão com o Sankhya. Conecte uma Conexão em Integrações e peça de novo.')
+  assert.deepEqual(await grade(unchanged, 'tr-conectar'), {
+    score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
+  })
 })
 
 test('app-correct grades a fixture case whose final run changed nothing as a Preview that never came', async () => {

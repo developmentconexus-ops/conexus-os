@@ -684,10 +684,23 @@ test("a Project with no binding is told the external-data rule and nothing about
   await run.start()
   await run.service.close()
   const [instructions] = run.configuredInstructions
-  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION))
+  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  assert.ok(instructions.endsWith(`${EXTERNAL_DATA_INSTRUCTION} ${CONNECTOR_BRIEF_UNBOUND}`), 'told it has no Connection, and what to do')
   for (const leak of ['sankhya.purchase-order.read', 'other-project-binding', otherBinding.connectionId, 'connectors.call']) {
     assert.equal(instructions.includes(leak), false, leak)
   }
+})
+
+test('a Project bound to Sankhya gets the same provenance rule and its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
+  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
+  const run = await harness(t, { openConnectorRun: await connectorRuns({ listBindings: async () => [binding] }) })
+  await run.start()
+  await run.service.close()
+  const [instructions] = run.configuredInstructions
+  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION), 'the same static rule runs for a bound Project too')
+  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('sankhya.purchase-order.read'), 'its own brief lists its binding and the read it can make')
+  assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
 })
 
 test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
