@@ -85,6 +85,17 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
 
   const inFlight = client.query('SELECT pg_sleep(2)')
 
+  const activeSince = Date.now()
+  for (;;) {
+    const { rows: activity } = await admin.query(
+      "SELECT state = 'active' AND query LIKE 'SELECT pg_sleep%' AS sleeping FROM pg_stat_activity WHERE pid = $1",
+      [pid],
+    )
+    if (activity[0]?.sleeping) break
+    assert.ok(Date.now() - activeSince < 5000, 'the sleep query became active on the server')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+
   // Terminate backend for that checked-out client from admin connection
   const termination = await admin.query('SELECT pg_terminate_backend($1) AS terminated', [pid])
   assert.equal(termination.rows[0].terminated, true)
