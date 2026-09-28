@@ -407,11 +407,12 @@ read-only because the vendor-side principal it uses can only read. There is no o
 no request DSL and no grant per operation ([C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)).
 
 Every value that an application presents as coming from an external system traces back to a read
-through a bound Connection, made live or stored earlier by a sync job through the same executor. When a request needs a system that the Project has no Connection bound
-for, the Builder tells the person which system is missing and what to bind in Integrações, and
-builds nothing that stands in for its data. It never writes invented or sample records and labels
-them as that system's. A read that fails shows as a failure in the application, never as empty or
-made-up data. The operator decided this rule on 2026-09-28, from issue #310.
+through a bound Connection, made live or stored earlier by a sync job through the same executor.
+When a request needs a system that the Project has no Connection bound for, the Builder tells the
+person which system is missing and what to bind in Integrações, and builds nothing that stands in
+for its data. It never writes invented or sample records and labels them as that system's. A read
+that fails shows as a failure in the application, never as empty or made-up data. The operator
+decided this rule on 2026-09-28, from issue #310.
 
 Q4 qualifies this shape first, with Sankhya as the first integrator. This authorizes nobody to
 share an account or work around a provider's rules.
