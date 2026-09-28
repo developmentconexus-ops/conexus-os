@@ -35,6 +35,9 @@ embedded doc page.
 | 8 | Ending a turn that a processor stopped | B | Implemented; waits on U6 |
 | 9 | Keeping a run's sandbox alive | A, plus B for the timeout | Implemented; waits on U7 |
 | 10 | Starting the agent's shell in the Project checkout | A | Implemented |
+| 11 | Giving the Builder the `connector_fetch` tool | A | Implemented |
+| 12 | Keeping vendor values out of the browser | A for the tool's transforms, B for what they miss | Implemented; waits on U8 and U9 |
+| 13 | Platform rules above the Project's own instructions | B | Waits on U10 |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -369,6 +372,65 @@ directory set at construction cannot serve as both the checkout's parent and the
 
 **Decision.** A.
 
+## 11. Giving the Builder the `connector_fetch` tool
+
+**Current code.** `createConnectorFetchIntegration` in `apps/hub/src/connectors/builder-tool.ts` is a
+`FactoryIntegration` whose `sessionTools` returns `connector_fetch` when the request context carries
+the consumer of a Builder run the connector module opened. `composeFactory` passes it beside the
+GitHub integration. The run's session binds the consumer into its `RequestContext` in
+`createMastraFactoryRunPorts`.
+
+**What Mastra offers.** `FactoryIntegration.sessionTools({ requestContext })` contributes
+"session-scoped tools, resolved synchronously per request" (`factory/dist/integrations/base.d.ts:220`).
+The Factory merges them into Mastra Code's `extraTools` (`factory/dist/factory.js:574-582`), which
+resolves them per agent step with the run's request context (`code-sdk/dist/agents/tools.js:81-126`).
+`MastraFactory` takes no other tool option (`factory/dist/factory.d.ts:50-164`).
+
+**Decision.** A.
+
+## 12. Keeping vendor values out of the browser
+
+**Current code.** `connector_fetch` sets `transform` for the `display` and `transcript` targets on
+the input, input-delta, output and error phases, and leaves `toModelOutput` unset
+(`apps/hub/src/connectors/builder-tool.ts`). `registerFactoryMastraRoutes` also applies the
+connector module's projection to the session's stream route and thread messages route
+(`apps/hub/src/builder/mastra-session-routes.ts`, `apps/hub/src/connectors/fetch-projection.ts`).
+
+**What Mastra offers.** `createTool({ transform })` shapes a tool's payloads for display streams and
+user-visible transcripts (`core/dist/docs/references/docs-agents-tools.md`, "Transform tool payloads
+for UI and transcripts"). Measured on `@mastra/core` 1.71.0 by
+`tests/implementation/connector-builder-tool.test.mjs`:
+
+- The output transform reaches the session's `tool_end` event. The input transform does not reach
+  `tool_start` when the model streamed the input (`tool-input-start` before `tool-call`), which real
+  providers do; the event carries the raw arguments (`core/dist/agent-controller-0NjSdCnl.js:537`).
+- The thread's stored messages keep the raw arguments and result beside the transformed copies in
+  their metadata, and a later turn of the conversation receives the raw result from them.
+- `toModelOutput` stores its value at `providerMetadata.mastra.modelOutput`
+  (`core/dist/agent-BOxKOk3n.js:29150-29185`), which the thread messages route serves.
+
+**Decision.** A for the transforms. B (U8, U9) for the two gaps: the route-level projection stays
+until Mastra transforms a streamed input and persists only the transcript projection.
+
+## 13. Platform rules above the Project's own instructions
+
+**Current code.** `factory-runtime.ts` sets the Builder's rules as `pluginInstructions` in session
+state. Mastra Code appends them after the project's `AGENTS.md` and `CLAUDE.md`, with a preamble that
+says they "must not override higher-priority system, developer, repository... instructions"
+(`code-sdk/dist/agents/instructions.js:44-57`).
+
+**What Mastra offers.** `MastraCodeConfig.hostInstructions`, "trusted host instructions resolved
+outside mutable session state" (`code-sdk/dist/index.d.ts:63-65`), is placed right after the base
+prompt and before project instructions (`code-sdk/dist/agents/prompts/index.js:91-101`). The Factory
+sets its own `hostInstructions` and does not let a host pass one (`factory/dist/factory.js:483-500`;
+`factory/dist/factory.d.ts:50-164` has no such option). Session state `untrustedCheckout` without a
+`baseRef` stops the checkout's `AGENTS.md` from loading (`code-sdk/dist/agents/prompts/index.js:73-77`,
+`code-sdk/dist/index.js:487`), but the Factory's own rules also read that flag
+(`factory/dist/rules/binding-context.js`, `factory/dist/rules/start-coordinator.js`), so the Hub does
+not set it without a measurement.
+
+**Decision.** B (U10).
+
 ## Upstream proposals
 
 U1 to U4 are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. U6 and U7 are drafts
@@ -464,3 +526,37 @@ nothing calls `Sandbox.setTimeout`.
 
 Proposal: expose the budget as a `timeout` getter and add `extendTimeout(ms?)`, which resets the
 deadline to the budget from now. Optionally, extend the deadline while a command or a process runs.
+
+### U8 (not opened yet). Apply a tool's input display transform to a streamed input
+
+**Package.** `@mastra/core` 1.71.0, `dist/agent-controller-0NjSdCnl.js:537`.
+
+When the model streams a tool's input (`tool-input-start`, `tool-input-delta`, `tool-input-end`,
+then `tool-call`), the controller's `tool_start` event and the message part it builds carry the raw
+arguments, although the tool sets `transform.display.input`. The same tool called without a streamed
+input gets the transformed arguments.
+
+Proposal: attach the input-available transform to the `tool-call` chunk on both paths.
+
+### U9 (not opened yet). Persist only the transcript projection of a transformed tool call
+
+**Package.** `@mastra/core` 1.71.0, `dist/agent-BOxKOk3n.js:34833` (`drainUnsavedMessages`).
+
+A thread driven by `AgentController` stores a transformed tool call's raw arguments and result, with
+the transformed copies in `providerMetadata.mastra.toolPayloadTransform`. A later turn loads the raw
+result into the model's context, and any reader of the stored messages sees it.
+
+Proposal: persist the `transcript` projection in the stored message and keep the raw payload only in
+the current turn's model context, or document that the stored message is raw and the projection is a
+serving concern.
+
+### U10 (not opened yet). Let a Factory host pass `hostInstructions`
+
+**Package.** `@mastra/factory` 0.17.2, `dist/factory.js:483` and `dist/factory.d.ts:50-164`.
+
+The Factory passes its own `hostInstructions` to Mastra Code and offers hosts no option for theirs,
+so a host's platform rules can only travel as `pluginInstructions`, which rank below the checkout's
+`AGENTS.md`.
+
+Proposal: accept `hostInstructions` (a string or a function of the request context) in the
+`MastraFactory` config and compose it with the Factory's own.

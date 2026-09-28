@@ -9,7 +9,10 @@ import { nativeRequestSchema } from './native.js'
 import type { Consumer } from './operation.js'
 import { revokeScope, scopeForBuilderRun } from './scope.js'
 
-/** A Builder run's reads: the run revokes the scope when it ends, so the lifetime only bounds a run that never ends. */
+/**
+ * A Builder run's reads: the run revokes the scope when it ends, so the lifetime only bounds a run that never ends.
+ * @public Tests import this at runtime from the built module.
+ */
 export const BUILDER_RUN_TERMS = Object.freeze({ ttlMs: 2 * 60 * 60 * 1000, calls: 50 })
 
 const RUN_CONSUMER_KEY = 'conexusConnectorConsumer'
@@ -24,7 +27,6 @@ const runConsumerOf = (requestContext: RequestContext): Consumer | null => {
 }
 
 export type BuilderConnectorRun = Readonly<{
-  /** The Project's connector brief for this run's instructions. */
   brief: string
   /** Gives the run's session the run's consumer, the only way `connector_fetch` finds its scope. */
   bind(requestContext: RequestContext): void

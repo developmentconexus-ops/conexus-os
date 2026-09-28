@@ -144,16 +144,15 @@ const rewrite = (value: unknown, calls: ReadonlySet<string>, project: Projector)
   const node: Record<string, unknown> = {}
   for (const [key, item] of Object.entries(value)) node[key] = rewrite(item, calls, project)
   const invocation = node.toolInvocation
+  const part = isRecord(invocation) && invocation.toolName === CONNECTOR_FETCH_TOOL
   const owned = ownsToolCall(node) || (typeof node.toolCallId === 'string' && calls.has(node.toolCallId))
-  if (isRecord(invocation) && invocation.toolName === CONNECTOR_FETCH_TOOL) {
+  if (part) {
     // Mastra can store or stream the raw payload beside the tool's own projection of it.
     const args = project.kept(node.providerMetadata, 'input-available')
     const result = 'result' in invocation ? project.kept(node.providerMetadata, 'output-available') : undefined
     node.toolInvocation = { ...invocation, ...(args === undefined ? {} : { args }), ...(result === undefined ? {} : { result }) }
   }
-  if (owned || (isRecord(invocation) && invocation.toolName === CONNECTOR_FETCH_TOOL)) {
-    if ('providerMetadata' in node) node.providerMetadata = withoutModelOutput(node.providerMetadata)
-  }
+  if ((part || owned) && 'providerMetadata' in node) node.providerMetadata = withoutModelOutput(node.providerMetadata)
   if (!owned) return node
   if ('args' in node) node.args = project.request(node.args)
   if ('result' in node) node.result = project.result(node.result)

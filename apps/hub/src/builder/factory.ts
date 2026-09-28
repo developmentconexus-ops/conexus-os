@@ -313,7 +313,6 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
   googleAiProUrl?: string
-  /** Integrations beside GitHub, such as the one that contributes the Builder's connector tool. */
   integrations?: readonly FactoryIntegration[]
 }>): Promise<FactoryComposition> => {
   const storage = createFactoryStorage(pool)

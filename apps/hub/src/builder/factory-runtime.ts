@@ -60,7 +60,7 @@ export type FactoryRunPorts = Readonly<{
   github: Pick<GithubApp, 'repositoryToken' | 'branchContains'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
-  /** Opens the run's connector access; the run ends it on every exit. Absent, or with an empty brief, adds nothing to the agent's instructions. */
+  /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
   log(line: string): void
 }>

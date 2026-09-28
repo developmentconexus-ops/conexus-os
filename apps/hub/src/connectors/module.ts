@@ -33,9 +33,8 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
-  /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief is
-   * empty for a Project with none and a fixed notice when they cannot be read; it opens no credential and makes no
-   * network call. */
+  /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief opens
+   * no credential and makes no network call. */
   openBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
   /** Contributes `connector_fetch` to the Factory session of a run bound with `openBuilderRun`. */
   builderIntegration: FactoryIntegration
