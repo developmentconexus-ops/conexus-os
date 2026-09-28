@@ -108,6 +108,43 @@ test('app-correct fails a Preview with a known wrong total, a missing name or no
   })
 })
 
+test('app-correct passes a refusal case only when the final run changed nothing and its reply names the system and Integrações', async () => {
+  const { storage, mastra } = evalMastra()
+  const refusal = { missingSystem: 'Sankhya' }
+  const replyTrace = async (traceId, text) => {
+    const spans = builderTrace({ traceId, builderRunId: `run-${traceId}`, projectId: 'p-1' })
+    spans[0] = { ...spans[0], output: { text } }
+    await seedSpans(storage, spans)
+  }
+  await replyTrace('tr-refused', 'Este Projeto não tem uma Conexão com o Sankhya. Vincule uma Conexão em Integrações e peça de novo.')
+  await replyTrace('tr-built', 'Pronto! O pedido 40118 aparece com os dados do Sankhya ERP.')
+  const grade = async (preview, traceId) => {
+    const { score, reason } = await mastra.getScorer('app-correct').run({ output: { preview, runs: [{ traceId }] }, groundTruth: refusal })
+    return { score, reason }
+  }
+  const unchanged = { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' }
+
+  assert.deepEqual(await grade(unchanged, 'tr-refused'), {
+    score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
+  })
+  assert.deepEqual(await grade({ kind: 'observed', text: 'Pedido 40118 · Sankhya ERP · Fornecedor Alfa · R$ 1.250,00', sourceRevision: 'rev-1' }, 'tr-built'), {
+    score: 0, reason: 'o Builder mudou o código em vez de recusar; a resposta não diz para vincular a Conexão em Integrações',
+  })
+  assert.deepEqual(await grade({ kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' }, 'tr-refused'), {
+    score: 0, reason: 'o Builder mudou o código em vez de recusar',
+  })
+  await replyTrace('tr-vague', 'Não consigo acessar esse sistema agora.')
+  assert.deepEqual(await grade(unchanged, 'tr-vague'), {
+    score: 0, reason: 'a resposta não nomeia Sankhya; a resposta não diz para vincular a Conexão em Integrações',
+  })
+})
+
+test('app-correct grades a fixture case whose final run changed nothing as a Preview that never came', async () => {
+  const { mastra } = evalMastra()
+  const { score, reason } = await mastra.getScorer('app-correct').run({ output: { preview: { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' } }, groundTruth })
+  assert.deepEqual({ score, reason }, { score: 0, reason: 'A prévia não ficou pronta (NO_SOURCE_CHANGE)' })
+})
+
 test('app-correct fails a Preview whose table swaps two sellers\' totals or two months, even though every number and name is on screen', async () => {
   const { mastra } = evalMastra()
   const grade = async (text) => {

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { loadArms } from '../../scripts/builder-eval/experiment.mjs'
-import { ARMS, CASES, experimentHarness } from './builder-eval-fixtures.mjs'
+import { ARMS, CASES, experimentHarness, SALES_PREVIEW_TEXT } from './builder-eval-fixtures.mjs'
 
 const completed = (experimentId) => ({ experimentId, status: 'completed', settled: 1, total: 1, pending: [] })
 
@@ -55,6 +55,27 @@ test('two arms, one trial: each experiment runs its case once, is graded and fin
     checks: [{ action: 'expectText', selector: 'body', text: 'ANA' }, { action: 'expectText', selector: 'body', text: 'BRUNO' }],
     reload: false,
   })
+})
+
+test('a refusal case runs on a Project with no binding and is graded on the unchanged source and the final reply', async (t) => {
+  const refusal = { id: 'sankhya-not-connected', input: { request: 'Mostre o pedido de compra 40118 com os dados do Sankhya.' }, truth: { missingSystem: 'Sankhya' } }
+  const { mastra, hub, driver, run } = await experimentHarness(t, new InMemoryStore(), {
+    replies: { 'sankhya-not-connected': 'Não há uma Conexão com o Sankhya neste Projeto. Vincule uma Conexão em Integrações.' },
+  })
+
+  const summary = await run({ arms: [ARMS[0]], cases: [CASES[0], refusal], concurrency: 1 })
+
+  assert.deepEqual(summary, [{ ...completed('be:c1:flash:t0'), settled: 2, total: 2 }])
+  assert.deepEqual(hub.created.map(({ projectId, name }) => [projectId, name.split('-').slice(4, -1).join('-')]), [['p-1', 'sales-dashboard'], ['p-2', 'sankhya-not-connected']])
+  assert.deepEqual(hub.bound, ['p-1'])
+  assert.deepEqual(driver.calls[1].case, { request: 'Mostre o pedido de compra 40118 com os dados do Sankhya.', checks: [], reload: false })
+  const rows = await resultsOf(mastra, 'be:c1:flash:t0')
+  assert.deepEqual(rows.map((row) => [row.error, row.output.preview]).sort((a, b) => a[1].kind.localeCompare(b[1].kind)), [
+    [null, { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' }],
+    [null, { kind: 'observed', text: SALES_PREVIEW_TEXT, sourceRevision: 'rev-1' }],
+  ])
+  const { scores } = await (await mastra.getStorage().getStore('scores')).listScoresByRunId({ runId: 'be:c1:flash:t0', pagination: { page: 0, perPage: 50 } })
+  assert.deepEqual(scores.filter((score) => score.scorerId === 'app-correct').map((score) => score.score), [1, 1])
 })
 
 test('an arm that breaks its own build is graded 0; a platform failure stays open until a rerun settles it', async (t) => {

@@ -310,6 +310,8 @@ async function sendAndSettle(page, options, caseFile, result) {
   // one would grade a result the request did not produce.
   if (finalRun.state !== 'SUCCEEDED' || finalRun.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') {
     result.failure = 'FINAL_RUN_NOT_BUILT'
+  } else if (finalRun.resultKind === 'RESPONSE_ONLY') {
+    result.failure = 'NO_SOURCE_CHANGE'
   } else if (!(await pollForPreviewOf(page, result.projectId, result.sourceRevisionAfter))) {
     result.failure = 'PREVIEW_NOT_FROM_FINAL_RUN'
   }

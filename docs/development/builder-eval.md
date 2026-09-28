@@ -95,7 +95,7 @@ The scorers are these:
 
 | Scorer | What it measures | Better |
 | --- | --- | --- |
-| `app-correct` | 1 when the Preview shows every known amount and seller name and no total that a known mistake produces | higher |
+| `app-correct` | 1 when the Preview shows every known amount and seller name and no total that a known mistake produces. In a refusal case, 1 when the Builder changes no source and its reply names the missing system and Integrações | higher |
 | `tool-calls` | Tool calls by the Builder's main agent | lower |
 | `calls-per-step` | Tool calls per model step that called a tool | higher |
 | `repeated-reads` | Reads of a file that did not change since the last read, and identical `connector_fetch` reads | lower |
@@ -106,7 +106,8 @@ The scorers are these:
 | `sim-refusals` | Valid queries the simulator does not model; a value above 0 is the eval's fault, not the arm's | lower |
 
 The `app-correct` reason names what is missing and which mistake a wrong total matches, for example
-the total of an app that also counts orders.
+the total of an app that also counts orders. In a refusal case it says whether the Builder changed
+the source and what its reply left out.
 
 ## Read a trace from a bad score
 

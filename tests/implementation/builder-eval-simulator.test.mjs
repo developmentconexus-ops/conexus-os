@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { loadCases } from '../../scripts/builder-eval/experiment.mjs'
@@ -249,14 +252,21 @@ test('wrong requests answer status 0 like Sankhya, unmodelled reads carry the [s
   assert.deepEqual(health, { fixtures: ['sales-v1'], counters: { loadRecords: 5, refusals: 3, writes: 1 } })
 })
 
-test('loadCases computes the committed sales-dashboard case truth from sales-v1', () => {
+test('loadCases computes the committed sales-dashboard case truth from sales-v1 and binds nothing for the refusal case', () => {
   const cases = loadCases(fileURLToPath(new URL('../../scripts/builder-eval/cases/erp', import.meta.url)))
+  assert.deepEqual(cases.map((entry) => entry.id), ['sales-dashboard', 'sankhya-not-connected'])
+  const [sales, refusal] = cases
+  assert.deepEqual([sales.input.fixture, sales.truth.fixture, sales.truth.figures.grandTotalCents], ['sales-v1', 'sales-v1', GRAND_TOTAL_CENTS])
   assert.deepEqual(
-    cases.map((entry) => [entry.id, entry.input.fixture, entry.truth.fixture, entry.truth.figures.grandTotalCents]),
-    [['sales-dashboard', 'sales-v1', 'sales-v1', GRAND_TOTAL_CENTS]],
-  )
-  assert.deepEqual(
-    cases[0].truth.screen.amounts.filter((amount) => amount.cents === GRAND_TOTAL_CENTS),
+    sales.truth.screen.amounts.filter((amount) => amount.cents === GRAND_TOTAL_CENTS),
     [{ cents: GRAND_TOTAL_CENTS, label: 'total geral' }],
   )
+  assert.deepEqual([Object.keys(refusal.input), refusal.truth], [['request'], { missingSystem: 'Sankhya' }])
+})
+
+test('loadCases refuses a case that both binds a fixture and expects a refusal', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'builder-eval-cases-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  writeFileSync(join(dir, 'mixed.json'), '{ "fixture": "sales-v1", "missingSystem": "Sankhya", "request": "Mostre o pedido." }')
+  assert.throws(() => loadCases(dir), { message: 'builder-eval: cases/erp/mixed.json has both "fixture" and "missingSystem"; a refusal case binds nothing' })
 })

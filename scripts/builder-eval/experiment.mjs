@@ -16,10 +16,16 @@ import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers
  * @typedef {Readonly<{ baseUrl: string, hubVersion: string, simulatorOrigin: string, maxRepairs: number, model: string }>} Setup
  */
 /** @typedef {Readonly<{ id: string, model: string }>} Arm  id is the file stem; the file admits only "model". */
-/** @typedef {Readonly<{ request: string, fixture: string }>} CaseInput  the dataset item's input */
 /**
- * The dataset item's groundTruth; figures is the fixture's own answer (SalesFigures for sales-v1).
- * @typedef {Readonly<{ fixture: string, screen: import('./scorers.mjs').ScreenTruth, figures: unknown }>} CaseTruth
+ * The dataset item's input. A fixture binds the Project to the simulator serving it; a case with no
+ * fixture runs on a Project with no binding at all.
+ * @typedef {Readonly<{ request: string, fixture?: string }>} CaseInput
+ */
+/**
+ * The dataset item's groundTruth. A fixture case's figures are the fixture's own answer (SalesFigures
+ * for sales-v1); a refusal case names the system the Builder must say is missing.
+ * @typedef {Readonly<{ fixture: string, screen: import('./scorers.mjs').ScreenTruth, figures: unknown }>
+ *   | Readonly<{ missingSystem: string }>} CaseTruth
  */
 /** @typedef {Readonly<{ id: string, input: CaseInput, truth: CaseTruth }>} Case  id is the file stem */
 /**
@@ -28,7 +34,7 @@ import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers
  */
 /**
  * @typedef {Readonly<{ kind: 'observed', text: string, sourceRevision: string }>
- *   | Readonly<{ kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' }>} PreviewResult
+ *   | Readonly<{ kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' | 'NO_SOURCE_CHANGE' }>} PreviewResult
  */
 /**
  * What the driver submits as `output`. preview is null on a platform error, which is never graded.
@@ -108,16 +114,25 @@ export function loadArms(dir, ids) {
   })
 }
 
-/** @returns {Case[]} every *.json in dir, its truth computed from the fixture, never written by hand */
+/**
+ * @returns {Case[]} every *.json in dir. A fixture case's truth is computed from the fixture, never
+ * written by hand; a refusal case (missingSystem, no fixture) expects the Builder to change nothing.
+ */
 export function loadCases(dir) {
   return jsonStems(dir).map((id) => {
     requireId(id, 'case id')
     const label = `cases/erp/${id}.json`
     const raw = readJsonObject(join(dir, `${id}.json`), label)
-    refuseUnknownKeys(raw, ['fixture', 'request'], label)
+    refuseUnknownKeys(raw, ['fixture', 'missingSystem', 'request'], label)
     if (typeof raw.request !== 'string' || !raw.request.trim()) fail(`${label} needs a "request" string`)
-    if (typeof raw.fixture !== 'string') fail(`${label} needs a "fixture" id`)
-    return Object.freeze({ id, input: { request: raw.request.trim(), fixture: raw.fixture }, truth: fixtureById(raw.fixture).truth() })
+    const request = raw.request.trim()
+    if (raw.missingSystem !== undefined) {
+      if (raw.fixture !== undefined) fail(`${label} has both "fixture" and "missingSystem"; a refusal case binds nothing`)
+      if (typeof raw.missingSystem !== 'string' || !raw.missingSystem.trim()) fail(`${label} needs "missingSystem" as a system name`)
+      return Object.freeze({ id, input: { request }, truth: { missingSystem: raw.missingSystem.trim() } })
+    }
+    if (typeof raw.fixture !== 'string') fail(`${label} needs a "fixture" id or a "missingSystem" name`)
+    return Object.freeze({ id, input: { request, fixture: raw.fixture }, truth: fixtureById(raw.fixture).truth() })
   })
 }
 
@@ -139,6 +154,9 @@ const FAILURE_OWNER = Object.freeze({
 
 const platformError = (code, message) => ({ kind: 'platform-error', code, message })
 
+// run.mjs failures that leave no Preview of the request through the arm's own doing: graded, not retried.
+const ARM_WITHOUT_PREVIEW = new Set(['FINAL_RUN_NOT_BUILT', 'NO_SOURCE_CHANGE'])
+
 /** @returns {RunVerdict} */
 function classifyRun(result) {
   if (result.outcome === 'ERROR') return platformError('DRIVER_ERROR', result.error ?? 'run.mjs failed')
@@ -148,13 +166,13 @@ function classifyRun(result) {
     return platformError(last.failureCategory, `the last Builder run failed with ${last.failureCode ?? last.failureCategory}`)
   }
   if (result.failure === 'PREVIEW_NOT_FROM_FINAL_RUN') return platformError('PREVIEW_NOT_FROM_FINAL_RUN', "the Preview never showed the final run's revision")
-  if (result.failure !== 'FINAL_RUN_NOT_BUILT' && typeof result.previewText !== 'string') return platformError('PREVIEW_UNREADABLE', "the Preview's text could not be read")
+  if (!ARM_WITHOUT_PREVIEW.has(result.failure) && typeof result.previewText !== 'string') return platformError('PREVIEW_UNREADABLE', "the Preview's text could not be read")
   return { kind: 'graded' }
 }
 
 /** @returns {PreviewResult} for a graded result only */
-const previewOf = (result) => (result.failure === 'FINAL_RUN_NOT_BUILT'
-  ? { kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' }
+const previewOf = (result) => (ARM_WITHOUT_PREVIEW.has(result.failure)
+  ? { kind: 'not-built', reason: result.failure }
   : { kind: 'observed', text: result.previewText, sourceRevision: result.sourceRevisionAfter })
 
 /** @returns {RunOutput} */
@@ -170,7 +188,7 @@ const runOutput = (result, artifactsDir, preview, traceIds) => ({
 // Each name check doubles as the wait for the data to load before run.mjs captures the text.
 const caseFileOf = (item) => ({
   request: item.input.request,
-  checks: item.groundTruth.screen.names.map((name) => ({ action: 'expectText', selector: 'body', text: name })),
+  checks: (item.groundTruth.screen?.names ?? []).map((name) => ({ action: 'expectText', selector: 'body', text: name })),
   reload: false,
 })
 
@@ -198,7 +216,7 @@ async function requireFixtures(origin, cases) {
   } catch (error) {
     fail(`the simulator at ${origin} is not answering (${error.message}); start it with node scripts/builder-eval/sankhya-sim.mjs`)
   }
-  const missing = [...new Set(cases.map((entry) => entry.input.fixture))].filter((fixture) => !health.fixtures?.includes(fixture))
+  const missing = [...new Set(cases.map((entry) => entry.input.fixture).filter(Boolean))].filter((fixture) => !health.fixtures?.includes(fixture))
   if (missing.length > 0) fail(`the simulator at ${origin} does not serve ${missing.join(', ')}`)
 }
 
@@ -256,7 +274,7 @@ async function runJob({ experiment, item }, { mastra, hub, runCase, binding, dat
     const out = join(options.outRoot, options.comparisonId, experiment.id, item.externalId)
     mkdirSync(out, { recursive: true })
     const { projectId } = await hub.createProject({ name: `eval-${options.comparisonId}-${experiment.arm.id}-t${experiment.trial}-${item.externalId}-${hhmmss()}` })
-    await binding.bindProject(projectId)
+    if (item.input.fixture) await binding.bindProject(projectId)
     const casePath = join(out, 'case.json')
     writeFileSync(casePath, `${JSON.stringify(caseFileOf(item), null, 2)}\n`, 'utf8')
     log(`${label}: running on Project ${projectId}, artifacts in ${out}`)

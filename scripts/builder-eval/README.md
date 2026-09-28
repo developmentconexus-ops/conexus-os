@@ -74,7 +74,8 @@ result was saved outside the browser.
 - `previewUrl`, `screenshotPath` (relative to `--out`; a reload also writes
   `preview-after-reload.png`), `checks.initial`, `checks.afterReload`, `gradeOnly`.
 - `failure`: why no checks ran, when they did not. `FINAL_RUN_NOT_BUILT` means the last run did not
-  produce a built source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview never named the final
+  produce a built source; `NO_SOURCE_CHANGE` means the last run answered without changing the
+  source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview never named the final
   run's revision within the bound; `NO_PREVIEW` (grade-only) means the Project has no Preview. Checks never grade a Preview the request did not produce.
 - `previewText`: the Preview's visible text after the checks ran, or `null` when no Preview was
   graded. The experiment driver grades this text.
@@ -105,5 +106,10 @@ reference.
 - `--out <dir>`, `--max-repairs <n>`, `--base-url <url>`: as for `run.mjs`.
 
 An arm is `arms/<id>.json` with one key, `model`. An ERP case is `cases/erp/<id>.json` with
-`fixture` and `request`. The case's known answers come from its fixture in `fixtures/`, never from
-the case file.
+`request` and one of two keys:
+
+- `fixture`: the driver binds the Project to the simulator, and the case's known answers come from
+  that fixture in `fixtures/`, never from the case file.
+- `missingSystem`: the Project gets no binding, and the case expects a refusal. The last run changes
+  no source, and its reply names that system and Integrações, where the person binds a Conexão.
+  `sankhya-not-connected` reproduces Q4.7 run 1 of issue #310.
