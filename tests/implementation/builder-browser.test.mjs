@@ -1163,7 +1163,9 @@ test('a suspended ask_user with options renders the options and submits the chos
   await page.getByRole('progressbar', { name: 'Progresso das tarefas' }).waitFor()
 })
 
-test('a live reply streamed as deltas renders whole while the run is still working', async (t) => {
+// A Project whose run stays in AGENT, streaming only the given controller events: nothing reaches the
+// persisted thread, so whatever the turn shows came from those events.
+const openLiveTurn = async (t, events) => {
   const accountId = '70000000-0000-4000-8000-000000000221'
   const projectId = '70000000-0000-4000-8000-000000000222'
   const runId = '70000000-0000-4000-8000-000000000223'
@@ -1190,18 +1192,38 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     mode: 'BUILD', runHistory: [],
   }) }))
-  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+  await page.route(`${FACTORY_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  return page
+}
+
+test('a live reply streamed as deltas renders whole while the run is still working', async (t) => {
+  const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-delta-1', 'Vou trocar') },
     { type: 'message_update', id: 'live-delta-1', event: { type: 'text-delta', delta: ' o título' } },
     { type: 'message_update', id: 'live-delta-1', event: { type: 'text-delta', delta: ' agora.' } },
     { type: 'message_update', id: 'unknown-message', event: { type: 'text-delta', delta: ' perdido' } },
     { type: 'message_end', id: 'live-delta-1' },
-  )))
-
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  ])
   await page.locator('.cx-messages').getByText('Vou trocar o título agora.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages').getByText('perdido').count(), 0,
     'a delta for a message that never started is dropped')
+})
+
+// @mastra/core 1.71 announces a text span that opens after a tool call as its own empty part before
+// any delta for it, so the delta lands in that new part, after the tool.
+test('text streamed after a tool call renders after it, not appended to the text before it', async (t) => {
+  const tool = { type: 'tool-invocation', toolInvocation: { toolCallId: 'live-tool-1', toolName: 'read_file', state: 'result', args: {}, result: 'ok' } }
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('live-order-1', 'Antes') },
+    { type: 'message_update', id: 'live-order-1', event: { type: 'part', index: 1, part: tool } },
+    { type: 'message_update', id: 'live-order-1', event: { type: 'part', index: 2, part: { type: 'text', text: '' } } },
+    { type: 'message_update', id: 'live-order-1', event: { type: 'text-delta', delta: 'Depois' } },
+  ])
+  const body = page.locator('.cx-messages .builder-turn-assistant .builder-turn-body')
+  await body.getByText('Depois', { exact: true }).waitFor()
+  assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-group') ? 'tool' : child.textContent.trim())),
+    ['Antes', 'tool', 'Depois'])
 })
 
 // A free-text ask_user (no options on the suspend payload) drives AskUserPt's other branch: the
