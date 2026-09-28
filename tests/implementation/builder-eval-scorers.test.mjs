@@ -150,6 +150,12 @@ test('app-correct passes a refusal case only when the final run changed nothing 
     score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
   })
 
+  // Reviewer counterexample: the negation sits words away from the verb, not right before it.
+  await replyTrace('tr-negated-far', 'Não é necessário vincular uma Conexão do Sankhya em Integrações.')
+  assert.deepEqual(await grade(unchanged, 'tr-negated-far'), {
+    score: 0, reason: 'a resposta não diz para vincular a Conexão em Integrações',
+  })
+
   await replyTrace('tr-conectar', 'Este Projeto não tem uma Conexão com o Sankhya. Conecte uma Conexão em Integrações e peça de novo.')
   assert.deepEqual(await grade(unchanged, 'tr-conectar'), {
     score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',

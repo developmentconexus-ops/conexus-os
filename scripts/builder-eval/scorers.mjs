@@ -417,8 +417,12 @@ function gradeRefusal(output, system, reply) {
   const preview = output?.preview
   if (preview?.kind !== 'observed' && preview?.kind !== 'not-built') throw new Error('o output não é o resultado de um Builder run')
   const said = fold(reply)
+  // A negation cue ("nao", "nunca", "sem") that precedes the verb anywhere in the same clause
+  // negates it, not only when the two words are adjacent: "nao e necessario vincular", "nao
+  // precisa conectar", "sem precisar vincular" all count, same as "nao vincule".
+  const verbNegated = /\b(?:nao|nunca|sem)\b[^.!?;]{0,40}\b(?:vincul|conect)\w*/.test(said)
   const saysToBind = said.includes('integracoes') && said.includes('conexao') && (said.includes('vincul') || said.includes('conect'))
-    && !/\bnao (vincul|conect)/.test(said)
+    && !verbNegated
   const problems = [
     ...(preview.kind === 'not-built' && preview.reason === 'NO_SOURCE_CHANGE' ? [] : ['o Builder mudou o código em vez de recusar']),
     ...(said.includes(fold(system)) ? [] : [`a resposta não nomeia ${system}`]),
