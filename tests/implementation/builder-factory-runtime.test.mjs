@@ -468,6 +468,7 @@ test('a token rides only in the environment of root commands on the Hub mirror, 
     assert.doesNotMatch(part, /x-access-token:|ghs_fake_/)
   }
   const header = {
+    GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
     GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_fake_1').toString('base64')}`,

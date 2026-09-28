@@ -108,6 +108,13 @@ real clone URL with the credential `conexus-no-credential`. `mintInstallationTok
 repository access carries the placeholder, and `mintInstallationToken` still answers the token GitHub
 returns.
 
+**Since 0.16.** The Factory clones from the repository's plain URL and passes the credential as a
+one-process `http.<url>.extraHeader` in the git environment
+(`factory/dist/integrations/github/sandbox.js:166-176`, `:223`), where 0.15 put it in the remote URL. The
+Hub's seed points that plain URL at its bundle with a system `insteadOf` rule, so the Factory's clone
+and fetch still read the bundle. Root's token-bearing git sets `GIT_CONFIG_NOSYSTEM`, so the same rule
+never sends the Hub's own fetch or push to the bundle.
+
 ## 3. Serving the Factory's credential routes
 
 **Current code.** `apps/hub/src/builder/model-accounts.ts:49-61` declares a slice of Hono's `Context`.
