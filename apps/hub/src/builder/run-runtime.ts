@@ -52,8 +52,9 @@ export type BuilderRunPorts = Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
   }>): Promise<RunSession>
   /**
-   * Chooses the model account the run's calls use, for the provider of the model its conversation
-   * runs in that mode, and holds it for the run; refuses when the person has none.
+   * Chooses and holds the model accounts the run's calls use, one for the provider of the model its
+   * conversation runs in each mode the run can reach; refuses when the person has none. Returns
+   * the start mode's account, which the run records.
    */
   holdModelAccount(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<Readonly<{ modelAccountId: string; release(): void }>>
   git: Pick<ConexusGit, 'seedBundle' | 'acceptCandidate' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
