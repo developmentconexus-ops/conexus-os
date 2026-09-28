@@ -33,7 +33,7 @@ export function MyDefaultsSection() {
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')
   const [fastTouched, setFastTouched] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
 
   useEffect(() => {
     if (!defaults.data) return
@@ -49,13 +49,13 @@ export function MyDefaultsSection() {
   const refresh = () => void queryClient.invalidateQueries({ queryKey: modelDefaultsQueryKey })
   const save = useMutation({
     mutationFn: (value: ModelDefaults) => saveMyDefaults(value),
-    onSuccess: () => { setMessage('Padrões salvos.'); refresh() },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onSuccess: () => { setMessage({ text: 'Padrões salvos.', tone: 'positive' }); refresh() },
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
   const clear = useMutation({
     mutationFn: () => clearMyDefaults(),
-    onSuccess: () => { setMessage('Voltou a usar os padrões da empresa.'); refresh() },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onSuccess: () => { setMessage({ text: 'Voltou a usar os padrões da empresa.', tone: 'positive' }); refresh() },
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
 
   if (defaults.isPending || models.isPending || packs.isPending) return <SectionLoading />
@@ -114,7 +114,7 @@ export function MyDefaultsSection() {
       </Collapsible>
       <Button type="submit" variant="primary" disabled={!build || save.isPending}>Salvar meus padrões</Button>
     </form>}
-    {message && <StatusLine>{message}</StatusLine>}
+    {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
     <p className="cxs-hint">Vale para conversas novas. Numa conversa, o seletor troca o modelo só dela.</p>
   </div>
 }

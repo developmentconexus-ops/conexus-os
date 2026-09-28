@@ -20,7 +20,7 @@ export function InstallationModelsScreen() {
   const stop = useMutation({
     mutationFn: (provider: string) => stopSharing(provider),
     onSuccess: () => { setMessage(null); refresh() },
-    onError: () => setMessage('Não foi possível concluir. Tente novamente.'),
+    onError: () => setMessage('Não foi possível concluir. Tente de novo.'),
   })
   const share = useMutation({
     mutationFn: (provider: string) => shareWithEveryone(provider),
@@ -31,7 +31,7 @@ export function InstallationModelsScreen() {
   return <main className="cxs-page">
     <PageHeader title="Contas compartilhadas" lead="Uma conta compartilhada atende todas as pessoas que não conectaram a sua. Removê-la vale a partir da próxima execução." />
     <Notice variant="warning"><Notice.Message>Compartilhar uma assinatura pessoal pode violar os termos do provedor.</Notice.Message></Notice>
-    {message && <StatusLine>{message}</StatusLine>}
+    {message && <StatusLine tone="danger">{message}</StatusLine>}
     <section aria-labelledby="cxs-shared-with-everyone-title">
       <h2 id="cxs-shared-with-everyone-title">Compartilhadas com todos</h2>
       {accounts.isPending && <SectionLoading />}

@@ -11,18 +11,18 @@ export const apiKeySaveErrorMessage = (error: ModelAccountsRequestError): string
 }
 
 export const shareErrorMessage = (error: ModelAccountsRequestError): string =>
-  error.status === 409 ? 'Já existe uma conta compartilhada deste provedor.' : 'Não foi possível concluir. Tente novamente.'
+  error.status === 409 ? 'Já existe uma conta compartilhada deste provedor.' : 'Não foi possível concluir. Tente de novo.'
 
 // Installation GitHub connect (3.5).
 const githubConnectMessages: Readonly<Record<string, string>> = {
   'github-installation-missing': 'O app ainda não está instalado em nenhuma organização. Instale e verifique de novo.',
   'github-installation-ambiguous': 'O app está instalado em mais de uma conta. Deixe só a organização da empresa.',
   'github-organization-required': 'Precisa ser uma organização do GitHub. Contas pessoais não servem.',
-  'github-installation-account-changed': 'Os Projects apontam para outra organização. Instale o app de novo nela.',
+  'github-installation-account-changed': 'Os Projetos apontam para outra organização. Instale o app de novo nela.',
 }
 
 export const githubConnectErrorMessage = (type: string | null, status: number): string =>
-  (type && githubConnectMessages[type]) || (status === 502 ? 'Não foi possível falar com o GitHub agora.' : 'Não foi possível concluir. Tente novamente.')
+  (type && githubConnectMessages[type]) || (status === 502 ? 'Não foi possível falar com o GitHub agora.' : 'Não foi possível concluir. Tente de novo.')
 
 // Installation administrators (3.5).
 const administratorMessages: Readonly<Record<string, string>> = {
@@ -32,4 +32,4 @@ const administratorMessages: Readonly<Record<string, string>> = {
 }
 
 export const administratorErrorMessage = (type: string | null): string =>
-  (type && administratorMessages[type]) || 'Não foi possível concluir. Tente novamente.'
+  (type && administratorMessages[type]) || 'Não foi possível concluir. Tente de novo.'

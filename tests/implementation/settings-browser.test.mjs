@@ -29,7 +29,7 @@ const routeAccessContext = (page, account) =>
   }))
 
 const routeBuilderModels = (page) =>
-  page.route('**/api/control/model-accounts/models', (route) =>
+  page.route(/\/api\/control\/model-accounts\/models(\?.*)?$/, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
 
 const routeInstallation = (page, administrator) =>
@@ -100,6 +100,7 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
   await page.getByText('ABCD-1234').waitFor()
   await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
+  assert.equal(await page.locator('.cxs-spinner').count(), 0)
   await page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
 
   await page.getByRole('button', { name: 'Conectar conta' }).click()
@@ -109,6 +110,52 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.getByText('Conta conectada.').waitFor()
   assert.deepEqual(writes.at(-1), ['PUT', { key: 'AIza-my-key' }])
   await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
+})
+
+test('Minhas contas de modelo device-code wait mark has no phone overflow and holds still under reduced motion', async (t) => {
+  const { page, origin } = await withServer(t)
+  const providers = [
+    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
+  ]
+  await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await routeBuilderModels(page)
+  await page.route('**/web/config/providers', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
+  await page.route('**/api/control/model-defaults', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
+  await page.route('**/web/config/providers/*/oauth/start', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-9', kind: 'device-code', url: 'https://provider.example/device', userCode: 'PHNE-0001', nextPollMs: 60_000 }) }))
+  await page.route('**/web/config/providers/*/oauth/poll', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60_000 }) }))
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
+  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+  await page.getByText('PHNE-0001').waitFor()
+  const mark = page.locator('.cx-mark--working')
+  await mark.waitFor()
+
+  // 390px width, no zoom: the wait mark and its surrounding step must not force a horizontal scrollbar.
+  const overflowAtPhoneWidth = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  assert.ok(overflowAtPhoneWidth <= 1, `expected no horizontal overflow at 390px, got ${overflowAtPhoneWidth}px`)
+
+  // Same layout at 200% zoom. Chromium's non-standard `style.zoom` does not reproduce real
+  // browser zoom here: the app shell picks its desktop/mobile layout from `matchMedia`, which
+  // `style.zoom` leaves keyed to the unzoomed width, so it can pick the wrong layout for the
+  // zoomed viewport. A real 200% zoom instead halves the effective CSS viewport that both layout
+  // and matchMedia see, so we reproduce that directly by shrinking the viewport.
+  await page.setViewportSize({ width: 195, height: 422 })
+  const overflowAtZoom = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  assert.ok(overflowAtZoom <= 1, `expected no horizontal overflow at 200% zoom, got ${overflowAtZoom}px`)
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  const animationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
+  assert.notEqual(animationName, 'none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const stillAnimationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
+  assert.equal(stillAnimationName, 'none')
 })
 
 test('Minhas contas de modelo shows a warning for an account that needs to sign in again, and restarts the flow', async (t) => {
@@ -266,6 +313,67 @@ test('Meus padrões offers the company defaults, a provider pack and a custom ch
   await page.getByRole('radio', { name: 'Usar os padrões da empresa' }).click()
   await page.getByText('Voltou a usar os padrões da empresa.').waitFor()
   assert.equal(mine, null)
+})
+
+test('Memória shows a danger alert when saving the model fails', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await routeBuilderModels(page)
+  await page.route('**/api/control/installation/memory', (route) => {
+    if (route.request().method() === 'PUT') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }) })
+  })
+
+  await page.goto(`${origin}/settings/installation/memory`)
+  await page.getByRole('heading', { name: 'Memória' }).waitFor()
+  await page.getByText('Valor atual: Padrão do Conexus').waitFor()
+  assert.equal(await page.getByText('gemini-3.5-flash').count(), 0)
+  await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
+  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  const alert = page.getByRole('alert')
+  await alert.getByText('Não foi possível salvar.').waitFor()
+  assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
+  assert.equal(await page.getByRole('status').count(), 0)
+})
+
+test('GitHub shows the removed-app notice with Projetos vocabulary', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await page.route('**/api/control/installation/github', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'gone', organization: { login: 'acme-org', type: 'Organization' },
+      installUrl: 'https://github.com/apps/conexus/installations/new', manageUrl: null, repositories: [],
+    }),
+  }))
+
+  await page.goto(`${origin}/settings/installation/github`)
+  await page.getByRole('heading', { name: 'GitHub' }).waitFor()
+  await page.getByText('Os Projetos não aceitam pedidos').waitFor()
+})
+
+test('Administradores shows a danger alert when granting fails', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+  await page.route('**/api/control/installation/administrators', (route) => {
+    if (route.request().method() === 'POST') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ administrators: [{ accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
+    })
+  })
+
+  await page.goto(`${origin}/settings/installation/admins`)
+  await page.getByRole('heading', { name: 'Administradores' }).waitFor()
+  await page.getByLabel('E-mail').fill('alguem@example.com')
+  await page.getByRole('button', { name: 'Tornar administrador' }).click()
+  const alert = page.getByRole('alert')
+  await alert.waitFor()
+  assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
 })
 
 test('GitHub connect shows the sentence for a personal account', async (t) => {

@@ -5,7 +5,7 @@ import { type ReactNode, useState } from 'react'
 import { modelAccountsQueryKey, removeApiKey, signOut, startOAuth } from '../model-accounts-api'
 import type { ModelAccountRow as Row } from '../model-account-rows'
 import { DeviceCodeStep, PasteCodeStep } from './connect-account'
-import { Chip } from './states'
+import { Chip, StatusLine } from './states'
 
 const connectionLabel = (kind: 'api_key' | 'oauth') => kind === 'oauth' ? 'Assinatura' : 'Chave de API'
 
@@ -65,17 +65,17 @@ export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
         </AlertDialog.Portal>
       </AlertDialog>
     </div>
-    {reconnect.step === 'failed' && <p role="alert">
+    {reconnect.step === 'failed' && <StatusLine tone="danger">
       {reconnect.message}
       {reconnect.detail && <details className="cxs-disclosure"><summary>Detalhe técnico</summary><code>{reconnect.detail}</code></details>}
-    </p>}
+    </StatusLine>}
     {reconnect.step === 'expired' && <>
-      <p role="alert">O código expirou.</p>
+      <StatusLine tone="danger">O código expirou.</StatusLine>
       <Button type="button" variant="primary" disabled={startReconnect.isPending} onClick={() => startReconnect.mutate()}>Gerar outro código</Button>
     </>}
     {reconnect.step === 'paste-code' && <PasteCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} expiresAt={reconnect.expiresAt} onDone={onReconnectDone} onExpired={onReconnectExpired} />}
     {reconnect.step === 'device-code' && <DeviceCodeStep provider={row.provider} sessionId={reconnect.sessionId} url={reconnect.url} userCode={reconnect.userCode} nextPollMs={reconnect.nextPollMs} expiresAt={reconnect.expiresAt} onDone={onReconnectDone} onExpired={onReconnectExpired} />}
-    {failed && <p role="alert">Não foi possível concluir. Tente novamente.</p>}
+    {failed && <StatusLine tone="danger">Não foi possível concluir. Tente de novo.</StatusLine>}
   </li>
 }
 

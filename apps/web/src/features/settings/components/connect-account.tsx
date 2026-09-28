@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
+import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { connectFlowReducer, initialConnectState } from '../connect-flow'
 import {
   apiKeySaveErrorMessage, oauthFailureMessage,
@@ -86,7 +87,7 @@ export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs,
     {copied && <StatusLine>Copiado.</StatusLine>}
     <p className="cxs-hint">Se a aba não abrir sozinha, <a href={url} target="_blank" rel="noreferrer">abra a página de entrada manualmente</a>.</p>
     {countdown && <p className="cxs-hint">Expira em {countdown}</p>}
-    <p className="cxs-waiting"><span className="cxs-spinner" aria-hidden="true" />Aguardando você concluir a entrada na outra aba</p>
+    <p className="cxs-waiting"><ConexusMark size={16} working />Aguardando você concluir a entrada na outra aba</p>
     <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancelar</Button>
   </div>
 }
@@ -260,14 +261,14 @@ export function ConnectAccount({ providers, onConnected }: Readonly<{ providers:
   if (state.step === 'expired') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
       <h3>{providerName(state.provider)}</h3>
-      <p role="alert">O código expirou.</p>
+      <StatusLine tone="danger">O código expirou.</StatusLine>
       <Button type="button" variant="primary" disabled={start.isPending} onClick={() => regenerate(state.provider)}>Gerar outro código</Button>
     </section>
   }
 
   if (state.step === 'failed') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
-      <p role="alert">{state.message}</p>
+      <StatusLine tone="danger">{state.message}</StatusLine>
       {state.detail && <details className="cxs-disclosure"><summary>Detalhe técnico</summary><code>{state.detail}</code></details>}
       <Button type="button" variant="outline" onClick={restart}>Tentar de novo</Button>
     </section>

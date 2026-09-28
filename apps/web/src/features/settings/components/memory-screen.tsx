@@ -8,19 +8,17 @@ import { PageHeader } from './page-header'
 import { RoleModelSelect } from './role-model-select'
 import { SectionError, SectionLoading, StatusLine } from './states'
 
-const FACTORY_DEFAULT_MEMORY_MODEL = 'google/gemini-3.5-flash'
-
 export function MemoryScreen() {
   const memory = useQuery({ queryKey: installationMemoryQueryKey, queryFn: getMemoryModel })
   const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone: 'positive' | 'danger' } | null>(null)
   useEffect(() => { setModel(memory.data?.model ?? '') }, [memory.data])
   const save = useMutation({
     mutationFn: () => saveMemoryModel(model || null),
-    onSuccess: () => { setMessage('Padrão salvo.'); void queryClient.invalidateQueries({ queryKey: installationMemoryQueryKey }) },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onSuccess: () => { setMessage({ text: 'Padrão salvo.', tone: 'positive' }); void queryClient.invalidateQueries({ queryKey: installationMemoryQueryKey }) },
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
 
   return <main className="cxs-page">
@@ -33,10 +31,10 @@ export function MemoryScreen() {
         Nenhum modelo disponível. <Link to="/settings/installation/models">Compartilhe uma conta de modelo primeiro.</Link>
       </p>
       return <form className="cxs-form" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <p>Valor atual: {memory.data.model ?? `Padrão do Factory (${FACTORY_DEFAULT_MEMORY_MODEL})`}</p>
+        <p>Valor atual: {memory.data.model ?? 'Padrão do Conexus'}</p>
         <RoleModelSelect label="Modelo de memória" models={covered} value={model} onChange={setModel} />
         <Button type="submit" variant="primary" disabled={!model || save.isPending}>Salvar</Button>
-        {message && <StatusLine>{message}</StatusLine>}
+        {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
         <p className="cxs-hint">Escolha um modelo que uma conta compartilhada cobre; a memória roda para todas as pessoas.</p>
       </form>
     })()}
