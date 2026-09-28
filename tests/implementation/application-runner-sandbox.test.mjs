@@ -32,6 +32,8 @@ const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
 
+// A reset the Hub permits, with a deadline no test run reaches.
+const RESET = Object.freeze({ resetBefore: Date.now() + 60 * 60_000 })
 const NOTE_SQL = `CREATE TABLE follow_up_note (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   purchase_order_id text NOT NULL,
@@ -137,9 +139,9 @@ test('the runner migrates and serves each Project through its own sandboxed work
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
   const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files, caller: CALLER })
 
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: [] })
-  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
 
   const created = await invoke(a, 'createNote', { purchaseOrderId: 'PO-7', note: 'ligar para o fornecedor' })
   assert.equal(created.status, 200)
@@ -197,7 +199,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
 
   await t.test('a failing migration applies nothing and names the error', async () => {
     const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_broken.sql', 'ALTER TABLE follow_up_note ADD COLUMN done boolean; SELECT * FROM missing_table']])
-    const result = await supervisor.prepare({ projectId: a, files: broken, onDivergence: 'RESET' })
+    const result = await supervisor.prepare({ projectId: a, files: broken, onDivergence: RESET })
     assert.equal(result.state, 'MIGRATION_FAILED')
     assert.match(result.detail, /42P01 relation "missing_table" does not exist/)
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).body.length, 1)
@@ -247,7 +249,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
     const runtimeB = previewAllocation(b).runtimeRole
     const extra = 'TRUNCATE, TRIGGER, REFERENCES, MAINTAIN'
     const granting = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_grant_more.sql', `GRANT ${extra} ON follow_up_note TO ${runtimeB}; GRANT ALL ON follow_up_note TO PUBLIC`]])
-    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
+    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
     const runtime = await loginThroughRelay(st, { host: admin.host, port: admin.port }, runtimeB, database)
     const attempt = (sql) => runtime.query(sql).then(() => 'ok', (error) => error.code)
     assert.deepEqual({
@@ -279,7 +281,10 @@ test('the runner migrates and serves each Project through its own sandboxed work
       assert.equal(removed.state, 'MIGRATION_HISTORY_DIVERGED')
       assert.deepEqual(await state(), before)
 
-      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: 'RESET' }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
+      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), /PREVIEW_RESET_EXPIRED/)
+      assert.deepEqual(await state(), before)
+
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
       assert.deepEqual((await state()).notes, [])
     } finally {
       await superuser.end()
@@ -309,7 +314,7 @@ test('the runner reads relay TLS only from a private directory holding exactly i
 test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
   const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
   const files = probeServerTree()
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
   const run = async (name, input) => {
     const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
     assert.equal(answer.status, 200, JSON.stringify(answer.body))
@@ -359,9 +364,9 @@ test('the runner socket admits a prepare only when the Hub says whether a diverg
   const { prepareBody } = await import(hubModuleUrl('app-runner/requests.js'))
   const body = { projectId: randomUUID(), files: serverTree([]), onDivergence: 'REFUSE' }
   assert.equal(prepareBody.safeParse(body).success, true)
-  assert.equal(prepareBody.safeParse({ ...body, onDivergence: 'RESET' }).success, true)
+  assert.equal(prepareBody.safeParse({ ...body, onDivergence: { resetBefore: Date.now() + 60_000 } }).success, true)
   const { onDivergence: _omitted, ...withoutFlag } = body
-  for (const refused of [withoutFlag, { ...body, onDivergence: 'reset' }, { ...body, onDivergence: null }]) {
+  for (const refused of [withoutFlag, { ...body, onDivergence: 'RESET' }, { ...body, onDivergence: {} }, { ...body, onDivergence: { resetBefore: 'soon' } }, { ...body, onDivergence: null }]) {
     assert.equal(prepareBody.safeParse(refused).success, false, JSON.stringify(refused.onDivergence))
   }
 })
@@ -448,7 +453,7 @@ const connectorSetup = async (t, sandbox) => {
     return port
   }
   const files = connectorTree()
-  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: 'RESET' }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
   const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
   const port = Number(new URL(fake.origin).port)
   return { ...runner, socketDir, fake, open, invoke, project, otherProject, port }
