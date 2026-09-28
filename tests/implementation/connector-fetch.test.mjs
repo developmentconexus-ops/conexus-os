@@ -40,8 +40,6 @@ const memoryStore = ({ bindings = { [PROJECT]: [bound('erp', CONNECTION)] }, cre
       calls.push('readConnectionCredential')
       return credentials[connectionId] ?? null
     },
-    resolveGrant: async (input) => (input.projectId === PROJECT && input.capabilityId === 'sankhya.purchase-order.read' ? { grantId: 'grant-1', connectionId: CONNECTION } : null),
-    listGrantedCapabilities: async () => [],
   }
 }
 
