@@ -124,7 +124,8 @@ export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'f
       }
       if (service === 'echo-bearer') {
         const token = bearer.slice('Bearer '.length)
-        return send(200, `{"serviceName":"${LOAD_RECORDS}","status":"1","echo":"${token}","escaped":"${token.replaceAll('/', '\\/')}"}`)
+        const unicode = [...token].map((character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`).join('')
+        return send(200, `{"serviceName":"${LOAD_RECORDS}","status":"1","echo":"${token}","escaped":"${token.replaceAll('/', '\\/')}","unicode":"${unicode}","${unicode}":"key"}`)
       }
       if (service === 'not-json') return send(200, `<html>${SECRET_MARKER}</html>`)
       if (service === 429) return send(429, { error: SECRET_MARKER }, SECRET_MARKER)

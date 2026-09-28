@@ -1,30 +1,23 @@
 import { z } from 'zod'
-import { AdapterFailure, inputIssues } from './errors.js'
+import { AdapterFailure, inputIssues, transportFailure } from './errors.js'
 import type { BrokerErrorCode } from './errors.js'
 import type { NativeProtocol, ProviderAnswer } from './operation.js'
 import type { AccessToken } from './token-cache.js'
 
-// A consumer's request in the vendor's own format, for the one Hub executor (`broker.fetch`). The consumer
-// names a Project-local binding name, a method, a path, query values and a body. The Hub adds the
-// pinned origin and the token; nothing here takes a scheme, a host or a header from the request.
-
-/** What a consumer sends. Any other key (headers, url, project, run) is INPUT_REFUSED. */
 type NativeRequest = Readonly<{
-  /** A Project-local binding name; looked up, never trusted. */
+  /** A Project-local binding name. */
   connection: string
   /** The integrator's read rule decides which methods read. */
   method: string
-  /** Resolved against the pinned origin. */
   path: string
   query?: Readonly<Record<string, string>> | undefined
-  /** The vendor's own JSON; serialized once. */
   body?: unknown
 }>
 
 export type FetchResult =
   /** The vendor's parsed JSON, bearer scrubbed. */
   | Readonly<{ ok: true; status: number; truncated: false; body: unknown }>
-  /** The first `responseBytes` of the answer, as text, bearer scrubbed. */
+  /** The first `responseBytes` of the answer, as text, with the bearer's plain and `\/`-escaped forms scrubbed. */
   | Readonly<{ ok: true; status: number; truncated: true; text: string }>
   | Readonly<{
       ok: false
@@ -73,7 +66,6 @@ const serialized = (body: unknown): string | undefined => {
   }
 }
 
-/** The body is serialized once; a body that is not JSON, or longer than `requestBytes`, is refused. */
 export const parseNativeRequest = (value: unknown, limits: NativeLimits): Readonly<{ ok: true; request: ParsedNativeRequest }> | Readonly<{ ok: false; issues: readonly string[] }> => {
   const parsed = nativeRequestSchema.safeParse(value)
   if (!parsed.success) return { ok: false, issues: inputIssues(parsed.error.issues) }
@@ -95,13 +87,8 @@ export const parseNativeRequest = (value: unknown, limits: NativeLimits): Readon
  * URL's origin is the host guard.
  */
 export const pinnedUrl = (path: string, query: Readonly<Record<string, string>>, origin: string): URL | null => {
-  if (URL.canParse(path)) return null
-  let url: URL
-  try {
-    url = new URL(path, origin)
-  } catch {
-    return null
-  }
+  if (URL.canParse(path) || !URL.canParse(path, origin)) return null
+  const url = new URL(path, origin)
   if (url.origin !== origin || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') return null
   for (const [key, value] of Object.entries(query)) url.searchParams.append(key, value)
   return url
@@ -109,11 +96,18 @@ export const pinnedUrl = (path: string, query: Readonly<Record<string, string>>,
 
 const REDACTED = '[redacted]'
 
-/** Every occurrence of the bearer, and of its `\/`-escaped JSON form, becomes `[redacted]`. A cut text also loses a tail that could begin one. */
-const scrubbed = (text: string, bearer: string, cut: boolean): string => {
+// A parsed body is scrubbed value by value, so no JSON escape of the bearer survives.
+const redacted = (value: unknown, bearer: string): unknown => {
+  if (typeof value === 'string') return value.replaceAll(bearer, REDACTED)
+  if (Array.isArray(value)) return value.map((item) => redacted(item, bearer))
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key.replaceAll(bearer, REDACTED), redacted(item, bearer)]))
+}
+
+/** A cut text cannot be parsed: its plain and `\/`-escaped bearer become `[redacted]`, and it loses a tail that could begin one. */
+const scrubbedCut = (text: string, bearer: string): string => {
   const forms = [...new Set([bearer, bearer.replaceAll('/', '\\/')])]
   let clean = forms.reduce((current, form) => current.replaceAll(form, REDACTED), text)
-  if (!cut) return clean
   for (const form of forms) {
     for (let length = Math.min(form.length - 1, clean.length); length > 0; length -= 1) {
       if (clean.endsWith(form.slice(0, length))) {
@@ -125,16 +119,13 @@ const scrubbed = (text: string, bearer: string, cut: boolean): string => {
   return clean
 }
 
-const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
-
-/** Reads at most `limit` bytes; past it the reader is cancelled and `cut` is true. */
 const readUpTo = async (response: Response, limit: number, signal: AbortSignal): Promise<Readonly<{ bytes: Buffer; cut: boolean }>> => {
   const reader = response.body?.getReader()
+  if (!reader) return { bytes: Buffer.alloc(0), cut: false }
   const chunks: Uint8Array[] = []
   let size = 0
   try {
     for (;;) {
-      if (!reader) return { bytes: Buffer.alloc(0), cut: false }
       const { done, value } = await reader.read()
       if (done) return { bytes: Buffer.concat(chunks, size), cut: false }
       if (size + value.byteLength > limit) {
@@ -184,18 +175,18 @@ export const sendNative = async (
   const { bytes, cut } = await readUpTo(response, responseBytes, signal)
   answer.bytes = bytes.byteLength
   answer.truncated = cut
-  const text = scrubbed(bytes.toString('utf8'), bearer, cut)
-  if (cut) return Object.freeze({ ok: true, status, truncated: true, text })
-  let parsed: unknown
+  const text = bytes.toString('utf8')
+  if (cut) return Object.freeze({ ok: true, status, truncated: true, text: scrubbedCut(text, bearer) })
+  let vendorBody: unknown
   try {
-    parsed = JSON.parse(text)
+    vendorBody = redacted(JSON.parse(text), bearer)
   } catch {
     return failed('RESPONSE_REFUSED', status)
   }
-  const verdict = protocol.answer(parsed)
+  const verdict = protocol.answer(vendorBody)
   switch (verdict.kind) {
-    case 'success': return Object.freeze({ ok: true, status, truncated: false, body: parsed })
-    case 'vendor-error': return failed('PROVIDER_ERROR', status, { vendorStatus: verdict.vendorStatus, body: parsed })
+    case 'success': return Object.freeze({ ok: true, status, truncated: false, body: vendorBody })
+    case 'vendor-error': return failed('PROVIDER_ERROR', status, { vendorStatus: verdict.vendorStatus, body: vendorBody })
     case 'unreadable': return failed('RESPONSE_REFUSED', status)
   }
 }

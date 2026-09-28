@@ -252,11 +252,14 @@ test('P9: a vendor error inside a 200 is PROVIDER_ERROR with its status and body
   assert.deepEqual(await broker.fetch(handler(), read()), { ok: false, code: 'RESPONSE_REFUSED', status: 200 })
 })
 
-test('P9: a bearer the vendor echoes is scrubbed from a parsed body and from a cut text, in plain and \\/-escaped form', async (t) => {
+test('P9: a bearer the vendor echoes is scrubbed from a parsed body in any JSON escape, and from a cut text in plain and \\/-escaped form', async (t) => {
   const { fake, broker } = await setup(t, { tokenPrefix: 'fake/token/' })
   fake.mode.service = 'echo-bearer'
   const complete = await broker.fetch(handler(), read())
-  assert.deepEqual(complete, { ok: true, status: 200, truncated: false, body: { serviceName: LOAD, status: '1', echo: '[redacted]', escaped: '[redacted]' } })
+  assert.deepEqual(complete, {
+    ok: true, status: 200, truncated: false,
+    body: { serviceName: LOAD, status: '1', echo: '[redacted]', escaped: '[redacted]', unicode: '[redacted]', '[redacted]': 'key' },
+  })
 
   const answer = `{"serviceName":"${LOAD}","status":"1","echo":"fake/token/1","escaped":"fake\\/token\\/1"}`
   const cutInsideEscaped = answer.indexOf('fake\\/token\\/1') + 'fake\\/to'.length
