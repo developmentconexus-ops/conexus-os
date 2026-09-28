@@ -1,13 +1,10 @@
 import { z } from 'zod'
-import { AdapterFailure } from '../errors.js'
+import { AdapterFailure, transportFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, EnvelopeStatus, ProviderAnswer, RequestTrace } from '../operation.js'
-import { AccessToken } from '../token-cache.js'
+import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../operation.js'
+import { AccessToken, inLane } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
-
-// The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
-// expression, URL, header or token from a consumer.
 
 /**
  * The gateway origins the Sankhya documentation publishes: production and sandbox.
@@ -18,6 +15,8 @@ export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https:
 /** The allow-list: read services only. Any other name is refused before a request is built. */
 const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
 type SankhyaService = typeof SANKHYA_SERVICES[number]
+
+const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
 
 type SankhyaEntity = 'CabecalhoNota' | 'ItemNota'
 type SankhyaReference = Readonly<{ path: 'Parceiro' | 'Produto'; fields: readonly string[] }>
@@ -57,8 +56,6 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
   if (status >= 500) return 'UNAVAILABLE'
   return 'PROVIDER_ERROR'
 }
-
-const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
 const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', answer: ProviderAnswer): Promise<unknown> => {
   let response: Response
@@ -157,17 +154,42 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
   },
 })
 
-// A token is one Sankhya session, and a session cancels a second service in flight (envelope status "4", https://developer.sankhya.com.br/docs/09_service).
-const lanes = new WeakMap<AccessToken, Promise<unknown>>()
+const jsonObject = z.record(z.string(), z.unknown())
+const envelopeStatus = envelope.pick({ status: true })
 
-const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
-  const turn = (lanes.get(token) ?? Promise.resolve()).then(work)
-  lanes.set(token, turn.catch(() => undefined))
-  return turn
-}
+const SERVICE_REFUSED = Object.freeze({ ok: false, code: 'SERVICE_REFUSED' } as const)
+const inputRefused = (issue: string) => Object.freeze({ ok: false, code: 'INPUT_REFUSED', issues: Object.freeze([issue]) } as const)
+
+/**
+ * The native read rule: POST to the gateway's service route, one service on the allow-list in the
+ * query, `outputType=json`, and a JSON object body naming that same service. It has no expression
+ * filter: C-030 puts the read boundary at the vendor's principal, and this is the service-level tripwire.
+ */
+export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
+  admit({ method, url, body }: Readonly<{ method: string; url: URL; body: unknown }>) {
+    const named = url.searchParams.getAll('serviceName')
+    const service = named.length === 1 ? SANKHYA_SERVICES.find((allowed) => allowed === named[0]) : undefined
+    if (method !== 'POST' || url.pathname !== SERVICE_PATH || !service) return SERVICE_REFUSED
+    if ([...url.searchParams.keys()].some((key) => key !== 'serviceName' && key !== 'outputType')) return inputRefused('/query')
+    const output = url.searchParams.getAll('outputType')
+    if (output.length !== 1 || output[0] !== 'json') return inputRefused('/query/outputType')
+    const request = jsonObject.safeParse(body)
+    if (!request.success) return inputRefused('/body')
+    if (request.data.serviceName !== service) return SERVICE_REFUSED
+    return Object.freeze({ ok: true, service })
+  },
+  answer(body: unknown) {
+    const parsed = envelopeStatus.safeParse(body)
+    if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
+    const { status } = parsed.data
+    return status === '1' ? Object.freeze({ kind: 'success' }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status })
+  },
+  oneRequestPerToken: true,
+})
 
 /** The adapter factory. The Hub passes the pinned origin; a test passes a local fake's origin directly. */
 export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fetch }: Readonly<{ origin: string; fetch?: typeof fetch }>): Adapter<SankhyaCredential, SankhyaSession> => Object.freeze({
+  origin: new URL(origin).origin,
   async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> {
     const { clientId, clientSecret, xToken } = credential.reveal()
     if (/[\r\n]/.test(xToken)) throw new AdapterFailure('AUTHENTICATION_REFUSED')
@@ -185,7 +207,7 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
       if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
       const leased = await token()
-      return inLane(leased, () => trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
+      return inLane(leased, () => trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}${SERVICE_PATH}?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${leased.bearer()}` },
         body: requestBody(service, query),

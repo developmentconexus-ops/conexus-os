@@ -1,9 +1,13 @@
 import { createServer } from 'node:http'
 
-// A local stand-in for the Sankhya gateway on 127.0.0.1. It records every request, issues numbered
-// short-lived tokens and answers loadRecords from a fixed purchase order. Its values are invented;
-// only the document number 22790 is the task's. No test ever reaches a Sankhya host: the broker
-// receives this origin through the adapter factory, not configuration.
+// A local stand-in for the Sankhya gateway on 127.0.0.1. It records every request with the origin its
+// host header names, issues numbered short-lived tokens and answers loadRecords from a fixed purchase
+// order, in the operation path's body shape or any native one. A request for any other service is
+// counted as a write that reached the vendor. Its values are invented; only the document number 22790
+// is the task's. No test ever reaches a Sankhya host: the broker receives this origin through the
+// adapter factory, not configuration.
+
+const LOAD_RECORDS = 'CRUDServiceProvider.loadRecords'
 
 export const SECRET_MARKER = 'SECRET-MARKER-7f3a9c'
 export const FAKE_CREDENTIAL = Object.freeze({ clientId: 'fake-client-id', clientSecret: 'fake-client-secret-5d1e', xToken: 'fake-x-token-88b2' })
@@ -28,6 +32,21 @@ export const EXPECTED_ORDER_22790 = Object.freeze({
   }],
 })
 
+/** A native loadRecords dataSet for document 22790, and the envelope this fake answers it with. */
+export const NATIVE_ORDER_DATASET = Object.freeze({
+  rootEntity: 'CabecalhoNota', includePresentationFields: 'N', offsetPage: '0',
+  criteria: { expression: { $: "this.NUMNOTA = ? AND this.TIPMOV = 'O'" }, parameter: [{ $: '22790', type: 'I' }] },
+  entity: { fieldset: { list: 'NUNOTA,NUMNOTA,VLRNOTA' } },
+})
+export const EXPECTED_NATIVE_ORDER = Object.freeze({
+  serviceName: LOAD_RECORDS, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
+  responseBody: { entities: {
+    total: '1', hasMoreResult: 'false', offsetPage: '0', offset: '0',
+    metadata: { fields: { field: [{ name: 'NUNOTA' }, { name: 'NUMNOTA' }, { name: 'VLRNOTA' }] } },
+    entity: { f0: { $: '9001' }, f1: { $: '22790' }, f2: { $: '1520.50' } },
+  } },
+})
+
 export const HEADER_FIELDS = 'NUNOTA,NUMNOTA,DTNEG,STATUSNOTA,VLRNOTA'
 export const ITEM_FIELDS = 'NUNOTA,SEQUENCIA,CODPROD,QTDNEG,CODVOL,VLRUNIT,VLRTOT'
 
@@ -41,20 +60,23 @@ const entities = (fieldNames, rows, { extraField = false } = {}) => {
   }
 }
 
+const list = (value) => (Array.isArray(value) ? value : value === undefined ? [] : [value])
+
 const loadRecords = (dataSet, options) => {
-  const [root, ...references] = dataSet.entity
+  const [root, ...references] = list(dataSet.entity)
   const fields = [...root.fieldset.list.split(','), ...references.flatMap((reference) => reference.fieldset.list.split(',').map((field) => `${reference.path}_${field}`))]
-  const values = dataSet.criteria.parameter.map((parameter) => parameter.$)
+  const values = list(dataSet.criteria?.parameter).map((parameter) => parameter.$)
   const rows = dataSet.rootEntity === 'CabecalhoNota'
     ? HEADERS.filter((row) => row.NUMNOTA === values[0] && row.TIPMOV === 'O')
     : ITEMS.filter((row) => values.includes(row.NUNOTA))
   return entities(fields, rows, options)
 }
 
-export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
+export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'fake-token-' } = {}) => {
   const requests = []
-  const mode = { authenticate: 'ok', service: 'ok' }
+  const mode = { authenticate: 'ok', service: 'ok', redirectTo: null }
   let issued = 0
+  let nonReads = 0
   const open = new Map()
   let sameBearerOverlaps = 0
   const sockets = new Set()
@@ -73,8 +95,11 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
         authorization: request.headers.authorization ?? null, xToken: request.headers['x-token'] ?? null, contentType: request.headers['content-type'] ?? null,
         form: url.pathname === '/authenticate' ? Object.fromEntries(new URLSearchParams(text)) : null,
         body: url.pathname === '/authenticate' ? null : JSON.parse(text || 'null'),
+        origin: `http://${request.headers.host}`, query: Object.fromEntries(url.searchParams), accept: request.headers.accept ?? null,
+        headers: Object.keys(request.headers).sort(),
       }
       requests.push(record)
+      if (url.pathname !== '/authenticate' && (record.serviceName !== LOAD_RECORDS || record.body?.serviceName !== LOAD_RECORDS)) nonReads += 1
       const send = (status, body, statusMessage = 'OK') => {
         if (bearer) open.set(bearer, open.get(bearer) - 1)
         const payload = typeof body === 'string' ? body : JSON.stringify(body)
@@ -86,11 +111,24 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
         if (mode.authenticate === 'echo-401') return send(401, `${record.xToken} ${record.form.client_id} ${record.form.client_secret} ${SECRET_MARKER} GTW3502`, SECRET_MARKER)
         if (mode.authenticate !== 'ok') return send(mode.authenticate, { error: 'invalid_client', error_description: SECRET_MARKER }, SECRET_MARKER)
         issued += 1
-        return send(200, { access_token: `fake-token-${issued}`, expires_in: expiresInSeconds, refresh_expires_in: 0, token_type: 'Bearer', 'not-before-policy': 0, scope: 'profile' })
+        return send(200, { access_token: `${tokenPrefix}${issued}`, expires_in: expiresInSeconds, refresh_expires_in: 0, token_type: 'Bearer', 'not-before-policy': 0, scope: 'profile' })
       }
       if (url.pathname !== '/gateway/v1/mge/service.sbr') return send(404, { error: SECRET_MARKER })
       const service = mode.service
       if (service === 'stall') return
+      if (record.serviceName !== LOAD_RECORDS || record.body?.serviceName !== LOAD_RECORDS) return send(200, { serviceName: record.serviceName, status: '1', pendingPrinting: 'false' })
+      if (service === 'redirect') {
+        if (bearer) open.set(bearer, open.get(bearer) - 1)
+        response.writeHead(302, { location: `${mode.redirectTo}${url.pathname}${url.search}` })
+        return response.end()
+      }
+      if (service === 'echo-bearer') {
+        const token = bearer.slice('Bearer '.length)
+        const unicode = [...token].map((character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`).join('')
+        return send(200, `{"serviceName":"${LOAD_RECORDS}","status":"1","echo":"${token}","escaped":"${token.replaceAll('/', '\\/')}","unicode":"${unicode}","${unicode}":"key"}`)
+      }
+      if (service === 'not-json') return send(200, `<html>${SECRET_MARKER}</html>`)
+      if (service === 429) return send(429, { error: SECRET_MARKER }, SECRET_MARKER)
       if (service === 'refuse-first-token' && record.authorization === 'Bearer fake-token-1') return send(403, { error: { message: `GTW3403: Token de acesso expirado. ${SECRET_MARKER}` } }, SECRET_MARKER)
       if (service === 'stall-first-token' && record.authorization === 'Bearer fake-token-1') return
       if (service === 400) return send(400, { error: { message: `GTW3407: Não foi possível realizar login no ERP. ${SECRET_MARKER}` } }, SECRET_MARKER)
@@ -121,6 +159,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
     requests,
     mode,
     issued: () => issued,
+    nonReads: () => nonReads,
     sameBearerOverlaps: () => sameBearerOverlaps,
     close: async () => {
       for (const socket of sockets) socket.destroy()
