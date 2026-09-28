@@ -69,8 +69,10 @@ reaches the handle through `GithubIntegration.sourceControlStorage`.
 
 **Plan.** `connectFactoryInstallation` calls `migrateInstallation` for each repository of a gone
 installation before it removes that installation. When the target already holds a row for the same
-repository, `PgFactoryStorage` rejects the move with its unique-constraint error, so `connect` stops
-and the old installation and its rows stay. `reattachRepository` and its table writes are deleted,
+repository, `migrateInstallation` answers that row instead of the one it was asked to move
+(`factory/dist/storage/domains/source-control/base.js:443-450`). Before `@mastra/pg` 1.26 the update
+threw a raw unique-constraint error first. `connect` compares the ids and stops with
+`FACTORY_INSTALLATION_REPOSITORY_CONFLICT`, and the old installation and its rows stay. `reattachRepository` and its table writes are deleted,
 and provisioning no longer moves rows. A repository row whose installation was removed outside
 `connect` is unreachable through the Factory's storage API, and provisioning refuses it with
 `FACTORY_REPOSITORY_MISSING`.

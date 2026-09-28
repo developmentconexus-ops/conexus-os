@@ -250,7 +250,7 @@ test('reconnecting to an installation that already holds a row for the same repo
   const incoming = await records.sourceControl.installations.upsert({ orgId: ORG, connectedByUserId: 'conexus-operator', externalId: String(INSTALLATION_B.id), accountName: 'acme-org', accountType: 'Organization' })
   await records.sourceControl.repositories.upsert({ orgId: ORG, input: { installationId: incoming.id, externalId: String(first.repositoryExternalId), slug: first.repositorySlug, defaultBranch: 'main' } })
   github.state.installations = [INSTALLATION_B]
-  await assert.rejects(connect(), /source_control_repositories_installation_external_unique/)
+  await assert.rejects(connect(), /^Error: FACTORY_INSTALLATION_REPOSITORY_CONFLICT/)
   const installations = (await query(connectionString, 'SELECT id::text FROM factory.source_control_installations ORDER BY id')).rows.map((row) => row.id)
   assert.deepEqual(installations, [old.id, incoming.id].sort())
   const bound = (await query(connectionString, 'SELECT installation_id FROM factory.source_control_repositories WHERE id::text = $1', [first.repositoryId])).rows
