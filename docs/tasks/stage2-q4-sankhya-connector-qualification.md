@@ -132,10 +132,14 @@ handler prove the claim, and the relay's only consumer is exploratory scripts.
 
 ### Evidence the verdict needs
 
-- **Positive.** A real Sankhya read through the tool and through a handler, recorded as field
-  names, counts, duration and a digest. The investigation proof shows that the model received the
-  vendor body: its next step uses a field name or a count that only the body holds. The application's handler reads through the binding in
-  Preview, and the Q3 app user sees the result, with every business value masked.
+- **Positive.** A real Sankhya read through the tool and through a handler, recorded as field names,
+  counts, duration and a digest. The investigation proof shows that the model received the vendor
+  body, not only the projection. Field names and counts are in the projection too, so they prove
+  nothing here. The proof is a value. The model's next read uses a value that only the body held,
+  such as a key from a returned row as a filter. The record shows the match as equal digests of the
+  value in the body and in the next request, never the value. The application's handler reads
+  through the binding in Preview, and the Q3 app user sees the result, with every business value
+  masked.
 - **Negative.** Each case is refused before the network, and the fake vendor counts zero requests:
   a write service, a mismatched `serviceName`, an absolute URL, a path that starts with `//host`,
   `\\host`, `/\host` or `\/host`, the same prefixes after a leading space or tab, a consumer header,
