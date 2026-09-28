@@ -104,7 +104,7 @@ export function PasteCodeStep({ provider, sessionId, url, expiresAt, onDone, onE
   const countdown = useCountdown(expiresAt, onExpired)
   // Fired once per session: opens the verification page without waiting for a click, same as the
   // device-code step's one-click open, just triggered on arrival instead of on a button.
-  useEffect(() => { window.open(url, '_blank', 'noopener') }, [sessionId, url])
+  useEffect(() => { window.open(url, '_blank', 'noopener') }, [url])
   const complete = useMutation({
     mutationFn: () => completeOAuth(provider, sessionId, code),
     onSuccess: (step) => onDone(step.status === 'complete' ? undefined : oauthFailureMessage(), step.status === 'complete' ? undefined : step.error),
