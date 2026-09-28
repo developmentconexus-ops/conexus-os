@@ -32,6 +32,21 @@ export const EXPECTED_ORDER_22790 = Object.freeze({
   }],
 })
 
+/** A native loadRecords dataSet for document 22790, and the envelope this fake answers it with. */
+export const NATIVE_ORDER_DATASET = Object.freeze({
+  rootEntity: 'CabecalhoNota', includePresentationFields: 'N', offsetPage: '0',
+  criteria: { expression: { $: "this.NUMNOTA = ? AND this.TIPMOV = 'O'" }, parameter: [{ $: '22790', type: 'I' }] },
+  entity: { fieldset: { list: 'NUNOTA,NUMNOTA,VLRNOTA' } },
+})
+export const EXPECTED_NATIVE_ORDER = Object.freeze({
+  serviceName: LOAD_RECORDS, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
+  responseBody: { entities: {
+    total: '1', hasMoreResult: 'false', offsetPage: '0', offset: '0',
+    metadata: { fields: { field: [{ name: 'NUNOTA' }, { name: 'NUMNOTA' }, { name: 'VLRNOTA' }] } },
+    entity: { f0: { $: '9001' }, f1: { $: '22790' }, f2: { $: '1520.50' } },
+  } },
+})
+
 export const HEADER_FIELDS = 'NUNOTA,NUMNOTA,DTNEG,STATUSNOTA,VLRNOTA'
 export const ITEM_FIELDS = 'NUNOTA,SEQUENCIA,CODPROD,QTDNEG,CODVOL,VLRUNIT,VLRTOT'
 

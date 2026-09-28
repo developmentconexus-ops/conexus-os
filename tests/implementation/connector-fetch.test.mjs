@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, startFakeRest } from './connector-fake-rest.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -59,30 +59,16 @@ const setup = async (t, { store = memoryStore(), nativeLimits, now, tokenPrefix,
 const handler = (projectId = PROJECT) => Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId }) })
 const agent = (scope) => Object.freeze({ kind: 'agent', sessionId: 'run-1', scope })
 
-const ORDER_DATASET = Object.freeze({
-  rootEntity: 'CabecalhoNota', includePresentationFields: 'N', offsetPage: '0',
-  criteria: { expression: { $: "this.NUMNOTA = ? AND this.TIPMOV = 'O'" }, parameter: [{ $: '22790', type: 'I' }] },
-  entity: { fieldset: { list: 'NUNOTA,NUMNOTA,VLRNOTA' } },
-})
-
 const read = (overrides = {}) => ({
   connection: 'erp',
   method: 'POST',
   path: ROUTE,
   query: { serviceName: LOAD, outputType: 'json' },
-  body: { serviceName: LOAD, requestBody: { dataSet: ORDER_DATASET } },
+  body: { serviceName: LOAD, requestBody: { dataSet: NATIVE_ORDER_DATASET } },
   ...overrides,
 })
 
-const ORDER_ANSWER = Object.freeze({
-  serviceName: LOAD, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
-  responseBody: { entities: {
-    total: '1', hasMoreResult: 'false', offsetPage: '0', offset: '0',
-    metadata: { fields: { field: [{ name: 'NUNOTA' }, { name: 'NUMNOTA' }, { name: 'VLRNOTA' }] } },
-    entity: { f0: { $: '9001' }, f1: { $: '22790' }, f2: { $: '1520.50' } },
-  } },
-})
-const ORDER_READ = Object.freeze({ ok: true, status: 200, truncated: false, body: ORDER_ANSWER })
+const ORDER_READ = Object.freeze({ ok: true, status: 200, truncated: false, body: EXPECTED_NATIVE_ORDER })
 
 // What undici sends with every request; the executor adds only accept, authorization and content-type.
 const TRANSPORT_HEADERS = ['accept-encoding', 'accept-language', 'connection', 'content-length', 'host', 'sec-fetch-mode', 'user-agent']
@@ -102,7 +88,7 @@ test('the control read: the vendor body passes through, and the fake saw authent
     accept: 'application/json',
     contentType: 'application/json',
     headers: [...TRANSPORT_HEADERS, 'accept', 'authorization', 'content-type'].sort(),
-    body: { serviceName: LOAD, requestBody: { dataSet: ORDER_DATASET } },
+    body: { serviceName: LOAD, requestBody: { dataSet: NATIVE_ORDER_DATASET } },
   })
   assert.equal(fake.nonReads(), 0)
   assert.deepEqual(other.requests, [])
@@ -112,9 +98,9 @@ test('P4: a write service and a mismatched or absent body serviceName are SERVIC
   const { fake, other, broker, store } = await setup(t)
   const withBody = (querySevice, body) => read({ query: { serviceName: querySevice, outputType: 'json' }, body })
   const cases = [
-    [withBody(WRITE, { serviceName: WRITE, requestBody: { dataSet: ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
-    [withBody(LOAD, { serviceName: WRITE, requestBody: { dataSet: ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
-    [withBody(LOAD, { requestBody: { dataSet: ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
+    [withBody(WRITE, { serviceName: WRITE, requestBody: { dataSet: NATIVE_ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
+    [withBody(LOAD, { serviceName: WRITE, requestBody: { dataSet: NATIVE_ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
+    [withBody(LOAD, { requestBody: { dataSet: NATIVE_ORDER_DATASET } }), { ok: false, code: 'SERVICE_REFUSED' }],
     [read({ method: 'GET' }), { ok: false, code: 'SERVICE_REFUSED' }],
     [read({ path: '/gateway/v1/mge/other.sbr' }), { ok: false, code: 'SERVICE_REFUSED' }],
     [read({ query: { serviceName: LOAD } }), { ok: false, code: 'INPUT_REFUSED', issues: ['/query/outputType'] }],
@@ -246,7 +232,7 @@ test('P5: an answer over the size limit is cut and marked truncated; one within 
   const services = (await facts()).filter(({ name }) => name === LOAD).map(({ bytes, truncated, result }) => ({ bytes, truncated, result }))
   assert.deepEqual(services, [
     { bytes: 1024, truncated: true, result: 'OK' },
-    { bytes: Buffer.byteLength(JSON.stringify(ORDER_ANSWER)), truncated: false, result: 'OK' },
+    { bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), truncated: false, result: 'OK' },
   ])
 })
 
@@ -332,7 +318,7 @@ test('P5: a stalled vendor ends at the deadline as PROVIDER_TIMEOUT, for the ser
 test('P2: the records carry the binding name, the integrator and closed facts, never a path, query, body, value or token', async (t) => {
   const { fake, broker, facts, exporter, lines } = await setup(t)
   const scope = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 })
-  const marked = read({ body: { serviceName: LOAD, requestBody: { dataSet: { ...ORDER_DATASET, criteria: { expression: { $: 'this.CODPARC = ?' }, parameter: [{ $: 'MARKER-VALUE-5e1', type: 'S' }] } } } } })
+  const marked = read({ body: { serviceName: LOAD, requestBody: { dataSet: { ...NATIVE_ORDER_DATASET, criteria: { expression: { $: 'this.CODPARC = ?' }, parameter: [{ $: 'MARKER-VALUE-5e1', type: 'S' }] } } } } })
   assert.deepEqual(await broker.fetch(agent(scope), read()), ORDER_READ)
   fake.mode.service = 'envelope-error'
   assert.equal((await broker.fetch(agent(scope), marked)).code, 'PROVIDER_ERROR')
@@ -342,7 +328,7 @@ test('P2: the records carry the binding name, the integrator and closed facts, n
   assert.deepEqual(await facts(), [
     { name: 'connector.fetch', root: true, error: false, ...call, result: 'OK' },
     { name: 'authenticate', root: false, error: false, ...call, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(JSON.stringify(ORDER_ANSWER)), truncated: false, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), truncated: false, result: 'OK' },
     { name: 'connector.fetch', root: true, error: true, ...call, result: 'PROVIDER_ERROR' },
     { name: LOAD, root: false, error: true, ...call, step: 1, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(errorAnswer), truncated: false, result: 'PROVIDER_ERROR' },
     { name: 'connector.fetch', root: true, error: true, ...call, connection: null, connector: null, result: 'NOT_GRANTED' },
