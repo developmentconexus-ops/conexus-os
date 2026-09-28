@@ -153,7 +153,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // now is too late: the run records it and settles admitted.
       const admitted = result.resultSourceRevision
       await store.advanceBuilderRunSource(claimed.builderRunId, admitted)
-      if (claimed.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
       // The database refuses a phase once a stop is requested; an admitted run still settles.
       const finalizing = (): Promise<void> => setPhase('FINALIZING').catch(() => undefined)
       const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => runs.appendDiagnostic({

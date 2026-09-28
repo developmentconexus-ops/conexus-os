@@ -45,6 +45,7 @@ const conexusGitDigest = '03db7c70c662de2bd0eedaa4916f36b8d53560c64837bd1d0a9edc
 const modelAccountDigest = '50d243c98fac0fd74cf47a163ee8deecb1500dfc6b7dd8f7a7f079a65f86616d'
 const runModelAccountDigest = '8b89f15aa1fb81e4eed4a314cc0b314cf5d33916b62df65492bbc10ac06c3a93'
 const modelAccountByIdDigest = '611c746f0734d3300ab53c79804627245f726612bffbd0ef87bb6212ca721ba0'
+const runSettlesByChangeDigest = 'e9ee2861c028cb994dbebb151bb5ea945a2a20866da65a8dac76445a51020581'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -82,6 +83,7 @@ const migrationDigests = new Map([
   ['0033_model_account.sql', modelAccountDigest],
   ['0034_builder_run_model_account.sql', runModelAccountDigest],
   ['0035_model_account_by_id.sql', modelAccountByIdDigest],
+  ['0036_builder_run_settles_by_change.sql', runSettlesByChangeDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

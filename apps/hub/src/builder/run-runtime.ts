@@ -192,13 +192,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         `chmod 644 '${SERVER_BUILD_SCRIPT_PATH}.next' && mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}'`,
       ].join('\n'))
       if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
-      if (input.mode === 'BUILD') {
-        await (ports.materializeStarter ?? materializeRunStarter)({
-          repositoryRoot: SANDBOX_CHECKOUT,
-          directCommand: (command, args) => direct(command, [...args]),
-          writeFiles: (files) => sandbox.writeFiles(files),
-        })
-      }
+      // A run that starts in Planejar builds in the same run once its plan is approved (AC-4).
+      await (ports.materializeStarter ?? materializeRunStarter)({
+        repositoryRoot: SANDBOX_CHECKOUT,
+        directCommand: (command, args) => direct(command, [...args]),
+        writeFiles: (files) => sandbox.writeFiles(files),
+      })
 
       session = await ports.openSession({
         projectId: input.projectId, conversationId: input.conversationId, builderRunId: input.executionId,
@@ -230,7 +229,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (cancelled()) throw new Error('BUILDER_LATE_RESULT_REFUSED')
         return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
       }
-      if (input.mode === 'PLAN') throw new Error('BUILDER_PLAN_SOURCE_RESULT_REFUSED')
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
 
       // Admission (AC-9, AC-14): the candidate's AGENTS.md is within the rule and its own check
