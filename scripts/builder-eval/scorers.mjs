@@ -92,6 +92,23 @@ const canonical = (value) => {
   return value
 }
 
+const finishedRoot = (spans) => {
+  const root = spans.find((span) => !span.parentSpanId && span.spanType === 'agent_run')
+  if (!root) throw new Error('trace sem agent_run raiz')
+  if (!root.endedAt) throw new Error('trace ainda em execução')
+  return root
+}
+
+/**
+ * Pure. The reply the Builder's main agent ended its run with, as Mastra records it on the root
+ * agent_run span; empty when the run stopped without one.
+ * @returns {string}
+ */
+function finalReply(spans) {
+  const text = finishedRoot(spans).output?.text
+  return typeof text === 'string' ? text : ''
+}
+
 /**
  * Pure. Counts over one Builder trace's main agent. A nested agent_run (the observational-memory
  * observer under memory_operation) and its tools and tokens are excluded.
@@ -99,9 +116,7 @@ const canonical = (value) => {
  * @returns {TraceMetrics}
  */
 export function traceMetrics(spans) {
-  const root = spans.find((span) => !span.parentSpanId && span.spanType === 'agent_run')
-  if (!root) throw new Error('trace sem agent_run raiz')
-  if (!root.endedAt) throw new Error('trace ainda em execução')
+  const root = finishedRoot(spans)
   const byId = new Map(spans.map((span) => [span.spanId, span]))
   const ownerOf = (span) => {
     let ancestor = byId.get(span.parentSpanId)
@@ -204,8 +219,14 @@ function createScorers(loadSpans) {
     }
     return metricsByTraceSet.get(key)
   }
-  const appCorrect = createScorer({ id: 'app-correct', description: 'A prévia mostra todos os nomes e valores certos e nenhum total errado conhecido (1 ou 0)' })
-    .preprocess(({ run }) => gradeScreen(run.output, run.groundTruth?.screen))
+  const appCorrect = createScorer({
+    id: 'app-correct',
+    description: 'O resultado é o que o caso espera: a prévia mostra todos os nomes e valores certos e nenhum total errado conhecido, '
+      + 'ou, num Projeto sem a Conexão, o Builder não muda o código e diz o que vincular em Integrações (1 ou 0)',
+  })
+    .preprocess(async ({ run }) => (run.groundTruth?.missingSystem
+      ? gradeRefusal(run.output, run.groundTruth.missingSystem, finalReply(await loadSpans(traceIdsOf(run).at(-1))))
+      : gradeScreen(run.output, run.groundTruth?.screen)))
     .generateScore(({ results }) => results.preprocessStepResult.score)
     .generateReason(({ results }) => results.preprocessStepResult.reason)
   const traceScorers = TRACE_METRIC_SCORERS.map((row) =>
@@ -383,6 +404,38 @@ function gradeScreen(output, truth) {
   ]
   if (problems.length > 0) return { score: 0, reason: problems.join('; ') }
   return { score: 1, reason: `Os ${truth.names.length} nomes e ${truth.amounts.length} valores aparecem, e nenhum total errado conhecido.` }
+}
+
+// Where one clause ends and the next begins, for the lexical heuristics below: any of . , ; : ! ?
+// or the word "mas".
+const CLAUSE_BOUNDARY = /[.,;:!?]|\bmas\b/
+
+/**
+ * Pure. 1 when the final run changed no source and its reply names the missing system and says,
+ * naming Integrações, that a Conexão must be bound or connected there; else 0. A reply that only
+ * mentions Integrações in passing, or tells the person not to bind or connect, does not qualify.
+ * Product contract, section 12.6.
+ * @returns {{ score: 0 | 1, reason: string }}
+ */
+function gradeRefusal(output, system, reply) {
+  const preview = output?.preview
+  if (preview?.kind !== 'observed' && preview?.kind !== 'not-built') throw new Error('o output não é o resultado de um Builder run')
+  const said = fold(reply)
+  // A negation cue ("nao", "nunca", "sem") governs the verb only inside its own clause: "nao e
+  // necessario vincular" and "nao precisa conectar" count, same as "nao vincule", but a clause
+  // that only states absence ("nao ha Conexao: vincule...") ends at the boundary and never reaches
+  // the verb that follows in the next clause. A lexical heuristic, so it judges one clause at a
+  // time rather than parsing the sentence.
+  const verbNegated = said.split(CLAUSE_BOUNDARY).some((clause) => /\b(?:nao|nunca|sem)\b[\s\S]*\b(?:vincul|conect)\w*/.test(clause))
+  const saysToBind = said.includes('integracoes') && said.includes('conexao') && (said.includes('vincul') || said.includes('conect'))
+    && !verbNegated
+  const problems = [
+    ...(preview.kind === 'not-built' && preview.reason === 'NO_SOURCE_CHANGE' ? [] : ['o Builder mudou o código em vez de recusar']),
+    ...(said.includes(fold(system)) ? [] : [`a resposta não nomeia ${system}`]),
+    ...(saysToBind ? [] : ['a resposta não diz para vincular a Conexão em Integrações']),
+  ]
+  if (problems.length > 0) return { score: 0, reason: problems.join('; ') }
+  return { score: 1, reason: `O Builder não mudou o código e disse que falta a Conexão com ${system} em Integrações.` }
 }
 
 const NUMBER = /\d[\d.,]*\d|\d/g

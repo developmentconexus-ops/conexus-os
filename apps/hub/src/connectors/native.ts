@@ -4,7 +4,7 @@ import type { BrokerErrorCode } from './errors.js'
 import type { NativeProtocol, ProviderAnswer } from './operation.js'
 import type { AccessToken } from './token-cache.js'
 
-type NativeRequest = Readonly<{
+export type NativeRequest = Readonly<{
   /** A Project-local binding name. */
   connection: string
   /** The integrator's read rule decides which methods read. */
@@ -15,8 +15,9 @@ type NativeRequest = Readonly<{
 }>
 
 export type FetchResult =
-  /** The vendor's parsed JSON, bearer redacted. A 2xx answer that does not parse, or is over `responseBytes`, is a refusal with no vendor byte. */
-  | Readonly<{ ok: true; status: number; body: unknown }>
+  /** The vendor's parsed JSON, bearer redacted, and the size of the answer as read. A 2xx answer that does not parse, or is over
+   * `responseBytes`, is a refusal with no vendor byte. */
+  | Readonly<{ ok: true; status: number; bytes: number; body: unknown }>
   | Readonly<{
       ok: false
       code: BrokerErrorCode
@@ -47,7 +48,7 @@ export type ParsedNativeRequest = Readonly<{
 
 const QUERY_KEYS = 32
 
-const nativeRequestSchema = z.strictObject({
+export const nativeRequestSchema = z.strictObject({
   connection: z.string().min(1).max(40),
   method: z.string().min(1).max(16),
   path: z.string().min(1).max(2048),
@@ -166,7 +167,7 @@ export const sendNative = async (
   }
   const verdict = protocol.answer(vendorBody)
   switch (verdict.kind) {
-    case 'success': return Object.freeze({ ok: true, status, body: vendorBody })
+    case 'success': return Object.freeze({ ok: true, status, bytes: bytes.byteLength, body: vendorBody })
     case 'vendor-error': return failed('PROVIDER_ERROR', status, { vendorStatus: verdict.vendorStatus, body: vendorBody })
     case 'unreadable': return failed('RESPONSE_REFUSED', status)
   }

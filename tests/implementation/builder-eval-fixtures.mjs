@@ -97,10 +97,11 @@ function fakeHub(models) {
 
 /**
  * Stands in for run.mjs's runCase: reads the case file the driver wrote, seeds one Builder trace
- * (trace-<project>) and answers a built Preview, or a failed run when `failures[model]` still holds a
- * failure category for that model.
+ * (trace-<project>) and answers a built Preview, a failed run when `failures[model]` still holds a
+ * failure category for that model, or, for an item in `replies`, a run that changed no source and
+ * ended with that reply.
  */
-function fakeRunCase(storage, { failures = {} } = {}) {
+function fakeRunCase(storage, { failures = {}, replies = {} } = {}) {
   const calls = []
   let inFlight = 0
   let maxInFlight = 0
@@ -111,7 +112,17 @@ function fakeRunCase(storage, { failures = {} } = {}) {
     await new Promise((resolve) => setTimeout(resolve, 5))
     inFlight -= 1
     const builderRunId = `run-${options.project}`
-    await seedSpans(storage, builderTrace({ traceId: `trace-${options.project}`, builderRunId, projectId: options.project }))
+    const spans = builderTrace({ traceId: `trace-${options.project}`, builderRunId, projectId: options.project })
+    const reply = replies[basename(options.out)]
+    if (reply !== undefined) spans[0] = { ...spans[0], output: { text: reply } }
+    await seedSpans(storage, spans)
+    if (reply !== undefined) {
+      return {
+        outcome: 'FAIL', error: null, projectId: options.project, modelId: options.model,
+        runs: [{ builderRunId, isRepair: false, state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY', failureCategory: null, failureCode: null }],
+        failure: 'NO_SOURCE_CHANGE', previewText: null, sourceRevisionAfter: 'rev-0', wallTimeToUsablePreviewMs: null,
+      }
+    }
     const category = failures[options.model]?.shift()
     const failed = category !== undefined
     return {
@@ -150,10 +161,10 @@ export const CASES = Object.freeze([{
  * Comparison c1 over `storage` with a fake Hub where m-flash, m-luna and m-other are usable, the fake driver and a
  * simulator health route serving sales-v1. `run(overrides)` is one invocation of the driver.
  */
-export async function experimentHarness(t, storage, { failures } = {}) {
+export async function experimentHarness(t, storage, { failures, replies } = {}) {
   const mastra = createEvalMastra({ storage })
   const hub = fakeHub(['m-flash', 'm-luna', 'm-other'])
-  const driver = fakeRunCase(storage, { failures })
+  const driver = fakeRunCase(storage, { failures, replies })
   const simulator = await startSimulatorHealth(['sales-v1'])
   const outRoot = mkdtempSync(join(tmpdir(), 'builder-eval-test-'))
   t.after(async () => {

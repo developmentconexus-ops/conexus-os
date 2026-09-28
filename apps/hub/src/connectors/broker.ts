@@ -10,6 +10,7 @@ import type { Adapter, ConnectorDefinition, Consumer, Operation, ProviderAnswer,
 import { endSpan, requestTrace } from './record.js'
 import type { SpanResult } from './record.js'
 import { isMintedScope, spendCall } from './scope.js'
+import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 import { createTokenCache, inLane, Redacted } from './token-cache.js'
 import type { AccessToken, IssuedToken, TokenCache, TokenLease } from './token-cache.js'
@@ -31,12 +32,23 @@ type NativeTarget = Readonly<{
   service: string; method: string; url: URL; body: ParsedNativeRequest['body']
 }>
 
+type Admission =
+  | Readonly<{ ok: true; scope: ConsumerScope; binding: BoundConnection; target: NativeTarget }>
+  | Readonly<{ ok: false; refusal: FetchResult; binding: BoundConnection | null; connector: RegisteredConnector | null }>
+
+/** What a request would reach, for a display that must carry no value: `service` is the read rule's own constant, never caller text. */
+export type FetchDescription = Readonly<{ integrator: ConnectorId | null; service: string | null }>
+
+const UNDESCRIBED: FetchDescription = Object.freeze({ integrator: null, service: null })
+
 export type Broker = Readonly<{
   /** Never throws. */
   call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>>
   /** A native request through one of the consumer's Project bindings. `request` is untrusted JSON; `consumer` is built by Hub code
    * with a Hub-minted scope. Never throws. */
   fetch(consumer: Consumer, request: unknown): Promise<FetchResult>
+  /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
+  describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
   /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
   checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
@@ -231,33 +243,52 @@ export const createBroker = ({
     }
   }
 
-  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan): Promise<FetchResult> => {
+  /** The request admitted for one of the consumer's bindings, or its refusal: no network, no budget spent. */
+  const admitFetch = async (consumer: Consumer, request: unknown, at: number): Promise<Admission> => {
     const parsed = parseNativeRequest(request, nativeLimits)
-    if (!parsed.ok) return refused('INPUT_REFUSED', parsed.issues)
+    if (!parsed.ok) return { ok: false, refusal: refused('INPUT_REFUSED', parsed.issues), binding: null, connector: null }
     const { connection, method, path, query, body } = parsed.request
     const scope = consumer?.scope
-    if (!isMintedScope(scope, at)) return refused('NOT_GRANTED')
+    if (!isMintedScope(scope, at)) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
     let bindings: readonly BoundConnection[]
     try {
       bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
     } catch {
-      return refused('PROVIDER_UNAVAILABLE')
+      return { ok: false, refusal: refused('PROVIDER_UNAVAILABLE'), binding: null, connector: null }
     }
     const binding = bindings.find((candidate) => candidate.name === connection)
-    if (!binding) return refused('NOT_GRANTED')
-    const connector = connectors.find((candidate) => candidate.definition.id === binding.connectorId)
-    span.update({ metadata: { connection: binding.name, connector: connector ? connector.definition.id : null } })
+    if (!binding) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
+    const connector = connectors.find((candidate) => candidate.definition.id === binding.connectorId) ?? null
     const adapter = connector?.adapter
-    if (!connector || !adapter) return refused('CONNECTOR_UNCONFIGURED')
+    if (!connector || !adapter) return { ok: false, refusal: refused('CONNECTOR_UNCONFIGURED'), binding, connector }
     const url = pinnedUrl(path, query, adapter.origin)
-    if (!url) return refused('INPUT_REFUSED', ['/path'])
+    if (!url) return { ok: false, refusal: refused('INPUT_REFUSED', ['/path']), binding, connector }
     const admitted = connector.definition.native.admit({ method, url, body: body?.plain })
-    if (!admitted.ok) return refused(admitted.code, admitted.issues)
-    if (!spendCall(scope)) return refused('CALL_LIMIT')
-    return sendOnToken({ connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body }, span)
+    if (!admitted.ok) return { ok: false, refusal: refused(admitted.code, admitted.issues), binding, connector }
+    return { ok: true, scope, binding, target: { connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
+  }
+
+  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan): Promise<FetchResult> => {
+    const admission = await admitFetch(consumer, request, at)
+    if (admission.binding) {
+      span.update({ metadata: { connection: admission.binding.name, connector: admission.ok ? admission.target.connector.definition.id : admission.connector?.definition.id ?? null } })
+    }
+    if (!admission.ok) return admission.refusal
+    if (!spendCall(admission.scope)) return refused('CALL_LIMIT')
+    return sendOnToken(admission.target, span)
   }
 
   return Object.freeze({
+    async describe(consumer: Consumer, request: unknown): Promise<FetchDescription> {
+      try {
+        const admission = await admitFetch(consumer, request, now())
+        return admission.ok
+          ? Object.freeze({ integrator: admission.target.connector.definition.id, service: admission.target.service })
+          : Object.freeze({ integrator: admission.connector?.definition.id ?? null, service: null })
+      } catch {
+        return UNDESCRIBED
+      }
+    },
     async fetch(consumer: Consumer, request: unknown): Promise<FetchResult> {
       const at = now()
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.fetch', metadata: {

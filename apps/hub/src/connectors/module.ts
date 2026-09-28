@@ -1,4 +1,5 @@
 import type { ObservabilityInstance } from '@mastra/core/observability'
+import type { FactoryIntegration } from '@mastra/factory'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -8,6 +9,10 @@ import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
 import type { Broker, RegisteredConnector } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
+import { createConnectorFetchIntegration, openBuilderRun } from './builder-tool.js'
+import type { BuilderConnectorRun } from './builder-tool.js'
+import { createToolPayloadProjection } from './fetch-projection.js'
+import type { ToolPayloadProjection } from './fetch-projection.js'
 import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
@@ -28,10 +33,13 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
-  /** The Builder's per-run brief of the operations this Project's own bindings reach. Empty for a
-   * Project that reaches none, a fixed notice when the bindings cannot be read. Never throws, never
-   * opens a credential and makes no network call. */
-  builderBrief(projectId: string): Promise<string>
+  /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief opens
+   * no credential and makes no network call. */
+  openBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
+  /** Contributes `connector_fetch` to the Factory session of a run bound with `openBuilderRun`. */
+  builderIntegration: FactoryIntegration
+  /** The route-level projection of `connector_fetch` payloads the Builder's session routes serve. */
+  toolPayloadProjection: ToolPayloadProjection
   broker: Broker
   observability: ObservabilityInstance
 }>
@@ -113,13 +121,9 @@ export const createConnectorModule = ({
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    builderBrief: async (projectId) => {
-      try {
-        return await connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
-      } catch {
-        return ''
-      }
-    },
+    openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId }),
+    builderIntegration: createConnectorFetchIntegration(broker),
+    toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,
     observability,
   })

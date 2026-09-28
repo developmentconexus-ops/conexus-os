@@ -7,6 +7,7 @@ import type { RetentionConfig, StorageDomains } from '@mastra/core/storage'
 import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { MastraFactory } from '@mastra/factory'
+import type { FactoryIntegration } from '@mastra/factory'
 import type { FactorySecretEncryption } from '@mastra/factory/secret-encryption'
 import type { VersionControl } from '@mastra/factory/capabilities/version-control'
 import { GithubIntegration } from '@mastra/factory/integrations/github/integration'
@@ -299,7 +300,7 @@ class ConexusGithubIntegration extends GithubIntegration {
   }
 }
 
-export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, previousSecretKeys = [], publicUrl, sandbox, observability, googleAiProUrl }: Readonly<{
+export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, secretKey, previousSecretKeys = [], publicUrl, sandbox, observability, googleAiProUrl, integrations = [] }: Readonly<{
   pool: PostgresPool
   orgId: string
   // The Hub session, the only sign-in (docs/reference/single-owner-map.md).
@@ -312,13 +313,14 @@ export const composeFactory = async ({ pool, orgId, auth, github, stateSecret, s
   sandbox: (context: FactorySandboxContext) => E2BSandbox
   observability?: Observability
   googleAiProUrl?: string
+  integrations?: readonly FactoryIntegration[]
 }>): Promise<FactoryComposition> => {
   const storage = createFactoryStorage(pool)
   const integration = new ConexusGithubIntegration(github)
   const factory = new MastraFactory({
     storage,
     auth,
-    integrations: [integration],
+    integrations: [integration, ...integrations],
     sandbox,
     stateSecret,
     secretEncryption: createFactorySecretKeyEncryption(secretKey, previousSecretKeys),

@@ -210,7 +210,11 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
-  connectorBrief: (projectId: string) => connectors.builderBrief(projectId),
+  connectors: {
+    openRun: connectors.openBuilderRun,
+    integration: connectors.builderIntegration,
+    toolPayloadProjection: connectors.toolPayloadProjection,
+  },
   connectorObservability: connectors.observability,
 }) : undefined
 const app = await createHttpApp({

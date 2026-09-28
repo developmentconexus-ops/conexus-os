@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+const { CONNECTOR_BRIEF_UNAVAILABLE, CONNECTOR_BRIEF_UNBOUND, createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { SANKHYA_GATEWAY_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
@@ -20,20 +20,40 @@ const storeOf = (bindings) => ({ listBindings: async () => bindings })
 const connectors = Object.freeze([{ definition: sankhyaDefinition, adapter: null }])
 const briefOf = (store, record = connectorRecord()) => createConnectorBrief({ connectors, store, observability: record.observability })
 
-// The wire vocabulary the brief and the Skill must never carry: Sankhya field, entity and service
-// names, credential material, and the pinned gateway origins.
-const FORBIDDEN = [
-  'CRUDServiceProvider', 'loadRecords', 'CabecalhoNota', 'ItemNota', 'TGFCAB', 'TGFITE',
-  'NUMNOTA', 'NUNOTA', 'TIPMOV', 'DTNEG', 'STATUSNOTA', 'VLRNOTA', 'Parceiro', 'NOMEPARC',
-  'gateway', 'service.sbr', 'clientSecret', 'xToken', 'client_secret', 'X-Token',
-  ...SANKHYA_GATEWAY_ORIGINS,
-]
+// What P11 keeps from the Builder: credential material and the pinned gateway origins. Service,
+// entity and field names are the native request format the integrator's Skill teaches (C-030).
+const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-token', 'Bearer', ...SANKHYA_GATEWAY_ORIGINS]
 
-test('a Project with no binding, a binding of another integrator, or two Sankhya bindings gets an empty brief', async () => {
-  for (const bindings of [[], [bound('crm', 'synthetic-rest')], [bound('erp'), bound('filial', 'sankhya', '55555555-5555-4555-8555-555555555555')]]) {
-    assert.equal(await briefOf(storeOf(bindings))(scope), '', JSON.stringify(bindings))
-  }
-  assert.ok((await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)).includes(READ), 'one Sankhya binding beside another integrator reaches the operation')
+const BINDING_LINE = (names) => `Connections bound to this Project, each named by the Project-local name a request passes as \`connection\`: ${names}.`
+
+test('a Project with no binding is told to change nothing and ask for a Conexão; every binding a Project has is named with its integrator', async () => {
+  assert.equal(await briefOf(storeOf([]))(scope), CONNECTOR_BRIEF_UNBOUND)
+  assert.equal(CONNECTOR_BRIEF_UNBOUND, 'This Project has no Connection bound to it, so it reads no external system. When a request needs data from one, '
+    + 'change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.')
+  const other = await briefOf(storeOf([bound('crm', 'synthetic-rest')]))(scope)
+  assert.ok(other.startsWith(BINDING_LINE('`crm` (integrator synthetic-rest)')), other)
+  assert.equal(other.includes(READ) || other.includes(sankhyaDefinition.builderSkill), false, 'an unregistered integrator reaches no operation and no Skill')
+
+  const two = await briefOf(storeOf([bound('erp'), bound('filial', 'sankhya', '55555555-5555-4555-8555-555555555555')]))(scope)
+  assert.ok(two.startsWith(BINDING_LINE('`erp` (integrator sankhya), `filial` (integrator sankhya)')), two)
+  assert.ok(two.includes('connector_fetch') && two.includes(sankhyaDefinition.builderSkill), 'two Sankhya bindings get the tool and the Skill')
+  assert.equal(two.includes(READ), false, 'the operation path needs exactly one Sankhya binding')
+
+  const mixed = await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)
+  assert.ok(mixed.startsWith(BINDING_LINE('`erp` (integrator sankhya), `crm` (integrator synthetic-rest)')), mixed)
+  assert.ok(mixed.includes(READ), 'one Sankhya binding beside another integrator reaches the operation')
+})
+
+test('a Project with a binding is never told it has none, and is told to ask for a Conexão only for a system none of its bindings reaches', async () => {
+  const text = await briefOf(storeOf([bound('erp')]))(scope)
+  assert.equal(text.includes(CONNECTOR_BRIEF_UNBOUND) || text.includes('has no Connection'), false)
+  assert.ok(text.includes('When a request needs a system none of these Connections reaches, change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.'))
+})
+
+test('the brief tells the Builder to narrow a read that answers RESPONSE_TOO_LARGE', async () => {
+  const text = await briefOf(storeOf([bound('erp')]))(scope)
+  assert.ok(text.includes('When a read answers RESPONSE_TOO_LARGE, narrow it before you read again: ask for fewer fields, filter it further, or read one page at a time.'))
+  assert.ok(sankhyaDefinition.builderSkill.includes('Se a leitura responder `RESPONSE_TOO_LARGE`'))
 })
 
 test('a Project with one Sankhya binding gets a brief naming the operation and both its JSON Schemas', async () => {
@@ -47,16 +67,15 @@ test('a Project with one Sankhya binding gets a brief naming the operation and b
   assert.ok(text.includes(sankhyaDefinition.builderSkill))
 })
 
-test('an unbound Connection gets an empty brief again', async () => {
+test('an unbound Connection leaves the Project told it has none', async () => {
   const bindings = [bound('erp')]
   const brief = briefOf({ listBindings: async () => bindings })
-  assert.ok((await brief(scope)).includes(READ))
+  assert.ok((await brief(scope)).includes('`erp` (integrator sankhya)'))
   bindings.pop()
-  assert.equal(await brief(scope), '')
+  assert.equal(await brief(scope), CONNECTOR_BRIEF_UNBOUND)
 })
 
 test('an unreadable store answers the fixed notice, records a code with no store detail, and names no operation', async () => {
-  const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const record = connectorRecord()
   const brief = briefOf({ listBindings: async () => { throw new Error('permission denied for function list_bound_connections STORE_DETAIL_MARKER') } }, record)
   const text = await brief(scope)
@@ -69,12 +88,12 @@ test('an unreadable store answers the fixed notice, records a code with no store
   assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
-test('a scope this module did not mint gets an empty brief, whatever the store would answer', async () => {
+test('a scope this module did not mint is told connector data is unavailable, whatever the store would answer', async () => {
   const brief = briefOf(storeOf([bound('erp')]))
-  assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), '')
+  assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
-test('the brief and the Skill carry none of the forbidden wire vocabulary', async () => {
+test('the brief and the Skill carry no credential material and no gateway origin', async () => {
   const brief = briefOf(storeOf([bound('erp')]))
   const text = await brief(scope)
   for (const term of FORBIDDEN) {
@@ -83,7 +102,7 @@ test('the brief and the Skill carry none of the forbidden wire vocabulary', asyn
   }
 })
 
-test('the module answers an empty brief, never a throw, for a Project id it cannot mint a scope for', async () => {
+test('the module opens no Builder run, and reads no binding, for a Project id it cannot mint a scope for', async () => {
   const { createConnectorModule } = await import(hubModuleUrl('connectors/module.js'))
   const module = createConnectorModule({
     pool: { query: async () => { throw new Error('the store must not be reached') } },
@@ -93,5 +112,5 @@ test('the module answers an empty brief, never a throw, for a Project id it cann
     isInstallationAdministrator: async () => false,
     log: () => {},
   })
-  assert.equal(await module.builderBrief('not-a-uuid'), '')
+  await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), /^Error: CONNECTOR_SCOPE_REFUSED$/)
 })

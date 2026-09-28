@@ -38,7 +38,7 @@ export const spendCall = (scope: ConsumerScope): boolean => {
   return true
 }
 
-/** @public The Builder run that mints a scope revokes it when the run ends (Q-5); tests import it until then. */
+/** The Builder run that minted the scope revokes it when the run ends. */
 export const revokeScope = (scope: ConsumerScope): void => {
   const term = terms.get(scope)
   if (term) term.revoked = true
@@ -50,6 +50,6 @@ export const revokeScope = (scope: ConsumerScope): void => {
 export const scopeFromArtifactSource = (source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): ConsumerScope =>
   mint(source.projectId, 'preview', { expiresAt: null, calls: null, revoked: false })
 
-/** @public The Builder tool mints one per run (Q-5); tests import it until then. */
+/** One per Builder run: it expires, and every call through it spends one of its calls. */
 export const scopeForBuilderRun = (projectId: string, runTerms: Readonly<{ ttlMs: number; calls: number }>, now: number = Date.now()): ConsumerScope =>
   mint(projectId, 'preview', { expiresAt: now + runTerms.ttlMs, calls: runTerms.calls, revoked: false })

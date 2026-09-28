@@ -166,6 +166,7 @@ const inputRefused = (issue: string) => Object.freeze({ ok: false, code: 'INPUT_
  * filter: C-030 puts the read boundary at the vendor's principal, and this is the service-level tripwire.
  */
 export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
+  services: SANKHYA_SERVICES,
   admit({ method, url, body }: Readonly<{ method: string; url: URL; body: unknown }>) {
     const named = url.searchParams.getAll('serviceName')
     const service = named.length === 1 ? SANKHYA_SERVICES.find((allowed) => allowed === named[0]) : undefined
