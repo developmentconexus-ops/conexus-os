@@ -11,7 +11,7 @@ import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL, tokenEnvironment } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -188,7 +188,7 @@ test('the Factory\'s own clone and branch checkout, holding the credential that 
   const bundle = join(root, 'app.seed.bundle')
   git(upstream, 'bundle', 'create', '--quiet', bundle, 'refs/heads/main')
   const systemConfig = join(root, 'gitconfig')
-  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git\n`)
+  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://github.com/acme-org/app.git\n`)
   const sandbox = localShellSandbox({ GIT_CONFIG_SYSTEM: systemConfig, GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' })
   const workdir = join(root, 'workspace', 'app')
   const marked = []
@@ -220,11 +220,31 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
     "{ test -d '/var/lib/conexus-git/app.git' || git init --quiet --bare '/var/lib/conexus-git/app.git'; }",
     "git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet --no-tags 'https://github.com/acme-org/app.git' '+refs/heads/main:refs/heads/main'",
     "git --git-dir='/var/lib/conexus-git/app.git' bundle create --quiet '/var/lib/conexus-git/app.seed.bundle' 'refs/heads/main'",
-    `git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git'`,
+    "git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://github.com/acme-org/app.git'",
   ].join(' && '))
   assert.equal(seed.options.envs.GIT_CONFIG_VALUE_0, `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_seed').toString('base64')}`)
   assert.deepEqual(order, [['factory', 'created']])
   assert.equal(created.runs.indexOf(seed), 0, 'the seed is the first command of the start')
+})
+
+test('the seed points the agent\'s clone URL at its bundle, and root\'s token-bearing git still reaches GitHub', async (t) => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
+    repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
+  })
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => created
+  sandbox.setOnStart((previous) => async (args) => { await previous?.(args) })
+  await sandbox.start()
+  const seed = created.runs.find(({ options }) => options?.user === 'root')
+  const root = mkdtempSync(join(tmpdir(), 'conexus-factory-rule-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const system = { GIT_CONFIG_SYSTEM: join(root, 'gitconfig'), GIT_CONFIG_GLOBAL: '/dev/null' }
+  const rule = seed.script.split(' && ').at(-1)
+  assert.equal(spawnSync('sh', ['-c', rule], { env: { ...process.env, ...system, ...seed.options.envs } }).status, 0)
+  const resolve = (env) => spawnSync('git', ['ls-remote', '--get-url', 'https://github.com/acme-org/app.git'], { encoding: 'utf8', env: { ...process.env, ...system, ...env } }).stdout.trim()
+  assert.equal(resolve({}), '/var/lib/conexus-git/app.seed.bundle')
+  assert.equal(resolve(tokenEnvironment('ghs_write')), 'https://github.com/acme-org/app.git')
 })
 
 test('the agent\'s commands start in the Project checkout, while the Factory still checks out under /workspace', async () => {

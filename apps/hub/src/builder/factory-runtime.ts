@@ -408,7 +408,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
           let userMessageId: string | undefined
           const detach = session.subscribe((event) => {
             if (event.type === 'agent_end') endedAt = new Date()
-            if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+            if (event.type === 'message_start' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
           })
           // The model gateway reads a credential and a custom provider synchronously from snapshots,
           // which only an awaited hydration fills.

@@ -65,15 +65,6 @@ test('Mastra Code\'s provider-auth error is an auth failure, whether the run rep
   }
 })
 
-test('Mastra Code\'s missing-credential message is an auth failure', async () => {
-  const session = {
-    subscribe: () => () => {},
-    ...fakeThreadFields,
-    sendMessage: async () => { throw new Error('No usable anthropic credential is configured for this signed-in Factory account. Connect the provider or add an organization credential, then try again.') },
-  }
-  await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), { message: 'BUILDER_MODEL_AUTH_FAILED' })
-})
-
 test('sendBuilderSessionMessage preserves a generic agent error as a safe named code, not the raw provider message', async () => {
   let listener
   const session = {

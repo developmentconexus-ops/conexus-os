@@ -34,7 +34,7 @@ const fakeSession = ({ messages = [], turnUserMessageId = 'user-2' } = {}) => {
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
     abort: () => undefined,
     sendMessage: async () => {
-      for (const listener of listeners) listener({ type: 'message_end', message: { id: turnUserMessageId, role: 'user' } })
+      for (const listener of listeners) listener({ type: 'message_start', message: { id: turnUserMessageId, role: 'user' } })
       for (const listener of listeners) listener({ type: 'agent_end', reason: 'complete' })
     },
     thread: { listActiveMessages: async () => messages, requireId: () => conversationId },
@@ -63,6 +63,15 @@ const openPorts = async ({ session, github = new GithubIntegration(githubApp), m
 test('a turn summary holds only what the assistant said after this turn\'s own message', async () => {
   const session = fakeSession({
     messages: [user('user-1', 'Primeiro pedido'), assistant('a-1', 'Resposta antiga.'), user('user-2', 'Segundo pedido'), assistant('a-2', 'Resposta nova.')],
+  })
+  const run = await openPorts({ session })
+  const turn = await run.sendTurn('Segundo pedido')
+  assert.deepEqual({ userMessageId: turn.userMessageId, summary: turn.summary }, { userMessageId: 'user-2', summary: 'Resposta nova.' })
+})
+
+test('a turn keeps its own message when a later user message lands in the thread', async () => {
+  const session = fakeSession({
+    messages: [user('user-1', 'Primeiro pedido'), assistant('a-1', 'Resposta antiga.'), user('user-2', 'Segundo pedido'), assistant('a-2', 'Resposta nova.'), user('user-3', 'Mais uma coisa')],
   })
   const run = await openPorts({ session })
   const turn = await run.sendTurn('Segundo pedido')

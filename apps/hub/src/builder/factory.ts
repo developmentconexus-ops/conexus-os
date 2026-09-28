@@ -47,8 +47,10 @@ const BRANCH = /^[A-Za-z0-9_./-]+$/
 // The token rides in the git process's environment as a one-command http header, never in argv,
 // a URL, a remote or a config file. Only root git on the Hub's own mirror carries it: the agent's
 // user cannot read a root process's environment, and root git never reads the agent's checkout,
-// whose config and hooks the agent writes. Commits cross between the two as bundles.
+// whose config and hooks the agent writes. Commits cross between the two as bundles. Root git reads
+// no system config, where the seed points the repository's URL at a bundle for the agent.
 export const tokenEnvironment = (token: string): Record<string, string> => ({
+  GIT_CONFIG_NOSYSTEM: '1',
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
   GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
@@ -67,8 +69,8 @@ type FactoryCheckoutSource = Readonly<{ repositorySlug: string; read(): Promise<
 // the process environment. retryOnDead stays native: the sandbox outlives runs, so a dead VM is
 // recreated rather than failing the next command.
 //
-// The Factory's start hook clones and checks out the session branch with the credential it was
-// given, in argv and in the remote URL of the agent's checkout. That credential is
+// The Factory's start hook clones and checks out the session branch from the repository's URL,
+// with the credential it was given in the git process's environment. That credential is
 // SANDBOX_CREDENTIAL, so before the hook runs, on every start, root fetches the default branch into
 // its mirror and points that URL at a bundle of it: the Factory's own git reads the bundle.
 // GH_TOKEN is still filtered, for an organization PAT the Factory would hand out as it is.
@@ -112,7 +114,7 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
       `{ test -d '${mirror}.git' || git init --quiet --bare '${mirror}.git'; }`,
       `git --git-dir='${mirror}.git' fetch --quiet --no-tags 'https://github.com/${repositorySlug}.git' '+${ref}:${ref}'`,
       `git --git-dir='${mirror}.git' bundle create --quiet '${mirror}.seed.bundle' '${ref}'`,
-      `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/${repositorySlug}.git'`,
+      `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://github.com/${repositorySlug}.git'`,
     ].join(' && '), tokenEnvironment(token))
     if (seeded.exitCode !== 0) throw new Error(`FACTORY_CHECKOUT_SEED_FAILED:${seeded.exitCode}`)
   }
