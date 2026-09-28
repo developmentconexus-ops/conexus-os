@@ -38,6 +38,9 @@ embedded doc page.
 | 11 | Giving the Builder the `connector_fetch` tool | A | Implemented |
 | 12 | Keeping vendor values out of the browser | A for the tool's transforms, B for what they miss | Implemented; waits on U8 and U9 |
 | 13 | Platform rules above the Project's own instructions | B | Waits on U10 |
+| 14 | The composer's focus glow | Deliberate override, C-031 | Implemented |
+| 15 | AppShell's frame chrome | Deliberate override, C-031 | Implemented |
+| 16 | MainSidebar's row and icon sizing | Deliberate override, C-031 | Implemented |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -430,6 +433,53 @@ sets its own `hostInstructions` and does not let a host pass one (`factory/dist/
 not set it without a measurement.
 
 **Decision.** B (U10).
+
+## 14. The composer's focus glow
+
+**Current code.** `apps/web/src/features/builder/composer/composer.css:10-65` layers a continuous
+conic-gradient glow on top of `@mastra/playground-ui`'s own `.composer-ring` element, driven by its
+own `@property --cx-glow-angle` and `cx-glow-spin` animation, left isolated from the vendor's
+`--composer-ring-angle` custom property.
+
+**Why Conexus needs it.** The operator asked for the ring to carry a continuous ipê glow on focus and
+while the composer is busy, matching a prototype exactly ("no cursor-following glow, ever", Leandro,
+2026-09-22). Re-pointing a Mastra-read custom property in `mastra-theme.css`, the ordinary repaint
+path, cannot change what triggers the animation or its timing; only overriding the ring's own
+animation does.
+
+**Decision.** Not a KEEP/REPLACE/SIMPLIFY mechanism; no table, route or exported helper changes, only
+CSS specificity on a rendered part. Recorded here as a deliberate override under C-031's exception
+rule, with the reason in the comment at `composer.css:10-16`.
+
+**Implemented.** `composer.css`, on `.cx-composer .composer-ring` and its `[data-busy="true"]` state.
+
+## 15. AppShell's frame chrome
+
+**Current code.** `apps/web/src/app/frame.css:105-110` overrides `AppShell`'s own frame element
+(`[data-slot="app-shell-frame"]`: margin, border, radius, shadow and the grid template) and its main
+region (`[data-slot="app-shell-main"]`).
+
+**Why Conexus needs it.** `AppShell` frames its content as a floating rounded card. The redesign runs
+the top bar and sidebar edge to edge instead, with the frame carrying none of that card styling and
+its main region filling the remaining height exactly, per the comment at `frame.css:105-108`.
+
+**Decision.** Not a KEEP/REPLACE/SIMPLIFY mechanism; a deliberate CSS override under C-031's exception
+rule, reasoned in the comment at that location.
+
+**Implemented.** `frame.css:109-110`.
+
+## 16. MainSidebar's row and icon sizing
+
+**Current code.** `apps/web/src/app/frame.css:67-72` overrides `MainSidebar`'s own nav row height,
+label size and icon size, scoped to `.shell-sidebar li` so the change cannot leak into another list.
+
+**Why Conexus needs it.** The library's default "sm" size (12px, 28px rows, 16px icons) is one step
+below the prototype (14px/500, 34px rows, 18px icons), per the comment at `frame.css:67-69`.
+
+**Decision.** Not a KEEP/REPLACE/SIMPLIFY mechanism; a deliberate CSS override under C-031's exception
+rule, reasoned in the comment at that location.
+
+**Implemented.** `frame.css:70-72`.
 
 ## Upstream proposals
 

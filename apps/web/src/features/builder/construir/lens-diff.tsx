@@ -60,7 +60,7 @@ const sideCell = (line: DiffLine | null, side: 'add' | 'del') => line
 
 function SplitTable({ rows, open, onToggle }: Readonly<{ rows: readonly DiffRow[]; open: ReadonlySet<string>; onToggle: (id: string) => void }>) {
   const splitRows = toSplitRows(withOpenGaps(rows, open))
-  return <table className="cx-dt cx-dt-split">
+  return <table className="cx-dt">
     <colgroup><col className="cx-dt-num" /><col className="cx-dt-marker" /><col /><col className="cx-dt-num" /><col className="cx-dt-marker" /><col /></colgroup>
     <tbody>
       {splitRows.map((row) => {

@@ -42,7 +42,7 @@ export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
   }
   const onReconnectExpired = () => setReconnect({ step: 'expired' })
   if (!row.own) return null
-  return <li className="cxs-row">
+  return <li>
     <div className="cxs-row-main">
       <strong>{row.label}</strong>
       <span className="cxs-row-meta">{connectionLabel(row.own)}</span>
@@ -81,7 +81,7 @@ export function OwnAccountRow({ row }: Readonly<{ row: Row }>) {
 
 export function SharedAccountRow({ row, manageAction }: Readonly<{ row: Row; manageAction?: ReactNode }>) {
   if (!row.shared) return null
-  return <li className="cxs-row">
+  return <li>
     <div className="cxs-row-main">
       <strong>{row.label}</strong>
       <span className="cxs-row-meta">{connectionLabel(row.shared)}</span>

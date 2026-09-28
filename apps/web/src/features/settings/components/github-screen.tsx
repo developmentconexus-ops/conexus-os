@@ -62,7 +62,7 @@ export function GithubScreen() {
       <h2 id="cxs-github-org-title">{data.organization.login} <Chip tone="positive">Conectada</Chip></h2>
       <p>{data.repositories.length} {data.repositories.length === 1 ? 'repositório' : 'repositórios'}</p>
       <ul className="cxs-list">
-        {data.repositories.map((repository) => <li key={repository.slug} className="cxs-row">
+        {data.repositories.map((repository) => <li key={repository.slug}>
           <span>{repository.slug}</span>
           {repositoryChip(repository.state)}
           {(repository.state === 'missing' || repository.state === 'identity-changed') && (
@@ -96,7 +96,7 @@ export function GithubScreen() {
       {reconnectResult && <div>
         <p role="status">Projetos religados pelo id do repositório no GitHub.</p>
         <ul className="cxs-list">
-          {reconnectResult.repositories.map((repository) => <li key={repository.slug} className="cxs-row"><span>{repository.slug}</span>{repositoryChip(repository.state)}</li>)}
+          {reconnectResult.repositories.map((repository) => <li key={repository.slug}><span>{repository.slug}</span>{repositoryChip(repository.state)}</li>)}
         </ul>
       </div>}
     </section>}

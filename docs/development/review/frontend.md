@@ -12,8 +12,10 @@ are designed, built and verified. This page does not restate it.
 - [ ] The change follows the skill's
       [rules that hold everywhere](../../../.agents/skills/conexus-frontend/SKILL.md#rules-that-hold-everywhere).
       Each rule the diff breaks is a failed item.
-- [ ] Production composes `@mastra/playground-ui` components. A Conexus component that
-      reimplements one fails the [Mastra native](mastra-native.md) census.
+- [ ] A screen uses a Mastra basic part where one fits, and does not fork it.
+- [ ] No new screen or section adopts a Mastra structure block (`AppShell`, `MainSidebar`,
+      `ChatShell`, `new/settings`); structure is a Conexus component.
+- [ ] The Mastra Factory's screens are cited only for features, never as the layout to match.
 - [ ] Values match the issue's literal numbers and copy. Using a token or a class is not proof the
       value is right.
 - [ ] A token change updates `DESIGN.md`, `.impeccable/design.json` and

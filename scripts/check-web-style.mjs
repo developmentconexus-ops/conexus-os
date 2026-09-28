@@ -20,6 +20,26 @@ const SCRIPT_FONT = /(?<![\w-])(font-family|fontFamily|font)\s*:\s*(['"`])([^'"`
 // In the font shorthand the family list is whatever follows the size and optional line height.
 const SHORTHAND_FAMILY = /(?:^|\s)(?:\d*\.?\d+(?:px|rem|em|%|pt|vw|vh|ch|ex|lh)|(?:xx?-)?(?:small|large)|medium|smaller|larger|var\([^)]*\))(?:\s*\/\s*\S+)?\s+(\S.*)$/
 
+// C-031: a hand class with a Conexus prefix must have a CSS rule, so a class typo or a deleted
+// rule fails CI instead of reaching review (the #370 trap). Structure blocks and brand tokens are
+// out of scope for this check; it is about hand classes next to a screen.
+const CLASS_CSS_ROOTS = ['apps/web/src', 'packages/brand/src']
+const CLASS_TSX_ROOT = 'apps/web/src'
+const CONEXUS_PREFIX = /^(?:cx|cxs|builder)-[\w-]+$/
+const CLASS_DEFINITION = /\.((?:cx|cxs|builder)-[\w-]+)/g
+const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
+const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/g
+
+// A class built from a template literal, such as `cx-dt-${side}`, has no literal name here to look
+// up. Each entry is verified by hand against the CSS and names the file that builds it, so a
+// reviewer can re-check it without re-deriving the resolved names.
+const DYNAMIC_CLASSES = [
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
+  { file: 'apps/web/src/features/builder/construir/lens-diff.tsx', token: 'cx-dt-${side}', resolves: ['cx-dt-add', 'cx-dt-del'] },
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
+  { file: 'apps/web/src/features/settings/components/states.tsx', token: 'cxs-chip-${tone}', resolves: ['cxs-chip-positive', 'cxs-chip-warning', 'cxs-chip-neutral'] },
+]
+
 const lineOf = (text, index) => text.slice(0, index).split('\n').length
 
 const splitTopLevel = list => {
@@ -73,6 +93,88 @@ const filesUnder = directory => readdirSync(directory, { withFileTypes: true }).
   return entry.isFile() && EXTENSIONS.test(entry.name) ? [path] : []
 })
 
+// A JSX className value is a quoted string, or a `{...}` expression that may itself nest braces
+// (a ternary, an object). Depth-counting past nested quotes is enough to find its true end; there
+// is no need for a full JS parser to read the literal classes out of it.
+const braceExpression = (text, openIndex) => {
+  let depth = 0
+  let quote = null
+  for (let index = openIndex; index < text.length; index += 1) {
+    const character = text[index]
+    if (quote) {
+      if (character === '\\') { index += 1; continue }
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"' || character === '`') quote = character
+    else if (character === '{') depth += 1
+    else if (character === '}') {
+      depth -= 1
+      if (depth === 0) return text.slice(openIndex, index + 1)
+    }
+  }
+  return text.slice(openIndex)
+}
+
+const classNameTokens = text => {
+  const staticTokens = []
+  const dynamicTokens = []
+  for (const match of text.matchAll(CLASSNAME_ATTR)) {
+    const quote = match[1]
+    const start = match.index + match[0].length - 1
+    let value
+    if (quote === '{') value = braceExpression(text, start)
+    else {
+      const close = text.indexOf(quote, start + 1)
+      value = close === -1 ? text.slice(start) : text.slice(start, close + 1)
+    }
+    const line = lineOf(text, match.index)
+    for (const literal of value.matchAll(STRING_LITERAL)) {
+      const content = literal[1] ?? literal[2] ?? literal[3] ?? ''
+      for (const token of content.split(/\s+/).filter(Boolean)) {
+        if (token.includes('${')) {
+          if (/^(?:cx|cxs|builder)-/.test(token)) dynamicTokens.push({ line, token })
+        } else if (CONEXUS_PREFIX.test(token)) staticTokens.push({ line, token })
+      }
+    }
+  }
+  return { staticTokens, dynamicTokens }
+}
+
+const classCheck = (files, contentOf) => {
+  const defined = new Map()
+  for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
+    const text = contentOf(path)
+    for (const match of text.matchAll(CLASS_DEFINITION)) {
+      if (!defined.has(match[1])) defined.set(match[1], { path, line: lineOf(text, match.index) })
+    }
+  }
+  const used = new Set()
+  const violations = []
+  for (const path of files.filter(candidate => candidate.endsWith('.tsx') && candidate.startsWith(`${CLASS_TSX_ROOT}/`))) {
+    const { staticTokens, dynamicTokens } = classNameTokens(contentOf(path))
+    for (const { line, token } of staticTokens) {
+      used.add(token)
+      if (!defined.has(token)) violations.push({ path, line, message: `class "${token}" has no CSS rule under apps/web/src or packages/brand/src` })
+    }
+    for (const { line, token } of dynamicTokens) {
+      const allowed = DYNAMIC_CLASSES.find(entry => entry.file === path && entry.token === token)
+      if (!allowed) {
+        violations.push({ path, line, message: `class "${token}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs` })
+        continue
+      }
+      for (const resolved of allowed.resolves) {
+        used.add(resolved)
+        if (!defined.has(resolved)) violations.push({ path, line, message: `class "${resolved}", resolved from the dynamic "${token}", has no CSS rule under apps/web/src or packages/brand/src` })
+      }
+    }
+  }
+  const unused = [...defined]
+    .filter(([name]) => !used.has(name))
+    .map(([name, { path, line }]) => ({ path, line, message: `class "${name}" is defined in CSS but no apps/web/src/**/*.tsx uses it` }))
+  return { violations, unused }
+}
+
 const scanTree = root => {
   const files = SCANNED_ROOTS
     .map(directory => resolve(root, directory))
@@ -80,8 +182,11 @@ const scanTree = root => {
     .flatMap(filesUnder)
     .map(file => relative(root, file).replaceAll('\\', '/'))
     .sort()
-  const violations = files.flatMap(path => styleViolations(path, readFileSync(resolve(root, path), 'utf8')))
-  return { files, violations }
+  const contents = new Map(files.map(path => [path, readFileSync(resolve(root, path), 'utf8')]))
+  const contentOf = path => contents.get(path)
+  const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
+  const classResult = classCheck(files, contentOf)
+  return { files, violations: [...violations, ...classResult.violations], unused: classResult.unused }
 }
 
 const main = () => {
@@ -90,10 +195,16 @@ const main = () => {
     console.error(`no files scanned: ${REQUIRED_ROOT} does not exist under ${root}`)
     return 1
   }
-  const { files, violations } = scanTree(root)
+  const { files, violations, unused } = scanTree(root)
   if (violations.length) {
     for (const { path, line, message } of violations) console.error(`${path}:${line}: ${message}`)
     return 1
+  }
+  // A defined-but-unused Conexus class is debt, not a break: main carries some already, mostly
+  // classes a screen reaches through a dynamic template. It warns instead of failing CI.
+  if (unused.length) {
+    console.warn(`${unused.length} Conexus class(es) defined in CSS with no apps/web/src/**/*.tsx use:`)
+    for (const { path, line, message } of unused) console.warn(`${path}:${line}: ${message}`)
   }
   console.log(`Web style check passed (files=${files.length}).`)
   return 0
