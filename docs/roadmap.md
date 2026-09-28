@@ -1,6 +1,6 @@
 # Conexus OS roadmap
 
-This file owns the status of the stage gates and names the current gate. Bets live in the private
+This file owns the status of the stage gates and names the current gate. Workstreams (frentes) live in the private
 `conexus-hq` repository, and this file never names them.
 
 ## What Conexus is
@@ -90,7 +90,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
-| **Q4 Sankhya Connector** | Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya capability without leaking credentials or generic provider authority? | **CURRENT GATE**, task prepared ([task](tasks/stage2-q4-sankhya-connector-qualification.md)) |
+| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)) |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
@@ -124,7 +124,7 @@ By Stage 2 completion it should:
 - read a bounded set of open purchase orders from Sankhya;
 - keep Conexus-owned follow-up notes/status separately;
 - authenticate an employee who does not administer the Project;
-- use one authorized Connector capability;
+- read through one Connection bound to its Project;
 - be published at a stable employee URL.
 
 The first gate does not need Sankhya or employee app identity. It proves only the server/data foundation using follow-up notes keyed by a purchase-order identifier.
@@ -174,14 +174,22 @@ it is built.
 
 ## Exact next action
 
-**Execute the Stage 2 Q4 task: one real read-only Sankhya capability through Connector Definition, Workspace Connection and Project Grant.**
+**Execute the amended Stage 2 Q4 task: a Project reads a real enterprise system through a Connection bound to it, with Sankhya as the first integrator.**
 
-[Stage 2 Q4 — Sankhya connector qualification](tasks/stage2-q4-sankhya-connector-qualification.md)
+[Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)
 
 Protected question:
 
-> Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only
-> Sankhya capability without leaking credentials or generic provider authority?
+> Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as
+> the first integrator, by sending the vendor's own request format through one Hub executor, from
+> the Builder while it investigates and from the application's handlers at runtime, while the
+> credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only
+> through its own bindings, and the Builder builds and changes a useful application without a new
+> platform operation?
+
+The amendment's closure set says what closes Q4. The Connection, the Project binding and the
+executor land on `main` as pull requests built from `main`, and the pilot then runs `main` for the
+real proof. Spike branches never merge.
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
 Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
@@ -196,7 +204,8 @@ Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#f
 
 ## What the operator still owes
 
-- Confirmation that the Sankhya gateway credential is read-only, before Q4 calls it.
+- Confirmation from the Sankhya administrator that the integration user can only read. It does not
+  block the work. Without it, Q4 closes at most ACCEPT_WITH_BOUNDARY.
 
 ## Before a production installation
 

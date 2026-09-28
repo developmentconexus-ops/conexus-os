@@ -60,7 +60,9 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
 // artifact's migrations before that artifact is offered as a Preview.
 export type ApplicationServerPort = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<
-    Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }> | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
+    | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
+    | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
+    | Readonly<{ state: 'MIGRATION_HISTORY_DIVERGED'; detail: string }>
   >
 }>
 
@@ -69,7 +71,8 @@ const SERVER_ROOT = 'conexus-server/'
 /**
  * Applies the artifact's migrations through the runner when the artifact carries a server tree.
  * Answers whether the Preview data was reset; a failed migration refuses the candidate's Preview and
- * carries the database's own diagnostic for the Builder.
+ * carries the database's own diagnostic for the Builder. A Project with an application refuses an
+ * edited applied migration instead of losing its data.
  */
 export const prepareApplicationServer = async (
   server: ApplicationServerPort | undefined,
@@ -83,6 +86,7 @@ export const prepareApplicationServer = async (
     files: files.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') })),
   })
   if (prepared.state === 'MIGRATION_FAILED') throw new Error('APPLICATION_MIGRATION_FAILED', { cause: prepared.detail })
+  if (prepared.state === 'MIGRATION_HISTORY_DIVERGED') throw new Error('APPLICATION_MIGRATION_HISTORY_DIVERGED', { cause: prepared.detail })
   return { reset: prepared.reset }
 }
 

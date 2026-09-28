@@ -5,6 +5,8 @@ import type {
   Prj02Params,
   Prj03Body,
   Prj03Params,
+  Prj04Params,
+  Prj04Querystring,
 } from '../generated/s3-routes.js'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -26,7 +28,7 @@ export const registerProjectRoutes = async (
     resolveCurrentSession: ResolveCurrentSession
     origin: string
   }>,
-): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03')[]> => {
+): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04')[]> => {
   app.route<{ Params: Prj01Params }>({
     ...S3_GENERATED_ROUTES['PRJ-01'],
     handler: async (request, reply) => {
@@ -97,6 +99,37 @@ export const registerProjectRoutes = async (
       }
     },
   })
-  return ['PRJ-01', 'PRJ-02', 'PRJ-03']
+  app.route<{ Params: Prj04Params; Querystring: Prj04Querystring }>({
+    ...S3_GENERATED_ROUTES['PRJ-04'],
+    handler: async (request, reply) => {
+      const csrf = header(request.headers['x-conexus-csrf'])
+      if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
+        return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+      }
+      const current = await dependencies.resolveCurrentSession(request, true)
+      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      try {
+        await dependencies.store.deleteProject({
+          accountId: current.account.accountId,
+          projectId: request.params.projectId,
+          confirmName: request.query.confirmName,
+        })
+        return reply.code(204).send()
+      } catch (error) {
+        const code = projectErrorCode(error)
+        if (code === 'AUTHORIZATION_DENIED') return sendProblem(reply, 403, 'project-delete-denied', 'Project deletion denied')
+        if (code === 'PROJECT_NOT_FOUND') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+        if (code === 'PROJECT_NAME_MISMATCH') return sendProblem(reply, 409, 'project-name-mismatch', 'Project name confirmation mismatch')
+        if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
+        if (code === 'REPOSITORY_REFUSED') {
+          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
+        }
+        if (code === 'DELETION_INCOMPLETE') return sendProblem(reply, 503, 'project-deletion-incomplete', 'Project deletion incomplete')
+        if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+        return sendProblem(reply, 500, 'internal-error', 'Internal server error')
+      }
+    },
+  })
+  return ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04']
 }
 

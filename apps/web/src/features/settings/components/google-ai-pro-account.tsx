@@ -86,7 +86,7 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
       <Input id={pastedId} value={pasted} onChange={(event) => setPasted(event.target.value)} autoComplete="off" placeholder="http://localhost:51121/oauth-callback?…" />
       <Button type="submit" variant="primary" disabled={!pasted.trim() || complete.isPending}>Concluir</Button>
     </form>
-    {refused && <p role="alert" className="cxs-alert">Esse endereço não é o da entrada do Google iniciada aqui.</p>}
+    {refused && <StatusLine tone="danger">Esse endereço não é o da entrada do Google iniciada aqui.</StatusLine>}
   </div>
 }
 
@@ -128,7 +128,7 @@ export function GoogleAiProAccount() {
   const act = useMutation({
     mutationFn: (action: () => Promise<unknown>) => action(),
     onSuccess: () => { setMessage(null); void refresh() },
-    onError: () => fail('Não foi possível concluir. Tente novamente.'),
+    onError: () => fail('Não foi possível concluir. Tente de novo.'),
   })
   if (connection.isPending || (connection.isError && statusOf(connection.error) === 404)) return null
   if (connection.isError) return <li className="cxs-row">
@@ -154,6 +154,6 @@ export function GoogleAiProAccount() {
         {administrator && mine && !shared && <Button type="button" disabled={act.isPending} onClick={() => act.mutate(() => shareWithEveryone(PROVIDER))}>Compartilhar com todos</Button>}
         {administrator && shared && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => stopSharing(PROVIDER))}>Parar de compartilhar</Button>}
       </div>}
-    {message && (message.failed ? <p role="alert" className="cxs-alert">{message.text}</p> : <StatusLine>{message.text}</StatusLine>)}
+    {message && <StatusLine tone={message.failed ? 'danger' : 'positive'}>{message.text}</StatusLine>}
   </li>
 }

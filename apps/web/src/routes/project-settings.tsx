@@ -1,11 +1,19 @@
+import { AlertDialog } from '@mastra/playground-ui/components/AlertDialog'
 import { Button } from '@mastra/playground-ui/components/Button'
+import { Input } from '@mastra/playground-ui/components/Input'
+import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
-import { useQuery } from '@tanstack/react-query'
-import { createRoute, Link } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ExternalLink, KeyRound } from 'lucide-react'
+import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { getProject, getProjectRepository, ProjectRequestError, projectQueryKey, projectRepositoryQueryKey } from '../features/project/api'
+import {
+  deleteProject, getProject, getProjectRepository, projectDeleteMessage, ProjectRequestError,
+  projectQueryKey, projectRepositoryQueryKey, projectSummariesQueryKey,
+} from '../features/project/api'
+import { useInstallation } from '../features/settings/use-installation'
 import type { ProjectRepresentation } from '../generated/project-client'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
@@ -41,6 +49,7 @@ function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRet
 }
 
 function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
+  if (project.deleting) return <DeletionRecovery project={project} />
   return <>
     <div className="cx-page-head">
       <div>
@@ -72,7 +81,101 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
         <dt>Revisão</dt><dd><code>{project.projectRevision}</code></dd>
       </dl>
     </details>
+    <DangerZone project={project} />
   </>
+}
+
+// The Hub purges project.project before the GitHub repository is gone, so a crash or a GitHub
+// failure between those two steps leaves the tombstone the only disclosable trace: get_project keeps
+// answering with deleting true from it, for the installation administrator who started this, so this
+// screen still exists to retry from instead of the Project 404ing right when finishing it matters
+// most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
+// since that recorded name is the only one this Project still has.
+//
+// projectRevision is only ever empty once get_project has fallen back to the tombstone, which only
+// happens after the Hub purge has run -- so it is the one signal this screen has for which side of
+// that purge the crash landed on. The GitHub delete itself runs after that purge and before the
+// tombstone is marked complete, so an empty revision does not tell us whether GitHub succeeded before
+// the crash -- the copy below must not claim either way, only that a retry is safe and needed.
+function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation }>) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [message, setMessage] = useState('')
+  const purged = project.projectRevision === ''
+  const retry = useMutation({
+    mutationFn: () => deleteProject(project.projectId, project.name),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
+      await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
+    },
+    onError: (error) => setMessage(projectDeleteMessage(error)),
+  })
+
+  return <div className="cx-state" role="alert">
+    <h2>Exclusão de {project.name} não terminou</h2>
+    <p>
+      {purged
+        ? 'O código e os dados deste Projeto já foram apagados. A exclusão do repositório no GitHub pode não ter sido concluída.'
+        : 'A exclusão deste Projeto está em andamento.'} Nada do que já foi apagado pode ser desfeito; termine a exclusão para concluir.
+    </p>
+    <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
+      {retry.isPending ? 'Excluindo…' : 'Terminar exclusão'}
+    </Button>
+    {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
+  </div>
+}
+
+function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
+  const installation = useInstallation()
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const inputId = useId()
+  const [open, setOpen] = useState(false)
+  const [confirmName, setConfirmName] = useState('')
+  const [message, setMessage] = useState('')
+  const remove = useMutation({
+    mutationFn: () => deleteProject(project.projectId, confirmName),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
+      await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
+    },
+    onError: (error) => setMessage(projectDeleteMessage(error)),
+  })
+
+  if (installation.data?.administrator !== true) return null
+
+  return <section className="cx-danger" aria-labelledby="cx-danger-title">
+    <h2 id="cx-danger-title">Zona de risco</h2>
+    <p>Excluir {project.name} apaga o código, os dados e o repositório no GitHub, para sempre. Não é possível desfazer.</p>
+    <Button
+      type="button"
+      variant="destructive"
+      onClick={() => { setConfirmName(''); setMessage(''); setOpen(true) }}
+    >
+      Excluir Projeto
+    </Button>
+    <AlertDialog open={open} onOpenChange={(next) => { if (!remove.isPending) setOpen(next) }}>
+      <AlertDialog.Content>
+        <AlertDialog.Header>
+          <AlertDialog.Title>Excluir {project.name}?</AlertDialog.Title>
+          <AlertDialog.Description>
+            O código, os dados e o repositório {project.name} no GitHub somem para sempre. Para confirmar, digite o nome exato do Projeto.
+          </AlertDialog.Description>
+        </AlertDialog.Header>
+        <div className="cx-field cx-danger-confirm">
+          <Label htmlFor={inputId}>Nome do Projeto</Label>
+          <Input id={inputId} value={confirmName} onChange={(event) => setConfirmName(event.target.value)} autoComplete="off" placeholder={project.name} />
+        </div>
+        <AlertDialog.Footer>
+          <AlertDialog.Cancel disabled={remove.isPending}>Cancelar</AlertDialog.Cancel>
+          <AlertDialog.Action disabled={confirmName !== project.name || remove.isPending} onClick={() => remove.mutate()}>
+            {remove.isPending ? 'Excluindo…' : 'Excluir para sempre'}
+          </AlertDialog.Action>
+        </AlertDialog.Footer>
+      </AlertDialog.Content>
+    </AlertDialog>
+    {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
+  </section>
 }
 
 function RepositoryState({ projectId }: Readonly<{ projectId: string }>) {

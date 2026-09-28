@@ -3,7 +3,7 @@
 This file owns how a change moves from an issue to `main`: lanes, gates, labels, proof, merge, Git
 and pull requests. The [engineering method](engineering-method.md) owns how a decision is reasoned,
 the [decision register](../decisions/index.md) and the product contract own meaning, and
-[the roadmap](../roadmap.md) owns status. Bets and ideas live in the private `conexus-hq`
+[the roadmap](../roadmap.md) owns status. Workstreams (frentes: work we know we must build or investigate) and ideas live in the private `conexus-hq`
 repository. Units of work live here, as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
 The operator ratified this file on 2026-09-24. It replaces the repository method and engineering rules.
 
@@ -21,8 +21,8 @@ A change is in the qualification lane when any Q trigger is true:
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
 | `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage and plan; the Factory builds work that blocks no product gate, an implementer builds work that blocks a gate; pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
-| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | bet from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates, and the bet's "done when" checked on the real artifact | operator |
-| `lane:qualification` | Any Q trigger | bet, task in `docs/tasks`, implementer, evidence | CI green; Factory review `approve`; evidence; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
+| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | workstream from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates, and the workstream's "done when" checked on the real artifact | operator |
+| `lane:qualification` | Any Q trigger | workstream, task in `docs/tasks`, implementer, evidence | CI green; Factory review `approve`; evidence; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
 Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
 The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges. Step M9 turns this rule from a manually checked one into a CI-enforced lane guard.
@@ -54,13 +54,13 @@ authority needed for correctness. Take the decision first: Factory triage routes
 "Await approval". A downstream finding reopens the smallest upstream owner. Never invent authority to
 make a downstream artifact work.
 If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The
-manager reshapes the bet.
+manager reshapes the workstream.
 
 ## Size work by appetite and limit work in progress
 
 - **P** (pequeno): up to 1 calendar day. **M** (médio): up to 1 week. **G** (grande): up to 2 weeks. Split anything larger.
-A bet that passes its appetite stops. The manager records what was learned on the issue and returns
-it, reshaped, to the queue. It gets more time only through a new bet. At once, run at most 1 qualification bet and 2 shaped bets. The fast lane needs no bet and holds at
+A workstream that passes its appetite stops. The manager records what was learned on the issue and returns
+it, reshaped, to the queue. It gets more time only through a new workstream. At once, run at most 1 qualification workstream and 2 shaped workstreams. The fast lane needs no workstream and holds at
 most 5 open pull requests.
 
 ## Working rules

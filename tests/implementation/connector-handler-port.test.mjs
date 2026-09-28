@@ -103,16 +103,18 @@ test('M2: the startup sweep unlinks only stale port sockets, and refuses a direc
   assert.equal(statSync(shared).mode & 0o777, 0o755, 'a refused directory keeps its mode')
 })
 
-test('P6: another Project in the input or in extra body keys never changes the resolved grant', async (t) => {
+test('P6: another Project in the input or in extra body keys never changes the resolved binding', async (t) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const envelope = createSecretEnvelope('ef'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const resolved = []
   const store = {
-    resolveGrant: async (input) => { resolved.push(input.projectId); return input.projectId === PROJECT ? { grantId: 'g', connectionId: CONNECTION } : null },
+    listBindings: async (input) => {
+      resolved.push(input.projectId)
+      return input.projectId === PROJECT ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []
+    },
     readConnectionCredential: async () => sealed,
-    listGrantedCapabilities: async () => [],
   }
   const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
   const port = await createHandlerPorts({ directory: socketDirectory(t), broker }).open(scope)

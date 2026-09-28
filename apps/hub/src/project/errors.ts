@@ -4,6 +4,10 @@ export type ProjectErrorCode =
   | 'OUTCOME_UNKNOWN'
   | 'SOURCE_INPUT_REFUSED'
   | 'REPOSITORY_REFUSED'
+  | 'PROJECT_NOT_FOUND'
+  | 'PROJECT_NAME_MISMATCH'
+  | 'PROJECT_BUSY'
+  | 'DELETION_INCOMPLETE'
 
 export class ProjectError extends Error {
   readonly code: ProjectErrorCode

@@ -45,18 +45,20 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
-  'application-data-postgres', 'application-runner-sandbox', 'application-server', 'application-host',
+  'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
   'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
-  'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
+  'db-catalog-snapshot', 'db-baseline-file', 'hub-postgres-pool', 'db-role-register', 'db-role-provision-postgres',
+  'hub-build-shared',
   'repository-check', 'repository-import-law', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
   'repository-contract-checks', 'knip', 'biome',
   'brand-wordmark-csp', 'builder-tool-sentences', 'factory-skills-guard', 'settings-provider-groups', 'conexus-preflight',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
-  'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
+  'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'builder-factory-github-deletion', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
+  'builder-eval', 'builder-eval-postgres',
   'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
@@ -197,6 +199,10 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
+  const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
+    'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
   assert.equal(biomeCommand, 'npx --no-install biome ci .')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
@@ -209,6 +215,9 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
+  const factoryRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'factory-runtime').command
+  assert.equal(factoryRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
+    'the tripwire test runs with the Factory runtime suites')
 
   const result = runVerification({
     processEnvironment: {},

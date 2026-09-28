@@ -12,14 +12,14 @@ Each route walks one lane from [the delivery rules](../../../../docs/development
 
 ## Shaped lane
 
-1. The bet lives in the private `conexus-hq` repository. It names the appetite, "done when" and the sub-issues. This repository never names a bet.
+1. The workstream lives in the private `conexus-hq` repository. It names the appetite, "done when" and the sub-issues. This repository never names a workstream.
 2. Each sub-issue here carries `lane:shaped` and walks the fast route.
-3. Before the last sub-issue closes, check the bet's "done when" on the real artifact: the running Hub, a Preview, or the pilot. A mock does not count.
-4. When the bet passes its appetite, stop and say so on the issue. The manager records what was learned and reshapes the bet.
+3. Before the last sub-issue closes, check the workstream's "done when" on the real artifact: the running Hub, a Preview, or the pilot. A mock does not count.
+4. When the workstream passes its appetite, stop and say so on the issue. The manager records what was learned and reshapes the workstream.
 
 ## Qualification lane
 
-Work enters this lane through any Q trigger in the delivery rules. A program gate (Q-a) is the one the roadmap names under "Exact next action". Do not write a task for a later gate before the earlier verdict. A bet that trips Q-b, Q-c or Q-d gets its own task once the operator takes the bet.
+Work enters this lane through any Q trigger in the delivery rules. A program gate (Q-a) is the one the roadmap names under "Exact next action". Do not write a task for a later gate before the earlier verdict. A workstream that trips Q-b, Q-c or Q-d gets its own task once the operator takes the workstream.
 
 The task in `docs/tasks` is the execution and review contract. It is not product or architecture authority. Before the first product edit, the task holds these fields where they apply:
 

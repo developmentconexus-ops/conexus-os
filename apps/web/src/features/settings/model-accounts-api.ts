@@ -7,12 +7,15 @@ export type ModelProvider = Readonly<{
   userCredential?: 'api_key' | 'oauth'
   orgCredential?: 'api_key' | 'oauth'
   oauth?: Readonly<{ supported: boolean; modes: readonly ('paste-code' | 'device-code')[] }>
+  health?: 'ok' | 'needs-reconnect'
 }>
 export type ModelAccounts = Readonly<{ providers: readonly ModelProvider[]; orgKeyAdmin?: boolean }>
-export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'device-code'; url: string; userCode?: string; instructions?: string; nextPollMs?: number }>
+export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'device-code'; url: string; userCode?: string; instructions?: string; nextPollMs?: number; expiresAt?: string }>
 export type OAuthStep = Readonly<{ status: 'complete' | 'pending' | 'failed'; nextPollMs?: number; error?: string }>
 export type ModelDefaults = Readonly<{ build: string; fast: string }>
 export type ModelDefaultsView = Readonly<{ installation: ModelDefaults | null; mine: ModelDefaults | null; administrator: boolean }>
+export type ModelPack = Readonly<{ id: string; name: string; description: string; models: ModelDefaults; custom: boolean; active: boolean }>
+export type ModelPacksView = Readonly<{ packs: readonly ModelPack[]; activePackId: string | null }>
 
 export class ModelAccountsRequestError extends Error {
   constructor(readonly status: number, readonly type: string | null = null, readonly reason: string | null = null, readonly expiresAt: string | null = null) {
@@ -33,8 +36,8 @@ const request = async <T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string; expiresAt?: string } | null
-    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? null, problem?.expiresAt ?? null)
+    const problem = await response.json().catch(() => null) as { type?: string; detail?: string; reason?: string; error?: string; message?: string; expiresAt?: string } | null
+    throw new ModelAccountsRequestError(response.status, problem?.type ?? null, problem?.detail ?? problem?.reason ?? problem?.error ?? problem?.message ?? null, problem?.expiresAt ?? null)
   }
   return (response.status === 204 ? undefined : await response.json()) as T
 }
@@ -44,6 +47,7 @@ const sharing = (provider: string) => `/api/control/model-accounts/${encodeURICo
 
 export const modelAccountsQueryKey = ['model-accounts'] as const
 export const modelDefaultsQueryKey = ['model-defaults'] as const
+export const modelPacksQueryKey = ['model-packs'] as const
 
 export const listModelAccounts = () => request<ModelAccounts>('GET', '/web/config/providers')
 export const saveApiKey = (provider: string, key: string) => request<unknown>('PUT', `${account(provider)}/key`, { key })
@@ -57,6 +61,7 @@ export const shareWithEveryone = (provider: string) => request<void>('POST', sha
 export const stopSharing = (provider: string) => request<void>('DELETE', sharing(provider))
 
 export const readModelDefaults = () => request<ModelDefaultsView>('GET', '/api/control/model-defaults')
+export const readModelPacks = () => request<ModelPacksView>('GET', '/web/config/model-packs')
 export const saveInstallationDefaults = (defaults: ModelDefaults) => request<unknown>('PUT', '/api/control/model-defaults/installation', defaults)
 export const saveMyDefaults = (defaults: ModelDefaults) => request<unknown>('PUT', '/api/control/model-defaults/mine', defaults)
 export const clearMyDefaults = () => request<void>('DELETE', '/api/control/model-defaults/mine')

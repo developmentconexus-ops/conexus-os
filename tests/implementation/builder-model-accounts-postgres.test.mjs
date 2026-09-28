@@ -306,9 +306,11 @@ test('each person connects their own accounts, and only an installation administ
 
   assert.equal((await asBob('PUT', '/web/config/providers/anthropic/key', { key: 'sk-ant-bob' })).status, 200)
   assert.equal(sourceOf(await asBob('GET', '/web/config/providers'), 'anthropic'), 'stored-user')
-  const offersAnthropic = async (ask) => (await ask('GET', '/api/control/model-accounts/models')).body.models.some((model) => model.provider === 'anthropic')
+  const offersAnthropic = async (ask, query = '') => (await ask('GET', `/api/control/model-accounts/models${query}`)).body.models.some((model) => model.provider === 'anthropic' && model.hasApiKey)
   assert.equal(await offersAnthropic(asBob), true, 'the picker offers what the person connected')
+  assert.equal(await offersAnthropic(asBob, '?scope=installation'), false, 'but an installation-scoped picker only offers shared accounts')
   assert.equal(await offersAnthropic(asAlice), false, 'and not what someone else connected')
+  assert.equal(await offersAnthropic(asAlice, '?scope=installation'), false)
   assert.equal(sourceOf(await asAlice('GET', '/web/config/providers'), 'anthropic'), 'none')
   assert.equal((await asBob('GET', '/web/config/providers')).body.orgKeyAdmin, false)
   assert.equal((await asAlice('GET', '/web/config/providers')).body.orgKeyAdmin, true)
@@ -418,9 +420,25 @@ test('a new conversation starts from the person\'s own defaults, else the instal
   const installation = { build: 'anthropic/claude-sonnet-4-6', fast: 'anthropic/claude-haiku-4-5' }
   const bobs = { build: 'openai/gpt-5.5', fast: 'openai/gpt-5-mini' }
 
-  assert.equal((await asBob('PUT', '/api/control/model-defaults/installation', installation)).status, 403)
-  assert.equal((await asAlice('PUT', '/api/control/model-defaults/installation', installation)).status, 200)
+  // Without a shared account covering Anthropic, setting the company defaults or installation memory fails with 409
+  assert.equal((await asAlice('PUT', '/api/control/model-defaults/installation', installation)).status, 409)
+  assert.equal((await asAlice('PUT', '/api/control/installation/memory', { model: 'anthropic/claude-sonnet-4-6' })).status, 409)
+
+  // Personal accounts cover personal defaults regardless of shared accounts
   assert.equal((await asBob('PUT', '/api/control/model-defaults/mine', bobs)).status, 200)
+
+  // When Anthropic is connected as a shared account, installation defaults and memory can be set by administrator
+  const credentials = composition.storage.getDomain('model-credentials')
+  await credentials.setCredential({ orgId: ORG }, 'anthropic', { type: 'api_key', key: 'sk-ant-shared' })
+
+  // Non-administrator cannot set installation defaults even if covered
+  assert.equal((await asBob('PUT', '/api/control/model-defaults/installation', installation)).status, 403)
+  assert.equal((await asBob('PUT', '/api/control/installation/memory', { model: 'anthropic/claude-sonnet-4-6' })).status, 403)
+
+  // Administrator can set installation defaults and memory once covered by shared accounts
+  assert.equal((await asAlice('PUT', '/api/control/model-defaults/installation', installation)).status, 200)
+  assert.equal((await asAlice('PUT', '/api/control/installation/memory', { model: 'anthropic/claude-sonnet-4-6' })).status, 200)
+  assert.deepEqual((await asAlice('GET', '/api/control/installation/memory')).body, { model: 'anthropic/claude-sonnet-4-6' })
   assert.deepEqual((await asBob('GET', '/api/control/model-defaults')).body, { installation, mine: bobs, administrator: false })
   assert.deepEqual((await asAlice('GET', '/api/control/model-defaults')).body, { installation, mine: null, administrator: true })
 

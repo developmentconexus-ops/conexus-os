@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { listModelAccounts, type ModelAccounts, modelAccountsQueryKey } from '../model-accounts-api'
 import { connectableProviders, unifiedRows } from '../model-account-rows'
-import { groupProviders } from '../provider-groups'
 import { ConnectAccount } from './connect-account'
 import { GoogleAiProAccount } from './google-ai-pro-account'
 import { MyDefaultsSection } from './my-defaults-section'
@@ -48,9 +47,11 @@ function ProvidersBody({ data, connecting, setConnecting, reconnecting, setRecon
   administrator: boolean
 }>) {
   const rows = unifiedRows(data.providers)
-  const groups = groupProviders(connectableProviders(data.providers), '')
-  const rest = 'rest' in groups ? groups.rest : []
+  const eligible = connectableProviders(data.providers)
+  const cardProviderIds = new Set(rows.map((row) => row.provider))
+  const rest = eligible.filter((provider) => !cardProviderIds.has(provider.provider))
   const [notice, setNotice] = useState<string | null>(null)
+  const hasGoogle = rows.some((row) => row.provider === 'google')
 
   return <>
     <ul className="cxs-list">
@@ -63,10 +64,12 @@ function ProvidersBody({ data, connecting, setConnecting, reconnecting, setRecon
         />,
         ...(row.provider === 'google' ? [<GoogleAiProAccount key="google-ai-pro" />] : []),
       ])}
+      {!hasGoogle && <GoogleAiProAccount key="google-ai-pro" />}
     </ul>
     {reconnecting && <ReconnectAccount provider={reconnecting} onDone={() => { setReconnecting(null); refresh() }} />}
     {connecting === 'other' && (
       <ConnectAccount
+        key="other"
         providers={rest}
         onConnected={() => { setNotice('Conta conectada.'); setConnecting(null); refresh() }}
       />
@@ -75,6 +78,7 @@ function ProvidersBody({ data, connecting, setConnecting, reconnecting, setRecon
       const selected = data.providers.find((p) => p.provider === connecting)
       if (!selected) return null
       return <ConnectAccount
+        key={connecting}
         providers={[selected]}
         initialProvider={connecting}
         onConnected={() => { setNotice('Conta conectada.'); setConnecting(null); refresh() }}

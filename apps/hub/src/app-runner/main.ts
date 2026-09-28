@@ -1,8 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import Fastify from 'fastify'
+import { createApplicationRunnerApp } from './http.js'
 import { readRelayTls } from './pg-relay.js'
-import { invokeBody, prepareBody } from './requests.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
 import { createSupervisor } from './supervisor.js'
 
@@ -40,26 +39,7 @@ const supervisor = createSupervisor({
 
 await supervisor.checkProvisioner()
 
-const app = Fastify({ bodyLimit: 16 * 1024 * 1024, logger: false })
-app.get('/v1/health', async () => ({ ok: true }))
-app.post('/v1/prepare', async (request, reply) => {
-  const body = prepareBody.safeParse(request.body)
-  if (!body.success) return reply.code(400).send({ error: { code: 'PREPARE_REFUSED' } })
-  try {
-    return await supervisor.prepare(body.data)
-  } catch (error) {
-    const code = error instanceof Error && /^[A-Z_]+/.test(error.message) ? error.message.split(':', 1)[0] : 'PREPARE_FAILED'
-    return reply.code(422).send({ error: { code, detail: error instanceof Error ? error.message.slice(0, 400) : undefined } })
-  }
-})
-app.post('/v1/invoke', async (request, reply) => {
-  const body = invokeBody.safeParse(request.body)
-  if (!body.success) return reply.code(400).send({ error: { code: 'INVOKE_REFUSED' } })
-  const started = performance.now()
-  const result = await supervisor.invoke(body.data)
-  process.stderr.write(`${JSON.stringify({ event: 'invoke', projectId: body.data.projectId, operation: body.data.operation, status: result.status, ms: Math.round(performance.now() - started) })}\n`)
-  return reply.code(result.status).send(result.body)
-})
+const app = createApplicationRunnerApp({ supervisor, log: (line) => process.stderr.write(`${line}\n`) })
 
 rmSync(socketPath, { force: true })
 await app.listen({ path: socketPath })

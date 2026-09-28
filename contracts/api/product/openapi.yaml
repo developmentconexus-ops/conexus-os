@@ -69,10 +69,10 @@ paths:
     $ref: './connector-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1connections~1{connectionId}~1authentication-check'
   /api/control/workspaces/{workspaceId}/connections/{connectionId}:
     $ref: './connector-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1connections~1{connectionId}'
-  /api/control/projects/{projectId}/connector-grants:
-    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connector-grants'
-  /api/control/projects/{projectId}/connector-grants/{grantId}:
-    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connector-grants~1{grantId}'
+  /api/control/projects/{projectId}/connection-bindings:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connection-bindings'
+  /api/control/projects/{projectId}/connection-bindings/{bindingId}:
+    $ref: './connector-paths.yaml#/paths/~1api~1control~1projects~1{projectId}~1connection-bindings~1{bindingId}'
 components:
   securitySchemes:
     ConexusSession:

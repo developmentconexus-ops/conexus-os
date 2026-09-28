@@ -12,8 +12,8 @@ import { buildHubDatabase } from './hub-database.mjs'
 
 // Real Fastify + real PostgreSQL, driven by a real Chromium, exactly as the Hub runs: only the
 // session/administrator lookup is a test double (a real sign-in needs Keycloak, which this suite
-// must not touch). Everything else -- the store, the credential envelope, the admitted operation
-// ids and the SQL authority checks -- is production code.
+// must not touch). Everything else -- the store, the credential envelope and the SQL authority
+// checks -- is production code.
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD']
   .every((name) => process.env[name])
 
@@ -58,8 +58,6 @@ const findFreePort = () => new Promise((settle, reject) => {
   })
 })
 
-/** One Workspace, one Project, and three Accounts covering every split of the two authorities this
- *  screen depends on: installation administrator (Connections) and Workspace Owner (Grants). */
 const setupFixture = async (t) => {
   const fixture = await buildHubDatabase(t, 'connector_integrations')
   const owner = new pg.Client({ connectionString: fixture.connectionString })
@@ -180,57 +178,86 @@ const assertNoCredential = async ({ page, responseBodies, logLines }) => {
   }
 }
 
-test('an installation administrator and Owner adds a Connection and grants an operation; nothing leaks the credential; revoking removes the grant', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const fixture = await setupFixture(t)
-  const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
+const sections = (page) => ({
+  connections: page.locator('section[aria-labelledby="connector-connections"]'),
+  bindings: page.locator('section[aria-labelledby="connector-bindings"]'),
+})
 
-  await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
-  await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
-
-  await page.getByLabel('Nome da conexão').fill('ERP de teste')
+const addConnection = async (page, label) => {
+  await page.getByLabel('Nome da conexão').fill(label)
   await page.getByLabel('Client id').fill(CREDENTIAL.clientId)
   await page.getByLabel('Client secret').fill(CREDENTIAL.clientSecret)
   await page.getByLabel('X-Token').fill(CREDENTIAL.xToken)
   await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
-  await page.getByText('ERP de teste').waitFor()
-  await page.getByText('Para trocar a credencial, desative a conexão ativa e adicione outra.').waitFor()
-  assert.equal(await page.locator('input[name="clientId"], input[name="clientSecret"], input[name="xToken"]').count(), 0,
-    'with a Connection open, the credential form is gone, so no field can hold a value')
+}
+
+const bindableRow = (page, label) => sections(page).bindings.getByRole('listitem').filter({ hasText: label })
+
+test('an installation administrator and Owner adds two Connections and binds one under a name; a name already in use is refused and says so; nothing leaks the credential; unbinding offers it again', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const fixture = await setupFixture(t)
+  const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
+  const { connections, bindings } = sections(page)
+
+  await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
+  await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
+
+  await addConnection(page, 'ERP de teste')
+  await connections.getByText('ERP de teste').waitFor()
+  await page.getByText('Para trocar a credencial de uma conexão, desative-a e adicione outra.').waitFor()
+  assert.deepEqual(await page.$$eval('input[name="clientId"], input[name="clientSecret"], input[name="xToken"]', (inputs) => inputs.map((input) => input.value)),
+    ['', '', ''], 'the form is reset once the Connection is saved, so no field holds a value')
 
   await page.getByRole('button', { name: 'Testar' }).click()
   await page.getByText('O conector ainda não está configurado no servidor.').waitFor()
 
-  await page.getByRole('button', { name: 'Conceder' }).click()
-  await page.getByText('Ler pedido de compra do Sankhya').first().waitFor()
-  await page.getByRole('heading', { name: /Concedidas/ }).waitFor()
-  await page.getByText('Nenhuma integração concedida ainda.').waitFor({ state: 'detached' })
+  await addConnection(page, 'ERP filial')
+  await connections.getByText('ERP filial').waitFor()
+  assert.deepEqual(await connections.locator('.cx-connection strong').allInnerTexts(), ['ERP de teste', 'ERP filial'], 'a second Sankhya Connection is its own row')
+
+  const row = bindableRow(page, 'ERP de teste')
+  await row.getByLabel('Nome no Projeto').fill('ERP')
+  await row.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await row.getByText('Use letras minúsculas, números e hífen, começando por uma letra.').waitFor()
+  await row.getByLabel('Nome no Projeto').fill('erp')
+  await row.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await bindings.getByRole('heading', { name: /Vinculadas/ }).getByText('1').waitFor()
+  await bindings.getByText('Nenhuma conexão vinculada ainda.').waitFor({ state: 'detached' })
+  assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'])
+  assert.equal(await bindings.getByRole('button', { name: 'Vincular', exact: true }).count(), 1, 'only ERP filial is left to bind')
+
+  const filial = bindableRow(page, 'ERP filial')
+  await filial.getByLabel('Nome no Projeto').fill('erp')
+  await filial.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await filial.getByRole('alert').filter({ hasText: 'Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.' }).waitFor()
+  assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'])
 
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
   await page.reload()
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
-  await page.getByText('ERP de teste').waitFor()
-  await page.getByText('Ler pedido de compra do Sankhya').first().waitFor()
+  await bindings.getByText('erp', { exact: true }).waitFor()
+  assert.deepEqual(await bindings.locator('.cx-connection strong').allInnerTexts(), ['ERP de teste', 'ERP filial'])
+  assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'], 'the refused bind saved nothing')
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
-  await page.getByRole('button', { name: 'Revogar' }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar' }).click()
-  await page.getByRole('button', { name: 'Conceder' }).waitFor()
-  await page.getByText('Nenhuma integração concedida ainda.').waitFor()
+  await bindings.getByRole('button', { name: 'Desvincular' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Desvincular' }).click()
+  await bindings.getByText('Nenhuma conexão vinculada ainda.').waitFor()
+  assert.equal(await bindings.getByRole('button', { name: 'Vincular', exact: true }).count(), 2)
 
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 })
 
-test('an installation administrator who is not the Owner sees Connections but not Grants', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('an installation administrator who is not the Owner sees Connections but not bindings', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page } = await withPage(t, { ...fixture, accountId: fixture.adminAccountId })
   await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
   await page.getByRole('heading', { name: 'Conexões do Workspace' }).waitFor()
   await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).waitFor()
-  await page.getByText('Só o Owner do Workspace concede e revoga integrações deste Projeto.').waitFor()
+  await page.getByText('Só o Owner do Workspace vincula e desvincula conexões deste Projeto.').waitFor()
 })
 
-test('a Workspace Owner who is not an installation administrator sees Grants but not Connections', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('a Workspace Owner who is not an installation administrator sees bindings but not Connections', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page } = await withPage(t, { ...fixture, accountId: fixture.ownerAccountId })
   await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
@@ -238,13 +265,14 @@ test('a Workspace Owner who is not an installation administrator sees Grants but
   await page.getByText('Só um administrador da instalação vê e administra as conexões do Workspace.').waitFor()
 })
 
-test('a create whose answer was lost resubmits the same id and gets 200; a failed disable or revoke says so and changes nothing', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('a create or bind whose answer was lost says so and its resubmit answers what was saved; a failed disable or unbind says so and changes nothing', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
-  const connections = `**/api/control/workspaces/${fixture.workspaceId}/connections`
+  const { connections, bindings } = sections(page)
+  const connectionsUrl = `**/api/control/workspaces/${fixture.workspaceId}/connections`
   const created = []
   let loseAnswer = true
-  await page.route(connections, async (route) => {
+  await page.route(connectionsUrl, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     const response = await route.fetch()
     created.push({ connectionId: route.request().postDataJSON().connectionId, status: response.status() })
@@ -257,18 +285,14 @@ test('a create whose answer was lost resubmits the same id and gets 200; a faile
 
   await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
-  await page.getByLabel('Nome da conexão').fill('ERP de teste')
-  await page.getByLabel('Client id').fill(CREDENTIAL.clientId)
-  await page.getByLabel('Client secret').fill(CREDENTIAL.clientSecret)
-  await page.getByLabel('X-Token').fill(CREDENTIAL.xToken)
-  await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
+  await addConnection(page, 'ERP de teste')
   await page.getByText('A alteração não foi confirmada.').waitFor()
   await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
-  await page.getByText('ERP de teste').waitFor()
+  await connections.getByText('ERP de teste').waitFor()
   assert.deepEqual(created.map(({ status }) => status), [201, 200])
   assert.equal(created[1].connectionId, created[0].connectionId, 'the resubmit is the same request')
 
-  await page.route(`${connections}/*`, (route) => (route.request().method() === 'DELETE'
+  await page.route(`${connectionsUrl}/*`, (route) => (route.request().method() === 'DELETE'
     ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
     : route.fallback()))
   await page.getByRole('button', { name: 'Desativar' }).click()
@@ -276,18 +300,36 @@ test('a create whose answer was lost resubmits the same id and gets 200; a faile
   await page.getByText('A conexão não foi desativada e continua ativa.').waitFor()
   assert.equal(await page.getByText('· desativada').count(), 0)
 
-  await page.getByRole('button', { name: 'Conceder' }).click()
-  await page.getByRole('button', { name: 'Revogar' }).waitFor()
-  await page.route(`**/api/control/projects/${fixture.projectId}/connector-grants/*`, (route) => (route.request().method() === 'DELETE'
+  const bound = []
+  let loseBindAnswer = true
+  await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    const response = await route.fetch()
+    bound.push({ status: response.status(), bindingId: (await response.json()).bindingId })
+    if (loseBindAnswer) {
+      loseBindAnswer = false
+      return route.abort('connectionreset')
+    }
+    return route.fulfill({ response })
+  })
+  const row = bindableRow(page, 'ERP de teste')
+  await row.getByLabel('Nome no Projeto').fill('erp')
+  await row.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await row.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' }).waitFor()
+  await row.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()
+  assert.deepEqual(bound.map(({ status }) => status), [200, 200])
+  assert.equal(bound[1].bindingId, bound[0].bindingId, 'the resubmitted bind answers the binding the lost answer saved')
+  await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings/*`, (route) => (route.request().method() === 'DELETE'
     ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
     : route.fallback()))
-  await page.getByRole('button', { name: 'Revogar' }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar' }).click()
+  await bindings.getByRole('button', { name: 'Desvincular' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Desvincular' }).click()
   await page.getByRole('alertdialog').waitFor({ state: 'detached' })
-  const revokeFailure = page.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' })
-  await revokeFailure.waitFor()
-  assert.equal(await revokeFailure.isVisible(), true, 'the failed revoke is reported where the administrator can see it')
-  await page.getByRole('button', { name: 'Revogar' }).waitFor()
+  const unbindFailure = bindings.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' })
+  await unbindFailure.waitFor()
+  assert.equal(await unbindFailure.isVisible(), true, 'the failed unbind is reported where the Owner can see it')
+  await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
   const check = await fetch(`${fixture.origin}/api/control/workspaces/${fixture.workspaceId}/connections/${randomUUID()}/authentication-check`, {

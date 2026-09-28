@@ -170,8 +170,13 @@ export const connectFactoryInstallation = async ({ github, records, orgId, write
       accountType: installation.accountType,
     })
   // The Factory's own reinstall move. It needs the old installation, so the rows move before it goes.
+  // When the live installation already holds the same repository, the move answers that other row
+  // and leaves this one behind, still named by its Project's binding, so connect stops there.
   for (const { old, held } of gone) {
-    for (const repository of held) await repositories.migrateInstallation({ orgId, id: repository.id, newInstallationId: live.id })
+    for (const repository of held) {
+      const moved = await repositories.migrateInstallation({ orgId, id: repository.id, newInstallationId: live.id })
+      if (moved.id !== repository.id) throw new Error(`FACTORY_INSTALLATION_REPOSITORY_CONFLICT: ${repository.slug} is already recorded under the new installation.`)
+    }
     await recorded.delete({ orgId, id: old.id })
   }
   write(`FACTORY_INSTALLATION=${externalId} ACCOUNT=${installation.accountLogin} TYPE=${installation.accountType}`)

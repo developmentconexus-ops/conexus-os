@@ -105,19 +105,30 @@ async function main() {
           await showWholePage(page, viewport)
           await page.screenshot({ path: resolve(outDir, `${target.name}-${viewport.name}-${scheme}.png`), fullPage: true })
         }
-        if (viewport.name === 'desktop' && scheme === 'light') {
-          await page.goto(`${origin}/settings/models`)
-          const googleRow = page.locator('.cxs-row', { hasText: 'Google (Gemini)' })
-          await googleRow.getByRole('button', { name: 'Conectar' }).click()
-          await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
-          await page.getByText('WXYZ-7890').waitFor()
-          await page.waitForTimeout(150)
-          await showWholePage(page, viewport)
-          await page.screenshot({ path: resolve(outDir, 'models-device-code-desktop-light.png'), fullPage: true })
-        }
+        await page.goto(`${origin}/settings/models`)
+        const googleRow = page.locator('.cxs-row', { hasText: 'Google (Gemini)' })
+        await googleRow.getByRole('button', { name: 'Conectar' }).click()
+        await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+        await page.getByText('WXYZ-7890').waitFor()
+        await page.waitForTimeout(150)
+        await showWholePage(page, viewport)
+        await page.screenshot({ path: resolve(outDir, `models-device-code-${viewport.name}-${scheme}.png`), fullPage: true })
         await context.close()
       }
     }
+
+    const reducedContext = await browser.newContext({ viewport: { width: viewports[0].width, height: viewports[0].height }, colorScheme: 'light', reducedMotion: 'reduce' })
+    const reducedPage = await reducedContext.newPage()
+    await mockRoutes(reducedPage)
+    await reducedPage.goto(`${origin}/settings/models`)
+    const googleRow = reducedPage.locator('.cxs-row', { hasText: 'Google (Gemini)' })
+    await googleRow.getByRole('button', { name: 'Conectar' }).click()
+    await reducedPage.getByRole('button', { name: 'Entrar com a assinatura' }).click()
+    await reducedPage.getByText('WXYZ-7890').waitFor()
+    await reducedPage.waitForTimeout(150)
+    await showWholePage(reducedPage, viewports[0])
+    await reducedPage.screenshot({ path: resolve(outDir, 'models-device-code-desktop-light-reduced-motion.png'), fullPage: true })
+    await reducedContext.close()
   } finally {
     await browser.close()
     await server.close()

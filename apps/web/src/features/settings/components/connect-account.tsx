@@ -1,69 +1,121 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useReducer, useRef, useState } from 'react'
+import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { type ConnectState, connectFlowReducer, initialConnectState } from '../connect-flow'
 import {
   apiKeySaveErrorMessage, oauthFailureMessage,
 } from '../error-messages'
 import {
-  cancelOAuth, completeOAuth, type ModelAccountsRequestError, type ModelProvider, pollOAuth, saveApiKey, startOAuth,
+  cancelOAuth, completeOAuth, type ModelAccountsRequestError, type ModelProvider, modelAccountsQueryKey, pollOAuth, saveApiKey, startOAuth,
 } from '../model-accounts-api'
 import { providerName } from '../provider-names'
 import { groupProviders } from '../provider-groups'
 import { StatusLine } from './states'
 
-export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs, onDone }: Readonly<{
+// A live "expira em MM:SS", or null while no expiry is known. Client-side only: a UX aid, not
+// the actual expiry enforcement — the server still answers `failed`/expired on a stale session.
+function useCountdown(expiresAt: string | undefined, onExpire: () => void): string | null {
+  const expire = useRef(onExpire)
+  expire.current = onExpire
+  const [remainingMs, setRemainingMs] = useState<number | null>(() => expiresAt ? new Date(expiresAt).getTime() - Date.now() : null)
+  useEffect(() => {
+    if (!expiresAt) return
+    const tick = () => {
+      const ms = new Date(expiresAt).getTime() - Date.now()
+      setRemainingMs(ms)
+      if (ms <= 0) expire.current()
+    }
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [expiresAt])
+  if (remainingMs == null) return null
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000))
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
+}
+
+const detailOf = (error: unknown): string | undefined => (error as ModelAccountsRequestError | undefined)?.reason ?? undefined
+
+export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs, expiresAt, onDone, onExpired }: Readonly<{
   provider: string
   sessionId: string
   url: string
   userCode: string
   nextPollMs: number
-  onDone: (error?: string) => void
+  expiresAt?: string | undefined
+  onDone: (error?: string, detail?: string) => void
+  onExpired: () => void
 }>) {
   const finish = useRef(onDone)
   finish.current = onDone
+  const expired = useRef(false)
   const [copied, setCopied] = useState(false)
+  const countdown = useCountdown(expiresAt, () => { expired.current = true; onExpired() })
   const cancel = useMutation({ mutationFn: () => cancelOAuth(provider, sessionId), onSettled: () => finish.current() })
+
   useEffect(() => {
-    let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    const poll = (delay: number) => {
-      timer = setTimeout(async () => {
-        if (stopped) return
-        try {
-          const step = await pollOAuth(provider, sessionId)
-          if (step.status === 'complete') finish.current()
-          else if (step.status === 'failed') finish.current(oauthFailureMessage(step.error))
-          else poll(step.nextPollMs ?? 2000)
-        } catch {
-          finish.current(oauthFailureMessage())
-        }
-      }, delay)
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const step = await pollOAuth(provider, sessionId)
+        if (cancelled) return
+        if (step.status === 'complete') { finish.current(); return }
+        if (step.status === 'failed') { finish.current(oauthFailureMessage(), step.error); return }
+        timer = setTimeout(poll, step.nextPollMs ?? nextPollMs)
+      } catch {
+        // Transient network failures don't stop polling; wait one interval and try again.
+        if (!cancelled && !expired.current) timer = setTimeout(poll, nextPollMs)
+      }
     }
-    poll(nextPollMs)
-    return () => { stopped = true; if (timer) clearTimeout(timer) }
-  }, [provider, sessionId, nextPollMs])
+    timer = setTimeout(poll, nextPollMs)
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [nextPollMs, provider, sessionId])
+
+  const copyAndOpen = async () => {
+    try { await navigator.clipboard.writeText(userCode); setCopied(true) } catch { /* ignore */ }
+    window.open(url, '_blank', 'noopener')
+  }
+
   return <div className="cxs-connect-step">
-    <p className="cxs-device-code">{userCode}</p>
-    <Button type="button" variant="outline" onClick={() => { void navigator.clipboard.writeText(userCode).then(() => setCopied(true)).catch(() => setCopied(false)) }}>Copiar código</Button>
+    <div className="cxs-user-code">
+      <span className="cxs-code-label">Código:</span>
+      <strong className="cxs-code-value">{userCode}</strong>
+    </div>
+    <Button type="button" variant="primary" onClick={copyAndOpen}>Copiar código e abrir {providerName(provider)}</Button>
     {copied && <StatusLine>Copiado.</StatusLine>}
-    <p><a href={url} target="_blank" rel="noreferrer">Abrir a página de entrada</a></p>
-    <p className="cxs-waiting"><span className="cxs-spinner" aria-hidden="true" />Aguardando você concluir a entrada na outra aba</p>
+    <p className="cxs-hint">Se a aba não abrir sozinha, <a href={url} target="_blank" rel="noreferrer">abra a página de entrada manualmente</a>.</p>
+    {countdown && <p className="cxs-hint">Expira em {countdown}</p>}
+    <p className="cxs-waiting"><ConexusMark size={16} working />Aguardando você concluir a entrada na outra aba</p>
     <Button type="button" variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancelar</Button>
   </div>
 }
 
-export function PasteCodeStep({ provider, sessionId, url, onDone }: Readonly<{ provider: string; sessionId: string; url: string; onDone: (error?: string) => void }>) {
+export function PasteCodeStep({ provider, sessionId, url, expiresAt, onDone, onExpired }: Readonly<{
+  provider: string
+  sessionId: string
+  url: string
+  expiresAt?: string | undefined
+  onDone: (error?: string, detail?: string) => void
+  onExpired: () => void
+}>) {
   const [code, setCode] = useState('')
   const codeId = useId()
+  const countdown = useCountdown(expiresAt, onExpired)
+  // Fired once per session: opens the verification page without waiting for a click, same as the
+  // device-code step's one-click open, just triggered on arrival instead of on a button.
+  useEffect(() => { window.open(url, '_blank', 'noopener') }, [url])
   const complete = useMutation({
     mutationFn: () => completeOAuth(provider, sessionId, code),
-    onSuccess: (step) => onDone(step.status === 'complete' ? undefined : oauthFailureMessage(step.error)),
-    onError: () => onDone(oauthFailureMessage()),
+    onSuccess: (step) => onDone(step.status === 'complete' ? undefined : oauthFailureMessage(), step.status === 'complete' ? undefined : step.error),
+    onError: (error) => onDone(oauthFailureMessage(), detailOf(error)),
   })
   return <div className="cxs-connect-step">
+    <p className="cxs-hint">O código aparece na aba que abrimos automaticamente; copie-o de lá e cole aqui.</p>
     <p>1. <a href={url} target="_blank" rel="noreferrer">Abrir a página de entrada</a></p>
+    {countdown && <p className="cxs-hint">Expira em {countdown}</p>}
     <form onSubmit={(event: FormEvent) => { event.preventDefault(); complete.mutate() }}>
       <label htmlFor={codeId}>2. Cole o código exibido pelo provedor</label>
       <Input id={codeId} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" />
@@ -92,6 +144,7 @@ function ProviderPicker({ providers, onChoose }: Readonly<{ providers: readonly 
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+
   useEffect(() => { inputRef.current?.focus() }, [])
 
   const groups = groupProviders(providers, query)
@@ -142,31 +195,36 @@ export function ConnectAccount({ providers, initialProvider, onConnected }: Read
   const [state, dispatch] = useReducer(
     connectFlowReducer,
     initialProvider,
-    (seed): ConnectState => (seed ? { step: 'choose-method', provider: seed } : initialConnectState),
+    (seed): ConnectState => {
+      if (!seed) return initialConnectState
+      const chosen = providers.find((p) => p.provider === seed)
+      if (chosen && !chosen.oauth?.supported) {
+        return { step: 'api-key', provider: seed }
+      }
+      return { step: 'choose-method', provider: seed }
+    },
   )
   const start = useMutation({
     mutationFn: (provider: string) => startOAuth(provider),
     onSuccess: (flow) => dispatch(flow.kind === 'device-code'
-      ? { type: 'method-device-code', sessionId: flow.sessionId, url: flow.url, userCode: flow.userCode ?? '', nextPollMs: flow.nextPollMs ?? 2000 }
-      : { type: 'method-paste-code', sessionId: flow.sessionId, url: flow.url }),
-    onError: () => dispatch({ type: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.' }),
+      ? { type: 'method-device-code', sessionId: flow.sessionId, url: flow.url, userCode: flow.userCode ?? '', nextPollMs: flow.nextPollMs ?? 2000, expiresAt: flow.expiresAt }
+      : { type: 'method-paste-code', sessionId: flow.sessionId, url: flow.url, expiresAt: flow.expiresAt }),
+    onError: (error) => dispatch({ type: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.', detail: detailOf(error) }),
   })
-  const onDone = (error?: string) => {
-    if (error) { dispatch({ type: 'failed', message: error }); return }
-    dispatch({ type: 'succeeded' })
+  const queryClient = useQueryClient()
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
+
+  const onDone = (error?: string, detail?: string) => {
+    if (error) { dispatch({ type: 'failed', message: error, detail }); return }
+    dispatch({ type: 'done' })
+    refresh()
     onConnected()
   }
-  const restart = () => dispatch({ type: 'reset' })
 
-  // A provider with no subscription login skips the method choice; advancing state belongs in an
-  // effect, not in the render that reads it.
-  useEffect(() => {
-    if (state.step !== 'choose-method') return
-    const chosen = providers.find((provider) => provider.provider === state.provider)
-    if (chosen && !chosen.oauth?.supported) dispatch({ type: 'method-api-key' })
-  }, [state, providers])
+  const restart = () => { dispatch({ type: 'reset' }); refresh() }
+  const regenerate = (provider: string) => { start.mutate(provider) }
 
-  if (state.step === 'choose-provider') {
+  if (state.step === 'pick-provider') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
       <h3>Conectar uma conta</h3>
       <ProviderPicker providers={providers} onChoose={(provider) => dispatch({ type: 'provider-chosen', provider })} />
@@ -196,20 +254,29 @@ export function ConnectAccount({ providers, initialProvider, onConnected }: Read
   if (state.step === 'paste-code') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
       <h3>{providerName(state.provider)}</h3>
-      <PasteCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} onDone={onDone} />
+      <PasteCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} expiresAt={state.expiresAt} onDone={onDone} onExpired={() => dispatch({ type: 'expired' })} />
     </section>
   }
 
   if (state.step === 'device-code') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
       <h3>{providerName(state.provider)}</h3>
-      <DeviceCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} userCode={state.userCode} nextPollMs={state.nextPollMs} onDone={onDone} />
+      <DeviceCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} userCode={state.userCode} nextPollMs={state.nextPollMs} expiresAt={state.expiresAt} onDone={onDone} onExpired={() => dispatch({ type: 'expired' })} />
+    </section>
+  }
+
+  if (state.step === 'expired') {
+    return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
+      <h3>{providerName(state.provider)}</h3>
+      <StatusLine tone="danger">O código expirou.</StatusLine>
+      <Button type="button" variant="primary" disabled={start.isPending} onClick={() => regenerate(state.provider)}>Gerar outro código</Button>
     </section>
   }
 
   if (state.step === 'failed') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
-      <p role="alert">{state.message}</p>
+      <StatusLine tone="danger">{state.message}</StatusLine>
+      {state.detail && <details className="cxs-disclosure"><summary>Detalhe técnico</summary><code>{state.detail}</code></details>}
       <Button type="button" variant="outline" onClick={restart}>Tentar de novo</Button>
     </section>
   }

@@ -4,25 +4,52 @@ declare const scopeBrand: unique symbol
 
 /**
  * The authority a broker call runs under. Only this module mints one: the brand stops typed code from
- * building a scope, and the WeakSet stops untyped code (JSON, a RequestContext filled from a request)
+ * building a scope, and the terms map stops untyped code (JSON, a RequestContext filled from a request)
  * from passing a look-alike object.
  */
 export type ConsumerScope = Readonly<{ projectId: string; environment: Environment }> & { readonly [scopeBrand]: true }
 
-const minted = new WeakSet<object>()
+/** `calls` null: no budget of the scope's own. */
+type Terms = { readonly expiresAt: number | null; calls: number | null; revoked: boolean }
+
+// Keyed by the frozen scope, so its lifetime and budget stay out of the object a consumer holds.
+const terms = new WeakMap<object, Terms>()
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-const mint = (projectId: string, environment: Environment): ConsumerScope => {
+const mint = (projectId: string, environment: Environment, term: Terms): ConsumerScope => {
   if (!UUID.test(projectId)) throw new Error('CONNECTOR_SCOPE_REFUSED')
   const scope = Object.freeze({ projectId, environment }) as ConsumerScope
-  minted.add(scope)
+  terms.set(scope, term)
   return scope
 }
 
-export const isMintedScope = (value: unknown): value is ConsumerScope =>
-  typeof value === 'object' && value !== null && minted.has(value)
+/** Minted here, not revoked and not expired. */
+export const isMintedScope = (value: unknown, now: number = Date.now()): value is ConsumerScope => {
+  const term = typeof value === 'object' && value !== null ? terms.get(value) : undefined
+  return term !== undefined && !term.revoked && (term.expiresAt === null || now < term.expiresAt)
+}
+
+export const spendCall = (scope: ConsumerScope): boolean => {
+  const term = terms.get(scope)
+  if (!term) return false
+  if (term.calls === null) return true
+  if (term.calls <= 0) return false
+  term.calls -= 1
+  return true
+}
+
+/** @public The Builder run that mints a scope revokes it when the run ends (Q-5); tests import it until then. */
+export const revokeScope = (scope: ConsumerScope): void => {
+  const term = terms.get(scope)
+  if (term) term.revoked = true
+}
 
 /** Preview and the application host both serve the Preview environment for now; that will change
- * once the application host gets its own environment. */
+ * once the application host gets its own environment. No expiry and no budget of its own: the
+ * invocation's timeout and its port's call limit bound it. */
 export const scopeFromArtifactSource = (source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): ConsumerScope =>
-  mint(source.projectId, 'preview')
+  mint(source.projectId, 'preview', { expiresAt: null, calls: null, revoked: false })
+
+/** @public The Builder tool mints one per run (Q-5); tests import it until then. */
+export const scopeForBuilderRun = (projectId: string, runTerms: Readonly<{ ttlMs: number; calls: number }>, now: number = Date.now()): ConsumerScope =>
+  mint(projectId, 'preview', { expiresAt: now + runTerms.ttlMs, calls: runTerms.calls, revoked: false })

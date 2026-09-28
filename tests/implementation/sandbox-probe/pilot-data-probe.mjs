@@ -97,7 +97,7 @@ const supervisor = createSupervisor({
 try {
   const results = []
   const runtimeTree = serverTree([BASE], HANDLER)
-  const prepared = await supervisor.prepare({ projectId: RUNTIME_PROBE, files: runtimeTree })
+  const prepared = await supervisor.prepare({ projectId: RUNTIME_PROBE, files: runtimeTree, onDivergence: 'RESET' })
   if (prepared.state !== 'READY') throw new Error(`PROBE_PREPARE_FAILED: ${JSON.stringify(prepared)}`)
   const answer = await supervisor.invoke({ projectId: RUNTIME_PROBE, operation: 'probe', input: {}, files: runtimeTree, caller: PROBE_CALLER })
   if (answer.status !== 200) throw new Error(`PROBE_INVOKE_FAILED: ${JSON.stringify(answer.body)}`)
@@ -106,7 +106,7 @@ try {
 
   for (const [index, [name, sql, expected]] of MIGRATION_CASES.entries()) {
     const tree = serverTree([BASE, [`9${String(index).padStart(2, '0')}_attack.sql`, sql]], HANDLER)
-    const outcome = await supervisor.prepare({ projectId: MIGRATION_PROBE, files: tree })
+    const outcome = await supervisor.prepare({ projectId: MIGRATION_PROBE, files: tree, onDivergence: 'RESET' })
     const observedCode = outcome.state === 'READY' ? 'ok' : (outcome.detail?.match(/^([0-9A-Z]{5}) /)?.[1] ?? outcome.detail)
     results.push({ path: 'migration', name, expected, observed: observedCode })
   }
