@@ -13,6 +13,7 @@ import { FACTORY_OPERATOR_ID } from './factory.js'
 import { GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
+import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
 import { isExactOrigin } from '../platform/origin.js'
 
 // The installation's defaults are one Factory model pack; a person's own defaults are their active
@@ -77,7 +78,7 @@ export const applyModelDefaults = ({ modelPacks, orgId }: Readonly<{ modelPacks:
     if (pack) await applyActiveModelPack(session, pack as Parameters<typeof applyActiveModelPack>[1])
   }
 
-export const registerModelAccountRoutes = async (app: FastifyInstance, { domains, orgId, origin, resolveCurrentSession, isInstallationAdministrator, googleAiPro }: Readonly<{
+export const registerModelAccountRoutes = async (app: FastifyInstance, { domains, orgId, origin, resolveCurrentSession, isInstallationAdministrator, googleAiPro, googleAiProAccounts }: Readonly<{
   domains: ModelAccountDomains
   orgId: string
   origin: string
@@ -85,6 +86,10 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
+  // The Google AI Pro credential's home, `model.model_account` (spec 0002): present exactly when
+  // googleAiPro is. Every other provider still reads and writes through `domains.credentials`
+  // (the Factory's storage) until slice 5 moves them too.
+  googleAiProAccounts?: GoogleAiProAccounts
 }>): Promise<void> => {
   const { credentials, modelPacks, memorySettings } = domains
   const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
@@ -113,7 +118,10 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     return false
   }
 
+  // Google AI Pro's shared row now lives in model.model_account (spec 0002); every other
+  // provider is still the Factory's own credential storage until slice 5 moves it too.
   const hasOrgCredential = async (provider: string): Promise<boolean> => {
+    if (provider === GOOGLE_AI_PRO_PROVIDER) return googleAiProAccounts ? googleAiProAccounts.hasShared() : false
     const authProviderId = getAuthProviderId(provider)
     const credential = await credentials.getCredential({ orgId }, authProviderId)
     return Boolean(credential)
@@ -169,8 +177,8 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
       return { models: googleAiProConnected ? installationModels : installationModels.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
     }
 
-    const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
-      await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
+    const connection = googleAiProAccounts ? await googleAiProAccounts.connection(caller.accountId) : { mine: false, shared: false }
+    const connected = connection.mine || connection.shared
     return { models: connected ? models : models.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
   })
   // Sharing moves the administrator's own account to the installation's row, and stopping moves it
@@ -201,16 +209,12 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     return reply.code(204).send()
   })
 
-  if (googleAiPro) {
+  if (googleAiPro && googleAiProAccounts) {
     const login = createGoogleAiProLogin<Caller>({
       pool: googleAiPro,
-      // The person's own row in the Factory's credential storage, as its key route writes it. The
-      // sign-in settles on a later poll, which carries no write's CSRF, so the Hub writes here.
-      writeCredential: async ({ accountId }, key) => {
-        const tenant = { orgId, userId: accountId }
-        await credentials.setCredential(tenant, GOOGLE_AI_PRO_PROVIDER, { type: 'api_key', key })
-        invalidateTenantCredentialSnapshots(tenant)
-      },
+      // The person's own row in model.model_account, sealed. The sign-in settles on a later
+      // poll, which carries no write's CSRF, so the Hub writes here.
+      writeCredential: ({ accountId }, key) => googleAiProAccounts.write(accountId, key),
       seedMemory: ({ accountId }) => seedGoogleAiProMemory(memorySettings, { orgId, userId: accountId }),
     })
     const loginProblem = (reply: FastifyReply, error: unknown) => {
@@ -224,12 +228,11 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request, reply) => {
       const caller = await admit(request, reply)
       if (!caller) return reply
-      const [mine, shared, administrator] = await Promise.all([
-        credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER),
-        credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER),
+      const [{ mine, shared }, administrator] = await Promise.all([
+        googleAiProAccounts.connection(caller.accountId),
         isInstallationAdministrator(caller.accountId),
       ])
-      return { mine: Boolean(mine), shared: Boolean(shared), administrator }
+      return { mine, shared, administrator }
     })
     const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
     app.post(`${base}/start`, async (request, reply) => {

@@ -160,6 +160,22 @@ test('an idle proxy stops and its directory is removed', async (t) => {
   next.release()
 })
 
+test('a refreshed auth file is captured and written back before an idle proxy\'s copy is deleted (AC-22)', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const pool = openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 })
+  const key = encodeKey(record('ana@example.com'))
+  const refreshed = []
+  const lease = await pool.acquire(key, async (refreshedKey) => { refreshed.push(refreshedKey) })
+  // Stands in for CLIProxyAPI refreshing the Google OAuth token inside the instance's own copy of
+  // the record, while the lease is held.
+  writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' }))
+  lease.release()
+  assert.equal(await until(() => refreshed.length === 1 && !existsSync(join(stateDir, instanceIdOf(key)))), true)
+  const stored = decodeKey(refreshed[0])
+  assert.equal(stored.fileName, 'antigravity-ana@example.com.json')
+  assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
+})
+
 test('a proxy a crashed Hub left behind is killed at boot, and a stranger pid is left alone', async (t) => {
   const { binary, stateDir } = scratch(t)
   const orphanDir = join(stateDir, 'abcdef0123456789')
@@ -211,35 +227,45 @@ const authentic = {
   cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
 }
 
-// The Factory's own key handler runs for real; only its storage is a recording stand-in.
+// The Factory's own key handler runs for real; only model.model_account is a recording stand-in
+// (the Postgres-backed store is proven separately in model-account-postgres.test.mjs).
+const fakeGoogleAiProAccounts = () => {
+  const own = new Map()
+  let sharedAccountId = null
+  const writes = []
+  const port = {
+    hasShared: async () => sharedAccountId !== null,
+    read: async (accountId) => own.get(accountId) ?? (sharedAccountId !== null ? own.get(sharedAccountId) : null),
+    connection: async (accountId) => ({ mine: own.has(accountId), shared: sharedAccountId !== null }),
+    write: async (accountId, key) => { own.set(accountId, key); writes.push({ accountId, key }) },
+  }
+  return { port, writes, share: (accountId) => { sharedAccountId = accountId } }
+}
+
 const createLoginApp = async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
-  const writes = []
   const patches = []
-  const credentials = {
-    ensureReady: async () => undefined,
-    setCredential: async (tenant, provider, credential) => { writes.push({ tenant, provider, credential }) },
-    listCredentials: async () => [],
-  }
+  const googleAiProAccounts = fakeGoogleAiProAccounts()
   const memorySettings = { ensureReady: async () => undefined, patch: async (input) => { patches.push(input) } }
   let caller = ana
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        domains: { credentials, modelPacks: {}, memorySettings },
+        domains: { credentials: { getCredential: async () => null }, modelPacks: {}, memorySettings },
         orgId: ORG,
         origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => false,
         googleAiPro: pool,
+        googleAiProAccounts: googleAiProAccounts.port,
       })
       return []
     },
     staticRoot: null,
   })
   t.after(() => app.close())
-  return { app, stateDir, writes, patches, as: (accountId) => { caller = accountId } }
+  return { app, stateDir, writes: googleAiProAccounts.writes, patches, share: googleAiProAccounts.share, as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/google-ai-pro/login'
@@ -257,7 +283,7 @@ const pollUntilSettled = async (app, loginId) => {
   return 'waiting'
 }
 
-test('signing in from Settings stores the record as the person\'s own Factory credential and seeds a memory model', async (t) => {
+test('signing in from Settings stores the record as the person\'s own model.model_account row and seeds a memory model', async (t) => {
   const { app, stateDir, writes, patches } = await createLoginApp(t)
   const started = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(started.statusCode, 200)
@@ -271,8 +297,8 @@ test('signing in from Settings stores the record as the person\'s own Factory cr
   assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
 
   assert.equal(writes.length, 1)
-  assert.deepEqual({ ...writes[0], credential: { type: writes[0].credential.type } }, { tenant: { orgId: ORG, userId: ana }, provider: 'google-ai-pro', credential: { type: 'api_key' } })
-  const stored = decodeKey(parseKey(writes[0].credential.key))
+  assert.equal(writes[0].accountId, ana)
+  const stored = decodeKey(parseKey(writes[0].key))
   assert.equal(stored.fileName, 'antigravity-person@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
   assert.deepEqual(patches, [{
@@ -280,6 +306,9 @@ test('signing in from Settings stores the record as the person\'s own Factory cr
     fillIfUnset: { observerModelId: 'google-ai-pro/gemini-3.5-flash-lite', reflectorModelId: 'google-ai-pro/gemini-3.5-flash-lite' },
   }])
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
+
+  const connection = await app.inject({ method: 'GET', url: '/api/control/model-accounts/google-ai-pro/connection', ...authentic })
+  assert.deepEqual(connection.json(), { mine: true, shared: false, administrator: false })
 })
 
 test('a pasted address with the wrong host, path or state is refused, and a refused sign-in fails', async (t) => {

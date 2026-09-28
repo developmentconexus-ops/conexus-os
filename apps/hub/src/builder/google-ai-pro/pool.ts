@@ -6,7 +6,7 @@ import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { decodeKey, type GoogleAiProKey, type InstanceId, instanceIdOf } from './credential.js'
+import { decodeKey, encodeKey, type GoogleAiProKey, type InstanceId, instanceIdOf, isAuthFileName } from './credential.js'
 
 type Ready = {
   state: 'ready'
@@ -22,10 +22,18 @@ type Instance =
   | Ready
   | Readonly<{ state: 'stopping'; done: Promise<void> }>
 
+// Called with whatever CLIProxyAPI last wrote to the instance's auth file, just before that copy
+// is deleted (AC-22). Google's token refresh happens inside CLIProxyAPI, in that file, while the
+// instance runs; nothing else in the Hub ever sees the refreshed bytes.
+export type PersistGoogleAiProRefresh = (refreshed: GoogleAiProKey) => Promise<void>
+
 export type Lease = Readonly<{ url: string; proxyKey: string; release(): void }>
 export type LoginInstance = Readonly<{ url: string; managementKey: string; authDir: string; close(): Promise<void> }>
 export type CliproxyPool = Readonly<{
-  acquire(key: GoogleAiProKey): Promise<Lease>
+  // persistRefresh is set on the instance this key resolves to; the caller that knows the owning
+  // model_account (or that the account is the shared one) supplies it, so the pool itself stays
+  // ignorant of accounts. The most recent caller to supply one wins for that instance.
+  acquire(key: GoogleAiProKey, persistRefresh?: PersistGoogleAiProRefresh): Promise<Lease>
   startLogin(): Promise<LoginInstance>
   // Boot only, before anything is acquired: kills what a crashed Hub left and empties the state dir.
   sweepOrphans(): Promise<void>
@@ -105,7 +113,28 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
 }>): CliproxyPool => {
   const instances = new Map<InstanceId, Instance>()
   const logins = new Set<LoginInstance>()
+  // The most recent acquire() caller to name a write-back target for this instance. The pool
+  // itself never learns which account owns an instance; whoever resolves that (part 1c's model
+  // resolution) is the one who can supply it.
+  const refreshTargets = new Map<InstanceId, PersistGoogleAiProRefresh>()
   let closed = false
+
+  // Reads back whatever CLIProxyAPI last wrote to the instance's own copy of the record, before
+  // that copy is deleted. Best-effort: a record that no longer parses (the instance crashed
+  // mid-write, or never signed in) is left alone rather than persisted over a good one.
+  const captureRefresh = async (id: InstanceId, dir: string): Promise<void> => {
+    const persistRefresh = refreshTargets.get(id)
+    if (!persistRefresh) return
+    try {
+      const authDir = join(dir, 'auth')
+      const fileName = (await readdir(authDir)).find(isAuthFileName)
+      if (!fileName) return
+      const refreshed = encodeKey({ fileName, bytes: new Uint8Array(await readFile(join(authDir, fileName))) })
+      await persistRefresh(refreshed)
+    } catch {
+      // Best-effort: the instance's own stored record, if any, is still the last write-back.
+    }
+  }
 
   const waitReady = async (child: ChildProcess, url: string, proxyKey: string): Promise<boolean> => {
     for (const deadline = Date.now() + readyTimeoutMs; Date.now() < deadline; await delay(100)) {
@@ -155,7 +184,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       child.once('exit', () => {
         if (instances.get(id) !== ready) return
         instances.delete(id)
-        void rm(dir, { recursive: true, force: true })
+        void captureRefresh(id, dir).finally(() => rm(dir, { recursive: true, force: true }))
       })
       instances.set(id, ready)
       return ready
@@ -169,6 +198,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
   const stop = async (id: InstanceId, ready: Ready): Promise<void> => {
     const done = (async () => {
       await terminate(ready.child)
+      await captureRefresh(id, ready.dir)
       await rm(ready.dir, { recursive: true, force: true })
     })()
     const stopping = { state: 'stopping', done } as const
@@ -189,8 +219,9 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
   const sweeper = setInterval(sweepIdle, sweepEveryMs)
   sweeper.unref()
 
-  const acquire = async (key: GoogleAiProKey): Promise<Lease> => {
+  const acquire = async (key: GoogleAiProKey, persistRefresh?: PersistGoogleAiProRefresh): Promise<Lease> => {
     const id = instanceIdOf(key)
+    if (persistRefresh) refreshTargets.set(id, persistRefresh)
     for (;;) {
       if (closed) throw new Error('GOOGLE_AI_PRO_POOL_CLOSED')
       const instance = instances.get(id)

@@ -136,7 +136,22 @@ const { FACTORY_CREDENTIAL_ROUTES, registerModelAccountRoutes, applyModelDefault
 const { registerFactoryApiRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { openFactoryConversationThread } = await import(built('builder/factory-routes.js'))
 
-const openAccountsApp = async (t, composition, administrators, googleAiPro) => {
+// model.model_account, not the Factory's storage (spec 0002, part 1b): a fake stands in for it
+// here, since this suite's database carries only the factory schema, not the Hub's migrations.
+// The Postgres-backed store is proven for real in model-account-postgres.test.mjs.
+const fakeGoogleAiProAccounts = () => {
+  const own = new Map()
+  let sharedAccountId = null
+  return {
+    hasShared: async () => sharedAccountId !== null,
+    read: async (accountId) => own.get(accountId) ?? (sharedAccountId !== null ? own.get(sharedAccountId) : null),
+    connection: async (accountId) => ({ mine: own.has(accountId), shared: sharedAccountId !== null }),
+    write: async (accountId, key) => { own.set(accountId, key) },
+    keyOf: (accountId) => own.get(accountId) ?? null,
+  }
+}
+
+const openAccountsApp = async (t, composition, administrators, googleAiPro, googleAiProAccounts) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerFactoryApiRoutes(instance, { mastra: composition.mastra, routes: FACTORY_CREDENTIAL_ROUTES, origin, resolveCurrentSession })
@@ -151,6 +166,7 @@ const openAccountsApp = async (t, composition, administrators, googleAiPro) => {
         resolveCurrentSession,
         isInstallationAdministrator: async (accountId) => administrators.includes(accountId),
         ...(googleAiPro ? { googleAiPro } : {}),
+        ...(googleAiProAccounts ? { googleAiProAccounts } : {}),
       })
       return []
     },
@@ -168,7 +184,7 @@ const openAccountsApp = async (t, composition, administrators, googleAiPro) => {
   return { app, as }
 }
 
-test('a person signs in to Google AI Pro from Settings, and their runs then carry their own record to the router', async (t) => {
+test('a person signs in to Google AI Pro from Settings, storing the record in model.model_account (part 1c wires it into a run)', async (t) => {
   const { chmodSync, copyFileSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { createCliproxyPool } = await import(built('builder/google-ai-pro/pool.js'))
@@ -188,7 +204,8 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.deepEqual(await providerUrls(), [`${router}/v1`], 'the installation routes the provider right after boot')
   await openConversation(composition, 'mastracode/google-ai-pro/gemini-3.1-pro-low')
 
-  const { as } = await openAccountsApp(t, composition, [], pool)
+  const googleAiProAccounts = fakeGoogleAiProAccounts()
+  const { as } = await openAccountsApp(t, composition, [], pool, googleAiProAccounts)
   const asAlice = as(alice)
   const connection = '/api/control/model-accounts/google-ai-pro/connection'
   assert.deepEqual((await asAlice('GET', connection)).body, { mine: false, shared: false, administrator: false })
@@ -223,13 +240,19 @@ test('a person signs in to Google AI Pro from Settings, and their runs then carr
   assert.deepEqual(await offeredModelNames(alice), modelNames, 'each model name is offered once, not once per catalog id')
   const memory = await composition.storage.getDomain('memory-settings').get({ orgId: ORG, userId: alice })
   assert.deepEqual([memory.observerModelId, memory.reflectorModelId], ['google-ai-pro/gemini-3.5-flash-lite', 'google-ai-pro/gemini-3.5-flash-lite'])
-  const stored = await composition.storage.getDomain('model-credentials').getCredential({ orgId: ORG, userId: alice }, 'google-ai-pro')
-  assert.equal(stored.type, 'api_key')
+  // The credential itself is now in model.model_account (spec 0002, part 1b), sealed; this suite's
+  // stand-in for it is the fake above, proven against real Postgres in model-account-postgres.test.mjs.
+  assert.equal(googleAiProAccounts.keyOf(alice) !== null, true)
+  assert.equal(await googleAiProAccounts.read(alice), googleAiProAccounts.keyOf(alice))
 
+  // Unproven here, and not yet true: a run's own model call still resolves its credential from
+  // the Factory's storage (builder/factory-runtime.js), which sign-in no longer writes. Turning a
+  // google_ai_pro model_account into a model call through the router is part 1c's job; until then
+  // Alice's run fails exactly like an unconnected caller's.
   const seen = captureModelRequests(t)
   const routed = () => seen.filter(({ url: requested }) => requested.startsWith(`${router}/v1/`)).map(({ authorization }) => authorization)
-  await runAs(composition, alice)
-  assert.deepEqual([...new Set(routed())], [`Bearer ${stored.key}`])
+  assert.equal(await runAs(composition, alice), 'BUILDER_MODEL_AUTH_FAILED')
+  assert.deepEqual(routed(), [])
 
   seen.length = 0
   assert.equal(await runAs(composition, bob), 'BUILDER_MODEL_AUTH_FAILED')
