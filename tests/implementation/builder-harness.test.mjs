@@ -294,6 +294,24 @@ test('a submit_plan refused outside Planejar never suspends, so answering it as 
   assert.equal(session.mode.get(), 'build')
 })
 
+test('a Google AI Pro model lists its tools without throwing and has no web_search; a native provider model keeps it', async () => {
+  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  // The exact MastraModelConfig shape module.ts's createModelResolver returns for every run today
+  // (Only Google AI Pro is wired in slice 1): an OpenAICompatibleConfig routed through CLIProxy,
+  // whose provider id Mastra's built-in webSearchTool cannot infer as OpenAI, Anthropic, Google, or xAI.
+  const googleAiProModel = { providerId: 'google-ai-pro', modelId: 'gemini-3.1-pro-low', url: 'http://127.0.0.1:1/v1', apiKey: 'test-key' }
+  const googleController = createBuilderController({ model: googleAiProModel, storage: new InMemoryStore(), skillsPath })
+  const googleSession = await googleController.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
+  const googleTools = await googleController.getCurrentAgent(googleSession).listTools({ requestContext: new RequestContext() })
+  assert.equal('web_search' in googleTools, false, 'a provider Mastra cannot infer gets no web_search tool')
+  assert.equal('web_fetch' in googleTools, true, 'web_fetch stays available regardless of provider')
+
+  const nativeController = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore(), skillsPath })
+  const nativeSession = await nativeController.createSession({ resourceId: 'project:probe-native-search', scope: 'probe-native-search' })
+  const nativeTools = await nativeController.getCurrentAgent(nativeSession).listTools({ requestContext: new RequestContext() })
+  assert.equal('web_search' in nativeTools, true, 'a model on a native-search provider keeps web_search')
+})
+
 test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {
   const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
   const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }

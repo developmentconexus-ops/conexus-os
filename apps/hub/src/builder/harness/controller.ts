@@ -17,6 +17,46 @@ import { createSubmitPlanTool } from './tools.js'
 /** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). */
 export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills', 'conexus-server')
 
+/**
+ * The provider ids Mastra's built-in `webSearchTool` can resolve to a native provider search
+ * (`normalizeWebSearchProvider` in `@mastra/core/tools`'s `tools-*.js`, not part of that package's
+ * public `./tools` export surface, so the Hub cannot call it directly and duplicates the set here,
+ * once). Offering `web_search` for any other provider throws `WEB_SEARCH_UNSUPPORTED_PROVIDER`
+ * before the first model call (spec 0002 AC-11): a model without native search gets no `web_search`
+ * tool at all here, in slice 1; a common search tool for such models is slice 6's owed decision.
+ */
+const NATIVE_WEB_SEARCH_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'google', 'xai'])
+
+/** The provider id embedded in a `provider/model` string, or the whole string when it carries none. */
+const providerOf = (modelString: string): string => {
+  const slash = modelString.indexOf('/')
+  return slash > 0 ? modelString.slice(0, slash) : modelString
+}
+
+/**
+ * The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model`
+ * router string, either `OpenAICompatibleConfig` shape (module.ts's `createModelResolver` returns
+ * the `providerId` one for Google AI Pro today), or an already-resolved language model instance.
+ */
+const resolveModelProviderId = (model: MastraModelConfig): string | undefined => {
+  if (typeof model === 'string') return providerOf(model)
+  if (typeof model !== 'object' || model === null) return undefined
+  if ('providerId' in model && typeof model.providerId === 'string') return model.providerId
+  if ('id' in model && typeof model.id === 'string') return providerOf(model.id)
+  if ('provider' in model && typeof model.provider === 'string') return model.provider
+  return undefined
+}
+
+/** Whether the run's model has a Mastra-native `web_search` (spec 0002 AC-11, Tool contract). */
+const hasNativeWebSearch = async (
+  model: BuilderControllerDeps['model'],
+  ctx: { requestContext: RequestContext },
+): Promise<boolean> => {
+  const resolved = typeof model === 'function' ? await model(ctx) : model
+  const providerId = resolveModelProviderId(resolved)
+  return providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)
+}
+
 export type BuilderControllerDeps = Readonly<{
   /** One E2B workspace per run, seeded from `main`; a resolver so a fresh one can be supplied per session (Shape of the harness). Tests pass a static local one. */
   workspace: DynamicArgument<Workspace | undefined>
@@ -61,7 +101,8 @@ const guardedWorkspace = (
 
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
- * every mode shares (`connector_fetch`, `web_search`, `web_fetch`), the `plan`/`build` modes with the
+ * every mode shares (`connector_fetch`, `web_fetch`, and `web_search` when the run's model has native
+ * provider search in Mastra), the `plan`/`build` modes with the
  * plan-to-build transition, `submit_plan` overridden for AC-1 and mode-gated on its first call, and
  * the mode guard attached to whatever workspace the run resolves to. No Hub wiring: the caller owns
  * sessions, routes, and where `workspace`, `model`, `storage`, and `connectorFetch` come from.
@@ -77,7 +118,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     instructions: conexusInstructions(modes),
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
-      web_search: webSearchTool,
+      ...(await hasNativeWebSearch(deps.model, ctx) ? { web_search: webSearchTool } : {}),
       web_fetch: webFetchTool,
     }),
     skills: [deps.skillsPath ?? defaultBuilderSkillsRoot()],
