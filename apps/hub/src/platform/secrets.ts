@@ -1,7 +1,7 @@
 import { createHash, createHmac, hkdfSync } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
-import { createFactorySecretEncryption } from '@mastra/factory/secret-encryption'
-import type { FactorySecretEncryption, FactorySecretEncryptionKey } from '@mastra/factory/secret-encryption'
+import { createFactorySecretEncryption } from './factory-secret-encryption.js'
+import type { FactorySecretEncryption, FactorySecretEncryptionKey } from './factory-secret-encryption.js'
 
 export const readSecretFile = (path: string): string => {
   const stat = statSync(path)
