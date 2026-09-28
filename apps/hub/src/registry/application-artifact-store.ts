@@ -130,7 +130,7 @@ type ApplicationMetadata = Readonly<{
   }>[]
 }>
 
-export type RetainedApplicationThumbnail = Readonly<{
+type RetainedApplicationThumbnail = Readonly<{
   projectId: string
   artifactRevisionId: string
   mediaType: string
@@ -138,7 +138,7 @@ export type RetainedApplicationThumbnail = Readonly<{
   sha256: string
 }>
 
-export type ApplicationArtifactThumbnail = Readonly<{
+type ApplicationArtifactThumbnail = Readonly<{
   artifactRevisionId: string
   mediaType: 'image/png'
   bytes: Uint8Array

@@ -24,12 +24,12 @@ const SMOKE_HEREDOC = 'CONEXUS_SMOKE_SCRIPT_EOF'
 const SERVER_BUILD_SCRIPT_FILE = '.conexus-server-build.mjs'
 const SERVER_BUILD_HEREDOC = 'CONEXUS_SERVER_BUILD_EOF'
 
-export type CompiledApplicationThumbnail = Readonly<{
+type CompiledApplicationThumbnail = Readonly<{
   mediaType: 'image/png'
   base64: string
 }>
 
-export type CompiledApplicationFile = Readonly<{
+type CompiledApplicationFile = Readonly<{
   path: string
   mediaType: string
   bytes: Uint8Array

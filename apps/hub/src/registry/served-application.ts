@@ -16,7 +16,7 @@ type ServedFileRead =
   | Readonly<{ kind: 'NOT_FOUND'; artifactRevisionId: string }>
   | Readonly<{ kind: 'FILE'; artifactRevisionId: string; file: ServedApplicationFile }>
 
-export type ServedApplicationThumbnail = Readonly<{
+type ServedApplicationThumbnail = Readonly<{
   artifactRevisionId: string
   mediaType: 'image/png'
   bytes: Uint8Array
