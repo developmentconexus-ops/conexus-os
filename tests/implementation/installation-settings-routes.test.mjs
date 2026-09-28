@@ -103,7 +103,17 @@ const createFakeRecords = () => {
   }
 }
 
-const buildApp = async (t, { administration = createFakeAdministration(), memorySettings = createFakeMemorySettings(), github = createFakeGithub(), records = createFakeRecords(), appSlug = 'conexus-probe' } = {}) => {
+const createFakeCredentials = (initial = {}) => {
+  const store = new Map(Object.entries(initial))
+  return {
+    getCredential: async ({ orgId }, provider) => store.get(`${orgId}:${provider}`) ?? null,
+    setCredential: async ({ orgId }, provider, value) => {
+      store.set(`${orgId}:${provider}`, value)
+    },
+  }
+}
+
+const buildApp = async (t, { administration = createFakeAdministration(), memorySettings = createFakeMemorySettings(), github = createFakeGithub(), records = createFakeRecords(), credentials = createFakeCredentials({ [`${ORG}:anthropic`]: { type: 'api_key', key: 'test-key' } }), appSlug = 'conexus-probe' } = {}) => {
   const resolveCurrentSession = async (request) => {
     const accountId = request.cookies['__Host-conexus_session']
     return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
@@ -113,7 +123,7 @@ const buildApp = async (t, { administration = createFakeAdministration(), memory
     registerRoutes: async (instance) => {
       await registerInstallationRoutes(instance, { origin, resolveCurrentSession, installationAdministration: administration })
       await registerModelAccountRoutes(instance, {
-        domains: { credentials: {}, modelPacks: {}, memorySettings },
+        domains: { credentials, modelPacks: {}, memorySettings },
         orgId: ORG,
         origin,
         resolveCurrentSession,
@@ -223,6 +233,12 @@ test('the memory GET/PUT round trip reads and writes the observer and reflector 
   const { as } = await buildApp(t)
   const asAdmin = as(admin)
   assert.deepEqual(await asAdmin('GET', '/api/control/installation/memory'), { status: 200, body: { model: null } })
+
+  // A model whose provider has no shared credential returns 409
+  const uncovered = await asAdmin('PUT', '/api/control/installation/memory', { model: 'openai/gpt-5.5' })
+  assert.equal(uncovered.status, 409)
+  assert.equal(uncovered.body.type.endsWith('model-not-covered-by-company'), true)
+
   const put = await asAdmin('PUT', '/api/control/installation/memory', { model: 'anthropic/claude-sonnet-4-6' })
   assert.deepEqual(put, { status: 200, body: { model: 'anthropic/claude-sonnet-4-6' } })
   assert.deepEqual(await asAdmin('GET', '/api/control/installation/memory'), { status: 200, body: { model: 'anthropic/claude-sonnet-4-6' } })
