@@ -1,6 +1,7 @@
 import { submitPlanTool } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { DEFAULT_REPOSITORY_ROOT, isUnderWriteRoot } from './guard.js'
 import { BUILDER_MODES, PLAN_WRITE_ROOT, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { readModeId } from './request-context.js'
 
@@ -19,10 +20,12 @@ type SubmitPlanContext = Parameters<SubmitPlanExecute>[1] & Readonly<{ requestCo
  * The native `submit_plan` tool, wearing our own description (the built-in one names
  * `.mastracode/plans/`, which conflicts with AC-1 and AC-3) and a mode check on the first call only:
  * a resumed call (`resumeData` set) is the person's own decision replaying, not a fresh attempt, so it
- * is never refused here.
+ * is never refused here. A resume needs a suspension, and only a first call this check let through
+ * ever suspends, so the check cannot be skipped by answering a refused call.
  */
 export const createSubmitPlanTool = (
   modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>> = BUILDER_MODES,
+  repositoryRoot: string = DEFAULT_REPOSITORY_ROOT,
 ): typeof submitPlanTool => ({
   ...submitPlanTool,
   description: SUBMIT_PLAN_DESCRIPTION,
@@ -31,7 +34,7 @@ export const createSubmitPlanTool = (
       const modeId = readModeId(context?.requestContext)
       const mode = modeId ? modes[modeId] : undefined
       if (!mode?.allowsSubmitPlan) return `Refused by the Conexus mode guard: submit_plan is only available in ${modes.plan.displayName}.`
-      if (!input.path.startsWith(PLAN_WRITE_ROOT)) return `Refused by the Conexus mode guard: the plan file must be under ${PLAN_WRITE_ROOT}.`
+      if (!isUnderWriteRoot(input.path, PLAN_WRITE_ROOT, repositoryRoot)) return `Refused by the Conexus mode guard: the plan file must be under ${PLAN_WRITE_ROOT}.`
     }
     return submitPlanTool.execute?.(input, context)
   },

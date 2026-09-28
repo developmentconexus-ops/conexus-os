@@ -1,4 +1,4 @@
-export { attachBuilderModeGuard, createBuilderModeGuard } from './guard.js'
+export { attachBuilderModeGuard, createBuilderModeGuard, DEFAULT_REPOSITORY_ROOT, isUnderWriteRoot, repositoryPath } from './guard.js'
 export {
   BUILDER_MODES,
   DEFAULT_BUILDER_MODE,

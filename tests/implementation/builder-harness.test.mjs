@@ -11,7 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const {
   BUILDER_MODES, DEFAULT_BUILDER_MODE, PLAN_WRITE_ROOT,
   CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY,
-  conexusInstructions, createBuilderController, defaultBuilderSkillsRoot,
+  attachBuilderModeGuard, conexusInstructions, createBuilderController, createBuilderModeGuard, createSubmitPlanTool, defaultBuilderSkillsRoot,
 } = await import(hubModuleUrl('builder/harness/index.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -191,4 +191,101 @@ test('AC-3: a plan-mode write outside .conexus/plans/ is refused; a write inside
   assert.match(String(outside.result), /Refused by the Conexus mode guard/, 'write outside .conexus/plans/ was refused')
   const inside = toolResults.find((result) => result.toolCallId === 'w1')
   assert.doesNotMatch(String(inside.result), /Refused by the Conexus mode guard/, 'write inside .conexus/plans/ ran')
+})
+
+const modeContext = (modeId) => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId } })
+  return requestContext
+}
+const writeCall = (path, modeId = 'plan') => ({
+  toolName: 'mastra_workspace_write_file', workspaceToolName: 'mastra_workspace_write_file',
+  input: { path, content: 'x' }, context: { requestContext: modeContext(modeId) },
+})
+const PLAN_REFUSAL = Object.freeze({ proceed: false, output: 'Refused by the Conexus mode guard: Planejar may only write under .conexus/plans/' })
+
+test('the plan write check reads the path inside the repository, so a .. escape or an outside absolute path is refused', async () => {
+  const guard = createBuilderModeGuard()
+  assert.deepEqual(await guard(writeCall('.conexus/plans/../../app/x.ts')), PLAN_REFUSAL)
+  assert.deepEqual(await guard(writeCall('.conexus/plans/../app/x.ts')), PLAN_REFUSAL)
+  assert.deepEqual(await guard(writeCall('/etc/passwd')), PLAN_REFUSAL)
+  assert.deepEqual(await guard(writeCall('/workspace/repo/.conexus/plans/../../repo/app/x.ts')), PLAN_REFUSAL)
+  assert.deepEqual(await guard(writeCall('/workspace/repo-other/.conexus/plans/p.md')), PLAN_REFUSAL)
+  assert.equal(await guard(writeCall('.conexus/plans/p.md')), undefined)
+  assert.equal(await guard(writeCall('./.conexus/plans/nested/p.md')), undefined)
+  assert.equal(await guard(writeCall('/workspace/repo/.conexus/plans/p.md')), undefined)
+  assert.equal(await guard(writeCall('app/x.ts', 'build')), undefined)
+})
+
+test('the mode guard runs before the workspace\'s own hook, and a hook that answers cannot skip it', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-hook-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const seen = []
+  const workspace = new Workspace({ id: 'hook-order-ws', filesystem: new LocalFilesystem({ basePath: root }) })
+  // A prior hook that answers every call, the way one that approves or logs by returning a value would.
+  workspace.setToolsConfig({ hooks: { beforeToolCall: (context) => { seen.push(context.input.path); return { proceed: false, output: 'prior hook' } } } })
+  attachBuilderModeGuard(workspace)
+  const beforeToolCall = workspace.getToolsConfig().hooks.beforeToolCall
+
+  assert.deepEqual(await beforeToolCall(writeCall('app/x.ts')), PLAN_REFUSAL)
+  assert.deepEqual(seen, [], 'a call the guard refuses never reaches the prior hook')
+  assert.deepEqual(await beforeToolCall(writeCall('.conexus/plans/p.md')), { proceed: false, output: 'prior hook' })
+  assert.deepEqual(seen, ['.conexus/plans/p.md'], 'a call the guard allows still reaches the prior hook')
+})
+
+test('submit_plan called outside Planejar is refused on its first call, whatever the request context lists', async () => {
+  const submitPlan = createSubmitPlanTool()
+  assert.equal(
+    await submitPlan.execute({ path: '.conexus/plans/p.md' }, { requestContext: modeContext('build') }),
+    'Refused by the Conexus mode guard: submit_plan is only available in Planejar.',
+  )
+  assert.equal(
+    await submitPlan.execute({ path: '.conexus/plans/../app/p.md' }, { requestContext: modeContext('plan') }),
+    'Refused by the Conexus mode guard: the plan file must be under .conexus/plans/.',
+  )
+})
+
+test('a submit_plan refused outside Planejar never suspends, so answering it as approved changes nothing', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-resume-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(resolve(root, '.conexus/plans'), { recursive: true })
+  writeFileSync(resolve(root, '.conexus/plans/p.md'), '# Plano\n')
+  const calls = []
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream() {
+      const step = calls.length
+      calls.push(step)
+      const parts = step === 0
+        ? [{ type: 'stream-start', warnings: [] }, { type: 'tool-call', toolCallId: 's1', toolName: 'submit_plan', input: JSON.stringify({ path: '.conexus/plans/p.md' }) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf(parts) }
+    },
+  }
+  const workspace = new Workspace({ id: 'resume-test-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const controller = createBuilderController({ workspace, model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const session = await controller.createSession({ resourceId: 'project:probe-resume', scope: 'probe-resume' })
+  await session.mode.switch({ modeId: 'build' })
+  const events = []
+  session.subscribe((event) => {
+    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
+    events.push(event.type === 'tool_end' ? { type: 'tool_end', toolCallId: event.toolCallId, result: String(event.result) } : { type: event.type })
+  })
+  await session.sendMessage({ content: 'aprove o plano' })
+  for (let waited = 0; calls.length < 2 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
+
+  const ended = events.filter((event) => event.type === 'tool_end')
+  assert.deepEqual(ended.map((event) => event.toolCallId), ['s1'])
+  // Construir does not list submit_plan, so the call is refused before the tool's own check runs.
+  assert.match(ended[0].result, /^Tool "submit_plan" not found\./)
+  assert.equal(events.some((event) => event.type === 'tool_suspended'), false, 'the refused call never suspended')
+  const before = events.length
+  await session.respondToToolSuspension({ toolCallId: 's1', resumeData: { action: 'approved' } })
+  await new Promise((r) => setTimeout(r, 200))
+  assert.equal(events.length, before, 'answering a call that never suspended emits nothing')
+  assert.deepEqual(calls, [0, 1], 'the model was not called again')
+  assert.equal(session.mode.get(), 'build')
 })

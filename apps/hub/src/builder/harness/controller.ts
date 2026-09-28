@@ -8,7 +8,7 @@ import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore } from '@mastra/core/storage'
 import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
-import { attachBuilderModeGuard } from './guard.js'
+import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { conexusInstructions } from './prompt.js'
 import { createSubmitPlanTool, webFetchTool, webSearchTool } from './tools.js'
@@ -27,6 +27,8 @@ export type BuilderControllerDeps = Readonly<{
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
   /** Absolute path to the `conexus-server` agent skill. Defaults to the Hub's own `builder-skills/conexus-server`. */
   skillsPath?: string
+  /** Where the run's checkout sits; the mode guard reads every tool path against it. Defaults to `/workspace/repo`. */
+  repositoryRoot?: string
   /** Overrides the mode table; only for tests. */
   modes?: Readonly<Record<BuilderModeId, BuilderModeDefinition>>
   id?: string
@@ -39,16 +41,17 @@ export type BuilderControllerDeps = Readonly<{
 const guardedWorkspace = (
   workspace: BuilderControllerDeps['workspace'],
   modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>,
+  repositoryRoot: string,
 ): DynamicArgument<Workspace | undefined> => {
   if (typeof workspace !== 'function') {
-    if (workspace) attachBuilderModeGuard(workspace, modes)
+    if (workspace) attachBuilderModeGuard(workspace, modes, repositoryRoot)
     return workspace
   }
   const guarded = new WeakSet<Workspace>()
   return async (ctx) => {
     const resolved = await workspace(ctx)
     if (resolved && !guarded.has(resolved)) {
-      attachBuilderModeGuard(resolved, modes)
+      attachBuilderModeGuard(resolved, modes, repositoryRoot)
       guarded.add(resolved)
     }
     return resolved
@@ -64,6 +67,7 @@ const guardedWorkspace = (
  */
 export const createBuilderController = (deps: BuilderControllerDeps): AgentController => {
   const modes = deps.modes ?? BUILDER_MODES
+  const repositoryRoot = deps.repositoryRoot ?? DEFAULT_REPOSITORY_ROOT
 
   const agent = createCodingAgent({
     id: 'conexus-builder',
@@ -83,11 +87,11 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
   return new AgentController({
     id: deps.id ?? 'conexus-builder',
     agent,
-    workspace: guardedWorkspace(deps.workspace, modes),
+    workspace: guardedWorkspace(deps.workspace, modes, repositoryRoot),
     ...(deps.storage ? { storage: deps.storage } : {}),
     ...(deps.memory ? { memory: deps.memory } : {}),
     disableBuiltinTools: ['submit_plan'],
-    tools: () => ({ submit_plan: createSubmitPlanTool(modes) }),
+    tools: () => ({ submit_plan: createSubmitPlanTool(modes, repositoryRoot) }),
     modes: [
       {
         id: modes.plan.id,
