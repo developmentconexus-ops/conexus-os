@@ -3,7 +3,7 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
-import type { AnySpan, ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
+import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
 import { SpanType } from '@mastra/core/observability'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
@@ -177,7 +177,7 @@ export const scheduleRetentionPrune = (
   const tick = async (): Promise<void> => {
     const { storage } = await ready
     for (const result of await storage.getMastraStorage().prune()) {
-      if (result.deleted > 0) log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
+      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }

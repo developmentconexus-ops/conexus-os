@@ -460,6 +460,13 @@ test('composeFactory routes the observability domain back onto the Factory\'s ow
     { domain: 'observability', table: 'mastra_ai_spans', deleted: 1 },
   ])
 
+  // Pruning lazily creates the retention anchor index on the configured table
+  const indexCheck = await pool.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'factory' AND tablename = 'mastra_ai_spans' AND indexname = 'factory_mastra_spans_retention_idx'
+  `)
+  assert.equal(indexCheck.rows.length, 1, 'mastra retention anchor index exists in factory schema')
+
   const survivors = await observabilityStore.getTrace({ traceId })
   assert.deepEqual(survivors.spans.map((span) => span.spanId), [rootSpanId])
   const messages = await memory.listMessagesById({ messageIds: [messageId] })
@@ -501,6 +508,7 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5',
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:2',
     'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
+    'BUILDER_RETENTION_PRUNED:observability.other_table:0',
   ])
 
   // Failed prune is caught and logged
