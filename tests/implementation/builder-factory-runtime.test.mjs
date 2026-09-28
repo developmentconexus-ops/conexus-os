@@ -683,6 +683,31 @@ test("a Project with no binding is told the external-data rule and nothing about
   }
 })
 
+test('the external-data instruction tells the Builder to bind only when no Connection covers the system, and to name the missing read instead of asking to bind when one does', () => {
+  assert.match(EXTERNAL_DATA_INSTRUCTION, /these instructions describe no Connection at all for that system, tell the person to bind a Conexão/)
+  assert.match(EXTERNAL_DATA_INSTRUCTION, /these instructions describe a Connection for that system but no read that covers the request, say that read is not available.*without asking the person to bind anything/)
+})
+
+test('a Project with a Sankhya binding is given the same external-data instruction plus its own brief, never a claim the binding is absent', async (t) => {
+  const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+  const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+  const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
+  const brief = createConnectorBrief({
+    connectors: [{ definition: sankhyaDefinition, adapter: null }],
+    store: { listBindings: async () => [binding] },
+    observability: connectorRecord().observability,
+  })
+  const briefOf = (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId }))
+
+  const run = await harness(t, { connectorBrief: briefOf })
+  await run.start()
+  await run.service.close()
+  const [instructions] = run.configuredInstructions
+  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION), 'the same static rule runs for a bound Project too, unchanged by its own binding')
+  assert.ok(instructions.includes('sankhya.purchase-order.read'), 'its own brief still lists the read it can already make')
+})
+
 test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
   const { createConnectorBrief, CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
