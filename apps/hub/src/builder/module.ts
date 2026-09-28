@@ -29,7 +29,7 @@ import { openFactoryRecords, prepareFactoryRepository } from './factory-provisio
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
 import { SessionRetirementCoordinator } from '@mastra/factory/sandbox/session-retirement'
-import { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
+import type { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
 import { createFactorySourceReads } from './factory-source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
