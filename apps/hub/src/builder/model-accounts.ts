@@ -112,18 +112,62 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
     return false
   }
 
+  const hasOrgCredential = async (provider: string): Promise<boolean> => {
+    const authProviderId = getAuthProviderId(provider)
+    const credential = await credentials.getCredential({ orgId }, authProviderId)
+    return Boolean(credential)
+  }
+
+  const orgCoversModel = async (modelId: string): Promise<boolean> => {
+    const provider = modelId.split('/')[0]
+    return provider ? hasOrgCredential(provider) : false
+  }
+
   // The Factory's own answer for the caller's credentials, user over org, from its route. The
   // Factory appends every custom-provider record (Google AI Pro included) to this answer itself, by
   // the provider's own id, unconditionally — it has no notion of who has a usable credential for an
   // installation-wide provider. The Hub narrows to chat models and, for Google AI Pro specifically,
   // drops it for a caller with no usable credential of their own or the installation's: offering a
   // model whose first turn fails is worse than not offering it.
-  app.get('/api/control/model-accounts/models', async (request, reply) => {
+  app.get<{ Querystring: { scope?: string } }>('/api/control/model-accounts/models', {
+    schema: {
+      querystring: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { scope: { type: 'string' } },
+      },
+    },
+  }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
+    const { scope } = request.query
+    if (scope !== undefined && scope !== 'installation') {
+      return sendProblem(reply, 400, 'invalid-model-scope', 'Invalid model scope')
+    }
     const answer = await app.inject({ method: 'GET', url: '/web/config/models', headers: { cookie: request.headers.cookie ?? '' } })
     if (answer.statusCode !== 200) return reply.code(answer.statusCode).type('application/json').send(answer.body)
     const models = filterChatModels((answer.json() as Readonly<{ models: readonly OfferedModel[] }>).models)
+
+    if (scope === 'installation') {
+      const orgCredentialCache = new Map<string, Promise<boolean>>()
+      const checkOrgCoverage = (provider: string): Promise<boolean> => {
+        let pending = orgCredentialCache.get(provider)
+        if (pending === undefined) {
+          pending = hasOrgCredential(provider)
+          orgCredentialCache.set(provider, pending)
+        }
+        return pending
+      }
+      const installationModels = await Promise.all(
+        models.map(async (model) => ({
+          ...model,
+          hasApiKey: await checkOrgCoverage(model.provider),
+        })),
+      )
+      const googleAiProConnected = await checkOrgCoverage(GOOGLE_AI_PRO_PROVIDER)
+      return { models: googleAiProConnected ? installationModels : installationModels.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
+    }
+
     const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
       await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
     return { models: connected ? models : models.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
@@ -234,6 +278,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   app.put<{ Body: ModelDefaults }>('/api/control/model-defaults/installation', { schema: { body: defaultsBody } }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller || !await requireAdministrator(caller, reply)) return reply
+    if (!await orgCoversModel(request.body.build) || !await orgCoversModel(request.body.fast)) {
+      return sendProblem(reply, 409, 'model-not-covered-by-company', 'Model not covered by a shared account')
+    }
     const pack = await modelPacks.upsert({ orgId, userId: caller.accountId, input: { name: INSTALLATION_DEFAULTS_PACK, models: packModels(request.body) } })
     return { installation: toDefaults(pack.models) }
   })
@@ -260,6 +307,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
   app.put<{ Body: { model: string } }>('/api/control/installation/memory', { schema: { body: memoryBody } }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller || !await requireAdministrator(caller, reply)) return reply
+    if (!await orgCoversModel(request.body.model)) {
+      return sendProblem(reply, 409, 'model-not-covered-by-company', 'Model not covered by a shared account')
+    }
     await setFactoryMemoryModel({ records: { memorySettings }, orgId, modelId: request.body.model, write: () => undefined })
     return { model: request.body.model }
   })
