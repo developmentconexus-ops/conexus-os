@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
+import { createSessionSetupHook, getSessionSandbox } from '@mastra/factory/sandbox/session-sandbox'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -224,6 +225,35 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
   assert.equal(seed.options.envs.GIT_CONFIG_VALUE_0, `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_seed').toString('base64')}`)
   assert.deepEqual(order, [['factory', 'created']])
   assert.equal(created.runs.indexOf(seed), 0, 'the seed is the first command of the start')
+})
+
+test('the agent\'s commands start in the Project checkout, while the Factory still checks out under /workspace', async () => {
+  const sessionId = 'row-cwd'
+  const entry = getSessionSandbox(sessionId, 'acme/app', () => createFactorySandbox({
+    apiKey: 'e2b-key', templateId: 'conexus:tpl', readCheckout: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
+  })({ sessionId, repoFullName: 'acme/app' }))
+  const sandbox = entry.sandbox
+  const vms = [fakeVm('vm-fresh-1'), fakeVm('vm-fresh-2')]
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vms.shift()
+  const seen = []
+  sandbox.setOnStart(() => createSessionSetupHook(async (hooked, workdir) => {
+    seen.push({ factoryWorkdir: workdir, cwdDuringFactoryHook: hooked.workingDirectory })
+  }, sessionId, 'acme/app'))
+  await sandbox.start()
+  const firstVm = sandbox.e2b
+  await sandbox.executeCommand('pwd')
+  const agentCwd = firstVm.runs.find(({ script }) => script === 'pwd').options.cwd
+  sandbox.handleSandboxTimeout()
+  await sandbox.start()
+  assert.deepEqual({ seen, agentCwd, cwdAfterRestart: sandbox.workingDirectory }, {
+    seen: [
+      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
+      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
+    ],
+    agentCwd: '/workspace/app',
+    cwdAfterRestart: '/workspace/app',
+  })
 })
 
 

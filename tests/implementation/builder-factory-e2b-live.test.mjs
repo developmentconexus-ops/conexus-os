@@ -30,7 +30,7 @@ const killEverySandboxSeen = async (apiKey, sandboxIds) => {
 test('on a real E2B VM the agent user cannot read a root git environment, and root still moves commits through its own mirror', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const agent = (script, cwd = '/workspace') => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd })
   try {
     await sandbox.start()
@@ -74,7 +74,7 @@ test('on a real E2B VM the agent user cannot read a root git environment, and ro
 test('a VM that E2B killed for idling is replaced by the next command, and root commands reach the new one', { skip, timeout: 5 * 60_000 }, async () => {
   const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
     const dead = sandbox.sandboxId
@@ -93,7 +93,7 @@ test('the application check builds the starter in the real template, keeps its l
   const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
   const { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {}, workingDirectory: '/workspace' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const root = '/workspace/check-probe'
   const sh = (script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: root })
   try {
