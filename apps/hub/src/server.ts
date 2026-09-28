@@ -90,6 +90,16 @@ const project = config.project ? createConfiguredProjectModule({
   },
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
+  thumbnailReader: {
+    readThumbnail: async (input) => {
+      if (servedApplications) {
+        return servedApplications.readThumbnail(input)
+      }
+      const reader = builder?.getApplicationThumbnail
+      if (!reader) throw new Error('BUILDER_THUMBNAIL_READER_UNAVAILABLE')
+      return reader(input)
+    },
+  },
 }) : undefined
 let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
 const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined

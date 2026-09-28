@@ -24,6 +24,11 @@ const SMOKE_HEREDOC = 'CONEXUS_SMOKE_SCRIPT_EOF'
 const SERVER_BUILD_SCRIPT_FILE = '.conexus-server-build.mjs'
 const SERVER_BUILD_HEREDOC = 'CONEXUS_SERVER_BUILD_EOF'
 
+export type CompiledApplicationThumbnail = Readonly<{
+  mediaType: 'image/png'
+  base64: string
+}>
+
 export type CompiledApplicationFile = Readonly<{
   path: string
   mediaType: string
@@ -38,6 +43,7 @@ export type CompiledApplication = Readonly<{
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
   executionId: string
+  thumbnail?: CompiledApplicationThumbnail
 }>
 
 const hasControlCharacter = (value: string): boolean => [...value].some((character) => {
@@ -352,12 +358,23 @@ try {
     returnByValue: true,
   })
   const childCount = evaluated?.result?.value
+  let screenshotBase64 = null
+  if (typeof childCount === 'number' && childCount > 0 && uncaughtErrorText === null) {
+    try {
+      const screenshot = await send('Page.captureScreenshot', { format: 'png' })
+      if (typeof screenshot?.data === 'string' && screenshot.data.length > 0) {
+        screenshotBase64 = screenshot.data
+      }
+    } catch {
+      // screenshot capture is best-effort and must never fail the build
+    }
+  }
   clearTimeout(timer)
   chromium.kill('SIGKILL')
   server.close()
   if (typeof childCount !== 'number' || childCount <= 0) output({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' })
   if (uncaughtErrorText !== null) output({ ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR', detail: uncaughtErrorText })
-  output({ ok: true, childCount })
+  output({ ok: true, childCount, ...(screenshotBase64 ? { screenshotBase64 } : {}) })
 } catch (error) {
   clearTimeout(timer)
   server.close()
@@ -365,10 +382,17 @@ try {
 }
 `
 
+type SmokeVerdict = Readonly<{
+  ok: boolean
+  reason?: string
+  childCount?: number
+  screenshotBase64?: string
+}>
+
 // The script exits 0 only on its own `ok: true` line, so the exit code is a second, independent
 // witness to the same claim; a nonzero exit (killed, crashed before it could print) fails closed
 // even if some earlier, unrelated stdout line happened to parse as JSON with `ok: true`.
-const parseSmokeVerdict = (result: CommandResult): Readonly<{ ok: boolean; reason?: string }> => {
+const parseSmokeVerdict = (result: CommandResult): SmokeVerdict => {
   try {
     const parsed = JSON.parse(result.stdout.trim().split('\n').pop() ?? '')
     if (typeof parsed !== 'object' || parsed === null || typeof parsed.ok !== 'boolean') throw new Error('unparseable')
@@ -380,7 +404,7 @@ const parseSmokeVerdict = (result: CommandResult): Readonly<{ ok: boolean; reaso
 }
 
 /** Serves the compiled output inside `sandbox` and drives headless Chromium at it before the sandbox dies. */
-const smokeApplicationInSandbox = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<void> => {
+const smokeApplicationInSandbox = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<CompiledApplicationThumbnail | undefined> => {
   assertNotAborted(signal)
   const script = `${place.workRoot}/${SMOKE_SCRIPT_FILE}`
   const command = [
@@ -408,6 +432,10 @@ const smokeApplicationInSandbox = async (sandbox: Sandbox, place: BuildPlace, si
   assertNotAborted(signal)
   const verdict = parseSmokeVerdict(result)
   if (!verdict.ok) throw new Error(verdict.reason ?? 'APPLICATION_SMOKE_FAILED')
+  if (typeof verdict.screenshotBase64 === 'string' && verdict.screenshotBase64.length > 0) {
+    return { mediaType: 'image/png', base64: verdict.screenshotBase64 }
+  }
+  return undefined
 }
 
 // The server half reads <workRoot>/conexus and writes <workRoot>/dist/conexus-server. The script is the
@@ -429,11 +457,15 @@ const buildServerInSandbox = async (sandbox: Sandbox, place: BuildPlace, signal:
   if (result.exitCode !== 0) throw new Error('APPLICATION_COMPILATION_FAILED')
 }
 
+export type CompiledApplicationFiles = readonly CompiledApplicationFile[] & Readonly<{
+  thumbnail?: CompiledApplicationThumbnail
+}>
+
 /** Builds an application tree already inside `sandbox`, sharing the agent sandbox instead of a second one. */
 export const buildApplicationInSandbox = async (
   sandbox: Sandbox,
   input: Readonly<{ appRoot: string; workRoot?: string; user?: 'root'; signal?: AbortSignal }>,
-): Promise<readonly CompiledApplicationFile[]> => {
+): Promise<CompiledApplicationFiles> => {
   const place: BuildPlace = { workRoot: input.workRoot ?? DEFAULT_WORK_ROOT, ...(input.user ? { user: input.user } : {}) }
   assertNotAborted(input.signal)
   const dependencyLink = await sandbox.commands.run(`ln -sfn /opt/conexus/compiler/node_modules ${input.appRoot}/node_modules`, {
@@ -456,9 +488,9 @@ export const buildApplicationInSandbox = async (
   assertNotAborted(input.signal)
   await buildServerInSandbox(sandbox, place, input.signal)
   assertNotAborted(input.signal)
-  const output = await collectOutput(sandbox, place, input.signal)
+  const files = await collectOutput(sandbox, place, input.signal)
   assertNotAborted(input.signal)
-  await smokeApplicationInSandbox(sandbox, place, input.signal)
+  const thumbnail = await smokeApplicationInSandbox(sandbox, place, input.signal)
   assertNotAborted(input.signal)
-  return output
+  return Object.assign([...files], thumbnail ? { thumbnail } : {}) as unknown as CompiledApplicationFiles
 }

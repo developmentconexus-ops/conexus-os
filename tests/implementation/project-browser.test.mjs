@@ -89,6 +89,11 @@ async function mockHub(page, hub) {
     }
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/repository')) return json(route, 200, hub.repository)
+    if (p.match(/^\/api\/control\/projects\/[^/]+\/thumbnail$/)) {
+      // 1x1 transparent PNG
+      const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex')
+      return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Cache-Control': 'private, no-cache', 'ETag': '"thumb-rev-1"' }, body: png })
+    }
     if (p.endsWith('/builder-session/preview')) {
       const projectId = p.split('/')[4]
       const name = hub.summaries.find((summary) => summary.projectId === projectId)?.name ?? 'App'
@@ -223,8 +228,8 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Alterado há 5 min.')
     assert.equal(await page.locator('.cx-project-card').first().getAttribute('href'), `/projects/${ids.vacation}`)
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
-    assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
-    assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
+    assert.equal(await page.locator('.cx-thumb img').first().getAttribute('alt'), 'Prévia de Pedidos de férias')
+    assert.equal(await page.locator('.cx-thumb img').first().getAttribute('loading'), 'lazy')
     assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
       'the grid is a uniform 3-column layout, with no card spanning more than one')
     const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))

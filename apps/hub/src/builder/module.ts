@@ -316,9 +316,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
+  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
+  const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
+    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(executorPool, input) } : {}),
+    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(executorPool, input) } : {}),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const factoryComposition = startFactoryComposition({
@@ -425,6 +429,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     prepareProjectRepository: factoryComposition?.prepareRepository,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
+    getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     recover: service.recover,
     close: async () => {
       try {

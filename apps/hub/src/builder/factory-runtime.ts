@@ -7,7 +7,7 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
-import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { CompiledApplication, CompiledApplicationFiles } from './application-artifact-runtime.js'
 import { APPLICATION_CHECK_INSTRUCTION, BUILDER_SHARED_AGENT_INSTRUCTIONS, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { ConexusFactoryE2BSandbox, customProvidersPrimer, FACTORY_OPERATOR_ID, FACTORY_WORKING_DIRECTORY, HUB_GIT_ROOT, tokenEnvironment } from './factory.js'
 import type { FactoryComposition } from './factory.js'
@@ -25,7 +25,7 @@ type FactoryRunSandbox = Readonly<{
   writeFiles(files: SandboxFileInput[]): Promise<void>
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   // Builds <buildRoot>/app as root, writing only under buildRoot.
-  buildApplication(buildRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
+  buildApplication(buildRoot: string, signal?: AbortSignal): Promise<CompiledApplicationFiles>
 }>
 
 type FactoryAgentTurn = Readonly<{
@@ -273,6 +273,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
         applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files,
+          ...(files.thumbnail ? { thumbnail: files.thumbnail } : {}),
         } }
       } catch (error) {
         const code = error instanceof Error ? error.message : ''

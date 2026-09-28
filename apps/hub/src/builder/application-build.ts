@@ -47,12 +47,38 @@ export type ApplicationArtifactReadResult = Readonly<{
 export type BuilderApplicationArtifacts = Readonly<{
   getApplicationBySource?(input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
   retainApplication(input: Readonly<{ accountId: string; compiled: CompiledApplication }>): Promise<ApplicationArtifactMetadata>
+  retainApplicationThumbnail?(input: Readonly<{
+    accountId: string
+    projectId: string
+    executionId: string
+    sourceRevision: string
+    artifactRevisionId: string
+    mediaType: 'image/png'
+    bytes: Uint8Array
+  }>): Promise<unknown>
+  getApplicationThumbnail?(input: Readonly<{
+    accountId: string
+    projectId: string
+  }>): Promise<Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null>
   readApplicationFileBySource?(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 
 export type UnboundBuilderApplicationArtifacts = Readonly<{
   getApplicationBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
   retainApplication(client: ApplicationArtifactClient, input: Readonly<{ accountId: string; compiled: unknown }>): Promise<ApplicationArtifactMetadata>
+  retainApplicationThumbnail?(client: ApplicationArtifactClient, input: Readonly<{
+    accountId: string
+    projectId: string
+    executionId: string
+    sourceRevision: string
+    artifactRevisionId: string
+    mediaType: 'image/png'
+    bytes: Uint8Array
+  }>): Promise<unknown>
+  getApplicationThumbnail?(client: ApplicationArtifactClient, input: Readonly<{
+    accountId: string
+    projectId: string
+  }>): Promise<Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null>
   readApplicationFileBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 

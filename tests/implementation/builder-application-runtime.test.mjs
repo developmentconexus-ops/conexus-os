@@ -120,7 +120,10 @@ test('an app that imports a web font from an unreachable host still passes the s
 
   const started = Date.now()
   const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
-  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
+  const verdict = JSON.parse(ran.stdout)
+  assert.equal(verdict.ok, true)
+  assert.equal(verdict.childCount, 1)
+  assert.ok(typeof verdict.screenshotBase64 === 'string' && verdict.screenshotBase64.length > 0)
   assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
 })
 
@@ -161,7 +164,10 @@ document.getElementById('root').append(document.createElement('main'))
   writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
     .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
   const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
-  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
+  const verdict = JSON.parse(ran.stdout)
+  assert.equal(verdict.ok, true)
+  assert.equal(verdict.childCount, 1)
+  assert.ok(typeof verdict.screenshotBase64 === 'string' && verdict.screenshotBase64.length > 0)
 })
 
 test('two smokes started at the same instant do not collide on a fixed port', async (t) => {
@@ -203,8 +209,12 @@ test('two smokes started at the same instant do not collide on a fixed port', as
   // Both instances listen on port 0 for the app server and the DevTools port alike, so nothing here
   // pins them to the same number; a regression to a fixed literal would fail one side with EADDRINUSE.
   const [first, second] = await Promise.all([runInstance('a'), runInstance('b')])
-  assert.deepEqual(JSON.parse(first), { ok: true, childCount: 1 })
-  assert.deepEqual(JSON.parse(second), { ok: true, childCount: 1 })
+  const parsedFirst = JSON.parse(first)
+  const parsedSecond = JSON.parse(second)
+  assert.equal(parsedFirst.ok, true)
+  assert.equal(parsedFirst.childCount, 1)
+  assert.equal(parsedSecond.ok, true)
+  assert.equal(parsedSecond.childCount, 1)
 })
 
 test('a build placed under a root-only directory runs, writes, smokes and reads there as root', async () => {
@@ -260,9 +270,10 @@ test('buildApplicationInSandbox reports a failing vite exit code as APPLICATION_
 
 test('buildApplicationInSandbox serves the built dist and drives headless Chromium at it before returning', async () => {
   const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox, calls } = fakeSandbox(output, { smokeVerdict: { ok: true, childCount: 3 } })
+  const { sandbox, calls } = fakeSandbox(output, { smokeVerdict: { ok: true, childCount: 3, screenshotBase64: 'AQID' } })
   const files = await buildApplicationInSandbox(sandbox, { appRoot })
   assert.equal(files.length, 1)
+  assert.deepEqual(files.thumbnail, { mediaType: 'image/png', base64: 'AQID' })
   const smokeCall = calls.find((call) => call.kind === 'run' && isSmokeCommand(call.command))
   assert.ok(smokeCall, 'a smoke command must run after the build produced output')
   assert.equal(smokeCall.command.includes(appRoot), false, 'the smoke server must serve /workspace/dist, not the app source root')

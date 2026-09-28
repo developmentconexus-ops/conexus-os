@@ -154,6 +154,22 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         })
         const server = await prepareApplicationServer(applicationServer, result.applicationBuild.compiledApplication)
         if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
+        const thumbnail = result.applicationBuild.compiledApplication.thumbnail
+        if (thumbnail && applicationArtifacts.retainApplicationThumbnail) {
+          try {
+            await applicationArtifacts.retainApplicationThumbnail({
+              accountId: input.accountId,
+              projectId: claimed.projectId,
+              executionId: claimed.builderRunId,
+              sourceRevision: admitted,
+              artifactRevisionId: artifact.artifactRevisionId,
+              mediaType: thumbnail.mediaType,
+              bytes: Buffer.from(thumbnail.base64, 'base64'),
+            })
+          } catch {
+            // Best-effort: thumbnail persistence failure never fails the build.
+          }
+        }
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })

@@ -60,6 +60,9 @@ const getJson = async <T>(url: string): Promise<T> => {
 export const listProjectSummaries = async (workspaceId: string): Promise<readonly ProjectCardSummary[]> =>
   (await getJson<{ projects: ProjectCardSummary[] }>(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/project-summaries`)).projects
 
+export const projectThumbnailUrl = (projectId: string): string =>
+  `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`
+
 export const getProjectRepository = (projectId: string): Promise<ProjectRepositoryState> =>
   getJson(`/api/control/projects/${encodeURIComponent(projectId)}/repository`)
 

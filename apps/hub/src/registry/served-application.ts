@@ -16,6 +16,13 @@ type ServedFileRead =
   | Readonly<{ kind: 'NOT_FOUND'; artifactRevisionId: string }>
   | Readonly<{ kind: 'FILE'; artifactRevisionId: string; file: ServedApplicationFile }>
 
+export type ServedApplicationThumbnail = Readonly<{
+  artifactRevisionId: string
+  mediaType: 'image/png'
+  bytes: Uint8Array
+  sha256: string
+}>
+
 export type ServedApplicationReader = Readonly<{
   /** The served manifest, for an API request that runs its server tree. */
   served(input: Readonly<{ accountId: string; projectId: string }>): Promise<ServedApplication | null>
@@ -23,6 +30,8 @@ export type ServedApplicationReader = Readonly<{
   readServedFile(input: Readonly<{ accountId: string; projectId: string; path: string }>): Promise<ServedFileRead>
   /** One file of a pinned revision, while it is still the one served. */
   readFile(input: Readonly<{ accountId: string; projectId: string; artifactRevisionId: string; path: string }>): Promise<ServedApplicationFile | null>
+  /** The captured build thumbnail for whatever is served now, if present and matching the served revision. */
+  readThumbnail(input: Readonly<{ accountId: string; projectId: string }>): Promise<ServedApplicationThumbnail | null>
 }>
 
 const uuid = z.uuid()
@@ -41,6 +50,13 @@ const fileRow = z.union([
   }).strict(),
 ])
 const READ_FILE_SQL = 'SELECT artifact_revision_id, path, media_type, bytes, sha256 FROM reg.read_served_application_file($1, $2, $3, $4)'
+const thumbnailRow = z.object({
+  artifact_revision_id: uuid,
+  media_type: z.literal('image/png'),
+  bytes: z.instanceof(Uint8Array),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict()
+const READ_THUMBNAIL_SQL = 'SELECT artifact_revision_id, media_type, bytes, byte_length, sha256 FROM reg.get_application_thumbnail($1, $2)'
 
 // Both reads are gated in the database by the Account's access to the application (a grant or a
 // membership), not by Project visibility, and they read only the artifact the application serves.
@@ -67,5 +83,17 @@ export const createServedApplicationReader = (pool: PostgresPool): ServedApplica
     if (!result.rows[0]) return null
     const row = fileRow.parse(result.rows[0])
     return row.path === null ? null : { path: row.path, mediaType: row.media_type, bytes: row.bytes, sha256: row.sha256 }
+  },
+  async readThumbnail({ accountId, projectId }) {
+    if (!uuid.safeParse(accountId).success || !uuid.safeParse(projectId).success) return null
+    const result = await pool.query<QueryResultRow>(READ_THUMBNAIL_SQL, [accountId, projectId])
+    if (!result.rows[0]) return null
+    const row = thumbnailRow.parse(result.rows[0])
+    return {
+      artifactRevisionId: row.artifact_revision_id,
+      mediaType: row.media_type,
+      bytes: row.bytes,
+      sha256: row.sha256,
+    }
   },
 })
