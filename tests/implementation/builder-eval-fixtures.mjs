@@ -81,7 +81,7 @@ export function builderTrace({ traceId, builderRunId, projectId }) {
 export const seedSpans = async (storage, records) => (await storage.getStore('observability')).batchCreateSpans({ records })
 
 /** A Hub that knows `models` and hands out Project ids p-1, p-2, … in call order. */
-export function fakeHub(models) {
+function fakeHub(models) {
   const created = []
   const bound = []
   return {
@@ -104,7 +104,7 @@ export function fakeHub(models) {
  * (trace-<project>) and answers a built Preview, or a failed run when `failures[model]` still holds a
  * failure category for that model.
  */
-export function fakeRunCase(storage, { failures = {} } = {}) {
+function fakeRunCase(storage, { failures = {} } = {}) {
   const calls = []
   let inFlight = 0
   let maxInFlight = 0
@@ -134,7 +134,7 @@ export function fakeRunCase(storage, { failures = {} } = {}) {
 }
 
 /** The simulator's health route only, serving `fixtures`, on a loopback port. */
-export async function startSimulatorHealth(fixtures) {
+async function startSimulatorHealth(fixtures) {
   const server = createServer((request, response) => {
     response.writeHead(request.url === '/__sim/health' ? 200 : 404, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ fixtures, counters: { loadRecords: 0, refusals: 0, otherServices: 0 } }))
