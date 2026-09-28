@@ -157,6 +157,15 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
   },
 })
 
+// A token is one Sankhya session, and a session cancels a second service in flight (envelope status "4", https://developer.sankhya.com.br/docs/09_service).
+const lanes = new WeakMap<AccessToken, Promise<unknown>>()
+
+const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
+  const turn = (lanes.get(token) ?? Promise.resolve()).then(work)
+  lanes.set(token, turn.catch(() => undefined))
+  return turn
+}
+
 /** The adapter factory. The Hub passes the pinned origin; a test passes a local fake's origin directly. */
 export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fetch }: Readonly<{ origin: string; fetch?: typeof fetch }>): Adapter<SankhyaCredential, SankhyaSession> => Object.freeze({
   async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> {
@@ -175,12 +184,12 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
   open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): SankhyaSession {
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
       if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
-      const bearer = (await token()).bearer()
-      return trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
+      const leased = await token()
+      return inLane(leased, () => trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${leased.bearer()}` },
         body: requestBody(service, query),
-      }, signal, 'service', answer), answer))
+      }, signal, 'service', answer), answer)))
     }
     return Object.freeze({
       callService,

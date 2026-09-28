@@ -130,6 +130,51 @@ test('P10: a short-lived token is reused, then refreshed before it expires', asy
     ['Bearer fake-token-1', 'Bearer fake-token-1', 'Bearer fake-token-1', 'Bearer fake-token-1', 'Bearer fake-token-2', 'Bearer fake-token-2'])
 })
 
+test('concurrent calls on one Connection send one service request at a time on its token, so the provider cancels none', async (t) => {
+  const { fake, broker } = await setup(t)
+  fake.mode.service = 'cancel-concurrent'
+  const results = await Promise.all([1, 2].map(() => broker.call(consumer, READ, { documentNumber: 22790 })))
+  assert.deepEqual(results, [{ ok: true, value: EXPECTED_ORDER_22790 }, { ok: true, value: EXPECTED_ORDER_22790 }])
+  assert.deepEqual(fake.requests.filter((request) => request.authorization).map((request) => request.authorization), Array(4).fill('Bearer fake-token-1'))
+  assert.equal(fake.sameBearerOverlaps(), 0, 'no service request arrived while another on its bearer was unanswered')
+})
+
+test('a request whose deadline passes while it waits on its token is never sent, and the token then serves the next call', async (t) => {
+  const tokens = createTokenCache()
+  const { fake, broker, gateway } = await setup(t, { tokens, deadlineMs: 1000 })
+  const short = createBroker({
+    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    store: memoryStore(), envelope, observability: connectorRecord().observability,
+    tokens, deadlineMs: 300,
+  })
+  assert.equal((await broker.call(consumer, READ, { documentNumber: 22790 })).ok, true)
+  const before = fake.requests.length
+  fake.mode.service = 'stall'
+  assert.deepEqual(await Promise.all([broker, short].map((b) => b.call(consumer, READ, { documentNumber: 22790 }))), [
+    { ok: false, code: 'PROVIDER_TIMEOUT' },
+    { ok: false, code: 'PROVIDER_TIMEOUT' },
+  ])
+  fake.mode.service = 'ok'
+  assert.deepEqual(await short.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
+  assert.deepEqual(fake.requests.slice(before).map((request) => request.authorization), Array(3).fill('Bearer fake-token-1'))
+  assert.equal(fake.issued(), 1)
+})
+
+test('a request stalled on one token does not hold back a request on another token', async (t) => {
+  const { fake, broker, gateway } = await setup(t, { deadlineMs: 1000 })
+  assert.equal((await broker.call(consumer, READ, { documentNumber: 22790 })).ok, true)
+  const other = createBroker({
+    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    store: memoryStore(), envelope, observability: connectorRecord().observability,
+    deadlineMs: 300,
+  })
+  fake.mode.service = 'stall-first-token'
+  assert.deepEqual(await Promise.all([broker.call(consumer, READ, { documentNumber: 22790 }), other.call(consumer, READ, { documentNumber: 22790 })]), [
+    { ok: false, code: 'PROVIDER_TIMEOUT' },
+    { ok: true, value: EXPECTED_ORDER_22790 },
+  ])
+})
+
 test('P3: an input naming a service, entity, expression, URL, header or token is refused with zero fake requests', async (t) => {
   const { fake, broker, store } = await setup(t)
   const cases = [
