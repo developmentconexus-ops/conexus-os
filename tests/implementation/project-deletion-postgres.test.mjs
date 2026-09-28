@@ -182,7 +182,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     // iam.handoff: a PREVIEW handoff naming the same preview and its parent Hub session.
     await client.query(
       `INSERT INTO iam.handoff(handoff_digest, kind, account_id, preview_id, parent_digest, minted_at, expires_at)
-       VALUES ($1, 'PREVIEW', $2, $3, $4, clock_timestamp(), clock_timestamp() + interval '30 seconds')`,
+       VALUES ($1, 'PREVIEW', $2, $3, $4, now(), now() + interval '30 seconds')`,
       [randomBytes(32), accountId, previewId, hubDigest],
     )
 
