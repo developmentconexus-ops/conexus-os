@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { AdapterFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
 import type { Adapter, EnvelopeStatus, ProviderAnswer, RequestTrace } from '../operation.js'
-import { AccessToken } from '../token-cache.js'
+import { AccessToken, inLane } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 
@@ -156,15 +156,6 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
     },
   },
 })
-
-// A token is one Sankhya session, and a session cancels a second service in flight (envelope status "4", https://developer.sankhya.com.br/docs/09_service).
-const lanes = new WeakMap<AccessToken, Promise<unknown>>()
-
-const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
-  const turn = (lanes.get(token) ?? Promise.resolve()).then(work)
-  lanes.set(token, turn.catch(() => undefined))
-  return turn
-}
 
 /** The adapter factory. The Hub passes the pinned origin; a test passes a local fake's origin directly. */
 export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fetch }: Readonly<{ origin: string; fetch?: typeof fetch }>): Adapter<SankhyaCredential, SankhyaSession> => Object.freeze({
