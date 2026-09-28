@@ -16,11 +16,20 @@ export const BROKER_ERROR_CODES = [
 
 export type BrokerErrorCode = typeof BROKER_ERROR_CODES[number]
 
-export type BrokerResult<O> =
-  | Readonly<{ ok: true; value: O }>
-  | Readonly<{ ok: false; code: BrokerErrorCode; issues?: readonly string[] }>
+type Refusal = Readonly<{ ok: false; code: BrokerErrorCode; issues?: readonly string[] }>
 
-export const refused = (code: BrokerErrorCode, issues?: readonly string[]): BrokerResult<never> =>
+export type BrokerResult<O> = Readonly<{ ok: true; value: O }> | Refusal
+
+const ISSUE_LIMIT = 10
+
+// Schema paths only: an unrecognized key is the caller's own text, so it comes back as a placeholder.
+export const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string }>[]): readonly string[] =>
+  [...new Set(issues.slice(0, ISSUE_LIMIT).map((issue) => {
+    const path = `/${issue.path.map(String).join('/')}`
+    return (issue.code === 'unrecognized_keys' ? `${path === '/' ? '' : path}/<unrecognized>` : path).slice(0, 200)
+  }))]
+
+export const refused = (code: BrokerErrorCode, issues?: readonly string[]): Refusal =>
   Object.freeze(issues && issues.length > 0 ? { ok: false, code, issues: Object.freeze([...issues]) } : { ok: false, code })
 
 /** What an adapter may report. `TOKEN_REFUSED` is the token cache's signal to drop and reissue once. */
