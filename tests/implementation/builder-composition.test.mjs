@@ -246,6 +246,19 @@ test("the Builder's spans persist, and the 30-day retention prunes only stale sp
   assert.equal(messages.messages.length, 1)
 })
 
+test("the retention prune at boot on a fresh installation waits for the store's tables instead of failing on them", async (t) => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
+  const logs = []
+  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
+  t.after(() => schedule.close())
+  await schedule.tick()
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
+  ])
+})
+
 test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
   const { scheduleRetentionPrune } = await import(built('builder/module.js'))
   const logs = []
@@ -253,6 +266,7 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
   let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
 
   const storage = {
+    init: async () => undefined,
     prune: async () => {
       pruneCalls++
       return pruneResult
@@ -281,7 +295,7 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
   ])
 
   // Failed prune is caught and logged
-  const failing = { prune: async () => { throw new Error('DB_DISCONNECTED') } }
+  const failing = { init: async () => undefined, prune: async () => { throw new Error('DB_DISCONNECTED') } }
   const failLogs = []
   const failingSchedule = scheduleRetentionPrune(failing, (line) => failLogs.push(line), 60_000)
   await new Promise((r) => setImmediate(r))

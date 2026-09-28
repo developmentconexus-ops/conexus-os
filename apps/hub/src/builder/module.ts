@@ -157,6 +157,8 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
         exporters: [new MastraStorageExporter()],
         spanOutputProcessors: [compactProcessorRunPayloads],
         serializationOptions: { maxStringLength: 32_768 },
+        // The Postgres store keeps spans but has no log table; the Hub's logs stay on its console.
+        logging: { enabled: false },
       },
     },
   })
@@ -180,16 +182,18 @@ export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
   new PostgresStore({ id: 'conexus-builder', pool, schemaName: 'factory', retention: OBSERVABILITY_SPAN_RETENTION })
 
 // Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
-// `maxAge` policy above; this is the schedule that actually deletes rows older than it.
+// `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
+// waits for the store's own init, which creates the tables a fresh installation does not have yet.
 type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
 
 /** @public Tests import this at runtime from the built module. */
 export const scheduleRetentionPrune = (
-  storage: Pick<MastraCompositeStore, 'prune'>,
+  storage: Pick<MastraCompositeStore, 'init' | 'prune'>,
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
   const tick = async (): Promise<void> => {
+    await storage.init()
     for (const result of await storage.prune()) {
       log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
