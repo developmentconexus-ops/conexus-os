@@ -229,39 +229,122 @@ const sellerMonthOf = (label) => {
   return at < 0 ? null : { seller: label.slice(0, at), month: label.slice(at + 3) }
 }
 
+const MONTH_NAME_INDEX = Object.freeze({
+  jan: 1, janeiro: 1,
+  fev: 2, fevereiro: 2,
+  mar: 3, marco: 3,
+  abr: 4, abril: 4,
+  mai: 5, maio: 5,
+  jun: 6, junho: 6,
+  jul: 7, julho: 7,
+  ago: 8, agosto: 8,
+  set: 9, setembro: 9,
+  out: 10, outubro: 10,
+  nov: 11, novembro: 11,
+  dez: 12, dezembro: 12,
+})
+
+/**
+ * Parses one month cell, in any of the forms a rendered dashboard or the fixture's own labels use,
+ * into one canonical 'yyyy-mm' key: 'jan/2026', 'Jan 2026', 'janeiro/2026', 'Janeiro 2026',
+ * 'janeiro de 2026', '01/2026', '1/2026', '2026-01', or a bare month name ('Janeiro', 'jan') when
+ * `fallbackYear` is given. Null when the cell matches none of these. The truth labels
+ * ('APELIDO · jan/2026') are parsed through this same function, so a differently formatted table
+ * header still binds to the truth's month.
+ * @returns {string | null}
+ */
+function monthKeyOf(rawText, { fallbackYear } = {}) {
+  const text = fold(String(rawText)).trim()
+  const keyed = (year, month) => (month >= 1 && month <= 12 ? `${year}-${String(month).padStart(2, '0')}` : null)
+
+  const iso = /^(\d{4})-(\d{1,2})$/.exec(text)
+  if (iso) return keyed(Number(iso[1]), Number(iso[2]))
+
+  const numeric = /^(\d{1,2})\/(\d{4})$/.exec(text)
+  if (numeric) return keyed(Number(numeric[2]), Number(numeric[1]))
+
+  const withDe = /^([a-z]+) de (\d{4})$/.exec(text)
+  if (withDe && MONTH_NAME_INDEX[withDe[1]]) return keyed(Number(withDe[2]), MONTH_NAME_INDEX[withDe[1]])
+
+  const named = /^([a-z]+)[\s/]+(\d{4})$/.exec(text)
+  if (named && MONTH_NAME_INDEX[named[1]]) return keyed(Number(named[2]), MONTH_NAME_INDEX[named[1]])
+
+  if (MONTH_NAME_INDEX[text] && fallbackYear) return keyed(fallbackYear, MONTH_NAME_INDEX[text])
+
+  return null
+}
+
 /**
  * A Preview's plain text is a browser's `innerText` of the rendered dashboard: an HTML table reads
  * back as one tab-separated line per row, header included. Binds each seller-month amount to the
  * cell at its own row and column, so amounts swapped between sellers or months are told apart even
- * though every number and name is still somewhere on screen. Returns null when the text carries no
- * such table (at least two of the truth's month labels in one line's cells), so the caller falls
- * back to whole-text matching.
- * @returns {Map<string, { cents: Cents, wholeReais: boolean }> | null}
+ * though every number and name is still somewhere on screen. Reads either orientation: sellers as
+ * rows with months as columns, or months as rows with sellers as columns. Returns null only when the
+ * text has no tab-separated line at all, so the caller falls back to whole-text matching; a table
+ * whose month headers never resolve to a truth month still returns (with `headerRecognized: false`),
+ * so the caller can refuse to score it instead of silently falling back.
+ * @returns {{ observed: Map<string, { cents: Cents, wholeReais: boolean }>, headerRecognized: boolean } | null}
  */
-function tableOf(text, { names, monthTokens }) {
+function tableOf(text, { names, monthKeys, fallbackYear }) {
   const foldedNames = new Set(names.map(fold))
   const observed = new Map()
-  let columnMonth = null
+  let hasTabLine = false
+  let orientation = null // 'sellerRows' (months across columns) or 'monthRows' (sellers across columns)
+  let columnMap = null
+  let headerRecognized = false
+
   for (const line of text.split('\n')) {
     if (!line.includes('\t')) continue
+    hasTabLine = true
     const cells = line.split('\t')
-    const headerRow = cells.map((cell) => (monthTokens.has(fold(cell.trim())) ? fold(cell.trim()) : undefined))
-    if (headerRow.filter(Boolean).length >= 2) {
-      columnMonth = headerRow
+
+    const monthHeader = cells.map((cell) => {
+      const key = monthKeyOf(cell.trim(), { fallbackYear })
+      return key && monthKeys.has(key) ? key : undefined
+    })
+    if (monthHeader.filter(Boolean).length >= 2) {
+      orientation = 'sellerRows'
+      columnMap = monthHeader
+      headerRecognized = true
       continue
     }
-    if (!columnMonth) continue
-    const sellerCell = cells.find((cell) => foldedNames.has(fold(cell.trim())))
-    if (!sellerCell) continue
-    const seller = fold(sellerCell.trim())
-    cells.forEach((cell, index) => {
-      const month = columnMonth[index]
-      const [amount] = month ? parseAmounts(cell) : []
-      if (amount) observed.set(`${seller}|${month}`, amount)
+
+    const sellerHeader = cells.map((cell) => {
+      const folded = fold(cell.trim())
+      return foldedNames.has(folded) ? folded : undefined
     })
+    if (sellerHeader.filter(Boolean).length >= 2) {
+      orientation = 'monthRows'
+      columnMap = sellerHeader
+      headerRecognized = true
+      continue
+    }
+
+    if (!columnMap) continue
+
+    if (orientation === 'sellerRows') {
+      const sellerCell = cells.find((cell) => foldedNames.has(fold(cell.trim())))
+      if (!sellerCell) continue
+      const seller = fold(sellerCell.trim())
+      cells.forEach((cell, index) => {
+        const month = columnMap[index]
+        const [amount] = month ? parseAmounts(cell) : []
+        if (amount) observed.set(`${seller}|${month}`, amount)
+      })
+    } else {
+      const month = cells.map((cell) => monthKeyOf(cell.trim(), { fallbackYear })).find((key) => key && monthKeys.has(key))
+      if (!month) continue
+      cells.forEach((cell, index) => {
+        const seller = columnMap[index]
+        const [amount] = seller ? parseAmounts(cell) : []
+        if (amount) observed.set(`${seller}|${month}`, amount)
+      })
+    }
   }
-  return observed.size > 0 ? observed : null
+  return hasTabLine ? { observed, headerRecognized } : null
 }
+
+const UNBOUND_TABLE_REASON = 'a tabela tem uma linha ou coluna de mês que eu não reconheço; não dá para confirmar a qual vendedor e mês cada valor pertence'
 
 /**
  * Pure. 1 when every name is on screen, every seller-month amount is at its own seller and month,
@@ -280,14 +363,18 @@ function gradeScreen(output, truth) {
   const text = fold(preview.text)
   const missingNames = truth.names.filter((name) => !text.includes(fold(name)))
 
-  const monthTokens = new Set(truth.amounts.map((amount) => sellerMonthOf(amount.label)).filter(Boolean).map((pair) => fold(pair.month)))
-  const table = tableOf(preview.text, { names: truth.names, monthTokens })
-  const missingAmounts = truth.amounts.filter((amount) => {
-    const pair = sellerMonthOf(amount.label)
+  const pairs = truth.amounts.map((amount) => ({ amount, pair: sellerMonthOf(amount.label) }))
+  const monthKeys = new Set(pairs.map(({ pair }) => pair && monthKeyOf(pair.month)).filter(Boolean))
+  const monthYears = new Set([...monthKeys].map((key) => Number(key.slice(0, 4))))
+  const fallbackYear = monthYears.size === 1 ? [...monthYears][0] : undefined
+  const table = tableOf(preview.text, { names: truth.names, monthKeys, fallbackYear })
+  if (table && !table.headerRecognized) return { score: 0, reason: UNBOUND_TABLE_REASON }
+
+  const missingAmounts = pairs.filter(({ amount, pair }) => {
     if (!pair || !table) return !shown(amount.cents)
-    const cell = table.get(`${fold(pair.seller)}|${fold(pair.month)}`)
+    const cell = table.observed.get(`${fold(pair.seller)}|${monthKeyOf(pair.month)}`)
     return !cell || !matchesCents(cell, amount.cents)
-  })
+  }).map(({ amount }) => amount)
   const mistakesShown = truth.mistakes.filter((mistake) => shown(mistake.cents))
   const problems = [
     ...(missingNames.length > 0 ? [`faltam nomes: ${firstFive(missingNames)}`] : []),

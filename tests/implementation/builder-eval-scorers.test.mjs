@@ -126,6 +126,58 @@ test('app-correct fails a Preview whose table swaps two sellers\' totals or two 
   })
 })
 
+test('app-correct binds a table whose month headers spell out the month name instead of the fixture token', async () => {
+  const { mastra } = evalMastra()
+  const grade = async (text) => {
+    const { score, reason } = await mastra.getScorer('app-correct').run({ output: observed(text), groundTruth: twoSellersTwoMonths })
+    return { score, reason }
+  }
+  const header = 'Vendedor\tJaneiro 2026\tFevereiro 2026'
+
+  assert.deepEqual(await grade(`${header}\nANA\tR$ 1.000,00\tR$ 2.000,00\nBRUNO\tR$ 3.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 1, reason: 'Os 2 nomes e 5 valores aparecem, e nenhum total errado conhecido.',
+  })
+  assert.deepEqual(await grade(`${header}\nANA\tR$ 3.000,00\tR$ 2.000,00\nBRUNO\tR$ 1.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 0, reason: 'faltam valores: R$ 1.000,00 (ANA · jan/2026), R$ 3.000,00 (BRUNO · jan/2026)',
+  })
+})
+
+test('app-correct binds a table whose month headers are numeric (mm/yyyy)', async () => {
+  const { mastra } = evalMastra()
+  const { score, reason } = await mastra.getScorer('app-correct').run({
+    output: observed('Vendedor\t01/2026\t02/2026\nANA\tR$ 1.000,00\tR$ 2.000,00\nBRUNO\tR$ 3.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00'),
+    groundTruth: twoSellersTwoMonths,
+  })
+  assert.deepEqual({ score, reason }, { score: 1, reason: 'Os 2 nomes e 5 valores aparecem, e nenhum total errado conhecido.' })
+})
+
+test('app-correct binds a transposed table, months as rows and sellers as columns', async () => {
+  const { mastra } = evalMastra()
+  const grade = async (text) => {
+    const { score, reason } = await mastra.getScorer('app-correct').run({ output: observed(text), groundTruth: twoSellersTwoMonths })
+    return { score, reason }
+  }
+  const header = 'Mês\tANA\tBRUNO'
+
+  assert.deepEqual(await grade(`${header}\njan/2026\tR$ 1.000,00\tR$ 3.000,00\nfev/2026\tR$ 2.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 1, reason: 'Os 2 nomes e 5 valores aparecem, e nenhum total errado conhecido.',
+  })
+  assert.deepEqual(await grade(`${header}\njan/2026\tR$ 3.000,00\tR$ 1.000,00\nfev/2026\tR$ 2.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00`), {
+    score: 0, reason: 'faltam valores: R$ 1.000,00 (ANA · jan/2026), R$ 3.000,00 (BRUNO · jan/2026)',
+  })
+})
+
+test('app-correct refuses to score a table whose month headers match no known form, instead of falling back to whole-text', async () => {
+  const { mastra } = evalMastra()
+  const { score, reason } = await mastra.getScorer('app-correct').run({
+    output: observed('Vendedor\tPeríodo A\tPeríodo B\nANA\tR$ 1.000,00\tR$ 2.000,00\nBRUNO\tR$ 3.000,00\tR$ 4.000,00\nTotal geral\tR$ 10.000,00'),
+    groundTruth: twoSellersTwoMonths,
+  })
+  assert.deepEqual({ score, reason }, {
+    score: 0, reason: 'a tabela tem uma linha ou coluna de mês que eu não reconheço; não dá para confirmar a qual vendedor e mês cada valor pertence',
+  })
+})
+
 test('findTraceIds answers the finished root of each Builder run and null for one that has none', async () => {
   const { storage, mastra } = evalMastra()
   await seedSpans(storage, builderTrace({ traceId: 'tr-1', builderRunId: 'run-1', projectId: 'p-1' }))
