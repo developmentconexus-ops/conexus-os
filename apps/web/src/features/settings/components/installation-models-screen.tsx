@@ -28,12 +28,12 @@ import {
 import { connectableProviders, shareableRows, sharedRows } from '../model-account-rows'
 import { ConnectAccount } from './connect-account'
 import { RoleModelSelect } from './role-model-select'
-import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine, type StatusLineTone } from './states'
+import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine } from './states'
 
 function SharedAccountsGroup() {
   const accounts = useQuery({ queryKey: modelAccountsQueryKey, queryFn: listModelAccounts })
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
   const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
   const stop = useMutation({
     mutationFn: (provider: string) => stopSharing(provider),
@@ -159,7 +159,7 @@ function InstallationModelDefaultsGroup() {
   const queryClient = useQueryClient()
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
 
   useEffect(() => {
     if (!defaults.data?.installation) return
@@ -224,7 +224,7 @@ function MemoryGroup() {
   const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: 'positive' | 'danger' } | null>(null)
 
   useEffect(() => {
     setModel(memory.data?.model ?? '')

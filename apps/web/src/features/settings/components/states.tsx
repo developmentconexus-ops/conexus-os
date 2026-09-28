@@ -21,7 +21,7 @@ export function SectionEmpty({ children }: Readonly<{ children: ReactNode }>) {
   return <p className="cxs-empty">{children}</p>
 }
 
-export function StatusLine({ tone = 'positive', children }: Readonly<{ tone?: 'positive' | 'danger'; children: ReactNode }>) {
+export function StatusLine({ tone = 'positive', children }: Readonly<{ tone?: 'positive' | 'danger' | undefined; children: ReactNode }>) {
   if (tone === 'danger') return <p className="cxs-alert" role="alert">{children}</p>
   return <p className="cxs-status" role="status">{children}</p>
 }

@@ -320,22 +320,111 @@ test('Memória shows a danger alert when saving the model fails', async (t) => {
   await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
   await routeInstallation(page, true)
   await routeBuilderModels(page)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }),
+  }))
+  await page.route('**/web/config/providers', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }),
+  }))
+  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: true }),
+  }))
   await page.route('**/api/control/installation/memory', (route) => {
     if (route.request().method() === 'PUT') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }) })
   })
 
   await page.goto(`${origin}/settings/installation/memory`)
+  await page.waitForURL(`${origin}/settings/installation/models`)
   await page.getByRole('heading', { name: 'Memória' }).waitFor()
   await page.getByText('Valor atual: Padrão do Conexus').waitFor()
   assert.equal(await page.getByText('gemini-3.5-flash').count(), 0)
   await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
   await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
-  await page.getByRole('button', { name: 'Salvar' }).click()
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click()
   const alert = page.getByRole('alert')
   await alert.getByText('Não foi possível salvar.').waitFor()
   assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
   assert.equal(await page.getByRole('status').count(), 0)
+})
+
+test('Modelos da empresa queries builder models with scope=installation and saves company defaults and memory', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a7b', displayName: 'Administradora', email: 'admin@example.com' })
+  await routeInstallation(page, true)
+
+  const scopesRequested = []
+  await page.route(/\/api\/control\/model-accounts\/models(\?.*)?$/, (route) => {
+    const url = new URL(route.request().url())
+    scopesRequested.push(url.searchParams.get('scope'))
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) })
+  })
+
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      providers: [
+        {
+          provider: 'anthropic',
+          source: 'stored-shared',
+          userCredential: 'oauth',
+          sharedWithEveryone: true,
+          sharedBy: { accountId: 'a7b', displayName: 'Administradora' },
+        },
+      ],
+      orgKeyAdmin: false,
+    }),
+  }))
+
+  let savedDefaults = null
+  await page.route('**/api/control/model-defaults/installation', (route) => {
+    if (route.request().method() === 'PUT') {
+      savedDefaults = route.request().postDataJSON()
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(savedDefaults) })
+    }
+    return route.fulfill({ status: 404 })
+  })
+  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ installation: { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id }, mine: null, administrator: true }),
+  }))
+
+  let savedMemory = null
+  await page.route('**/api/control/installation/memory', (route) => {
+    if (route.request().method() === 'PUT') {
+      savedMemory = route.request().postDataJSON()
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: savedMemory.model }) })
+    }
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ model: null }),
+    })
+  })
+
+  await page.goto(`${origin}/settings/installation/models`)
+  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
+  await page.getByRole('heading', { name: 'Contas compartilhadas' }).waitFor()
+  await page.getByRole('heading', { name: 'Modelos padrão' }).waitFor()
+  await page.getByRole('heading', { name: 'Memória' }).waitFor()
+
+  // Verify that the page queried builder models with scope=installation
+  assert.ok(scopesRequested.includes('installation'), `Expected models query with scope=installation, got ${JSON.stringify(scopesRequested)}`)
+
+  // Save company defaults
+  await page.getByRole('combobox', { name: 'Construção' }).click()
+  await page.getByRole('option', { name: /claude-sonnet-4-5/ }).click()
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Salvar padrões' }).click()
+  await page.getByText('Padrões salvos.').waitFor()
+  assert.deepEqual(savedDefaults, { build: BUILDER_MODELS[1].id, fast: BUILDER_MODELS[1].id })
+
+  // Save memory model
+  await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
+  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click()
+  await page.getByText('Padrão salvo.').waitFor()
+  assert.deepEqual(savedMemory, { model: BUILDER_MODELS[0].id })
 })
 
 test('GitHub shows the removed-app notice with Projetos vocabulary', async (t) => {
