@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações — Protótipo Reorganizado (Conexus OS)</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <!-- Prototype Review Header Controls -->
+  <header class="proto-banner">
+    <div class="proto-banner-title">
+      <span>Configurações</span>
+      <span class="proto-badge">Protótipo C-028</span>
+    </div>
+    <div class="proto-controls">
+      <button class="proto-btn" id="toggle-theme" type="button">Tema: Claro</button>
+      <button class="proto-btn" id="toggle-phone" type="button">🖥️ Desktop</button>
+    </div>
+  </header>
+
+  <!-- Viewport Frame for Desktop or Phone View -->
+  <main class="proto-viewport" id="viewport">
+    <div class="proto-frame">
+      <div class="phone-header">
+        <span style="font-weight: 600; font-size: 0.9rem;">Configurações</span>
+        <button class="btn btn-outline btn-sm" id="phone-menu-toggle" type="button">Seções</button>
+      </div>
+      <div class="app-container">
+        <!-- Sidebar Navigation Rail -->
+        <nav id="rail-container" aria-label="Navegação das configurações"></nav>
+
+        <!-- Main Content Area -->
+        <section class="main-content" id="main-content" aria-live="polite"></section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Dialog / Modal Container -->
+  <div id="modal-container" aria-hidden="true"></div>
+
+  <script type="module">
+    import { initApp } from './app.js';
+    initApp();
+  </script>
+</body>
+</html>

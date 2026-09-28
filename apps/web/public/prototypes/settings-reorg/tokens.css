@@ -1,0 +1,77 @@
+/* Conexus Brand Tokens & Design System */
+:root {
+  --cx-font-display: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+  --cx-font-body: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --cx-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --cx-ease-fit: cubic-bezier(.65, 0, .35, 1);
+  --cx-ease-arrive: cubic-bezier(.22, 1, .36, 1);
+  --cx-radius-control: 6px;
+  --cx-radius-object: 10px;
+  --cx-radius-composer: 16px;
+}
+
+:root,
+[data-theme="light"] {
+  --cx-canvas: #F6F7F8;
+  --cx-surface: #FFFFFF;
+  --cx-surface-2: #FBFBFC;
+  --cx-surface-3: #EFF1F3;
+  --cx-surface-4: #E6E9EC;
+  --cx-line: #DDE1E5;
+  --cx-line-strong: #8A939C;
+  --cx-text: #121518;
+  --cx-text-2: #59616A;
+  --cx-ink: #121518;
+  --cx-on-ink: #FFFFFF;
+  --cx-accent: #B07A0C;
+  --cx-accent-text: #9A6A08;
+  --cx-accent-soft: #FBF1D9;
+  --cx-accent-strong: #835B07;
+  --cx-success: #1B8354;
+  --cx-warning: #B76E00;
+  --cx-danger: #D13438;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cx-canvas: #121518;
+    --cx-surface: #1B1E22;
+    --cx-surface-2: #21252A;
+    --cx-surface-3: #2A2F35;
+    --cx-surface-4: #353B43;
+    --cx-line: #2E343B;
+    --cx-line-strong: #636D78;
+    --cx-text: #F2F4F6;
+    --cx-text-2: #9DA6B0;
+    --cx-ink: #F2F4F6;
+    --cx-on-ink: #121518;
+    --cx-accent: #E6A728;
+    --cx-accent-text: #F3BC46;
+    --cx-accent-soft: #2B2416;
+    --cx-accent-strong: #FFCA58;
+    --cx-success: #36B37E;
+    --cx-warning: #F5A623;
+    --cx-danger: #FF5A5F;
+  }
+}
+
+[data-theme="dark"] {
+  --cx-canvas: #121518;
+  --cx-surface: #1B1E22;
+  --cx-surface-2: #21252A;
+  --cx-surface-3: #2A2F35;
+  --cx-surface-4: #353B43;
+  --cx-line: #2E343B;
+  --cx-line-strong: #636D78;
+  --cx-text: #F2F4F6;
+  --cx-text-2: #9DA6B0;
+  --cx-ink: #F2F4F6;
+  --cx-on-ink: #121518;
+  --cx-accent: #E6A728;
+  --cx-accent-text: #F3BC46;
+  --cx-accent-soft: #2B2416;
+  --cx-accent-strong: #FFCA58;
+  --cx-success: #36B37E;
+  --cx-warning: #F5A623;
+  --cx-danger: #FF5A5F;
+}

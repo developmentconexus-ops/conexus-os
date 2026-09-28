@@ -1,0 +1,614 @@
+/* Standalone prototype styles for Conexus Reorganized Settings */
+@import url('./tokens.css');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--cx-font-body);
+  color: var(--cx-text);
+  background: var(--cx-canvas);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Prototype top bar controls */
+.proto-banner {
+  background: var(--cx-surface);
+  border-bottom: 1px solid var(--cx-line);
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.proto-banner-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.proto-badge {
+  background: var(--cx-accent-soft);
+  color: var(--cx-accent-strong);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--cx-radius-control);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.proto-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.proto-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--cx-radius-control);
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface-2);
+  color: var(--cx-text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.proto-btn:hover {
+  background: var(--cx-surface-3);
+}
+
+.proto-btn.active {
+  background: var(--cx-ink);
+  color: var(--cx-on-ink);
+  border-color: var(--cx-ink);
+}
+
+/* Prototype viewport wrapper (for phone preview mode) */
+.proto-viewport {
+  min-height: calc(100vh - 42px);
+  display: flex;
+  justify-content: center;
+  background: var(--cx-canvas);
+  transition: padding 0.2s ease;
+}
+
+.proto-viewport.phone-mode {
+  padding: 2rem 1rem;
+  background: color-mix(in srgb, var(--cx-text) 5%, var(--cx-canvas));
+}
+
+.proto-frame {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  background: var(--cx-canvas);
+}
+
+.proto-viewport.phone-mode .proto-frame {
+  max-width: 412px;
+  min-height: 840px;
+  height: 860px;
+  border-radius: 36px;
+  border: 8px solid var(--cx-line-strong);
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  position: relative;
+  flex-direction: column;
+}
+
+/* App Layout */
+.app-container {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+}
+
+.proto-viewport.phone-mode .app-container {
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Sidebar Rail */
+.settings-rail {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.phone-header {
+  display: none;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proto-viewport.phone-mode .phone-header {
+  display: flex;
+}
+
+.proto-viewport.phone-mode .settings-rail {
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--cx-line);
+  padding: 1rem;
+  display: none;
+}
+
+.proto-viewport.phone-mode .settings-rail.open {
+  display: flex;
+}
+
+.rail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rail-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cx-text-2);
+  padding: 0 0.5rem 0.25rem;
+}
+
+.rail-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.rail-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--cx-radius-control);
+  text-decoration: none;
+  color: var(--cx-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.rail-link-content {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rail-link:hover {
+  background: var(--cx-surface-3);
+}
+
+.rail-link.active {
+  background: var(--cx-surface-3);
+  color: var(--cx-accent-strong);
+  font-weight: 600;
+}
+
+.rail-link.boundary {
+  opacity: 0.7;
+}
+
+.rail-boundary-chip {
+  font-size: 0.65rem;
+  background: var(--cx-surface-4);
+  color: var(--cx-text-2);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--cx-radius-control);
+  font-weight: 500;
+}
+
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  padding: 2.5rem 2rem 5rem;
+  overflow-y: auto;
+  max-width: 52rem;
+}
+
+.proto-viewport.phone-mode .main-content {
+  padding: 1.25rem 1rem 3rem;
+  max-width: 100%;
+}
+
+/* Settings Standard Classes (.cxs-*) */
+.cxs-page {
+  display: grid;
+  gap: 2.25rem;
+}
+
+.cxs-page-header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.cxs-page-header h1 {
+  margin: 0;
+  font-family: var(--cx-font-display);
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cxs-page-header p {
+  margin: 0;
+  color: var(--cx-text-2);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.cxs-page section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cxs-page h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.cxs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-object);
+  background: var(--cx-surface);
+  overflow: hidden;
+}
+
+.cxs-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--cx-line);
+}
+
+.cxs-list > li:last-child {
+  border-bottom: 0;
+}
+
+.cxs-row-main {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.cxs-row-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.cxs-row-meta {
+  color: var(--cx-text-2);
+  font-size: 0.8rem;
+}
+
+.cxs-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Chips */
+.cxs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  background: var(--cx-surface-3);
+  color: var(--cx-text-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cxs-chip-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cxs-chip-positive {
+  color: var(--cx-success);
+  background: color-mix(in srgb, var(--cx-success) 14%, var(--cx-surface));
+}
+
+.cxs-chip-warning {
+  color: var(--cx-warning);
+  background: color-mix(in srgb, var(--cx-warning) 14%, var(--cx-surface));
+}
+
+.cxs-chip-neutral {
+  color: var(--cx-text-2);
+  background: var(--cx-surface-3);
+}
+
+/* Notice Box */
+.cxs-notice {
+  padding: 0.85rem 1rem;
+  border-radius: var(--cx-radius-object);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.cxs-notice-warning {
+  background: color-mix(in srgb, var(--cx-warning) 10%, var(--cx-surface));
+  border-color: color-mix(in srgb, var(--cx-warning) 30%, var(--cx-surface));
+  color: var(--cx-warning);
+}
+
+.cxs-notice-info {
+  background: var(--cx-accent-soft);
+  border-color: color-mix(in srgb, var(--cx-accent) 25%, var(--cx-surface));
+  color: var(--cx-accent-strong);
+}
+
+/* Empty State */
+.cxs-empty {
+  margin: 0;
+  padding: 1.25rem 1.25rem;
+  border: 1px dashed var(--cx-line-strong);
+  border-radius: var(--cx-radius-object);
+  background: var(--cx-surface);
+  color: var(--cx-text-2);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Status Line */
+.cxs-status {
+  margin: 0;
+  color: var(--cx-success);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.cxs-hint {
+  margin: 0;
+  color: var(--cx-text-2);
+  font-size: 0.82rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--cx-radius-control);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--cx-ink);
+  color: var(--cx-on-ink);
+  border-color: var(--cx-ink);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-outline {
+  background: var(--cx-surface);
+  color: var(--cx-text);
+  border-color: var(--cx-line);
+}
+
+.btn-outline:hover {
+  background: var(--cx-surface-3);
+}
+
+.btn-destructive {
+  background: var(--cx-danger);
+  color: #fff;
+  border-color: var(--cx-danger);
+}
+
+.btn-destructive:hover {
+  opacity: 0.9;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+}
+
+/* Forms and Inputs */
+.cxs-form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.cxs-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.cxs-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--cx-text-2);
+}
+
+.cxs-input, .cxs-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  border-radius: var(--cx-radius-control);
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  color: var(--cx-text);
+  outline: none;
+}
+
+.cxs-input:focus, .cxs-select:focus {
+  border-color: var(--cx-accent);
+}
+
+/* Defaults Toggle */
+.cxs-toggle-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Connect Flow Box */
+.cxs-connect {
+  padding: 1.25rem;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-object);
+  background: var(--cx-surface);
+  display: grid;
+  gap: 1rem;
+}
+
+.cxs-connect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cxs-connect-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.cxs-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.6rem;
+}
+
+.cxs-provider-card {
+  padding: 0.75rem;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-control);
+  background: var(--cx-surface-2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  font-size: 0.84rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.cxs-provider-card:hover {
+  border-color: var(--cx-accent);
+  background: var(--cx-surface-3);
+}
+
+.cxs-device-code-box {
+  background: var(--cx-surface-2);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-control);
+  padding: 1.2rem;
+  text-align: center;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cxs-device-code {
+  font-family: var(--cx-font-mono);
+  font-size: 1.8rem;
+  letter-spacing: 0.15em;
+  font-weight: 700;
+  color: var(--cx-accent-strong);
+}
+
+/* Modal Dialog */
+.proto-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.proto-modal {
+  background: var(--cx-surface);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-radius-object);
+  padding: 1.5rem;
+  max-width: 24rem;
+  width: 100%;
+  display: grid;
+  gap: 1rem;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.proto-modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.proto-modal-desc {
+  margin: 0;
+  color: var(--cx-text-2);
+  font-size: 0.9rem;
+}
+
+.proto-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
