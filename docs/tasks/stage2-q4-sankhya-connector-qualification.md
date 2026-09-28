@@ -1,22 +1,184 @@
-# Stage 2 Q4 — Sankhya connector qualification
+# Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator
 
-**Status:** PREPARED on 2026-09-24. Not started. No Sankhya call before gate G0 of section 7.\
+**Status:** PREPARED on 2026-09-24. **Amended on 2026-09-28:** the question is connector-generic
+(next section). Part 1 (Q4.0 to Q4.5) is on `main` since #246. Part 2 stopped after Q4.7 run 2.\
 **Type:** enterprise-credential and trust-boundary qualification (Q-a: the roadmap names it as a
 gate; Q-b: it creates a new runtime authority over an enterprise credential; Q-c: the real read and
 the pilot proof outlive the pull request)\
 **Execution owner:** executor named by the operator\
 **Review:** one independent review of the frozen candidate before merge, per
 `docs/development/delivery.md`\
-**Aprovo:** required. The change adds custody of a company credential and a new grant.
+**Aprovo:** required. The change adds custody of a company credential and a Project binding.
+
+## Amendment, 2026-09-28: the question is connector-generic
+
+The operator decided the connector direction on 2026-09-28. [C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)
+records it with its reasons and reopen triggers. Each external system has one integrator, and all
+integrators follow one platform pattern. A company may hold several Connections of one integrator.
+A Workspace owner binds a Connection to a Project under a Project-local name. Consumers send the
+vendor's native request through one executor in the Hub. Sankhya is the first integrator.
+
+The protected question of section 2 would reject that direction. It forbids a consumer from naming
+a Sankhya service, entity or payload, and a native request names them on purpose. This amendment
+therefore replaces the question, the closure set and the evidence. It keeps the evidence that still
+proves custody and transport.
+
+This amendment changes:
+
+- section 2, whose question and statement it replaces;
+- section 3, where C-030 supersedes decisions 4, 6 and 7 and narrows decision 11;
+- section 6, whose shape and properties it restates;
+- sections 7 and 8, whose steps and falsifiers it replaces with the closure set and the evidence
+  below;
+- sections 9 and 10, which gain the non-goals and the STOP rule below.
+
+Sections 4, 5 and 11 to 15 apply unchanged, except where the text below names them.
+
+### Protected question
+
+> Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as
+> the first integrator, by sending the vendor's own request format through one Hub executor, from
+> the Builder while it investigates and from the application's handlers at runtime, while the
+> credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only
+> through its own bindings, and the Builder builds and changes a useful application without a new
+> platform operation?
+
+This question does not require a second production integrator. The synthetic REST adapter below is
+a test fixture.
+
+### Shape
+
+```text
+integrator = ConnectorDefinition + adapter (native request format, auth, pagination, read rule)
+        |
+Connection (Workspace; one configured account; credential sealed with @mastra/factory/secret-encryption;
+            pinned origin; access level `read`; read-only confirmation)
+        |
+Project binding (Project, environment, Project-local name such as `erp`)
+        |
+executor (Hub) --- token cache --- adapter --- the Connection's pinned origin
+   ^                  ^                      ^
+   | runner relay     | Builder tool         | Builder script (relay, outside the closure set)
+handler connectors.fetch({ connection: 'erp', ...nativeRequest })
+```
+
+The consumer names the Project-local name, the method, a path relative to the pinned origin, query
+values and a vendor body. The Hub derives the Project, the environment and the consumer from the
+call's context, never from the request. A sync job that writes vendor data into Project data is a
+later consumer of the same executor. Section 3 point 11 and section 6.1 call it "the integrator";
+C-030 gives that word to the per-system type, so this amendment calls it a sync job.
+
+### Properties
+
+These rows of section 6.2 stand as written: P1, P2, P10, P12 and P13. P13 applies to the binding
+operations. These rows change:
+
+| # | Restated property | Why it changed |
+| --- | --- | --- |
+| P3 | A consumer names a bound Connection and a native request. It cannot name a host, a scheme, an absolute or `//host` path, a header or a token. | A native request names vendor services and entities on purpose. |
+| P4 | The executor sends only the integrator's qualified read services and refuses every other service and a mismatched Sankhya `serviceName` before the network. It never follows a redirect. It is a tripwire. The read-only guarantee is the vendor-side principal. | C-030 moves the read boundary to the vendor. A fixed field list no longer exists. |
+| P5 | The executor bounds the response size, the call time and the calls per Builder run, and marks a truncated body. | The vendor's body passes through. No output contract drops fields. |
+| P6 | Authority is resolved per call from the consumer's context and the Project's bindings. Nothing in the request changes the Project, the environment or the Connection. | Bindings replace operation grants. |
+| P7 | A binding can only reference a Connection of its Project's own Workspace. | Bindings replace grants. |
+| P8 | Removing a binding refuses the next call. Disabling a Connection ends its bindings and refuses the next call of every Project. | Bindings replace grants. |
+| P9 | A failure returns a closed Conexus code, with the vendor status where one exists. A vendor error inside an HTTP 200 is a failure, never an empty success. The token and the provider's headers never reach a consumer. No vendor body reaches the browser in an error. | The vendor body reaches the calling consumer on success. |
+| P11 | The Builder sees the Project-local names of its Project's bindings and the integrator's skill. It never sees the credential, the origin or a Connection its Project is not bound to. | Operations no longer exist. |
+
+### Closure set
+
+Q4 closes on this set and nothing smaller:
+
+1. **One reconciled contract.** C-030, this amendment, the product contract, the permission
+   contract and the single-owner map tell one story.
+2. **The executor on `main`.** The Connection with several accounts per integrator, the migration
+   from `connector.project_grant` to Project bindings, `connectors.fetch` for handlers and the
+   `connector_fetch` Builder tool land as pull requests built from `main`. Spike branches never
+   merge. The per-operation path (`connectors.call`, `/v1/call` and `sankhya.purchase-order.read`)
+   is deleted in the same wave, once the Q3 notebook application calls `connectors.fetch`.
+3. **The pilot on `main`.** The pilot Hub and runner run the merged head.
+4. **One autonomous investigation.** In a real Factory session, the Builder reads the vendor's
+   documentation and makes two materially different reads through the tool before it builds
+   anything.
+5. **One useful application and one later change.** The Builder builds an application whose
+   handler reads through the binding, and changes it in a second conversation. The operator names
+   the application before the run. The [Builder proof rule](../development/delivery.md#builder-proof-rule)
+   applies.
+6. **One frozen verdict.** The exact SHAs, template and schema, every repair, every open limit, the
+   Factory review and CI at the exact head.
+
+The Builder script path through the sandbox relay is not in the closure set. The tool and the
+handler prove the claim, and the relay's only consumer is exploratory scripts.
+
+### Evidence the verdict needs
+
+- **Positive.** A real Sankhya read through the tool and through a handler, recorded as field
+  names, counts, duration and a digest. The application's handler reads through the binding in
+  Preview, and the Q3 app user sees the result, with every business value masked.
+- **Negative.** Each case is refused before the network, and the fake vendor counts zero requests:
+  a write service, a mismatched `serviceName`, an absolute or `//host` path, a consumer header,
+  another Project, a missing or removed binding, a disabled Connection, an expired run scope and an
+  exhausted budget. The executor does not follow a vendor redirect, and it cuts a response over the
+  size limit and marks it truncated. Each refusal has a successful control in the same run. On the pilot, another Project and a removed binding are refused.
+- **Read-only.** The tripwire tests, and the vendor-side confirmation recorded on the Connection:
+  who confirmed that the integration user can only read, and when. Without that confirmation, the
+  verdict is at most ACCEPT_WITH_BOUNDARY and names the boundary.
+- **No leak.** The Q4.11 scan, extended to the Builder sandbox's files and process arguments. The
+  business-value scan over every file bound for the repository. A browser check that the
+  conversation's thread route and the Preview's responses carry no vendor body.
+- **Generic seam.** A registered synthetic REST adapter and two Connections of it, bound under two
+  Project-local names, read through the same executor. Each binding reaches only its own
+  Connection's account, and a Project bound to one cannot read the other. A refusal of an
+  unregistered integrator is not this proof.
+
+### Retired, and why
+
+- **Section 2**, the question and its statement. They name one operation grant and forbid native
+  requests.
+- **Section 3, decisions 4, 6 and 7.** C-030 supersedes them. The G0 allow-list stays as the
+  tripwire of P4. Decision 11 still keeps writes, other production integrators and Publish out of
+  scope. The synthetic REST adapter is a test fixture, not a second integrator.
+- **Section 6.1**, the `Operation`, `ProjectGrant` and per-operation `BrokerCall` types. The shape
+  above replaces them.
+- **Steps Q4.3, Q4.5 and Q4.9** as written, which grant, teach and wrap one operation. The closure
+  set replaces them. Q4.7 run 3 is no longer the closing run.
+- **Q4.10 case 2**, "generic provider authority", which fails when a consumer names a service or an
+  entity. The negative list above replaces it. Cases 1, 3, 4 and 5 stand, restated for bindings.
+- **Falsifiers 2 and 6 of section 8**, restated: the design cannot hold a restated property of
+  this amendment, or a sync job or inbound events cannot use the executor without a change to its
+  shape. Falsifiers 1, 3, 4 and 5 stand.
+
+### Kept evidence
+
+Earlier runs still prove custody and transport. They do not prove the amended question.
+
+- **G0.** The operator approved the allow-list on 2026-09-25. The approval is recorded on
+  [#282](https://github.com/developmentconexus-ops/conexus-os/pull/282).
+- **Connection custody and the token cache.** The part 1 tests on `main` (Q4.2 and Q4.4 in the
+  [evidence](../evidence/stage2-q4/README.md#part-1-proof)).
+- **Q4.6 and Q4.7 run 2.** The first real call, `POST /authenticate`, answered `OK` on 2026-09-26.
+  Run 2's handler read order 22790 through the broker three times, and two reads answered `OK`.
+  Both are recorded on #282. Q4.7 run 1 does not count, because it ran before the grant existed.
+
+The Q4 spike branches document mechanisms, not a qualification. No spike run counts as gate proof,
+because none was declared as proof before it ran.
+
+### Non-goals and STOP law added
+
+- No operation catalog, request DSL, per-operation grant or department grant.
+- No allowlisted SQL expression grammar as the read boundary.
+- No write to any vendor, even on a Connection whose vendor principal could write.
+- STOP and return to planning if the Sankhya integration user cannot be limited to reading. The
+  read boundary then needs its own decision.
 
 ## 1. Authority route
 
 ```text
 C-021 enterprise connections live in the Workspace and reach a Project as authorized capabilities
 + C-022 model credentials are the Factory's; enterprise connections stay Conexus's
++ C-030 one integrator per external system, Connections bound to Projects, one native executor
 + C-028 managed-application direction
 + docs/product/contract.md section 12.6
-+ docs/product/permission-contract.md (Connector grants row)
++ docs/product/permission-contract.md (Project Connection bindings row)
 + docs/reference/stage2-managed-application-platform.md (section 5, Q4 row)
 + Q3 verdict ACCEPT_WITH_BOUNDARY (docs/evidence/stage2-q3/README.md)
 + the operator decisions of section 3
@@ -33,6 +195,8 @@ Repository authority beats this task when they conflict. Evidence that falsifies
 12.6 or C-028 returns to planning; do not patch around it.
 
 ## 2. Protected question
+
+Replaced by the [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic). The original question stays here as the record.
 
 Can Connector Definition -> Workspace Connection -> Project Grant expose one real read-only Sankhya
 capability without leaking credentials or generic provider authority?
@@ -118,6 +282,8 @@ These bind Q4 and are not reopened by the executor.
 
 ## 6. Design
 
+The [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic) restates the shape and properties P3 to P9 and P11.
+
 ### 6.1 Shape
 
 The shape is fixed: a broker in the Hub, reached by handlers through a runner relay and by agents
@@ -195,6 +361,9 @@ proves it.
 | P13 | Grant, Connection and Definition changes are contract changes: their operations and `docs/product/operation-ledger.md` change in the same commit, and `npm run wire:bijection` passes. |
 
 ## 7. Steps
+
+The [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic) replaces these steps with its closure set and evidence. G0, Q4.0 to Q4.2, Q4.4 and
+Q4.6 are done or kept as its kept evidence names them.
 
 Each step ends in a check that passes before the next starts.
 
@@ -415,6 +584,8 @@ Before a screenshot is committed, the operator looks at it and confirms every bu
 masked. **Check:** every count is zero and the operator's confirmation is in the evidence README.
 
 ## 8. Falsifiers
+
+The [2026-09-28 amendment](#amendment-2026-09-28-the-question-is-connector-generic) restates falsifiers 2 and 6.
 
 Any one rejects the hypothesis:
 
