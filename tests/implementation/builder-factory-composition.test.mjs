@@ -567,3 +567,41 @@ test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output messa
   // null or undefined spans pass through safely
   assert.equal(compactProcessorRunPayloads.process(undefined), undefined)
 })
+
+test('compactProcessorRunPayloads deterministically compacts processor_run span bytes', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  // Synthetic Builder turn with 25 conversation messages of typical turn context size (~1.5 KB each)
+  const syntheticMessages = Array.from({ length: 25 }, (_, i) => ({
+    id: `msg-${i}`,
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    content: `Builder prompt turn context chunk ${i}: `.padEnd(1500, 'x'),
+  }))
+
+  const rawProcessorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: syntheticMessages,
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const rawBytes = Buffer.byteLength(JSON.stringify(rawProcessorSpan.input)) + Buffer.byteLength(JSON.stringify(rawProcessorSpan.output))
+
+  // Clone before passing to span processor
+  const spanToProcess = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [...syntheticMessages],
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const processed = compactProcessorRunPayloads.process(spanToProcess)
+  const compactedBytes = Buffer.byteLength(JSON.stringify(processed.input)) + Buffer.byteLength(JSON.stringify(processed.output))
+
+  // Assert deterministic reduction: raw is ~54 KB, compacted is exactly 38 bytes (>99.9% reduction)
+  assert.ok(rawBytes > 50_000, `expected raw bytes > 50000, got ${rawBytes}`)
+  assert.deepEqual(processed.input, { messageCount: 25 })
+  assert.deepEqual(processed.output, { messageCount: 10 })
+  assert.equal(compactedBytes, 38)
+  assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
+})
+
