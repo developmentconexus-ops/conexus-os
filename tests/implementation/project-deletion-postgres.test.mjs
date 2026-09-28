@@ -81,6 +81,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     await client.query(`INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [accountId])
     await client.query(`INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Deletion Workspace')`, [workspaceId])
     await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
+    await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')`, [otherAccountId, workspaceId])
 
     await client.query(
       `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
@@ -232,13 +233,18 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     assert.equal(tombstone.rows[0].factory_project_id, 'factory-project-501')
     assert.equal(tombstone.rows[0].completed_at, null)
 
-    // A tombstoned Project is refused admission and dropped from visibility immediately.
+    // A tombstoned Project is refused admission and dropped from visibility for anyone but the
+    // installation administrator who can resume or watch the deletion finish.
     await assert.rejects(
-      client.query('SELECT iam.admit_project($1, $2, $3::iam.action)', [accountId, projectId, 'project.build']),
+      client.query('SELECT iam.admit_project($1, $2, $3::iam.action)', [otherAccountId, projectId, 'project.build']),
       /PROJECT_DELETING/,
     )
-    const visible = await client.query('SELECT * FROM iam.visible_projects($1) WHERE project_id = $2', [accountId, projectId])
-    assert.equal(visible.rowCount, 0)
+    const visibleToMember = await client.query('SELECT * FROM iam.visible_projects($1) WHERE project_id = $2', [otherAccountId, projectId])
+    assert.equal(visibleToMember.rowCount, 0)
+
+    await client.query('SELECT iam.admit_project($1, $2, $3::iam.action)', [accountId, projectId, 'project.build'])
+    const visibleToAdmin = await client.query('SELECT * FROM iam.visible_projects($1) WHERE project_id = $2', [accountId, projectId])
+    assert.equal(visibleToAdmin.rowCount, 1)
 
     await client.query('SELECT project.purge_project($1)', [projectId])
 

@@ -100,6 +100,11 @@ const project = config.project ? createConfiguredProjectModule({
       if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
       return applicationRunner.release({ projectId })
     },
+    probeGithubRepositoryDeletable: async (repositoryId) => {
+      const probe = builder?.probeFactoryGithubRepositoryDeletable
+      if (!probe) throw new Error('FACTORY_NOT_CONFIGURED')
+      return probe(repositoryId)
+    },
     deleteGithubRepository: async (repositoryId) => {
       const deleteRepository = builder?.deleteFactoryGithubRepository
       if (!deleteRepository) throw new Error('FACTORY_NOT_CONFIGURED')

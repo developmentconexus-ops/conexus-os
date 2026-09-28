@@ -270,22 +270,32 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     if (projectRepository) await sourceControl.connections.delete({ orgId: factory.orgId, id: projectRepository.connectionId })
     await composition.storage.getDomain<FactoryProjectsStorage>('projects').delete({ orgId: factory.orgId, id: binding.factoryProjectId })
   }
-  // Deletes the GitHub repository a Project's Factory binding named. Resolves the installation and
-  // repository from the Mastra source-control rows (still readable at this point in the teardown,
-  // since teardownProject never removes the repository row itself) and refuses to delete without a
-  // live Administration: write grant, so a stale or revoked installation cannot silently no-op.
-  const deleteGithubRepository = async (repositoryId: string): Promise<void> => {
+  // Resolves the installation and repository a Project's Factory binding named, from the Mastra
+  // source-control rows (still readable here since teardownProject never removes the repository row
+  // itself), and confirms a live Administration: write grant. Missing metadata is never treated as
+  // "already deleted" -- Mastra losing track of a repository is not proof GitHub lost it too -- so
+  // this fails closed rather than letting the caller silently no-op past a real repository.
+  const resolveDeletableRepository = async (repositoryId: string): Promise<Readonly<{ installationId: number; externalId: number; slug: string }>> => {
     const composition = await ready
     const sourceControl = composition.github.sourceControlStorage
     const row = await sourceControl.repositories.get({ orgId: factory.orgId, id: repositoryId })
-    if (!row) return
+    if (!row) throw new Error('FACTORY_REPOSITORY_UNKNOWN')
     const installation = await sourceControl.installations.get({ orgId: factory.orgId, id: row.installationId })
-    if (!installation) return
+    if (!installation) throw new Error('FACTORY_INSTALLATION_UNKNOWN')
     const installationId = Number(installation.externalId)
     const externalId = Number(row.externalId)
     if (!Number.isSafeInteger(installationId) || !Number.isSafeInteger(externalId) || !row.slug) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
     if (!await githubApp.probeRepositoryAdminAccess(installationId, externalId)) throw new Error('FACTORY_GITHUB_PERMISSION_DENIED')
-    await githubApp.deleteRepository(installationId, { externalId, slug: row.slug })
+    return { installationId, externalId, slug: row.slug }
+  }
+  // Runs the same resolution and permission probe a delete needs, without deleting, so a Project
+  // deletion request can be refused before the tombstone or any other destructive step is written.
+  const probeGithubRepositoryDeletable = async (repositoryId: string): Promise<void> => {
+    await resolveDeletableRepository(repositoryId)
+  }
+  const deleteGithubRepository = async (repositoryId: string): Promise<void> => {
+    const { installationId, externalId, slug } = await resolveDeletableRepository(repositoryId)
+    await githubApp.deleteRepository(installationId, { externalId, slug })
   }
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
@@ -309,6 +319,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     prepareRepository,
     repository,
     teardownProject,
+    probeGithubRepositoryDeletable,
     deleteGithubRepository,
     githubApp,
     githubAppSlug: factory.githubAppSlug,
@@ -461,6 +472,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // Absent without the Factory, and then no Project can be created.
     prepareProjectRepository: factoryComposition?.prepareRepository,
     teardownFactoryProject: factoryComposition.teardownProject,
+    probeFactoryGithubRepositoryDeletable: factoryComposition.probeGithubRepositoryDeletable,
     deleteFactoryGithubRepository: factoryComposition.deleteGithubRepository,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,

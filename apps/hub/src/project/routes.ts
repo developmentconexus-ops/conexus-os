@@ -121,6 +121,9 @@ export const registerProjectRoutes = async (
         if (code === 'PROJECT_NOT_FOUND') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
         if (code === 'PROJECT_NAME_MISMATCH') return sendProblem(reply, 409, 'project-name-mismatch', 'Project name confirmation mismatch')
         if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
+        if (code === 'REPOSITORY_REFUSED') {
+          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
+        }
         if (code === 'DELETION_INCOMPLETE') return sendProblem(reply, 503, 'project-deletion-incomplete', 'Project deletion incomplete')
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
         return sendProblem(reply, 500, 'internal-error', 'Internal server error')

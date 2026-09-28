@@ -18,10 +18,17 @@ const tombstone = (overrides = {}) => ({
   ...overrides,
 })
 
-// A fake commandPool.connect() that answers begin/purge/complete the way the real functions do:
-// begin_project_deletion can be told to throw, purge_project and complete_project_deletion always
-// succeed unless told otherwise. Every statement is recorded so a test can assert on the sequence.
-const fakePool = ({ beginResult = () => tombstone(), beginThrows = null, purgeThrows = null } = {}) => {
+// A fake commandPool.connect() that answers plan/begin/purge/complete the way the real functions
+// do: plan_project_deletion and begin_project_deletion can be told to throw the same refusals,
+// purge_project and complete_project_deletion always succeed unless told otherwise. Every
+// statement is recorded so a test can assert on the sequence.
+const fakePool = ({
+  planResult = () => tombstone().repository_id,
+  planThrows = null,
+  beginResult = () => tombstone(),
+  beginThrows = null,
+  purgeThrows = null,
+} = {}) => {
   const statements = []
   return {
     statements,
@@ -29,6 +36,10 @@ const fakePool = ({ beginResult = () => tombstone(), beginThrows = null, purgeTh
       query: async (statement, values = []) => {
         statements.push(statement)
         if (statement === 'BEGIN' || statement === 'COMMIT' || statement === 'ROLLBACK') return { rows: [] }
+        if (statement.includes('plan_project_deletion')) {
+          if (planThrows) throw planThrows
+          return { rows: [{ plan_project_deletion: planResult() }] }
+        }
         if (statement.includes('begin_project_deletion')) {
           if (beginThrows) throw beginThrows
           return { rows: [beginResult()] }
@@ -50,6 +61,7 @@ const fakePorts = (overrides = {}) => {
   return {
     calls,
     ports: {
+      probeGithubRepositoryDeletable: async (id) => { calls.push(['probeGithubRepositoryDeletable', id]); if (overrides.probeGithubRepositoryDeletable) await overrides.probeGithubRepositoryDeletable() },
       teardownFactoryProject: async (binding) => { calls.push(['teardownFactoryProject', binding]); if (overrides.teardownFactoryProject) await overrides.teardownFactoryProject() },
       releaseApplicationData: async (id) => { calls.push(['releaseApplicationData', id]); if (overrides.releaseApplicationData) await overrides.releaseApplicationData() },
       deleteGithubRepository: async (id) => { calls.push(['deleteGithubRepository', id]); if (overrides.deleteGithubRepository) await overrides.deleteGithubRepository() },
@@ -61,7 +73,7 @@ test('#322 orchestrator refuses a non-administrator before touching any port', a
   await refuseProtectedCluster()
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
   const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
-  const commandPool = fakePool({ beginThrows: Object.assign(new Error('NOT_ADMITTED'), { code: '42501' }) })
+  const commandPool = fakePool({ planThrows: Object.assign(new Error('NOT_ADMITTED'), { code: '42501' }) })
   const { ports, calls } = fakePorts()
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
@@ -72,7 +84,7 @@ test('#322 orchestrator refuses a non-administrator before touching any port', a
 test('#322 orchestrator refuses the wrong confirmation name before touching any port', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
   const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
-  const commandPool = fakePool({ beginThrows: new Error('PROJECT_NAME_MISMATCH') })
+  const commandPool = fakePool({ planThrows: new Error('PROJECT_NAME_MISMATCH') })
   const { ports, calls } = fakePorts()
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
@@ -83,7 +95,7 @@ test('#322 orchestrator refuses the wrong confirmation name before touching any 
 test('#322 orchestrator refuses a Project with a run still building before touching any port', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
   const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
-  const commandPool = fakePool({ beginThrows: new Error('PROJECT_BUSY') })
+  const commandPool = fakePool({ planThrows: new Error('PROJECT_BUSY') })
   const { ports, calls } = fakePorts()
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
@@ -101,7 +113,7 @@ test('#322 a GitHub failure after the database purge leaves a tombstoned, hidden
   const firstOrchestrator = createProjectDeletionOrchestrator({ commandPool: firstAttempt, ports: failing.ports })
 
   await assert.rejects(firstOrchestrator.deleteProject(input), (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
-  assert.deepEqual(failing.calls.map(([name]) => name), ['teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
+  assert.deepEqual(failing.calls.map(([name]) => name), ['probeGithubRepositoryDeletable', 'teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('project.purge_project')), true)
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('complete_project_deletion')), false)
 
@@ -112,7 +124,7 @@ test('#322 a GitHub failure after the database purge leaves a tombstoned, hidden
   const rerunOrchestrator = createProjectDeletionOrchestrator({ commandPool: rerunPool, ports: rerunPorts.ports })
 
   await rerunOrchestrator.deleteProject(input)
-  assert.deepEqual(rerunPorts.calls.map(([name]) => name), ['teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
+  assert.deepEqual(rerunPorts.calls.map(([name]) => name), ['probeGithubRepositoryDeletable', 'teardownFactoryProject', 'releaseApplicationData', 'deleteGithubRepository'])
   assert.equal(rerunPool.statements.some((statement) => statement.includes('complete_project_deletion')), true)
 })
 
@@ -123,6 +135,6 @@ test('#322 orchestrator skips every port once the tombstone is already complete'
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
   await orchestrator.deleteProject(input)
-  assert.deepEqual(calls, [])
+  assert.deepEqual(calls.map(([name]) => name), ['probeGithubRepositoryDeletable'])
   assert.equal(commandPool.statements.some((statement) => statement.includes('project.purge_project')), false)
 })

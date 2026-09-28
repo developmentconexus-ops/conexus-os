@@ -25,11 +25,17 @@ CREATE TABLE project.project_deletion (
 ALTER TABLE project.project_deletion OWNER TO project_owner;
 
 REVOKE ALL ON TABLE project.project_deletion FROM PUBLIC;
--- iam.admit_project and iam.visible_projects only need to know a tombstone exists, never what it names.
-GRANT SELECT(project_id) ON TABLE project.project_deletion TO iam_owner;
+-- iam.admit_project and iam.visible_projects only need to know a tombstone exists and whether it
+-- finished, never what it names.
+GRANT SELECT(project_id, completed_at) ON TABLE project.project_deletion TO iam_owner;
 
 -- A tombstoned Project is refused admission immediately, closing the window between the tombstone
--- and the purge during which the Project row still exists.
+-- and the purge during which the Project row still exists -- except to the installation
+-- administrator, while the deletion has not finished. That is the only product-level recovery path
+-- after a crash or a failed step: the administrator can still load the Project and press delete
+-- again, which resumes the same tombstone, instead of the Project becoming permanently unreachable
+-- the moment it is tombstoned. Once completed_at is set the row is purged moments later regardless,
+-- so nobody is admitted to it again.
 CREATE OR REPLACE FUNCTION iam.admit_project(p_account_id uuid, p_project_id uuid, p_action iam.action) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -42,7 +48,11 @@ BEGIN
   WHERE locked_account.account_id = p_account_id
   FOR SHARE;
 
-  IF EXISTS (SELECT 1 FROM project.project_deletion WHERE project_id = p_project_id) THEN
+  IF EXISTS (
+    SELECT 1 FROM project.project_deletion
+    WHERE project_id = p_project_id
+      AND (completed_at IS NOT NULL OR NOT iam.is_installation_administrator(p_account_id))
+  ) THEN
     RAISE EXCEPTION 'PROJECT_DELETING' USING ERRCODE = '42501';
   END IF;
 
@@ -58,7 +68,9 @@ END;
 $$;
 
 -- A tombstoned Project stops showing up to the account it belonged to the moment the tombstone is
--- written, everywhere a Project list or a single Project read is built from this function.
+-- written, everywhere a Project list or a single Project read is built from this function -- except
+-- to the installation administrator, mirroring iam.admit_project above, so GetProject keeps working
+-- for the one caller who can resume or has to watch an interrupted deletion finish.
 CREATE OR REPLACE FUNCTION iam.visible_projects(p_account_id uuid) RETURNS TABLE(project_id uuid, workspace_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -70,6 +82,7 @@ CREATE OR REPLACE FUNCTION iam.visible_projects(p_account_id uuid) RETURNS TABLE
   WHERE NOT EXISTS (
     SELECT 1 FROM project.project_deletion AS deletion
     WHERE deletion.project_id = stored_project.project_id
+      AND (deletion.completed_at IS NOT NULL OR NOT iam.is_installation_administrator(p_account_id))
   );
 $$;
 
@@ -150,6 +163,46 @@ GRANT ALL ON FUNCTION builder.purge_project(p_project_id uuid) TO project_owner;
 -- tombstone instead of writing a second one, so the orchestrator can resume after a crash.
 GRANT ALL ON FUNCTION iam.is_installation_administrator(p_account_id uuid) TO project_owner;
 GRANT ALL ON FUNCTION builder.read_factory_binding_for_project(p_project_id uuid) TO project_owner;
+
+-- plan_project_deletion runs every refusal begin_project_deletion can raise, without writing the
+-- tombstone, so the orchestrator can preflight the GitHub repository permission the deletion needs
+-- before the first destructive or durable step. Nothing ties the two calls together atomically, so
+-- begin_project_deletion repeats every one of these checks itself rather than trusting the plan.
+CREATE FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER STABLE
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  existing project.project_deletion%ROWTYPE;
+  target project.project%ROWTYPE;
+  binding jsonb;
+BEGIN
+  IF NOT iam.is_installation_administrator(p_account_id) THEN
+    RAISE EXCEPTION 'NOT_ADMITTED' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO existing FROM project.project_deletion WHERE project_id = p_project_id;
+  IF FOUND THEN
+    IF existing.name <> p_confirm_name THEN RAISE EXCEPTION 'PROJECT_NAME_MISMATCH'; END IF;
+    RETURN existing.repository_id;
+  END IF;
+
+  SELECT * INTO target FROM project.project WHERE project_id = p_project_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'PROJECT_NOT_FOUND' USING ERRCODE = 'P0002'; END IF;
+  IF target.name <> p_confirm_name THEN RAISE EXCEPTION 'PROJECT_NAME_MISMATCH'; END IF;
+  IF EXISTS (SELECT 1 FROM builder.builder_run WHERE project_id = p_project_id AND state IN ('QUEUED', 'RUNNING')) THEN
+    RAISE EXCEPTION 'PROJECT_BUSY';
+  END IF;
+
+  binding := builder.read_factory_binding_for_project(p_project_id);
+  RETURN binding->>'repositoryId';
+END;
+$$;
+
+ALTER FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) OWNER TO project_owner;
+
+REVOKE ALL ON FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION project.plan_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) TO hub_project_command;
 
 CREATE FUNCTION project.begin_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) RETURNS project.project_deletion
     LANGUAGE plpgsql SECURITY DEFINER
