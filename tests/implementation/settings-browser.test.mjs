@@ -595,8 +595,18 @@ test('Minhas contas de modelo preserves non-featured connected accounts and allo
   // Clicking "Conectar" on OpenAI switches the connect form to OpenAI without closing/reopening
   const openaiRow = page.locator('.cxs-row', { hasText: 'OpenAI' })
   await openaiRow.getByRole('button', { name: 'Conectar' }).click()
-  await page.getByRole('region', { name: 'Conectar OpenAI' }).waitFor()
+  const openaiRegion = page.getByRole('region', { name: 'Conectar OpenAI' })
+  await openaiRegion.waitFor()
   assert.equal(await page.getByRole('region', { name: 'Conectar Anthropic' }).count(), 0)
+
+  // Verify header row alignment between title and Cancelar button
+  const headerBox = await openaiRegion.locator('.cxs-connect-header').boundingBox()
+  const titleBox = await openaiRegion.getByRole('heading', { name: 'OpenAI' }).boundingBox()
+  const cancelBox = await openaiRegion.getByRole('button', { name: 'Cancelar' }).boundingBox()
+  assert(headerBox && titleBox && cancelBox, 'Header elements must have bounding boxes')
+  // Title and Cancelar must align horizontally (within 8px tolerance) rather than stacking vertically
+  assert(Math.abs(titleBox.y - cancelBox.y) < 8, `Title y (${titleBox.y}) and Cancelar y (${cancelBox.y}) must align horizontally`)
+  assert(cancelBox.x > titleBox.x, 'Cancelar button must be placed after the title')
 
   // Clicking "Cancelar" closes the inline connect form, revealing "Conectar outro provedor"
   await page.getByRole('button', { name: 'Cancelar' }).click()

@@ -49,6 +49,7 @@
 .cxs-notice { margin: 0; }
 
 .cxs-connect { padding: 1.1rem 1.2rem; border: 1px solid var(--cx-line); border-radius: var(--cx-radius-object); background: var(--cx-surface); display: grid; gap: .8rem; }
+.cxs-connect-header { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
 .cxs-connect h3 { margin: 0; font-size: .95rem; }
 .cxs-connect-step { display: grid; gap: .6rem; max-width: 26rem; }
 .cxs-connect-step label { font-size: .85rem; color: var(--cx-text-2); }
