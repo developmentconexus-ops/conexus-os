@@ -58,8 +58,6 @@ const findFreePort = () => new Promise((settle, reject) => {
   })
 })
 
-/** One Workspace, one Project, and three Accounts covering every split of the two authorities this
- *  screen depends on: installation administrator (Connections) and Workspace Owner (bindings). */
 const setupFixture = async (t) => {
   const fixture = await buildHubDatabase(t, 'connector_integrations')
   const owner = new pg.Client({ connectionString: fixture.connectionString })
@@ -195,7 +193,7 @@ const addConnection = async (page, label) => {
 
 const bindableRow = (page, label) => sections(page).bindings.getByRole('listitem').filter({ hasText: label })
 
-test('an installation administrator and Owner adds two Connections and binds one under a name; nothing leaks the credential; unbinding offers it again', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('an installation administrator and Owner adds two Connections and binds one under a name; a name already in use is refused and says so; nothing leaks the credential; unbinding offers it again', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
   const { connections, bindings } = sections(page)
@@ -227,12 +225,19 @@ test('an installation administrator and Owner adds two Connections and binds one
   assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'])
   assert.equal(await bindings.getByRole('button', { name: 'Vincular', exact: true }).count(), 1, 'only ERP filial is left to bind')
 
+  const filial = bindableRow(page, 'ERP filial')
+  await filial.getByLabel('Nome no Projeto').fill('erp')
+  await filial.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await filial.getByRole('alert').filter({ hasText: 'Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.' }).waitFor()
+  assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'])
+
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
   await page.reload()
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
   await bindings.getByText('erp', { exact: true }).waitFor()
   assert.deepEqual(await bindings.locator('.cx-connection strong').allInnerTexts(), ['ERP de teste', 'ERP filial'])
+  assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'], 'the refused bind saved nothing')
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 
   await bindings.getByRole('button', { name: 'Desvincular' }).click()
@@ -260,7 +265,7 @@ test('a Workspace Owner who is not an installation administrator sees bindings b
   await page.getByText('Só um administrador da instalação vê e administra as conexões do Workspace.').waitFor()
 })
 
-test('a create whose answer was lost resubmits the same id and gets 200; a failed disable or unbind says so and changes nothing', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+test('a create or bind whose answer was lost says so and its resubmit answers what was saved; a failed disable or unbind says so and changes nothing', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const fixture = await setupFixture(t)
   const { page, responseBodies } = await withPage(t, { ...fixture, accountId: fixture.bothAccountId })
   const { connections, bindings } = sections(page)
@@ -295,10 +300,26 @@ test('a create whose answer was lost resubmits the same id and gets 200; a faile
   await page.getByText('A conexão não foi desativada e continua ativa.').waitFor()
   assert.equal(await page.getByText('· desativada').count(), 0)
 
+  const bound = []
+  let loseBindAnswer = true
+  await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    const response = await route.fetch()
+    bound.push({ status: response.status(), bindingId: (await response.json()).bindingId })
+    if (loseBindAnswer) {
+      loseBindAnswer = false
+      return route.abort('connectionreset')
+    }
+    return route.fulfill({ response })
+  })
   const row = bindableRow(page, 'ERP de teste')
   await row.getByLabel('Nome no Projeto').fill('erp')
   await row.getByRole('button', { name: 'Vincular', exact: true }).click()
+  await row.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' }).waitFor()
+  await row.getByRole('button', { name: 'Vincular', exact: true }).click()
   await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()
+  assert.deepEqual(bound.map(({ status }) => status), [200, 200])
+  assert.equal(bound[1].bindingId, bound[0].bindingId, 'the resubmitted bind answers the binding the lost answer saved')
   await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings/*`, (route) => (route.request().method() === 'DELETE'
     ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
     : route.fallback()))
