@@ -79,8 +79,7 @@ export const APPLICATION_CHECK_FILES = Object.freeze([
 ] as const)
 
 // The check links the compiler's dependencies into app/, and that link must never reach the tree.
-// The Factory runs a repository's setup command in every new checkout, before the agent.
-export const APPLICATION_CHECK_SETUP_COMMAND = 'mkdir -p .git/info && { grep -qxF /app/node_modules .git/info/exclude 2>/dev/null || echo /app/node_modules >> .git/info/exclude; }'
+export const APPLICATION_CHECK_EXCLUDED = Object.freeze(['app/node_modules'])
 
 export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'
 

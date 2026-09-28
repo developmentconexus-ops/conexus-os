@@ -80,35 +80,23 @@ const project = config.project ? createConfiguredProjectModule({
     database: config.database.database,
   },
   project: config.project,
-  // The builder module owns the Factory and is composed below; creation reaches it at request time.
+  // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
   repository: {
-    prepare: async (input) => {
-      const prepare = builder?.prepareProjectRepository
-      if (!prepare) throw new Error('FACTORY_NOT_CONFIGURED')
-      return prepare(input)
+    prepare: async (projectId) => {
+      if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+      return builder.prepareProjectRepository(projectId)
     },
   },
   // Every deletion port reaches a module composed below through the same request-time indirection
   // as repository.prepare above, since the Project module is composed before the Builder module is.
   deletion: {
-    teardownFactoryProject: async (binding) => {
-      const teardown = builder?.teardownFactoryProject
-      if (!teardown) throw new Error('FACTORY_NOT_CONFIGURED')
-      return teardown(binding)
-    },
     releaseApplicationData: async (projectId) => {
       if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
       return applicationRunner.release({ projectId })
     },
-    probeGithubRepositoryDeletable: async (repositoryId) => {
-      const probe = builder?.probeFactoryGithubRepositoryDeletable
-      if (!probe) throw new Error('FACTORY_NOT_CONFIGURED')
-      return probe(repositoryId)
-    },
-    deleteGithubRepository: async (repositoryId) => {
-      const deleteRepository = builder?.deleteFactoryGithubRepository
-      if (!deleteRepository) throw new Error('FACTORY_NOT_CONFIGURED')
-      return deleteRepository(repositoryId)
+    deleteRepository: async (projectId) => {
+      if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+      return builder.deleteProjectRepository(projectId)
     },
   },
   origin: config.origin,

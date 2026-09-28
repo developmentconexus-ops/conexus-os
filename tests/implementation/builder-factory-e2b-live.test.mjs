@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import test from 'node:test'
 import { Sandbox } from 'e2b'
@@ -19,53 +22,41 @@ const liveConfig = () => {
   return { templateId, apiKey: readBuilderE2BApiKey(process.env.CONEXUS_BUILDER_E2B_API_KEY_FILE) }
 }
 
-// Left running by the agent: every 200 ms it copies any AUTHORIZATION it can read from any process
-// environment into /workspace/stolen.
-const WATCHER = `nohup setsid sh -c 'while :; do for p in /proc/[0-9]*; do tr "\\0" "\\n" < "$p/environ" 2>/dev/null; done | grep AUTHORIZATION >> /workspace/stolen; sleep 0.2; done' >/dev/null 2>&1 &`
-
 const killEverySandboxSeen = async (apiKey, sandboxIds) => {
   for (const id of new Set(sandboxIds)) await Sandbox.kill(id, { apiKey }).catch(() => undefined)
 }
 
-test('on a real E2B VM the agent user cannot read a root git environment, and root still moves commits through its own mirror', { skip, timeout: 5 * 60_000 }, async () => {
-  const { ConexusFactoryE2BSandbox } = await (await loadHub())('builder/factory.js')
+test('on a real E2B VM the checkout is seeded from a bundle only root can change, and the Hub takes the run back as one commit on the base', { skip, timeout: 5 * 60_000 }, async (t) => {
+  const hub = await loadHub()
+  const { ConexusFactoryE2BSandbox, SANDBOX_CHECKOUT } = await hub('builder/factory.js')
+  const { createConexusGit, pullCandidate, seedSandbox } = await hub('builder/conexus-git.js')
   const { templateId, apiKey } = liveConfig()
+  const gitRoot = mkdtempSync(join(tmpdir(), 'conexus-live-git-'))
+  t.after(() => rmSync(gitRoot, { recursive: true, force: true }))
+  const git = createConexusGit({ root: gitRoot, starter: [{ path: 'app/index.html', content: '<p>starter</p>\n' }] })
+  const projectId = randomUUID()
+  const runId = randomUUID()
+  const base = await git.ensureRepository(projectId)
   const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-agent-user-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const agent = (script, cwd = '/workspace') => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd })
+  const source = {
+    direct: (command, args) => sandbox.executeCommand(command, args, { env: {}, cwd: '/workspace' }),
+    writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes),
+    readAgentFile: (path) => sandbox.readAgentFile(path),
+  }
   try {
     await sandbox.start()
     assert.equal((await agent('id -un')).stdout.trim(), 'conexus-agent')
     assert.notEqual((await agent('sudo -n true')).exitCode, 0, 'the agent user has no sudo')
-    await agent(`: > /workspace/stolen && ${WATCHER}`)
-
-    const control = await agent('GIT_CONFIG_VALUE_0="AUTHORIZATION: basic agent-user-control" sleep 2')
-    assert.equal(control.exitCode, 0)
-    const root = await sandbox.runAsRoot('sleep 2 && git --version', { GIT_CONFIG_VALUE_0: 'AUTHORIZATION: basic root-held-secret' })
-    assert.equal(root.exitCode, 0)
-    const stolen = (await agent('sort -u /workspace/stolen')).stdout
-    process.stderr.write(`FACTORY_LIVE_STOLEN:${JSON.stringify(stolen)}\n`)
-    assert.match(stolen, /agent-user-control/, 'the watcher reads a process of its own user')
-    assert.doesNotMatch(stolen, /root-held-secret/, 'the watcher never reads the root process')
-
-    const repo = '/workspace/live-repo'
-    const committed = await agent(`git init -q -b main ${repo} && cd ${repo} && echo one > a.txt && git add --all && git -c user.name=a -c user.email=a@b.invalid commit -qm one && git bundle create --quiet /workspace/.conexus-result.bundle refs/heads/main && git rev-parse HEAD`)
-    assert.equal(committed.exitCode, 0, committed.stderr)
-    const result = committed.stdout.trim()
-    const mirror = "git --git-dir='/var/lib/conexus-git/live.git'"
-    const pushed = await sandbox.runAsRoot([
-      "mkdir -p '/var/lib/conexus-git'",
-      "git init --quiet --bare '/var/lib/conexus-git/live.git'",
-      'git init --quiet --bare /var/lib/conexus-live-remote.git',
-      `${mirror} fetch --quiet '/workspace/.conexus-result.bundle' 'refs/heads/main'`,
-      `${mirror} push --quiet --force /var/lib/conexus-live-remote.git '${result}:refs/heads/conexus/live'`,
-      "git --git-dir=/var/lib/conexus-live-remote.git rev-parse 'refs/heads/conexus/live'",
-      `${mirror} update-ref refs/conexus/base '${result}'`,
-      `${mirror} bundle create --quiet '/var/lib/conexus-git/live.base.bundle' refs/conexus/base`,
-    ].join(' && '), {})
-    assert.deepEqual([pushed.exitCode, pushed.stdout.trim()], [0, result], pushed.stderr)
-    const pinned = await agent(`git fetch --quiet --no-tags '/var/lib/conexus-git/live.base.bundle' refs/conexus/base && git checkout --quiet -B conexus/live '${result}' && git rev-parse HEAD && echo two >> a.txt && git status --porcelain`, repo)
-    assert.deepEqual([pinned.exitCode, pinned.stdout.trim()], [0, `${result}\n M a.txt`], pinned.stderr)
-    assert.notEqual((await agent('touch /var/lib/conexus-git/live.git/HEAD')).exitCode, 0, 'the agent user cannot write the Hub mirror')
+    const seedFile = `/var/lib/conexus-seed/${runId}.bundle`
+    await seedSandbox({ git, projectId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile })
+    assert.equal((await agent('git rev-parse HEAD', SANDBOX_CHECKOUT)).stdout.trim(), base)
+    assert.notEqual((await agent(`: > '${seedFile}'`)).exitCode, 0, 'the agent user cannot replace the seed')
+    assert.equal((await agent('echo changed > app/index.html && mkdir -p .conexus/plans && echo plan > .conexus/plans/p.md', SANDBOX_CHECKOUT)).exitCode, 0)
+    const candidate = await pullCandidate({ git, projectId, runId, base, sandbox: source, checkout: SANDBOX_CHECKOUT })
+    await git.fastForwardMain(projectId, { base, candidate })
+    assert.deepEqual((await git.listTree(projectId, candidate)).map((entry) => entry.path), ['app', 'app/index.html'])
+    assert.equal((await git.readBlob(projectId, candidate, 'app/index.html', 1024)).bytes.toString('utf8'), 'changed\n')
   } finally {
     await sandbox.destroy().catch(() => undefined)
   }
@@ -91,7 +82,7 @@ test('a VM that E2B killed for idling is replaced by the next command, and root 
 test('the application check builds the starter in the real template, keeps its link out of Git, and fails on broken code', { skip, timeout: 5 * 60_000 }, async () => {
   const hub = await loadHub()
   const { ConexusFactoryE2BSandbox } = await hub('builder/factory.js')
-  const { APPLICATION_CHECK_FILES, APPLICATION_CHECK_SETUP_COMMAND, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
+  const { APPLICATION_CHECK_EXCLUDED, APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
   const { templateId, apiKey } = liveConfig()
   const sandbox = new ConexusFactoryE2BSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   const root = '/workspace/check-probe'
@@ -99,10 +90,11 @@ test('the application check builds the starter in the real template, keeps its l
   try {
     await sandbox.start()
     await sandbox.writeFiles([...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES].map((file) => ({ path: `${root}/${file.path}`, content: file.content })))
-    const passed = await sh(`git init -q && ${APPLICATION_CHECK_SETUP_COMMAND} && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && git check-ignore -q app/node_modules && git status --porcelain --untracked-files=all`)
+    const excluded = APPLICATION_CHECK_EXCLUDED.map((path) => `':(exclude)${path}'`).join(' ')
+    const passed = await sh(`git init -q && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && test -L app/node_modules && git add --all -- . ${excluded} && git diff --cached --name-only`)
     assert.equal(passed.exitCode, 0, passed.stderr)
     assert.deepEqual(passed.stdout.trim().split('\n').sort(), [
-      '?? app/index.html', '?? app/src/main.tsx', '?? app/src/style.css', '?? conexus.json', '?? conexus/check.sh',
+      'app/index.html', 'app/src/main.tsx', 'app/src/style.css', 'conexus.json', 'conexus/check.sh',
     ])
 
     await sandbox.writeFiles([{ path: `${root}/app/src/main.tsx`, content: 'import { missing } from "./nowhere"\nmissing(\n' }])
@@ -119,10 +111,7 @@ const PAST_DEADLINE_MS = TIMEOUT_MS * 2
 const openLiveSandbox = async (loadHub, label) => {
   const { createFactorySandbox } = await (await loadHub())('builder/factory.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = createFactorySandbox({
-    apiKey, templateId, timeoutMs: TIMEOUT_MS,
-    readCheckout: async () => { throw new Error('no checkout in this proof') },
-  })({ sessionId: `live-keepalive-${label}-${randomUUID()}` })
+  const sandbox = createFactorySandbox({ apiKey, templateId, timeoutMs: TIMEOUT_MS })({ sessionId: `live-keepalive-${label}-${randomUUID()}` })
   await sandbox.start()
   return { sandbox, apiKey }
 }

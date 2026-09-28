@@ -197,7 +197,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 
     /** Whether `main` holds this commit in its history, which is how a restart learns a run was admitted. */
     mainContains: async (projectId: string, revision: string): Promise<boolean> => {
-      if (!OID.test(revision)) return false
+      if (!await hasCommit(git, projectId, revision)) return false
       const main = await readMain(projectId)
       return succeeds(git(projectId, ['merge-base', '--is-ancestor', revision, main]))
     },
@@ -294,17 +294,18 @@ export const seedSandbox = async ({ git, projectId, base, sandbox, checkout, see
 }
 
 /**
- * The Hub's commit of everything the run changed: the whole checkout (ignored files and
- * `.conexus/plans/` left out) as one commit whose only parent is the base, bundled in the sandbox and
- * accepted into the Conexus Git. Answers null when the checkout holds exactly the base.
+ * The Hub's commit of everything the run changed: the whole checkout (ignored files, `.conexus/plans/`
+ * and the `excluded` paths left out) as one commit whose only parent is the base, bundled in the
+ * sandbox and accepted into the Conexus Git. Answers null when the checkout holds exactly the base.
  */
-export const pullCandidate = async ({ git, projectId, runId, base, sandbox, checkout }: Readonly<{
+export const pullCandidate = async ({ git, projectId, runId, base, sandbox, checkout, excluded = [] }: Readonly<{
   git: Pick<ConexusGit, 'acceptCandidate'>
   projectId: string
   runId: string
   base: string
   sandbox: RunSourceSandbox
   checkout: string
+  excluded?: readonly string[]
 }>): Promise<string | null> => {
   const bundleFile = `${checkout}/.git/conexus-candidate.bundle`
   const ref = candidateRef(runId)
@@ -314,7 +315,7 @@ export const pullCandidate = async ({ git, projectId, runId, base, sandbox, chec
     'export GIT_INDEX_FILE=.git/conexus-candidate-index',
     'rm -f "$GIT_INDEX_FILE"',
     `git read-tree ${quoted(base)}`,
-    "git add --all -- . ':(exclude).conexus/plans'",
+    `git add --all -- . ${['.conexus/plans', ...excluded].map((path) => quoted(`:(exclude)${path}`)).join(' ')}`,
     'tree=$(git write-tree)',
     `if [ "$tree" = "$(git rev-parse ${quoted(`${base}^{tree}`)})" ]; then echo UNCHANGED; exit 0; fi`,
     `commit=$(git -c user.name=${quoted(BUILDER_IDENTITY.name)} -c user.email=${quoted(BUILDER_IDENTITY.email)} commit-tree "$tree" -p ${quoted(base)} -m 'Conexus Builder')`,

@@ -199,6 +199,7 @@ export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, r
   })
 }
 
+/** @public Tests import this at runtime from the built module; the Hub mounts no conversation until part 1c. */
 export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation, toolPayloads }: Readonly<{
   mastra: Mastra
   controllerId: string

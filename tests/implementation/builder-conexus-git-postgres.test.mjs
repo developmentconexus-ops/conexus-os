@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
+import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+
+const { createConexusGit } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 
 const STARTER = 'a'.repeat(40)
 const CANDIDATE = 'b'.repeat(40)
@@ -192,6 +199,43 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
       { name: 'project.create_project_with_repository', roles: ['hub_project_command'] },
     ])
   })
+})
+
+test('creating a Project makes its Conexus Git repository with the starter on main, and a retry converges', async (t) => {
+  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_git_creation')
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-creation-'))
+  onCleanup(() => rmSync(scratch, { recursive: true, force: true }))
+  const git = createConexusGit({ root: join(scratch, 'git'), starter: [{ path: 'app/index.html', content: 'starter\n' }] })
+  const accountId = randomUUID()
+  const workspaceId = randomUUID()
+  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://creation.test', $2, 'Creator')", [accountId, accountId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Creation')", [workspaceId])
+  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
+  const commandPool = testPool({ ...connection, max: 2, options: '-c role=hub_project_command' })
+  onCleanup(() => commandPool.end())
+  const prepared = []
+  const storeWith = (prepare) => createProjectStore({ commandPool, repository: { prepare: async (projectId) => { prepared.push(projectId); return prepare(projectId) } } })
+  const create = (store, idempotencyKey, body = { name: 'Contador', sourceBootstrap: { mode: 'NEW' } }) =>
+    store.createProject({ accountId, workspaceId, idempotencyKey, body })
+
+  const created = await create(storeWith(git.ensureRepository), 'first')
+  const main = await git.readMain(created.projectId)
+  assert.deepEqual((await query(connectionString, 'SELECT source_revision FROM project.project WHERE project_id = $1', [created.projectId])).rows, [{ source_revision: main }])
+  assert.deepEqual((await query(connectionString, 'SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1', [created.projectId])).rows, [{ count: 1 }])
+  const replayed = await create(storeWith(git.ensureRepository), 'first')
+  assert.deepEqual({ projectId: replayed.projectId, replayed: replayed.replayed }, { projectId: created.projectId, replayed: true })
+  assert.equal(await git.readMain(created.projectId), main)
+
+  const refused = await create(storeWith(async () => { throw new Error('CONEXUS_GIT_FAILED') }), 'second').catch((error) => error)
+  assert.deepEqual({ code: refused.code, reason: refused.reason }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_FAILED' })
+  // The receipt stays reserved, so the same key later reaches the same Project id and its repository.
+  const recovered = await create(storeWith(git.ensureRepository), 'second')
+  assert.equal(recovered.projectId, prepared.at(-2))
+  assert.equal((await query(connectionString, 'SELECT source_revision FROM project.project WHERE project_id = $1', [recovered.projectId])).rows[0].source_revision, await git.readMain(recovered.projectId))
+
+  const before = prepared.length
+  await assert.rejects(create(storeWith(git.ensureRepository), 'import', { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } }), { code: 'SOURCE_INPUT_REFUSED' })
+  assert.equal(prepared.length, before)
 })
 
 test('hub_factory owns the factory schema and holds nothing anywhere else', async (t) => {

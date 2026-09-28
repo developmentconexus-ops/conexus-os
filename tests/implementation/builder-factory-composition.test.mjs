@@ -3,16 +3,14 @@ import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
 import { RequestContext } from '@mastra/core/request-context'
-import { createSessionSetupHook, getSessionSandbox } from '@mastra/factory/sandbox/session-sandbox'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL, tokenEnvironment } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -163,121 +161,6 @@ test('holdOpen reports a failed extension to onLapse, and refuses when the first
 })
 
 // A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
-const localShellSandbox = (env) => ({
-  executeCommand: async (command, args = []) => {
-    const result = spawnSync(command, args, { encoding: 'utf8', env: { ...process.env, ...env } })
-    return { exitCode: result.status ?? 1, success: result.status === 0, stdout: result.stdout, stderr: result.stderr }
-  },
-})
-const git = (cwd, ...args) => {
-  const result = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' })
-  if (result.status !== 0) throw new Error(result.stderr)
-  return result.stdout.trim()
-}
-
-test('the Factory\'s own clone and branch checkout, holding the credential that opens nothing, read the seed bundle and leave a clean checkout', async (t) => {
-  const { materializeRepo, checkoutSessionBranch } = await import('@mastra/factory/integrations/github/sandbox')
-  const root = mkdtempSync(join(tmpdir(), 'conexus-factory-seed-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const upstream = join(root, 'upstream')
-  mkdirSync(upstream)
-  git(upstream, 'init', '--quiet', '-b', 'main')
-  git(upstream, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base')
-  const base = git(upstream, 'rev-parse', 'HEAD')
-  // What root's seed leaves: a bundle of the default branch, and a system rule sending the
-  // credential-free clone URL to it.
-  const bundle = join(root, 'app.seed.bundle')
-  git(upstream, 'bundle', 'create', '--quiet', bundle, 'refs/heads/main')
-  const systemConfig = join(root, 'gitconfig')
-  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://github.com/acme-org/app.git\n`)
-  const sandbox = localShellSandbox({ GIT_CONFIG_SYSTEM: systemConfig, GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' })
-  const workdir = join(root, 'workspace', 'app')
-  const marked = []
-  await materializeRepo({
-    row: { id: 'row-1', sandboxWorkdir: workdir, materializedAt: null },
-    repoInfo: { repoFullName: 'acme-org/app', defaultBranch: 'main' },
-    sandbox, token: SANDBOX_CREDENTIAL, storage: { markMaterialized: async (row) => { marked.push(row.id) } },
-  })
-  await checkoutSessionBranch(sandbox, workdir, { branch: 'conexus/conversation-1', baseBranch: 'main', token: SANDBOX_CREDENTIAL, repoFullName: 'acme-org/app' })
-  assert.deepEqual(marked, ['row-1'])
-  assert.equal(git(workdir, 'branch', '--show-current'), 'conexus/conversation-1')
-  assert.equal(git(workdir, 'rev-parse', 'HEAD'), base)
-  assert.equal(git(workdir, 'config', '--get', 'remote.origin.url'), 'https://github.com/acme-org/app.git')
-})
-
-test('every start seeds root\'s mirror with a read token in root\'s environment before the Factory\'s start hook runs', async () => {
-  const created = fakeVm('vm-fresh')
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
-    repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
-  })
-  sandbox.findExistingSandbox = async () => undefined
-  sandbox.createSdkSandbox = async () => created
-  const order = []
-  sandbox.setOnStart((previous) => async (args) => { order.push(['factory', args.outcome]); await previous?.(args) })
-  await sandbox.start()
-  const seed = created.runs.find(({ options }) => options?.user === 'root')
-  assert.deepEqual(seed.script, [
-    "mkdir -p '/var/lib/conexus-git'",
-    "{ test -d '/var/lib/conexus-git/app.git' || git init --quiet --bare '/var/lib/conexus-git/app.git'; }",
-    "git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet --no-tags 'https://github.com/acme-org/app.git' '+refs/heads/main:refs/heads/main'",
-    "git --git-dir='/var/lib/conexus-git/app.git' bundle create --quiet '/var/lib/conexus-git/app.seed.bundle' 'refs/heads/main'",
-    "git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://github.com/acme-org/app.git'",
-  ].join(' && '))
-  assert.equal(seed.options.envs.GIT_CONFIG_VALUE_0, `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_seed').toString('base64')}`)
-  assert.deepEqual(order, [['factory', 'created']])
-  assert.equal(created.runs.indexOf(seed), 0, 'the seed is the first command of the start')
-})
-
-test('the seed points the agent\'s clone URL at its bundle, and root\'s token-bearing git still reaches GitHub', async (t) => {
-  const created = fakeVm('vm-fresh')
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
-    repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
-  })
-  sandbox.findExistingSandbox = async () => undefined
-  sandbox.createSdkSandbox = async () => created
-  sandbox.setOnStart((previous) => async (args) => { await previous?.(args) })
-  await sandbox.start()
-  const seed = created.runs.find(({ options }) => options?.user === 'root')
-  const root = mkdtempSync(join(tmpdir(), 'conexus-factory-rule-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const system = { GIT_CONFIG_SYSTEM: join(root, 'gitconfig'), GIT_CONFIG_GLOBAL: '/dev/null' }
-  const rule = seed.script.split(' && ').at(-1)
-  assert.equal(spawnSync('sh', ['-c', rule], { env: { ...process.env, ...system, ...seed.options.envs } }).status, 0)
-  const resolve = (env) => spawnSync('git', ['ls-remote', '--get-url', 'https://github.com/acme-org/app.git'], { encoding: 'utf8', env: { ...process.env, ...system, ...env } }).stdout.trim()
-  assert.equal(resolve({}), '/var/lib/conexus-git/app.seed.bundle')
-  assert.equal(resolve(tokenEnvironment('ghs_write')), 'https://github.com/acme-org/app.git')
-})
-
-test('the agent\'s commands start in the Project checkout, while the Factory still checks out under /workspace', async () => {
-  const sessionId = 'row-cwd'
-  const entry = getSessionSandbox(sessionId, 'acme/app', () => createFactorySandbox({
-    apiKey: 'e2b-key', templateId: 'conexus:tpl', readCheckout: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
-  })({ sessionId, repoFullName: 'acme/app' }))
-  const sandbox = entry.sandbox
-  const vms = [fakeVm('vm-fresh-1'), fakeVm('vm-fresh-2')]
-  sandbox.findExistingSandbox = async () => undefined
-  sandbox.createSdkSandbox = async () => vms.shift()
-  const seen = []
-  sandbox.setOnStart(() => createSessionSetupHook(async (hooked, workdir) => {
-    seen.push({ factoryWorkdir: workdir, cwdDuringFactoryHook: hooked.workingDirectory })
-  }, sessionId, 'acme/app'))
-  await sandbox.start()
-  const firstVm = sandbox.e2b
-  await sandbox.executeCommand('pwd')
-  const agentCwd = firstVm.runs.find(({ script }) => script === 'pwd').options.cwd
-  sandbox.handleSandboxTimeout()
-  await sandbox.start()
-  assert.deepEqual({ seen, agentCwd, cwdAfterRestart: sandbox.workingDirectory }, {
-    seen: [
-      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
-      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
-    ],
-    agentCwd: '/workspace/app',
-    cwdAfterRestart: '/workspace/app',
-  })
-})
-
-
 const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
 test('with no Builder and no Factory variable the Hub boots as it did before, with the installation credential key', () => {

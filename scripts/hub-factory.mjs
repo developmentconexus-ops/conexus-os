@@ -6,7 +6,6 @@ import { spawnSync } from 'node:child_process'
 // Hub, the same way scripts/build-hub-local.mjs runs the server. Run it with the Hub's env file:
 //   node --env-file=<hub.env> scripts/hub-factory.mjs connect
 //   node --env-file=<hub.env> scripts/hub-factory.mjs memory --model <provider/model>
-//   node --env-file=<hub.env> scripts/hub-factory.mjs provision --project <projectId> --name <projectName>
 //   node --env-file=<hub.env> scripts/hub-factory.mjs import-host-credential --provider <id> (--shared | --account-id <accountId>) [--auth-file <path>]
 //   node --env-file=<hub.env> scripts/hub-factory.mjs import-google-ai-pro-login --auth-file <antigravity-*.json> (--shared | --account-id <accountId>)
 const repositoryRoot = resolve(import.meta.dirname, '..')

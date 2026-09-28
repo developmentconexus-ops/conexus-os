@@ -4,7 +4,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import { MastraCompositeStore } from '@mastra/core/storage'
 import type { RetentionConfig, StorageDomains } from '@mastra/core/storage'
-import type { CommandResult, SandboxStartHook } from '@mastra/core/workspace'
+import type { CommandResult } from '@mastra/core/workspace'
 import { E2BSandbox } from '@mastra/e2b'
 import { MastraFactory } from '@mastra/factory'
 import type { FactoryIntegration } from '@mastra/factory'
@@ -15,7 +15,6 @@ import { createCustomProvidersPrimer, invalidateCustomProvidersSnapshots } from 
 import type { RouteAuth } from '@mastra/factory/routes/route'
 import type { CustomProvidersStorage } from '@mastra/factory/storage/domains/custom-providers/base'
 import type { FactorySandboxContext } from '@mastra/factory/sandbox/session-sandbox'
-import { repoDirUnder } from '@mastra/factory/sandbox/workdir'
 import type { Observability } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
@@ -32,8 +31,10 @@ export const FACTORY_OPERATOR_ID = 'conexus-operator'
 const FACTORY_SCHEMA = 'factory'
 export const FACTORY_WORKING_DIRECTORY = '/workspace'
 export const FACTORY_INTEGRATION_ID = 'github'
-// Root's own Git: a mirror per repository, never the agent's checkout.
-export const HUB_GIT_ROOT = '/var/lib/conexus-git'
+// The run's checkout of its Project's `main`, which the agent works in.
+export const SANDBOX_CHECKOUT = `${FACTORY_WORKING_DIRECTORY}/repo`
+// The template's unprivileged user: every agent command and file write runs as it.
+export const SANDBOX_AGENT_USER = 'conexus-agent'
 // What every Factory caller gets as the repository credential. It opens nothing on GitHub, so a
 // clone command line, a remote URL or GH_TOKEN holding it holds no secret.
 /** @public Tests import this at runtime from the built module. */
@@ -42,82 +43,24 @@ export const SANDBOX_CREDENTIAL = 'conexus-no-credential'
 type SandboxEnvironment = Record<string, string | undefined>
 type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]>
 
-const REPOSITORY_SLUG = /^[\w.-]+\/[\w.-]+$/
-const BRANCH = /^[A-Za-z0-9_./-]+$/
-
-// The token rides in the git process's environment as a one-command http header, never in argv,
-// a URL, a remote or a config file. Only root git on the Hub's own mirror carries it: the agent's
-// user cannot read a root process's environment, and root git never reads the agent's checkout,
-// whose config and hooks the agent writes. Commits cross between the two as bundles. Root git reads
-// no system config, where the seed points the repository's URL at a bundle for the agent.
-export const tokenEnvironment = (token: string): Record<string, string> => ({
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_COUNT: '1',
-  GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-  GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
-  GIT_TERMINAL_PROMPT: '0',
-})
-
 const withoutGithubTokens = <T extends string | undefined>(environment: Record<string, T>): Record<string, T> =>
   Object.fromEntries(Object.entries(environment).filter(([name]) => name !== 'GH_TOKEN' && name !== 'GITHUB_TOKEN'))
 
-// A read token and the default branch of a repository, minted when a start needs them.
-export type FactoryCheckoutRead = Readonly<{ token: string; defaultBranch: string }>
-type FactoryCheckoutSource = Readonly<{ repositorySlug: string; read(): Promise<FactoryCheckoutRead> }>
-
 // The template runs every command and file write as its unprivileged agent user. The Hub's own
-// token-bearing git runs as root through runAsRoot, where nothing that user left running can read
-// the process environment. retryOnDead stays native: the sandbox outlives runs, so a dead VM is
-// recreated rather than failing the next command.
-//
-// The Factory's start hook clones and checks out the session branch from the repository's URL,
-// with the credential it was given in the git process's environment. That credential is
-// SANDBOX_CREDENTIAL, so before the hook runs, on every start, root fetches the default branch into
-// its mirror and points that URL at a bundle of it: the Factory's own git reads the bundle.
-// GH_TOKEN is still filtered, for an organization PAT the Factory would hand out as it is.
+// steps that the agent must not be able to change run as root through runAsRoot and writeRootFile,
+// where nothing that user left running can reach them. retryOnDead stays native: the sandbox
+// outlives runs, so a dead VM is recreated rather than failing the next command. GH_TOKEN is still
+// filtered, for an organization PAT the Factory would hand out as it is.
 export class ConexusFactoryE2BSandbox extends E2BSandbox {
-  readonly #checkout: FactoryCheckoutSource | undefined
   readonly #timeoutMs: number
 
-  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>, checkout?: FactoryCheckoutSource) {
+  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>) {
     super({ ...options, env: withoutGithubTokens(options.env ?? {}), workingDirectory: FACTORY_WORKING_DIRECTORY })
-    if (checkout && !REPOSITORY_SLUG.test(checkout.repositorySlug)) throw new Error('FACTORY_CHECKOUT_REFUSED')
-    this.#checkout = checkout
     this.#timeoutMs = options.timeout
   }
 
   override setEnv(update: (environment: SandboxEnvironment) => SandboxEnvironment): void {
     super.setEnv((environment) => withoutGithubTokens(update(environment)))
-  }
-
-  override setOnStart(update: (previous: SandboxStartHook | undefined) => SandboxStartHook): void {
-    super.setOnStart((previous) => {
-      const next = update(previous)
-      const checkout = this.#checkout
-      // The Factory's start hook runs its checkout scripts with no cwd of its own, so the default
-      // directory must already exist while it runs, including after a dead VM is replaced.
-      return checkout ? async (args) => {
-        this.setWorkingDirectory(FACTORY_WORKING_DIRECTORY)
-        await this.#seedCheckout(checkout)
-        await next(args)
-        this.setWorkingDirectory(repoDirUnder(FACTORY_WORKING_DIRECTORY, checkout.repositorySlug))
-      } : next
-    })
-  }
-
-  async #seedCheckout({ repositorySlug, read }: FactoryCheckoutSource): Promise<void> {
-    const { token, defaultBranch } = await read()
-    if (!BRANCH.test(defaultBranch)) throw new Error('FACTORY_CHECKOUT_REFUSED')
-    const mirror = repoDirUnder(HUB_GIT_ROOT, repositorySlug)
-    const ref = `refs/heads/${defaultBranch}`
-    const seeded = await this.runAsRoot([
-      `mkdir -p '${HUB_GIT_ROOT}'`,
-      `{ test -d '${mirror}.git' || git init --quiet --bare '${mirror}.git'; }`,
-      `git --git-dir='${mirror}.git' fetch --quiet --no-tags 'https://github.com/${repositorySlug}.git' '+${ref}:${ref}'`,
-      `git --git-dir='${mirror}.git' bundle create --quiet '${mirror}.seed.bundle' '${ref}'`,
-      `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://github.com/${repositorySlug}.git'`,
-    ].join(' && '), tokenEnvironment(token))
-    if (seeded.exitCode !== 0) throw new Error(`FACTORY_CHECKOUT_SEED_FAILED:${seeded.exitCode}`)
   }
 
   async #extend(): Promise<void> {
@@ -150,12 +93,24 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
       }
     }
   }
+
+  // Root owns the file and its folder, so the agent's user can read it and never replace it.
+  async writeRootFile(path: string, bytes: Uint8Array): Promise<void> {
+    const folder = path.slice(0, path.lastIndexOf('/')) || '/'
+    const made = await this.runAsRoot(`mkdir -p -m 755 '${folder}'`, {})
+    if (made.exitCode !== 0) throw new Error('BUILDER_SANDBOX_FILE_REFUSED')
+    await this.e2b.files.write(path, new Blob([new Uint8Array(bytes)]), { user: 'root' })
+  }
+
+  // With the agent user's own permissions, so a link it planted reaches only what it could read.
+  async readAgentFile(path: string): Promise<Uint8Array> {
+    return this.e2b.files.read(path, { format: 'bytes', user: SANDBOX_AGENT_USER })
+  }
 }
 
-export const createFactorySandbox = ({ apiKey, templateId, readCheckout, timeoutMs = 15 * 60_000 }: Readonly<{
+export const createFactorySandbox = ({ apiKey, templateId, timeoutMs = 15 * 60_000 }: Readonly<{
   apiKey: string
   templateId: string
-  readCheckout(repositorySlug: string): Promise<FactoryCheckoutRead>
   timeoutMs?: number
 }>) => (context: FactorySandboxContext): ConexusFactoryE2BSandbox => new ConexusFactoryE2BSandbox({
   // context.sessionId is the Factory session row id, one sandbox per conversation.
@@ -169,7 +124,7 @@ export const createFactorySandbox = ({ apiKey, templateId, readCheckout, timeout
   env: {},
   metadata: { 'conexus-factory-session': context.sessionId },
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
-}, context.repoFullName ? { repositorySlug: context.repoFullName, read: () => readCheckout(context.repoFullName ?? '') } : undefined)
+})
 
 // prepare() loads Mastra Code with the Hub's own cwd and HOME: MCP servers, hooks and plugins from
 // .mastracode, and <cwd>/.env into process.env. The Hub cannot switch that off, so it refuses to

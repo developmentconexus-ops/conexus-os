@@ -38,14 +38,12 @@ const parseRepository = (value: Json): GithubRepository => {
 }
 
 const REPOSITORY_SLUG = /^[\w.-]+\/[\w.-]+$/
-const BRANCH = /^[A-Za-z0-9_./-]+$/
-const OID = /^[0-9a-f]{40}$/
 
 export type GithubApp = ReturnType<typeof createGithubApp>
 
 /**
- * The Hub's own GitHub App client. Every token it mints is used by the Hub itself for one call or
- * one Git command, and repository work is scoped to that one repository's GitHub id.
+ * The Hub's own GitHub App client, left only for the installation settings: reading the App, its
+ * installations and a recorded repository. Every token it mints is used by the Hub for one call.
  */
 export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }: Readonly<{ appId: string; privateKey: string; baseUrl?: string }>) => {
   const request = octokitRequest.defaults({ baseUrl, headers: { 'x-github-api-version': '2022-11-28' } })
@@ -66,21 +64,13 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
       throw new GithubRequestError(statusOf(error))
     }
   }
-  const installationToken = async (installationId: number, options: Readonly<{ repositoryIds?: readonly number[]; permissions: Record<string, 'read' | 'write'> }>): Promise<string> => {
+  const installationToken = async (installationId: number, options: Readonly<{ permissions: Record<string, 'read' | 'write'> }>): Promise<string> => {
     try {
-      return (await auth({
-        type: 'installation',
-        installationId,
-        permissions: options.permissions,
-        ...(options.repositoryIds ? { repositoryIds: [...options.repositoryIds] } : {}),
-      })).token
+      return (await auth({ type: 'installation', installationId, permissions: options.permissions })).token
     } catch (error) {
       throw new GithubRequestError(statusOf(error))
     }
   }
-  const repositoryToken = (installationId: number, repositoryExternalId: number, access: 'read' | 'write') =>
-    installationToken(installationId, { repositoryIds: [repositoryExternalId], permissions: { contents: access } })
-
   return Object.freeze({
     readApp: async (): Promise<Readonly<{ clientId: string; slug: string }>> => {
       const app = await call('GET /app', await appToken(), {}, 'bearer')
@@ -103,125 +93,11 @@ export const createGithubApp = ({ appId, privateKey, baseUrl = GITHUB_API_URL }:
         throw new GithubRequestError(statusOf(error))
       }
     },
-    // Answers null when GitHub refuses with 422, which is how it says the name is taken.
-    createOrganizationRepository: async (installationId: number, owner: string, name: string): Promise<GithubRepository | null> => {
-      const token = await installationToken(installationId, { permissions: { administration: 'write', metadata: 'read' } })
-      try {
-        return parseRepository(await call('POST /orgs/{org}/repos', token, { org: owner, name, private: true, auto_init: true }))
-      } catch (error) {
-        if (error instanceof GithubRequestError && error.status === 422) return null
-        throw error
-      }
-    },
     readRepository: async (installationId: number, slug: string): Promise<GithubRepository> => {
       if (!REPOSITORY_SLUG.test(slug)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
       const [owner, repo] = slug.split('/') as [string, string]
       const token = await installationToken(installationId, { permissions: { metadata: 'read' } })
       return parseRepository(await call('GET /repos/{owner}/{repo}', token, { owner, repo }))
-    },
-    repositoryToken,
-    // True when the installation still grants Administration: write on this one repository, without
-    // deleting anything. A precondition check, so a refused permission stops before any row moves.
-    probeRepositoryAdminAccess: async (installationId: number, repositoryExternalId: number): Promise<boolean> => {
-      try {
-        await installationToken(installationId, { repositoryIds: [repositoryExternalId], permissions: { administration: 'write' } })
-        return true
-      } catch (error) {
-        if (error instanceof GithubRequestError && (error.status === 403 || error.status === 404 || error.status === 422)) return false
-        throw error
-      }
-    },
-    // Idempotent: verifies the repository at `slug` is still the one identified by `externalId`, then
-    // deletes it. A 404 on either read or delete counts as already done.
-    deleteRepository: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>): Promise<void> => {
-      if (!REPOSITORY_SLUG.test(repository.slug)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const readToken = await installationToken(installationId, { repositoryIds: [repository.externalId], permissions: { metadata: 'read' } })
-      let current: GithubRepository
-      try {
-        current = parseRepository(await call('GET /repos/{owner}/{repo}', readToken, { owner, repo }))
-      } catch (error) {
-        if (error instanceof GithubRequestError && error.status === 404) return
-        throw error
-      }
-      if (current.id !== repository.externalId) throw new Error('FACTORY_REPOSITORY_IDENTITY_CHANGED')
-      const deleteToken = await installationToken(installationId, { repositoryIds: [repository.externalId], permissions: { administration: 'write' } })
-      try {
-        await call('DELETE /repos/{owner}/{repo}', deleteToken, { owner, repo })
-      } catch (error) {
-        if (error instanceof GithubRequestError && error.status === 404) return
-        throw error
-      }
-    },
-    readBranchHead: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string): Promise<string | null> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'read')
-      try {
-        const ref = await call('GET /repos/{owner}/{repo}/git/ref/{ref}', token, { owner, repo, ref: `heads/${branch}` })
-        const sha = (ref.object as Json | undefined)?.sha
-        if (typeof sha !== 'string' || !OID.test(sha)) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
-        return sha
-      } catch (error) {
-        if (error instanceof GithubRequestError && (error.status === 404 || error.status === 409)) return null
-        throw error
-      }
-    },
-    // The commit's whole tree, as GitHub lists it, read with a token for this one repository.
-    readTree: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, sha: string): Promise<Json> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'read')
-      return call('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', token, { owner, repo, tree_sha: sha, recursive: '1' })
-    },
-    readContents: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, sha: string, path: string): Promise<Json> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'read')
-      // Each segment is encoded here so its '/' separators survive and a '?' or '#' in a name cannot end the path.
-      return call('GET /repos/{owner}/{repo}/contents/{+path}', token, { owner, repo, path: path.split('/').map(encodeURIComponent).join('/'), ref: sha })
-    },
-    // One commit of `files` on top of `parent`, and the branch moved to it only if it is still at
-    // `parent`. Answers the new commit.
-    commitFiles: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, change: Readonly<{
-      branch: string
-      parent: string
-      baseTree: string
-      message: string
-      files: readonly Readonly<{ path: string; mode: '100644' | '100755'; content: string }>[]
-    }>): Promise<string> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(change.branch) || !OID.test(change.parent) || !OID.test(change.baseTree)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'write')
-      const tree = await call('POST /repos/{owner}/{repo}/git/trees', token, {
-        owner, repo, base_tree: change.baseTree,
-        tree: change.files.map((file) => ({ path: file.path, mode: file.mode, type: 'blob', content: file.content })),
-      })
-      if (typeof tree.sha !== 'string' || !OID.test(tree.sha)) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
-      const commit = await call('POST /repos/{owner}/{repo}/git/commits', token, { owner, repo, message: change.message, tree: tree.sha, parents: [change.parent] })
-      if (typeof commit.sha !== 'string' || !OID.test(commit.sha)) throw new Error('FACTORY_GITHUB_RESPONSE_REFUSED')
-      await call('PATCH /repos/{owner}/{repo}/git/refs/{ref}', token, { owner, repo, ref: `heads/${change.branch}`, sha: commit.sha, force: false })
-      return commit.sha
-    },
-    // The changed files between two exact commits, one page at a time (GitHub's own page size).
-    compareCommits: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, base: string, head: string, page: number): Promise<Json> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !OID.test(base) || !OID.test(head)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'read')
-      return call('GET /repos/{owner}/{repo}/compare/{basehead}', token, { owner, repo, basehead: `${base}...${head}`, per_page: 100, page })
-    },
-    // Whether `sha` is in the branch's history: the branch is at it or ahead of it.
-    branchContains: async (installationId: number, repository: Readonly<{ externalId: number; slug: string }>, branch: string, sha: string): Promise<boolean> => {
-      if (!REPOSITORY_SLUG.test(repository.slug) || !BRANCH.test(branch) || !OID.test(sha)) throw new Error('FACTORY_GITHUB_INPUT_REFUSED')
-      const [owner, repo] = repository.slug.split('/') as [string, string]
-      const token = await repositoryToken(installationId, repository.externalId, 'read')
-      try {
-        const { status } = await call('GET /repos/{owner}/{repo}/compare/{basehead}', token, { owner, repo, basehead: `${sha}...${branch}`, per_page: 1 })
-        return status === 'identical' || status === 'ahead'
-      } catch (error) {
-        if (error instanceof GithubRequestError && error.status === 404) return false
-        throw error
-      }
     },
   })
 }
