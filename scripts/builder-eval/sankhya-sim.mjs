@@ -1,8 +1,3 @@
-// The simulated Sankhya ERP for the Builder eval: loopback only, synthetic data, never a real ERP.
-// It speaks the gateway's wire (/authenticate, the service.sbr envelope, positional f0..fN) and
-// answers CRUDServiceProvider.loadRecords from the registered fixtures, 50 rows a page.
-//
-// Usage: node scripts/builder-eval/sankhya-sim.mjs [--port 4180] [--help]
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +30,6 @@ export function fixtureById(id) {
   return fixture
 }
 
-/** Every fixture's entities by name; two fixtures naming one entity would make a request ambiguous. */
 const ENTITIES = (() => {
   /** @type {Map<string, EntityTable>} */
   const tables = new Map()

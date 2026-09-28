@@ -1,7 +1,3 @@
-// The loopback eval server: the eval's Mastra (the Hub database's Mastra storage and the eval
-// scorers) behind MastraServer, so Mastra Studio can list, compare and rescore Builder experiments.
-//
-// Usage: node scripts/builder-eval/serve.mjs [--port 4111] [--help]
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MastraServer } from '@mastra/fastify'
@@ -40,8 +36,8 @@ function parseArgs(argv) {
   return options
 }
 
-// Studio runs on its own origin and fetches with credentials. The Fastify adapter adds no CORS and
-// @fastify/cors is not a dependency, so this hook answers Studio's origins and nobody else's.
+// Studio fetches with credentials from its own origin; the Fastify adapter adds no CORS and
+// @fastify/cors is not a dependency, so this answers Studio's origins and nobody else's.
 async function allowStudioOrigin(request, reply) {
   const { origin } = request.headers
   if (!STUDIO_ORIGINS.has(origin)) return

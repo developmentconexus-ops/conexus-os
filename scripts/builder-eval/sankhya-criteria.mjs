@@ -1,6 +1,3 @@
-// The criteria language of the simulated Sankhya's loadRecords: the SQL subset a Builder writes in
-// criteria.expression, bound to criteria.parameter and evaluated per row with SQL three-valued logic.
-
 /** @typedef {import('./fixtures/sales-v1.mjs').FieldType} FieldType */
 /** @typedef {import('./fixtures/sales-v1.mjs').WireRow} WireRow */
 /**
@@ -212,7 +209,7 @@ function comparison(operator, left, right) {
 const likeRegex = (pattern) =>
   new RegExp(`^${[...pattern].map((c) => (c === '%' ? '.*' : c === '_' ? '.' : c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join('')}$`, 's')
 
-/** A constant when every argument is, so a bad literal fails at compile time, not per row. */
+// Folds to a constant when every argument is one, so a bad literal fails at compile time, not per row.
 const derived = (type, args, compute) => {
   const value = (row) => compute(...args.map((arg) => arg.value(row)))
   return args.every((arg) => arg.constant) ? constant(type, value({})) : Object.freeze({ type, constant: false, value })
@@ -265,7 +262,6 @@ const next = (p) => p.tokens[p.index++]
 const isWord = (p, v) => peek(p).k === 'word' && peek(p).v === v
 const isSym = (p, v) => peek(p).k === 'sym' && peek(p).v === v
 const syntaxError = (token) => refuse(token.k === 'end' ? 'sintaxe inválida: a expressão termina antes da hora' : `sintaxe inválida perto de "${token.raw ?? token.v}"`)
-/** Consumes the next token when it is that word or symbol. */
 const acceptWord = (p, v) => isWord(p, v) && Boolean(next(p))
 const acceptSym = (p, v) => isSym(p, v) && Boolean(next(p))
 const expectSym = (p, v) => (isSym(p, v) ? next(p) : syntaxError(peek(p)))

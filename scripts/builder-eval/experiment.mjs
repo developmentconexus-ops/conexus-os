@@ -1,9 +1,3 @@
-// The Builder eval driver: every arm x trial x case of one comparison, recorded as Mastra
-// experiments over the dataset of ERP cases. Each job creates an eval Project bound to the simulated
-// Sankhya, sends the case's request through the product UI (run.mjs), and submits the result with
-// its scores. Rerunning the same comparison resumes it: only missing or platform-failed items run.
-//
-// Usage: node scripts/builder-eval/experiment.mjs --comparison <id> [options]
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -120,11 +114,7 @@ export function loadCases(dir) {
   })
 }
 
-/**
- * Which failures are the arm's and which the platform's, one row per Hub failure category
- * (apps/hub/src/builder/failure-vocabulary.ts). A category not listed is the platform's, so it is
- * retried and visible rather than silently charged to the arm.
- */
+// An unlisted category is the platform's: retried and visible, never charged to the arm.
 const FAILURE_OWNER = Object.freeze({
   APPLICATION_BUILD_FAILED: 'arm',
   SOURCE_RESULT_REJECTED: 'arm',
@@ -170,7 +160,7 @@ const runOutput = (result, artifactsDir, preview, traceIds) => ({
   preview, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, unscored: [],
 })
 
-/** The case file run.mjs reads. Each name check doubles as the wait for the data to load before the text is captured. */
+// Each name check doubles as the wait for the data to load before run.mjs captures the text.
 const caseFileOf = (item) => ({
   request: item.input.request,
   checks: item.groundTruth.screen.names.map((name) => ({ action: 'expectText', selector: 'body', text: name })),
@@ -207,7 +197,6 @@ async function requireFixtures(origin, cases) {
 
 const asJson = (value) => JSON.parse(JSON.stringify(value ?? null))
 
-/** Converges the dataset on the case files: adds new cases, updates changed ones, writes nothing otherwise. */
 async function syncDataset(mastra, cases) {
   const dataset = await mastra.datasets.get({ id: DATASET_ID }).catch((error) => {
     if (error?.id !== 'DATASET_NOT_FOUND') throw error
@@ -226,7 +215,6 @@ async function syncDataset(mastra, cases) {
   return dataset
 }
 
-/** Creates the experiment or adopts the existing one, refusing an arm whose model changed since it started. */
 async function openExperiment(dataset, { comparisonId, arm, trial, version, baseUrl, hubVersion }) {
   const id = `be:${comparisonId}:${arm.id}:t${trial}`
   await dataset.createExperiment({
@@ -242,7 +230,7 @@ async function openExperiment(dataset, { comparisonId, arm, trial, version, base
 
 const hhmmss = () => new Date().toISOString().slice(11, 19).replaceAll(':', '')
 
-/** One Builder run for one item. Never throws: a failure becomes an error row, retried by the next invocation. */
+// Never throws: a failure becomes an error row that the next invocation retries.
 async function runJob({ experiment, item }, { mastra, hub, runCase, binding, dataset, options, log }) {
   const label = `${experiment.id} ${item.externalId}`
   const startedAt = new Date()
@@ -285,7 +273,7 @@ async function forEachConcurrently(items, concurrency, work) {
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
 }
 
-/** Finalizes the experiment once every pinned item has a non-error result. @returns {Promise<ExperimentSummary>} */
+/** @returns {Promise<ExperimentSummary>} */
 async function closeExperiment(dataset, experiment, items) {
   const rows = await resultsOf(dataset, experiment.id)
   const pending = items.filter((item) => !isSettled(rows.get(item.id)))
@@ -317,7 +305,7 @@ export async function runExperiment(deps, options) {
   const binding = await hub.openSimulatorBinding()
 
   const dataset = await syncDataset(mastra, cases)
-  // Every experiment of a comparison pins the dataset version its first experiment pinned.
+  // Every arm of a comparison is scored over the dataset version its first experiment pinned.
   const version = (await dataset.listExperiments({ comparisonId, page: 0, perPage: 1 })).experiments[0]?.datasetVersion
     ?? (await dataset.getDetails()).version
   // Storage lists items in no stable order; case order makes every invocation plan the same jobs.

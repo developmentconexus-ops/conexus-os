@@ -127,7 +127,6 @@ const authenticate = (origin, { clientId, clientSecret, xToken }) =>
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: 'client_credentials' }).toString(),
   })
 
-/** A simulator on a free loopback port, closed after the test, and a signed-in caller of its services. */
 async function simulator(t) {
   const sim = await startSimulator({ port: 0 })
   t.after(() => sim.close())

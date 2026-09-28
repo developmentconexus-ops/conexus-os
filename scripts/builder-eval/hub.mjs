@@ -1,6 +1,5 @@
-// The Hub control API as the eval uses it: a headless browser on the signed-in test operator's
-// session, so every call rides the same cookie and CSRF header the product UI sends. The local Hub's
-// certificate is trusted by that Chromium profile, not by Node, which is why calls go through the page.
+// The local Hub's certificate is trusted by the signed-in test operator's Chromium profile, not by
+// Node, which is why every call goes through the page instead of a direct request.
 import { randomUUID } from 'node:crypto'
 import { chromium } from '@playwright/test'
 import { SIM_CREDENTIAL } from './sankhya-sim.mjs'

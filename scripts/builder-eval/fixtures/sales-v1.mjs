@@ -1,6 +1,3 @@
-// sales-v1: a synthetic Sankhya with five sellers' notes from December 2025 to July 2026, and the
-// known answers of the sales dashboard case computed from those same rows. Every name and value is
-// invented; nothing here comes from a real company.
 import { parseDate } from '../sankhya-criteria.mjs'
 
 /** @typedef {'sales-v1'} FixtureId  grows by one literal per fixture file */
@@ -22,7 +19,7 @@ import { parseDate } from '../sankhya-criteria.mjs'
 /** @typedef {Readonly<{ fixture: FixtureId, figures: SalesFigures, screen: ScreenTruth }>} CaseTruth */
 /** @typedef {Readonly<{ id: FixtureId, entities: Readonly<Record<string, EntityTable>>, truth: () => CaseTruth }>} Fixture */
 
-/** The simulator's loadRecords page; the first-page mistakes assume it (sankhya-sim.mjs pages by the same 50). */
+// Must match sankhya-sim.mjs: the first-page mistakes assume the simulator's page.
 const PAGE_SIZE = 50
 const PERIOD = Object.freeze({ from: '01/01/2026', to: '30/06/2026' })
 
@@ -39,20 +36,17 @@ const cents = (text) => {
   return Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
 }
 
-/**
- * A note's sign under one reading of the request: +1 counts as a sale, -1 discounts, 0 ignores.
- * Only confirmed notes (STATUSNOTA 'L') count unless anyStatus; a TIPMOV not in signs, absent included, counts as other.
- */
+// A note's sign under one reading of the request: +1 counts, -1 discounts, 0 ignores. Only confirmed
+// notes count unless anyStatus; a TIPMOV missing from signs, an absent one included, takes `other`.
 const signed =
   (signs, { other = 0, anyStatus = false } = {}) =>
   (note) =>
     anyStatus || note.STATUSNOTA === 'L' ? (Object.hasOwn(signs, note.TIPMOV ?? '') ? signs[note.TIPMOV] : other) : 0
 
-/** The business rule: confirmed sales count, confirmed returns are discounted, nothing else counts. */
 const RIGHT = signed({ V: 1, D: -1 })
 const periodRows = (notes) => notes.filter(inPeriod)
 
-/** Each known wrong reading: which rows an app takes and how it signs them. Labels finish "aparece R$ X, …". */
+// Labels are read after "aparece R$ X, " in app-correct's reason (scorers.mjs).
 const MISTAKES = Object.freeze([
   { id: 'first-page-only', label: 'o total de quem lê só a primeira página', take: (notes, pageSize) => notes.filter((note) => inPeriod(note) && RIGHT(note) !== 0).slice(0, pageSize), sign: RIGHT },
   { id: 'unfiltered-first-page', label: 'o total de quem lê só a primeira página, sem filtro', take: (notes, pageSize) => notes.slice(0, pageSize).filter(inPeriod), sign: RIGHT },
@@ -91,7 +85,6 @@ export function salesFigures({ notes, sellers, pageSize }) {
   }
 }
 
-/** mulberry32: a small seeded generator, so the fixture is the same rows on every machine. */
 function mulberry32(seed) {
   let state = seed >>> 0
   return () => {
@@ -117,10 +110,7 @@ const PARTNERS = Object.freeze(
   ].map((NOMEPARC, index) => Object.freeze({ CODPARC: String(301 + index), NOMEPARC })),
 )
 
-/**
- * Months with notes and the confirmed sales per seller in each. April 2026 has no note at all, and
- * December 2025 and July 2026 sit just outside the period.
- */
+// April 2026 is empty on purpose, and December 2025 and July 2026 sit just outside the period.
 const MONTHS = Object.freeze([
   ['2025-12', 3],
   ['2026-01', 7],
@@ -130,7 +120,6 @@ const MONTHS = Object.freeze([
   ['2026-06', 7],
   ['2026-07', 3],
 ])
-/** Pinned days on the period's edges: a sale on each side of both boundaries. */
 const EDGE_DAY = Object.freeze({ '2025-12': 31, '2026-01': 1, '2026-06': 30, '2026-07': 1 })
 /** Every month's traps besides the returns: [TIPMOV (null: absent), STATUSNOTA]. */
 const TRAPS = Object.freeze([
@@ -146,9 +135,8 @@ const TRAPS = Object.freeze([
 const two = (value) => String(value).padStart(2, '0')
 
 /**
- * The CabecalhoNota rows in NUNOTA order, which is date order. Seven confirmed sales of R$ 2.000 to
- * R$ 9.000 per seller and month against at most three returns of at most R$ 1.200 keep every cell
- * above R$ 10.000.
+ * Seven sales of R$ 2.000 to R$ 9.000 per seller and month against at most three returns of at most
+ * R$ 1.200 keep every cell above R$ 10.000, where it cannot be mistaken for another figure.
  * @returns {WireRow[]}
  */
 function generateNotes(random) {

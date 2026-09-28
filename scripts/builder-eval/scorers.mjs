@@ -1,5 +1,3 @@
-// How a Builder run is graded and where the grades live: the eval's Mastra over the Hub database's
-// Mastra storage, app-correct over the Preview's visible text, and one scorer per trace metric.
 import { Mastra } from '@mastra/core'
 import { createScorer } from '@mastra/core/evals'
 import { PostgresStore } from '@mastra/pg'
@@ -57,7 +55,7 @@ export async function scoreRun(mastra, { output, groundTruth }) {
   return { scores, unscored }
 }
 
-/** The Hub tags each Builder run's root span with these keys (apps/hub/src/builder/module.ts readTrace). */
+// Must match the keys the Hub tags each Builder run's root span with (apps/hub/src/builder/module.ts).
 const BUILDER_TRACE_KEYS = Object.freeze({ run: 'conexusBuilderRunId', project: 'conexusBuilderProjectId' })
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -172,7 +170,6 @@ const sumMetrics = (all) => Object.fromEntries(Object.keys(all[0]).map((key) => 
 
 const DIRECTION_LABEL = Object.freeze({ 'lower-is-better': 'menor é melhor', 'higher-is-better': 'maior é melhor' })
 
-/** One row per trace metric; adding a metric is one row. */
 const TRACE_METRIC_SCORERS = Object.freeze([
   { id: 'tool-calls', description: 'Chamadas de ferramenta do agente principal', direction: 'lower-is-better', value: (m) => m.toolCalls },
   { id: 'tool-errors', description: 'Chamadas de ferramenta que falharam', direction: 'lower-is-better', value: (m) => m.toolErrors },
@@ -254,9 +251,8 @@ const NUMBER = /\d[\d.,]*\d|\d/g
 const GROUPED = /^\d{1,3}(?:([.,])\d{3}(?:\1\d{3})*)?$/
 
 /**
- * Every amount written on the page, pt-BR or en. A separator followed by exactly one or two digits at
- * the end is decimal; groups of three are thousands; no decimal part means whole reais.
- * '1.234' is 123400 cents, whole.
+ * pt-BR or en: a separator followed by one or two final digits is decimal, groups of three are
+ * thousands, and no decimal part means whole reais, so '1.234' is 123400 cents.
  * @returns {{ cents: Cents, wholeReais: boolean }[]}
  */
 function parseAmounts(text) {

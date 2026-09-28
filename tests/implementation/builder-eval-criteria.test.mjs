@@ -9,7 +9,6 @@ const NO_TIPMOV = Object.freeze({ DTNEG: '15/03/2026', STATUSNOTA: 'L', VLRNOTA:
 const S = (value) => ({ $: value, type: 'S' })
 const D = (value) => ({ $: value, type: 'D' })
 
-/** What loadRecords does with one row: compile the criteria, then test the row, or the refusal. */
 const judge = (expression, parameter, row = ROW) => {
   const compiled = compileCriteria({ expression: { $: expression }, parameter }, FIELDS)
   return compiled.ok ? compiled.matches(row) : compiled.error

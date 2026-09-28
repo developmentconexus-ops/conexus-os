@@ -1,6 +1,3 @@
-// Hand-built stand-ins for the Builder eval tests: a Builder trace in the span shape the Hub's Mastra
-// exporter stores, the screen truth of the ten-row sales sample, and fakes for the Hub, the browser
-// driver and the simulator's health route. Nothing here talks to a model, a Hub or a browser.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -80,7 +77,6 @@ export function builderTrace({ traceId, builderRunId, projectId }) {
 
 export const seedSpans = async (storage, records) => (await storage.getStore('observability')).batchCreateSpans({ records })
 
-/** A Hub that knows `models` and hands out Project ids p-1, p-2, … in call order. */
 function fakeHub(models) {
   const created = []
   const bound = []
@@ -133,7 +129,6 @@ function fakeRunCase(storage, { failures = {} } = {}) {
   return { runCase, calls, maxInFlight: () => maxInFlight }
 }
 
-/** The simulator's health route only, serving `fixtures`, on a loopback port. */
 async function startSimulatorHealth(fixtures) {
   const server = createServer((request, response) => {
     response.writeHead(request.url === '/__sim/health' ? 200 : 404, { 'content-type': 'application/json' })
