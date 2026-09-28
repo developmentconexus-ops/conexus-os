@@ -5,8 +5,9 @@ type ModelAccountConnection = 'api_key' | 'oauth'
 type ModelAccountState = 'connected' | 'needs-reconnect' | 'shared'
 
 // One row shape for every place a model account is listed. `needs-reconnect` is carried in the
-// type and has its own chip and action, but the Hub does not report which accounts need it yet, so
-// `toRows` never produces it; nothing here should be built to fake that signal.
+// type and has its own chip and action; `toRows` only produces it when the server reports
+// `health: 'needs-reconnect'` for that provider. Nothing here should be built to fake that signal
+// from a timestamp or any other client-side guess.
 export type ModelAccountRow = Readonly<{
   provider: string
   label: string
@@ -31,7 +32,7 @@ const toRows = (providers: readonly ModelProvider[]): ModelAccountRow[] =>
       label: providerName(provider.provider),
       own,
       shared,
-      state: own ? 'connected' : 'shared',
+      state: own ? (provider.health === 'needs-reconnect' ? 'needs-reconnect' : 'connected') : 'shared',
     }
   })
 

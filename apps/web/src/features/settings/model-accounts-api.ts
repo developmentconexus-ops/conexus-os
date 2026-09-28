@@ -7,6 +7,7 @@ export type ModelProvider = Readonly<{
   userCredential?: 'api_key' | 'oauth'
   orgCredential?: 'api_key' | 'oauth'
   oauth?: Readonly<{ supported: boolean; modes: readonly ('paste-code' | 'device-code')[] }>
+  health?: 'ok' | 'needs-reconnect'
 }>
 export type ModelAccounts = Readonly<{ providers: readonly ModelProvider[]; orgKeyAdmin?: boolean }>
 export type OAuthStart = Readonly<{ sessionId: string; kind: 'paste-code' | 'device-code'; url: string; userCode?: string; instructions?: string; nextPollMs?: number }>
