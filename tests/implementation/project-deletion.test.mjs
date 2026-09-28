@@ -34,7 +34,7 @@ const fakePool = ({
   return {
     statements,
     connect: async () => ({
-      query: async (statement, values = []) => {
+      query: async (statement) => {
         statements.push(statement)
         if (statement === 'BEGIN' || statement === 'COMMIT' || statement === 'ROLLBACK') return { rows: [] }
         if (statement.includes('plan_project_deletion')) {
