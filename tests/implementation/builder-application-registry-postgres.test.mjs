@@ -30,9 +30,9 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'C020 Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'C020 app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceRevision])
-  await setup.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)`, [projectId, sourceRevision])
-  await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
-    VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision, `conversa-${projectId}`])
+  await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+  await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, state, candidate_revision, result_source_revision, result_kind)
+    VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 'RUNNING', $6, $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceRevision, `conversa-${projectId}`])
   await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-c020-test'")
   runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-c020-test' })
   const store = createApplicationArtifactStore()
@@ -40,9 +40,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   await setup.query("UPDATE builder.builder_run SET state = 'SUCCEEDED' WHERE builder_run_id = $1", [builderRunId])
   assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, false)
   await setup.query("UPDATE builder.builder_run SET state = 'RUNNING' WHERE builder_run_id = $1", [builderRunId])
-  await setup.query("UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2", ['c'.repeat(40), projectId])
-  assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, sourceRevision])).rows[0].admitted, false)
-  await setup.query('UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2', [sourceRevision, projectId])
+  assert.equal((await setup.query('SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS admitted', [accountId, projectId, builderRunId, 'c'.repeat(40)])).rows[0].admitted, false)
   const bytes = Buffer.from('<!doctype html><title>C020</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision, templateRef: '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440', recipeSha256: 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
@@ -101,9 +99,9 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Settlement Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Settlement app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
-  await setup.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, sourceA])
-  await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind)
-    VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 0, 0, 'RUNNING', $6, NULL)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA, `conversa-${projectId}`])
+  await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+  await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode, base_source_revision, state, candidate_revision)
+    VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 'RUNNING', $8)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA, `conversa-${projectId}`, sourceB])
   await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-settlement-test'")
   runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-settlement-test' })
   const store = createApplicationArtifactStore()
@@ -118,8 +116,8 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.deepEqual((await setup.query(`SELECT state, result_kind, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows, [
     { state: 'SUCCEEDED', result_kind: 'SOURCE_CHANGED', result_source_revision: sourceB },
   ])
-  assert.deepEqual((await setup.query(`SELECT working_source_revision, current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows, [
-    { working_source_revision: sourceB, current_state: 'PREVIEW_READY', last_preview_source_revision: sourceB, last_preview_artifact_revision_id: retained.artifactRevisionId, last_preview_artifact_digest: retained.artifactDigest },
+  assert.deepEqual((await setup.query(`SELECT current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows, [
+    { current_state: 'PREVIEW_READY', last_preview_source_revision: sourceB, last_preview_artifact_revision_id: retained.artifactRevisionId, last_preview_artifact_digest: retained.artifactDigest },
   ])
   // While the membership is gone the artifact reads disclose nothing, and restoring it reopens
   // them, because both derive from that one row.

@@ -69,14 +69,13 @@ The exception is bounded in both directions:
 
 - `hub_factory` holds `CREATE` and `USAGE` on `factory`, as its owner, and no grant on any other
   schema, table or Hub function. Like every role, it can name `public`, which is empty.
-- No other role holds any grant on `factory`. The Hub reads a Project's binding to the Factory
-  through `builder.factory_binding`, owned by `builder_owner` like the rest of `builder`, never
-  from Factory tables.
+- No other role holds any grant on `factory`. The Hub never reads Factory tables for a Project:
+  its source is its repository in the Conexus Git, recorded in `builder.project_repository`.
 
 `scripts/hub-catalog.mjs` leaves the objects inside `factory` out of the catalog snapshot, because
 they are the package's, not the migrations'. The `factory` schema line itself stays, with its owner
 and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
-`tests/implementation/builder-factory-binding-postgres.test.mjs` asserts both bounds.
+`tests/implementation/builder-conexus-git-postgres.test.mjs` asserts both bounds.
 
 Its register row is `"optional": true`, so a Hub without `CONEXUS_DB_FACTORY_PASSWORD_FILE` leaves it
 out of the startup census instead of reporting it `unconfigured`. With the file, it is censused like

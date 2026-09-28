@@ -37,11 +37,9 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, '030'])
   await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, '030', 'NEW', $3, '030')", [projectId, workspaceId, source])
-  await adminClient.query('INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)', [projectId, source])
+  await adminClient.query('SELECT builder.register_project_repository($1)', [projectId])
 
   const rejectsUpdate = (statement, values) => assert.rejects(() => adminClient.query(statement, values), /violates check constraint/)
-  await rejectsUpdate('UPDATE builder.project_working_state SET working_source_revision = $1 WHERE project_id = $2', ['bad', projectId])
-  await rejectsUpdate('UPDATE builder.project_working_state SET working_version = -1 WHERE project_id = $1', [projectId])
   await rejectsUpdate("UPDATE builder.project_working_state SET current_state = 'UNKNOWN' WHERE project_id = $1", [projectId])
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_source_revision = $1 WHERE project_id = $2', ['bad', projectId])
   await rejectsUpdate('UPDATE builder.project_working_state SET last_preview_artifact_digest = $1 WHERE project_id = $2', ['bad', projectId])
@@ -53,12 +51,11 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
 
   ingressClient = await connect(ingress); executorClient = await connect(executor)
-  const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value', [accountId, projectId, `conversa-${projectId}`, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, mode, id])).rows[0].value
+  const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [accountId, projectId, `conversa-${projectId}`, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, mode, id, source])).rows[0].value
   const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1) AS value', [id])).rows[0].value
 
   const planId = randomUUID(); await create(ingressClient, 'PLAN', planId)
   assert.equal((await claim(planId)).state, 'RUNNING')
-  assert.equal((await adminClient.query('SELECT working_source_revision FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0].working_source_revision, source)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', 'FAIL'])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', null])).rows[0].settle_builder_run, true)
@@ -68,10 +65,15 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await claim(sourceId)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED_BUILD_FAILED', 'COMPILE_FAILED'])).rows[0].settle_builder_run, false)
+  assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [sourceId, nextSource])).rows[0].advance_builder_run_source, false, 'no candidate, no advance')
+  assert.equal((await executorClient.query('SELECT builder.record_builder_run_candidate($1,$2)', [sourceId, nextSource])).rows[0].record_builder_run_candidate, true)
+  assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, null, 'RESPONSE_ONLY', null])).rows[0].settle_builder_run, false, 'a run with a candidate never settles as a response')
+  assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [sourceId, source])).rows[0].advance_builder_run_source, false, 'only the recorded candidate advances')
   assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [sourceId, nextSource])).rows[0].advance_builder_run_source, true)
+  assert.equal((await executorClient.query('SELECT builder.advance_builder_run_source($1,$2)', [sourceId, nextSource])).rows[0].advance_builder_run_source, true, 'advance converges')
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5)', [sourceId, nextSource, null, null, 'COMPILE_FAILED'])).rows[0].settle_builder_run_build, true)
-  assert.deepEqual((await adminClient.query('SELECT working_source_revision, working_version, current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0], {
-    working_source_revision: nextSource, working_version: '1', current_state: 'BUILD_FAILED',
+  assert.deepEqual((await adminClient.query('SELECT current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0], {
+    current_state: 'BUILD_FAILED',
     last_preview_source_revision: source, last_preview_artifact_revision_id: previousArtifactRevisionId, last_preview_artifact_digest: previousArtifactDigest,
   })
   assert.deepEqual((await adminClient.query('SELECT state, result_source_revision, result_kind, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [sourceId])).rows[0], {
@@ -84,6 +86,6 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
   await assert.rejects(() => claim(staleId), /NOT_ADMITTED/)
   await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
-  await adminClient.query('UPDATE builder.project_working_state SET working_version = working_version + 1 WHERE project_id = $1', [projectId])
-  await assert.rejects(() => claim(staleId), /BUILDER_RUN_BASE_STALE/)
+  // A base behind `main` is not refused here: the Conexus Git refuses its fast forward.
+  assert.equal((await claim(staleId)).baseSourceRevision, source)
 })

@@ -394,7 +394,7 @@ test('0031 moves every grant to a binding: open grants of one Connection collaps
   await grant(NOTES, notes, principal, 'sankhya.purchase-order.read', successor, '2026-09-24T12:00:00Z')
 
   const result = await runHubMigrations({ connectionString: fixture.connectionString })
-  assert.deepEqual(result.appliedNow, ['0031'])
+  assert.deepEqual(result.appliedNow, migrations.filter(({ version }) => version > '0030').map(({ version }) => version))
 
   const rows = (await client.query(`SELECT binding_id, project_id, environment, connection_id, name, bound_by, bound_at, unbound_by, unbound_at
     FROM connector.project_binding ORDER BY binding_id`)).rows

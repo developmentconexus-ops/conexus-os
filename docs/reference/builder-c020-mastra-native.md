@@ -69,7 +69,7 @@ or Preview protection from `BuilderRun` before the qualification says what repla
 | --- | --- |
 | Conversation | Mastra Thread/messages |
 | Execution transaction | Conexus BuilderRun |
-| Current code | ProjectWorkingState.working_source_revision |
+| Current code | `main` of the Project's repository in the Conexus Git |
 | Usable compiled artifact | ProjectWorkingState last-good Preview coordinates and Registry |
 | Diagnostic trace | Native Mastra observability; never execution/source/Preview authority |
 
@@ -152,8 +152,9 @@ Accepted-request recovery beyond currently proven behavior requires its named pr
 
 ## 7. ProjectWorkingState
 
-ProjectWorkingState owns working_source_revision, working_version, last-good
-source/artifact revision/digest, and relevant state/timestamps.
+ProjectWorkingState owns the last-good source/artifact revision/digest and relevant
+state/timestamps. The working source is `main` in the Project's Conexus Git repository, which
+only a run's fast forward from its own base moves.
 Successful compilation of B advances last-good Preview to B.
 Failure after source admission keeps working B. Today it also keeps the previous good
 Preview; that is current behaviour, not an invariant.
