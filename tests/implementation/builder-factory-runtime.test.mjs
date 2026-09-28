@@ -10,6 +10,7 @@ const { createBuilderService } = await import(built('builder/service.js'))
 const { createFactoryCodingWorkerRuntime, factoryAgentInstructions, recoverFactoryAdmissions } = await import(built('builder/factory-runtime.js'))
 const { createGithubApp } = await import(built('builder/factory-github.js'))
 const { createFactorySourceReads } = await import(built('builder/factory-source.js'))
+const { EXTERNAL_DATA_INSTRUCTION } = await import(built('builder/application-starter.js'))
 
 const BASE = 'b'.repeat(40)
 const RESULT = 'c'.repeat(40)
@@ -631,13 +632,14 @@ test('an unbound Project is refused a run before a sandbox is opened', async (t)
 test('the Factory agent is told to run the application check, and not that the compiler runs elsewhere', () => {
   const instructions = factoryAgentInstructions('/workspace/app')
   assert.match(instructions, /^Work only in the exact Session Workspace at \/workspace\/app\./)
-  assert.ok(instructions.endsWith('Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'))
+  assert.ok(instructions.includes(' Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports. '))
   assert.ok(instructions.includes(' The conversation history can describe edits from earlier turns that were discarded; trust the files in the workspace over the history. '))
   assert.doesNotMatch(instructions, /compiler runs separately|\/workspace\/repo/)
 })
 
-test('a non-empty connector brief is appended after the application check instruction, and an empty one changes nothing', () => {
+test('a non-empty connector brief is appended right after the external-data rule, and an empty one changes nothing', () => {
   const bare = factoryAgentInstructions('/workspace/app')
+  assert.ok(bare.endsWith(` ${EXTERNAL_DATA_INSTRUCTION}`))
   assert.equal(factoryAgentInstructions('/workspace/app', ''), bare)
   assert.equal(factoryAgentInstructions('/workspace/app', 'CONNECTOR_BRIEF_MARKER'), `${bare} CONNECTOR_BRIEF_MARKER`)
 })
@@ -655,6 +657,30 @@ test("the run appends its own Project's connector brief to the agent instruction
   await withoutBrief.service.close()
   assert.equal(withoutBrief.configuredInstructions.length, 1)
   assert.equal(withBrief.configuredInstructions[0], `${withoutBrief.configuredInstructions[0]} CONNECTOR_BRIEF_MARKER`)
+})
+
+test("a Project with no binding is told the external-data rule and nothing about another Project's Connection", async (t) => {
+  const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+  const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+  const otherProjectId = '55555555-5555-4555-8555-555555555555'
+  const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'OTHER_PROJECT_BINDING', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
+  const brief = createConnectorBrief({
+    connectors: [{ definition: sankhyaDefinition, adapter: null }],
+    store: { listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) },
+    observability: connectorRecord().observability,
+  })
+  const briefOf = (givenProjectId) => brief(scopeFromArtifactSource({ via: 'PREVIEW', projectId: givenProjectId }))
+  assert.ok((await briefOf(otherProjectId)).includes('sankhya.purchase-order.read'), 'the other Project reaches the operation')
+
+  const run = await harness(t, { connectorBrief: briefOf })
+  await run.start()
+  await run.service.close()
+  const [instructions] = run.configuredInstructions
+  assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION))
+  for (const leak of ['sankhya.purchase-order.read', 'OTHER_PROJECT_BINDING', otherBinding.connectionId, 'connectors.call']) {
+    assert.equal(instructions.includes(leak), false, leak)
+  }
 })
 
 test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {

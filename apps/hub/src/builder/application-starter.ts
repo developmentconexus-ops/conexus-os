@@ -84,6 +84,16 @@ export const APPLICATION_CHECK_SETUP_COMMAND = 'mkdir -p .git/info && { grep -qx
 
 export const APPLICATION_CHECK_INSTRUCTION = 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.'
 
+// The provenance rule of docs/product/contract.md, Integrations. It is static on purpose: a run of
+// a Project with no binding learns the rule and nothing about any Workspace Connection.
+export const EXTERNAL_DATA_INSTRUCTION = 'Data that the application presents as coming from an external company system (an ERP, a CRM, a bank '
+  + 'or any other system outside this Project) may only come from a Connection bound to this Project, read the way these '
+  + 'instructions describe. When a request needs such data and these instructions describe no way to read it, change no '
+  + 'files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações (or, when '
+  + 'these instructions say connector access is unavailable for this run, that it is unavailable right now), and stop. '
+  + 'Never write invented, sample or placeholder records for such a system, whether in a migration, a seed, a handler or '
+  + 'the interface, and never label data as coming from a system it was not read from.'
+
 export const BUILDER_SHARED_AGENT_INSTRUCTIONS = Object.freeze([
   'Work only in the exact Session Workspace at /workspace/repo.',
   'Keep application edits under /workspace/repo/app/**, except server logic and saved data under /workspace/repo/conexus/**; load the `conexus-server` skill before editing those.',
