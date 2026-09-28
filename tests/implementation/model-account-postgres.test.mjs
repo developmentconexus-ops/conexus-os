@@ -7,6 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createGoogleAiProAccounts } = await import(hubModuleUrl('builder/google-ai-pro/store.js'))
+const { createModelAccountStore } = await import(hubModuleUrl('builder/model-account-store.js'))
 const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
 
 // SET ROLE from the superuser test connection exercises the app-facing functions through
@@ -122,7 +123,7 @@ test('Google AI Pro credential read and write through model.model_account, seale
   onCleanup(() => pool.end())
 
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  const accounts = createGoogleAiProAccounts({ pool, envelope })
+  const accounts = createGoogleAiProAccounts(createModelAccountStore({ pool, envelope }))
 
   assert.equal(await accounts.hasShared(), false)
   assert.deepEqual(await accounts.connection(alice), { mine: false, shared: false })
@@ -163,4 +164,42 @@ test("the installation's default model for a role reads as NULL until it is set,
   await query(connectionString, 'INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ($1,$2,$3)', ['build', 'google-ai-pro/gemini-3-flash', admin])
   assert.deepEqual([await read('plan'), await read('build')], [null, 'google-ai-pro/gemini-3-flash'])
   assert.equal((await refusalAs(connectionString, 'hub_model_account', 'SELECT model_id FROM model.installation_default'))?.code, '42501')
+})
+
+test('a ChatGPT subscription row: own before shared, sealed, and a refresh rewrites the held row by id even when someone else owns it', async (t) => {
+  const { connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_model_account_by_id')
+  const alice = await account(connectionString, 'alice')
+  const bob = await account(connectionString, 'bob')
+  const pool = new pg.Client({ connectionString })
+  await pool.connect()
+  await pool.query('SET ROLE hub_model_account')
+  onCleanup(() => pool.end())
+  const store = createModelAccountStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32)) })
+  const rowOf = async (owner) => (await query(connectionString, "SELECT model_account_id, secret, sharing FROM model.model_account WHERE owner_account_id = $1 AND provider = 'openai-codex'", [owner])).rows[0]
+
+  assert.equal(await store.usable(bob, 'openai-codex'), null)
+  await store.write(alice, 'openai-codex', 'oauth', '{"access":"alice-access-1"}')
+  const aliceRow = await rowOf(alice)
+  assert.equal(aliceRow.sharing, 'just_me', 'a new sign-in is shared with nobody')
+  assert.equal(aliceRow.secret.startsWith('mastra:factory-secret:v1:'), true)
+  assert.doesNotMatch(aliceRow.secret, /alice-access-1/)
+  assert.deepEqual(await store.usable(alice, 'openai-codex'), { modelAccountId: aliceRow.model_account_id, kind: 'oauth', secret: '{"access":"alice-access-1"}' })
+  assert.equal(await store.usable(bob, 'openai-codex'), null, "a just_me row is not another person's")
+  assert.equal(await store.usable(alice, 'google-ai-pro'), null, 'one provider never answers for another')
+
+  await query(connectionString, "UPDATE model.model_account SET sharing = 'everyone' WHERE model_account_id = $1", [aliceRow.model_account_id])
+  assert.deepEqual(await store.usable(bob, 'openai-codex'), { modelAccountId: aliceRow.model_account_id, kind: 'oauth', secret: '{"access":"alice-access-1"}' }, 'the shared row when the caller has none')
+  assert.deepEqual(await store.connection(bob, 'openai-codex'), { mine: false, shared: true })
+
+  // Bob's run holds Alice's shared row; its refresh goes back to that row, not to a new one of Bob's.
+  assert.equal(await store.rewrite(aliceRow.model_account_id, '{"access":"alice-access-2"}'), true)
+  assert.deepEqual(await store.readById(aliceRow.model_account_id), { modelAccountId: aliceRow.model_account_id, kind: 'oauth', secret: '{"access":"alice-access-2"}' })
+  assert.equal(await rowOf(bob), undefined)
+  assert.equal((await rowOf(alice)).sharing, 'everyone', 'a rewrite keeps the sharing level')
+
+  await store.write(bob, 'openai-codex', 'oauth', '{"access":"bob-access-1"}')
+  assert.deepEqual(await store.usable(bob, 'openai-codex'), { modelAccountId: (await rowOf(bob)).model_account_id, kind: 'oauth', secret: '{"access":"bob-access-1"}' }, 'the own row wins over the shared one')
+
+  const gone = '00000000-0000-4000-8000-000000000000'
+  assert.deepEqual([await store.readById(gone), await store.rewrite(gone, 'x')], [null, false])
 })

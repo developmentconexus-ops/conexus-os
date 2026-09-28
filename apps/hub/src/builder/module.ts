@@ -39,6 +39,7 @@ import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } fro
 import { startModelRouter } from './google-ai-pro/router.js'
 import { GOOGLE_AI_PRO_PROVIDER, type GoogleAiProKey } from './google-ai-pro/credential.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
+import { createModelAccountStore } from './model-account-store.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies, RunNote } from './service.js'
 
@@ -286,10 +287,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
   // envelope every Conexus secret uses.
   const modelAccountPool = createPostgresPool({ ...database, user: 'hub_model_account', password: readSecretFile(builder.modelAccountPasswordFile) })
-  const googleAiProAccounts = createGoogleAiProAccounts({
+  const modelAccounts = createModelAccountStore({
     pool: modelAccountPool,
     envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
   })
+  const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
   const readDefault = async (role: 'plan' | 'build'): Promise<string | null> =>
     (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource

@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0034",
+ "head": "0035",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -581,7 +581,9 @@
    "function iam.visible_workspaces(p_account_id uuid) returns TABLE(workspace_id uuid, role iam.workspace_role) kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,connector_owner:EXECUTE:false,iam_owner:EXECUTE:false,project_owner:EXECUTE:false,workspace_owner:EXECUTE:false body=ae95fa6cd736b5de9076e096db672545",
    "function model.read_installation_default(p_role text) returns text kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=799ac8f1aff4f0bbaefce0e34b03cf42",
    "function model.read_model_account(p_owner_account_id uuid, p_provider text) returns TABLE(model_account_id uuid, secret text, kind text, sharing text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=a67e4bfe067b8280d1c69dd3e15a2a14",
+   "function model.read_model_account_by_id(p_model_account_id uuid) returns TABLE(secret text, kind text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=83004f3e60f0e1874a5b1d4dc9472f1e",
    "function model.read_shared_model_account(p_provider text) returns TABLE(model_account_id uuid, secret text, kind text) kind=f owner=model_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=4075ba3ab464a5fe1a1da968720b38f2",
+   "function model.rewrite_model_account_secret(p_model_account_id uuid, p_secret text) returns boolean kind=f owner=model_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=efdd415d848a1ba621c3f187666baeb9",
    "function model.upsert_model_account(p_owner_account_id uuid, p_provider text, p_kind text, p_secret text, p_sharing text) returns uuid kind=f owner=model_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_model_account:EXECUTE:false,model_owner:EXECUTE:false body=2120127c0a3a723b2efb05cec696b3d7",
    "function project.begin_project_deletion(p_account_id uuid, p_project_id uuid, p_confirm_name text) returns project.project_deletion kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=5296c0a0096fe794706db2b562b721b6",
    "function project.complete_create_project_receipt(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid, p_response_status integer, p_response_digest text, p_response_body jsonb) returns void kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=a0bbf5afa982f5dd67ed4feb197ccefe",
