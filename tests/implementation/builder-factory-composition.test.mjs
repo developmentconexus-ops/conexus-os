@@ -102,6 +102,20 @@ test('the Factory sandbox callback builds one E2B sandbox per session row in /wo
   assert.deepEqual(sandbox.getEnv(), {})
 })
 
+test('the Factory sandbox is created closed to public inbound traffic', async () => {
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl' })({ sessionId: 'row-1' })
+  let captured = null
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async (templateId, opts) => {
+    captured = { templateId, opts }
+    return fakeVm('vm-fresh')
+  }
+  await sandbox.start()
+  assert.deepEqual({ templateId: captured.templateId, network: captured.opts.network }, {
+    templateId: 'conexus:tpl', network: { allowPublicTraffic: false },
+  })
+})
+
 
 // A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
 const localShellSandbox = (env) => ({

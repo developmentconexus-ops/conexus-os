@@ -55,8 +55,14 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
   const requests = []
   const mode = { authenticate: 'ok', service: 'ok' }
   let issued = 0
+  const open = new Map()
+  let sameBearerOverlaps = 0
   const sockets = new Set()
   const server = createServer((request, response) => {
+    const bearer = request.headers.authorization
+    const overlapped = Boolean(bearer) && (open.get(bearer) ?? 0) > 0
+    if (overlapped) sameBearerOverlaps += 1
+    if (bearer) open.set(bearer, (open.get(bearer) ?? 0) + 1)
     const chunks = []
     request.on('data', (chunk) => chunks.push(chunk))
     request.on('end', () => {
@@ -70,6 +76,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       }
       requests.push(record)
       const send = (status, body, statusMessage = 'OK') => {
+        if (bearer) open.set(bearer, open.get(bearer) - 1)
         const payload = typeof body === 'string' ? body : JSON.stringify(body)
         response.writeHead(status, statusMessage, { 'content-type': 'application/json', 'x-provider-secret': SECRET_MARKER })
         response.end(payload)
@@ -85,6 +92,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       const service = mode.service
       if (service === 'stall') return
       if (service === 'refuse-first-token' && record.authorization === 'Bearer fake-token-1') return send(403, { error: { message: `GTW3403: Token de acesso expirado. ${SECRET_MARKER}` } }, SECRET_MARKER)
+      if (service === 'stall-first-token' && record.authorization === 'Bearer fake-token-1') return
       if (service === 400) return send(400, { error: { message: `GTW3407: Não foi possível realizar login no ERP. ${SECRET_MARKER}` } }, SECRET_MARKER)
       if (service === 'stalled-400') {
         response.writeHead(400, SECRET_MARKER, { 'content-type': 'application/json' })
@@ -96,10 +104,14 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
       if (service === 'envelope-status-47') return send(200, { serviceName: record.serviceName, status: '47', statusMessage: `Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'envelope-error') return send(200, { serviceName: record.serviceName, status: '0', statusMessage: `[CORE_E01234] Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'oversized') return send(200, { serviceName: record.serviceName, status: '1', padding: 'x'.repeat(300 * 1024) })
-      return send(200, {
+      const loaded = () => send(200, {
         serviceName: record.serviceName, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
         responseBody: { entities: loadRecords(record.body.requestBody.dataSet, { extraField: service === 'extra-field' }) },
       })
+      if (service === 'cancel-concurrent') {
+        return setTimeout(() => (overlapped ? send(200, { serviceName: record.serviceName, status: '4', statusMessage: `Serviço cancelado por concorrência ${SECRET_MARKER}`, pendingPrinting: 'false' }) : loaded()), 25)
+      }
+      return loaded()
     })
   })
   server.on('connection', (socket) => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)) })
@@ -109,6 +121,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90 } = {}) => {
     requests,
     mode,
     issued: () => issued,
+    sameBearerOverlaps: () => sameBearerOverlaps,
     close: async () => {
       for (const socket of sockets) socket.destroy()
       await new Promise((resolve) => server.close(resolve))
