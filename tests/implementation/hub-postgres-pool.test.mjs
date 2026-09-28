@@ -92,7 +92,11 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
       [pid],
     )
     if (activity[0]?.sleeping) break
-    assert.ok(Date.now() - activeSince < 5000, 'the sleep query became active on the server')
+    if (Date.now() - activeSince >= 5000) {
+      inFlight.catch(() => {})
+      client.release(true)
+      assert.fail('the sleep query never became active on the server')
+    }
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 
