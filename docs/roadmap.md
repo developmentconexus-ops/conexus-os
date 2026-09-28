@@ -1,6 +1,6 @@
 # Conexus OS roadmap
 
-This file owns the status of the stage gates and names the current gate. Bets live in the private
+This file owns the status of the stage gates and names the current gate. Workstreams (frentes) live in the private
 `conexus-hq` repository, and this file never names them.
 
 ## What Conexus is

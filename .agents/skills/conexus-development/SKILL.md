@@ -24,12 +24,12 @@ The lane decides where the work starts. Its gates are in the [lane table](../../
 | Lane | Starts from | Work is tracked in |
 | --- | --- | --- |
 | `lane:fast` | an issue in this repository | the issue |
-| `lane:shaped` | a bet in the private `conexus-hq`, split into sub-issues here | each sub-issue |
-| `lane:qualification` | any Q trigger: the gate the roadmap names, or a bet that trips Q-b, Q-c or Q-d | one task in `docs/tasks` |
+| `lane:shaped` | a workstream in the private `conexus-hq`, split into sub-issues here | each sub-issue |
+| `lane:qualification` | any Q trigger: the gate the roadmap names, or a workstream that trips Q-b, Q-c or Q-d | one task in `docs/tasks` |
 
 Only the qualification lane writes a task in `docs/tasks`. A fast or shaped unit never waits for a task and never creates one.
 
-If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The manager reshapes the bet.
+If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The manager reshapes the workstream.
 
 ## Build a change
 
