@@ -130,3 +130,33 @@ test('a candidate recovery cannot confirm while the Conexus Git fails stays runn
   }
   assert.deepEqual(settled, { 'landed-unconfirmed': admitted, compiled: interrupted })
 })
+
+test('a run that started in Planejar and built after the plan approval records, advances and settles its source (AC-4)', async (t) => {
+  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_plan_settlement')
+  const owner = randomUUID()
+  const workspaceId = randomUUID()
+  const projectId = randomUUID()
+  const builderRunId = randomUUID()
+  const base = 'a'.repeat(40)
+  const candidate = 'b'.repeat(40)
+  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://plan.test', $2, 'Owner')", [owner, owner])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Plan')", [workspaceId])
+  await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Plan', 'NEW', $3, 'plan')", [projectId, workspaceId, base])
+  await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
+  await query(connectionString, `
+    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, mode, base_source_revision, state, phase)
+    VALUES ($1, $2, $3, $4, $5, $6, 'PLAN', $7, 'RUNNING', 'AGENT')`,
+  [builderRunId, projectId, owner, randomUUID(), '1'.repeat(64), '2'.repeat(64), base])
+  const executorPool = testPool({ ...connection, max: 1, options: '-c role=hub_builder_executor' })
+  onCleanup(() => executorPool.end())
+  const store = createBuilderStore({ ingressPool: executorPool, executorPool })
+
+  await store.recordBuilderRunCandidate(builderRunId, candidate)
+  await store.advanceBuilderRunSource(builderRunId, candidate)
+  const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
+  await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
+  const [row] = (await query(connectionString, 'SELECT mode, state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
+  assert.deepEqual({ admitted: admitted.value, ...row }, {
+    admitted: true, mode: 'PLAN', state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
+  })
+})

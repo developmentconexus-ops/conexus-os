@@ -280,3 +280,46 @@ test("a run pays with the caller's own account for its model's provider, else th
   anaRun.release()
   await assert.rejects(turn('run-ana', 'openai/gpt-5.6-sol'), /BUILDER_MODEL_NOT_SELECTED/, 'a released run calls nothing')
 })
+
+test('a run started in Planejar holds an account for the Construir model too, so a build model from another provider runs after the plan approval', async () => {
+  const { RequestContext } = await import('@mastra/core/request-context')
+  const { createModelRouting } = await import(built('builder/model-routing.js'))
+  const { store, rows } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
+  await store.write(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
+  await store.write(bia, 'openai-codex', 'oauth', 'bia-secret')
+  const threadModels = { plan: 'openai/gpt-5.6-sol', build: 'google-ai-pro/gemini-3-flash' }
+  const routing = createModelRouting({
+    routes: {
+      openai: { accountProvider: 'openai-codex', take: (account) => ({ modelProvider: 'openai', model: async (name) => ({ called: name, with: account.secret }) }) },
+      'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
+    },
+    modelAccounts: store,
+    modelOf: async (_projectId, _conversationId, mode) => threadModels[mode],
+    readDefault: async () => null,
+  })
+  const hold = (accountId, builderRunId, mode) => routing.hold({ builderRunId, accountId, projectId: 'project-1', conversationId: 'conversation-1', mode })
+  const turn = (builderRunId, modelId) => {
+    const requestContext = new RequestContext()
+    requestContext.setRaw('conexusBuilderRunId', builderRunId)
+    requestContext.set('controller', { session: { modelId } })
+    return routing.resolve({ requestContext })
+  }
+
+  const planned = await hold(ana, 'run-plan', 'PLAN')
+  assert.deepEqual([
+    planned.modelAccountId,
+    await turn('run-plan', 'openai/gpt-5.6-sol'),
+    await turn('run-plan', 'google-ai-pro/gemini-3-flash'),
+  ], [
+    rows.get(`${ana}:openai-codex`).id,
+    { called: 'gpt-5.6-sol', with: 'ana-secret' },
+    { called: 'gemini-3-flash', with: 'ana-google-secret' },
+  ])
+  planned.release()
+  await assert.rejects(turn('run-plan', 'google-ai-pro/gemini-3-flash'), /BUILDER_MODEL_NOT_SELECTED/, 'a released run calls neither provider')
+
+  await assert.rejects(hold(bia, 'run-bia-plan', 'PLAN'), /BUILDER_MODEL_NOT_SELECTED/, 'a Planejar run whose Construir model has no account is refused before it starts')
+  Object.assign(threadModels, { plan: 'google-ai-pro/gemini-3-flash', build: 'openai/gpt-5.6-sol' })
+  assert.equal((await hold(bia, 'run-bia-build', 'BUILD')).modelAccountId, rows.get(`${bia}:openai-codex`).id, 'a Construir run never returns to Planejar, so it holds only its own model')
+})

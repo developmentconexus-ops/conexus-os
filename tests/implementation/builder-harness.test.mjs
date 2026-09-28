@@ -381,3 +381,71 @@ test("a run's turn lasts through the person's answer and the plan approval, on t
   await run.close()
   assert.deepEqual([runContexts.size, runWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)], [0, 0, undefined])
 })
+
+test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes keeps Planejar, and the approval builds in the same run (AC-4, AC-16)", async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-plan-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'plan-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const steps = [
+    { toolCallId: 'w1', toolName: 'mastra_workspace_write_file', input: { path: '.conexus/plans/p.md', content: '# Plano\n\n1. Botão.\n' } },
+    { toolCallId: 'p1', toolName: 'submit_plan', input: { path: '.conexus/plans/p.md' } },
+    { toolCallId: 'p2', toolName: 'submit_plan', input: { path: '.conexus/plans/p.md' } },
+    { toolCallId: 'c1', toolName: 'mastra_workspace_execute_command', input: { command: 'echo', args: ['construído'] } },
+  ]
+  const calls = []
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream() {
+      const step = steps[calls.length]
+      calls.push(calls.length)
+      const parts = step
+        ? [{ type: 'tool-call', toolCallId: step.toolCallId, toolName: step.toolName, input: JSON.stringify(step.input) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'pronto' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
+    },
+  }
+  const runWorkspaces = new Map()
+  const { Memory } = await import('@mastra/memory')
+  const storage = new InMemoryStore()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const builderRunId = '66666666-6666-4666-8666-666666666666'
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces })({
+    projectId, conversationId: '77777777-7777-4777-8777-777777777777', builderRunId, workspace,
+    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+  })
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const seen = []
+  const suspended = []
+  live.subscribe((event) => {
+    if (event.type === 'tool_approval_required') seen.push(['approval', event.toolName])
+    if (event.type === 'tool_suspended') suspended.push(event.toolCallId)
+    if (event.type === 'tool_end') seen.push(['end', event.toolCallId, String(event.result?.content ?? event.result), live.mode.get()])
+  })
+  let ended = false
+  const turn = run.sendTurn('quero um botão').then((result) => { ended = true; return result })
+  const waitFor = async (predicate) => { for (let waited = 0; !predicate() && waited < 5000; waited += 20) await new Promise((r) => setTimeout(r, 20)) }
+
+  await waitFor(() => suspended.length === 1)
+  await new Promise((r) => setTimeout(r, 300))
+  assert.deepEqual({ suspended, ended, mode: live.mode.get() }, { suspended: ['p1'], ended: false, mode: 'plan' }, 'the plan waits for the person and the turn stays open')
+  await live.respondToToolSuspension({ toolCallId: 'p1', resumeData: { action: 'rejected', feedback: 'Coloque o botão no rodapé.' } })
+  await waitFor(() => suspended.length === 2)
+  await new Promise((r) => setTimeout(r, 300))
+  assert.deepEqual({ suspended, ended, mode: live.mode.get() }, { suspended: ['p1', 'p2'], ended: false, mode: 'plan' }, 'Pedir ajustes keeps Planejar and the revised plan waits again')
+  await live.respondToToolSuspension({ toolCallId: 'p2', resumeData: { action: 'approved' } })
+  const result = await turn
+
+  assert.deepEqual({ reason: result.reason, summary: result.summary, mode: live.mode.get(), calls: calls.length }, { reason: 'complete', summary: 'pronto', mode: 'build', calls: 5 })
+  assert.deepEqual(seen.map(([kind, id, , mode]) => [kind, id, mode]), [['end', 'w1', 'plan'], ['end', 'p1', 'plan'], ['end', 'p2', 'build'], ['end', 'c1', 'build']], 'no tool asked for approval')
+  assert.match(seen[1][2], /User feedback: Coloque o botão no rodapé\./)
+  assert.equal(seen[2][2], 'Plan approved. Proceed with implementation following the approved plan.')
+  await run.close()
+})

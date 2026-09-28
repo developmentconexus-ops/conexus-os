@@ -510,13 +510,31 @@ test('the build compiles the candidate from the Conexus Git in a root-only direc
   assert.equal(run.commands().some((line) => line.includes('ls-tree') || line.includes(' archive ')), false, 'no agent-user command lists or archives the tree the build is admitted by')
 })
 
-test('a PLAN run that changed files is refused before main moves', async (t) => {
+test('a run that starts in Planejar and builds after the plan approval admits its source (AC-4)', async (t) => {
   const run = await harness(t, { mode: 'PLAN' })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_PLAN_SOURCE_RESULT_REFUSED'])
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
+  assert.equal((await run.service.getSourceFile({ accountId, projectId, sourceRevision: result, path: 'app/index.html' })).content, '<h1>UNIT1</h1>\n')
+  assert.equal(run.events.includes('starter'), true)
+})
+
+test('a Planejar run that only wrote its plan settles as a response and leaves main at the base', async (t) => {
+  const run = await harness(t, {
+    mode: 'PLAN',
+    turn: ({ checkout }) => {
+      mkdirSync(join(checkout, '.conexus/plans'), { recursive: true })
+      writeFileSync(join(checkout, '.conexus/plans/p.md'), '# Plano\n')
+      return completed('Plano enviado.')
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
   assert.equal(await run.main(), run.base)
-  assert.equal(run.events.includes('starter'), false)
+  assert.equal(run.result(), null)
 })
 
 test('every agent-user command states an empty environment, and root commands get none', async (t) => {
