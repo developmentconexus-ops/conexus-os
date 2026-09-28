@@ -449,13 +449,17 @@ test('a credential check runs the allow-listed authentication alone and caches n
 })
 
 test('connector spans record consumer kind only when in the closed set, and connector id only when registered', async (t) => {
-  const { broker, facts } = await setup(t)
+  const { broker, facts, exporter, lines, settled } = await setup(t)
+  const rawKind = 'arbitrary-consumer'
+  const rawConnector = 'unregistered-connector'
+
   // Consumer kind validation: unrecognised or invalid kinds become 'other' in the span
-  const invalidConsumer = Object.freeze({ kind: 'arbitrary-consumer', scope: consumer.scope })
+  const invalidConsumer = Object.freeze({ kind: rawKind, scope: consumer.scope })
   await broker.call(invalidConsumer, READ, { documentNumber: 22790 })
 
   // Connector id validation: unregistered connector id becomes 'unknown' in the span
-  await broker.checkCredential('unregistered-connector', CONNECTION)
+  await broker.checkCredential(rawConnector, CONNECTION)
+  await settled()
 
   const recorded = await facts()
   const callSpan = recorded.find((span) => span.name === 'connector.call')
@@ -463,6 +467,33 @@ test('connector spans record consumer kind only when in the closed set, and conn
 
   const checkSpan = recorded.find((span) => span.name === 'connector.check' && span.result === 'CONNECTOR_UNCONFIGURED')
   assert.equal(checkSpan.connector, 'unknown', 'unregistered connector must be recorded as unknown')
+
+  // Check child spans and all exported span metadata
+  const callMetadata = exporter.events
+    .filter((event) => event.type === 'span_ended' && event.exportedSpan.name === 'connector.call')
+    .map((event) => event.exportedSpan.metadata)
+  for (const meta of callMetadata) {
+    assert.equal(meta.consumer, 'other', 'every call span consumer metadata must be other')
+  }
+
+  const checkMetadata = exporter.events
+    .filter((event) => event.type === 'span_ended' && event.exportedSpan.name === 'connector.check')
+    .map((event) => event.exportedSpan.metadata)
+  for (const meta of checkMetadata) {
+    assert.equal(meta.connector, 'unknown', 'every check span connector metadata must be unknown')
+  }
+
+  // Ensure log lines record normalized values
+  const logged = lines.map((line) => JSON.parse(line))
+  const loggedCall = logged.find((entry) => entry.span === 'connector.call')
+  assert.equal(loggedCall.consumer, 'other', 'logged call span consumer must be other')
+  const loggedCheck = logged.find((entry) => entry.span === 'connector.check')
+  assert.equal(loggedCheck.connector, 'unknown', 'logged check span connector must be unknown')
+
+  // Raw unvalidated inputs must never appear in any exported events or log lines
+  const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(logged)
+  assert.equal(seen.includes(rawKind), false, `${rawKind} reached the record`)
+  assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
 })
 
 test('the broker lists only the granted operations of a minted scope', async (t) => {

@@ -47,7 +47,11 @@ class BrokerRefusal extends Error {
 
 const ISSUE_LIMIT = 10
 
-const RECORDED_CONSUMER_KINDS: ReadonlySet<string> = new Set(['handler', 'agent', 'integrator'])
+const RECORDED_CONSUMER_KINDS = {
+  handler: true,
+  agent: true,
+  integrator: true,
+} satisfies Record<Consumer['kind'], true>
 
 // Schema paths only: an unrecognized key is the caller's own text, so it comes back as a placeholder.
 const inputIssues = (issues: readonly Readonly<{ path: readonly PropertyKey[]; code: string }>[]): readonly string[] =>
@@ -176,7 +180,7 @@ export const createBroker = ({
     async call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>> {
       const entry = typeof operationId === 'string' ? operations.get(operationId) : undefined
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.call', metadata: {
-        consumer: RECORDED_CONSUMER_KINDS.has(consumer?.kind) ? consumer.kind : 'other',
+        consumer: typeof consumer?.kind === 'string' && Object.hasOwn(RECORDED_CONSUMER_KINDS, consumer.kind) ? consumer.kind : 'other',
         projectId: isMintedScope(consumer?.scope) ? consumer.scope.projectId : null,
         operation: entry?.operation.id ?? null,
       } })
