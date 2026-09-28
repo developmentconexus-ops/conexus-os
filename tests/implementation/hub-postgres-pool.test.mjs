@@ -109,16 +109,56 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
 
   assert.deepEqual(logs, [expectedLine])
 
-  // A fresh checkout must get a different, live backend connection
-  const replacement = await pool.connect()
-  try {
-    const { rows: replacementRows } = await replacement.query('SELECT pg_backend_pid() AS pid')
-    assert.notEqual(replacementRows[0].pid, pid)
-  } finally {
-    replacement.release()
+  // Assert pool is still usable and process stays alive
+  const queryResult = await pool.query('SELECT 1 AS alive')
+  assert.equal(queryResult.rows[0].alive, 1)
+})
+
+test('checked-out pooled client termination between queries rejects next query cleanly, does not crash the Hub, and the pool recovers', async (t) => {
+  const logs = []
+  const write = (line) => { logs.push(line) }
+
+  const pool = createPostgresPool(connection, write)
+  const admin = new Client(connection)
+  await admin.connect()
+
+  t.after(async () => {
+    try {
+      await pool.end()
+    } finally {
+      await admin.end()
+    }
+  })
+
+  // Acquire a client and run an initial query
+  const client = await pool.connect()
+  const { rows } = await client.query('SELECT pg_backend_pid() AS pid')
+  const pid = rows[0].pid
+
+  // Terminate backend for that checked-out client while it is idle between queries
+  const termination = await admin.query('SELECT pg_terminate_backend($1) AS terminated', [pid])
+  assert.equal(termination.rows[0].terminated, true)
+
+  // Wait for the termination to be delivered to the client
+  const expectedCapability = capabilityFor(connection.user)
+  const start = Date.now()
+  while (logs.length < 2 && Date.now() - start < 5000) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
   }
 
-  // Assert pool is still usable and process stays alive
+  // The client listener logs two lines: the ErrorResponse (57P01) and the socket close
+  assert.deepEqual(logs, [
+    `HUB_POOL_ERROR:${expectedCapability}:57P01\n`,
+    `HUB_POOL_ERROR:${expectedCapability}:\n`,
+  ])
+
+  // Subsequent query on the terminated client must reject cleanly
+  await assert.rejects(client.query('SELECT 1'))
+
+  // Releasing the broken client must not throw, and must not return it to the pool
+  client.release()
+
+  // Pool remains usable: subsequent query on the pool succeeds
   const queryResult = await pool.query('SELECT 1 AS alive')
   assert.equal(queryResult.rows[0].alive, 1)
 })

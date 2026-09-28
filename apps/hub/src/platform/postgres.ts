@@ -34,18 +34,8 @@ export const createPostgresPool = (
     max: connection.max ?? 6,
     connectionTimeoutMillis: 5000,
   })
-  // pg-pool only ever attaches its own error listener to a client while that
-  // client sits idle in the pool; it removes that listener the moment the
-  // client is checked out. A client mid-query (or about to query) has no
-  // listener at all, so a dropped connection there is an unhandled 'error'
-  // event — a fatal, uncaught exception that takes the Hub down with it.
-  // Attaching our own listener once per physical connection (on 'connect')
-  // covers the client for its whole lifetime, idle or checked out, so it is
-  // the single place that logs. pg-pool still re-emits an idle client's
-  // error on the pool itself (unconditionally, regardless of what else is
-  // listening on the client) — that pool-level 'error' listener stays, but
-  // only to stop that unrelated emit from throwing; the line above already
-  // logged it.
+  // Listen on client directly so checked-out clients don't crash on dropped connections.
+  // Pool-level error handler prevents duplicate unhandled errors from idle client drops.
   pool.on('connect', (client) => {
     client.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
   })
