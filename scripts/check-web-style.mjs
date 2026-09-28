@@ -163,7 +163,10 @@ const classCheck = (files, contentOf) => {
         violations.push({ path, line, message: `class "${token}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs` })
         continue
       }
-      for (const resolved of allowed.resolves) used.add(resolved)
+      for (const resolved of allowed.resolves) {
+        used.add(resolved)
+        if (!defined.has(resolved)) violations.push({ path, line, message: `class "${resolved}", resolved from the dynamic "${token}", has no CSS rule under apps/web/src or packages/brand/src` })
+      }
     }
   }
   const unused = [...defined]

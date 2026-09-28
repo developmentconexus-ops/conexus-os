@@ -91,6 +91,17 @@ test('a class built from a template literal fails unless it is in the allowlist'
   assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-row-${tone}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs\n')
 })
 
+test('an allowlisted dynamic class fails when one of its resolved names has no CSS rule', context => {
+  const result = check(tree(context, {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${side} for the script to parse, not a JS interpolation
+    'apps/web/src/features/builder/construir/lens-diff.tsx': "export const Cell = ({ side }) => <td className={`cx-dt-n cx-dt-${side}`} />\n",
+    'apps/web/src/features/builder/construir/lens-diff.css': '.cx-dt-n { padding: 0; }\n.cx-dt-add { color: green; }\n',
+  }))
+  assert.equal(result.status, 1)
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: asserting the script's own literal ${side} error text
+  assert.equal(result.stderr, 'apps/web/src/features/builder/construir/lens-diff.tsx:1: class "cx-dt-del", resolved from the dynamic "cx-dt-${side}", has no CSS rule under apps/web/src or packages/brand/src\n')
+})
+
 test('a class defined in CSS with no .tsx use warns but does not fail', context => {
   const result = check(tree(context, {
     'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel\" />\n",

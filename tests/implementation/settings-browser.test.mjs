@@ -101,7 +101,7 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.getByText('ABCD-1234').waitFor()
   await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
   assert.equal(await page.locator('.cxs-spinner').count(), 0)
-  await page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
+  await page.getByRole('listitem').filter({ hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
 
   await page.getByRole('button', { name: 'Conectar conta' }).click()
   await page.getByRole('button', { name: 'Google (Gemini)' }).click()
@@ -109,7 +109,7 @@ test('Minhas contas de modelo connects by API key, and by device code', async (t
   await page.getByRole('button', { name: 'Salvar chave' }).click()
   await page.getByText('Conta conectada.').waitFor()
   assert.deepEqual(writes.at(-1), ['PUT', { key: 'AIza-my-key' }])
-  await page.locator('.cxs-row', { hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
+  await page.getByRole('listitem').filter({ hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
 })
 
 test('Minhas contas de modelo device-code wait mark has no phone overflow and holds still under reduced motion', async (t) => {
@@ -182,7 +182,7 @@ test('Minhas contas de modelo shows a warning for an account that needs to sign 
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  const row = page.locator('.cxs-row', { hasText: 'Anthropic (Claude)' })
+  const row = page.getByRole('listitem').filter({ hasText: 'Anthropic (Claude)' })
   await row.getByText('Precisa entrar de novo').waitFor()
   await row.getByRole('button', { name: 'Entrar de novo' }).click()
   await page.getByText('WXYZ-9876').waitFor()
