@@ -153,5 +153,3 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
 
   return Object.freeze({ deleteProject })
 }
-
-export type ProjectDeletionOrchestrator = ReturnType<typeof createProjectDeletionOrchestrator>

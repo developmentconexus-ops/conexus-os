@@ -79,7 +79,7 @@ export async function createProject(
   return response.json() as Promise<CreateProjectResponse>
 }
 
-export class ProjectDeleteError extends Error {
+class ProjectDeleteError extends Error {
   constructor(readonly status: number, readonly type: string | null = null) {
     super(`Project deletion failed with ${status}`)
   }
