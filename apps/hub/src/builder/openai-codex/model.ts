@@ -71,7 +71,7 @@ function buildOpenAICodexOAuthFetch(bearer: CodexBearer): typeof fetch {
     const { headers: initHeaders, ...requestInit } = init ?? {}
     const request = new Request(url, requestInit)
     const headers = new Headers(url instanceof Request ? url.headers : undefined)
-    if (initHeaders) new Headers(initHeaders).forEach((value, key) => headers.set(key, value))
+    if (initHeaders) new Headers(initHeaders).forEach((value, key) => { headers.set(key, value) })
     headers.delete('authorization')
     headers.delete('x-api-key')
     headers.set('Authorization', `Bearer ${accessToken}`)
