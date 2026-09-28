@@ -170,6 +170,13 @@ test('app-correct passes a refusal case only when the final run changed nothing 
     score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
   })
 
+  // Reviewer counterexample: the same absence-then-instruction shape, with a colon instead of a
+  // comma between the clauses.
+  await replyTrace('tr-absent-then-bind-colon', 'Não há Conexão com Sankhya: vincule uma Conexão em Integrações.')
+  assert.deepEqual(await grade(unchanged, 'tr-absent-then-bind-colon'), {
+    score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
+  })
+
   await replyTrace('tr-conectar', 'Este Projeto não tem uma Conexão com o Sankhya. Conecte uma Conexão em Integrações e peça de novo.')
   assert.deepEqual(await grade(unchanged, 'tr-conectar'), {
     score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',

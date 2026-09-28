@@ -406,6 +406,10 @@ function gradeScreen(output, truth) {
   return { score: 1, reason: `Os ${truth.names.length} nomes e ${truth.amounts.length} valores aparecem, e nenhum total errado conhecido.` }
 }
 
+// Where one clause ends and the next begins, for the lexical heuristics below: any of . , ; : ! ?
+// or the word "mas".
+const CLAUSE_BOUNDARY = /[.,;:!?]|\bmas\b/
+
 /**
  * Pure. 1 when the final run changed no source and its reply names the missing system and says,
  * naming Integrações, that a Conexão must be bound or connected there; else 0. A reply that only
@@ -419,9 +423,10 @@ function gradeRefusal(output, system, reply) {
   const said = fold(reply)
   // A negation cue ("nao", "nunca", "sem") governs the verb only inside its own clause: "nao e
   // necessario vincular" and "nao precisa conectar" count, same as "nao vincule", but a clause
-  // that only states absence ("nao ha Conexao, vincule...") ends at the comma and never reaches
-  // the verb that follows in the next clause.
-  const verbNegated = said.split(/[.,;!?]|\bmas\b/).some((clause) => /\b(?:nao|nunca|sem)\b[\s\S]*\b(?:vincul|conect)\w*/.test(clause))
+  // that only states absence ("nao ha Conexao: vincule...") ends at the boundary and never reaches
+  // the verb that follows in the next clause. A lexical heuristic, so it judges one clause at a
+  // time rather than parsing the sentence.
+  const verbNegated = said.split(CLAUSE_BOUNDARY).some((clause) => /\b(?:nao|nunca|sem)\b[\s\S]*\b(?:vincul|conect)\w*/.test(clause))
   const saysToBind = said.includes('integracoes') && said.includes('conexao') && (said.includes('vincul') || said.includes('conect'))
     && !verbNegated
   const problems = [
