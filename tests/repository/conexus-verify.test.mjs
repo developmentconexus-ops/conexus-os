@@ -57,6 +57,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
   'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'builder-factory-github-deletion', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
+  'builder-eval', 'builder-eval-postgres',
   'protected-cluster-coverage',
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',

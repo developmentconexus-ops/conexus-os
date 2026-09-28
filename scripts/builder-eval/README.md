@@ -76,5 +76,34 @@ result was saved outside the browser.
 - `failure`: why no checks ran, when they did not. `FINAL_RUN_NOT_BUILT` means the last run did not
   produce a built source; `PREVIEW_NOT_FROM_FINAL_RUN` means the Preview never named the final
   run's revision within the bound; `NO_PREVIEW` (grade-only) means the Project has no Preview. Checks never grade a Preview the request did not produce.
+- `previewText`: the Preview's visible text after the checks ran, or `null` when no Preview was
+  graded. The experiment driver grades this text.
 - `outcome`: `PASS`, `FAIL` (a check failed, `failure` is set, or no Preview became usable), or
   `ERROR` (the tool itself broke; see `error` and `failure.png`).
+
+## Experiments
+
+`experiment.mjs` runs `runCase` for every arm, trial and ERP case, and stores each result in a Mastra
+experiment instead of `result.json`. [How to measure a Builder change with an
+experiment](../../docs/development/builder-eval.md) is the operator guide. This section is the
+reference.
+
+| Script | What it does |
+| --- | --- |
+| `sankhya-sim.mjs` | Serves synthetic Sankhya data on `127.0.0.1:4180`: `/authenticate`, `CRUDServiceProvider.loadRecords` in the vendor envelope with 50-row pages, and `/__sim/health`. `--port <n>` changes the port. |
+| `serve.mjs` | Serves every Mastra route on `127.0.0.1:4111/api` over the database in `CONEXUS_EVAL_DATABASE_URL`, with the eval scorers registered. `--port <n>` changes the port. |
+| `experiment.mjs` | Syncs the dataset, creates one experiment per arm and trial, runs two Builder runs at a time, scores each result and finalizes each complete experiment. |
+
+`experiment.mjs` options (`--help` prints the same list):
+
+- `--comparison <id>` (required): groups the experiments of one setup. Rerun the same id to resume.
+- `--arms <a,b>`: arm ids from `arms/`; default every arm.
+- `--trials <n>`: default 1.
+- `--concurrency <n>`: Builder runs at once; default 2.
+- `--simulator <origin>`: default `http://127.0.0.1:4180`.
+- `--hub-version <sha>`: recorded as the experiments' `provenance.sourceVersion`.
+- `--out <dir>`, `--max-repairs <n>`, `--base-url <url>`: as for `run.mjs`.
+
+An arm is `arms/<id>.json` with one key, `model`. An ERP case is `cases/erp/<id>.json` with
+`fixture` and `request`. The case's known answers come from its fixture in `fixtures/`, never from
+the case file.

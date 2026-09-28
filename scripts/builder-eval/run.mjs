@@ -12,11 +12,12 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
 
-const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
-const DEFAULT_MAX_REPAIRS = 2
+export const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
+export const DEFAULT_MAX_REPAIRS = 2
 const PREVIEW_IFRAME_TITLE = 'Prévia do aplicativo'
 const REPAIR_MESSAGE = 'o build falhou, corrija'
-const RUN_SETTLE_TIMEOUT_MS = 10 * 60 * 1000
+// Pilot runs take 3 to 12 minutes; 10 minutes clipped valid runs.
+const RUN_SETTLE_TIMEOUT_MS = 30 * 60 * 1000
 const RUN_POLL_INTERVAL_MS = 4_000
 const PREVIEW_READY_TIMEOUT_MS = 3 * 60 * 1000
 
@@ -78,7 +79,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
 
 const defaultProjectName = () => `eval-${new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)}`
 
-const resolveStatePath = () => {
+export const resolveStatePath = () => {
   if (process.env.CONEXUS_STATE) return process.env.CONEXUS_STATE
   const helper = join(homedir(), 'conexus-test-session.sh')
   if (!existsSync(helper)) fail(`no CONEXUS_STATE and ${helper} does not exist; establish a test-operator session first`)
@@ -241,6 +242,7 @@ async function gradePreview(page, { out, caseFile, result }) {
   })
   const frame = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
   result.checks.initial = await runChecks(frame, caseFile.checks)
+  result.previewText = await frame.locator('body').innerText({ timeout: 15_000 }).catch(() => null)
   if (caseFile.reload && checksPassed(result.checks.initial)) {
     // The Preview is cross-origin, so its window cannot be reloaded from the Hub page; the
     // frame is navigated to its own URL instead, which reuses the Preview cookie. Its browser
@@ -316,7 +318,7 @@ async function sendAndSettle(page, options, caseFile, result) {
 
 export async function runCase(options) {
   const caseFile = parseCase(JSON.parse(readFileSync(resolve(options.case), 'utf8')))
-  const statePath = resolveStatePath()
+  const statePath = options.statePath ?? resolveStatePath()
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
@@ -328,7 +330,7 @@ export async function runCase(options) {
     conversationId: null, modelId: options.model ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
     runs: [], repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
-    checks: { initial: [], afterReload: null }, screenshotPath: null, failure: null,
+    checks: { initial: [], afterReload: null }, previewText: null, screenshotPath: null, failure: null,
   }
   try {
     let requestSentAt = null
