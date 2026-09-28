@@ -18,7 +18,7 @@ function WorkspaceMembersRoute() {
     const workspace = context.workspaces.find((candidate) => candidate.workspaceId === workspaceId)
     if (!workspace) return <Shell context={context}><WorkspaceUnavailable /></Shell>
     return <Shell context={context} scope={{ workspace }}>
-      <div className="cx-page cx-page--narrow cx-people-page">
+      <div className="cx-page cx-page--narrow">
         <div className="cx-page-head">
           <div>
             <h1>Pessoas</h1>

@@ -21,7 +21,7 @@ function ProjectSettingsAccessRoute() {
   return <AccessGate>{(context) => {
     const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
     return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
-      <div className="cx-page cx-page--narrow cx-people-page">
+      <div className="cx-page cx-page--narrow">
         {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
         {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
         {project.isSuccess && <>

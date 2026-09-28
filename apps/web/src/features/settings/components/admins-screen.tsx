@@ -65,7 +65,7 @@ export function AdminsScreen() {
     {administrators.isSuccess && <ul className="cxs-list">
       {administrators.data.administrators.map((administrator) => {
         const isViewer = administrator.accountId === access.data?.account.accountId
-        return <li key={administrator.accountId} className="cxs-row">
+        return <li key={administrator.accountId}>
           <Avatar name={administrator.displayName} size="sm" />
           <div className="cxs-row-main">
             <strong>{administrator.displayName}{isViewer && ' (você)'}</strong>

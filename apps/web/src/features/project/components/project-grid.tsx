@@ -155,7 +155,7 @@ export function ProjectGridSkeleton() {
   return <ul className="cx-project-grid" aria-hidden>
     {[0, 1, 2].map((index) => (
       <li key={index} className="cx-project-cell">
-        <div className="cx-project-card cx-project-card--skeleton">
+        <div className="cx-project-card">
           <Skeleton className="cx-thumb" />
           <div className="cx-project-body"><Skeleton className="cx-skeleton-line" /><Skeleton className="cx-skeleton-line cx-skeleton-line--short" /></div>
         </div>
