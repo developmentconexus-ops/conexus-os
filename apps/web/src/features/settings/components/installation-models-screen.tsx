@@ -28,24 +28,22 @@ import {
 import { connectableProviders, shareableRows, sharedRows } from '../model-account-rows'
 import { ConnectAccount } from './connect-account'
 import { RoleModelSelect } from './role-model-select'
-import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine } from './states'
-
-const FACTORY_DEFAULT_MEMORY_MODEL = 'google/gemini-3.5-flash'
+import { Chip, SectionEmpty, SectionError, SectionLoading, StatusLine, type StatusLineTone } from './states'
 
 function SharedAccountsGroup() {
   const accounts = useQuery({ queryKey: modelAccountsQueryKey, queryFn: listModelAccounts })
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
   const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
   const stop = useMutation({
     mutationFn: (provider: string) => stopSharing(provider),
     onSuccess: () => { setMessage(null); refresh() },
-    onError: () => setMessage('Não foi possível concluir. Tente novamente.'),
+    onError: () => setMessage({ text: 'Não foi possível concluir. Tente de novo.', tone: 'danger' }),
   })
   const share = useMutation({
     mutationFn: (provider: string) => shareWithEveryone(provider),
     onSuccess: () => { setMessage(null); refresh() },
-    onError: (error) => setMessage(shareErrorMessage(error as ModelAccountsRequestError)),
+    onError: (error) => setMessage({ text: shareErrorMessage(error as ModelAccountsRequestError), tone: 'danger' }),
   })
 
   return <SettingsGroup>
@@ -60,7 +58,7 @@ function SharedAccountsGroup() {
       <Notice.Message>Compartilhar uma assinatura pessoal pode violar os termos do provedor.</Notice.Message>
     </Notice>
 
-    {message && <StatusLine>{message}</StatusLine>}
+    {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
 
     {accounts.isPending && <SectionLoading />}
     {accounts.isError && (
@@ -157,11 +155,11 @@ function SharedAccountsGroup() {
 
 function InstallationModelDefaultsGroup() {
   const defaults = useQuery({ queryKey: modelDefaultsQueryKey, queryFn: readModelDefaults })
-  const models = useBuilderModels()
+  const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [build, setBuild] = useState('')
   const [fast, setFast] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
 
   useEffect(() => {
     if (!defaults.data?.installation) return
@@ -172,10 +170,10 @@ function InstallationModelDefaultsGroup() {
   const save = useMutation({
     mutationFn: () => saveInstallationDefaults({ build, fast }),
     onSuccess: () => {
-      setMessage('Padrões salvos.')
+      setMessage({ text: 'Padrões salvos.' })
       void queryClient.invalidateQueries({ queryKey: modelDefaultsQueryKey })
     },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
 
   return <SettingsGroup>
@@ -214,7 +212,7 @@ function InstallationModelDefaultsGroup() {
         <Button type="submit" variant="primary" disabled={!build || !fast || save.isPending}>
           Salvar padrões
         </Button>
-        {message && <StatusLine>{message}</StatusLine>}
+        {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
         <p className="cxs-hint">Vale só para conversas novas.</p>
       </form>
     })()}
@@ -223,10 +221,10 @@ function InstallationModelDefaultsGroup() {
 
 function MemoryGroup() {
   const memory = useQuery({ queryKey: installationMemoryQueryKey, queryFn: getMemoryModel })
-  const models = useBuilderModels()
+  const models = useBuilderModels('installation')
   const queryClient = useQueryClient()
   const [model, setModel] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; tone?: StatusLineTone } | null>(null)
 
   useEffect(() => {
     setModel(memory.data?.model ?? '')
@@ -235,10 +233,10 @@ function MemoryGroup() {
   const save = useMutation({
     mutationFn: () => saveMemoryModel(model || null),
     onSuccess: () => {
-      setMessage('Padrão salvo.')
+      setMessage({ text: 'Padrão salvo.' })
       void queryClient.invalidateQueries({ queryKey: installationMemoryQueryKey })
     },
-    onError: () => setMessage('Não foi possível salvar.'),
+    onError: () => setMessage({ text: 'Não foi possível salvar.', tone: 'danger' }),
   })
 
   return <SettingsGroup>
@@ -272,12 +270,12 @@ function MemoryGroup() {
           save.mutate()
         }}
       >
-        <p>Valor atual: {memory.data.model ?? `Padrão do Factory (${FACTORY_DEFAULT_MEMORY_MODEL})`}</p>
+        <p>Valor atual: {memory.data.model ?? 'Padrão do Conexus'}</p>
         <RoleModelSelect label="Modelo de memória" models={covered} value={model} onChange={setModel} />
         <Button type="submit" variant="primary" disabled={!model || save.isPending}>
           Salvar
         </Button>
-        {message && <StatusLine>{message}</StatusLine>}
+        {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
         <p className="cxs-hint">
           Escolha um modelo que uma conta compartilhada cobre; a memória roda para todas as pessoas.
         </p>

@@ -12,22 +12,6 @@ import type { BuilderModel } from '../mastra-session'
 
 export type ProviderIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-// The Hub lists a model by its catalog provider; the person knows the account by its product name.
-const providerNames: Readonly<Record<string, string>> = {
-  'google-ai-pro': 'Google AI Pro',
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  google: 'Google',
-  groq: 'Groq',
-  mistral: 'Mistral',
-  cohere: 'Cohere',
-  azure: 'Azure OpenAI',
-  amazon: 'Amazon Bedrock',
-}
-const titleCase = (slug: string): string =>
-  (slug.split('/').at(-1) ?? slug).replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-export const providerLabel = (provider: string): string => providerNames[provider] ?? titleCase(provider)
-
 // The logo families this Factory mount actually lists. An unrecognized provider gets a neutral mark
 // rather than a guess at a brand it doesn't carry.
 const iconByFamily: readonly Readonly<{ match: string; icon: ProviderIcon }>[] = [

@@ -8,7 +8,7 @@
   description: "No Q trigger, one pull request, appetite P (up to 1 day). See docs/development/delivery.md"
 - name: "lane:shaped"
   color: "1d76db"
-  description: "A shaped bet: across modules or more than one pull request, no Q trigger"
+  description: "A shaped workstream: across modules or more than one pull request, no Q trigger"
 - name: "lane:qualification"
   color: "5319e7"
   description: "A Q trigger holds: task in docs/tasks, evidence"

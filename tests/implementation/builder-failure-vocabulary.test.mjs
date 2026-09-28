@@ -46,6 +46,16 @@ test('an unreachable application runner is the platform failing, not a build the
   assert.deepEqual([unreachable.failureCategory, unreachable.failureCode], ['ENVIRONMENT_PREPARATION_FAILED', 'APPLICATION_RUNNER_UNAVAILABLE'])
 })
 
+test('a generic prepare refusal is the platform failing too, same as an unreachable runner', () => {
+  const refused = projectBuilderRun(run('FAILED', 'APPLICATION_SERVER_REFUSED'))
+  assert.deepEqual([refused.failureCategory, refused.failureCode], ['ENVIRONMENT_PREPARATION_FAILED', 'APPLICATION_SERVER_REFUSED'])
+})
+
+test('a prepare refusal that names the Project\'s own compiled server tree is a build failure', () => {
+  assert.equal(builderFailureCategory('SERVER_TREE_REFUSED'), 'APPLICATION_BUILD_FAILED')
+  assert.equal(builderFailureCategory('MANIFEST_REFUSED'), 'APPLICATION_BUILD_FAILED')
+})
+
 test('a code nobody declared and a raw provider message are both internal errors', () => {
   assert.equal(builderFailureCategory('SOMETHING_NOBODY_DECLARED'), 'INTERNAL_ERROR')
   // service.ts turns any message that is not an uppercase snake code into BUILDER_PREPARATION_FAILED,

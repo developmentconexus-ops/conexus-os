@@ -51,7 +51,7 @@ redirect, not a screen; it is labeled as one below.
 /projects/$projectId/c/$conversationId     the Build surface (33.6)
 /projects/$projectId/settings              About the Project: name, repository connection, archive state
 /projects/$projectId/settings/access       Acesso ao aplicativo: application-only invitations (contract.md 3.1)
-/projects/$projectId/integrations          Integrações: Workspace Connections and this Project's Connector Grants (Q4)
+/projects/$projectId/integrations          Integrações: Workspace Connections and this Project's Connection bindings (Q4)
 /settings                                  redirect to /settings/account
 /settings/account                          the Account's details and its Workspaces
 /settings/models                           the person's own model accounts and personal model defaults

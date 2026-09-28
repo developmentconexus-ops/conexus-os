@@ -3,7 +3,8 @@ import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/cr
 import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
-import type { ObservabilityInstance } from '@mastra/core/observability'
+import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
+import { SpanType } from '@mastra/core/observability'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
 import { readSecretFile } from '../platform/secrets.js'
@@ -27,6 +28,8 @@ import { registerInstallationGithubRoutes } from './installation-github-routes.j
 import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
 import type { FactoryBinding } from './factory-provisioning.js'
 import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
+import { SessionRetirementCoordinator } from '@mastra/factory/sandbox/session-retirement'
+import type { FactoryProjectsStorage } from '@mastra/factory/storage/domains/projects/base'
 import { createFactorySourceReads } from './factory-source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
@@ -129,6 +132,19 @@ export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryCompo
   }
 
 /** @public Tests import this at runtime from the built module. */
+export const compactProcessorRunPayloads: SpanOutputProcessor = {
+  name: 'builder-compact-processor-run-payloads',
+  process: (span) => {
+    if (span && span.type === SpanType.PROCESSOR_RUN) {
+      if (Array.isArray(span.input)) span.input = { messageCount: span.input.length }
+      if (Array.isArray(span.output)) span.output = { messageCount: span.output.length }
+    }
+    return span
+  },
+  shutdown: async () => {},
+}
+
+/** @public Tests import this at runtime from the built module. */
 export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
   const observability = new Observability({
     sensitiveDataFilter: true,
@@ -137,6 +153,8 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
         serviceName,
         requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
         exporters: [new MastraStorageExporter()],
+        spanOutputProcessors: [compactProcessorRunPayloads],
+        serializationOptions: { maxStringLength: 32_768 },
       },
     },
   })
@@ -152,7 +170,8 @@ const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 // spans -- never memory threads/messages, which Builder evidence depends on.
 type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
 
-const scheduleRetentionPrune = (
+/** @public Tests import this at runtime from the built module. */
+export const scheduleRetentionPrune = (
   ready: Promise<Pick<FactoryComposition, 'storage'>>,
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
@@ -160,9 +179,11 @@ const scheduleRetentionPrune = (
   const tick = async (): Promise<void> => {
     const { storage } = await ready
     for (const result of await storage.getMastraStorage().prune()) {
+      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }
+  tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`))
   const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
   timer.unref()
   return Object.freeze({ tick, close: () => clearInterval(timer) })
@@ -252,6 +273,56 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     resolveRepository: (binding) => portsReady.then((ports) => ports.resolveRepository(binding)),
     github: githubApp,
   })
+  const sessionRetirement = new SessionRetirementCoordinator()
+  // Tears down every Mastra Factory record naming this Project: the repository's sessions (and
+  // their sandboxes), the project-repository link, the source-control connection, and finally the
+  // Factory project row itself. Called once, after the tombstone is written and before the Hub
+  // database purge, so nothing here has to reason about a Project that database rows still name.
+  const teardownProject = async (binding: Readonly<{ factoryProjectId: string; projectRepositoryId: string }>): Promise<void> => {
+    const composition = await ready
+    const sourceControl = composition.github.sourceControlStorage
+    await sessionRetirement.retireProjectRepositorySessions({
+      sourceControl, orgId: factory.orgId, projectRepositoryId: binding.projectRepositoryId,
+    })
+    const projectRepository = await sourceControl.projectRepositories.get({ orgId: factory.orgId, id: binding.projectRepositoryId })
+    await sourceControl.projectRepositories.unlink({ orgId: factory.orgId, id: binding.projectRepositoryId })
+    if (projectRepository) await sourceControl.connections.delete({ orgId: factory.orgId, id: projectRepository.connectionId })
+    await composition.storage.getDomain<FactoryProjectsStorage>('projects').delete({ orgId: factory.orgId, id: binding.factoryProjectId })
+  }
+  // Resolves the installation and repository a Project's Factory binding named, from the Mastra
+  // source-control rows (still readable here since teardownProject never removes the repository row
+  // itself). Missing metadata is never treated as "already deleted" -- Mastra losing track of a
+  // repository is not proof GitHub lost it too -- so this fails closed rather than letting the
+  // caller silently no-op past a real repository.
+  const resolveRepositoryIdentity = async (repositoryId: string): Promise<Readonly<{ installationId: number; externalId: number; slug: string }>> => {
+    const composition = await ready
+    const sourceControl = composition.github.sourceControlStorage
+    const row = await sourceControl.repositories.get({ orgId: factory.orgId, id: repositoryId })
+    if (!row) throw new Error('FACTORY_REPOSITORY_UNKNOWN')
+    const installation = await sourceControl.installations.get({ orgId: factory.orgId, id: row.installationId })
+    if (!installation) throw new Error('FACTORY_INSTALLATION_UNKNOWN')
+    const installationId = Number(installation.externalId)
+    const externalId = Number(row.externalId)
+    if (!Number.isSafeInteger(installationId) || !Number.isSafeInteger(externalId) || !row.slug) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
+    return { installationId, externalId, slug: row.slug }
+  }
+  // Confirms a live Administration: write grant before the tombstone or any other destructive step
+  // is written, so a repository the Factory App can no longer manage refuses the request up front.
+  // Only the preflight asks this: a retry's actual delete below must not repeat it, because a
+  // repository an earlier attempt already deleted answers this probe with the same refusal a real
+  // permission loss would, and that would block the retry from ever observing the 404 it tolerates.
+  const probeGithubRepositoryDeletable = async (repositoryId: string): Promise<void> => {
+    const { installationId, externalId } = await resolveRepositoryIdentity(repositoryId)
+    if (!await githubApp.probeRepositoryAdminAccess(installationId, externalId)) throw new Error('FACTORY_GITHUB_PERMISSION_DENIED')
+  }
+  // Never probes permission up front: githubApp.deleteRepository reads the repository first with a
+  // metadata-only token and returns quietly on 404 (already gone, from this attempt or an earlier
+  // one), and only mints the Administration: write token once it has confirmed there is still a
+  // repository to delete. That keeps a retry idempotent after the repository is already gone.
+  const deleteGithubRepository = async (repositoryId: string): Promise<void> => {
+    const { installationId, externalId, slug } = await resolveRepositoryIdentity(repositoryId)
+    await githubApp.deleteRepository(installationId, { externalId, slug })
+  }
   const run: FactoryRunDependencies = Object.freeze({
     runtime: { execute: async (input) => (await runtime).execute(input) },
     readBindingForRun: store.readFactoryBindingForRun,
@@ -273,6 +344,9 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
     run,
     prepareRepository,
     repository,
+    teardownProject,
+    probeGithubRepositoryDeletable,
+    deleteGithubRepository,
     githubApp,
     githubAppSlug: factory.githubAppSlug,
     records,
@@ -423,6 +497,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     // Absent without the Factory, and then no Project can be created.
     prepareProjectRepository: factoryComposition?.prepareRepository,
+    teardownFactoryProject: factoryComposition.teardownProject,
+    probeFactoryGithubRepositoryDeletable: factoryComposition.probeGithubRepositoryDeletable,
+    deleteFactoryGithubRepository: factoryComposition.deleteGithubRepository,
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,

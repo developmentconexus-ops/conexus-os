@@ -39,6 +39,8 @@ const singleSessionDigest = '8b68fd77bdf58eb1ea8dc728d2315e1f32f42ba361e67744cf7
 const claimInvitationGrantLockDigest = '247d4e7e92c7fde07006bc0a5bf36f719402e4be38e257f6239e93f2d596b451'
 const claimLockAllOpenGrantsDigest = 'e56b9f08bed9b673ed7db2457e51ff837465b46e184a31deb94f8f11af296a43'
 const connectorDigest = '1e5afc4d0bb35ec617672212cee135f43ca72f4fe5a67697ca6b719838988553'
+const projectDeletionDigest = 'dcc5c29c3373ba776c772e4d38270dec930009071b102688bf4d53c6668870b6'
+const projectBindingDigest = 'e85f3bbfa5f7b47f51fb1b4d30df12922c7fff4826fc1b0b44c304a65878e59a'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -70,6 +72,8 @@ const migrationDigests = new Map([
   ['0027_claim_invitation_grant_lock.sql', claimInvitationGrantLockDigest],
   ['0028_claim_lock_all_open_grants.sql', claimLockAllOpenGrantsDigest],
   ['0029_connector.sql', connectorDigest],
+  ['0030_project_deletion.sql', projectDeletionDigest],
+  ['0031_project_binding.sql', projectBindingDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -49,6 +49,7 @@ const pilot = async (t) => {
   let onBuilt = () => {}
   const sandbox = {
     sandboxId: 'sbx-pilot',
+    holdOpen: async () => () => {},
     start: async () => {},
     writeFiles: async () => {},
     runAsRoot: async (script) => {

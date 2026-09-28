@@ -66,10 +66,11 @@ export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | '
  * installation's shared ones. The controller's own list reads only the host's keys, the same for
  * everyone. The product stores neither the list nor the choice.
  */
-export const useBuilderModels = () => useQuery({
-  queryKey: ['builder-models'],
+export const useBuilderModels = (scope?: 'installation') => useQuery({
+  queryKey: ['builder-models', scope ?? 'mine'],
   queryFn: async (): Promise<readonly BuilderModel[]> => {
-    const response = await fetch('/api/control/model-accounts/models', { credentials: 'same-origin' })
+    const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
+    const response = await fetch(url, { credentials: 'same-origin' })
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
     return (await response.json() as Readonly<{ models: readonly BuilderModel[] }>).models
   },
@@ -158,6 +159,27 @@ const upsertMessage = (messages: readonly MastraDBMessage[], message: MastraDBMe
   return index === -1 ? [...messages, message] : messages.map((item, position) => position === index ? message : item)
 }
 
+type MessageUpdate = Extract<KnownAgentControllerEvent, { type: 'message_update' }>['event']
+
+// The controller sends a message whole once, then only id-addressed deltas, the way the
+// @mastra/client-js agent controller reference rebuilds it.
+const applyUpdate = (message: MastraDBMessage, update: MessageUpdate): MastraDBMessage => {
+  const parts = [...message.content.parts]
+  if (update.type === 'text-delta') {
+    const index = parts.map((part) => part.type).lastIndexOf('text')
+    const part = parts[index]
+    if (part?.type === 'text') parts[index] = { ...part, text: part.text + update.delta }
+    else parts.push({ type: 'text', text: update.delta })
+  } else if (update.type === 'reasoning-delta') {
+    const part = parts[update.index]
+    const reasoning = part?.type === 'reasoning' ? part.reasoning + update.delta : update.delta
+    parts[update.index] = { ...(part?.type === 'reasoning' ? part : { type: 'reasoning' as const }), reasoning, details: [{ type: 'text', text: reasoning }] }
+  } else {
+    parts[update.index] = update.part
+  }
+  return { ...message, content: { ...message.content, parts } }
+}
+
 // A turn belongs to one run. The first action of another run starts from empty, so a settled run's
 // messages stay on screen until the next run actually speaks.
 const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
@@ -168,9 +190,11 @@ const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
   if (!isKnownAgentControllerEvent(event)) return turn
   switch (event.type) {
     case 'message_start':
-    case 'message_update':
-    case 'message_end':
       return { ...turn, messages: upsertMessage(turn.messages, event.message) }
+    case 'message_update': {
+      const message = turn.messages.find((item) => item.id === event.id)
+      return message ? { ...turn, messages: upsertMessage(turn.messages, applyUpdate(message, event.event)) } : turn
+    }
     case 'display_state_changed':
       return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, tasks: event.displayState.tasks }
     case 'tool_approval_required':

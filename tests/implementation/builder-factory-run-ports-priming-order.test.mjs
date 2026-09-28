@@ -39,7 +39,7 @@ const fakeSession = (events) => {
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
     abort: () => undefined,
     sendMessage: async () => {
-      for (const listener of listeners) listener({ type: 'message_end', message: { id: 'user-1', role: 'user' } })
+      for (const listener of listeners) listener({ type: 'message_start', message: { id: 'user-1', role: 'user' } })
       for (const listener of listeners) listener({ type: 'agent_end', reason: 'complete' })
     },
     thread: { listActiveMessages: async () => [] },

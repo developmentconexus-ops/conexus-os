@@ -22,7 +22,7 @@
     "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",
     "db:catalog:snapshot": "node scripts/generate-hub-catalog-snapshot.mjs",
     "db:catalog:check": "node scripts/generate-hub-catalog-snapshot.mjs --check",
-    "repository:check": "node scripts/check-current-state.mjs && node scripts/check-agent-context.mjs",
+    "repository:check": "node scripts/check-current-state.mjs && node scripts/check-agent-context.mjs && node --test tests/repository/conexus-verify.test.mjs",
     "worktree:reap": "node scripts/worktree-reap.mjs",
     "repository:candidate-census": "node --test --test-concurrency=1 tests/repository/repository-contract.test.mjs",
     "r1:a0:web:typecheck": "node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false",
@@ -83,19 +83,19 @@
     "@fastify/cookie": "11.1.2",
     "@fastify/helmet": "13.1.1",
     "@fastify/static": "10.1.3",
-    "@mastra/client-js": "1.46.0",
-    "@mastra/code-sdk": "1.7.2",
-    "@mastra/core": "1.67.0",
-    "@mastra/e2b": "0.12.0",
-    "@mastra/factory": "0.15.0",
-    "@mastra/fastify": "1.5.11",
-    "@mastra/libsql": "1.23.0",
-    "@mastra/memory": "1.30.0",
-    "@mastra/observability": "1.17.8",
-    "@mastra/pg": "1.25.0",
+    "@mastra/client-js": "1.50.0",
+    "@mastra/code-sdk": "1.8.3",
+    "@mastra/core": "1.71.0",
+    "@mastra/e2b": "0.12.1",
+    "@mastra/factory": "0.17.2",
+    "@mastra/fastify": "1.5.15",
+    "@mastra/libsql": "1.23.3",
+    "@mastra/memory": "1.32.1",
+    "@mastra/observability": "1.18.1",
+    "@mastra/pg": "1.27.1",
     "@mastra/playground-ui": "55.0.0",
     "@mastra/react": "1.5.0",
-    "@mastra/server": "1.67.0",
+    "@mastra/server": "1.71.0",
     "@octokit/auth-app": "8.3.1",
     "@octokit/request": "10.0.16",
     "@tanstack/react-query": "5.102.8",
@@ -114,7 +114,12 @@
     "react-dom": "19.2.8",
     "react-resizable-panels": "4.12.4",
     "undici": "7.29.0",
-    "zod": "4.5.2"
+    "zod": "4.6.5"
+  },
+  "overrides": {
+    "@mastra/react": {
+      "@mastra/client-js": "$@mastra/client-js"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",

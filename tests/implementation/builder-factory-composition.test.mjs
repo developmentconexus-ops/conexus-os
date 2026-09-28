@@ -6,11 +6,12 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import pg from 'pg'
+import { createSessionSetupHook, getSessionSandbox } from '@mastra/factory/sandbox/session-sandbox'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL } = await import(built('builder/factory.js'))
+const { ConexusFactoryE2BSandbox, assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox, createFactoryStorage, createFactorySecretKeyEncryption, requireObservabilityStore, SANDBOX_CREDENTIAL, tokenEnvironment } = await import(built('builder/factory.js'))
 const { ModelCredentialsStorage } = await import('@mastra/factory/storage/domains/credentials/base')
 const { createMastraFactoryRunPorts } = await import(built('builder/factory-runtime.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
@@ -47,7 +48,7 @@ const factoryEnvironment = {
 }
 
 test('the sandbox never lets GH_TOKEN or GITHUB_TOKEN into its environment', () => {
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'probe', env: { GH_TOKEN: 'ghs_constructor', GITHUB_TOKEN: 'ghs_constructor', KEEP: '1' } })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'probe', timeout: 900_000, env: { GH_TOKEN: 'ghs_constructor', GITHUB_TOKEN: 'ghs_constructor', KEEP: '1' } })
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1' })
   sandbox.setEnv((env) => ({ ...env, GH_TOKEN: 'ghs_injected', GITHUB_TOKEN: 'ghs_injected', OTHER: '2' }))
   assert.deepEqual(sandbox.getEnv(), { KEEP: '1', OTHER: '2' })
@@ -67,7 +68,7 @@ const fakeVm = (sandboxId) => {
 }
 
 const offlineSandbox = ({ existing, created }) => {
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' })
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 })
   sandbox.findExistingSandbox = async () => existing
   sandbox.createSdkSandbox = async () => created
   return sandbox
@@ -102,6 +103,63 @@ test('the Factory sandbox callback builds one E2B sandbox per session row in /wo
   assert.deepEqual(sandbox.getEnv(), {})
 })
 
+test('the Factory sandbox is created closed to public inbound traffic', async () => {
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl' })({ sessionId: 'row-1' })
+  let captured = null
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async (templateId, opts) => {
+    captured = { templateId, opts }
+    return fakeVm('vm-fresh')
+  }
+  await sandbox.start()
+  assert.deepEqual({ templateId: captured.templateId, network: captured.opts.network }, {
+    templateId: 'conexus:tpl', network: { allowPublicTraffic: false },
+  })
+})
+
+test('holdOpen extends the deadline now and every third of the budget until released', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold' })
+  const setTimeoutCalls = []
+  const vm = fakeVm('vm-fresh')
+  vm.setTimeout = async (ms) => { setTimeoutCalls.push(ms) }
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vm
+  await sandbox.start()
+  const release = await sandbox.holdOpen(() => {})
+  assert.deepEqual(setTimeoutCalls, [600_000])
+  t.mock.timers.tick(200_000)
+  t.mock.timers.tick(200_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+  release()
+  t.mock.timers.tick(600_000)
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+})
+
+test('holdOpen reports a failed extension to onLapse, and refuses when the first extension fails', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const sandbox = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold-lapse' })
+  const vm = fakeVm('vm-fresh')
+  let calls = 0
+  vm.setTimeout = async () => { calls += 1; if (calls >= 2) throw new Error('E2B_TIMEOUT_REFUSED') }
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vm
+  await sandbox.start()
+  const lapses = []
+  await sandbox.holdOpen((error) => { lapses.push(error) })
+  t.mock.timers.tick(200_000)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(lapses.length, 1)
+  assert.equal(lapses[0].message, 'E2B_TIMEOUT_REFUSED')
+
+  const failingFirst = createFactorySandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', timeoutMs: 600_000 })({ sessionId: 'row-hold-lapse-first' })
+  const firstVm = fakeVm('vm-fresh-2')
+  firstVm.setTimeout = async () => { throw new Error('E2B_TIMEOUT_REFUSED') }
+  failingFirst.findExistingSandbox = async () => undefined
+  failingFirst.createSdkSandbox = async () => firstVm
+  await failingFirst.start()
+  await assert.rejects(failingFirst.holdOpen(() => {}), { message: 'E2B_TIMEOUT_REFUSED' })
+})
 
 // A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
 const localShellSandbox = (env) => ({
@@ -130,7 +188,7 @@ test('the Factory\'s own clone and branch checkout, holding the credential that 
   const bundle = join(root, 'app.seed.bundle')
   git(upstream, 'bundle', 'create', '--quiet', bundle, 'refs/heads/main')
   const systemConfig = join(root, 'gitconfig')
-  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git\n`)
+  writeFileSync(systemConfig, `[url "${bundle}"]\n\tinsteadOf = https://github.com/acme-org/app.git\n`)
   const sandbox = localShellSandbox({ GIT_CONFIG_SYSTEM: systemConfig, GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' })
   const workdir = join(root, 'workspace', 'app')
   const marked = []
@@ -148,7 +206,7 @@ test('the Factory\'s own clone and branch checkout, holding the credential that 
 
 test('every start seeds root\'s mirror with a read token in root\'s environment before the Factory\'s start hook runs', async () => {
   const created = fakeVm('vm-fresh')
-  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test' }, {
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
     repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
   })
   sandbox.findExistingSandbox = async () => undefined
@@ -162,11 +220,60 @@ test('every start seeds root\'s mirror with a read token in root\'s environment 
     "{ test -d '/var/lib/conexus-git/app.git' || git init --quiet --bare '/var/lib/conexus-git/app.git'; }",
     "git --git-dir='/var/lib/conexus-git/app.git' fetch --quiet --no-tags 'https://github.com/acme-org/app.git' '+refs/heads/main:refs/heads/main'",
     "git --git-dir='/var/lib/conexus-git/app.git' bundle create --quiet '/var/lib/conexus-git/app.seed.bundle' 'refs/heads/main'",
-    `git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/acme-org/app.git'`,
+    "git config --system --replace-all 'url./var/lib/conexus-git/app.seed.bundle.insteadOf' 'https://github.com/acme-org/app.git'",
   ].join(' && '))
   assert.equal(seed.options.envs.GIT_CONFIG_VALUE_0, `AUTHORIZATION: basic ${Buffer.from('x-access-token:ghs_seed').toString('base64')}`)
   assert.deepEqual(order, [['factory', 'created']])
   assert.equal(created.runs.indexOf(seed), 0, 'the seed is the first command of the start')
+})
+
+test('the seed points the agent\'s clone URL at its bundle, and root\'s token-bearing git still reaches GitHub', async (t) => {
+  const created = fakeVm('vm-fresh')
+  const sandbox = new ConexusFactoryE2BSandbox({ id: 'conexus-factory-row', template: 'conexus:template', apiKey: 'e2b-test', timeout: 900_000 }, {
+    repositorySlug: 'acme-org/app', read: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
+  })
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => created
+  sandbox.setOnStart((previous) => async (args) => { await previous?.(args) })
+  await sandbox.start()
+  const seed = created.runs.find(({ options }) => options?.user === 'root')
+  const root = mkdtempSync(join(tmpdir(), 'conexus-factory-rule-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const system = { GIT_CONFIG_SYSTEM: join(root, 'gitconfig'), GIT_CONFIG_GLOBAL: '/dev/null' }
+  const rule = seed.script.split(' && ').at(-1)
+  assert.equal(spawnSync('sh', ['-c', rule], { env: { ...process.env, ...system, ...seed.options.envs } }).status, 0)
+  const resolve = (env) => spawnSync('git', ['ls-remote', '--get-url', 'https://github.com/acme-org/app.git'], { encoding: 'utf8', env: { ...process.env, ...system, ...env } }).stdout.trim()
+  assert.equal(resolve({}), '/var/lib/conexus-git/app.seed.bundle')
+  assert.equal(resolve(tokenEnvironment('ghs_write')), 'https://github.com/acme-org/app.git')
+})
+
+test('the agent\'s commands start in the Project checkout, while the Factory still checks out under /workspace', async () => {
+  const sessionId = 'row-cwd'
+  const entry = getSessionSandbox(sessionId, 'acme/app', () => createFactorySandbox({
+    apiKey: 'e2b-key', templateId: 'conexus:tpl', readCheckout: async () => ({ token: 'ghs_seed', defaultBranch: 'main' }),
+  })({ sessionId, repoFullName: 'acme/app' }))
+  const sandbox = entry.sandbox
+  const vms = [fakeVm('vm-fresh-1'), fakeVm('vm-fresh-2')]
+  sandbox.findExistingSandbox = async () => undefined
+  sandbox.createSdkSandbox = async () => vms.shift()
+  const seen = []
+  sandbox.setOnStart(() => createSessionSetupHook(async (hooked, workdir) => {
+    seen.push({ factoryWorkdir: workdir, cwdDuringFactoryHook: hooked.workingDirectory })
+  }, sessionId, 'acme/app'))
+  await sandbox.start()
+  const firstVm = sandbox.e2b
+  await sandbox.executeCommand('pwd')
+  const agentCwd = firstVm.runs.find(({ script }) => script === 'pwd').options.cwd
+  sandbox.handleSandboxTimeout()
+  await sandbox.start()
+  assert.deepEqual({ seen, agentCwd, cwdAfterRestart: sandbox.workingDirectory }, {
+    seen: [
+      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
+      { factoryWorkdir: '/workspace/app', cwdDuringFactoryHook: '/workspace' },
+    ],
+    agentCwd: '/workspace/app',
+    cwdAfterRestart: '/workspace/app',
+  })
 })
 
 
@@ -266,6 +373,7 @@ test('requireObservabilityStore resolves the store the Factory storage carries, 
 
 test('the Factory pool connects as hub_factory with its search_path pinned to factory', async () => {
   const pool = createFactoryPool({ host: '127.0.0.1', port: 1, database: 'unreachable' }, 'unused')
+  assert.equal(pool.options.max, 20)
   assert.equal(pool.options.user, 'hub_factory')
   assert.equal(pool.options.options, '-c search_path=factory')
   assert.equal(pool.options.application_name, 'conexus-hub:factory-storage')
@@ -460,8 +568,148 @@ test('composeFactory routes the observability domain back onto the Factory\'s ow
     { domain: 'observability', table: 'mastra_ai_spans', deleted: 1 },
   ])
 
+  // Pruning lazily creates the retention anchor index on the configured table
+  const indexCheck = await pool.query(`
+    SELECT indexname FROM pg_indexes
+    WHERE schemaname = 'factory' AND tablename = 'mastra_ai_spans' AND indexname = 'factory_mastra_spans_retention_idx'
+  `)
+  assert.equal(indexCheck.rows.length, 1, 'mastra retention anchor index exists in factory schema')
+
   const survivors = await observabilityStore.getTrace({ traceId })
   assert.deepEqual(survivors.spans.map((span) => span.spanId), [rootSpanId])
   const messages = await memory.listMessagesById({ messageIds: [messageId] })
   assert.equal(messages.messages.length, 1)
 })
+
+test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const logs = []
+  let pruneCalls = 0
+  let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
+
+  const fakeReady = Promise.resolve({
+    storage: {
+      getMastraStorage: () => ({
+        prune: async () => {
+          pruneCalls++
+          return pruneResult
+        },
+      }),
+    },
+  })
+
+  const schedule = scheduleRetentionPrune(fakeReady, (line) => logs.push(line), 60_000)
+  // Yield microtask so the immediate boot tick runs
+  await new Promise((r) => setImmediate(r))
+
+  assert.equal(pruneCalls, 1)
+  assert.deepEqual(logs, ['BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5'])
+
+  // Manual tick
+  pruneResult = [
+    { domain: 'observability', table: 'mastra_ai_spans', deleted: 2, done: false },
+    { domain: 'observability', table: 'other_table', deleted: 0, done: true },
+  ]
+  await schedule.tick()
+  assert.equal(pruneCalls, 2)
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5',
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:2',
+    'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
+    'BUILDER_RETENTION_PRUNED:observability.other_table:0',
+  ])
+
+  // Failed prune is caught and logged
+  const failingReady = Promise.resolve({
+    storage: {
+      getMastraStorage: () => ({
+        prune: async () => { throw new Error('DB_DISCONNECTED') },
+      }),
+    },
+  })
+  const failLogs = []
+  const failingSchedule = scheduleRetentionPrune(failingReady, (line) => failLogs.push(line), 60_000)
+  await new Promise((r) => setImmediate(r))
+  assert.deepEqual(failLogs, ['BUILDER_RETENTION_PRUNE_FAILED:DB_DISCONNECTED'])
+
+  schedule.close()
+  failingSchedule.close()
+})
+
+test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output message arrays to messageCount', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  assert.equal(compactProcessorRunPayloads.name, 'builder-compact-processor-run-payloads')
+
+  // PROCESSOR_RUN span with arrays
+  const processorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [{ id: '1', role: 'user', content: 'hello' }, { id: '2', role: 'assistant', content: 'hi' }],
+    output: [{ id: '3', role: 'user', content: 'more' }],
+  }
+  const processed = compactProcessorRunPayloads.process(processorSpan)
+  assert.deepEqual(processed.input, { messageCount: 2 })
+  assert.deepEqual(processed.output, { messageCount: 1 })
+
+  // Non-array input/output on PROCESSOR_RUN are preserved
+  const nonArraySpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: { someOtherField: 123 },
+    output: 'done',
+  }
+  const processedNonArray = compactProcessorRunPayloads.process(nonArraySpan)
+  assert.deepEqual(processedNonArray.input, { someOtherField: 123 })
+  assert.equal(processedNonArray.output, 'done')
+
+  // Other span types are not touched
+  const agentSpan = {
+    type: SpanType.AGENT_RUN,
+    input: [{ id: '1', content: 'test' }],
+    output: [{ id: '2', content: 'result' }],
+  }
+  const processedAgent = compactProcessorRunPayloads.process(agentSpan)
+  assert.deepEqual(processedAgent.input, [{ id: '1', content: 'test' }])
+  assert.deepEqual(processedAgent.output, [{ id: '2', content: 'result' }])
+
+  // null or undefined spans pass through safely
+  assert.equal(compactProcessorRunPayloads.process(undefined), undefined)
+})
+
+test('compactProcessorRunPayloads deterministically compacts processor_run span bytes', async () => {
+  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+  const { SpanType } = await import('@mastra/core/observability')
+
+  // Synthetic Builder turn with 25 conversation messages of typical turn context size (~1.5 KB each)
+  const syntheticMessages = Array.from({ length: 25 }, (_, i) => ({
+    id: `msg-${i}`,
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    content: `Builder prompt turn context chunk ${i}: `.padEnd(1500, 'x'),
+  }))
+
+  const rawProcessorSpan = {
+    type: SpanType.PROCESSOR_RUN,
+    input: syntheticMessages,
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const rawBytes = Buffer.byteLength(JSON.stringify(rawProcessorSpan.input)) + Buffer.byteLength(JSON.stringify(rawProcessorSpan.output))
+
+  // Clone before passing to span processor
+  const spanToProcess = {
+    type: SpanType.PROCESSOR_RUN,
+    input: [...syntheticMessages],
+    output: syntheticMessages.slice(0, 10),
+  }
+
+  const processed = compactProcessorRunPayloads.process(spanToProcess)
+  const compactedBytes = Buffer.byteLength(JSON.stringify(processed.input)) + Buffer.byteLength(JSON.stringify(processed.output))
+
+  // Assert deterministic reduction: raw is ~54 KB, compacted is exactly 38 bytes (>99.9% reduction)
+  assert.ok(rawBytes > 50_000, `expected raw bytes > 50000, got ${rawBytes}`)
+  assert.deepEqual(processed.input, { messageCount: 25 })
+  assert.deepEqual(processed.output, { messageCount: 10 })
+  assert.equal(compactedBytes, 38)
+  assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
+})
+

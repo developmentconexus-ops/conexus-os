@@ -29,19 +29,19 @@ const tree = installedCopies(root)
 const copiesOf = name => tree.filter(copy => copy.name === name).map(({ version, path }) => ({ version, path }))
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
-test('the installed tree holds exactly one physical @mastra/core, at 1.67.0', () => {
-  assert.deepEqual(copiesOf('@mastra/core'), [{ version: '1.67.0', path: 'node_modules/@mastra/core' }])
+test('the installed tree holds exactly one physical @mastra/core, at 1.71.0', () => {
+  assert.deepEqual(copiesOf('@mastra/core'), [{ version: '1.71.0', path: 'node_modules/@mastra/core' }])
 })
 
-test('the installed tree holds exactly one physical @mastra/code-sdk, at 1.7.2', () => {
-  assert.deepEqual(copiesOf('@mastra/code-sdk'), [{ version: '1.7.2', path: 'node_modules/@mastra/code-sdk' }])
+test('the installed tree holds exactly one physical @mastra/code-sdk, at 1.8.3', () => {
+  assert.deepEqual(copiesOf('@mastra/code-sdk'), [{ version: '1.8.3', path: 'node_modules/@mastra/code-sdk' }])
 })
 
 test('the Factory, its Postgres storage and GitHub App auth are exact direct dependencies with one copy each', () => {
-  assert.equal(manifest.dependencies['@mastra/factory'], '0.15.0')
-  assert.equal(manifest.dependencies['@mastra/pg'], '1.25.0')
+  assert.equal(manifest.dependencies['@mastra/factory'], '0.17.2')
+  assert.equal(manifest.dependencies['@mastra/pg'], '1.27.1')
   assert.equal(manifest.dependencies['@octokit/auth-app'], '8.3.1')
-  assert.deepEqual(copiesOf('@mastra/factory'), [{ version: '0.15.0', path: 'node_modules/@mastra/factory' }])
-  assert.deepEqual(copiesOf('@mastra/pg'), [{ version: '1.25.0', path: 'node_modules/@mastra/pg' }])
+  assert.deepEqual(copiesOf('@mastra/factory'), [{ version: '0.17.2', path: 'node_modules/@mastra/factory' }])
+  assert.deepEqual(copiesOf('@mastra/pg'), [{ version: '1.27.1', path: 'node_modules/@mastra/pg' }])
   assert.deepEqual(copiesOf('@octokit/auth-app'), [{ version: '8.3.1', path: 'node_modules/@octokit/auth-app' }])
 })

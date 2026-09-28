@@ -54,6 +54,7 @@ owns status and the next action. Start there.
 | Lanes, approval, proof, merge, Git and CI | [Delivery rules](development/delivery.md) |
 | What a reviewer checks on a pull request | [Review checklist](development/review-checklist.md) |
 | How the pilot Hub and runner run, and how to deploy `main` to them | [Pilot](../infra/pilot/README.md) |
+| How to measure a Builder change with an experiment, and read it in Mastra Studio | [Builder eval](development/builder-eval.md) |
 | Frontend design, copy, verification and new surfaces | [`conexus-frontend` skill](../.agents/skills/conexus-frontend/SKILL.md) |
 
 Evidence, tests, runtime output and Git history establish claim-specific facts.

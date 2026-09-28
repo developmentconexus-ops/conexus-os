@@ -26,6 +26,7 @@ type FactoryRunSandbox = Readonly<{
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   // Builds <buildRoot>/app as root, writing only under buildRoot.
   buildApplication(buildRoot: string, signal?: AbortSignal): Promise<CompiledApplication['files']>
+  holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
 }>
 
 type FactoryAgentTurn = Readonly<{
@@ -127,6 +128,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       sessionOpen = false
       await session.close()
     }
+    let release: (() => void) | undefined
     try {
       const { sandbox } = session
       await sandbox.start()
@@ -137,6 +139,11 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       const incarnation = sandbox.sandboxId
       if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
       await input.bindPhysicalSandbox(incarnation)
+      release = await sandbox.holdOpen((error: unknown) =>
+        ports.log(`BUILDER_SANDBOX_KEEPALIVE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`),
+      ).catch((error: unknown) => {
+        throw new Error('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
+      })
       // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
       // pinned checkout, so the run fails rather than acting on whatever the new one holds.
       const onIncarnation = async (work: () => Promise<CommandResult>): Promise<CommandResult> => {
@@ -308,6 +315,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
       if (error instanceof Error && error.cause !== undefined) ports.log(`BUILDER_FACTORY_RUN_FAILED:${input.executionId}:${error.message} ${JSON.stringify(error.cause)}`)
       throw error
     } finally {
+      release?.()
       await closeSession().catch(() => undefined)
     }
   },
@@ -375,6 +383,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
           runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
           buildApplication: (buildRoot: string, signal?: AbortSignal) =>
             buildApplicationInSandbox(sandbox.e2b, { workRoot: buildRoot, appRoot: `${buildRoot}/app`, user: 'root', ...(signal ? { signal } : {}) }),
+          holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
         }),
         configure: async ({ mode, instructions }) => {
           await session.state.set({ yolo: true, permissionRules: { categories: {}, tools }, pluginInstructions: [instructions] })
@@ -399,7 +408,7 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
           let userMessageId: string | undefined
           const detach = session.subscribe((event) => {
             if (event.type === 'agent_end') endedAt = new Date()
-            if (event.type === 'message_end' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+            if (event.type === 'message_start' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
           })
           // The model gateway reads a credential and a custom provider synchronously from snapshots,
           // which only an awaited hydration fills.

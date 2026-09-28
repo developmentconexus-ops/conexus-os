@@ -202,6 +202,42 @@ test('upgrading a database at 0025 with open sessions ends every Hub and applica
     before, 'Accounts, invitations and memberships are untouched')
 })
 
+test('the Hub reads a Project as having an application only once its application exists, and none is created while it relies on the answer', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
+  const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_presence')
+  const pool = new pg.Pool({ ...connection, max: 3 })
+  closeFirst(() => pool.end())
+  const store = createApplicationAccessStore({ pool })
+  const presence = (projectId) => store.withApplicationPresence(projectId, async (hasApplication) => hasApplication)
+  const owner = await account('owner-p')
+  const workspaceId = await workspace('presence-p', [[owner, 'owner']])
+  const withApplication = await project(workspaceId, 'Com Aplicação')
+  const withoutApplication = await project(workspaceId, 'Sem Aplicação')
+  const slugOf = async (projectId) => (await client.query('SELECT iam.application_slug($1) AS slug', [projectId])).rows[0].slug
+
+  // The first application is created while a decision that the Project has none is still acting.
+  let granted = false
+  let grant
+  const acted = await store.withApplicationPresence(withApplication, async (hasApplication) => {
+    grant = store.grant({ actor: owner, projectId: withApplication, email: 'presenca@application.test' }).then((entry) => { granted = true; return entry })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    return { hasApplication, granted, slug: await slugOf(withApplication) }
+  })
+  assert.deepEqual(acted, { hasApplication: false, granted: false, slug: null }, 'the application waits for the decision to finish')
+  assert.equal((await grant).kind, 'invitation')
+  assert.notEqual(await slugOf(withApplication), null)
+
+  assert.equal(await presence(withApplication), true)
+  assert.equal(await presence(withoutApplication), false)
+  assert.equal(await presence(randomUUID()), false)
+  // A Project that has one releases its lock at once, so granting access is not held up.
+  await store.withApplicationPresence(withApplication, async () => {
+    await store.grant({ actor: owner, projectId: withApplication, email: 'outra@application.test' })
+  })
+  await assert.rejects(store.withApplicationPresence(withoutApplication, async () => { throw new Error('WORK_FAILED') }), /WORK_FAILED/)
+  assert.equal(await presence(withoutApplication), false)
+})
+
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))

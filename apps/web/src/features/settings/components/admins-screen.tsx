@@ -12,7 +12,7 @@ import {
   listAdministrators, revokeAdministrator,
 } from '../installation-api'
 import { PageHeader } from './page-header'
-import { SectionError, SectionLoading } from './states'
+import { SectionError, SectionLoading, StatusLine } from './states'
 
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 
@@ -34,7 +34,7 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
     <label htmlFor={emailId}>E-mail</label>
     <Input id={emailId} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" />
     <Button type="submit" variant="primary" disabled={!email.trim() || grant.isPending}>Tornar administrador</Button>
-    {message && <p role="alert">{message}</p>}
+    {message && <StatusLine tone="danger">{message}</StatusLine>}
   </form>
 }
 
@@ -89,7 +89,7 @@ export function AdminsScreen() {
         </li>
       })}
     </ul>}
-    {revokeMessage && <p role="alert">{revokeMessage}</p>}
+    {revokeMessage && <StatusLine tone="danger">{revokeMessage}</StatusLine>}
     <section aria-labelledby="cxs-grant-title">
       <h2 id="cxs-grant-title">Tornar alguém administrador</h2>
       <GrantForm onGranted={refresh} />

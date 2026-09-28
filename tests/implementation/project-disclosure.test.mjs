@@ -95,7 +95,7 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
       resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-72' } } : null,
       store: {
         listProjects: async () => disclose ? [summary] : [],
-        getProject: async () => disclose ? { ...summary, projectRevision: 'revision-72' } : null,
+        getProject: async () => disclose ? { ...summary, projectRevision: 'revision-72', deleting: false } : null,
         createProject: async () => { throw new Error('COMMAND_NOT_IN_READ_PROOF') },
       },
     }),
@@ -105,7 +105,7 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
   const list = () => app.inject({ method: 'GET', url: `/api/control/workspaces/${summary.workspaceId}/projects` })
   const detail = () => app.inject({ method: 'GET', url: `/api/control/projects/${summary.projectId}` })
   assert.deepEqual((await list()).json(), [summary])
-  assert.deepEqual((await detail()).json(), { ...summary, projectRevision: 'revision-72' })
+  assert.deepEqual((await detail()).json(), { ...summary, projectRevision: 'revision-72', deleting: false })
   disclose = false
   assert.deepEqual((await list()).json(), [])
   assert.equal((await detail()).statusCode, 404)

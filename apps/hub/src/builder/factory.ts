@@ -47,8 +47,10 @@ const BRANCH = /^[A-Za-z0-9_./-]+$/
 // The token rides in the git process's environment as a one-command http header, never in argv,
 // a URL, a remote or a config file. Only root git on the Hub's own mirror carries it: the agent's
 // user cannot read a root process's environment, and root git never reads the agent's checkout,
-// whose config and hooks the agent writes. Commits cross between the two as bundles.
+// whose config and hooks the agent writes. Commits cross between the two as bundles. Root git reads
+// no system config, where the seed points the repository's URL at a bundle for the agent.
 export const tokenEnvironment = (token: string): Record<string, string> => ({
+  GIT_CONFIG_NOSYSTEM: '1',
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
   GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`,
@@ -67,18 +69,20 @@ type FactoryCheckoutSource = Readonly<{ repositorySlug: string; read(): Promise<
 // the process environment. retryOnDead stays native: the sandbox outlives runs, so a dead VM is
 // recreated rather than failing the next command.
 //
-// The Factory's start hook clones and checks out the session branch with the credential it was
-// given, in argv and in the remote URL of the agent's checkout. That credential is
+// The Factory's start hook clones and checks out the session branch from the repository's URL,
+// with the credential it was given in the git process's environment. That credential is
 // SANDBOX_CREDENTIAL, so before the hook runs, on every start, root fetches the default branch into
 // its mirror and points that URL at a bundle of it: the Factory's own git reads the bundle.
 // GH_TOKEN is still filtered, for an organization PAT the Factory would hand out as it is.
 export class ConexusFactoryE2BSandbox extends E2BSandbox {
   readonly #checkout: FactoryCheckoutSource | undefined
+  readonly #timeoutMs: number
 
-  constructor(options: E2BSandboxOptions = {}, checkout?: FactoryCheckoutSource) {
-    super({ ...options, env: withoutGithubTokens(options.env ?? {}) })
+  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>, checkout?: FactoryCheckoutSource) {
+    super({ ...options, env: withoutGithubTokens(options.env ?? {}), workingDirectory: FACTORY_WORKING_DIRECTORY })
     if (checkout && !REPOSITORY_SLUG.test(checkout.repositorySlug)) throw new Error('FACTORY_CHECKOUT_REFUSED')
     this.#checkout = checkout
+    this.#timeoutMs = options.timeout
   }
 
   override setEnv(update: (environment: SandboxEnvironment) => SandboxEnvironment): void {
@@ -89,7 +93,14 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
     super.setOnStart((previous) => {
       const next = update(previous)
       const checkout = this.#checkout
-      return checkout ? async (args) => { await this.#seedCheckout(checkout); await next(args) } : next
+      // The Factory's start hook runs its checkout scripts with no cwd of its own, so the default
+      // directory must already exist while it runs, including after a dead VM is replaced.
+      return checkout ? async (args) => {
+        this.setWorkingDirectory(FACTORY_WORKING_DIRECTORY)
+        await this.#seedCheckout(checkout)
+        await next(args)
+        this.setWorkingDirectory(repoDirUnder(FACTORY_WORKING_DIRECTORY, checkout.repositorySlug))
+      } : next
     })
   }
 
@@ -103,9 +114,22 @@ export class ConexusFactoryE2BSandbox extends E2BSandbox {
       `{ test -d '${mirror}.git' || git init --quiet --bare '${mirror}.git'; }`,
       `git --git-dir='${mirror}.git' fetch --quiet --no-tags 'https://github.com/${repositorySlug}.git' '+${ref}:${ref}'`,
       `git --git-dir='${mirror}.git' bundle create --quiet '${mirror}.seed.bundle' '${ref}'`,
-      `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://x-access-token:${SANDBOX_CREDENTIAL}@github.com/${repositorySlug}.git'`,
+      `git config --system --replace-all 'url.${mirror}.seed.bundle.insteadOf' 'https://github.com/${repositorySlug}.git'`,
     ].join(' && '), tokenEnvironment(token))
     if (seeded.exitCode !== 0) throw new Error(`FACTORY_CHECKOUT_SEED_FAILED:${seeded.exitCode}`)
+  }
+
+  async #extend(): Promise<void> {
+    await this.e2b.setTimeout(this.#timeoutMs)
+  }
+
+  // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
+  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
+  async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
+    await this.#extend()
+    const heartbeat = setInterval(() => { this.#extend().catch(onLapse) }, Math.floor(this.#timeoutMs / 3))
+    heartbeat.unref()
+    return () => clearInterval(heartbeat)
   }
 
   async runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult> {
@@ -139,8 +163,9 @@ export const createFactorySandbox = ({ apiKey, templateId, readCheckout, timeout
   apiKey,
   timeout: timeoutMs,
   lifecycle: { onTimeout: 'kill' },
+  // E2B otherwise serves every listening port at a public URL, loopback-bound ones included.
+  network: { allowPublicTraffic: false },
   env: {},
-  workingDirectory: FACTORY_WORKING_DIRECTORY,
   metadata: { 'conexus-factory-session': context.sessionId },
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
 }, context.repoFullName ? { repositorySlug: context.repoFullName, read: () => readCheckout(context.repoFullName ?? '') } : undefined)
@@ -157,7 +182,7 @@ export const assertFactoryHost = ({ cwd, home }: Readonly<{ cwd: string; home: s
 }
 
 export const createFactoryPool = (database: Readonly<{ host: string; port: number; database: string }>, password: string): PostgresPool =>
-  createPostgresPool({ ...database, user: 'hub_factory', password, options: `-c search_path=${FACTORY_SCHEMA}` })
+  createPostgresPool({ ...database, user: 'hub_factory', password, options: `-c search_path=${FACTORY_SCHEMA}`, max: 20 })
 
 // Spans hold prompts, tool I/O and source text (docs/reference/builder-c020-mastra-native.md §4.4;
 // scratchpad/mastra-capabilities-study.md §4.2). Bounding their age is the only retention this PR

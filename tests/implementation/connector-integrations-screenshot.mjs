@@ -4,7 +4,7 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const outDir = resolve(repositoryRoot, 'docs/evidence/stage2-q4')
+const outDir = resolve(process.env.CONEXUS_SCREENSHOT_DIR ?? resolve(repositoryRoot, 'docs/evidence/screens/q4-connection-bindings'))
 const WORKSPACE_ID = 'w1'
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 const PROJECT = { projectId: PROJECT_ID, workspaceId: WORKSPACE_ID, name: 'Pedidos de compra', projectRevision: 'r1', archived: false }
@@ -27,14 +27,16 @@ async function mockRoutes(page) {
     body: JSON.stringify({
       entries: [
         { connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-20T13:00:00.000Z' },
+        { connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial', createdAt: '2026-09-27T09:00:00.000Z' },
       ],
     }),
   }))
-  await page.route(`**/api/control/projects/${PROJECT_ID}/connector-grants`, (route) => route.fulfill({
+  await page.route(`**/api/control/projects/${PROJECT_ID}/connection-bindings`, (route) => route.fulfill({
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       entries: [
-        { kind: 'grant', grantId: 'grant-1', connectionId: 'conn-1', connectorId: 'sankhya', capabilityId: 'sankhya.purchase-order.read', grantedAt: '2026-09-24T10:00:00.000Z' },
+        { kind: 'binding', bindingId: 'binding-1', name: 'erp', connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T10:00:00.000Z' },
+        { kind: 'bindable', connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial' },
       ],
     }),
   }))
@@ -47,20 +49,35 @@ async function main() {
   const origin = 'http://127.0.0.1:41832'
   const browser = await chromium.launch({ headless: true })
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 1100 }, colorScheme: 'light' })
+    const context = await browser.newContext()
     const page = await context.newPage()
     await mockRoutes(page)
     await page.goto(`${origin}/projects/${PROJECT_ID}/integrations`)
     await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
-    await page.getByText('ERP principal').waitFor()
-    await page.waitForTimeout(150)
-    await page.screenshot({ path: resolve(outDir, 'integrations-screen.png'), fullPage: true })
+    await page.getByText('ERP filial').first().waitFor()
+    for (const [label, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
+      for (const scheme of ['light', 'dark']) {
+        await page.setViewportSize(viewport)
+        await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' })
+        await page.waitForTimeout(250)
+        // The frame scrolls inside itself, so the page grows to the frame's content for a full shot.
+        const overflow = await page.evaluate(() => {
+          const main = document.querySelector('[data-slot="app-shell-main"]')
+          return main ? main.scrollHeight - main.clientHeight : 0
+        })
+        if (overflow > 0) {
+          await page.setViewportSize({ width: viewport.width, height: viewport.height + overflow })
+          await page.waitForTimeout(250)
+        }
+        await page.screenshot({ path: resolve(outDir, `integrations-${label}-${scheme}.png`), fullPage: true })
+      }
+    }
     await context.close()
   } finally {
     await browser.close()
     await server.close()
   }
-  console.log(`Screenshot written to ${resolve(outDir, 'integrations-screen.png')}`)
+  console.log(`Screenshots written to ${outDir}`)
 }
 
 await main()
