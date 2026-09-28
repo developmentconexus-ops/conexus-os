@@ -390,7 +390,7 @@ async function main(argv = process.argv.slice(2)) {
     return 0
   }
   const databaseUrl = process.env.CONEXUS_EVAL_DATABASE_URL
-  if (!databaseUrl) fail('CONEXUS_EVAL_DATABASE_URL is not set; set it to the Hub database URL as hub_factory, for example postgres://hub_factory:<password>@127.0.0.1:5432/conexus')
+  if (!databaseUrl) fail('CONEXUS_EVAL_DATABASE_URL is not set; set it to the Hub database URL as hub_factory (docs/development/builder-eval.md shows how)')
   const arms = loadArms(ARMS_DIR, options.arms ?? jsonStems(ARMS_DIR))
   const cases = loadCases(CASES_DIR)
   const statePath = resolveStatePath()

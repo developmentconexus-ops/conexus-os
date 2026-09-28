@@ -61,6 +61,8 @@ async function allowStudioOrigin(request, reply) {
 export async function startEvalServer({ mastra, port = DEFAULT_PORT }) {
   const app = Fastify()
   app.addHook('onRequest', allowStudioOrigin)
+  // Studio treats the server as reachable only when its root answers 2xx; otherwise it shows its connection form.
+  app.get('/', async () => 'Conexus Builder eval Mastra API')
   await new MastraServer({ app, mastra }).init()
   await app.listen({ host: '127.0.0.1', port })
   return { url: `http://127.0.0.1:${app.server.address().port}`, close: () => app.close() }
@@ -73,7 +75,7 @@ async function main(argv = process.argv.slice(2)) {
     return
   }
   const databaseUrl = process.env.CONEXUS_EVAL_DATABASE_URL
-  if (!databaseUrl) fail('CONEXUS_EVAL_DATABASE_URL is not set; set it to the Hub database URL as hub_factory, for example postgres://hub_factory:<password>@127.0.0.1:5432/conexus')
+  if (!databaseUrl) fail('CONEXUS_EVAL_DATABASE_URL is not set; set it to the Hub database URL as hub_factory (docs/development/builder-eval.md shows how)')
   const mastra = createEvalMastra({ storage: evalStorage(databaseUrl) })
   // Connections open lazily, so a wrong URL would otherwise surface only as errors inside Studio.
   await mastra.datasets.list({ page: 0, perPage: 1 }).catch((error) => fail(`cannot read the Mastra tables at CONEXUS_EVAL_DATABASE_URL: ${error.message}`))

@@ -137,7 +137,7 @@ function fakeRunCase(storage, { failures = {} } = {}) {
 async function startSimulatorHealth(fixtures) {
   const server = createServer((request, response) => {
     response.writeHead(request.url === '/__sim/health' ? 200 : 404, { 'content-type': 'application/json' })
-    response.end(JSON.stringify({ fixtures, counters: { loadRecords: 0, refusals: 0, otherServices: 0 } }))
+    response.end(JSON.stringify({ fixtures, counters: { loadRecords: 0, refusals: 0, writes: 0 } }))
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((resolve) => server.close(resolve)) }

@@ -30,10 +30,13 @@ test('the eval server lets Studio on port 3000 call it cross-origin and no other
     headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'content-type,x-mastra-dev-playground' },
   })
 
+  const studioProbe = await fetch(`${server.url}/`, { headers: { origin: 'http://localhost:3000' } })
   const studio = await preflight('http://localhost:3000')
   const studioByAddress = await fetch(`${server.url}/api/scores/scorers`, { headers: { origin: 'http://127.0.0.1:3000' } })
   const stranger = await preflight('http://localhost:3001')
 
+  assert.equal(studioProbe.status, 200)
+  assert.equal(studioProbe.headers.get('access-control-allow-origin'), 'http://localhost:3000')
   assert.equal(studio.status, 204)
   assert.equal(studio.headers.get('access-control-allow-origin'), 'http://localhost:3000')
   assert.equal(studio.headers.get('access-control-allow-credentials'), 'true')
