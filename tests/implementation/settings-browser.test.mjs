@@ -605,7 +605,14 @@ test('Minhas contas de modelo preserves non-featured connected accounts and allo
   const otherRow = page.locator('.cxs-row-actions', { hasText: 'Conectar outro provedor' })
   await otherRow.waitFor()
   await page.getByRole('button', { name: 'Conectar outro provedor' }).click()
-  await page.getByRole('button', { name: 'Fireworks' }).waitFor()
+  const fireworksItem = page.getByRole('button', { name: 'Fireworks' })
+  await fireworksItem.waitFor()
+
+  // Clicking an API-key-only provider from the picker advances straight to the API key input
+  await fireworksItem.click()
+  await page.getByRole('region', { name: 'Conectar Fireworks' }).waitFor()
+  await page.getByLabel('Chave de API').waitFor()
+  await page.getByRole('button', { name: 'Salvar chave' }).waitFor()
 })
 
 test('Minhas contas de modelo displays Google AI Pro card independently of google provider and shows connected state', async (t) => {

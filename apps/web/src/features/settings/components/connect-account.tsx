@@ -54,36 +54,35 @@ export function DeviceCodeStep({ provider, sessionId, url, userCode, nextPollMs,
   const [copied, setCopied] = useState(false)
   const countdown = useCountdown(expiresAt, () => { expired.current = true; onExpired() })
   const cancel = useMutation({ mutationFn: () => cancelOAuth(provider, sessionId), onSettled: () => finish.current() })
-
   useEffect(() => {
+    let stopped = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    let cancelled = false
-    const poll = async () => {
-      try {
-        const step = await pollOAuth(provider, sessionId)
-        if (cancelled) return
-        if (step.status === 'complete') { finish.current(); return }
-        if (step.status === 'failed') { finish.current(oauthFailureMessage(), step.error); return }
-        timer = setTimeout(poll, step.nextPollMs ?? nextPollMs)
-      } catch {
-        // Transient network failures don't stop polling; wait one interval and try again.
-        if (!cancelled && !expired.current) timer = setTimeout(poll, nextPollMs)
-      }
+    let consecutiveFailures = 0
+    const poll = (delay: number) => {
+      timer = setTimeout(async () => {
+        if (stopped || expired.current) return
+        try {
+          const step = await pollOAuth(provider, sessionId)
+          consecutiveFailures = 0
+          if (step.status === 'complete') finish.current()
+          else if (step.status === 'failed') finish.current(oauthFailureMessage(), step.error)
+          else poll(step.nextPollMs ?? 2000)
+        } catch (error) {
+          consecutiveFailures += 1
+          if (consecutiveFailures >= 3) finish.current(oauthFailureMessage(), detailOf(error))
+          else poll(nextPollMs)
+        }
+      }, delay)
     }
-    timer = setTimeout(poll, nextPollMs)
-    return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [nextPollMs, provider, sessionId])
-
-  const copyAndOpen = async () => {
-    try { await navigator.clipboard.writeText(userCode); setCopied(true) } catch { /* ignore */ }
+    poll(nextPollMs)
+    return () => { stopped = true; if (timer) clearTimeout(timer) }
+  }, [provider, sessionId, nextPollMs])
+  const copyAndOpen = () => {
+    void navigator.clipboard.writeText(userCode).then(() => setCopied(true)).catch(() => setCopied(false))
     window.open(url, '_blank', 'noopener')
   }
-
   return <div className="cxs-connect-step">
-    <div className="cxs-user-code">
-      <span className="cxs-code-label">Código:</span>
-      <strong className="cxs-code-value">{userCode}</strong>
-    </div>
+    <p className="cxs-device-code">{userCode}</p>
     <Button type="button" variant="primary" onClick={copyAndOpen}>Copiar código e abrir {providerName(provider)}</Button>
     {copied && <StatusLine>Copiado.</StatusLine>}
     <p className="cxs-hint">Se a aba não abrir sozinha, <a href={url} target="_blank" rel="noreferrer">abra a página de entrada manualmente</a>.</p>
@@ -212,7 +211,10 @@ export function ConnectAccount({ providers, initialProvider, onConnected, onCanc
     onError: (error) => dispatch({ type: 'failed', message: 'Não foi possível iniciar a entrada com este provedor.', detail: detailOf(error) }),
   })
   const queryClient = useQueryClient()
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey })
+    void queryClient.invalidateQueries({ queryKey: ['builder-models'] })
+  }
 
   const onDone = (error?: string, detail?: string) => {
     if (error) { dispatch({ type: 'failed', message: error, detail }); return }
@@ -223,6 +225,14 @@ export function ConnectAccount({ providers, initialProvider, onConnected, onCanc
 
   const restart = () => { dispatch({ type: 'reset' }); refresh() }
   const regenerate = (provider: string) => { start.mutate(provider) }
+
+  // A provider with no subscription login skips the method choice; advancing state belongs in an
+  // effect, not in the render that reads it.
+  useEffect(() => {
+    if (state.step !== 'choose-method') return
+    const chosen = providers.find((provider) => provider.provider === state.provider)
+    if (chosen && !chosen.oauth?.supported) dispatch({ type: 'method-api-key' })
+  }, [state, providers])
 
   if (state.step === 'choose-provider') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
@@ -262,21 +272,30 @@ export function ConnectAccount({ providers, initialProvider, onConnected, onCanc
 
   if (state.step === 'paste-code') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
-      <h3>{providerName(state.provider)}</h3>
+      <div className="cxs-connect-header">
+        <h3>{providerName(state.provider)}</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <PasteCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} expiresAt={state.expiresAt} onDone={onDone} onExpired={() => dispatch({ type: 'expired' })} />
     </section>
   }
 
   if (state.step === 'device-code') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
-      <h3>{providerName(state.provider)}</h3>
+      <div className="cxs-connect-header">
+        <h3>{providerName(state.provider)}</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <DeviceCodeStep provider={state.provider} sessionId={state.sessionId} url={state.url} userCode={state.userCode} nextPollMs={state.nextPollMs} expiresAt={state.expiresAt} onDone={onDone} onExpired={() => dispatch({ type: 'expired' })} />
     </section>
   }
 
   if (state.step === 'expired') {
     return <section className="cxs-connect" aria-label={`Conectar ${providerName(state.provider)}`}>
-      <h3>{providerName(state.provider)}</h3>
+      <div className="cxs-connect-header">
+        <h3>{providerName(state.provider)}</h3>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       <StatusLine tone="danger">O código expirou.</StatusLine>
       <Button type="button" variant="primary" disabled={start.isPending} onClick={() => regenerate(state.provider)}>Gerar outro código</Button>
     </section>
@@ -284,7 +303,10 @@ export function ConnectAccount({ providers, initialProvider, onConnected, onCanc
 
   if (state.step === 'failed') {
     return <section className="cxs-connect" aria-label="Conectar uma conta">
-      <StatusLine tone="danger">{state.message}</StatusLine>
+      <div className="cxs-connect-header">
+        <StatusLine tone="danger">{state.message}</StatusLine>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>}
+      </div>
       {state.detail && <details className="cxs-disclosure"><summary>Detalhe técnico</summary><code>{state.detail}</code></details>}
       <Button type="button" variant="outline" onClick={restart}>Tentar de novo</Button>
     </section>
