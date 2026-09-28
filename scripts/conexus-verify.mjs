@@ -105,6 +105,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('hub-postgres-pool', 'node --test tests/implementation/hub-postgres-pool.test.mjs', 'postgres'),
   candidateStep('db-role-register', 'npm run db:roles:check && node --test tests/implementation/cutover-hub-role-names.test.mjs'),
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
+  candidateStep('hub-build-shared', 'node --test tests/implementation/hub-build.test.mjs'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
   candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/check-test-census.test.mjs'),
