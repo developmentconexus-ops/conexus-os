@@ -65,6 +65,25 @@ const isReasoningLevelOnlyState = (body: unknown): boolean => {
 
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
+/** A projection the Hub applies to what a session route serves: one value, or each event of one stream. */
+export type ToolPayloadProjection = Readonly<{ value(value: unknown): unknown; stream(): (event: unknown) => unknown }>
+
+// Both routes serve Mastra's messages unmodified, and the web renders a tool's arguments and result
+// as it receives them.
+const PROJECTED_ROUTES: ReadonlySet<string> = new Set([`GET ${SESSION_BASE}/stream`, `GET ${SESSION_BASE}/threads/:threadId/messages`])
+
+type ServerRoute = typeof SERVER_ROUTES[number]
+
+const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection): ServerRoute => ({
+  ...route,
+  handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
+    const served: unknown = await route.handler(params)
+    if (!(served instanceof ReadableStream)) return projection.value(served)
+    const project = projection.stream()
+    return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(event)) }))
+  },
+} as ServerRoute)
+
 type GuardedMount = Readonly<{
   mastra: Mastra
   controller: BuilderAgentController
@@ -76,6 +95,7 @@ type GuardedMount = Readonly<{
   admitResource(input: Readonly<{ accountId: string; resourceId: string }>): Promise<boolean>
   // Runs after Mastra has built the request's context, so the Hub has the last word on it.
   shapeContext?(request: FastifyRequest, accountId: string): void
+  toolPayloads?: ToolPayloadProjection
 }>
 
 // The one guard every Mastra mount goes through. Mastra's context middleware merges a
@@ -133,7 +153,10 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       })
     }
     for (const route of SERVER_ROUTES) {
-      if (mount.routes.has(`${route.method} ${route.path}`)) await server.registerRoute(scope, route, { prefix: mount.prefix })
+      const key = `${route.method} ${route.path}`
+      if (!mount.routes.has(key)) continue
+      const served = mount.toolPayloads && PROJECTED_ROUTES.has(key) ? projectedRoute(route, mount.toolPayloads) : route
+      await server.registerRoute(scope, served, { prefix: mount.prefix })
     }
   })
 }
@@ -176,7 +199,7 @@ export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, r
   })
 }
 
-export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation }: Readonly<{
+export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation, toolPayloads }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: BuilderAgentController
@@ -186,8 +209,11 @@ export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra
   // A Factory resourceId is a conversation: its session row names the project repository, and the
   // binding names the Project whose build authority the Account must hold.
   admitConversation(input: Readonly<{ accountId: string; conversationId: string }>): Promise<boolean>
+  /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
+  toolPayloads?: ToolPayloadProjection
 }>): Promise<void> => registerGuardedMastraMount(app, {
   mastra, controller, origin, resolveCurrentSession,
+  ...(toolPayloads ? { toolPayloads } : {}),
   prefix: FACTORY_MASTRA_PREFIX,
   controllerId,
   routes: BROWSER_ROUTES,

@@ -42,6 +42,8 @@ export type Adapter<Cred, S> = Readonly<{
 
 /** An integrator's native protocol: pure, no network, no token. */
 export type NativeProtocol = Readonly<{
+  /** The read services `admit` can name: the tripwire's allow-list. */
+  services: readonly string[]
   /** The read rule. `url` is already resolved against the pinned origin and origin-checked; `body` is a plain copy of the exact bytes that will be sent. */
   admit(read: Readonly<{ method: string; url: URL; body: unknown }>):
     /** `service`: the rule's own constant for records, never caller text. */

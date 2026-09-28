@@ -69,6 +69,7 @@ export const restDefinition = Object.freeze({
   builderSkill: '',
   secretFields: Object.freeze(['clientId', 'clientSecret']),
   native: Object.freeze({
+    services: Object.freeze(['rest.get']),
     admit: ({ method, url, body }) => {
       if (method !== 'GET' || !url.pathname.startsWith('/v1/')) return { ok: false, code: 'SERVICE_REFUSED' }
       if (body !== undefined) return { ok: false, code: 'INPUT_REFUSED', issues: ['/body'] }

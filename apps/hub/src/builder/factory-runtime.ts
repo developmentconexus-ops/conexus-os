@@ -48,13 +48,20 @@ type FactoryRunSession = Readonly<{
 /** The bound repository as the Factory's repositories row has it when the run reads it. */
 export type FactoryRepository = Readonly<{ installation: number; externalId: number; slug: string; defaultBranch: string }>
 
+/** One run's reach into its Project's bound Connections: the brief for its instructions and the scope its tool reads through. */
+type ConnectorRun = Readonly<{ brief: string; bind(requestContext: RequestContext): void; end(): void }>
+
 export type FactoryRunPorts = Readonly<{
-  openSession(input: Readonly<{ conversationId: string; builderRunId: string; projectId: string; accountId: string }>): Promise<FactoryRunSession>
+  openSession(input: Readonly<{
+    conversationId: string; builderRunId: string; projectId: string; accountId: string
+    /** Gives the session's request context what the run's tools need. */
+    bindContext?(requestContext: RequestContext): void
+  }>): Promise<FactoryRunSession>
   github: Pick<GithubApp, 'repositoryToken' | 'branchContains'>
   resolveRepository(binding: FactoryBindingRecord): Promise<FactoryRepository>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
-  /** The run's Project's connector brief; absent or empty adds nothing to the agent's instructions. */
-  connectorBrief?(projectId: string): Promise<string>
+  /** Opens the run's connector access; the run ends it on every exit. Absent, or with an empty brief, adds nothing to the agent's instructions. */
+  openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
   log(line: string): void
 }>
 
@@ -120,11 +127,21 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
     const baseBundle = `${hubRepository}.base.bundle`
     const cancelled = (): boolean => input.signal?.aborted === true
 
-    const session = await ports.openSession({
-      conversationId: input.conversationId, builderRunId: input.executionId, projectId: input.projectId, accountId: input.accountId,
-    })
+    const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
+    let session: FactoryRunSession
+    try {
+      session = await ports.openSession({
+        conversationId: input.conversationId, builderRunId: input.executionId, projectId: input.projectId, accountId: input.accountId,
+        ...(connectorRun ? { bindContext: connectorRun.bind } : {}),
+      })
+    } catch (error) {
+      connectorRun?.end()
+      throw error
+    }
     let sessionOpen = true
+    // The agent's turn is the only reader of the run's connector scope, so it ends with the session.
     const closeSession = async (): Promise<void> => {
+      connectorRun?.end()
       if (!sessionOpen) return
       sessionOpen = false
       await session.close()
@@ -199,8 +216,7 @@ export const createFactoryCodingWorkerRuntime = (ports: FactoryRunPorts): Factor
           writeFiles: (files) => sandbox.writeFiles(files),
         })
       }
-      const connectorBrief = ports.connectorBrief ? await ports.connectorBrief(input.projectId) : ''
-      await session.configure({ mode: input.mode, instructions: factoryAgentInstructions(workdir, connectorBrief) })
+      await session.configure({ mode: input.mode, instructions: factoryAgentInstructions(workdir, connectorRun?.brief) })
       if (!session.hasModelSelection()) throw new Error('BUILDER_MODEL_NOT_SELECTED')
 
       await input.setPhase('AGENT')
@@ -356,12 +372,13 @@ export const createMastraFactoryRunPorts = ({ composition, orgId, log }: Readonl
       return Object.freeze(repository)
     },
     log,
-    openSession: async ({ conversationId, builderRunId, projectId, accountId }) => {
+    openSession: async ({ conversationId, builderRunId, projectId, accountId, bindContext }) => {
       const { controller } = composition
       const requestContext = new RequestContext()
       requestContext.set('user', { id: accountId, organizationId: orgId })
       requestContext.setRaw('conexusBuilderProjectId', projectId)
       requestContext.setRaw('conexusBuilderRunId', builderRunId)
+      bindContext?.(requestContext)
       const scope = `builder:${builderRunId}`
       const session = await controller.createSession({ resourceId: conversationId, ownerId: conversationId, scope, threadId: conversationId, requestContext })
       const close = async (): Promise<void> => {
