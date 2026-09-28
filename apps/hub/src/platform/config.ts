@@ -28,6 +28,7 @@ export type HubConfig = Readonly<{
   builder: Readonly<{
     ingressPasswordFile: string
     executorPasswordFile: string
+    modelAccountPasswordFile: string
     e2bApiKeyFile: string
     e2bTemplateId: string
     /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
@@ -202,12 +203,14 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
   const values = {
     ingressPasswordFile: environment.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
     executorPasswordFile: environment.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
+    modelAccountPasswordFile: environment.CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
   }
   if (Object.values(values).every(Boolean)) return {
     ingressPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE'),
     executorPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE'),
+    modelAccountPasswordFile: required(environment, 'CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE'),
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
@@ -216,6 +219,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     for (const [name, value] of Object.entries({
       CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
       CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
+      CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: values.modelAccountPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)

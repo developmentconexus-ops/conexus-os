@@ -135,7 +135,7 @@ export const assertRoleInvariants = async (client) => {
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model')
       AND entry.grantee = 0
       AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1

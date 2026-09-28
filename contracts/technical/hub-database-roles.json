@@ -50,6 +50,12 @@
       "passwordFileVariable": "CONEXUS_DB_FACTORY_PASSWORD_FILE",
       "optional": true,
       "connectsFrom": ["apps/hub/src/builder/factory.ts"]
+    },
+    {
+      "role": "hub_model_account",
+      "capability": "model-account",
+      "passwordFileVariable": "CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE",
+      "connectsFrom": ["apps/hub/src/builder/module.ts"]
     }
   ]
 }

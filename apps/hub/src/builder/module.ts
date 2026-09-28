@@ -8,7 +8,7 @@ import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/ob
 import { SpanType } from '@mastra/core/observability'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { createPostgresPool } from '../platform/postgres.js'
-import { readSecretFile } from '../platform/secrets.js'
+import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import { registerFactoryApiRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
@@ -35,6 +35,7 @@ import type { ConexusGit } from './conexus-git.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
+import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { FACTORY_CREDENTIAL_ROUTES, registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies, RunNote } from './service.js'
 
@@ -293,7 +294,7 @@ const startFactoryComposition = ({ database, factory, secretKey: installationKey
 export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectors, connectorObservability }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
-    ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
+    ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
     e2bTemplateId: string; gitRoot: string
   }>
   factory: FactoryRuntimeConfig
@@ -313,6 +314,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
     executorPool,
+  })
+  // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
+  // envelope every Conexus secret uses; not the Factory's storage this pool used to reach.
+  const modelAccountPool = createPostgresPool({ ...database, user: 'hub_model_account', password: readSecretFile(builder.modelAccountPasswordFile) })
+  const googleAiProAccounts = createGoogleAiProAccounts({
+    pool: modelAccountPool,
+    envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
   })
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
@@ -388,7 +396,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         origin,
         resolveCurrentSession,
         isInstallationAdministrator,
-        ...(googleAiProPool ? { googleAiPro: googleAiProPool } : {}),
+        ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
       })
       await registerInstallationGithubRoutes(app, {
         origin,
@@ -411,7 +419,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       try {
         await service.close()
       } finally {
-        await factoryComposition.close()
+        try {
+          await factoryComposition.close()
+        } finally {
+          await modelAccountPool.end()
+        }
       }
     },
   })

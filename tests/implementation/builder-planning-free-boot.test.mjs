@@ -32,6 +32,7 @@ const hubEnvironment = (root) => ({
   CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: resolve(root, 's3-read-password'),
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: resolve(root, 'rb-ingress-password'),
   CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: resolve(root, 'rb-executor-password'),
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: resolve(root, 'model-account-password'),
   CONEXUS_BUILDER_E2B_API_KEY_FILE: resolve(root, 'e2b-api-key'),
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',

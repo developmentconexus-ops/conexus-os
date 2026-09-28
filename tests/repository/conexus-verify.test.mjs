@@ -41,10 +41,12 @@ const packageScripts = Object.freeze({
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-hub-typecheck',
   'hub-baseline',
+  'secrets-envelope-interop',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'run-recovery-postgres', 'factory-routes', 'factory-provisioning', 'conexus-git',
+  'builder-harness',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'model-account-postgres', 'google-ai-pro', 'factory-runtime', 'run-recovery-postgres', 'factory-routes', 'factory-provisioning', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
@@ -156,7 +158,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     },
   })
   assert.equal(result.exitCode, 1)
-  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'c020-migration-selection'])
+  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'secrets-envelope-interop'])
   assert.equal(seen[0][1], null)
   assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])

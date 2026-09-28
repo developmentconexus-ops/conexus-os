@@ -32,6 +32,7 @@ const baseEnvironment = {
   CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/ingress',
   CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/executor',
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
 }
@@ -161,7 +162,7 @@ test('holdOpen reports a failed extension to onLapse, and refuses when the first
 })
 
 // A host shell standing in for the sandbox, running the Factory's own git code as it would in the VM.
-const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
+const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: _modelAccount, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
 test('with no Builder and no Factory variable the Hub boots as it did before, with the installation credential key', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
