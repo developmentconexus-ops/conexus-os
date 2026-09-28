@@ -70,6 +70,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const migrated = await runHubMigrations({ connectionString: url.toString() })
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
+  const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
@@ -163,13 +164,12 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   // Test real served application reader against Postgres get_application_thumbnail
   const servedReader = createServedApplicationReader(runtime)
   const servedThumbnail = await servedReader.readThumbnail({ accountId, projectId })
-  assert.equal(servedThumbnail.kind, 'THUMBNAIL')
+  assert.notEqual(servedThumbnail, null)
   assert.equal(servedThumbnail.artifactRevisionId, retained.artifactRevisionId)
-  assert.equal(servedThumbnail.thumbnail?.mediaType, 'image/png')
-  assert.equal(servedThumbnail.thumbnail?.byteLength, thumbnailBytes.length)
-  assert.equal(Buffer.from(servedThumbnail.thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
-  assert.equal(servedThumbnail.thumbnail?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
+  assert.equal(servedThumbnail.mediaType, 'image/png')
+  assert.equal(Buffer.from(servedThumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
+  assert.equal(servedThumbnail.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
 
   const unauthServed = await servedReader.readThumbnail({ accountId: randomUUID(), projectId })
-  assert.equal(unauthServed.kind, 'NOT_SERVED')
+  assert.equal(unauthServed, null)
 })

@@ -90,7 +90,7 @@ async function mockHub(page, hub) {
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/repository')) return json(route, 200, hub.repository)
     if (p.match(/^\/api\/control\/projects\/[^/]+\/thumbnail$/)) {
-      if (p.includes(ids.checklist) || p.includes(ids.stock)) {
+      if (p.includes(ids.visits) || p.includes(ids.checklist) || p.includes(ids.stock)) {
         return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ type: 'project-thumbnail-not-found' }) })
       }
       // 1x1 transparent PNG
@@ -240,8 +240,11 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
     assert.equal(await page.locator('.cx-thumb img').first().getAttribute('alt'), 'Prévia de Pedidos de férias')
     assert.equal(await page.locator('.cx-thumb img').first().getAttribute('loading'), 'lazy')
-    // Cards without preview (Checklist de abertura da loja, Estoque do almoxarifado) show neutral placeholder and no img element
     const cards = page.locator('.cx-project-card')
+    // Card with thumbnail missing / 404 (Visitas a clientes) falls back to placeholder
+    await expect(cards.nth(1).locator('.cx-thumb img')).toHaveCount(0)
+    assert.ok(await cards.nth(1).locator('.cx-thumb-placeholder').isVisible(), 'card with 404 thumbnail falls back to placeholder')
+    // Cards without preview (Checklist de abertura da loja, Estoque do almoxarifado) show neutral placeholder and no img element
     assert.equal(await cards.nth(2).locator('.cx-thumb img').count(), 0, 'card without preview has no img')
     assert.ok(await cards.nth(2).locator('.cx-thumb-placeholder').isVisible(), 'card without preview displays neutral placeholder')
     assert.equal(await cards.nth(3).locator('.cx-thumb img').count(), 0, 'card without preview has no img')

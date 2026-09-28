@@ -314,7 +314,7 @@ const parseReadFile = (value: unknown, expected: Readonly<{
   const parsed = parseResponseOrRefuse(readRowSchema, value)
   if (parsed.project_id !== expected.projectId || parsed.source_revision !== expected.sourceRevision ||
     parsed.artifact_revision_id !== expected.artifactRevisionId || parsed.path !== expected.path || mediaTypeForPath(parsed.path) !== parsed.media_type) {
-  throw new Error('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
+    throw new Error('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
   }
   const bytes = Uint8Array.from(parsed.bytes)
   if (bytes.byteLength > MAX_TOTAL_BYTES) refuseResponse()

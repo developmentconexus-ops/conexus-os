@@ -157,15 +157,20 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         const thumbnail = result.applicationBuild.compiledApplication.thumbnail
         if (thumbnail && applicationArtifacts.retainApplicationThumbnail) {
           try {
-            await applicationArtifacts.retainApplicationThumbnail({
-              accountId: input.accountId,
-              projectId: claimed.projectId,
-              executionId: claimed.builderRunId,
-              sourceRevision: admitted,
-              artifactRevisionId: artifact.artifactRevisionId,
-              mediaType: thumbnail.mediaType,
-              bytes: Buffer.from(thumbnail.base64, 'base64'),
-            })
+            const bytes = Buffer.from(thumbnail.base64, 'base64')
+            if (bytes.byteLength > 0 && bytes.byteLength <= 512000) {
+              await applicationArtifacts.retainApplicationThumbnail({
+                accountId: input.accountId,
+                projectId: claimed.projectId,
+                executionId: claimed.builderRunId,
+                sourceRevision: admitted,
+                artifactRevisionId: artifact.artifactRevisionId,
+                mediaType: thumbnail.mediaType,
+                bytes,
+              })
+            } else {
+              console.warn('[builder] skipping application thumbnail: size exceeds limit or empty', bytes.byteLength)
+            }
           } catch (error) {
             // Best-effort: thumbnail persistence failure never fails the build.
             console.warn('[builder] failed to retain application thumbnail:', error)
