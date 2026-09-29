@@ -922,7 +922,7 @@ test('a Project bound to Sankhya gets its own bindings, and is never told to ref
   await run.start()
   await run.service.close()
   const instructions = run.sessionContext.get('conexusConnectorBrief')
-  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('sankhya.purchase-order.read'), 'its own brief lists its binding and the read it can make')
+  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('connector_fetch'), 'its own brief lists its binding and the tool that reads it')
   assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
 })
 
