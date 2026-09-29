@@ -1,6 +1,7 @@
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
 import { ScrollArea } from '@mastra/playground-ui/components/ScrollArea'
 import { Shimmer } from '@mastra/playground-ui/components/Shimmer'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import {
   TOOL_GROUP_MIN, ToolCall, ToolCallCommand, ToolCallContent, ToolCallDetail, ToolCallDisclosure, ToolCallEdit, ToolCallHeader, ToolCallIcon,
   ToolCallLabel, ToolCallMono, ToolCallPresentedHeader, ToolCallSpacer, ToolCallTrailing, ToolCallTrigger,
@@ -168,10 +169,13 @@ function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPa
 function ModelChip({ model }: Readonly<{ model: BuilderModel | null }>) {
   if (!model) return null
   const Icon = providerIcon(model.provider)
-  return <span className="builder-turn-model" title={`${providerName(model.provider)} · ${model.modelName}`}>
-    <Icon width={12} height={12} aria-hidden="true" />
-    {humanizeModelName(model.modelName)}
-  </span>
+  return <Tooltip>
+    <TooltipTrigger render={<span className="builder-turn-model" />}>
+      <Icon width={12} height={12} aria-hidden="true" />
+      {humanizeModelName(model.modelName)}
+    </TooltipTrigger>
+    <TooltipContent>{`${providerName(model.provider)} · ${model.modelName}`}</TooltipContent>
+  </Tooltip>
 }
 
 function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | null; children: readonly ReactNode[] }>) {

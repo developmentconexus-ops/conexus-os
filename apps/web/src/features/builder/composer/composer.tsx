@@ -46,18 +46,25 @@ const MODE_LOCKED = 'O modo muda quando o Builder parar.'
 function ModeChip({ mode, locked, onChange }: Readonly<{ mode: BuilderMode; locked: boolean; onChange: (mode: BuilderMode) => void }>) {
   const current = agentModes[mode]
   const Icon = current.icon
+  const lockedNote = `${current.label}. ${MODE_LOCKED}`
   if (locked) {
     return <Popover>
-      <PopoverTrigger render={<button type="button" className="cx-mode-chip" data-mode={mode} data-locked title={`${current.label}. ${MODE_LOCKED}`} aria-label={`Modo: ${current.label}. ${MODE_LOCKED}`} />}>
-        <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><Lock size={12} aria-hidden="true" />
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger render={<PopoverTrigger render={<button type="button" className="cx-mode-chip" data-mode={mode} data-locked aria-label={`Modo: ${lockedNote}`} />} />}>
+          <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><Lock size={12} aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent>{lockedNote}</TooltipContent>
+      </Tooltip>
       <PopoverContent side="top" align="start" sideOffset={8} className="cx-mode-note">{MODE_LOCKED}</PopoverContent>
     </Popover>
   }
   return <DropdownMenu>
-    <DropdownMenu.Trigger className="cx-mode-chip" data-mode={mode} title={`${current.label}: ${current.hint}`} aria-label={`Modo: ${current.label}`}>
-      <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><ChevronDown size={13} aria-hidden="true" />
-    </DropdownMenu.Trigger>
+    <Tooltip>
+      <TooltipTrigger render={<DropdownMenu.Trigger className="cx-mode-chip" data-mode={mode} aria-label={`Modo: ${current.label}`} />}>
+        <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><ChevronDown size={13} aria-hidden="true" />
+      </TooltipTrigger>
+      <TooltipContent>{`${current.label}: ${current.hint}`}</TooltipContent>
+    </Tooltip>
     <DropdownMenu.Content side="top" align="start" sideOffset={8} className="cx-mode-menu">
       <DropdownMenu.RadioGroup value={mode} onValueChange={(value) => { const next = builderModes.find((option) => option === value); if (next && next !== mode) onChange(next) }}>
         {builderModes.map((option) => { const entry = agentModes[option]; return <DropdownMenu.RadioItem key={option} value={option} className="cx-mode-option" data-mode={option}>

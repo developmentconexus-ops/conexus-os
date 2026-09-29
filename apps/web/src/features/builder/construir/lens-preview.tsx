@@ -1,4 +1,5 @@
 import { Button } from '@mastra/playground-ui/components/Button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { Monitor, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
@@ -67,16 +68,25 @@ export function LensPreview({ preview, view, wait, history, lastGoodSourceRevisi
     <div className="cx-preview-toolbar" role="toolbar" aria-label="Janela da prévia">
       <fieldset className="cx-seg cx-seg-icons">
         <legend className="cx-sr">Dispositivo</legend>
-        <button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" title="Computador" onClick={() => setViewport('desktop')}>
-          <Monitor size={14} aria-hidden="true" />
-        </button>
-        <button type="button" aria-pressed={viewport === 'mobile'} aria-label="Celular" title="Celular" onClick={() => setViewport('mobile')}>
-          <Smartphone size={14} aria-hidden="true" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger render={<button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" onClick={() => setViewport('desktop')} />}>
+            <Monitor size={14} aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>Computador</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<button type="button" aria-pressed={viewport === 'mobile'} aria-label="Celular" onClick={() => setViewport('mobile')} />}>
+            <Smartphone size={14} aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>Celular</TooltipContent>
+        </Tooltip>
       </fieldset>
-      <button type="button" className="cx-icon-button" aria-label="Recarregar prévia" title="Recarregar" onClick={preview.retry}>
-        <RotateCw size={14} aria-hidden="true" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger render={<button type="button" className="cx-icon-button" aria-label="Recarregar prévia" onClick={preview.retry} />}>
+          <RotateCw size={14} aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent>Recarregar</TooltipContent>
+      </Tooltip>
       {lease && <span className="cx-preview-address">{addressOf(lease.launch.previewUrl)}</span>}
       <span className="cx-chip" data-tone={view.kind === 'ACTIVE' ? 'active' : sourceAhead ? 'neutral' : 'ok'}>
         {version !== null ? `Versão ${version} · em uso` : 'Em uso'}
