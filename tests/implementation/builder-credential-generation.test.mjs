@@ -105,6 +105,21 @@ test('sendBuilderSessionMessage propagates a model-selection refusal unchanged, 
   })
 })
 
+test('a model without an account reads as connect-a-model even when it surfaces mid-run as an agent error, wrapped or not', async () => {
+  for (const error of [new Error('BUILDER_MODEL_NOT_SELECTED'), new Error('stream failed', { cause: new Error('BUILDER_MODEL_NOT_SELECTED') })]) {
+    let listener
+    const session = {
+      subscribe: (callback) => { listener = callback; return () => {} },
+      ...fakeThreadFields,
+      sendMessage: async () => {
+        listener({ type: 'error', error })
+        listener({ type: 'agent_end', reason: 'error' })
+      },
+    }
+    await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), { message: 'BUILDER_MODEL_NOT_SELECTED' })
+  }
+})
+
 test('sendBuilderSessionMessage returns complete on success', async () => {
   let listener
   const session = {

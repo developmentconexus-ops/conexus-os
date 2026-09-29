@@ -236,90 +236,102 @@ test('a ChatGPT model calls the Codex endpoint with the held bearer, the account
   assert.match(body.instructions, /^You are an interactive CLI tool/)
 })
 
-test("a run pays with the caller's own account for its model's provider, else the shared one, and without either it is refused", async () => {
-  const { RequestContext } = await import('@mastra/core/request-context')
-  const { createModelRouting } = await import(built('builder/model-routing.js'))
-  const { store, rows, share } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
-  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  const threadModels = new Map([['conversation-openai', 'openai/gpt-5.6-sol'], ['conversation-claude', 'anthropic/claude-fable-5']])
-  let installationDefault = null
-  const routing = createModelRouting({
-    routes: {
-      openai: { accountProvider: 'openai-codex', take: (account) => ({ modelProvider: 'openai', model: async (name) => ({ called: name, with: account.secret }) }) },
-      'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
+const routesOver = (holds = null) => ({
+  openai: {
+    accountProvider: 'openai-codex',
+    take: (account) => {
+      const bearer = holds?.hold(account.modelAccountId, parseCodexTokens(account.secret))
+      return { modelProvider: 'openai', model: async (name) => ({ called: name, with: bearer ? (await bearer()).accessToken : account.secret }) }
     },
-    modelAccounts: store,
-    modelOf: async (_projectId, conversationId) => threadModels.get(conversationId) ?? null,
-    readDefault: async () => installationDefault,
-  })
-  const hold = (accountId, conversationId, builderRunId = `run-${accountId}-${conversationId}`) =>
-    routing.hold({ builderRunId, accountId, projectId: 'project-1', conversationId, mode: 'PLAN' })
-  const turn = (builderRunId, modelId) => {
-    const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.set('controller', { session: { modelId } })
-    return routing.resolve({ requestContext })
-  }
-  const rowId = (owner, provider) => rows.get(`${owner}:${provider}`).id
-
-  const anaRun = await hold(ana, 'conversation-openai', 'run-ana')
-  assert.equal(anaRun.modelAccountId, rowId(ana, 'openai-codex'))
-  assert.deepEqual(await turn('run-ana', 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
-  await assert.rejects(turn('run-ana', 'google-ai-pro/gemini-3-flash'), /BUILDER_MODEL_NOT_SELECTED/, 'a switch to another provider mid-run has no account held')
-
-  await assert.rejects(hold(bia, 'conversation-openai'), /BUILDER_MODEL_NOT_SELECTED/, "bia's Google account does not pay for a ChatGPT model")
-  share(ana, 'openai-codex')
-  assert.equal((await hold(bia, 'conversation-openai')).modelAccountId, rowId(ana, 'openai-codex'), 'the shared row pays when the caller has none')
-
-  await assert.rejects(hold(ana, 'conversation-claude'), /BUILDER_MODEL_NOT_SELECTED/, 'a provider the Hub cannot call')
-  await assert.rejects(hold(ana, 'conversation-new'), /BUILDER_MODEL_NOT_SELECTED/, 'no selection and no installation default')
-  installationDefault = 'google-ai-pro/gemini-3-flash'
-  assert.equal((await hold(bia, 'conversation-new')).modelAccountId, rowId(bia, 'google-ai-pro'), 'the installation default when the conversation chose none')
-
-  anaRun.release()
-  await assert.rejects(turn('run-ana', 'openai/gpt-5.6-sol'), /BUILDER_MODEL_NOT_SELECTED/, 'a released run calls nothing')
+  },
+  'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
 })
 
-test('a run started in Planejar holds an account for the Construir model too, so a build model from another provider runs after the plan approval', async () => {
+const routingOver = async ({ store, threadModels = {}, installationDefault = () => null, routes = routesOver() }) => {
   const { RequestContext } = await import('@mastra/core/request-context')
   const { createModelRouting } = await import(built('builder/model-routing.js'))
+  const recorded = []
+  const routing = createModelRouting({
+    routes,
+    modelAccounts: store,
+    modelOf: async (_projectId, _conversationId, mode) => threadModels[mode] ?? null,
+    readDefault: async () => installationDefault(),
+    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+  })
+  const call = (builderRunId, accountId, modelId, modeId = 'build') => {
+    const requestContext = new RequestContext()
+    requestContext.setRaw('conexusBuilderRunId', builderRunId)
+    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    requestContext.set('controller', { session: { modelId, modeId } })
+    return routing.resolve({ requestContext })
+  }
+  const check = (accountId, mode = 'PLAN') => routing.check({ accountId, projectId: 'project-1', conversationId: 'conversation-1', mode })
+  return { call, check, recorded }
+}
+
+test("a model call pays with the caller's own account for its model's provider, else the shared one; without either it fails with the connect-a-model message", async () => {
+  const { store, share } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
+  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
+  const { call, check } = await routingOver({ store, threadModels: { plan: 'openai/gpt-5.6-sol' } })
+
+  assert.deepEqual(await call('run-ana', ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
+  await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, "bia's Google account does not pay for a ChatGPT model")
+  await assert.rejects(call('run-bia', bia, 'openai/gpt-5.6-sol'), /BUILDER_MODEL_NOT_SELECTED/)
+  share(ana, 'openai-codex')
+  assert.deepEqual(await call('run-bia', bia, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' }, 'the shared row pays when the caller has none')
+  await assert.doesNotReject(check(bia))
+})
+
+test('a model for a provider the Hub cannot call is refused with the connect-a-model message', async () => {
+  const { store } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
+  const { call } = await routingOver({ store })
+  await assert.rejects(call('run-ana', ana, 'anthropic/claude-fable-5'), /BUILDER_MODEL_NOT_SELECTED/)
+})
+
+test("the installation's default answers when the session chose no model", async () => {
+  const { store } = fakeStore()
+  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
+  let installationDefault = null
+  const { call } = await routingOver({ store, installationDefault: () => installationDefault })
+  await assert.rejects(call('run-bia', bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'no selection and no installation default')
+  installationDefault = 'google-ai-pro/gemini-3-flash'
+  assert.deepEqual(await call('run-bia', bia, ''), { called: 'gemini-3-flash', with: 'bia-google-secret' })
+})
+
+test('a run planned on ChatGPT and built on Google AI Pro pays each call with that model\'s account and records both', async () => {
   const { store, rows } = fakeStore()
   await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
   await store.write(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
-  await store.write(bia, 'openai-codex', 'oauth', 'bia-secret')
-  const threadModels = { plan: 'openai/gpt-5.6-sol', build: 'google-ai-pro/gemini-3-flash' }
-  const routing = createModelRouting({
-    routes: {
-      openai: { accountProvider: 'openai-codex', take: (account) => ({ modelProvider: 'openai', model: async (name) => ({ called: name, with: account.secret }) }) },
-      'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
-    },
-    modelAccounts: store,
-    modelOf: async (_projectId, _conversationId, mode) => threadModels[mode],
-    readDefault: async () => null,
+  const { call, recorded } = await routingOver({ store })
+
+  assert.deepEqual(await call('run-1', ana, 'openai/gpt-5.6-sol', 'plan'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
+  assert.deepEqual(await call('run-1', ana, 'google-ai-pro/gemini-3-flash', 'build'), { called: 'gemini-3-flash', with: 'ana-google-secret' })
+  assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:openai-codex`).id], ['run-1', rows.get(`${ana}:google-ai-pro`).id]])
+})
+
+test('a fresh conversation with a model only for Planejar starts: the start check reads the start mode alone', async () => {
+  const { store } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
+  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
+  const { check } = await routingOver({ store, threadModels: { plan: 'openai/gpt-5.6-sol', build: null } })
+  await assert.doesNotReject(check(ana, 'PLAN'))
+  await assert.rejects(check(bia, 'PLAN'), /BUILDER_MODEL_NOT_SELECTED/, 'the one model the run starts on has no account')
+})
+
+test('a ChatGPT token refreshed on one call is written back once, and the next call reads it from the row', async () => {
+  const { store, rows } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  const refreshes = []
+  const holds = createCodexHolds({
+    store,
+    now: () => 2_000,
+    refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) },
   })
-  const hold = (accountId, builderRunId, mode) => routing.hold({ builderRunId, accountId, projectId: 'project-1', conversationId: 'conversation-1', mode })
-  const turn = (builderRunId, modelId) => {
-    const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.set('controller', { session: { modelId } })
-    return routing.resolve({ requestContext })
-  }
-
-  const planned = await hold(ana, 'run-plan', 'PLAN')
-  assert.deepEqual([
-    planned.modelAccountId,
-    await turn('run-plan', 'openai/gpt-5.6-sol'),
-    await turn('run-plan', 'google-ai-pro/gemini-3-flash'),
-  ], [
-    rows.get(`${ana}:openai-codex`).id,
-    { called: 'gpt-5.6-sol', with: 'ana-secret' },
-    { called: 'gemini-3-flash', with: 'ana-google-secret' },
-  ])
-  planned.release()
-  await assert.rejects(turn('run-plan', 'google-ai-pro/gemini-3-flash'), /BUILDER_MODEL_NOT_SELECTED/, 'a released run calls neither provider')
-
-  await assert.rejects(hold(bia, 'run-bia-plan', 'PLAN'), /BUILDER_MODEL_NOT_SELECTED/, 'a Planejar run whose Construir model has no account is refused before it starts')
-  Object.assign(threadModels, { plan: 'google-ai-pro/gemini-3-flash', build: 'openai/gpt-5.6-sol' })
-  assert.equal((await hold(bia, 'run-bia-build', 'BUILD')).modelAccountId, rows.get(`${bia}:openai-codex`).id, 'a Construir run never returns to Planejar, so it holds only its own model')
+  const { call } = await routingOver({ store, routes: routesOver(holds) })
+  const answers = [await call('run-1', ana, 'openai/gpt-5.6-sol'), await call('run-1', ana, 'openai/gpt-5.6-sol')]
+  assert.deepEqual(answers, [{ called: 'gpt-5.6-sol', with: 'access-new' }, { called: 'gpt-5.6-sol', with: 'access-new' }])
+  assert.deepEqual(refreshes, ['refresh-old'])
+  assert.deepEqual(parseCodexTokens(rows.get(`${ana}:openai-codex`).secret), tokens('new', 10_000))
 })

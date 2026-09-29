@@ -450,6 +450,78 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
   await run.close()
 })
 
+test('a model switched while the plan card waits is the model the build runs on', async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-switch-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'switch-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const steps = [
+    { toolCallId: 'w1', toolName: 'mastra_workspace_write_file', input: { path: '.conexus/plans/p.md', content: '# Plano\n\n1. Botão.\n' } },
+    { toolCallId: 'p1', toolName: 'submit_plan', input: { path: '.conexus/plans/p.md' } },
+    { toolCallId: 'c1', toolName: 'mastra_workspace_execute_command', input: { command: 'echo', args: ['construído'] } },
+  ]
+  const calls = []
+  const scripted = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream() {
+      const step = steps[calls.length]
+      calls.push(calls.length)
+      const parts = step
+        ? [{ type: 'tool-call', toolCallId: step.toolCallId, toolName: step.toolName, input: JSON.stringify(step.input) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'pronto' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
+    },
+  }
+  const modelIds = []
+  const model = ({ requestContext }) => {
+    modelIds.push(requestContext.get('controller')?.session?.modelId)
+    return scripted
+  }
+  const runWorkspaces = new Map()
+  const { Memory } = await import('@mastra/memory')
+  const storage = new InMemoryStore()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const conversationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const builderRunId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+  const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
+  await conversation.model.switch({ modelId: 'openai/gpt-5.6-sol', scope: 'thread' })
+
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces })({
+    projectId, conversationId, builderRunId, workspace,
+    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+  })
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  live.subscribe((event) => {
+    if (event.type !== 'tool_suspended' || event.toolName !== 'submit_plan') return
+    void (async () => {
+      await live.model.switch({ modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' })
+      await live.model.switch({ modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread', modeId: 'build' })
+      await live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: { action: 'approved' } })
+    })()
+  })
+  const turn = await run.sendTurn('quero um botão')
+  assert.equal(turn.reason, 'complete')
+  assert.equal(live.mode.get(), 'build')
+  assert.deepEqual(modelIds, [
+    ...Array(4).fill('openai/gpt-5.6-sol'),
+    ...Array(4).fill('google-ai-pro/gemini-3-flash'),
+  ], 'every call after the approval runs on the model chosen while the card waited')
+  const thread = await (await storage.getStore('memory')).getThreadById({ threadId: conversationId })
+  assert.deepEqual(
+    { plan: thread.metadata.modeModelId_plan, build: thread.metadata.modeModelId_build },
+    { plan: 'google-ai-pro/gemini-3-flash', build: 'google-ai-pro/gemini-3-flash' },
+  )
+  await run.close()
+})
+
 test("the conversation's mode follows a plan approval, once the run closes (item C)", async (t) => {
   const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-chip-'))
