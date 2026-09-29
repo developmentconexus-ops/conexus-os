@@ -9,7 +9,6 @@ export type InstanceId = string & { readonly [brand]: 'InstanceId' }
 export type AuthRecord = Readonly<{ fileName: string; bytes: Uint8Array }>
 
 export const GOOGLE_AI_PRO_PROVIDER = 'google-ai-pro'
-export const GOOGLE_AI_PRO_NAME = 'Google AI Pro'
 // What CLIProxyAPI v7.3.12 listed for an AI Pro account on 2026-09-22, Gemini only: Claude through
 // Antigravity has a small separate quota, and an account that lacks a model fails at call time.
 export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([

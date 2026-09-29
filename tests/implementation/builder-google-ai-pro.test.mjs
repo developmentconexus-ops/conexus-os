@@ -406,6 +406,8 @@ test('the Builder offers the Google AI Pro models only to a person who can use t
   assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
   const all = ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map((model) => `google-ai-pro/${model}`)
   assert.deepEqual([await offered(), await offered('?scope=installation')], [all, []])
+  const named = (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().models
+  assert.deepEqual(named.slice(0, 3).map(({ modelName }) => modelName), ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high'])
   as(bia)
   assert.deepEqual(await offered(), [], 'another person without an account is offered nothing')
   share(ana)

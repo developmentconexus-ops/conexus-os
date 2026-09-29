@@ -4,13 +4,13 @@ import { sendProblem } from '../http/problem.js'
 import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_MODELS, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
 import type { MemorySettings, MemorySettingsStore } from './memory.js'
 import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
-import { OPENAI_CODEX_NAME, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
+import { OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { isExactOrigin } from '../platform/origin.js'
 
@@ -27,9 +27,10 @@ type Caller = Readonly<{ accountId: AccountId }>
 type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
 type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
 
+// Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
 /** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
 const GOOGLE_AI_PRO_OFFER: Offer = Object.freeze(GOOGLE_AI_PRO_MODELS.map((model) => Object.freeze({
-  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: `${GOOGLE_AI_PRO_NAME} ${model}`,
+  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: model,
 })))
 
 // Mastra's model router catalog lists every OpenAI model, and Mastra Code offers all of them on a
@@ -41,10 +42,10 @@ const retired = new Set(openaiCatalog?.deprecatedModels ?? [])
 /** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
 const OPENAI_CODEX_OFFER: Offer = Object.freeze((openaiCatalog?.models ?? [])
   .filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
-  .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: `${OPENAI_CODEX_NAME} ${model}` })))
+  .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: model })))
 
-const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map(({ model, name }) =>
-  Object.freeze({ id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: name })))
+const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map((model) =>
+  Object.freeze({ id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model })))
 
 /** The providers a person connects by pasting a key, and the shape each key must have. */
 const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })

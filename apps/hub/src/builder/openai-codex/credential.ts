@@ -9,7 +9,6 @@ import { refreshOpenAICodexToken, type CodexTokens } from './oauth.js'
  * mastracode-gateway). It is the `provider` of its `model.model_account` row, kind `oauth`.
  */
 export const OPENAI_CODEX_PROVIDER = 'openai-codex'
-export const OPENAI_CODEX_NAME = 'ChatGPT'
 /** The model router provider in the model ids a subscription serves (`openai/<model>`). */
 export const OPENAI_MODEL_PROVIDER = 'openai'
 
