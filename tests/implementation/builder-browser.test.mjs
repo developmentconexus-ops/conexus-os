@@ -1420,3 +1420,66 @@ test('approving a submitted plan answers it with the approval the controller mov
   await answered
   assert.deepEqual(answers, [{ toolCallId: 'plan-2', resumeData: { action: 'approved' } }])
 })
+
+for (const width of [1536, 1700]) {
+  test(`the conversation panel fits its column at ${width}px with a long plan card and long tool rows`, async (t) => {
+    const accountId = '70000000-0000-4000-8000-000000000251'
+    const projectId = '70000000-0000-4000-8000-000000000252'
+    const runId = '70000000-0000-4000-8000-000000000253'
+    const conversationId = 'conversation-chat-width'
+    const sourceRevision = 'c'.repeat(40)
+    const origin = await startWebServer(t)
+    const browser = await chromium.launch({ headless: true })
+    t.after(() => browser.close())
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
+
+    const longPath = `apps/web/src/features/${'agenda-semanal-com-nome-muito-comprido/'.repeat(4)}componente.tsx`
+    const plan = ['1. Criar a tela', `2. Editar \`${longPath}\``, `3. Rodar npm run test -- ${longPath} --reporter=verbose --coverage`, `4. ${'a'.repeat(160)}`].join('\n')
+    const toolPart = (id, toolName, args) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: 'result', args, result: 'ok' } })
+    const reply = { id: 'assistant-long', role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [
+      toolPart('long-1', 'read_file', { path: longPath }),
+      toolPart('long-2', 'execute_command', { command: `npm run test -- ${longPath} --reporter=verbose --coverage` }),
+      { type: 'text', text: 'Li os arquivos.' },
+    ] } }
+    const title = 'Quero uma agenda semanal que permita marcar reuniões e enviar pedidos de aprovação'
+    const state = builderState([conversation(conversationId, title)], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), reply] })
+    await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+    await routeBuilder(page, state)
+    await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
+    await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId,
+      latestBuilderRun: {
+        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+        baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+        failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+      },
+      latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      runHistory: [],
+    }) }))
+    await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+      { type: 'tool_suspended', toolCallId: 'plan-w', toolName: 'submit_plan', args: { title: 'Agenda semanal', plan }, suspendPayload: { title: 'Agenda semanal', plan } },
+    )))
+
+    await page.goto(`${origin}/projects/${projectId}/build`)
+    await page.getByRole('button', { name: 'Aprovar e construir' }).waitFor()
+    if (process.env.CHATWIDTH_SHOT) await page.screenshot({ path: process.env.CHATWIDTH_SHOT })
+    const measured = await page.evaluate(() => {
+      const chat = document.querySelector('.cx-chat')
+      const composer = document.querySelector('.cx-composer')
+      return {
+        viewport: window.innerWidth,
+        chatOverflow: chat.scrollWidth - chat.clientWidth,
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        composerRight: Math.ceil(composer.getBoundingClientRect().right),
+        chipsOverlap: document.querySelector('.cx-agent-mode').getBoundingClientRect().right > document.querySelector('.cx-model-button').getBoundingClientRect().left,
+        chatRight: Math.floor(chat.getBoundingClientRect().right),
+      }
+    })
+    assert.deepEqual(
+      { chatOverflow: measured.chatOverflow, pageOverflow: measured.pageOverflow, composerInside: measured.composerRight <= measured.chatRight && measured.chatRight <= measured.viewport, chipsOverlap: measured.chipsOverlap },
+      { chatOverflow: 0, pageOverflow: 0, composerInside: true, chipsOverlap: false },
+      JSON.stringify(measured),
+    )
+  })
+}

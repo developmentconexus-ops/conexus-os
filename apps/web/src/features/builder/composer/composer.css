@@ -67,19 +67,21 @@
   .cx-composer .composer-ring, .cx-composer .composer-ring[data-busy="true"] { animation: none; }
 }
 
-.cx-composer-actions { flex-wrap: nowrap; }
+.cx-composer-actions { flex-wrap: nowrap; container-type: inline-size; }
 .cx-composer-tools { display: flex; align-items: center; gap: .15rem; min-width: 0; }
+.cx-composer-tools:first-child { flex: none; }
 .cx-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--cx-text-2); }
 .cx-icon-button:hover:not(:disabled) { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-icon-button:focus-visible { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-icon-button[aria-disabled="true"] { opacity: .45; cursor: default; }
 .cx-icon-button[data-listening] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
-.cx-model-button { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
+.cx-model-button { overflow: hidden; display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
 /* Hover/focus lights the pill, never the label: the model name stays full-contrast text, not the
    muted accent color, so an open picker never reads as a disabled control. */
 .cx-model-button:hover, .cx-model-button:focus-visible { background: var(--cx-accent-soft); }
 .cx-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
 .cx-model-button[title] .cx-model-name { max-width: none; }
+@container (max-width: 24rem) { .cx-model-level { display: none; } }
 .cx-model-level { flex: none; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
 .cx-model-button svg { flex: none; color: var(--cx-text-2); }
 .cx-level-dot { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cx-accent); }
