@@ -11,4 +11,4 @@ export {
   readModeId,
 } from './request-context.js'
 export { DEFAULT_PROMPT_VARIANT, PROMPT_VARIANTS, type PromptVariantId } from './prompt.js'
-export { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } from './controller.js'
+export { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot, type RunTools } from './controller.js'

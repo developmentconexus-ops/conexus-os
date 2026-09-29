@@ -33,6 +33,8 @@
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
+    // Read as text by the check, which writes it into each Project as conexus/sankhya.gen.ts.
+    "apps/hub/src/builder/handler-kit/sankhya.ts",
     "apps/hub/src/server.ts",
     "apps/hub/src/app-runner/main.ts",
     "apps/web/src/main.tsx",

@@ -77,6 +77,7 @@ const REGISTERED_TOOL_SENTENCES = {
   web_fetch: 'Abriu uma página da internet',
   submit_plan: 'Enviou o plano',
   conexus_check: 'Verificou o app',
+  conexus_run_operation: 'Testou uma operação com dados reais',
 }
 
 test('every tool a Builder mode registers has its own pt-BR sentence, running and done', () => {

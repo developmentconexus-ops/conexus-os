@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { appPathClassifierSource } from '../platform/application-path.js'
@@ -137,11 +139,15 @@ export const unrenderedBootStep = (report: CheckReport): Extract<CheckStep, { st
 // Preview. The frame-ancestors origin only has to be well formed: the page is the top level document.
 const BOOT_CONTENT_SECURITY_POLICY = previewContentSecurityPolicy('http://127.0.0.1')
 
+// The handler helper the check writes beside `conexus/types.gen.ts`, read from the Hub's checkout
+// like its prompts.
+const SANKHYA_HELPER_PATH = 'apps/hub/src/builder/handler-kit/sankhya.ts'
+
 /**
  * The source of `check.mjs`. Written between raw template quotes so its regular expressions keep
  * their backslashes; it holds no backtick and no `${`.
  */
-export const checkScriptSource = (): string => String.raw`
+export const checkScriptSource = (cwd: string = process.cwd()): string => String.raw`
 import { spawn, spawnSync } from 'node:child_process'
 import { chownSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, chmodSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -155,6 +161,7 @@ const MAX_PROBLEMS = ${CHECK_LIMITS.problemsPerStep}
 const MAX_MESSAGE = ${CHECK_LIMITS.messageChars}
 const BOOT_CSP = ${JSON.stringify(BOOT_CONTENT_SECURITY_POLICY)}
 const BLOCKING = new Set(${JSON.stringify([...BLOCKING_STEPS])})
+const SANKHYA_HELPER = ${JSON.stringify(readFileSync(resolve(cwd, SANKHYA_HELPER_PATH), 'utf8'))}
 const redact = ${redactEvidence.toString()}
 const admitManifest = ${admitManifest.toString()}
 ${appPathClassifierSource}
@@ -268,7 +275,8 @@ const writeGenerated = (relativePath, content) => {
 }
 
 // Admits the manifest with the runner's own function, then writes the typed client the screens and
-// handlers import. A source with no manifest has no server half and nothing to generate.
+// handlers import, and the Sankhya reader handlers may import. A source with no manifest has no
+// server half and nothing to generate.
 const runGenerate = async () => {
   const manifestPath = join(root, MANIFEST_PATH)
   let entry
@@ -291,6 +299,7 @@ const runGenerate = async () => {
   try {
     writeGenerated('app/src/conexus/api.gen.ts', client.apiGen)
     writeGenerated('conexus/types.gen.ts', client.typesGen)
+    writeGenerated('conexus/sankhya.gen.ts', SANKHYA_HELPER)
   } catch (error) {
     return { problems: [{ code: 'GENERATE_WRITE_REFUSED', message: String(error.message) }] }
   }

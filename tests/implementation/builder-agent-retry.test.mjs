@@ -59,7 +59,7 @@ const openRun = async (t, { model, failsRead }) => {
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => { throw new Error('not used') },
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),

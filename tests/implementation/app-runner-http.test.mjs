@@ -69,6 +69,15 @@ test('an invoke failure logs its error code, never the thrown message, which can
   assert.equal(JSON.stringify(line).includes(vendorDetail), false)
 })
 
+test('an output refusal is logged with the runner\'s own pointer and rule', async () => {
+  const detail = '/items/3/price: expected string'
+  const { instance, logged } = app({ invoke: async () => ({ status: 502, body: { error: { code: 'HANDLER_OUTPUT_REFUSED', detail } } }) })
+  const response = await instance.inject({ method: 'POST', url: '/v1/invoke', payload: INVOKE_BODY })
+  assert.equal(response.statusCode, 502)
+  const [line] = logged()
+  assert.deepEqual({ ...line, ms: 0 }, { event: 'invoke', projectId: INVOKE_BODY.projectId, operation: 'listOpenTitles', status: 502, code: 'HANDLER_OUTPUT_REFUSED', detail, ms: 0 })
+})
+
 test('a successful invoke logs its status with no error code', async () => {
   const { instance, logged } = app()
   const response = await instance.inject({ method: 'POST', url: '/v1/invoke', payload: INVOKE_BODY })

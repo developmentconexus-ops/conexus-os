@@ -7,7 +7,6 @@ import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/ob
 import { SpanType } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
-import type { CheckReport } from './application-check.js'
 import type { Workspace } from '@mastra/core/workspace'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
@@ -31,7 +30,7 @@ import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
-import { createBuilderController } from './harness/index.js'
+import { createBuilderController, type RunTools } from './harness/index.js'
 import { starterProjectKnowledge } from './project-knowledge.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
@@ -329,7 +328,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const runContexts = new Map<string, RunContextBinder>()
   const runWorkspaces = new Map<string, Workspace>()
-  const runChecks = new Map<string, () => Promise<CheckReport>>()
+  const runTools = new Map<string, RunTools>()
   const modelRouting = createModelRouting({
     routes,
     modelAccounts,
@@ -344,9 +343,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       const runId = requestContext.getRaw(RUN_ID_KEY)
       return typeof runId === 'string' ? runWorkspaces.get(runId) : undefined
     },
-    runCheck: ({ requestContext }) => {
+    runTools: ({ requestContext }) => {
       const runId = requestContext.getRaw(RUN_ID_KEY)
-      return typeof runId === 'string' ? runChecks.get(runId) : undefined
+      return typeof runId === 'string' ? runTools.get(runId) : undefined
     },
     model: modelRouting.resolve,
     memory: createBuilderMemory({ storage, roleModel: (requestContext, modelId) => modelRouting.resolve({ requestContext }, modelId) }),
@@ -367,7 +366,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runChecks })
+  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runTools })
   const runtime = createBuilderRunRuntime({
     createSandbox: e2bRunSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
     openSession: async (input) => {
@@ -378,6 +377,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     readMemorySettings: (accountId) => memorySettings.read(accountId),
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
+    ...(applicationServer ? { invokeOperation: applicationServer.invoke } : {}),
     log,
   })
   const runs: BuilderRunDependencies = Object.freeze({

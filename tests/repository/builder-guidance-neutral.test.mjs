@@ -45,6 +45,7 @@ const BUILDER_TEXTS = [
   'apps/hub/src/connectors/builder-brief.ts',
   'apps/hub/src/connectors/builder-tool.ts',
   'apps/hub/src/builder/harness/tools.ts',
+  'apps/hub/src/builder/handler-kit/sankhya.ts',
   'apps/hub/src/builder/starter/AGENTS.md',
   ...filesUnder('apps/hub/src/builder/harness/prompt/v2'),
   ...filesUnder('builder-skills', (path) => TEXT_EXTENSION.test(path)),
@@ -60,6 +61,7 @@ const findLeaks = (files) =>
 test('the list of Builder texts covers the guide, the prompt, the skills, the starter and the tool descriptions', () => {
   for (const expected of [
     'apps/hub/src/connectors/sankhya/skill.ts',
+    'apps/hub/src/builder/handler-kit/sankhya.ts',
     'apps/hub/src/builder/harness/prompt/v2/conexus.md',
     'apps/hub/src/builder/harness/prompt/v2/plan.md',
     'apps/hub/src/builder/harness/prompt/v2/build.md',

@@ -122,13 +122,13 @@ const connect = async (login: WorkerLogin): Promise<pg.Client> => {
 
 const run = async (): Promise<never> => {
   const job = await readJob()
-  let client: pg.Client
-  try {
-    client = await connect(job.login)
-  } catch (error) {
-    return finish({ ok: false, code: 'DATABASE_UNAVAILABLE', detail: detail(error) })
-  }
   if (job.kind === 'migrate') {
+    let client: pg.Client
+    try {
+      client = await connect(job.login)
+    } catch (error) {
+      return finish({ ok: false, code: 'DATABASE_UNAVAILABLE', detail: detail(error) })
+    }
     try {
       await applyPendingMigrations(client, job.schema, job.plan)
     } catch (error) {
@@ -144,10 +144,18 @@ const run = async (): Promise<never> => {
     return finish({ ok: false, code: 'HANDLER_LOAD_FAILED', detail: detail(error) })
   }
   if (typeof handler !== 'function') return finish({ ok: false, code: 'HANDLER_EXPORT_MISSING', detail: job.export })
-  // The handler receives a query function and nothing that holds the connection or its login.
+  // The handler receives a query function and nothing that holds the connection or its login. The
+  // connection opens on the first query, so a handler that only reads a Conexão runs even where the
+  // Project has no database yet, as before its first Prévia with a server half.
+  let session: Promise<pg.Client> | undefined
+  let unavailable: unknown
   const db = Object.freeze({
     query: async (text: string, values?: readonly unknown[]) => {
-      const result = await client.query(text, values as unknown[] | undefined)
+      session ??= connect(job.login).catch((error: unknown) => {
+        unavailable = error
+        throw error
+      })
+      const result = await (await session).query(text, values as unknown[] | undefined)
       return { rows: result.rows }
     },
   })
@@ -157,7 +165,9 @@ const run = async (): Promise<never> => {
   try {
     value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))
   } catch (error) {
-    return finish({ ok: false, code: 'HANDLER_FAILED', detail: detail(error) })
+    return finish(unavailable === undefined
+      ? { ok: false, code: 'HANDLER_FAILED', detail: detail(error) }
+      : { ok: false, code: 'DATABASE_UNAVAILABLE', detail: detail(unavailable) })
   }
   let serialized: string
   try {
@@ -166,7 +176,7 @@ const run = async (): Promise<never> => {
     return finish({ ok: false, code: 'HANDLER_OUTPUT_UNSERIALIZABLE', detail: detail(error) })
   }
   if (Buffer.byteLength(serialized) > job.responseLimit) return finish({ ok: false, code: 'RESPONSE_TOO_LARGE' })
-  await client.end().catch(() => undefined)
+  await session?.then((client) => client.end()).catch(() => undefined)
   return finish({ ok: true, value: JSON.parse(serialized) as unknown })
 }
 

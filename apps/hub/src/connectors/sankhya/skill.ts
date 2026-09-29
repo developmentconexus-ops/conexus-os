@@ -51,10 +51,14 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + '`DDMMYYYY HH:MM:SS`. Converta os dois na própria SQL; no Oracle, `TO_CHAR(VALOR, \'FM999999999990.00\')` dá o decimal '
     + 'com ponto, na escala do valor, e `TO_CHAR(DATA, \'YYYY-MM-DD\')` dá a data. Sem um formato, o separador decimal da '
     + 'sessão pode ser a vírgula. Faça as contas com decimais na SQL, onde o banco calcula exato.',
-  'No aplicativo, o handler lê com `connectors.fetch`, com a mesma requisição que você testou no `connector_fetch` e o mesmo '
-    + 'nome local da Conexão, e decodifica a resposta como acima. Uma lista que a tela mostra inteira é lida até o fim, e '
-    + 'cada página gasta uma das chamadas que o handler tem. '
-    + 'Decimais e datas seguem como texto até a tela.',
+  "No aplicativo, o handler lê pelo leitor que o Conexus gera a cada verificação em `conexus/sankhya.gen.ts`: `import { "
+    + "loadAllRecords, queryRows } from '../sankhya.gen.ts'`. `loadAllRecords(connectors, '<Conexão>', dataSet)` lê a lista "
+    + 'até o fim, página por página, e devolve cada linha como `{ CAMPO: texto ou null }`; `queryRows(connectors, '
+    + "'<Conexão>', sql)` devolve cada linha da consulta como `{ COLUNA: valor }`. Os dois respondem `{ ok: true, rows, "
+    + 'complete }` ou `{ ok: false, code }`. Com `complete: false`, a lista passou do limite de páginas, e a tela avisa que '
+    + 'ela está cortada. Use o `dataSet` ou a SQL que você testou no `connector_fetch` e o mesmo nome local da Conexão. O leitor '
+    + 'chama `connectors.fetch`, e cada página gasta uma das chamadas que o handler tem. Decimais e datas seguem como texto até '
+    + 'a tela.',
   'Quando a pessoa digita um código para achar um registro (um número de documento, um documento de cadastro, um nome), a '
     + 'busca pode achar nenhum, um ou vários registros. Trate os três: nenhum tem uma mensagem, um só aparece direto, vários '
     + 'deixam a pessoa escolher. Nunca assuma que o primeiro resultado é o único. No Sankhya, o número de documento '

@@ -14,8 +14,9 @@ import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
-import { CHECK_TOOL, createCheckTool, createSubmitPlanTool } from './tools.js'
+import { CHECK_TOOL, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL } from './tools.js'
 import type { CheckReport } from '../application-check.js'
+import type { RunOperation } from '../run-operation.js'
 
 /** The skills the Builder loads, one folder each under the skills root. */
 export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app-ui', 'conexus-app-code'] as const
@@ -129,8 +130,13 @@ const builderErrorProcessors = (): NonNullable<Parameters<typeof createCodingAge
   }),
 ]
 
-const checkTools = (runCheck: (() => Promise<CheckReport>) | undefined, modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>): ToolsInput =>
-  runCheck ? { [CHECK_TOOL]: createCheckTool(runCheck, modes) } : {}
+/** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
+export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined }>
+
+const runToolsInput = (tools: RunTools | undefined, modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>): ToolsInput => ({
+  ...(tools ? { [CHECK_TOOL]: createCheckTool(tools.check, modes) } : {}),
+  ...(tools?.runOperation ? { [RUN_OPERATION_TOOL]: createRunOperationTool(tools.runOperation, modes) } : {}),
+})
 
 export type BuilderControllerDeps = Readonly<{
   /** One E2B workspace per run, seeded from `main`; a resolver so a fresh one can be supplied per session (Shape of the harness). Tests pass a static local one. */
@@ -141,8 +147,8 @@ export type BuilderControllerDeps = Readonly<{
   memory?: DynamicArgument<MastraMemory>
   /** Contributes `connector_fetch` for the current request context (Q-5); absent when the caller has none to offer. */
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
-  /** The run's check, through its sandbox, for `conexus_check`; absent for a turn with no run behind it, which then has no such tool. */
-  runCheck?: (ctx: { requestContext: RequestContext }) => (() => Promise<CheckReport>) | undefined
+  /** The run's check and operation run, for `conexus_check` and `conexus_run_operation`; absent for a turn with no run behind it, which then has neither tool. */
+  runTools?: (ctx: { requestContext: RequestContext }) => RunTools | undefined
   /** Absolute path to a folder of agent skills, one subfolder per skill. Defaults to the Hub's own `builder-skills/`. */
   skillsPath?: string
   /** Where the run's checkout sits; the mode guard reads every tool path against it. Defaults to `/workspace/repo`. */
@@ -180,7 +186,7 @@ const guardedWorkspace = (
 
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
- * every mode shares (`connector_fetch`, `conexus_check` for a run (Construir only), `web_fetch`, and `web_search` when the run's model has native
+ * every mode shares (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run (Construir only), `web_fetch`, and `web_search` when the run's model has native
  * provider search in Mastra), the `plan`/`build` modes with the
  * plan-to-build transition, `submit_plan` overridden for AC-1 and mode-gated on its first call, and
  * the mode guard attached to whatever workspace the run resolves to. No Hub wiring: the caller owns
@@ -197,7 +203,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     instructions: conexusInstructions(modes),
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
-      ...checkTools(deps.runCheck?.(ctx), modes),
+      ...runToolsInput(deps.runTools?.(ctx), modes),
       ...(await webSearchFor(deps.model, ctx)),
       web_fetch: webFetchTool,
     }),

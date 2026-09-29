@@ -61,7 +61,7 @@ const openRun = async (t, model, modelStepTimeoutMs) => {
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  return createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
+  return createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => { throw new Error('not used') },
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
