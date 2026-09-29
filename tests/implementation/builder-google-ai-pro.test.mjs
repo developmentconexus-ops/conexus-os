@@ -12,6 +12,7 @@ const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
 const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
+const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createGoogleAiProAccounts } = await import(built('builder/google-ai-pro/store.js'))
@@ -34,8 +35,8 @@ const openPool = (t, options) => {
   return pool
 }
 
-const openRouter = async (t, pool) => {
-  const router = await startModelRouter(pool)
+const openRouter = async (t, pool, persistFor) => {
+  const router = await startModelRouter(pool, persistFor ?? (() => undefined))
   t.after(() => router.close())
   return router
 }
@@ -175,6 +176,39 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
   const stored = decodeKey(refreshed[0])
   assert.equal(stored.fileName, 'antigravity-ana@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
+})
+
+test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const rewrites = []
+  const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
+  const router = await openRouter(t, openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 }), writeBack.persistFor)
+  const key = encodeKey(record('ana@example.com'))
+  writeBack.track(key, 'row-ana')
+  const answer = await fetch(`${router.url}/v1/models`, { headers: { authorization: `Bearer ${key}` } })
+  assert.equal(answer.status, 200)
+  await answer.json()
+  // Stands in for CLIProxyAPI refreshing the Google token inside the instance's own copy.
+  writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' }))
+  assert.equal(await until(() => rewrites.length === 1 && !existsSync(join(stateDir, instanceIdOf(key)))), true)
+  const [[modelAccountId, secret]] = rewrites
+  assert.equal(modelAccountId, 'row-ana')
+  assert.deepEqual(JSON.parse(Buffer.from(decodeKey(secret).bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
+  await delay(300)
+  assert.equal(rewrites.length, 1, 'one refresh, one write')
+})
+
+test('an unrefreshed record, or one whose row is not known, writes nothing back', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const rewrites = []
+  const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
+  const router = await openRouter(t, openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 }), writeBack.persistFor)
+  const known = encodeKey(record('ana@example.com'))
+  const unknown = encodeKey(record('bia@example.com'))
+  writeBack.track(known, 'row-ana')
+  for (const key of [known, unknown]) await (await fetch(`${router.url}/v1/models`, { headers: { authorization: `Bearer ${key}` } })).json()
+  assert.equal(await until(() => !existsSync(join(stateDir, instanceIdOf(known))) && !existsSync(join(stateDir, instanceIdOf(unknown)))), true)
+  assert.deepEqual(rewrites, [])
 })
 
 test('a proxy a crashed Hub left behind is killed at boot, and a stranger pid is left alone', async (t) => {

@@ -25,7 +25,7 @@ type Instance =
 // Called with whatever CLIProxyAPI last wrote to the instance's auth file, just before that copy
 // is deleted (AC-22). Google's token refresh happens inside CLIProxyAPI, in that file, while the
 // instance runs; nothing else in the Hub ever sees the refreshed bytes.
-type PersistGoogleAiProRefresh = (refreshed: GoogleAiProKey) => Promise<void>
+export type PersistGoogleAiProRefresh = (refreshed: GoogleAiProKey) => Promise<void>
 
 export type Lease = Readonly<{ url: string; proxyKey: string; release(): void }>
 export type LoginInstance = Readonly<{ url: string; managementKey: string; authDir: string; close(): Promise<void> }>
