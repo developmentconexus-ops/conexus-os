@@ -112,6 +112,42 @@ Current baseline and challenger state:
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
 
+### Pending: the app stack v2 and the ChatGPT model path
+
+These dependencies enter on the branch `feat/builder-own-harness`. They join the baseline when the
+operator accepts [C-033](decisions/index.md#proposed-pending-the-operator) (the app stack) and C-032
+(the ChatGPT model path), after the
+[Builder own harness qualification](tasks/stage2-builder-own-harness-qualification.md). The sources
+are study 17 (the app stack decision and its probe app, in the operator's study notes) and spec 0003
+(`App stack`). Each row's alternative comes from study 17, section 2.2 (lines 87-100), and its CSP
+and size measurements from section 2.3 (lines 114-125). Probes are tests in `tests/implementation/`,
+cited by file and line at `40d9671d`. React 19.2.8, Vite 8.2.2 and TypeScript 6.0.2 stay as they
+are in V1.
+
+The compiler template pins the app stack in `apps/hub/compiler-template/package.json`. Its consumer
+is every app the Builder builds, through the starter in `apps/hub/starter-template/files/app/`. An app
+imports only these packages.
+
+| Packages and exact versions | Consumer | Named limitation | Probe | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `@vitejs/plugin-react` 6.1.1, `@tailwindcss/vite` 4.3.3 | `apps/hub/compiler-template/vite.config.mjs` | The Tailwind classes and the `@theme` token sheet need a compile step. The Hub web app builds with the same two plugins | `builder-app-starter-v2.test.mjs:147` | None named in study 17 |
+| `@tanstack/react-router` 1.170.32 | `app/src/router.tsx`, code routes in one file | V1 has no router, so an app has one screen or hand-written routing | `builder-application-check.test.mjs:274` | File-based routes need a plugin and a generated route tree before `tsc`. One explicit file is easier for the model to read. Revisit past about 10 screens |
+| `@tanstack/react-query` 5.102.8 | `app/src/main.tsx` and every screen that loads data through `api.gen.ts` | V1 screens use plain `useEffect` fetches with no cache, loading, error or invalidation state | `builder-application-check.test.mjs:129` | Plain `useEffect` fetches, which is V1 |
+| `@base-ui/react` 1.8.0, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.7.0 | The curated shadcn components in `app/src/components/ui/` | The Preview's CSP is `style-src 'self'` (`apps/hub/src/platform/application-csp.ts:4`), which blocks a library that injects a `<style>` element | Study 17 measured one CSP violation per Radix dialog open and zero for Base UI. `builder-app-starter-v2.test.mjs:171` | shadcn on Radix (`radix-ui` 1.6.7). Models know it better, but it breaks the CSP. Relaxing the CSP to `'unsafe-inline'` styles would be a security decision of its own |
+| `tailwindcss` 4.3.3 | `app/src/styles.css`, the Conexus tokens in `@theme` | shadcn source assumes Tailwind. The look must come from tokens only | `builder-app-starter-v2.test.mjs:229` | Plain CSS, which shadcn source does not use |
+| `recharts` 3.10.1 | The CSP-safe `app/src/components/ui/chart.tsx` | V1 apps draw charts in hand-written SVG. shadcn's own `chart.tsx` writes an inline `<style>`, which the CSP refuses | `builder-app-starter-v2.test.mjs:171` | ECharts: more chart types and a larger bundle, with no shadcn wrapper. Revisit when a dashboard needs a chart Recharts lacks |
+| `@tanstack/react-table` 9.2.4 | Tables in apps, taught by the `conexus-app-code` skill | V1 tables are written by hand | `builder-skill-examples.test.mjs:69` | v8.21.3, which models know better. shadcn's data table is already on v9, so the skill carries a worked v9 example |
+| `react-hook-form` 7.89.0, `@hookform/resolvers` 5.9.1, `zod` 4.6.5 | Forms, and the schemas in the generated `api.gen.ts` | The generated client needs a schema library, and a form must check the limits the runner enforces | `builder-client-generator.test.mjs:171` | TanStack Form 1.33.5: same family as Router and Query, but younger and less familiar to models |
+| `date-fns` 4.4.0, `react-day-picker` 9.14.0 | pt-BR dates, and the starter's `calendar.tsx` | V1 has no date formatting or date picker. `react-day-picker` is the version the pinned shadcn `calendar.tsx` requires | `builder-app-starter-v2.test.mjs:171` | `Intl` only, with no date picker |
+| `lucide-react` 1.47.0 | The starter components, generated with lucide icons | The shadcn components import their icons from it | `builder-app-starter-v2.test.mjs:147` | None. The Hub web app uses the same package |
+| `@types/node` 24.19.0 | `tsconfig.server.json`, which type checks the handlers under `conexus/` | `typecheck` covers the handlers, and handlers import `node:` modules. It is never linked into the app's view, so screens cannot import `node:` | `builder-compiler-allowlist.test.mjs:81`, `builder-application-check.test.mjs:122` | No type check of the handlers, which is V1. Issue #342 asks to refuse `node:fs` in handlers, which this record contradicts |
+
+The Hub itself gains two direct dependencies for the ChatGPT subscription path:
+
+| Packages and exact versions | Consumer | Named limitation | Probe | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `ai` 6.0.286, `@ai-sdk/openai` 3.0.114 | `apps/hub/src/builder/openai-codex/model.ts:12-13`, which calls an `openai/*` model on the Codex endpoint with the person's ChatGPT bearer | `@mastra/code-sdk` 1.8.3 resolved these versions, and C-032 removes it. `@mastra/core` 1.71.0 declares neither | `builder-openai-codex.test.mjs:219` | Keep `@mastra/code-sdk`, which keeps the Factory's model stack that C-032 removes |
+
 Every application-architecture gate follows the
 [Builder proof rule](development/delivery.md#builder-proof-rule).
 
