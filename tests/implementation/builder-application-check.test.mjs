@@ -271,6 +271,17 @@ test('boot serves the production policy, so an inline style element is a CSP vio
   assert.match(problems[0].message, /style-src/)
 })
 
+test('boot records a page that probes eval inside a try, as a script-src CSP violation', (t) => {
+  const { report } = check(t, withMain(`const probe = Function
+try { new probe('') } catch {}
+document.getElementById('root')!.append(document.createElement('p'))
+`))
+  assert.equal(report.ok, true)
+  const problems = failedStep(report, 'boot').problems
+  assert.deepEqual(problems.map((problem) => problem.code), ['BOOT_CSP_VIOLATION'])
+  assert.match(problems[0].message, /script-src/)
+})
+
 test('boot serves index.html for a deep link and answers 404 for a missing file and for the server tree (AC-7, AC-10)', (t) => {
   const { report } = check(t, withMain(`export {}
 const root = document.getElementById('root')!

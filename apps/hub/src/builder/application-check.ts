@@ -468,8 +468,13 @@ const runBoot = async () => {
           add({ code: 'BOOT_UNCAUGHT_ERROR', message: text.split(origin + '/').join(''), ...(sameOrigin(details.url) ? { file: pathOf(details.url).slice(1), line: (details.lineNumber ?? 0) + 1, column: (details.columnNumber ?? 0) + 1 } : {}) })
         } else if (method === 'Runtime.consoleAPICalled' && params.type === 'error') {
           add({ code: 'BOOT_CONSOLE_ERROR', message: (params.args ?? []).map(argumentText).join(' ') })
-        } else if (method === 'Log.entryAdded' && params.entry?.source === 'security' && /Refused to|violates the following Content Security Policy/.test(params.entry.text)) {
-          add({ code: 'BOOT_CSP_VIOLATION', message: String(params.entry.text) })
+        } else if (method === 'Audits.issueAdded' && params.issue?.code === 'ContentSecurityPolicyIssue') {
+          const details = params.issue.details?.contentSecurityPolicyIssueDetails ?? {}
+          if (details.isReportOnly) return
+          const kind = String(details.contentSecurityPolicyViolationType ?? 'violation').replace(/^k/, '').replace(/Violation$/, '').toLowerCase()
+          const blocked = details.blockedURL ? ' ' + String(details.blockedURL).split(origin + '/').join('') : ''
+          const location = details.sourceCodeLocation
+          add({ code: 'BOOT_CSP_VIOLATION', message: 'Content Security Policy blocked ' + kind + blocked + ' under ' + details.violatedDirective, ...(sameOrigin(location?.url) ? { file: pathOf(location.url).slice(1), line: (location.lineNumber ?? 0) + 1, column: (location.columnNumber ?? 0) + 1 } : {}) })
         } else if (method === 'Network.requestWillBeSent') requests.set(params.requestId, { url: params.request.url, method: params.request.method })
         else if (method === 'Network.responseReceived' && sameOrigin(params.response.url) && params.response.status >= 400 && pathOf(params.response.url) !== '/favicon.ico') {
           add({ code: 'BOOT_REQUEST_FAILED', message: (requests.get(params.requestId)?.method ?? 'GET') + ' ' + pathOf(params.response.url) + ' answered ' + params.response.status })
@@ -488,7 +493,7 @@ const runBoot = async () => {
         }
         onEvent(message.method, message.params ?? {})
       })
-      for (const domain of ['Runtime', 'Page', 'Network', 'Log']) await send(domain + '.enable')
+      for (const domain of ['Runtime', 'Page', 'Network', 'Audits']) await send(domain + '.enable')
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] })
       await send('Page.navigate', { url: origin + '/' })
       await loadFired
