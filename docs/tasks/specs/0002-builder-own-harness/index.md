@@ -436,3 +436,74 @@ copied code the providers may change; native web search may be missing for a pil
   backend.
 - [ ] Prompt variants (Leandro, 2026-09-28): the prompt loader takes a variant id (`prompt/<variant>/`), an eval arm names the variant beside the model, the run records it, and the best variant by the fixed eval cases becomes the default. The loader shape lands in slice 3; comparing variants comes after the switch.
 - [ ] Sandbox network limits (egress) if the E-4 leak scan shows data leaving through commands.
+
+## Amendment, 2026-09-29: a conversation owns its sandbox and its branch
+
+**Status**: decided by the operator on 2026-09-29. Not built. Units B1 to B8 below carry it, and
+none of them is built at `47794034`. The
+[Builder own harness task](../../stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work)
+tracks their state.
+
+Today every failure before admission loses all of the run's file work: a model error, a storage
+timeout, a dead sandbox, a Hub restart, a refused check and a stop. The work lives only in a
+sandbox the run destroys at its end (study 23, question 3). Study 23 compares two fixes and
+recommends design B, which matches Mitra, Claude Code and Codex cloud. Study 24 shows that the
+right stop falls out of the same design. The studies are
+[23](../../../research/builder/23-durable-agent-and-sandbox-reuse.md) and
+[24](../../../research/builder/24-stop-button-and-sandbox-lifecycle.md) in the Builder research.
+
+### Decisions
+
+1. **The conversation owns the sandbox and the branch.** Each conversation keeps one E2B sandbox,
+   `conexus-conv-<conversationId>` with `onTimeout: 'pause'`, and one branch. The Hub mirrors the
+   checkout into `refs/conexus/conversations/<conversationId>` in the Conexus Git at every turn end
+   and after edits. The sandbox still holds no Git credential (study 23, lines 314-356 and 425).
+2. **A turn whose check passes becomes a version on `main` by itself**, as Mitra does. The person
+   does not press a button (study 23, lines 426-427).
+3. **The Builder resolves a conflict with another conversation itself.** When a version finds
+   `main` moved, the same turn brings `main` in, merges, reruns the check and tries again. A Git
+   conflict is an ordinary coding task. The Builder asks the person only when the two requests
+   contradict each other. Kept small until two conversations really collide: no contradiction
+   detector and no dedicated eval case (study 23, lines 451-465).
+4. **The Preview shows `main` only.** A draft Preview of the conversation branch is unit B7, later
+   (study 23, lines 467-469).
+5. **A paused idle sandbox is deleted after 7 days** by default. Confirm the value against E2B's
+   paused retention and storage price when B3 is built. The branch mirror keeps the files, so the
+   value decides speed, never loss (study 23, lines 470-471).
+6. **Stop interrupts the agent and nothing else.** The files stay in the conversation's sandbox and
+   branch, and they go into the next version with the next request once its check passes. No stop
+   discards work, and there is no undo button now. The person asks the Builder to undo (study 24,
+   lines 346-353).
+
+### Criteria this amendment changes
+
+| Criterion | Now | Amended |
+| --- | --- | --- |
+| AC-14 | A run seeds a fresh sandbox from `main`. The end of Construir is admission | A turn runs in the conversation's sandbox. The sandbox resumes, or is rebuilt from the mirror or from `main`, and brings in `main` at turn start when `main` moved. Every turn end, stop included, mirrors the checkout. A version is its own act: the platform check on the branch tip, then a fast forward of `main`, or a clean merge commit when `main` moved. A failed check leaves the work in the branch |
+| AC-16 | One active run per Project | One active turn per conversation. A turn that waits on the person stays active. Two conversations of one Project work at once and meet only at the compare-and-swap on `main` |
+| AC-17 | A failed run ends failed, the next run starts from `main`, and the note says the edits were discarded | A failed or interrupted turn keeps its files in the mirror. The next turn resumes the sandbox or rebuilds it from the mirror. A version already on `main` is recorded as admitted. The note says the files are kept |
+| Cancel, API surface (line 248) | As today: the run ends interrupted and its edits are discarded | Stop ends the turn as stopped, not failed. It keeps the sandbox and the files and makes no version |
+| Scenario "Restart after admission" (lines 331-332) | Kill the Hub after `main` advances: admitted. Kill it before: failed, `main` unchanged | Kill the Hub between the swap on `main` and the Preview: boot records "admitted, Preview not built". Kill it mid-turn: the next turn finds the files the killed turn wrote |
+
+Unchanged: AC-15 (the sandbox holds no secret, and only Hub-made bundles move Git), the tool
+contract, the connector scope per turn, and spec 0003's rule that admission never executes a file
+from the candidate.
+
+### Units
+
+Each unit ends with a test that kills the work at the unit's point and asserts what the next turn
+sees (study 23, lines 383-400).
+
+| Unit | What | Criterion |
+| --- | --- | --- |
+| B1 | Mirror ref per conversation at every turn end, stop included, and after edits | AC-14 |
+| B2 | Start from the mirror, then bring in `main` | AC-17 |
+| B3 | Conversation-owned sandbox and session, paused when idle, never destroyed at turn end | AC-14 |
+| B4 | The version act: check, compare-and-swap on `main`, Preview | AC-14, AC-17 |
+| B5 | Lock per conversation | AC-16 |
+| B6 | Sweeper for the 7-day limit, and a kill of the agent's processes at every turn end | none |
+| B7, later | Draft Preview of the conversation branch | a new criterion |
+| B8, later | Mastra's durable agent continues an interrupted turn after a Hub restart | none, needs B3 |
+
+B0, the retry of a transient storage or network failure within the same turn, needed no amendment
+and is built (`0ecb20a4`).
