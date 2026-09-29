@@ -48,15 +48,15 @@ function ModeChip({ mode, locked, onChange }: Readonly<{ mode: BuilderMode; lock
   const Icon = current.icon
   if (locked) {
     return <Popover>
-      <PopoverTrigger render={<button type="button" className="cx-mode-chip" data-mode={mode} data-locked aria-label={`Modo: ${current.label}. ${MODE_LOCKED}`} />}>
-        <Icon size={14} aria-hidden="true" /><span>{current.label}</span><Lock size={12} aria-hidden="true" />
+      <PopoverTrigger render={<button type="button" className="cx-mode-chip" data-mode={mode} data-locked title={`${current.label}. ${MODE_LOCKED}`} aria-label={`Modo: ${current.label}. ${MODE_LOCKED}`} />}>
+        <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><Lock size={12} aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" sideOffset={8} className="cx-mode-note">{MODE_LOCKED}</PopoverContent>
     </Popover>
   }
   return <DropdownMenu>
-    <DropdownMenu.Trigger className="cx-mode-chip" data-mode={mode} aria-label={`Modo: ${current.label}`}>
-      <Icon size={14} aria-hidden="true" /><span>{current.label}</span><ChevronDown size={13} aria-hidden="true" />
+    <DropdownMenu.Trigger className="cx-mode-chip" data-mode={mode} title={`${current.label}: ${current.hint}`} aria-label={`Modo: ${current.label}`}>
+      <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><ChevronDown size={13} aria-hidden="true" />
     </DropdownMenu.Trigger>
     <DropdownMenu.Content side="top" align="start" sideOffset={8} className="cx-mode-menu">
       <DropdownMenu.RadioGroup value={mode} onValueChange={(value) => { const next = builderModes.find((option) => option === value); if (next && next !== mode) onChange(next) }}>

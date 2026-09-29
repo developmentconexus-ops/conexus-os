@@ -69,18 +69,19 @@
 
 .cx-composer-actions { flex-wrap: nowrap; container-type: inline-size; }
 .cx-composer-tools { display: flex; align-items: center; gap: .15rem; min-width: 0; }
+.cx-composer-tools:last-child { flex: none; }
 .cx-composer-tools:first-child { flex: none; }
 .cx-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--cx-text-2); }
 .cx-icon-button:hover:not(:disabled) { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-icon-button:focus-visible { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-icon-button[aria-disabled="true"] { opacity: .45; cursor: default; }
 .cx-icon-button[data-listening] { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
-.cx-model-button { overflow: hidden; display: inline-flex; align-items: center; gap: .35rem; min-width: 0; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
+.cx-model-button { display: inline-flex; flex: none; align-items: center; gap: .35rem; height: 32px; padding: 0 .55rem 0 .65rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); }
 /* Hover/focus lights the pill, never the label: the model name stays full-contrast text, not the
    muted accent color, so an open picker never reads as a disabled control. */
 .cx-model-button:hover, .cx-model-button:focus-visible { background: var(--cx-accent-soft); }
-.cx-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 10rem; }
-.cx-model-button[title] .cx-model-name { max-width: none; }
+/* The model name always shows whole: the mode chip and the level give up room before it does. */
+.cx-model-name { white-space: nowrap; }
 @container (max-width: 24rem) { .cx-model-level { display: none; } }
 .cx-model-level { flex: none; color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); }
 .cx-model-button svg { flex: none; color: var(--cx-text-2); }
@@ -143,6 +144,15 @@
 .cx-mode-chip[data-mode="build"] > svg:first-child { color: var(--cx-accent-text); }
 .cx-mode-chip:hover:not([data-locked]), .cx-mode-chip:focus-visible, .cx-mode-chip[data-popup-open] { background: var(--cx-accent-soft); }
 .cx-mode-chip[data-locked] { color: var(--cx-text-2); border-style: dashed; cursor: help; }
+/* The composer sits in a resizable panel, so its own width decides, not the viewport's: narrow, the
+   chip is its icon alone (its name and tooltip stay); wide enough, the label and the chevron or lock return. */
+.cx-mode-chip { width: 28px; padding: 0; justify-content: center; }
+.cx-mode-chip .cx-mode-label, .cx-mode-chip > svg:last-child { display: none; }
+@container (min-width: 28rem) {
+  .cx-mode-chip { width: auto; padding: 0 .55rem 0 .6rem; }
+  .cx-mode-chip .cx-mode-label { display: inline; }
+  .cx-mode-chip > svg:last-child { display: block; }
+}
 .cx-mode-menu { width: min(17rem, calc(100vw - 2rem)); padding: .35rem; }
 .cx-mode-menu .cx-mode-option { display: flex; align-items: flex-start; gap: .6rem; height: auto; padding: .5rem .55rem; white-space: normal; text-align: left; }
 .cx-mode-menu .cx-mode-option > svg:first-child { flex: none; margin-top: .1rem; color: var(--cx-text-2); }
