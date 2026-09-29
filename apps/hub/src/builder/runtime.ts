@@ -2,6 +2,7 @@ import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-c
 import { parseError } from '@mastra/code-sdk/utils/errors'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication } from './application-artifact-runtime.js'
+import { CONEXUS_PROMPT_VARIANT_KEY } from './harness/request-context.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -37,6 +38,7 @@ type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>
 export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderProjectId',
   'conexusBuilderRunId',
+  CONEXUS_PROMPT_VARIANT_KEY,
 ])
 
 const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {

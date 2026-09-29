@@ -8,7 +8,7 @@ import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application
 import { pullCandidate, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSessionMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
@@ -71,6 +71,8 @@ type BuilderRunInput = Readonly<{
   executionId: string
   intent: string
   mode: 'BUILD' | 'PLAN'
+  /** The prompt the run's turns load; the run's trace records it beside the run id. */
+  promptVariant: PromptVariantId
   baseSourceRevision: string
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindModelAccount(modelAccountId: string): Promise<void>
@@ -145,6 +147,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         requestContext.setRaw('conexusBuilderRunId', input.executionId)
         requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
+        requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, input.promptVariant)
         connectorRun?.bind(requestContext)
       }
 

@@ -336,3 +336,16 @@ test('a message names its conversation and no mode: the run starts in the conver
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
 })
+
+test('a message may name a prompt variant the Hub ships; an unknown one is refused before a run exists', async (t) => {
+  const received = []
+  const { app } = await createBuilderRoutesApp(t, {
+    createBuilderRun: async (input) => { received.push(input); throw new Error('BUILDER_CONVERSATION_NOT_FOUND') },
+  })
+  const url = `/api/control/projects/${projectA}/builder-session/messages`
+  const send = (payload) => app.inject({ method: 'POST', url, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload })
+  const named = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v1' })
+  const unknown = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v9' })
+  assert.deepEqual([named.statusCode, unknown.statusCode], [404, 400])
+  assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere', promptVariant: 'v1' }])
+})

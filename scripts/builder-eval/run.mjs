@@ -3,7 +3,7 @@
 // whether a usable Preview came out the other end. Reruns turn a guidance/starter/skill change
 // into a measurement instead of an opinion.
 //
-// Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] --out <dir>
+// Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] [--prompt-variant <id>] --out <dir>
 import { chromium } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -22,7 +22,7 @@ const RUN_POLL_INTERVAL_MS = 4_000
 const PREVIEW_READY_TIMEOUT_MS = 3 * 60 * 1000
 
 const usage = [
-  'Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] --out <dir>',
+  'Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] [--prompt-variant <id>] --out <dir>',
   '',
   'Options:',
   '  --case <file>          Case JSON: { request, checks[], reload? }; required',
@@ -30,6 +30,7 @@ const usage = [
   '  --project <id>         Reuse an existing Project (new conversation); default: create one',
   '  --grade-only           With --project: send nothing, grade the Project\'s current Preview',
   '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the first usable one',
+  '  --prompt-variant <id>  The Builder prompt variant every run of this case uses (v1, v2); default: the Hub\'s',
   '  --project-name <name>  Name for a newly created Project; default: eval-<UTC date>-<time>',
   '  --max-repairs <n>      Repair messages to send after a failed build; default: 2',
   '  --base-url <url>       Hub origin; default: https://hub.conexus.localhost:3443',
@@ -48,7 +49,7 @@ const valueFor = (argv, index, flag) => {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, headed: false, help: false }
+  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, promptVariant: undefined, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, headed: false, help: false }
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index]
     switch (flag) {
@@ -57,6 +58,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case '--project': options.project = valueFor(argv, index++, flag); break
       case '--grade-only': options.gradeOnly = true; break
       case '--model': options.model = valueFor(argv, index++, flag); break
+      case '--prompt-variant': options.promptVariant = valueFor(argv, index++, flag); break
       case '--project-name': options.projectName = valueFor(argv, index++, flag); break
       case '--max-repairs': {
         const value = valueFor(argv, index++, flag)
@@ -324,12 +326,19 @@ export async function runCase(options) {
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
+  // The product UI never names a prompt variant, so the eval adds it to each message the UI sends:
+  // the first request and every repair.
+  if (options.promptVariant) {
+    await page.route('**/api/control/projects/*/builder-session/messages', (route) => route.continue({
+      postData: JSON.stringify({ ...JSON.parse(route.request().postData() ?? '{}'), promptVariant: options.promptVariant }),
+    }))
+  }
   const startedAt = new Date().toISOString()
   const result = {
     schema: 'conexus.builder-eval/v1', startedAt, finishedAt: null, outcome: 'ERROR', error: null,
     case: options.case, gradeOnly: options.gradeOnly, request: caseFile.request, baseUrl: options.baseUrl,
     workspaceId: null, projectId: options.project ?? null, projectName: options.project ? null : (options.projectName ?? defaultProjectName()),
-    conversationId: null, modelId: options.model ?? null,
+    conversationId: null, modelId: options.model ?? null, promptVariant: options.promptVariant ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
     runs: [], repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
     checks: { initial: [], afterReload: null }, previewText: null, screenshotPath: null, failure: null,

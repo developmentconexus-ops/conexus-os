@@ -22,6 +22,10 @@ Options (`--help` prints the same list):
   creating one.
 - `--model <id>`: a model id from `GET /api/control/model-accounts/models`; default is the first
   model the signed-in account can actually use.
+- `--prompt-variant <id>`: the Builder prompt variant (a folder of
+  `apps/hub/src/builder/harness/prompt/`, such as `v1` or `v2`) every run of this case uses; the
+  eval adds it to each message the UI sends. Default: the Hub's own default. The run's trace
+  records the variant the Hub used, as `conexusPromptVariant` beside `conexusBuilderRunId`.
 - `--grade-only` (needs `--project`): send no request; grade the Project's current Preview with the
   case's checks, including the reload when the case asks. Use it to regrade a run the tool misread.
 - `--project-name <name>`: name for a newly created Project; default `eval-<date>-<time>`.
@@ -64,7 +68,7 @@ result was saved outside the browser.
 
 `result.json` in `--out`:
 
-- `projectId`, `conversationId`, `modelId`, `request`.
+- `projectId`, `conversationId`, `modelId`, `promptVariant` (`null` when the Hub's default was used), `request`.
 - `sourceRevisionBefore` / `sourceRevisionAfter`, `filesChanged` (from
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
@@ -105,7 +109,8 @@ reference.
 - `--hub-version <sha>`: recorded as the experiments' `provenance.sourceVersion`.
 - `--out <dir>`, `--max-repairs <n>`, `--base-url <url>`: as for `run.mjs`.
 
-An arm is `arms/<id>.json` with one key, `model`. An ERP case is `cases/erp/<id>.json` with
+An arm is `arms/<id>.json` with the key `model` and, optionally, `promptVariant` (as for
+`run.mjs --prompt-variant`), so two arms can compare prompt variants on the same model. An ERP case is `cases/erp/<id>.json` with
 `request` and one of two keys:
 
 - `fixture`: the driver binds the Project to the simulator, and the case's known answers come from
