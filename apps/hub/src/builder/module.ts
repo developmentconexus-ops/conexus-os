@@ -9,9 +9,8 @@ import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import type { CheckReport } from './application-check.js'
 import type { Workspace } from '@mastra/core/workspace'
-import { Memory } from '@mastra/memory'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
-import { PostgresStore } from '@mastra/pg'
+import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
@@ -44,6 +43,7 @@ import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js
 import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
 import { createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
+import { BuilderMemorySettings, createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens } from './openai-codex/credential.js'
 import { openaiCodexModel } from './openai-codex/model.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
@@ -294,6 +294,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
   googleAiProReady.catch(() => undefined)
 
+  // Each person's observational-memory settings, a collection beside the threads in the same store.
+  const memorySettings = new PgFactoryStorage({ store: storage }).registerDomain(new BuilderMemorySettings())
+
   const codexHolds = createCodexHolds({ store: modelAccounts })
   const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
     // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
@@ -346,7 +349,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return typeof runId === 'string' ? runChecks.get(runId) : undefined
     },
     model: modelRouting.resolve,
-    memory: new Memory({ options: { lastMessages: 40, semanticRecall: false } }),
+    memory: createBuilderMemory({ storage, roleModel: (requestContext, modelId) => modelRouting.resolve({ requestContext }, modelId) }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
   })
   const mastra = new Mastra({
@@ -372,6 +375,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return openSession(input)
     },
     checkModel: modelRouting.check,
+    readMemorySettings: (accountId) => memorySettings.read(accountId),
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
     log,
@@ -445,6 +449,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         resolveCurrentSession,
         isInstallationAdministrator,
         modelAccounts,
+        memorySettings,
         ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
       })
       return builderOperations
