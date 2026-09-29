@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0036",
+ "head": "0038",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -15,6 +15,7 @@
   ],
   "relation": [
    "relation builder.builder_run kind=r owner=builder_owner rls=false forcerls=false disabled_triggers=0 acl=builder_owner:DELETE:false,builder_owner:INSERT:false,builder_owner:MAINTAIN:false,builder_owner:REFERENCES:false,builder_owner:SELECT:false,builder_owner:TRIGGER:false,builder_owner:TRUNCATE:false,builder_owner:UPDATE:false,project_owner:SELECT:false",
+   "relation builder.builder_run_model_account kind=r owner=builder_owner rls=false forcerls=false disabled_triggers=0 acl=builder_owner:DELETE:false,builder_owner:INSERT:false,builder_owner:MAINTAIN:false,builder_owner:REFERENCES:false,builder_owner:SELECT:false,builder_owner:TRIGGER:false,builder_owner:TRUNCATE:false,builder_owner:UPDATE:false",
    "relation builder.project_repository kind=r owner=builder_owner rls=false forcerls=false disabled_triggers=0 acl=builder_owner:DELETE:false,builder_owner:INSERT:false,builder_owner:MAINTAIN:false,builder_owner:REFERENCES:false,builder_owner:SELECT:false,builder_owner:TRIGGER:false,builder_owner:TRUNCATE:false,builder_owner:UPDATE:false",
    "relation builder.project_working_state kind=r owner=builder_owner rls=false forcerls=false disabled_triggers=0 acl=builder_owner:DELETE:false,builder_owner:INSERT:false,builder_owner:MAINTAIN:false,builder_owner:REFERENCES:false,builder_owner:SELECT:false,builder_owner:TRIGGER:false,builder_owner:TRUNCATE:false,builder_owner:UPDATE:false,project_owner:INSERT:false,project_owner:SELECT:false",
    "relation connector.connection kind=r owner=connector_owner rls=false forcerls=false disabled_triggers=0 acl=connector_owner:DELETE:false,connector_owner:INSERT:false,connector_owner:MAINTAIN:false,connector_owner:REFERENCES:false,connector_owner:SELECT:false,connector_owner:TRIGGER:false,connector_owner:TRUNCATE:false,connector_owner:UPDATE:false",
@@ -56,7 +57,6 @@
    "column builder.builder_run.finished_at timestamp with time zone notnull=false default= acl=",
    "column builder.builder_run.idempotency_digest text notnull=true default= acl=",
    "column builder.builder_run.mode text notnull=true default= acl=",
-   "column builder.builder_run.model_account_id uuid notnull=false default= acl=",
    "column builder.builder_run.phase text notnull=false default= acl=",
    "column builder.builder_run.project_id uuid notnull=true default= acl=",
    "column builder.builder_run.request_digest text notnull=true default= acl=",
@@ -67,6 +67,9 @@
    "column builder.builder_run.started_at timestamp with time zone notnull=false default= acl=",
    "column builder.builder_run.state text notnull=true default='QUEUED'::text acl=",
    "column builder.builder_run.trigger_message_id text notnull=false default= acl=",
+   "column builder.builder_run_model_account.builder_run_id uuid notnull=true default= acl=",
+   "column builder.builder_run_model_account.first_used_at timestamp with time zone notnull=true default=now() acl=",
+   "column builder.builder_run_model_account.model_account_id uuid notnull=true default= acl=",
    "column builder.project_repository.created_at timestamp with time zone notnull=true default=clock_timestamp() acl=",
    "column builder.project_repository.project_id uuid notnull=true default= acl=",
    "column builder.project_working_state.current_state text notnull=true default='IDLE'::text acl=",
@@ -279,6 +282,8 @@
    "constraint builder.builder_run.builder_run_result_source_revision_check CHECK (((result_source_revision IS NULL) OR (result_source_revision ~ '^[0-9a-f]{40}$'::text)))",
    "constraint builder.builder_run.builder_run_state_check CHECK ((state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'SUCCEEDED'::text, 'FAILED'::text, 'INTERRUPTED'::text])))",
    "constraint builder.builder_run.builder_run_trigger_message_id_check CHECK (((length(btrim(trigger_message_id)) >= 1) AND (length(btrim(trigger_message_id)) <= 200)))",
+   "constraint builder.builder_run_model_account.builder_run_model_account_builder_run_id_fkey FOREIGN KEY (builder_run_id) REFERENCES builder.builder_run(builder_run_id) ON DELETE CASCADE",
+   "constraint builder.builder_run_model_account.builder_run_model_account_pkey PRIMARY KEY (builder_run_id, model_account_id)",
    "constraint builder.project_repository.project_repository_pkey PRIMARY KEY (project_id)",
    "constraint builder.project_repository.project_repository_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id) ON DELETE RESTRICT",
    "constraint builder.project_working_state.project_working_state_current_state_check CHECK ((current_state = ANY (ARRAY['IDLE'::text, 'CODING'::text, 'PREPARING'::text, 'PREVIEW_READY'::text, 'BUILD_FAILED'::text, 'RESPONDED'::text])))",
@@ -443,6 +448,7 @@
    "constraint workspace.workspace.workspace_pkey PRIMARY KEY (workspace_id)"
   ],
   "index": [
+   "index builder.builder_run_model_account_pkey CREATE UNIQUE INDEX builder_run_model_account_pkey ON builder.builder_run_model_account USING btree (builder_run_id, model_account_id)",
    "index builder.builder_run_one_active_per_project CREATE UNIQUE INDEX builder_run_one_active_per_project ON builder.builder_run USING btree (project_id) WHERE (state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text]))",
    "index builder.builder_run_pkey CREATE UNIQUE INDEX builder_run_pkey ON builder.builder_run USING btree (builder_run_id)",
    "index builder.builder_run_project_idempotency CREATE UNIQUE INDEX builder_run_project_idempotency ON builder.builder_run USING btree (project_id, idempotency_digest)",
@@ -502,7 +508,6 @@
    "function builder.admit_verified_application_source(p_account_id uuid, p_project_id uuid, p_execution_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,registry_owner:EXECUTE:false body=3f097db5525eaa61b26682ee91b36dd5",
    "function builder.advance_builder_run_source(p_builder_run_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=e571b45ff57446dddb2e569207e8f141",
    "function builder.bind_builder_run_message(p_builder_run_id uuid, p_message_id text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=795dd93551026c16f117ebfe2537ec2c",
-   "function builder.bind_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=6d79a209c3bb6dfc60e625c6bedda2fd",
    "function builder.bind_builder_run_sandbox(p_builder_run_id uuid, p_sandbox_id text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=f7ea9f7c38c18be9c35931f23881e070",
    "function builder.claim_builder_run(p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=a866a6dfeaeb59ca2c783cd32d65e846",
    "function builder.clear_builder_run_phase() returns trigger kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false body=fc9424126844c87a9aa52843ccbffde9",
@@ -517,6 +522,7 @@
    "function builder.read_latest_code_changing_builder_run(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=4d235eddfbe6ac0a74f48567b2e67abf",
    "function builder.read_preview_subject(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=dc912a6211932517299774cf8641e0ff",
    "function builder.record_builder_run_candidate(p_builder_run_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=a7ab5b14b7b053ab2dd743c229cf3549",
+   "function builder.record_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=8f5efd83107057badd560987f46f871c",
    "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=263f94a5196b117a7362fc096a5a1265",
    "function builder.register_project_repository(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=fd5090601b26022f638bbf723909ca90",
    "function builder.request_builder_run_cancellation(p_account_id uuid, p_project_id uuid, p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=7c01aa8ea64c6407e0a319eafb41ea10",
