@@ -41,11 +41,15 @@ file and line. Fix every problem it reports and call it again. Your turn is not 
 false. A problem in the `boot` step does not stop the version from being saved, but the person will
 see that error in the Prévia, so fix it too.
 
-A passing check proves the app builds and opens. It does not run handlers, touch data or click
-through features. So, after it passes, walk each promise and acceptance check of the plan to the code
-that does it: the screen exists, data flows from `connectors.fetch` or the database to the screen, an
-empty result and a failed call each show a clear message, and what people save survives a reload, because people come back to the app later and expect it.
-The burden of proof is on you.
+A passing check proves the app builds and opens. It does not run handlers or touch data. So, after it
+passes, call `conexus_run_operation` once for each operation that reads, with a realistic input: the
+example the person gave, or a key you read with `connector_fetch`. It answers with counts, never
+values: the items in each list and, per field, how many values are filled. Compare them with what
+the screen must show, for example every line of the document you tried. A field the person asked
+for with zero filled values is not found: fix the source if you can, otherwise say so in the final
+message, and never present it as confirmed. Then walk the rest of each promise to the code: an empty
+result and a failed `connectors.fetch` each show a clear message, and what people save survives a
+reload, because people come back to the app later and expect it. The burden of proof is on you.
 
 ### Update AGENTS.md
 
