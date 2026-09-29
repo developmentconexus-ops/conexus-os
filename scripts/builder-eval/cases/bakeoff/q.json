@@ -1,0 +1,25 @@
+{
+  "request": "Queremos criar um aplicativo que vai analizar nossos orçamentos do Sankhya. Para isso, as Tops de Orçamento são {{value:quoteTop}} e o tipo de análise que queremos fazer é tendo como informação Custo médio sem ICMS vs Markup de 1.45, Custo Variável com Markup de 1.45 comparando com preço de venda e preço promocional e destacando os produtos que tem estoque. O markup é 1.45 × custo, sem outra regra. Haja como um especialista em análise de dados e consultor nível McKinsey para a gente criar algo que ajude nosso gerente comercial a analisar orçamentos. Vamos planejar e até pesquisar referências para montar uma solução interessante; ele pode apenas colocar o número do orçamento.",
+  "checks": [],
+  "oracle": "q",
+  "person": {
+    "projectName": "Orçamentos",
+    "persona": "gerente comercial de uma distribuidora, que conhece o dia a dia dos orçamentos mas não sabe onde cada dado fica no sistema.",
+    "answers": [
+      {
+        "id": "numero-orcamento",
+        "topic": "um número de orçamento real para usar de exemplo ou teste",
+        "say": "Pode usar o orçamento {{value:quoteNumber}}."
+      },
+      {
+        "id": "markup",
+        "topic": "como se calcula o markup (custo vezes 1,45, margem, outra regra)",
+        "say": "O markup é 1,45 vezes o custo, sem outra regra.",
+        "pick": [
+          "1,45",
+          "1.45"
+        ]
+      }
+    ]
+  }
+}
