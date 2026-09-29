@@ -62,7 +62,7 @@ const settledLines: Readonly<Record<Exclude<SettledOutcome, 'FAILED'>, string>> 
 export const statusLine = (view: RunView): string | null => {
   if (view.kind === 'IDLE') return null
   if (view.kind === 'ACTIVE') return view.stopping ? 'Parando' : view.step
-  return view.outcome === 'FAILED' ? failureReason(view.run.failureCategory) : settledLines[view.outcome]
+  return view.outcome === 'FAILED' ? failureReason(view.run) : settledLines[view.outcome]
 }
 
 export const elapsedLabel = (milliseconds: number): string => {

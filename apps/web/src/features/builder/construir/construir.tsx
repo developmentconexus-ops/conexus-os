@@ -53,7 +53,7 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     runId: entry.builderRunId,
     text: entry.requestText,
     createdAt: entry.createdAt,
-    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry.failureCategory) : null,
+    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry) : null,
   }])
 }
 
@@ -294,7 +294,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} model={offeredModels.find((entry) => entry.id === shownModelId) ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} model={offeredModels.find((entry) => entry.id === shownModelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}

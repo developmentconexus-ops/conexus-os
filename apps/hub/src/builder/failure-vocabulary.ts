@@ -134,6 +134,8 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // nobody established.
   BUILDER_PREPARATION_FAILED: 'INTERNAL_ERROR',
   BUILDER_AGENT_TRIPWIRE: 'INTERNAL_ERROR',
+  // The agent loop's own storage or connection failed, after the continuations allowed; the model was not the cause.
+  BUILDER_AGENT_PLATFORM_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_INPUT_REFUSED: 'INTERNAL_ERROR',
   BUILDER_RUN_CREATE_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_CLAIM_REFUSED: 'INTERNAL_ERROR',

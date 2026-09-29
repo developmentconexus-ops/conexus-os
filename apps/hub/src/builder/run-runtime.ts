@@ -13,7 +13,7 @@ import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
-import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderSessionMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
+import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
 import { createRunSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunningPhase } from './store.js'
@@ -39,7 +39,7 @@ export type RunSandbox = Readonly<{
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 
-type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string }>
+type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
 
 /** One run's session on the Builder controller, scoped to builder:<runId> on the conversation's thread. */
 type RunSession = Readonly<{
@@ -221,6 +221,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       })
       await input.setPhase('AGENT')
       const turn = await session.sendTurn(input.intent, runSignal)
+      if (turn.continuations > 0) ports.log(`BUILDER_AGENT_CONTINUED:${turn.continuations}:${input.executionId}`)
       if (keepaliveFailure) throw keepaliveFailure
       if (turn.reason === 'aborted') ports.log(`BUILDER_AGENT_END:aborted:${input.executionId}`)
       if (!turn.userMessageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
@@ -390,14 +391,16 @@ export const createControllerRunSessions = ({ controller, runContexts, runWorksp
   return Object.freeze({
     sendTurn: async (content: string, signal?: AbortSignal): Promise<AgentTurn> => {
       let userMessageId: string | undefined
+      let continuations = 0
+      // A continuation is the Hub's own message; the person's request stays the turn's anchor.
       const detach = session.subscribe((event) => {
-        if (event.type === 'message_start' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+        if (event.type === 'message_start' && continuations === 0 && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
       })
       const abort = (): void => { session.abort() }
       if (signal?.aborted) abort()
       else signal?.addEventListener('abort', abort, { once: true })
       try {
-        let reason: string = await sendBuilderSessionMessage(session, { content }, requestContext) ?? 'unknown'
+        let reason: string = await sendBuilderTurnMessage(session, { content }, { requestContext, ...(signal ? { signal } : {}), onContinuation: (count) => { continuations = count } }) ?? 'unknown'
         // A plan waiting for approval, or a question waiting for an answer, keeps the run active: the
         // person answers through the browser, and the turn goes on until the agent ends for good.
         while (reason === 'suspended') reason = await nextAgentEnd(session, signal)
@@ -405,7 +408,7 @@ export const createControllerRunSessions = ({ controller, runContexts, runWorksp
         userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
         const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
           .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
-        return { reason, userMessageId, summary }
+        return { reason, userMessageId, summary, continuations }
       } finally {
         detach()
         signal?.removeEventListener('abort', abort)

@@ -48,6 +48,9 @@ import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies, RunNote } from './service.js'
 
 const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
+// The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
+// (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
+const AGENT_STORAGE_CONNECT_TIMEOUT_MS = 30_000
 
 type BuilderObservabilityLifecycle = Readonly<{
   flush(): Promise<void>
@@ -281,7 +284,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, starterProjectKnowledge()] })
-  const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20 })
+  const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
