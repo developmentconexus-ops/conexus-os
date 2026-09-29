@@ -40,6 +40,7 @@ not match its schema exactly, including an undeclared field, is refused.
 ```ts
 type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
 type Caller = { accountId: string; email: string | null; displayName: string }
+type Connectors = { fetch(request: { connection: string; method: string; path: string; query?: Record<string, string>; body?: unknown }): Promise<{ ok: true; status: number; bytes: number; body: any } | { ok: false; code: string; issues?: string[]; status?: number; vendorStatus?: string }> }
 
 export async function listItems(input: { category: string }, { db }: { db: Db }) {
   const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
@@ -57,17 +58,21 @@ export async function addItem(input: { name: string }, { db, caller }: { db: Db;
 - `caller` is the person using the app, set by Conexus from their sign-in. The browser cannot change
   it. To record who did something, read `caller`; never add a name or author field to the input. In
   the Preview, `caller` is you.
-- `connectors` may be a third context field: `await connectors.call(operationId, input)` calls one
-  operation of an external system this Project has been granted, and never throws. It answers
-  `{ ok: true, value }` or `{ ok: false, code }` with a code from a closed list; handle both. The
-  operations this Project may call, if any, are named with their id and their input and output shape
-  in this run's own instructions. No operation listed there means none exists to call, whatever the
-  request asks for.
+- `connectors` is a third context field when this Project has a Conexão bound.
+  `await connectors.fetch({ connection, method, path, query, body })` sends one read to a company
+  system, in that system's own request format, through the Conexão bound to this Project under the
+  name `connection`, and never throws. `connection` is one of the names this run's instructions
+  list, and `path` is relative to the system's own address. It answers `{ ok: true, status, bytes, body }`
+  with the system's JSON in `body`, or `{ ok: false, code }` with a code from a closed list; handle
+  both. One invocation makes at most 8 calls, and each answer is at most 256 KiB. The browser
+  receives only what the handler returns: return the fields the screen needs, never `body` or the
+  whole answer. The integrator's guide in this run's instructions says how to write the request and
+  read the answer. No Conexão listed there means none exists to read, whatever the request asks for.
 - Always pass values as parameters (`$1`, `$2`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
 - A handler may import only files inside `conexus/` and `node:` built-ins. There are no npm packages,
-  no network, no file system and no environment variables. Each call runs isolated for at most 5
-  seconds and answers at most 1 MiB.
+  no network (`connectors.fetch` is the only way to a company system), no file system and no
+  environment variables. Each call runs isolated for at most 5 seconds and answers at most 1 MiB.
 - Postgres `integer` arrives as a number; `bigint` and `numeric` arrive as strings; `timestamptz`
   arrives as an ISO string. Alias columns to the names the output schema declares, for example
   `created_at AS "createdAt"`.
