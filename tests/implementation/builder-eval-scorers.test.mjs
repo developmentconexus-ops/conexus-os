@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { createEvalMastra, findTraceIds, scoreRun, traceMetrics } from '../../scripts/builder-eval/scorers.mjs'
-import { builderTrace, SALES_PREVIEW_TEXT, SALES_SCREEN, seedSpans } from './builder-eval-fixtures.mjs'
+import { builderTrace, resumedBuilderTrace, SALES_PREVIEW_TEXT, SALES_SCREEN, seedSpans } from './builder-eval-fixtures.mjs'
 
 const groundTruth = { fixture: 'sales-v1', screen: SALES_SCREEN, figures: {} }
 const observed = (text) => ({ preview: { kind: 'observed', text, sourceRevision: 'rev-1' } })
@@ -31,7 +31,14 @@ const evalMastra = () => {
 test('traceMetrics counts the main agent of one Builder trace and leaves the memory observer out', () => {
   assert.deepEqual(traceMetrics(builderTrace({ traceId: 'tr-1', builderRunId: 'run-1', projectId: 'p-1' })), {
     traces: 1, toolCalls: 10, stepsWithToolCalls: 3, toolErrors: 1, repeatedReads: 2, skillReloads: 1,
-    simulatorRefusals: 1, wallMs: 300_000, inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50,
+    simulatorRefusals: 1, operationRuns: 0, checkRuns: 0, wallMs: 300_000, inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50,
+  })
+})
+
+test('traceMetrics counts the run resumed after a question, with the current tool names and conexus_run_operation', () => {
+  assert.deepEqual(traceMetrics(resumedBuilderTrace()), {
+    traces: 1, toolCalls: 8, stepsWithToolCalls: 5, toolErrors: 0, repeatedReads: 1, skillReloads: 0,
+    simulatorRefusals: 0, operationRuns: 2, checkRuns: 2, wallMs: 295_000, inputTokens: 6200, cachedInputTokens: 2000, outputTokens: 1020,
   })
 })
 

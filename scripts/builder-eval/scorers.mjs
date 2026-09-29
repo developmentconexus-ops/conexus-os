@@ -12,7 +12,7 @@ import { SIMULATOR_REFUSAL_MARKER } from './sankhya-sim.mjs'
 /**
  * Every field is additive across traces; ratios are derived in the scorer table.
  * @typedef {Readonly<{ traces: number, toolCalls: number, stepsWithToolCalls: number, toolErrors: number,
- *   repeatedReads: number, skillReloads: number, simulatorRefusals: number, wallMs: number,
+ *   repeatedReads: number, skillReloads: number, simulatorRefusals: number, operationRuns: number, checkRuns: number, wallMs: number,
  *   inputTokens: number, cachedInputTokens: number, outputTokens: number }>} TraceMetrics
  */
 /** @typedef {Readonly<{ scorerId: string, scorerName: string, score: number, reason: string | undefined }>} SubmittedScore */
@@ -110,20 +110,45 @@ function finalReply(spans) {
 }
 
 /**
- * Pure. Counts over one Builder trace's main agent. A nested agent_run (the observational-memory
- * observer under memory_operation) and its tools and tokens are excluded.
- * @param {readonly import('@mastra/core/storage').SpanRecord[]} spans
- * @returns {TraceMetrics}
+ * Pure. The agent_run spans of the Builder's own agent: the root, plus every resumed run after a
+ * question or a plan approval (Mastra nests it under the previous model generation). Another agent's
+ * run, such as the observational-memory observer, has a different entityId and is left out.
  */
-export function traceMetrics(spans) {
+export function mainAgentRuns(spans) {
   const root = finishedRoot(spans)
+  return spans.filter((span) => span.spanType === 'agent_run' && span.entityId === root.entityId)
+}
+
+/**
+ * Pure. The spans that belong to the main agent, its resumed runs included: those whose nearest
+ * agent_run ancestor is one of them.
+ */
+export function mainAgentScope(spans) {
+  const runs = new Set(mainAgentRuns(spans))
   const byId = new Map(spans.map((span) => [span.spanId, span]))
   const ownerOf = (span) => {
     let ancestor = byId.get(span.parentSpanId)
     while (ancestor && ancestor.spanType !== 'agent_run') ancestor = byId.get(ancestor.parentSpanId)
     return ancestor
   }
-  const mainScope = spans.filter((span) => ownerOf(span) === root)
+  return spans.filter((span) => runs.has(ownerOf(span)))
+}
+
+const READ_TOOL = 'mastra_workspace_read_file'
+const OPERATION_TOOL = 'conexus_run_operation'
+const CHECK_TOOL = 'conexus_check'
+const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
+
+/**
+ * Pure. Counts over one Builder trace's main agent, resumed runs included. A nested agent_run of
+ * another agent (the observational-memory observer under memory_operation) and its tools and tokens
+ * are excluded.
+ * @param {readonly import('@mastra/core/storage').SpanRecord[]} spans
+ * @returns {TraceMetrics}
+ */
+export function traceMetrics(spans) {
+  const runs = mainAgentRuns(spans)
+  const mainScope = mainAgentScope(spans)
   const calls = mainScope
     .filter((span) => span.spanType === 'tool_call')
     .sort((a, b) => timeOf(a.startedAt) - timeOf(b.startedAt) || (a.spanId < b.spanId ? -1 : 1))
@@ -133,11 +158,19 @@ export function traceMetrics(spans) {
   const skills = new Set()
   let repeatedReads = 0
   let skillReloads = 0
+  const operations = new Set()
   let simulatorRefusals = 0
+  let operationRuns = 0
+  let checkRuns = 0
   for (const call of calls) {
     const input = call.input ?? {}
+    if (WRITE_TOOLS.has(call.entityName)) {
+      fileReads.delete(normalizePath(input.path))
+      operations.clear()
+      continue
+    }
     switch (call.entityName) {
-      case 'view': {
+      case READ_TOOL: {
         const path = normalizePath(input.path)
         const reads = fileReads.get(path) ?? new Set()
         const key = `${input.offset ?? ''}|${input.limit ?? ''}`
@@ -146,10 +179,6 @@ export function traceMetrics(spans) {
         fileReads.set(path, reads)
         break
       }
-      case 'write_file':
-      case 'string_replace_lsp':
-        fileReads.delete(normalizePath(input.path))
-        break
       case 'connector_fetch': {
         const key = JSON.stringify(canonical(input))
         if (fetches.has(key)) repeatedReads += 1
@@ -157,6 +186,16 @@ export function traceMetrics(spans) {
         if (JSON.stringify(call.output ?? null).includes(SIMULATOR_REFUSAL_MARKER)) simulatorRefusals += 1
         break
       }
+      case OPERATION_TOOL: {
+        operationRuns += 1
+        const key = JSON.stringify(canonical(input))
+        if (operations.has(key)) repeatedReads += 1
+        operations.add(key)
+        break
+      }
+      case CHECK_TOOL:
+        checkRuns += 1
+        break
       case 'skill':
         if (skills.has(input.name)) skillReloads += 1
         skills.add(input.name)
@@ -174,7 +213,9 @@ export function traceMetrics(spans) {
     repeatedReads,
     skillReloads,
     simulatorRefusals,
-    wallMs: timeOf(root.endedAt) - timeOf(root.startedAt),
+    operationRuns,
+    checkRuns,
+    wallMs: runs.reduce((sum, run) => sum + (run.endedAt ? timeOf(run.endedAt) - timeOf(run.startedAt) : 0), 0),
     inputTokens: total((usage) => usage.inputTokens),
     cachedInputTokens: total((usage) => usage.inputDetails?.cacheRead),
     outputTokens: total((usage) => usage.outputTokens),
@@ -189,7 +230,7 @@ const TRACE_METRIC_SCORERS = Object.freeze([
   { id: 'tool-calls', description: 'Chamadas de ferramenta do agente principal', direction: 'lower-is-better', value: (m) => m.toolCalls },
   { id: 'tool-errors', description: 'Chamadas de ferramenta que falharam', direction: 'lower-is-better', value: (m) => m.toolErrors },
   { id: 'calls-per-step', description: 'Chamadas por passo com chamada', direction: 'higher-is-better', value: (m) => (m.stepsWithToolCalls === 0 ? 0 : m.toolCalls / m.stepsWithToolCalls) },
-  { id: 'repeated-reads', description: 'Leituras idênticas repetidas (arquivo sem escrita no meio, ou connector_fetch igual)', direction: 'lower-is-better', value: (m) => m.repeatedReads },
+  { id: 'repeated-reads', description: 'Leituras idênticas repetidas (arquivo ou conexus_run_operation sem escrita no meio, ou connector_fetch igual)', direction: 'lower-is-better', value: (m) => m.repeatedReads },
   { id: 'skill-reloads', description: 'Skills carregadas de novo', direction: 'lower-is-better', value: (m) => m.skillReloads },
   { id: 'wall-minutes', description: 'Duração do agente, somando reparos', direction: 'lower-is-better', value: (m) => m.wallMs / 60_000 },
   { id: 'input-tokens', description: 'Tokens de entrada do modelo principal', direction: 'lower-is-better', value: (m) => m.inputTokens },
