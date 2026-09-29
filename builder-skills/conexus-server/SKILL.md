@@ -25,6 +25,12 @@ Everything server-side lives under `conexus/`:
       "export": "listItems",
       "input": { "type": "object", "properties": { "category": { "type": "string", "maxLength": 80 } }, "required": ["category"], "additionalProperties": false },
       "output": { "type": "array", "maxItems": 500, "items": { "type": "object", "properties": { "id": { "type": "integer" }, "name": { "type": "string" } }, "required": ["id", "name"], "additionalProperties": false } }
+    },
+    "addItem": {
+      "handler": "handlers/items.ts",
+      "export": "addItem",
+      "input": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 } }, "required": ["name"], "additionalProperties": false },
+      "output": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"], "additionalProperties": false }
     }
   }
 }
@@ -51,25 +57,32 @@ For a field with fixed values, such as a status, declare `"enum"` on a `string`:
 strings of at most 200 characters, and not together with `minLength` or `maxLength`. The typed client
 then types the field as a union (`"open" | "closed"`) in the screen and in the handler. Validate again
 in the handler only when the rule is more than the list, for example a status that may change only to
-the next one. Use a plain `string` and a zod check in the handler for anything a pattern would describe.
+the next one.
 
 ## Handlers
 
+Type every handler with `Input<'op'>` and `Output<'op'>` from `conexus/types.gen.ts`, which Conexus
+generates from the manifest on every check. An object the handler builds with a field the manifest
+does not declare, or without one it requires, then fails the type check instead of failing in front
+of the person.
+
 ```ts
+import type { Input, Output } from '../types.gen.ts'
+
 type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
 type Caller = { accountId: string; email: string | null; displayName: string }
 type Connectors = { fetch(request: { connection: string; method: string; path: string; query?: Record<string, string>; body?: unknown }): Promise<{ ok: true; status: number; bytes: number; body: any } | { ok: false; code: string; issues?: string[]; status?: number; vendorStatus?: string }> }
 
-export async function listItems(input: { category: string }, { db }: { db: Db }) {
+export async function listItems(input: Input<'listItems'>, { db }: { db: Db }): Promise<Output<'listItems'>> {
   const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
   return rows
 }
 
-export async function addItem(input: { name: string }, { db, caller }: { db: Db; caller: Caller }) {
+export async function addItem(input: Input<'addItem'>, { db, caller }: { db: Db; caller: Caller }): Promise<Output<'addItem'>> {
   const { rows } = await db.query(
     'INSERT INTO item (name, created_by_account_id, created_by_name) VALUES ($1, $2, $3) RETURNING id',
     [input.name, caller.accountId, caller.displayName])
-  return rows[0]
+  return { id: rows[0].id }
 }
 ```
 
@@ -78,22 +91,30 @@ export async function addItem(input: { name: string }, { db, caller }: { db: Db;
   the Preview, `caller` is you.
 - `connectors` is a third context field when this Project has a Conexão bound.
   `await connectors.fetch({ connection, method, path, query, body })` sends one read to a company
-  system, in that system's own request format, through the Conexão bound to this Project under the
-  name `connection`, and never throws. `connection` is one of the names this run's instructions
-  list, and `path` is relative to the system's own address. It answers `{ ok: true, status, bytes, body }`
-  with the system's JSON in `body`, or `{ ok: false, code }` with a code from a closed list; handle
-  both. One invocation makes at most 8 calls, and each answer is at most 256 KiB. The browser
-  receives only what the handler returns: return the fields the screen needs, never `body` or the
-  whole answer. The integrator's guide in this run's instructions says how to write the request and
-  read the answer. No Conexão listed there means none exists to read, whatever the request asks for.
+  system, in that system's own request format, through the Conexão bound under the name
+  `connection`, one of the names this run's instructions list. `path` is relative to the system's
+  own address. It never throws, and answers `{ ok: true, status, bytes, body }` with the system's
+  JSON in `body`, or `{ ok: false, code }`. One invocation makes at most 8 calls, and each answer is
+  at most 256 KiB. Return only the fields the screen needs, never `body`. The integrator's guide in
+  this run's instructions says how to write the request and read the answer.
 - Always pass values as parameters (`$1`, `$2`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
 - A handler may import only files inside `conexus/` and `node:` built-ins. There are no npm packages,
   no network (`connectors.fetch` is the only way to a company system), no file system and no
   environment variables. Each call runs isolated for at most 5 seconds and answers at most 1 MiB.
 - Postgres `integer` arrives as a number; `bigint` and `numeric` arrive as strings; `timestamptz`
-  arrives as an ISO string. Alias columns to the names the output schema declares, for example
-  `created_at AS "createdAt"`.
+  arrives as an ISO string. Declare decimals as `string` in the output and keep them as text: the
+  screen formats them with `lib/format.ts`, and sums belong in SQL. Alias columns to the names the
+  output schema declares, for example `created_at AS "createdAt"`.
+
+## Failures
+
+An expected failure is part of the output, and the screen shows it. Nothing found is data: an empty
+list or a field left out. A Conexão read that fails is a `failure` field: declare
+`"failure": { "type": "string", "maxLength": 40 }` in the output, outside `required`, and when
+`connectors.fetch` answers `ok: false`, return the other fields empty with `failure: result.code`.
+The screen turns it into a sentence with `connectionMessage` from `lib/errors.ts`. A throw is a bug,
+and the person sees only a generic message.
 
 ## Migrations
 
@@ -125,12 +146,4 @@ const items = await api.listItems({ category: 'a' }) // typed from the manifest
 ```
 
 Add or rename a field in the manifest and the type check names every screen and handler that no
-longer matches. Handlers can type their signature with the generated `conexus/types.gen.ts`
-(`Input<'listItems'>`, `Output<'listItems'>`), plain types a handler may import. How a screen reads, writes and shows errors is in the `conexus-app-code` skill.
-
-When you finish, Conexus checks the result. It type checks `app/` and `conexus/`, builds `app/`, then
-validates `manifest.json`, bundles the handlers and lists the migrations, and opens the app in a
-browser once with every operation answering the smallest value its output schema admits, so the app
-must render with empty data as well as when a call fails. It does not run the handlers or migrations,
-so a handler's logic is proven only when the Prévia calls it. A type, build or manifest error refuses
-the result. `conexus_check` reports each problem with its file and line. Fix all of them.
+longer matches. How a screen reads, writes and shows errors is in the `conexus-app-code` skill.

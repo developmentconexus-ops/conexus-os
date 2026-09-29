@@ -74,7 +74,6 @@ The Prévia serves the app under a policy that allows only its own origin. The c
 - No `<style>` element, no `dangerouslySetInnerHTML` with CSS, no inline `style` attribute in `index.html`. React's `style` prop is allowed.
 - No external fonts, CDN scripts, remote images or `@import url(...)`. The font is the system stack in the tokens.
 - Put images and other files under `app/src` and import them: `import logo from '@/assets/logo.svg'`. Icons come from `lucide-react`.
-- You cannot install packages. The type check and the build refuse any import outside the fixed list.
 - `main.tsx` wraps the app in Base UI's `CSPProvider`. Leave it.
 
 ## Sources and license

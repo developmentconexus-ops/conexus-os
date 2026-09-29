@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -51,7 +51,9 @@ for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code']) {
 
 test('the conexus-app-code skill cites every reference file it ships', () => {
   const text = skillText('conexus-app-code')
-  for (const file of ['router.tsx', 'orders-screen.tsx', 'orders-table.tsx', 'order-form.tsx', 'errors.ts', 'format.ts']) {
+  const shipped = readdirSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references'))
+  assert.deepEqual(shipped.sort(), ['order-form.tsx', 'orders-screen.tsx', 'orders-table.tsx', 'router.tsx'])
+  for (const file of shipped) {
     assert.ok(text.includes(`references/${file}`), `SKILL.md does not cite ${file}`)
   }
 })
