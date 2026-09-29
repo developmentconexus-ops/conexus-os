@@ -200,6 +200,23 @@ test('boot serves the production policy, so an inline style element is a CSP vio
   assert.match(problems[0].message, /style-src/)
 })
 
+test('boot serves index.html for a deep link and answers 404 for a missing file and for the server tree (AC-7, AC-10)', (t) => {
+  const { report } = check(t, withMain(`export {}
+const root = document.getElementById('root')!
+const deep = await fetch('/notas/123/editar')
+const page = await deep.text()
+if (deep.status !== 200 || !page.includes('id="root"')) throw new Error('deep link answered ' + deep.status)
+root.append(document.createElement('p'))
+await fetch('/missing.png')
+await fetch('/conexus-server/manifest.json')
+`))
+  assert.equal(report.ok, true)
+  assert.deepEqual(failedStep(report, 'boot').problems.map(({ code, message }) => ({ code, message })), [
+    { code: 'BOOT_REQUEST_FAILED', message: 'GET /missing.png answered 404' },
+    { code: 'BOOT_REQUEST_FAILED', message: 'GET /conexus-server/manifest.json answered 404' },
+  ])
+})
+
 test('boot answers a declared operation with the lower bound of its output schema', (t) => {
   const { report } = check(t, {
     ...STARTER,

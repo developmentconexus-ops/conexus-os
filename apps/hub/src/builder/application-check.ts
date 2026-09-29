@@ -1,4 +1,5 @@
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
+import { appPathClassifierSource } from '../mar/app-path.js'
 
 /**
  * The Conexus check: one Hub owned script, `/opt/conexus/check.mjs`, that the Builder's tool, source
@@ -146,6 +147,7 @@ const MAX_MESSAGE = ${CHECK_LIMITS.messageChars}
 const BOOT_CSP = ${JSON.stringify(BOOT_CONTENT_SECURITY_POLICY)}
 const BLOCKING = new Set(${JSON.stringify([...BLOCKING_STEPS])})
 const redact = ${redactEvidence.toString()}
+${appPathClassifierSource}
 
 const flags = {}
 const limitFlags = []
@@ -325,9 +327,15 @@ const runBoot = async () => {
         response.end(JSON.stringify(stubValue(operation.output)))
         return
       }
-      const relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^\/+/, '')
-      if ((request.method !== 'GET' && request.method !== 'HEAD') || relative.startsWith('conexus-server/')) { response.writeHead(404, headers); response.end(); return }
-      const resolved = realpathSync(join(outReal, relative))
+      const isFile = (path) => {
+        try {
+          const resolved = realpathSync(join(outReal, path))
+          return resolved.startsWith(outReal + sep) && lstatSync(resolved).isFile()
+        } catch { return false }
+      }
+      const served = classifyAppPath(request.method, url.pathname, isFile)
+      if (served.kind === 'not-found') { response.writeHead(404, headers); response.end(); return }
+      const resolved = realpathSync(join(outReal, served.kind === 'file' ? served.path : 'index.html'))
       if (!resolved.startsWith(outReal + sep) || !lstatSync(resolved).isFile()) { response.writeHead(404, headers); response.end(); return }
       response.writeHead(200, { ...headers, 'content-type': MEDIA_TYPES[extname(resolved)] ?? 'application/octet-stream' })
       response.end(request.method === 'HEAD' ? undefined : readFileSync(resolved))
