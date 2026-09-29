@@ -70,6 +70,15 @@ test('running again applies nothing and still passes', async (t) => {
 
 // The advisory lock is what stops two Hub processes starting at once from both applying the same
 // pending migration; one of them waits and then finds the ledger already holds it.
+test('a database that applied a later migration without an earlier one still receives the earlier one and matches the snapshot', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_gap')
+  const withoutGap = corpus.filter(({ version }) => version !== '0037')
+  await runMigrations({ connectionString, migrations: withoutGap, catalogSnapshot: null })
+  assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), withoutGap.map(({ version }) => version))
+  const result = await runHubMigrations({ connectionString })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0037'], versions: corpusVersions })
+})
+
 test('two runs at once leave one ledger row per version', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
   const results = await Promise.all([runHubMigrations({ connectionString }), runHubMigrations({ connectionString })])
