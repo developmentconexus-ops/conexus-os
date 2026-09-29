@@ -1,5 +1,6 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 import { parseError } from '@mastra/code-sdk/utils/errors'
+import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import { CONEXUS_PROMPT_VARIANT_KEY } from './harness/request-context.js'
@@ -48,9 +49,12 @@ const NO_MODEL_ACCOUNT = 'BUILDER_MODEL_NOT_SELECTED'
 const namesNoModelAccount = (error: unknown): boolean =>
   error instanceof Error && (error.message === NO_MODEL_ACCOUNT || namesNoModelAccount(error.cause))
 
+const namesStepTimeout = (error: unknown): boolean =>
+  isMastraTimeoutError(error) ? error.timeoutType === 'step' : error instanceof Error && error.cause !== undefined && namesStepTimeout(error.cause)
+
 const MAX_CONTINUATION_DELAY_MS = 30_000
 
-type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | 'BUILDER_AGENT_PLATFORM_FAILED' | typeof NO_MODEL_ACCOUNT
+type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | 'BUILDER_AGENT_PLATFORM_FAILED' | 'BUILDER_MODEL_STEP_TIMEOUT' | typeof NO_MODEL_ACCOUNT
 
 /** A failure the agent ended with. `retryDelayMs` is set only when the same session may be continued. */
 class BuilderAgentError extends Error {
@@ -66,6 +70,8 @@ const hasHttpStatus = (error: unknown): boolean =>
 // storage or the network under the loop, not from the model.
 const classifyAgentFailure = (error: unknown): Readonly<{ code: AgentFailureCode | null; retryDelayMs: number | null }> => {
   if (namesNoModelAccount(error)) return { code: NO_MODEL_ACCOUNT, retryDelayMs: null }
+  // One model call outran its time budget (`BUILDER_MODEL_STEP_TIMEOUT_MS`); continuing would only run it again.
+  if (namesStepTimeout(error)) return { code: 'BUILDER_MODEL_STEP_TIMEOUT', retryDelayMs: null }
   const { type, retryable, retryDelay } = parseError(error)
   const retryDelayMs = retryable ? Math.min(retryDelay ?? 0, MAX_CONTINUATION_DELAY_MS) : null
   if (type === 'rate_limit') return { code: 'BUILDER_MODEL_RATE_LIMITED', retryDelayMs }

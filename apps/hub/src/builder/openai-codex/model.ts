@@ -47,6 +47,10 @@ function createCodexMiddleware(reasoningEffort: string | undefined): LanguageMod
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
       if (params.temperature !== undefined && params.temperature !== null) delete params.topP
+      // The Builder caps every call's output (`BUILDER_MAX_OUTPUT_TOKENS`), but the Codex endpoint is
+      // reported not to accept `max_output_tokens` on a ChatGPT account, so it never leaves the Hub;
+      // the call's time budget bounds the step instead. Only a live run proves the endpoint's answer.
+      delete params.maxOutputTokens
       params.providerOptions = {
         ...params.providerOptions,
         openai: {
