@@ -27,6 +27,74 @@ evidence that invalidates an assumption.
 | C-031 | Conexus designs its own screens, structure and page patterns; `@mastra/playground-ui` supplies only parts. Basic parts (`Button`, `Input`, `Select`, dialogs, menus and the rest) are preferred, repainted with Conexus tokens. Agent display parts (`Composer`, `MessageScroller`, `MarkdownRenderer`, the `ai/*` run display) are allowed, because they render a Mastra run. Structure blocks (`AppShell`, `MainSidebar`, `ChatShell`, `new/settings`) are frozen: existing uses stay, no new screen or section adopts one. The Mastra Factory's own screens are a feature reference, never a layout to match. `scripts/check-web-style.mjs` fails a `.tsx` class with a Conexus prefix (`cx-`, `cxs-`, `builder-`) that no CSS file defines. Decided by the operator on 2026-09-28. | [conexus-frontend skill](../../.agents/skills/conexus-frontend/SKILL.md), [Components map](../../.agents/skills/conexus-frontend/references/components-map.md) | The frontend phase after Q4 decides the frozen structure blocks, or a screen needs a Mastra structure block that has no reasonable Conexus equivalent |
 | C-OS-001 | The public ecosystem domain is `conexus.fun`, with the route convention `/<product>`. This repository owns Conexus OS only. Ingress mechanics are deferred. | Operator mission, [Product contract](../product/contract.md) | Ecosystem naming changes, or deployment realization needs ingress selected |
 
+## Proposed, pending the operator
+
+These rows are not in force. The decisions they would supersede or amend stay in force until the
+operator accepts them. On acceptance, each row moves to the table above, C-022 and C-025 leave it
+for Git history, and C-027 and C-028 record their amendments.
+
+| ID | Decision | Owner | Reopen trigger |
+| --- | --- | --- | --- |
+| C-032 | **PROPOSED on 2026-09-29, pending the operator.** The Builder runs on a Conexus harness on Mastra's engine: an `AgentController` over `createCodingAgent` of `@mastra/core`, with a Conexus prompt, two modes (Planejar and Construir) and a Conexus tool contract. The Mastra Factory and Mastra Code leave the Hub. Each Project's source is a Git repository on the Hub whose `main` is the admitted revision. Only the Hub moves `main`, by fast forward from the run's own base. No GitHub App, forge or GitHub call remains in Project creation, a run or the source views. Model accounts belong to Conexus: one account per person per provider, sealed with the Conexus envelope, shared at one of two levels, just me or everyone in the installation. Only an installation administrator shares with everyone (C-026). Model calls run in the Hub, and the sandbox holds no secret. Supersedes C-022 and C-025. Amends C-027: Google AI Pro stays, and its credential moves from the Factory's row to a Conexus table ([details](#proposed-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033)). | [Builder own harness task](../tasks/stage2-builder-own-harness-qualification.md), [C-020 reference](../reference/builder-c020-mastra-native.md) | A Mastra upgrade breaks `AgentController` or `createCodingAgent`, which are beta; a provider changes the sign-in that the copied code implements; a company needs Project source, history, pull requests or CI on a forge; or a company needs to share a model account with named people |
+| C-033 | **PROPOSED on 2026-09-29, pending the operator.** The generated-application profile of C-028 moves from REACT_VITE_V1 to REACT_VITE_V2. A new app is built on a fixed stack pinned in `apps/hub/compiler-template/package.json`: React 19, TanStack Router, Query and Table, shadcn components on Base UI with Tailwind 4, Recharts, react-hook-form with zod, date-fns and lucide icons. An app imports only that list, and the Builder cannot install a package. Screens call the server through a client that the platform generates from `conexus/manifest.json`. One Hub-owned check, `/opt/conexus/check.mjs`, admits a revision with five steps: `generate`, `typecheck`, `build`, `server` and `boot`. The Builder runs the same check as the `conexus_check` tool, and admission never executes a file from the candidate. A type error blocks admission. A failed `boot` is reported and never blocks, so admitted source stays repairable (C-020 amendment). Apps take their look from one neutral set of Conexus tokens. Artifacts built on REACT_VITE_V1 stay readable. Amends C-028 ([details](#proposed-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033)). | [Builder own harness task](../tasks/stage2-builder-own-harness-qualification.md), [Compiler template recipe](../../apps/hub/compiler-template/README.md), [roadmap Technology baseline](../roadmap.md#technology-baseline) | A dashboard needs a chart that Recharts lacks; the eval shows models failing repeatedly on Base UI or TanStack Table v9; the check or the sandbox start in E2B is too slow for a turn; something outside an app needs to call it; or a company style needs more than tokens |
+
+## Proposed on 2026-09-29: the Builder off the Factory (C-032) and the app stack v2 (C-033)
+
+The [Builder own harness task](../tasks/stage2-builder-own-harness-qualification.md) qualifies both
+proposals on one branch. Its closure set holds the acceptance criteria, and its deciding proof is
+the declared browser run and the three-case eval. The reasons below summarize the task's
+[Why](../tasks/stage2-builder-own-harness-qualification.md#why), which cites the specs' rationale
+and the tests line by line.
+
+### Why C-032
+
+- **The Factory's prompt speaks for another product.** The Builder's rendered prompt opens as
+  "Mastra Code, an interactive CLI coding agent" and spends most of its length on git, pull requests
+  and npm. Conexus's rules come last, at about 6 percent, below a repository's own `AGENTS.md`. No
+  configuration of the Factory stack changes that identity.
+- **The Factory brings tools and custody the product does not use.** 17 Factory `source_control_*`
+  tools reach the Builder with a real installation token, outside its deny list. A GitHub App per
+  installation and source on a forge are costs that people who do not code never asked for. The
+  Factory's Work, boards and pull request surface have no consumer in the Hub.
+- **Keeping Mastra Code as a library keeps the wrong identity.** Mastra Code never passes a product
+  name to `buildBasePrompt`. Dropping only the Factory still means rebuilding the credential store,
+  the GitHub path and the skills loader.
+- **C-022 names this reopen trigger itself:** the custody decision that puts a Project's source on
+  a forge is reversed.
+
+### Why C-033
+
+- **The product is dashboards and forms.** V1 has no component, chart, router or form library, so
+  the Builder writes every table, chart and form by hand.
+- **The V1 gate is the candidate's own file.** Admission runs `conexus/check.sh`, which the Builder
+  can edit. It cuts the refusal reason at 400 characters, it never shows the model a screen error,
+  and nothing type checks the code.
+- **Base UI over Radix is a measured choice.** Under the Preview's `style-src 'self'`, a Radix
+  dialog logs a CSP violation on every open. The Base UI set logs none.
+- **The manifest already is the contract.** The generated client derives from it, so a renamed
+  field fails `typecheck` before a person sees the app.
+
+### Consequences
+
+- Conexus maintains the prompt, the mode logic, the copied sign-in code and the Git store. Mastra
+  fixes to those parts no longer arrive by upgrade. Each copied file keeps its Apache 2.0 notice and
+  names its source and version.
+- Losing the Git folder loses Project source. The backup of that folder with the database dump is
+  part of the switch.
+- Every conversation is visible to every Project member until private conversations return.
+- An app's first-load JavaScript grows from about 60 KB to about 280 KB gzip, and the E2B image grows
+  by about 170 MB. Components are copied into each app, so a later fix does not reach old apps.
+- The Dev Factory in `~/dev-factory` is a different system and does not change.
+
+### What C-032 and C-033 replace
+
+- C-022: the Factory as a Project's development environment, and the model credentials it holds.
+- C-025: model accounts stay with the Factory, whole. The two sharing levels survive in Conexus
+  tables.
+- The clause of C-027 by which the Google AI Pro record becomes a Factory `api_key` row.
+- In C-028: the REACT_VITE_V1 profile (`apps/hub/migrations/0014_agent_user_template.sql:42`), for new
+  builds. Migration `0037_application_stack_v2.sql` pins REACT_VITE_V2.
+
 ## Decided on 2026-09-28: one integrator per external system (C-030)
 
 The operator took these decisions on 2026-09-28, after two independent plans reviewed the Q4
