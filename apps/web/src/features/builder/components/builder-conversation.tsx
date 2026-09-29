@@ -52,15 +52,15 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
   </ToolCall>
 }
 
+// The reasoning summary reads as running text under a small header, like the agent's own words,
+// not as a tool call to open.
 function Reasoning({ part, streaming }: Readonly<{ part: ReasoningPart; streaming: boolean }>) {
   const text = reasoningText(part)
   if (!text && !streaming) return null
-  return <ToolCall status={streaming ? 'running' : 'idle'}>
-    <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={Brain} label={streaming ? 'Pensando' : 'Raciocínio'} disclosure={Boolean(text)} />
-    </ToolCallTrigger>
-    {text && <ToolCallContent><MarkdownRenderer streaming={streaming}>{text}</MarkdownRenderer></ToolCallContent>}
-  </ToolCall>
+  return <section className="cx-reasoning" aria-label="Raciocínio do agente">
+    <p className="cx-reasoning-head"><Brain size={13} aria-hidden="true" />{streaming ? 'Pensando' : 'Raciocínio'}</p>
+    {text && <MarkdownRenderer streaming={streaming}>{text}</MarkdownRenderer>}
+  </section>
 }
 
 const userText = (message: MastraDBMessage): string =>

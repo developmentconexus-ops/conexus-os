@@ -1218,6 +1218,20 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
+test('a reasoning summary reads as running text under a small header, outside any tool disclosure', async (t) => {
+  const reasoning = { type: 'reasoning', reasoning: 'Vou ler o arquivo antes de mudar.', details: [{ type: 'text', text: 'Vou ler o arquivo antes de mudar.' }] }
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('live-reasoning-1', 'Certo.') },
+    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoning } },
+    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 2, part: { type: 'text', text: 'Pronto.' } } },
+  ])
+  const block = page.locator('.cx-messages .cx-reasoning')
+  await block.waitFor()
+  assert.equal(await block.locator('.cx-reasoning-head').textContent(), 'Raciocínio')
+  assert.equal(await block.getByText('Vou ler o arquivo antes de mudar.', { exact: true }).isVisible(), true, 'the text is on screen without opening anything')
+  assert.equal(await block.evaluate((node) => node.closest('details, [data-state]') === null && node.querySelector('button') === null), true, 'it is not wrapped in a disclosure')
+})
+
 // @mastra/core 1.71 announces a text span that opens after a tool call as its own empty part before
 // any delta for it, so the delta lands in that new part, after the tool.
 test('text streamed after a tool call renders after it, not appended to the text before it', async (t) => {
@@ -1352,6 +1366,9 @@ test('a plan the agent submits is sent back with feedback from its card, on the 
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText('Agenda semanal', { exact: true }).waitFor()
+  const planCard = page.getByRole('region', { name: 'Plano para aprovar' })
+  assert.equal(await planCard.locator('details[open] pre').textContent(), '1. Tela da semana', 'the whole plan is open on the card')
+  assert.equal(await planCard.evaluate((card) => card.querySelector('pre').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
   const askChanges = page.getByRole('button', { name: 'Pedir ajustes' })
   assert.equal(await askChanges.isDisabled(), true, 'feedback is required to send a plan back')
   await page.getByLabel('O que mudar no plano').fill('Inclua os fins de semana')
