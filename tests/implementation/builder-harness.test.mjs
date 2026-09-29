@@ -196,31 +196,42 @@ test('the Builder finds conexus-server, conexus-app-ui and conexus-app-code thro
 
 test('the model sees each skill by name and never a path on the Hub host, and reads a skill reference through skill_read', async (t) => {
   const systemTexts = []
+  const toolCalls = [
+    { toolCallId: 's1', toolName: 'skill', input: { name: 'conexus-app-code' } },
+    { toolCallId: 's2', toolName: 'skill_read', input: { skillName: 'conexus-app-code', path: 'references/ticket-form.tsx' } },
+  ]
   const model = {
     specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
     async doGenerate() { throw new Error('doGenerate not used') },
     async doStream(options) {
+      const step = systemTexts.length
       systemTexts.push(options.prompt.filter((message) => message.role === 'system').map((message) => message.content).join('\n'))
-      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]) }
+      const call = toolCalls[step]
+      const parts = call
+        ? [{ type: 'tool-call', toolCallId: call.toolCallId, toolName: call.toolName, input: JSON.stringify(call.input) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
     },
   }
   const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills') })
   await controller.init()
   t.after(() => controller.destroy?.())
   const session = await controller.createSession({ resourceId: 'project:probe-skill-path', scope: 'probe-skill-path' })
+  const toolResults = {}
+  session.subscribe((event) => {
+    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
+    if (event.type === 'tool_end') toolResults[event.toolCallId] = String(event.result)
+  })
   await session.sendMessage({ content: 'oi' })
-  for (let waited = 0; systemTexts.length < 1 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
+  for (let waited = 0; systemTexts.length < 3 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
 
   const catalog = systemTexts[0].match(/<available_skills>[\s\S]*<\/available_skills>/)?.[0] ?? ''
   assert.deepEqual([...catalog.matchAll(/<location>(.*?)<\/location>/g)].map((match) => match[1]), ['conexus-app-code', 'conexus-app-ui', 'conexus-server'], 'each skill is located by its name')
+  assert.equal(systemTexts[0].split('<available_skills>').length - 1, 1, 'the catalog is injected once')
   assert.equal(systemTexts[0].includes(repositoryRoot), false, 'the system prompt carries no Hub host path')
-
-  const tools = await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() })
-  const activation = String(await tools.skill.execute({ name: 'conexus-app-code' }, { requestContext: new RequestContext() }))
-  assert.equal(activation.includes(repositoryRoot), false, 'the skill tool result carries no Hub host path')
-  assert.match(activation, /- references\/ticket-form\.tsx/, 'the activation lists the references relative to the skill')
-  const reference = String(await tools.skill_read.execute({ skillName: 'conexus-app-code', path: 'references/ticket-form.tsx' }, { requestContext: new RequestContext() }))
-  assert.equal(reference, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/ticket-form.tsx'), 'utf8'), 'skill_read returns the reference file')
+  assert.equal(toolResults.s1.includes(repositoryRoot), false, 'the skill tool result carries no Hub host path')
+  assert.match(toolResults.s1, /- references\/ticket-form\.tsx/, 'the activation lists the references relative to the skill')
+  assert.equal(toolResults.s2, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/ticket-form.tsx'), 'utf8'), 'skill_read returns the reference file')
 })
 
 // A scripted turn: ask_user (suspends) -> resume "azul" -> execute_command (must be refused: still

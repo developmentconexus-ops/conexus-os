@@ -2,7 +2,8 @@ import { resolve } from 'node:path'
 import { AgentController } from '@mastra/core/agent-controller'
 import { createCodingAgent } from '@mastra/core/coding-agent'
 import { isMastraTimeoutError } from '@mastra/core/loop'
-import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, StreamErrorRetryProcessor } from '@mastra/core/processors'
+import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, SkillsProcessor, StreamErrorRetryProcessor } from '@mastra/core/processors'
+import { resolveAgentSkills } from '@mastra/core/skills'
 import type { ToolsInput } from '@mastra/core/agent'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { MastraMemory } from '@mastra/core/memory'
@@ -197,6 +198,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
   const modes = deps.modes ?? BUILDER_MODES
   const repositoryRoot = deps.repositoryRoot ?? DEFAULT_REPOSITORY_ROOT
 
+  const skillsRoot = deps.skillsPath ?? defaultBuilderSkillsRoot()
+
   const agent = createCodingAgent({
     id: 'conexus-builder',
     name: 'Conexus Builder',
@@ -208,7 +211,9 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
       ...(await webSearchFor(deps.model, ctx)),
       web_fetch: webFetchTool,
     }),
-    skills: [deps.skillsPath ?? defaultBuilderSkillsRoot()],
+    skills: [skillsRoot],
+    // The default catalog names each skill by its path on the Hub host, which the workspace tools (E2B) cannot read. Name it by skill instead; `skill` and `skill_read` resolve that name.
+    inputProcessors: [new SkillsProcessor({ skills: resolveAgentSkills([skillsRoot]), formatLocation: (skill) => skill.name })],
     ...(deps.memory ? { memory: deps.memory } : {}),
     workspace: undefined,
     errorProcessors: builderErrorProcessors(),
