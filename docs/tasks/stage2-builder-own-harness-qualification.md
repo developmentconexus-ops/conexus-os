@@ -35,8 +35,8 @@ rationale without copying it. Citations use these short forms, with line numbers
 
 ```text
 C-020 the Builder's ordinary coding path; Mastra owns the harness mechanics
-+ C-022, C-025, C-027 model accounts and the Factory (C-032 would supersede or amend them)
-+ C-028 managed application platform; the first profile is REACT_VITE_V1
++ C-022, C-025, C-027 model accounts and the Factory (C-032 supersedes C-022 and C-025 and amends C-027)
++ C-028 managed application platform (C-033 amends its generated-application profile)
 + C-030 one integrator per external system; connector_fetch
 + the Q4 task amendment of 2026-09-28, closure items 4 and 5
 + the Builder proof rule and the technology rule (docs/development/delivery.md)
@@ -49,9 +49,9 @@ evidence + verdict (docs/evidence/builder-own-harness/README.md)
 C-032, C-033 and the roadmap's Technology baseline
 ```
 
-Repository authority beats this task when they conflict. The proposed decisions C-032 and C-033 in
-the [register](../decisions/index.md#proposed-pending-the-operator) take effect only when the
-operator accepts them.
+Repository authority beats this task when they conflict. The operator accepted C-032 and C-033 on
+2026-09-29. The [decision register](../decisions/index.md#decided-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033)
+records both decisions as current.
 
 ## 2. Protected claim
 
@@ -142,7 +142,7 @@ shows it. "Partly" names the missing piece. "Not proven" means a live proof that
 
 | AC | Criterion | State | Evidence, or what is missing |
 | --- | --- | --- | --- |
-| AC-1 | The text Conexus authors for the model names no "Mastra Code" and no git, pull request, `gh` or package guidance. A script prints the model's real input (`0002:37-41`) | partly | Banned terms absent in both modes: `builder-harness:76`, `builder-harness:141`. The script is missing (`S21:31`) |
+| AC-1 | The text Conexus authors for the model names no "Mastra Code" and no git, pull request, `gh` or package guidance. A script prints the model's real input (`0002:37-41`) | met | `scripts/builder-model-input.mjs:1-9` prints the model input; `tests/implementation/builder-model-input.test.mjs:41-60` checks both modes and the printed tool lists |
 | AC-2 | Exactly two modes, stored only in the thread settings. A new conversation starts in Planejar (`0002:42-44`) | met | `apps/hub/src/builder/harness/modes.ts:66-89`, `builder-session-routes:339` |
 | AC-3 | Planejar runs no command, writes only under `.conexus/plans/`, and ends with `submit_plan` (`0002:45-47`) | met | `builder-harness:254`, `builder-harness:310`, `builder-run-runtime:558` |
 | AC-4 | An approved plan continues the same run in Construir. A rejected plan stays in Planejar. A run settles by what it changed (`0002:48-50`) | met | `builder-harness:510`, `builder-run-runtime:547`, `builder-run-recovery-postgres:134` |
@@ -167,12 +167,12 @@ shows it. "Partly" names the missing piece. "Not proven" means a live proof that
 | AC-23 | Three installation defaults, the model router catalog, a per-conversation pick, and the connect-a-model message (`0002:120-123`) | partly | `builder-openai-codex:272`, `model-account-postgres:165`, `builder-session-routes:174`. No route or screen for the defaults |
 | AC-24 | `@mastra/factory`, `@mastra/code-sdk`, the `factory` schema, the `hub_factory` role, the GitHub App code and model packs are gone (`0002:126-129`) | not built | `package.json` still lists both packages. `/settings/installation/github` is still routed (`apps/hub/src/http/app.ts:120`) |
 | AC-25 | Every copied file carries the Apache 2.0 notice and names its source and version (`0002:130-131`) | partly | Notices in `apps/hub/src/builder/openai-codex/model.ts:1-11` and the other copied files. Complete when AC-24 finishes the copy list |
-| AC-26 | C-032 is recorded, superseding C-022 and C-025 and amending C-027 (`0002:132-133`) | proposed | Drafted in the [register](../decisions/index.md#proposed-pending-the-operator) as PROPOSED. Accepted only by the operator |
+| AC-26 | C-032 is recorded, superseding C-022 and C-025 and amending C-027 (`0002:132-133`) | met | The operator accepted C-032 on 2026-09-29. The [register](../decisions/index.md#decided-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033) records it as current |
 | AC-27 | The eval passes `todo-reload`, `erp/sankhya-not-connected` and `erp/sales-dashboard`, one run each and one rerun per failed case (`0002:136-141`) | not proven | Declared in section 6. `erp/sales-dashboard` is blocked (section 7, limit 1) |
 | AC-28 | Driving Chromium as a person: create a Project, ask for an app, approve the plan, see the app in the Preview (`0002:142-143`) | not proven | Declared in section 6. The run is in progress |
 | AC-29 | An app built by the new Builder reads the pilot's Sankhya and shows the data in the Preview, values masked (`0002:144-145`) | not proven | The branch Hub has no gateway origin and no Connection (`S21:59`) |
-| AC-30 | The operator reads the model input the AC-1 script prints, for both modes, and his yes is recorded in the pull request (`0002:146-147`) | not proven | Needs the AC-1 script, then the operator |
-| AC-31 | A backup of the Conexus Git folder with the database dump exists, and one restore was tested, before the switch (`0002:148-149`) | not proven | Nothing written at the census head |
+| AC-30 | The operator reads the model input the AC-1 script prints, for both modes, and his yes is recorded in the pull request (`0002:146-147`) | not proven | The operator's reading of both printed inputs and his yes are not recorded in the pull request |
+| AC-31 | A backup of the Conexus Git folder with the database dump exists, and one restore was tested, before the switch (`0002:148-149`) | partly | `scripts/conexus-backup.sh:8,32-76` and `scripts/conexus-restore-check.sh:8,22-67` exist. A branch-environment rehearsal passed with `PASS tables=72 repositories=3`; the pilot backup has not been taken |
 
 ### Spec 0003: the app stack v2
 
@@ -240,7 +240,7 @@ screenshots with every business value masked, and the `CheckReport`s go to the
 7. **Waiting for the operator:** the Sankhya credential on the branch Hub (AC-29), the pass rule for
    `erp/sales-dashboard`, his reading of the model input (AC-30), the search provider and its key
    (AC-11), the Claude subscription sign-in (AC-20), the drop of the `factory` schema on the branch
-   database (AC-24), and C-032 and C-033 (`S21:183-199`).
+   database (AC-24) (`S21:183-199`). C-032 and C-033 were accepted on 2026-09-29.
 8. **Packaging.** No issue covers this work, and the pull request must link one
    ([Git and pull requests](../development/delivery.md#git-and-pull-requests); `S21:112`).
 
@@ -256,12 +256,12 @@ screenshots with every business value masked, and the `CheckReport`s go to the
 
 ## 9. Owner reconciliation
 
-After the verdict:
+The operator accepted and recorded the decisions on 2026-09-29. The implementation follow-ups
+remain after the verdict:
 
-- `docs/decisions/index.md`: C-032 and C-033 move from proposed to in force. C-022 and C-025 leave
-  the table, and C-027 records its amendment.
-- `docs/roadmap.md`: the Technology baseline rows for the stack v2 and the ChatGPT model path move
-  from pending to accepted.
+- Done on 2026-09-29: `docs/decisions/index.md` records C-032 and C-033 as current, removes C-022
+  and C-025 from the in-force table, and records the C-027 and C-028 amendments.
+- Done on 2026-09-29: `docs/roadmap.md` records the stack v2 and ChatGPT model path as accepted.
 - The documents that state C-022 as current, as slice 7 of spec 0002 requires (`0002:376-380`).
 - `docs/reference/builder-c020-mastra-native.md`, which names the REACT_VITE_V1 profile at line 184.
 - The Q4 task's closure item 4, which says "a real Factory session" (`S21:92`).

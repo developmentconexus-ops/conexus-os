@@ -3,7 +3,7 @@
 **Verdict:** pending. No declared run has been recorded here yet.
 
 Task: [Builder own harness qualification](../../tasks/stage2-builder-own-harness-qualification.md).
-Proposed decisions: [C-032 and C-033](../../decisions/index.md#proposed-pending-the-operator).
+Current decisions: [C-032 and C-033](../../decisions/index.md#decided-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033).
 
 Record every business value masked. A screenshot shows no Sankhya value, no credential and no token.
 A result names field names, counts, durations and digests, never a value.

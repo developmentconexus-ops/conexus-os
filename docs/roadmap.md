@@ -49,7 +49,7 @@ Current delivered base includes:
 - compile, smoke and Preview;
 - source/code/change inspection surfaces.
 
-C-022 owns the Factory-centered boundary. The single-owner map owns every concept shared by Conexus and Factory.
+C-032 supersedes the former Factory-centered boundary in C-022. The single-owner map owns every concept shared by Conexus and Factory.
 
 Historical tasks and evidence remain records. They are not current execution paths.
 
@@ -112,12 +112,10 @@ Current baseline and challenger state:
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
 
-### Pending: the app stack v2 and the ChatGPT model path
+### Accepted under C-033 and C-032
 
-These dependencies enter on the branch `feat/builder-own-harness`. They join the baseline when the
-operator accepts [C-033](decisions/index.md#proposed-pending-the-operator) (the app stack) and C-032
-(the ChatGPT model path), after the
-[Builder own harness qualification](tasks/stage2-builder-own-harness-qualification.md). The sources
+The operator accepted the app stack under C-033 and the ChatGPT model path under C-032 on 2026-09-29. The records
+below retain the sources, consumers, limits, probes and alternatives from the qualification. The sources
 are study 17 (the app stack decision and its probe app, in the operator's study notes) and spec 0003
 (`App stack`). Each row's alternative comes from study 17, section 2.2 (lines 87-100), and its CSP
 and size measurements from section 2.3 (lines 114-125). Probes are tests in `tests/implementation/`,
