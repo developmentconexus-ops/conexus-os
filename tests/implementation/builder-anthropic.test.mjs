@@ -169,9 +169,9 @@ test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with
   const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
   assert.deepEqual(await offered(), [])
   const claude = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'Claude Opus 5.5', hasApiKey: true },
-    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'Claude Sonnet 5', hasApiKey: true },
-    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'Claude Haiku 4.5', hasApiKey: true },
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', hasApiKey: true },
+    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', hasApiKey: true },
+    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', hasApiKey: true },
   ]
   await putKey(app, fakeKey)
   assert.deepEqual(await offered(), claude)
@@ -188,7 +188,7 @@ test('every offered Claude model is in the model router catalog', async () => {
   const { getProviderConfig } = await import('@mastra/core/llm')
   const catalog = getProviderConfig('anthropic').models
   const { ANTHROPIC_MODELS } = await import(built('builder/anthropic/credential.js'))
-  assert.deepEqual(ANTHROPIC_MODELS.map(({ model }) => catalog.includes(model)), [true, true, true])
+  assert.deepEqual(ANTHROPIC_MODELS.map((model) => catalog.includes(model)), [true, true, true])
   assert.equal(catalog.includes('claude-sonnet-5-5'), false, 'Sonnet 5.5 is not in the catalog, so it is not offered')
 })
 
