@@ -86,6 +86,7 @@
 .cx-chat { flex: 1; height: 100%; border-left: 1px solid var(--cx-line); --chat-surface: var(--cx-surface); --chat-column: 44rem; }
 .cx-chat-head { display: flex; align-items: center; gap: .6rem; min-height: 3.5rem; padding: .4rem .5rem .4rem .5rem; border-bottom: 1px solid var(--cx-line); }
 .cx-conversation-switch { flex: 1; min-width: 0; max-width: 100%; font-weight: 600; }
+.cx-chat-head > div:has(> .cx-conversation-switch) { flex: 1; min-width: 0; }
 .cx-messages { gap: 1rem; padding-block: 1rem; }
 .cx-messages .builder-turn { display: grid; gap: .6rem; min-width: 0; font-size: .9375rem; line-height: 1.55; overflow-wrap: anywhere; }
 .cx-messages .builder-turn-user-row { display: grid; justify-items: end; gap: .2rem; }
