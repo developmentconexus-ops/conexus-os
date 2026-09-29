@@ -265,3 +265,24 @@ test('the server half is built from the checkout and read back as the runner tak
   write({ 'conexus/manifest.json': JSON.stringify(SOURCE_MANIFEST) })
   assert.deepEqual(await build(), { ok: false, detail: 'conexus/handlers/lines.ts does not exist' })
 })
+
+test('calls made together build and run one at a time, since every build writes the same folder', async (t) => {
+  const runner = fakeRunner(t)
+  let building = 0
+  const overlaps = []
+  const runOperation = createOperationRunner({
+    projectId: PROJECT, caller: CALLER,
+    buildServer: async () => {
+      building += 1
+      overlaps.push(building)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      building -= 1
+      return { ok: true, files: BUILT }
+    },
+    openConnectorPort: async () => null,
+    invoke: runner.invoke,
+  })
+  const reports = await Promise.all([runOperation({ operation: 'orderLines', input: {} }), runOperation({ operation: 'throwsWithValue', input: {} })])
+  assert.deepEqual(overlaps, [1, 1])
+  assert.deepEqual(reports.map((report) => [report.operation, report.ok]), [['orderLines', true], ['throwsWithValue', false]])
+})

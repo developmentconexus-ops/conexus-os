@@ -163,13 +163,22 @@ const MANIFEST_PATH = 'conexus-server/manifest.json'
 /**
  * Runs one operation of the candidate the way the Prévia would, before admission: the server half
  * built from the checkout, the Prévia's runner, a connector port on the run's scope. It answers with
- * the shape of the result only.
+ * the shape of the result only. Calls run one at a time, since every build writes the same folder.
  */
-export const createOperationRunner = (ports: CandidateOperationPorts): RunOperation => async ({ operation, input }) => {
+export const createOperationRunner = (ports: CandidateOperationPorts): RunOperation => {
+  let previous: Promise<unknown> = Promise.resolve()
+  return (request) => {
+    const current = previous.then(() => runOnce(ports, request))
+    previous = current.catch(() => undefined)
+    return current
+  }
+}
+
+const runOnce = async (ports: CandidateOperationPorts, { operation, input }: Parameters<RunOperation>[0]): Promise<OperationRunReport> => {
   const built = await ports.buildServer()
   if (!built.ok) return refused(operation, 'SERVER_BUILD_FAILED', built.detail)
   const manifestFile = built.files.find((file) => file.path === MANIFEST_PATH)
-  if (!manifestFile) return refused(operation, 'SERVER_HALF_MISSING', 'conexus/manifest.json declares no operation')
+  if (!manifestFile) return refused(operation, 'SERVER_HALF_MISSING', 'the checkout has no conexus/manifest.json')
   const manifest = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server') as ServerManifest
   const declared = Object.hasOwn(manifest.operations, operation) ? manifest.operations[operation] : undefined
   if (!declared) return refused(operation, 'OPERATION_NOT_FOUND', `declared: ${Object.keys(manifest.operations).join(', ')}`)
