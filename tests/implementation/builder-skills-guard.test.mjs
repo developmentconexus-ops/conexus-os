@@ -10,27 +10,32 @@ mkdirSync(cacheRoot, { recursive: true })
 
 const { assertBuilderSkillsAvailable } = await import(hubModuleUrl('builder/skills-guard.js'))
 
-test('starts when the skill folder carries the conexus-server guide', () => {
+test('starts when the skills folder carries the three builder skills', () => {
   const root = mkdtempSync(resolve(cacheRoot, 'builder-skills-present-'))
   try {
-    writeFileSync(join(root, 'SKILL.md'), '---\nname: conexus-server\n---\nguide\n')
+    for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code']) {
+      mkdirSync(join(root, name))
+      writeFileSync(join(root, name, 'SKILL.md'), `---\nname: ${name}\n---\nguide\n`)
+    }
     assert.doesNotThrow(() => assertBuilderSkillsAvailable(root))
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('refuses to start when the skill folder lacks the guide', () => {
+test('refuses to start when the skills folder lacks a builder skill, and names it', () => {
   const root = mkdtempSync(resolve(cacheRoot, 'builder-skills-empty-'))
   try {
-    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: /)
+    mkdirSync(join(root, 'conexus-server'))
+    writeFileSync(join(root, 'conexus-server', 'SKILL.md'), '---\nname: conexus-server\n---\nguide\n')
+    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app-ui, conexus-app-code; /)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('the repository ships builder-skills/conexus-server/SKILL.md where the Hub looks for it', () => {
-  assert.doesNotThrow(() => assertBuilderSkillsAvailable(resolve(repositoryRoot, 'builder-skills', 'conexus-server')))
+test('the repository ships the three builder skills where the Hub looks for them', () => {
+  assert.doesNotThrow(() => assertBuilderSkillsAvailable(resolve(repositoryRoot, 'builder-skills')))
 })
 
 const skillText = (name) => readFileSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md'), 'utf8')

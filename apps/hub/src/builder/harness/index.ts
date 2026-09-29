@@ -8,4 +8,4 @@ export {
   CONEXUS_PROJECT_KNOWLEDGE_KEY,
   readModeId,
 } from './request-context.js'
-export { createBuilderController, defaultBuilderSkillsRoot } from './controller.js'
+export { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } from './controller.js'

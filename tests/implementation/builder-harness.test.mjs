@@ -54,7 +54,7 @@ test('AC-8: conexus_check returns the run check report in Construir and refuses 
 
 test('AC-8: the controller offers conexus_check only to a turn whose run has a check', async () => {
   const controller = createBuilderController({
-    model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
     runCheck: ({ requestContext }) => (requestContext.getRaw('conexusBuilderRunId') === 'r1' ? async () => PASSING : undefined),
   })
   const session = await controller.createSession({ resourceId: 'project:probe-check', scope: 'probe-check' })
@@ -93,8 +93,15 @@ test('AC-1: conexusInstructions carries the mode text and none of the banned ter
   assert.equal(bareText.includes('Project knowledge'), false)
 })
 
-test('the real builder-skills/conexus-server path resolves from the repository root', () => {
-  assert.equal(defaultBuilderSkillsRoot(repositoryRoot), resolve(repositoryRoot, 'builder-skills', 'conexus-server'))
+test('the real builder-skills path resolves from the repository root', () => {
+  assert.equal(defaultBuilderSkillsRoot('/repo'), '/repo/builder-skills')
+})
+
+test('the Builder finds conexus-server, conexus-app-ui and conexus-app-code through its skill listing', async () => {
+  const controller = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore() })
+  const agent = controller.getCurrentAgent(await controller.createSession({ resourceId: 'project:probe-skills', scope: 'probe-skills' }))
+  const skills = await agent.listSkills({ requestContext: new RequestContext() })
+  assert.deepEqual(skills.map((skill) => skill.name).sort(), ['conexus-app-code', 'conexus-app-ui', 'conexus-server'])
 })
 
 // A scripted turn: ask_user (suspends) -> resume "azul" -> execute_command (must be refused: still
@@ -139,7 +146,7 @@ test('the guard refuses a plan-mode command after an ask_user resume, and build 
 
   const controller = createBuilderController({
     workspace, model, storage: new InMemoryStore(),
-    skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -206,7 +213,7 @@ test('AC-3: a plan-mode write outside .conexus/plans/ is refused; a write inside
   })
   const controller = createBuilderController({
     workspace, model, storage: new InMemoryStore(),
-    skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -321,7 +328,7 @@ test('a submit_plan refused outside Planejar never suspends, so answering it as 
     },
   }
   const workspace = new Workspace({ id: 'resume-test-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const controller = createBuilderController({ workspace, model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const controller = createBuilderController({ workspace, model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills') })
   await controller.init()
   t.after(() => controller.destroy?.())
   const session = await controller.createSession({ resourceId: 'project:probe-resume', scope: 'probe-resume' })
@@ -381,7 +388,7 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
   const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }
   const controller = createBuilderController({
     model: scriptedModel().model, storage: new InMemoryStore(), connectorFetch: createConnectorFetchTools(broker),
-    skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   const session = await controller.createSession({ resourceId: 'project:probe-connector', scope: 'probe-connector' })
   const agent = controller.getCurrentAgent(session)
@@ -408,7 +415,7 @@ test("a run's turn lasts through the person's answer and the plan approval, on t
   const storage = new InMemoryStore()
   const controller = createBuilderController({
     workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
-    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -465,7 +472,7 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
   const storage = new InMemoryStore()
   const controller = createBuilderController({
     workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
-    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -538,7 +545,7 @@ test('a model switched while the plan card waits is the model the build runs on'
   const storage = new InMemoryStore()
   const controller = createBuilderController({
     workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
-    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -606,7 +613,7 @@ test("the conversation's mode follows a plan approval, once the run closes (item
   const storage = new InMemoryStore()
   const controller = createBuilderController({
     workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
-    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())

@@ -15,8 +15,11 @@ import { webFetchTool, webSearchTool } from '@mastra/core/tools'
 import { CHECK_TOOL, createCheckTool, createSubmitPlanTool } from './tools.js'
 import type { CheckReport } from '../application-check.js'
 
-/** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). */
-export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills', 'conexus-server')
+/** The skills the Builder loads, one folder each under the skills root. */
+export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app-ui', 'conexus-app-code'] as const
+
+/** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). Mastra scans each subfolder holding a SKILL.md. */
+export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills')
 
 /**
  * The provider ids Mastra's built-in `webSearchTool` can resolve to a native provider search
@@ -72,7 +75,7 @@ export type BuilderControllerDeps = Readonly<{
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
   /** The run's check, through its sandbox, for `conexus_check`; absent for a turn with no run behind it, which then has no such tool. */
   runCheck?: (ctx: { requestContext: RequestContext }) => (() => Promise<CheckReport>) | undefined
-  /** Absolute path to the `conexus-server` agent skill. Defaults to the Hub's own `builder-skills/conexus-server`. */
+  /** Absolute path to a folder of agent skills, one subfolder per skill. Defaults to the Hub's own `builder-skills/`. */
   skillsPath?: string
   /** Where the run's checkout sits; the mode guard reads every tool path against it. Defaults to `/workspace/repo`. */
   repositoryRoot?: string

@@ -41,7 +41,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
-  const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills/conexus-server') })
+  const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
