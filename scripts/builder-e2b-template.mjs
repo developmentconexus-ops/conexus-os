@@ -12,7 +12,15 @@ export const BUILDER_TEMPLATE_MEMORY_MB = 2_048
 export const BUILDER_TEMPLATE_AGENT_USER = 'conexus-agent'
 
 export const BUILDER_TEMPLATE_COMPILER_ROOT = '/opt/conexus/compiler'
-export const BUILDER_TEMPLATE_COMPILER_FILES = Object.freeze(['package.json', 'package-lock.json', 'vite.config.mjs'])
+export const BUILDER_TEMPLATE_COMPILER_FILES = Object.freeze([
+  'package.json',
+  'package-lock.json',
+  'vite.config.mjs',
+  'allowlist.mjs',
+  'tsconfig.mjs',
+  'tsconfig.json',
+  'tsconfig.server.json',
+])
 const HEREDOC = 'CONEXUS_TEMPLATE_EOF'
 
 const compilerRecipeFile = (name) =>
@@ -46,6 +54,9 @@ export const createBuilderTemplate = (Template) => {
       `cd ${BUILDER_TEMPLATE_COMPILER_ROOT}`,
       'npm ci --no-audit --no-fund',
       'npm cache clean --force',
+      // The install becomes full_modules; node_modules is then the allowlist's view of it.
+      'mv node_modules full_modules',
+      'node allowlist.mjs link .',
     ].join(' && '))
     // Commands and file writes run as this user unless one names root. The Hub runs its
     // token-bearing git as root, where nothing this user leaves running can read its environment.
@@ -59,7 +70,8 @@ export const createBuilderTemplate = (Template) => {
       `test "$(node --version)" = "v${BUILDER_TEMPLATE_NODE_VERSION}"`,
       'git --version',
       `test -f ${BUILDER_TEMPLATE_COMPILER_ROOT}/vite.config.mjs`,
-      `test -x ${BUILDER_TEMPLATE_COMPILER_ROOT}/node_modules/.bin/vite`,
+      `test -f ${BUILDER_TEMPLATE_COMPILER_ROOT}/node_modules/vite/bin/vite.js`,
+      `test ! -e ${BUILDER_TEMPLATE_COMPILER_ROOT}/node_modules/immer`,
       'command -v chromium',
       'test "$(pwd)" = "/workspace"',
     ].join(' && '))
