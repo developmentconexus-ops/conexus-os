@@ -320,6 +320,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // Read when a run starts, long after the conversations below exist.
     modelOf: (projectId, conversationId, mode) => conversations.modelOf(projectId, conversationId, mode),
     readDefault,
+    record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
   })
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
@@ -353,7 +354,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       await ready
       return openSession(input)
     },
-    holdModelAccount: modelRouting.hold,
+    checkModel: modelRouting.check,
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
     log,

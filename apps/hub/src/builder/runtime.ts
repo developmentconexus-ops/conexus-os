@@ -39,7 +39,14 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderRunId',
 ])
 
-const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | null => {
+const NO_MODEL_ACCOUNT = 'BUILDER_MODEL_NOT_SELECTED'
+
+// The resolver throws this when the model being called has no account; Mastra may wrap the throw.
+const namesNoModelAccount = (error: unknown): boolean =>
+  error instanceof Error && (error.message === NO_MODEL_ACCOUNT || namesNoModelAccount(error.cause))
+
+const modelFailure = (error: unknown): 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | typeof NO_MODEL_ACCOUNT | null => {
+  if (namesNoModelAccount(error)) return NO_MODEL_ACCOUNT
   const { type } = parseError(error)
   if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
   if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'

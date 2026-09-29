@@ -26,7 +26,7 @@ export const parseCodexTokens = (secret: string): CodexTokens => {
 }
 
 export type CodexHolds = Readonly<{
-  /** The bearer a run's model calls use, starting from the tokens the run read when it took the row. */
+  /** The bearer one model call uses, starting from the tokens that call read from the row. */
   hold(modelAccountId: string, tokens: CodexTokens): CodexBearer
 }>
 

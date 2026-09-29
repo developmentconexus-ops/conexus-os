@@ -134,7 +134,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           if (phase === 'AGENT') unadmittedAgentRun = claimed
         },
         bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
-        bindModelAccount: (modelAccountId: string) => store.recordBuilderRunModelAccount(claimed.builderRunId, modelAccountId),
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
         recordCandidate: async (sourceRevision: string) => {
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
