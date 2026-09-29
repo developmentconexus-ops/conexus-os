@@ -84,6 +84,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const rootInvocations = []
   const builtFrom = []
   const admissionChecks = []
+  const agentChecks = []
   const destroyed = []
   // What the run put in its session's request context.
   const sessionContext = new Map()
@@ -119,7 +120,11 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       if (line.startsWith('sh -c kill -KILL -1')) return { exitCode: 0, success: true, stdout: '', stderr: '' }
       return shell(command, args.map(local), local(options.cwd ?? '/workspace'))
     },
-    runCheck: async ({ root, out, collect }) => {
+    runCheck: async ({ root, out, collect, user }) => {
+      if (user === 'agent') {
+        agentChecks.push({ root, out, collect })
+        return { report: PASSING_REPORT, files: null }
+      }
       if (!collect) {
         events.push('admission-check')
         admissionChecks.push({ root, out, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8') })
@@ -148,7 +153,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       return {
         sendTurn: async (_content, signal) => {
           events.push('turn')
-          if (turn) return turn({ signal, sandbox, checkout })
+          if (turn) return turn({ signal, sandbox, checkout, runCheck: input.runCheck })
           writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
           return completed()
         },
@@ -231,7 +236,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
+  return { agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -248,6 +253,15 @@ test('a run commits the checkout as one commit on its base and fast forwards mai
   assert.deepEqual(await run.service.compareSourceRevisions({ accountId, projectId, baseSourceRevision: run.base, resultSourceRevision: result }), {
     baseSourceRevision: run.base, resultSourceRevision: result, files: [{ path: 'app/index.html', status: 'MODIFIED', previousPath: null }],
   })
+})
+
+test("the session's check tool runs the Hub's check on the checkout as the agent user, never on the admission path", async (t) => {
+  let report
+  const run = await harness(t, { turn: async ({ runCheck }) => { report = await runCheck(); return completed('Feito.') } })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.agentChecks, [{ root: '/workspace/repo', out: '/tmp/conexus-agent-check', collect: false }])
+  assert.deepEqual(report, PASSING_REPORT)
 })
 
 test('a turn that changed nothing settles as a response and leaves main at the base', async (t) => {

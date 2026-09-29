@@ -12,6 +12,10 @@ builds the app, builds the server half and opens the app in a browser. A result 
 check, the build or the server build is refused and none of it is applied, so keep the code
 type correct and the manifest valid. The Project has no check script of its own; do not create one.
 
+After your last edit, call `conexus_check` and fix what a failed step lists. Do not finish while a
+blocking step (`generate`, `typecheck`, `build` or `server`) fails. Report what ran as counts, for
+example "4 of 5 steps passed", never as "validado".
+
 Before you finish, update `AGENTS.md` at the repository root with what this run actually confirmed:
 the Project's structure, its data sources, and decisions you made and why. Write only facts you
 confirmed in this run, not guesses, and keep the whole file under 8 KB; a longer file is truncated

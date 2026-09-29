@@ -1,5 +1,7 @@
 import { submitPlanTool } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
+import { createTool } from '@mastra/core/tools'
+import { checkReportSchema, type CheckReport } from '../application-check.js'
 import { DEFAULT_REPOSITORY_ROOT, isUnderWriteRoot } from './guard.js'
 import { BUILDER_MODES, PLAN_WRITE_ROOT, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { readModeId } from './request-context.js'
@@ -39,3 +41,26 @@ export const createSubmitPlanTool = (
   },
 })
 
+
+export const CHECK_TOOL = 'conexus_check'
+
+const CHECK_DESCRIPTION = [
+  "Runs Conexus's own check on the app in the checkout: it generates the client from the manifest, type checks `app/` and `conexus/`, builds the app, builds the server half and opens the app in a browser.",
+  'Takes no input and returns one report: `ok`, each step as passed, failed (with its problems: file, line, message) or skipped, and counts.',
+  'Call it after your last edit and fix what a failed step lists before you finish.',
+].join(' ')
+
+/** `conexus_check`: the run's check, run as the agent's user through the run's sandbox. Construir only. */
+export const createCheckTool = (
+  runCheck: () => Promise<CheckReport>,
+  modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>> = BUILDER_MODES,
+) => createTool({
+  id: CHECK_TOOL,
+  description: CHECK_DESCRIPTION,
+  outputSchema: checkReportSchema,
+  execute: async (_input, context) => {
+    const modeId = readModeId(context?.requestContext)
+    if (!modeId || !modes[modeId].availableTools.has(CHECK_TOOL)) throw new Error(`${CHECK_TOOL} is only available in ${modes.build.displayName}.`)
+    return runCheck()
+  },
+})

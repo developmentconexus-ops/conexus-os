@@ -12,7 +12,8 @@ import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
-import { createSubmitPlanTool } from './tools.js'
+import { CHECK_TOOL, createCheckTool, createSubmitPlanTool } from './tools.js'
+import type { CheckReport } from '../application-check.js'
 
 /** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). */
 export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills', 'conexus-server')
@@ -57,6 +58,9 @@ const hasNativeWebSearch = async (
   return providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)
 }
 
+const checkTools = (runCheck: (() => Promise<CheckReport>) | undefined, modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>): ToolsInput =>
+  runCheck ? { [CHECK_TOOL]: createCheckTool(runCheck, modes) } : {}
+
 export type BuilderControllerDeps = Readonly<{
   /** One E2B workspace per run, seeded from `main`; a resolver so a fresh one can be supplied per session (Shape of the harness). Tests pass a static local one. */
   workspace: DynamicArgument<Workspace | undefined>
@@ -66,6 +70,8 @@ export type BuilderControllerDeps = Readonly<{
   memory?: DynamicArgument<MastraMemory>
   /** Contributes `connector_fetch` for the current request context (Q-5); absent when the caller has none to offer. */
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
+  /** The run's check, through its sandbox, for `conexus_check`; absent for a turn with no run behind it, which then has no such tool. */
+  runCheck?: (ctx: { requestContext: RequestContext }) => (() => Promise<CheckReport>) | undefined
   /** Absolute path to the `conexus-server` agent skill. Defaults to the Hub's own `builder-skills/conexus-server`. */
   skillsPath?: string
   /** Where the run's checkout sits; the mode guard reads every tool path against it. Defaults to `/workspace/repo`. */
@@ -101,7 +107,7 @@ const guardedWorkspace = (
 
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
- * every mode shares (`connector_fetch`, `web_fetch`, and `web_search` when the run's model has native
+ * every mode shares (`connector_fetch`, `conexus_check` for a run (Construir only), `web_fetch`, and `web_search` when the run's model has native
  * provider search in Mastra), the `plan`/`build` modes with the
  * plan-to-build transition, `submit_plan` overridden for AC-1 and mode-gated on its first call, and
  * the mode guard attached to whatever workspace the run resolves to. No Hub wiring: the caller owns
@@ -118,6 +124,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     instructions: conexusInstructions(modes),
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
+      ...checkTools(deps.runCheck?.(ctx), modes),
       ...(await hasNativeWebSearch(deps.model, ctx) ? { web_search: webSearchTool } : {}),
       web_fetch: webFetchTool,
     }),

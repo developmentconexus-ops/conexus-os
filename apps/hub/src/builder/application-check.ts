@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 
 /**
@@ -11,22 +12,28 @@ export const CHECK_NODE_PATH = '/usr/local/bin/node'
 /** The template's unprivileged user. Every step that runs application code runs as it. */
 export const CHECK_AGENT_IDENTITY = '1500:1500'
 
-type CheckStepId = 'generate' | 'typecheck' | 'build' | 'server' | 'boot'
-
-export type Problem = Readonly<{ file?: string; line?: number; column?: number; code?: string; message: string }>
-
-export type CheckStep = Readonly<
-  | { step: CheckStepId; status: 'passed'; durationMs: number }
-  | { step: CheckStepId; status: 'failed'; durationMs: number; problems: readonly Problem[]; dropped?: number }
-  | { step: CheckStepId; status: 'skipped'; reason: string }>
-
-export type CheckReport = Readonly<{
-  ok: boolean
-  steps: readonly CheckStep[]
-  facts: Readonly<{ operations: number; migrations: number; jsGzipBytes: number }>
-}>
-
 const CHECK_STEP_IDS: readonly CheckStepId[] = ['generate', 'typecheck', 'build', 'server', 'boot']
+
+const problemSchema = z.object({
+  file: z.string().exactOptional(), line: z.number().exactOptional(), column: z.number().exactOptional(), code: z.string().exactOptional(), message: z.string(),
+}).readonly()
+const stepIdSchema = z.enum(['generate', 'typecheck', 'build', 'server', 'boot'])
+type CheckStepId = z.infer<typeof stepIdSchema>
+
+/** The `conexus_check` tool's output: the report exactly as the check printed it. */
+export const checkReportSchema = z.object({
+  ok: z.boolean(),
+  steps: z.array(z.discriminatedUnion('status', [
+    z.object({ step: stepIdSchema, status: z.literal('passed'), durationMs: z.number() }).readonly(),
+    z.object({ step: stepIdSchema, status: z.literal('failed'), durationMs: z.number(), problems: z.array(problemSchema).readonly(), dropped: z.number().exactOptional() }).readonly(),
+    z.object({ step: stepIdSchema, status: z.literal('skipped'), reason: z.string() }).readonly(),
+  ])).readonly(),
+  facts: z.object({ operations: z.number(), migrations: z.number(), jsGzipBytes: z.number() }).readonly(),
+}).readonly()
+
+export type CheckReport = z.infer<typeof checkReportSchema>
+export type CheckStep = CheckReport['steps'][number]
+export type Problem = z.infer<typeof problemSchema>
 /** `generate`, `typecheck`, `build` and `server` refuse the source; `boot` is recorded and never refuses it. */
 const BLOCKING_STEPS: ReadonlySet<CheckStepId> = new Set(['generate', 'typecheck', 'build', 'server'])
 

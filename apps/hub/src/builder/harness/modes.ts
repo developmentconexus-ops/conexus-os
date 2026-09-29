@@ -81,7 +81,7 @@ export const BUILDER_MODES: Readonly<Record<BuilderModeId, BuilderModeDefinition
     allowedWorkspaceTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...COMMAND_TOOLS]),
     writeRoot: null,
     allowsSubmitPlan: false,
-    availableTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...COMMAND_TOOLS, ...SHARED_TOOLS]),
+    availableTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...COMMAND_TOOLS, ...SHARED_TOOLS, 'conexus_check']),
   }),
 })
 
