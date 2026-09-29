@@ -3,6 +3,7 @@ import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
+import { PROMPT_VARIANTS, type PromptVariantId } from './harness/index.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
@@ -101,11 +102,12 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  // The mode is not part of a message: the run starts in its conversation's own mode (AC-2).
-  app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
+  // The mode is not part of a message: the run starts in its conversation's own mode (AC-2). The
+  // prompt variant is part of it: the eval names one per run to compare variants; the web names none.
+  app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string; promptVariant?: PromptVariantId } }>('/api/control/projects/:projectId/builder-session/messages', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
+      body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 }, promptVariant: { type: 'string', enum: [...PROMPT_VARIANTS] } } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -119,6 +121,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         accountId: session.account.accountId, projectId: request.params.projectId,
         conversationId: request.body.conversationId,
         idempotencyKey, content: request.body.content,
+        ...(request.body.promptVariant ? { promptVariant: request.body.promptVariant } : {}),
       })
       return reply.code(201).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {

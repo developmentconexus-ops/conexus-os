@@ -2,6 +2,7 @@ import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { CandidateRefused } from './run-runtime.js'
 import type { BuilderRunRuntime } from './run-runtime.js'
+import { DEFAULT_PROMPT_VARIANT, type PromptVariantId } from './harness/index.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
@@ -9,8 +10,11 @@ import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 
 export type BuilderService = Readonly<{
-  /** The run starts in the conversation's own mode, which lives only in its thread (AC-2). */
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<BuilderRunSummary>
+  /**
+   * The run starts in the conversation's own mode, which lives only in its thread (AC-2). It uses the
+   * named prompt variant, or the default one; the eval names one to compare variants.
+   */
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; promptVariant?: PromptVariantId }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
@@ -110,7 +114,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
   }
-  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
+  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; promptVariant?: PromptVariantId }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
     // The browser reads run.phase from the builder-session poll; the live turn itself is Mastra's.
@@ -126,7 +130,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       await setPhase('PREPARING')
       const result = await runs.runtime.execute({
         projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
-        executionId: claimed.builderRunId, intent: input.content,
+        executionId: claimed.builderRunId, intent: input.content, promptVariant: input.promptVariant ?? DEFAULT_PROMPT_VARIANT,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision,
         signal: controller.signal,
         setPhase: async (phase: BuilderRunningPhase) => {

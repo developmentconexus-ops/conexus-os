@@ -14,7 +14,7 @@ export type BuilderModeDefinition = Readonly<{
   id: BuilderModeId
   /** Shown to the person: Planejar or Construir. */
   displayName: string
-  /** File under harness/prompt/ layered after the Conexus prompt while the thread is in this mode. */
+  /** File under harness/prompt/<variant>/ layered after the Conexus prompt while the thread is in this mode. */
   promptFile: string
   /** Exposed workspace tool names (`mastra_workspace_*`) the mode guard allows for this mode. */
   allowedWorkspaceTools: ReadonlySet<string>

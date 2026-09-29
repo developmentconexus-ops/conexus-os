@@ -13,9 +13,12 @@ import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers
  * Everything that changes what one arm's experiment measures, besides the case set (pinned separately
  * as the dataset version). Two runs with the same setup may share an experiment; a different setup
  * never may, so the digest is the experiment's identity check on resume.
- * @typedef {Readonly<{ baseUrl: string, hubVersion: string, simulatorOrigin: string, maxRepairs: number, model: string }>} Setup
+ * @typedef {Readonly<{ baseUrl: string, hubVersion: string, simulatorOrigin: string, maxRepairs: number, model: string, promptVariant?: string }>} Setup
  */
-/** @typedef {Readonly<{ id: string, model: string }>} Arm  id is the file stem; the file admits only "model". */
+/**
+ * @typedef {Readonly<{ id: string, model: string, promptVariant?: string }>} Arm  id is the file stem; the file
+ * admits "model" and an optional "promptVariant" (a folder of the Hub's harness/prompt/; absent, the Hub's default).
+ */
 /**
  * The dataset item's input. A fixture binds the Project to the simulator serving it; a case with no
  * fixture runs on a Project with no binding at all.
@@ -108,9 +111,11 @@ export function loadArms(dir, ids) {
     requireId(id, 'arm id')
     const label = `arms/${id}.json`
     const raw = readJsonObject(join(dir, `${id}.json`), label)
-    refuseUnknownKeys(raw, ['model'], label)
+    refuseUnknownKeys(raw, ['model', 'promptVariant'], label)
     if (typeof raw.model !== 'string' || !raw.model.trim()) fail(`${label} needs a "model" string`)
-    return Object.freeze({ id, model: raw.model })
+    if (raw.promptVariant === undefined) return Object.freeze({ id, model: raw.model })
+    if (typeof raw.promptVariant !== 'string' || !raw.promptVariant.trim()) fail(`${label} "promptVariant" must be a non-empty string`)
+    return Object.freeze({ id, model: raw.model, promptVariant: raw.promptVariant })
   })
 }
 
@@ -177,7 +182,7 @@ const previewOf = (result) => (ARM_WITHOUT_PREVIEW.has(result.failure)
 
 /** @returns {RunOutput} */
 const runOutput = (result, artifactsDir, preview, traceIds) => ({
-  projectId: result.projectId, modelId: result.modelId, artifactsDir,
+  projectId: result.projectId, modelId: result.modelId, promptVariant: result.promptVariant, artifactsDir,
   runs: result.runs.map((run, index) => ({
     builderRunId: run.builderRunId, traceId: traceIds[index] ?? null, isRepair: run.isRepair, state: run.state,
     failureCategory: run.failureCategory, failureCode: run.failureCode,
@@ -279,7 +284,7 @@ async function runJob({ experiment, item }, { mastra, hub, runCase, binding, dat
     writeFileSync(casePath, `${JSON.stringify(caseFileOf(item), null, 2)}\n`, 'utf8')
     log(`${label}: running on Project ${projectId}, artifacts in ${out}`)
     const result = await runCase({
-      case: casePath, out, project: projectId, model: experiment.arm.model, statePath: options.statePath,
+      case: casePath, out, project: projectId, model: experiment.arm.model, promptVariant: experiment.arm.promptVariant, statePath: options.statePath,
       baseUrl: options.baseUrl, maxRepairs: options.maxRepairs, gradeOnly: false, headed: false,
     })
     const verdict = classifyRun(result)
@@ -351,7 +356,8 @@ export async function runExperiment(deps, options) {
   for (let trial = 0; trial < trials; trial += 1) {
     for (const arm of arms) {
       /** @type {Setup} */
-      const setup = { baseUrl: options.baseUrl, hubVersion: options.hubVersion ?? 'unknown', simulatorOrigin, maxRepairs: options.maxRepairs, model: arm.model }
+      // An arm that names no variant keeps the setup, and so the experiment identity, it had before variants existed.
+      const setup = { baseUrl: options.baseUrl, hubVersion: options.hubVersion ?? 'unknown', simulatorOrigin, maxRepairs: options.maxRepairs, model: arm.model, ...(arm.promptVariant ? { promptVariant: arm.promptVariant } : {}) }
       experiments.push(await openExperiment(dataset, { comparisonId, arm, trial, version, setup }))
     }
   }

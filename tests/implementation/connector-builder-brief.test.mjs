@@ -50,6 +50,12 @@ test('a Project with a binding is never told it has none, and is told to ask for
   assert.ok(text.includes('When a request needs a system none of these Connections reaches, change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.'))
 })
 
+test('a refused read is explained to the person in plain words, not by its code', async () => {
+  const text = await briefOf(storeOf([bound('erp')]))(scope)
+  assert.ok(text.includes('When a read is refused with another code, tell the person in plain words what failed, such as the system refusing the Conexão\'s access or not answering, without the code itself unless they ask for it, and build nothing on data you did not read.'))
+  assert.equal(text.includes('which code it answered'), false)
+})
+
 test('the brief tells the Builder to narrow a read that answers RESPONSE_TOO_LARGE', async () => {
   const text = await briefOf(storeOf([bound('erp')]))(scope)
   assert.ok(text.includes('When a read answers RESPONSE_TOO_LARGE, narrow it before you read again: ask for fewer fields, filter it further, or read one page at a time.'))
