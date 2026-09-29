@@ -1,8 +1,8 @@
 // The caller's model accounts as `GET /api/control/model-accounts` lists them, and the one way the
 // Settings cards call the model account routes. No answer ever carries a key or a token.
 
-export type AccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
-export type Account = Readonly<{ provider: string; mine: boolean; kind: AccountKind | null; shared: boolean }>
+type AccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
+type Account = Readonly<{ provider: string; mine: boolean; kind: AccountKind | null; shared: boolean }>
 export type Accounts = Readonly<{ administrator: boolean; accounts: readonly Account[] }>
 
 export const accountsQueryKey = ['model-accounts'] as const
