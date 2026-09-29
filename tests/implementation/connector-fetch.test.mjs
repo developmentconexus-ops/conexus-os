@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { EXPECTED_NATIVE_CONSULT, EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, startFakeRest } from './connector-fake-rest.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -17,6 +17,7 @@ const CONNECTION = '33333333-3333-4333-8333-333333333333'
 const CONNECTION_A = '44444444-4444-4444-8444-444444444444'
 const CONNECTION_B = '55555555-5555-4555-8555-555555555555'
 const LOAD = 'CRUDServiceProvider.loadRecords'
+const QUERY = 'DbExplorerSP.executeQuery'
 const WRITE = 'CRUDServiceProvider.saveRecord'
 const ROUTE = '/gateway/v1/mge/service.sbr'
 
@@ -68,6 +69,8 @@ const read = (overrides = {}) => ({
   ...overrides,
 })
 
+const consult = (sql) => read({ query: { serviceName: QUERY, outputType: 'json' }, body: { serviceName: QUERY, requestBody: { sql } } })
+
 // The fakes answer `JSON.stringify(body)`, so that is the size the executor read.
 const answered = (body) => Object.freeze({ ok: true, status: 200, bytes: Buffer.byteLength(JSON.stringify(body)), body })
 const ORDER_READ = answered(EXPECTED_NATIVE_ORDER)
@@ -113,6 +116,65 @@ test('P4: a write service and a mismatched or absent body serviceName are SERVIC
   assert.equal(store.calls.includes('readConnectionCredential'), false, 'no refusal read the credential')
   assert.deepEqual(await broker.fetch(handler(), read()), ORDER_READ)
   assert.deepEqual(fake.requests.map(({ path, origin }) => [path, origin]), [['/authenticate', fake.origin], [ROUTE, fake.origin]])
+})
+
+test('a read-only consult passes: a SELECT and a WITH reach the vendor with the exact body, keywords in text and comments and a trailing ; included', async (t) => {
+  const { fake, broker } = await setup(t)
+  const reads = [
+    'SELECT CODPROD, DESCRPROD FROM TGFPRO WHERE CODPROD IN (501, 502)',
+    'WITH ITENS AS (SELECT NUNOTA, CODPROD FROM TGFITE) SELECT CAB.NUMNOTA, ITENS.CODPROD FROM TGFCAB CAB JOIN ITENS ON ITENS.NUNOTA = CAB.NUNOTA',
+    "select CODPROD, DTALTER from TGFPRO where DESCRPROD = 'DELETE; DROP' -- nunca INSERT\n;",
+    'SELECT /* sem UPDATE */ "INTO", [EXEC] FROM TGFPRO',
+  ]
+  for (const sql of reads) assert.deepEqual(await broker.fetch(handler(), consult(sql)), answered(EXPECTED_NATIVE_CONSULT), sql)
+  assert.deepEqual(fake.requests.filter(({ path }) => path === ROUTE).map(({ query, body }) => ({ query, body })), reads.map((sql) => ({
+    query: { serviceName: QUERY, outputType: 'json' },
+    body: { serviceName: QUERY, requestBody: { sql } },
+  })))
+  assert.equal(fake.nonReads(), 0)
+})
+
+test('a consult that is not one read is INPUT_REFUSED at the SQL before the credential or the network', async (t) => {
+  const { fake, other, broker, store } = await setup(t)
+  const keywords = ['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL', 'INTO', 'BEGIN', 'COMMIT',
+    'DENY', 'WRITETEXT', 'UPDATETEXT', 'BACKUP', 'RESTORE', 'DBCC', 'SHUTDOWN', 'KILL', 'RECONFIGURE', 'OPENROWSET', 'OPENDATASOURCE', 'OPENQUERY']
+  const writes = [
+    ...keywords.map((keyword) => `WITH P AS (SELECT CODPROD FROM TGFPRO) SELECT CODPROD FROM P ${keyword} TGFPRO`),
+    ...keywords.map((keyword) => `select codprod from tgfpro ${keyword.toLowerCase()}(1)`),
+    'INSERT INTO TGFPRO (CODPROD) VALUES (1)',
+    'UPDATE TGFPRO SET DESCRPROD = NULL',
+    'SELECT CODPROD FROM TGFPRO; SELECT NUNOTA FROM TGFCAB',
+    'SELECT CODPROD FROM TGFPRO;;',
+    'SELECT CODPROD FROM TGFPRO -- só leitura\nDELETE FROM TGFPRO',
+    'SELECT CODPROD FROM TGFPRO -- só leitura\rDELETE FROM TGFPRO',
+    '/* só leitura */ DELETE FROM TGFPRO',
+    'SELECT CODPROD INTO COPIA FROM TGFPRO',
+    'SELECT CODPROD FROM TGFPRO DELETE FROM TGFPRO',
+    'SELECT "A\'B" FROM TGFPRO; DELETE FROM TGFPRO --\'',
+    "SELECT q'[x']' FROM TGFPRO; DELETE FROM TGFPRO --'",
+    "SELECT 'sem fim FROM TGFPRO",
+    'SELECT CODPROD FROM TGFPRO /* sem fim',
+    '(SELECT CODPROD FROM TGFPRO)',
+    'LOCK TABLE TGFPRO IN EXCLUSIVE MODE',
+    '',
+  ]
+  for (const sql of writes) assert.deepEqual(await broker.fetch(handler(), consult(sql)), { ok: false, code: 'INPUT_REFUSED', issues: ['/body/requestBody/sql'] }, sql)
+  const shapes = [{ sql: 1 }, { sql: 'SELECT 1 FROM DUAL', parameters: [] }, { dataSet: NATIVE_ORDER_DATASET }, 'SELECT 1 FROM DUAL']
+  for (const requestBody of shapes) {
+    assert.deepEqual(await broker.fetch(handler(), read({ query: { serviceName: QUERY, outputType: 'json' }, body: { serviceName: QUERY, requestBody } })), { ok: false, code: 'INPUT_REFUSED', issues: ['/body/requestBody'] }, JSON.stringify(requestBody))
+  }
+  const mismatched = read({ query: { serviceName: QUERY, outputType: 'json' }, body: { serviceName: LOAD, requestBody: { sql: 'SELECT 1 FROM DUAL' } } })
+  assert.deepEqual(await broker.fetch(handler(), mismatched), { ok: false, code: 'SERVICE_REFUSED' })
+  const unknown = read({ query: { serviceName: 'DbExplorerSP.executeUpdate', outputType: 'json' }, body: { serviceName: 'DbExplorerSP.executeUpdate', requestBody: { sql: 'SELECT 1 FROM DUAL' } } })
+  assert.deepEqual(await broker.fetch(handler(), unknown), { ok: false, code: 'SERVICE_REFUSED' })
+  assert.deepEqual([fake.requests.length, other.requests.length], [0, 0], 'no refusal reached either host, authentication included')
+  assert.equal(store.calls.includes('readConnectionCredential'), false, 'no refusal read the credential')
+})
+
+test('a consult answer over the size limit is RESPONSE_TOO_LARGE with no vendor byte', async (t) => {
+  const { fake, broker } = await setup(t)
+  fake.mode.service = 'oversized'
+  assert.deepEqual(await broker.fetch(handler(), consult('SELECT CODPROD FROM TGFPRO')), { ok: false, code: 'RESPONSE_TOO_LARGE', status: 200 })
 })
 
 test('P3: an absolute URL, and a path that resolves to another host or carries userinfo, a query or a fragment, are INPUT_REFUSED before the network', async (t) => {
