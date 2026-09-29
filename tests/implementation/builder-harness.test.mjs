@@ -9,8 +9,8 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { BUILDER_MODES, DEFAULT_BUILDER_MODE, PLAN_WRITE_ROOT } = await import(hubModuleUrl('builder/harness/modes.js'))
-const { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY } = await import(hubModuleUrl('builder/harness/request-context.js'))
-const { conexusInstructions } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY } = await import(hubModuleUrl('builder/harness/request-context.js'))
+const { conexusInstructions, DEFAULT_PROMPT_VARIANT, PROMPT_VARIANTS } = await import(hubModuleUrl('builder/harness/prompt.js'))
 const { attachBuilderModeGuard, createBuilderModeGuard } = await import(hubModuleUrl('builder/harness/guard.js'))
 const { createSubmitPlanTool } = await import(hubModuleUrl('builder/harness/tools.js'))
 const { createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -62,7 +62,56 @@ test('AC-1: conexusInstructions carries the mode text and none of the banned ter
   const bare = new RequestContext()
   bare.set('controller', { session: { modeId: 'plan' } })
   const bareText = instructions({ requestContext: bare })
-  assert.equal(bareText.includes('Project knowledge'), false)
+  assert.equal(bareText.includes('## Project knowledge'), false)
+})
+
+const renderPrompt = ({ modeId, variant }) => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId } })
+  if (variant !== undefined) requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, variant)
+  return conexusInstructions()({ requestContext })
+}
+
+test('a run that names no prompt variant gets v2, the same text as naming v2', () => {
+  assert.deepEqual(PROMPT_VARIANTS, ['v1', 'v2'])
+  assert.equal(DEFAULT_PROMPT_VARIANT, 'v2')
+  for (const modeId of ['plan', 'build']) {
+    const text = renderPrompt({ modeId })
+    assert.equal(text, renderPrompt({ modeId, variant: 'v2' }))
+    assert.equal(text.startsWith('# Conexus Builder\n\nYou are the Conexus Builder, a coding agent.'), true)
+  }
+})
+
+test('v1, the first draft, still loads for the eval to compare', () => {
+  const plan = renderPrompt({ modeId: 'plan', variant: 'v1' })
+  assert.equal(plan.startsWith('# Conexus Builder\n\nYou are the Conexus Builder. You work for a person at a company'), true)
+  assert.equal(plan.includes('## Mode: Planejar'), true)
+  assert.equal(plan.includes('## Data comes only from real sources'), false)
+  assert.equal(renderPrompt({ modeId: 'build', variant: 'v1' }).includes('run `sh conexus/check.sh` at the repository root'), true)
+})
+
+test('a prompt variant the Hub does not ship fails the turn instead of falling back', () => {
+  assert.throws(() => renderPrompt({ modeId: 'plan', variant: 'v9' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
+  assert.throws(() => renderPrompt({ modeId: 'build', variant: '../v2' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
+})
+
+test('v2 carries the Conexus layer and its mode rules, and no source notice, coding-tool identity or version-control text', () => {
+  const plan = renderPrompt({ modeId: 'plan' })
+  const build = renderPrompt({ modeId: 'build' })
+  for (const text of [plan, build]) {
+    for (const phrase of ['## What Conexus is', '## Data comes only from real sources', '`connector_fetch`', 'Integrações', 'Prévia', '`api.<operation>` from `@/conexus/api.gen`']) {
+      assert.equal(text.includes(phrase), true, `v2 includes ${phrase}`)
+    }
+    assert.equal(text.includes('<!--'), false, 'the license notice never reaches the model')
+    assert.equal(text.includes('Mastra Code'), false)
+    assert.doesNotMatch(text, /\bgit\b|\bgh\b|pull request|\bcommit|npm install|@mastra/i)
+    // Case-sensitive: without the `u` flag, the "Pr" of Prévia is a whole word to \b.
+    assert.doesNotMatch(text, /\bPRs?\b/)
+  }
+  assert.equal(plan.includes('### First, see what the message asks'), true)
+  assert.equal(plan.includes('call `submit_plan` with its `path`'), true)
+  assert.equal(build.includes('call `conexus_check`'), true)
+  assert.equal(build.includes('Never call the app or its operations "validados" or "testados"'), true)
 })
 
 test('the real builder-skills/conexus-server path resolves from the repository root', () => {

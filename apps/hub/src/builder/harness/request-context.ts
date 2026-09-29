@@ -8,6 +8,11 @@ import { isBuilderModeId, type BuilderModeId } from './modes.js'
  */
 export const CONEXUS_PROJECT_KNOWLEDGE_KEY = 'conexusProjectKnowledge'
 export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'
+/**
+ * Which prompt variant the run's instructions load (`prompt/<variant>/`); absent means the default.
+ * @public Tests import this at runtime from the built module.
+ */
+export const CONEXUS_PROMPT_VARIANT_KEY = 'conexusPromptVariant'
 
 type ControllerContextValue = Readonly<{ session?: Readonly<{ modeId?: unknown }> }>
 
@@ -35,3 +40,9 @@ export const readProjectKnowledge = (requestContext: RequestContext | undefined)
 /** Q-5's connector brief for this run, set by the caller for this turn. */
 export const readConnectorBrief = (requestContext: RequestContext | undefined): string =>
   readRawString(requestContext, CONEXUS_CONNECTOR_BRIEF_KEY)
+
+/** The run's prompt variant as the caller set it, unchecked; `conexusInstructions` refuses one it does not know. */
+export const readPromptVariant = (requestContext: RequestContext | undefined): string | undefined => {
+  const value = requestContext?.getRaw(CONEXUS_PROMPT_VARIANT_KEY)
+  return typeof value === 'string' ? value : undefined
+}
