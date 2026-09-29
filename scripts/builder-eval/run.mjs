@@ -456,7 +456,8 @@ export async function runCase(options) {
         result.lastCheckReportReason = reason
         if (missingSystem) {
           const output = { preview: result.failure ? { kind: 'not-built', reason: result.failure } : { kind: 'observed' } }
-          result.refusal = gradeRefusal(output, missingSystem, lastAssistantText(messages))
+          const reply = lastAssistantText(messages)
+          result.refusal = { ...gradeRefusal(output, missingSystem, reply), reply: options.maskValues ? digitsMasked(reply) : reply }
         }
       }
     }

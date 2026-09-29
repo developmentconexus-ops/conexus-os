@@ -86,7 +86,7 @@ result was saved outside the browser.
 - `lastCheckReport`: the last `conexus_check` report the agent got in the conversation, read from
   the thread's messages, or `null` with `lastCheckReportReason`.
 - `refusal`: only for a case with `missingSystem` (see `cases/sankhya-not-connected-run.json`):
-  `gradeRefusal`'s `{ score, reason }` over the last run and the last assistant reply. The case
+  `gradeRefusal`'s `{ score, reason }` over the last run and the last assistant reply. The case The graded reply text is stored in `refusal.reply`, digits masked with `--mask-values`.
   passes when the score is 1.
 - `repairIterations`: how many repair messages were actually sent.
 - `wallTimeToUsablePreviewMs`: from the request landing to the Preview's loading veil lifting.

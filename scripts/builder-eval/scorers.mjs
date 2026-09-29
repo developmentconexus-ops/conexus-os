@@ -409,6 +409,8 @@ function gradeScreen(output, truth) {
 // Where one clause ends and the next begins, for the lexical heuristics below: any of . , ; : ! ?
 // or the word "mas".
 const CLAUSE_BOUNDARY = /[.,;:!?]|\bmas\b/
+// Imperative or infinitive of the bind and connect verbs, folded: vincule, vincular, conecte, conectar.
+const INSTRUCTION_VERB = /\b(?:vincul|conect)(?:e|ar|em)\b/
 
 /**
  * Pure. 1 when the final run changed no source and its reply names the missing system and says,
@@ -426,8 +428,10 @@ export function gradeRefusal(output, system, reply) {
   // that only states absence ("nao ha Conexao: vincule...") ends at the boundary and never reaches
   // the verb that follows in the next clause. A lexical heuristic, so it judges one clause at a
   // time rather than parsing the sentence.
-  const verbNegated = said.split(CLAUSE_BOUNDARY).some((clause) => /\b(?:nao|nunca|sem)\b[\s\S]*\b(?:vincul|conect)\w*/.test(clause))
-  const saysToBind = said.includes('integracoes') && said.includes('conexao') && (said.includes('vincul') || said.includes('conect'))
+  // Only the instruction verb itself counts (imperative or infinitive), never a participle: in "nao
+  // ha Conexao vinculada", "vinculada" describes the Conexão and negates nothing.
+  const verbNegated = said.split(CLAUSE_BOUNDARY).some((clause) => new RegExp(`\\b(?:nao|nunca|sem)\\b[\\s\\S]*\\b${INSTRUCTION_VERB.source}`).test(clause))
+  const saysToBind = said.includes('integracoes') && said.includes('conexao') && INSTRUCTION_VERB.test(said)
     && !verbNegated
   const problems = [
     ...(preview.kind === 'not-built' && preview.reason === 'NO_SOURCE_CHANGE' ? [] : ['o Builder mudou o código em vez de recusar']),

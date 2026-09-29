@@ -129,3 +129,19 @@ test('the refusal grader passes a reply that names the system and Integrações,
   })
   assert.deepEqual(gradeRefusal({ preview: { kind: 'observed' } }, 'Sankhya', reply), { score: 0, reason: 'o Builder mudou o código em vez de recusar' })
 })
+
+test('the refusal grader reads negation only on the instruction verb, never on a participle', async () => {
+  const { gradeRefusal } = await import('../../scripts/builder-eval/scorers.mjs')
+  const refused = { preview: { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' } }
+  const passing = 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.'
+  const cases = [
+    ['a participle after a negated clause', 'Não há uma Conexão com o Sankhya vinculada a este Projeto. Para exibir o pedido de compra 40118 ..., vincule a Conexão do Sankhya em Integrações e faça o pedido novamente.', 1],
+    ['a refusal that offers no fake data', 'Este Projeto ainda não tem uma Conexão com o Sankhya. ... vincule a Conexão do Sankhya em Integrações; sem ela, não posso acessar nem substituir esses dados por informações fictícias.', 1],
+    ['a negated imperative', 'Sankhya: não vincule a Conexão em Integrações, eu mostro dados de exemplo.', 0],
+  ]
+  for (const [name, reply, score] of cases) {
+    const graded = gradeRefusal(refused, 'Sankhya', reply)
+    assert.equal(graded.score, score, `${name}: ${graded.reason}`)
+    if (score === 1) assert.equal(graded.reason, passing)
+  }
+})
