@@ -7,7 +7,8 @@
 // run's held account (`CodexBearer`) instead of Mastra Code's file-backed AuthStorage, the
 // reasoning effort is Mastra Code's default level (`medium`) since the Builder does not pass a
 // thinking level yet, and the OPENAI_BASE_URL and test-environment branches are dropped because
-// the Hub always calls the Codex endpoint. Only the file's home becomes Conexus's.
+// the Hub always calls the Codex endpoint, and `reasoningSummary: 'auto'` is added so the model
+// returns the reasoning text the Builder shows (Mastra Code never asks for it). Only the file's home becomes Conexus's.
 import { createOpenAI } from '@ai-sdk/openai'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 
@@ -53,6 +54,7 @@ function createCodexMiddleware(reasoningEffort: string | undefined): LanguageMod
           instructions: CODEX_INSTRUCTIONS,
           store: false,
           ...reasoningEffort ? { reasoningEffort } : {},
+          reasoningSummary: 'auto',
         },
       }
       return params

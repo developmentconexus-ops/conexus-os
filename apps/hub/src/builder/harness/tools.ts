@@ -2,6 +2,7 @@ import { submitPlanTool } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
 import { DEFAULT_REPOSITORY_ROOT, isUnderWriteRoot } from './guard.js'
 import { BUILDER_MODES, PLAN_WRITE_ROOT, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
+import { splitPlanFile } from './plan-file.js'
 import { readModeId } from './request-context.js'
 
 const SUBMIT_PLAN_DESCRIPTION = [
@@ -34,6 +35,17 @@ export const createSubmitPlanTool = (
       const mode = modeId ? modes[modeId] : undefined
       if (!mode?.allowsSubmitPlan) return `Refused by the Conexus mode guard: submit_plan is only available in ${modes.plan.displayName}.`
       if (!isUnderWriteRoot(input.path, PLAN_WRITE_ROOT, repositoryRoot)) return `Refused by the Conexus mode guard: the plan file must be under ${PLAN_WRITE_ROOT}.`
+    }
+    // The native tool suspends with only the path and leaves reading the plan to the host, so the
+    // first call reads it here and suspends with what the person needs to review. An unreadable
+    // file still suspends on the path alone.
+    const agent = context?.agent
+    if (agent?.resumeData === undefined && agent?.suspend) {
+      const raw = await context.workspace?.filesystem?.readFile(input.path, { encoding: 'utf-8' }).catch(() => undefined)
+      if (typeof raw === 'string') {
+        await agent.suspend({ toolId: 'submit_plan', path: input.path, ...splitPlanFile(raw) })
+        return undefined
+      }
     }
     return submitPlanTool.execute?.(input, context)
   },

@@ -1,0 +1,116 @@
+import { isKnownAgentControllerEvent } from '@mastra/client-js'
+import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
+
+type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
+export type ActiveTool = DisplayState['activeTools'][string]
+// The AgentController's own task-list snapshot (from @mastra/core's task_write/task_update/
+// task_check/task_complete tools), already carried on every display_state_changed event: the
+// canonical source the checklist reads, not something rebuilt from parsing tool-call args here.
+type TaskSnapshot = DisplayState['tasks'][number]
+
+// The Builder's two modes, Planejar and Construir, held by the conversation's thread; a new
+// conversation starts in Planejar.
+const builderModes = ['plan', 'build'] as const
+export type BuilderMode = typeof builderModes[number]
+export const asBuilderMode = (value: unknown): BuilderMode => value === 'build' ? 'build' : 'plan'
+
+export type LiveTurn = Readonly<{
+  runId: string | null
+  status: 'CONNECTING' | 'LIVE' | 'ENDED' | 'LOST'
+  messages: readonly MastraDBMessage[]
+  tools: Readonly<Record<string, ActiveTool>>
+  // Tool calls parked on the person, keyed by call id: an approval or a question from the agent.
+  waiting: Readonly<Record<string, PendingAnswer>>
+  // The agent's own task list for this turn, from the AgentController's display state.
+  tasks: readonly TaskSnapshot[]
+  // The mode and model the run's own session switched to while it ran (a plan approval moves a run
+  // from Planejar to Construir), from the controller's mode_changed and model_changed events; null
+  // until one arrives.
+  mode: BuilderMode | null
+  modelId: string | null
+  error: string | null
+}>
+
+// A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve.
+export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
+// submit_plan resumes with the controller's PlanResume: approved moves the run on to Construir,
+// rejected keeps it in Planejar with the person's feedback.
+type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
+
+export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, error: null }
+
+const without = (waiting: LiveTurn['waiting'], toolCallId: string): LiveTurn['waiting'] =>
+  Object.fromEntries(Object.entries(waiting).filter(([id]) => id !== toolCallId))
+
+export type TurnAction = Readonly<{ runId: string }> & (
+  | Readonly<{ kind: 'connected' }>
+  | Readonly<{ kind: 'lost' }>
+  | Readonly<{ kind: 'event'; event: AgentControllerEvent }>
+)
+
+const upsertMessage = (messages: readonly MastraDBMessage[], message: MastraDBMessage): readonly MastraDBMessage[] => {
+  const index = messages.findIndex((item) => item.id === message.id)
+  return index === -1 ? [...messages, message] : messages.map((item, position) => position === index ? message : item)
+}
+
+type MessageUpdate = Extract<KnownAgentControllerEvent, { type: 'message_update' }>['event']
+
+// The controller sends a message whole once, then only id-addressed deltas, the way the
+// @mastra/client-js agent controller reference rebuilds it.
+const applyUpdate = (message: MastraDBMessage, update: MessageUpdate): MastraDBMessage => {
+  const parts = [...message.content.parts]
+  if (update.type === 'text-delta') {
+    const index = parts.map((part) => part.type).lastIndexOf('text')
+    const part = parts[index]
+    if (part?.type === 'text') parts[index] = { ...part, text: part.text + update.delta }
+    else parts.push({ type: 'text', text: update.delta })
+  } else if (update.type === 'reasoning-delta') {
+    const part = parts[update.index]
+    const reasoning = part?.type === 'reasoning' ? part.reasoning + update.delta : update.delta
+    parts[update.index] = { ...(part?.type === 'reasoning' ? part : { type: 'reasoning' as const }), reasoning, details: [{ type: 'text', text: reasoning }] }
+  } else {
+    parts[update.index] = update.part
+  }
+  return { ...message, content: { ...message.content, parts } }
+}
+
+// A turn belongs to one run. The first action of another run starts from empty, so a settled run's
+// messages stay on screen until the next run actually speaks.
+export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
+  const turn = previous.runId === action.runId ? previous : { ...idleTurn, runId: action.runId }
+  if (action.kind === 'connected') return { ...turn, status: 'LIVE' }
+  if (action.kind === 'lost') return { ...turn, status: 'LOST' }
+  const event = action.event
+  if (!isKnownAgentControllerEvent(event)) return turn
+  switch (event.type) {
+    case 'message_start':
+      return { ...turn, messages: upsertMessage(turn.messages, event.message) }
+    case 'message_update': {
+      const message = turn.messages.find((item) => item.id === event.id)
+      return message ? { ...turn, messages: upsertMessage(turn.messages, applyUpdate(message, event.event)) } : turn
+    }
+    case 'display_state_changed':
+      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, tasks: event.displayState.tasks }
+    case 'mode_changed':
+      return { ...turn, mode: asBuilderMode(event.modeId) }
+    case 'model_changed':
+      return { ...turn, modelId: event.modelId }
+    case 'tool_approval_required':
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
+    case 'tool_suspended':
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+    case 'tool_end':
+    case 'tool_suspension_cancelled':
+      return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
+    case 'error':
+      return { ...turn, error: event.error.message }
+    // A turn parked on the person ends its agent run as suspended; the call stays open until they
+    // answer, and the same run goes on.
+    case 'agent_end':
+      return event.reason === 'suspended' ? turn : { ...turn, status: 'ENDED', waiting: {} }
+    default:
+      return turn
+  }
+}
+

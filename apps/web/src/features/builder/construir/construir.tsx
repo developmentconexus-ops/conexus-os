@@ -41,7 +41,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -146,6 +146,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const history = useBuilderThreadMessages(projectId, conversationId)
   const turn = useBuilderLiveTurn(projectId, run ?? undefined, isActive(run) && run.phase === 'AGENT')
   const conversationTurn = runHere ? turn : noTurn
+  // While the run is live its own session is the truth: a plan approval switches it to Construir
+  // before the conversation's saved mode catches up when the run closes.
+  const shownMode = conversationTurn.status === 'LIVE' && conversationTurn.mode ? conversationTurn.mode : sessionModel.mode
+  const shownModelId = conversationTurn.status === 'LIVE' && conversationTurn.modelId ? conversationTurn.modelId : sessionModel.modelId
   const pending = Object.values(conversationTurn.waiting)
 
   // A run that settles refreshes what it touched: its session, its messages and the titles.
@@ -290,7 +294,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} model={offeredModels.find((entry) => entry.id === shownModelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
@@ -337,7 +341,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onModelChange={(modelId) => sessionModel.choose.mutate(modelId)}
           reasoning={sessionModel.reasoning}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
-          agentMode={sessionModel.mode}
+          agentMode={shownMode}
           onAgentModeChange={(next) => sessionModel.chooseMode.mutate(next, {
             onSuccess: () => setSendError(null),
             onError: () => setSendError('O modo só muda quando o Builder está parado.'),

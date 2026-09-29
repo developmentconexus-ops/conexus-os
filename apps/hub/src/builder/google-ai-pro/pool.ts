@@ -65,7 +65,8 @@ const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   })
 })
 
-const configYaml = ({ port, authDir, proxyKey }: Readonly<{ port: number; authDir: string; proxyKey: string }>): string => [
+/** @public Tests import this at runtime from the built module. */
+export const configYaml = ({ port, authDir, proxyKey }: Readonly<{ port: number; authDir: string; proxyKey: string }>): string => [
   'host: "127.0.0.1"',
   `port: ${port}`,
   `auth-dir: ${JSON.stringify(authDir)}`,
@@ -77,6 +78,15 @@ const configYaml = ({ port, authDir, proxyKey }: Readonly<{ port: number; authDi
   '  disable-control-panel: true',
   'usage-statistics-enabled: false',
   'logging-to-file: false',
+  // Without a thinking field in the request the proxy never sets includeThoughts, so Gemini returns
+  // no reasoning text. `default` only fills what a request leaves out.
+  'payload:',
+  '  default:',
+  '    - models:',
+  '        - name: "gemini-*"',
+  '          protocol: "antigravity"',
+  '      params:',
+  '        "generationConfig.thinkingConfig.includeThoughts": true',
   '',
 ].join('\n')
 
