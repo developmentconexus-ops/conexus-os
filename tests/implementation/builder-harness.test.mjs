@@ -118,6 +118,7 @@ test('the guard refuses a plan-mode command after an ask_user resume, and build 
 
   const session = await controller.createSession({ resourceId: 'project:probe', scope: 'probe' })
   const toolResults = []
+  const planSuspensions = []
   session.subscribe((event) => {
     if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     if (event.type === 'tool_end') toolResults.push({ toolCallId: event.toolCallId, result: event.result })
@@ -125,6 +126,7 @@ test('the guard refuses a plan-mode command after an ask_user resume, and build 
       setTimeout(() => { void session.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: 'azul' }) }, 10)
     }
     if (event.type === 'tool_suspended' && event.toolName === 'submit_plan') {
+      planSuspensions.push(event.suspendPayload)
       setTimeout(() => { void session.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: { action: 'approved' } }) }, 10)
     }
   })
@@ -133,6 +135,7 @@ test('the guard refuses a plan-mode command after an ask_user resume, and build 
   for (let waited = 0; calls.length < 5 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
 
   assert.equal(calls.length, 5, 'the model was called once per step, including the final answer')
+  assert.deepEqual(planSuspensions, [{ toolId: 'submit_plan', path: '.conexus/plans/p.md', title: 'Plano', plan: '1. Fazer a tela.' }], 'the controller carries the plan text to the person')
   assert.equal(session.mode.get(), 'build', 'approving the plan switched the session to build')
 
   const commandInPlan = toolResults.find((result) => result.toolCallId === 'c2')
@@ -247,6 +250,28 @@ test('submit_plan called outside Planejar is refused on its first call, whatever
     await submitPlan.execute({ path: '.conexus/plans/../app/p.md' }, { requestContext: modeContext('plan') }),
     'Refused by the Conexus mode guard: the plan file must be under .conexus/plans/.',
   )
+})
+
+test('submit_plan suspends with the plan file read through the workspace, its title split off a leading heading', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-plan-text-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(resolve(root, '.conexus/plans'), { recursive: true })
+  writeFileSync(resolve(root, '.conexus/plans/titled.md'), '# Tela de login\n\n1. Criar o formulário.\n2. Ligar ao Keycloak.\n')
+  writeFileSync(resolve(root, '.conexus/plans/bare.md'), 'Só o corpo.\n\nSegundo parágrafo.\n')
+  const workspace = new Workspace({ id: 'plan-text-ws', filesystem: new LocalFilesystem({ basePath: root }) })
+  const suspended = []
+  const call = async (path) => {
+    const result = await createSubmitPlanTool().execute({ path }, { requestContext: modeContext('plan'), workspace, agent: { suspend: async (payload) => { suspended.push(payload) } } })
+    return result
+  }
+  assert.equal(await call('.conexus/plans/titled.md'), undefined)
+  assert.equal(await call('.conexus/plans/bare.md'), undefined)
+  assert.deepEqual(suspended, [
+    { toolId: 'submit_plan', path: '.conexus/plans/titled.md', title: 'Tela de login', plan: '1. Criar o formulário.\n2. Ligar ao Keycloak.' },
+    { toolId: 'submit_plan', path: '.conexus/plans/bare.md', title: '', plan: 'Só o corpo.\n\nSegundo parágrafo.' },
+  ])
+  await call('.conexus/plans/missing.md')
+  assert.deepEqual(suspended.at(-1), { toolId: 'submit_plan', path: '.conexus/plans/missing.md' }, 'an unreadable plan still suspends on its path')
 })
 
 test('a submit_plan refused outside Planejar never suspends, so answering it as approved changes nothing', async (t) => {
