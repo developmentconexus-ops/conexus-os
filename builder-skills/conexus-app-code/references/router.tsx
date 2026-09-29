@@ -1,16 +1,16 @@
 import { createRootRoute, createRoute, createRouter, Link, Outlet } from '@tanstack/react-router'
 import { z } from 'zod'
-import { OrdersScreen } from './routes/orders-screen'
+import { VisitsScreen } from './routes/visits-screen'
 
 const rootRoute = createRootRoute({
   component: () => (
     <div className="flex min-h-svh">
       <nav className="flex w-56 flex-col gap-1 border-r p-3">
-        <Link to="/pedidos" className="rounded-md px-3 py-2 text-sm [&.active]:bg-accent">
-          Pedidos
+        <Link to="/visitas" className="rounded-md px-3 py-2 text-sm [&.active]:bg-accent">
+          Visitas
         </Link>
-        <Link to="/vendas" className="rounded-md px-3 py-2 text-sm [&.active]:bg-accent">
-          Vendas
+        <Link to="/chamados" className="rounded-md px-3 py-2 text-sm [&.active]:bg-accent">
+          Chamados
         </Link>
       </nav>
       <main className="flex-1 p-6">
@@ -20,20 +20,20 @@ const rootRoute = createRootRoute({
   ),
 })
 
-const ordersRoute = createRoute({
+const visitsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/pedidos',
+  path: '/visitas',
   // A search param is validated where the route is declared, so screens read a typed value.
   validateSearch: z.object({ q: z.string().optional() }),
-  component: OrdersScreen,
+  component: VisitsScreen,
 })
 
-// The chart route loads its code on first visit. Its component lives in routes/sales.lazy.tsx.
-const salesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/vendas' }).lazy(() =>
-  import('./routes/sales.lazy').then((module) => module.salesLazyRoute),
+// The chart route loads its code on first visit. Its component lives in routes/tickets.lazy.tsx.
+const ticketsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/chamados' }).lazy(() =>
+  import('./routes/tickets.lazy').then((module) => module.ticketsLazyRoute),
 )
 
-const routeTree = rootRoute.addChildren([ordersRoute, salesRoute])
+const routeTree = rootRoute.addChildren([visitsRoute, ticketsRoute])
 
 export const router = createRouter({ routeTree })
 

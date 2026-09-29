@@ -24,11 +24,11 @@ app/src/
 
 ## Routes
 
-- All routes are code routes in `router.tsx` (`references/router.tsx`). To add a screen, write its component in `routes/`, add a `createRoute` with a `path`, and add it to `addChildren`. Paths use the person's word in Portuguese, such as `/pedidos`.
-- Link with `Link` from `@tanstack/react-router`, never a plain `<a href>`. A path that does not exist fails the type check. A route with a parameter has a path like `/pedidos/$id` and reads it with `getRouteApi('/pedidos/$id').useParams()`.
-- Filters, search text, sort and the selected tab belong in search params, so a reload and a shared link keep them. Validate them where the route is declared with `validateSearch: z.object({ ... })`, and read them with `getRouteApi('/pedidos').useSearch()` (`references/orders-screen.tsx`).
-- Screens with charts load lazily: `createRoute({ ... }).lazy(() => import('./routes/sales.lazy').then((m) => m.salesLazyRoute))`, with the component in a file that exports `createLazyRoute('/vendas')({ component })`. `conexus-app-ui/references/sales-chart.tsx` shows the file. The home route and the shell never import `recharts`.
-- Opening any path directly, such as `/pedidos`, serves the app. There is no server routing to configure.
+- All routes are code routes in `router.tsx` (`references/router.tsx`). To add a screen, write its component in `routes/`, add a `createRoute` with a `path`, and add it to `addChildren`. Paths use the person's word in Portuguese, such as `/visitas`.
+- Link with `Link` from `@tanstack/react-router`, never a plain `<a href>`. A path that does not exist fails the type check. A route with a parameter has a path like `/visitas/$id` and reads it with `getRouteApi('/visitas/$id').useParams()`.
+- Filters, search text, sort and the selected tab belong in search params, so a reload and a shared link keep them. Validate them where the route is declared with `validateSearch: z.object({ ... })`, and read them with `getRouteApi('/visitas').useSearch()` (`references/visits-screen.tsx`).
+- Screens with charts load lazily: `createRoute({ ... }).lazy(() => import('./routes/tickets.lazy').then((m) => m.ticketsLazyRoute))`, with the component in a file that exports `createLazyRoute('/chamados')({ component })`. `conexus-app-ui/references/tickets-chart.tsx` shows the file. The home route and the shell never import `recharts`.
+- Opening any path directly, such as `/visitas`, serves the app. There is no server routing to configure.
 
 ## Data
 
@@ -37,26 +37,26 @@ app/src/
 
   ```ts
   const input = { search: search.q }
-  const orders = useQuery({ queryKey: ['listOrders', input], queryFn: () => api.listOrders(input) })
+  const visits = useQuery({ queryKey: ['listVisits', input], queryFn: () => api.listVisits(input) })
   ```
 
-- Write with `useMutation({ mutationFn: api.createOrder })`. On success, invalidate every read the write changes by its operation id: `queryClient.invalidateQueries({ queryKey: ['listOrders'] })`. That covers every filter already cached. Do not copy server data into `useState`.
-- Every screen that reads data shows four cases (`references/orders-screen.tsx`): loading (`Skeleton`), error (`Alert` with `errorMessage(error)`), empty (`Empty` that invites an action) and data. Tell "no rows exist" from "no row matches the filter" in the empty text.
+- Write with `useMutation({ mutationFn: api.createTicket })`. On success, invalidate every read the write changes by its operation id: `queryClient.invalidateQueries({ queryKey: ['ticketsByWeek'] })`. That covers every filter already cached. Do not copy server data into `useState`.
+- Every screen that reads data shows four cases (`references/visits-screen.tsx`): loading (`Skeleton`), error (`Alert` with `errorMessage(error)`), empty (`Empty` that invites an action) and data. Tell "no rows exist" from "no row matches the filter" in the empty text.
 - `errorMessage(error)` from `lib/errors.ts` turns a thrown `ConexusError` into a plain Portuguese sentence. `connectionMessage(data.failure)` does the same for a failed Conexão read that the handler returned (`conexus-server`, Failures), shown in the same `Alert`. Never show a code, the `detail` or a stack to the person.
 
 ## Forms
 
-`references/order-form.tsx` is the whole pattern.
+`references/ticket-form.tsx` is the whole pattern.
 
 - `useForm` with `resolver: zodResolver(schemas.<op>.input)`, so the browser checks the same limits the runner enforces. Type it with `Input<'op'>`.
 - Each input is a shadcn `Field` with `FieldLabel`, the input registered with `form.register('name')`, and `FieldError` fed by `form.formState.errors.name`. A number input registers with `{ valueAsNumber: true }`. A `Select` or a checkbox goes through `Controller`.
-- Submit with `form.handleSubmit((values) => mutation.mutate(values))`. Disable the button while `mutation.isPending`. Show `errorMessage(mutation.error)` when it fails. The label names the action, "Salvar pedido".
-- After success, invalidate the reads, confirm with `toast.add({ title: 'Pedido salvo', type: 'success' })` and close or reset the form.
+- Submit with `form.handleSubmit((values) => mutation.mutate(values))`. Disable the button while `mutation.isPending`. Show `errorMessage(mutation.error)` when it fails. The label names the action, "Salvar chamado".
+- After success, invalidate the reads, confirm with `toast.add({ title: 'Chamado salvo', type: 'success' })` and close or reset the form.
 - Never add an author or a person's name to an input. The server reads the person from `caller`.
 
 ## Tables
 
-Models know TanStack Table v8. The installed version is v9, and the v8 constructor fails the type check. `references/orders-table.tsx` is a complete v9 table with sorting and a text filter. What differs from v8:
+Models know TanStack Table v8. The installed version is v9, and the v8 constructor fails the type check. `references/visits-table.tsx` is a complete v9 table with sorting and a text filter. What differs from v8:
 
 - `useTable`, not `useReactTable`, and no `getCoreRowModel`.
 - `tableFeatures({ ... })` declares what the table uses. Sorting, filtering and pagination do nothing until their feature is registered there: `rowSortingFeature`, `columnFilteringFeature`, `rowPaginationFeature`. Each row model is a slot of the same object, for example `sortedRowModel: createSortedRowModel()`, with `sortFns` and `filterFns` beside it.
@@ -64,7 +64,7 @@ Models know TanStack Table v8. The installed version is v9, and the v8 construct
 - Render headers and cells with `<table.FlexRender header={header} />` and `<table.FlexRender cell={cell} />`. There is no `flexRender` import.
 - Keep `features`, `columns` and any empty fallback at module scope. A fresh `[]` or column array on every render rebuilds the table on each render.
 - Sort and filter state works uncontrolled. To control it, pass `state` and `onSortingChange` or `onColumnFiltersChange`. Pagination adds `rowPaginationFeature`, `paginatedRowModel: createPaginatedRowModel()`, and `table.nextPage()` and `table.previousPage()`.
-- For markup use the `Table` components from `@/components/ui/table`, as the example does.
+- For the HTML elements use the `Table` components from `@/components/ui/table`, as the example does.
 
 ## pt-BR formatting
 
@@ -74,6 +74,6 @@ Models know TanStack Table v8. The installed version is v9, and the v8 construct
 ## References
 
 - `references/router.tsx`: root route with navigation, a route with validated search params, a lazy route.
-- `references/orders-screen.tsx`: a list screen with search params, a query and its four states.
-- `references/orders-table.tsx`: the TanStack Table v9 worked example.
-- `references/order-form.tsx`: a form with `zodResolver`, `Field`, a mutation and invalidation.
+- `references/visits-screen.tsx`: a list screen with search params, a query and its four states.
+- `references/visits-table.tsx`: the TanStack Table v9 worked example.
+- `references/ticket-form.tsx`: a form with `zodResolver`, `Field`, a mutation and invalidation.

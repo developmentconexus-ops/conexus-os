@@ -6,44 +6,44 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/conexus/api.gen'
 import { errorMessage } from '@/lib/errors'
-import { OrdersTable } from './orders-table'
+import { VisitsTable } from './visits-table'
 
 // Filters live in the URL, so a reload, the back button and a shared link keep them.
-const route = getRouteApi('/pedidos')
+const route = getRouteApi('/visitas')
 
-export function OrdersScreen() {
+export function VisitsScreen() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
 
   // The key is [operationId, input]. The input object is the whole filter.
   const input = { search: search.q }
-  const orders = useQuery({ queryKey: ['listOrders', input], queryFn: () => api.listOrders(input) })
+  const visits = useQuery({ queryKey: ['listVisits', input], queryFn: () => api.listVisits(input) })
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Pedidos</h1>
+      <h1 className="text-xl font-semibold">Visitas</h1>
       <Input
-        placeholder="Buscar pedido"
+        placeholder="Buscar visita"
         defaultValue={search.q ?? ''}
         onChange={(event) => navigate({ search: { q: event.target.value || undefined }, replace: true })}
         className="max-w-sm"
       />
-      {orders.isPending ? (
+      {visits.isPending ? (
         <Skeleton className="h-40 w-full" />
-      ) : orders.isError ? (
+      ) : visits.isError ? (
         <Alert variant="destructive">
-          <AlertTitle>Não foi possível carregar os pedidos</AlertTitle>
-          <AlertDescription>{errorMessage(orders.error)}</AlertDescription>
+          <AlertTitle>Não foi possível carregar as visitas</AlertTitle>
+          <AlertDescription>{errorMessage(visits.error)}</AlertDescription>
         </Alert>
-      ) : orders.data.length === 0 ? (
+      ) : visits.data.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>Nenhum pedido encontrado</EmptyTitle>
-            <EmptyDescription>Ajuste a busca ou crie o primeiro pedido.</EmptyDescription>
+            <EmptyTitle>Nenhuma visita encontrada</EmptyTitle>
+            <EmptyDescription>Ajuste a busca ou crie a primeira visita.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <OrdersTable orders={orders.data} />
+        <VisitsTable visits={visits.data} />
       )}
     </section>
   )

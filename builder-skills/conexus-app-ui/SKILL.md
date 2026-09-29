@@ -5,7 +5,7 @@ description: Use before building or restyling any screen of an app. Covers the d
 
 # Designing app screens
 
-Every Conexus app looks like one family of company tools. The platform fixes the system. You apply it and never invent a new look. A purchase approval screen is not a place for a distinctive brand, and a person who uses five company apps is served by consistency.
+Every Conexus app looks like one family of company tools. The platform fixes the system. You apply it and never invent a new look. A visit schedule is not a place for a distinctive brand, and a person who uses five company apps is served by consistency.
 
 The code side (routes, data, forms, tables) is in the `conexus-app-code` skill.
 
@@ -16,18 +16,18 @@ The code side (routes, data, forms, tables) is in the `conexus-app-code` skill.
 - A need for a color the tokens lack means a new token in `styles.css`, not a literal in a component.
 - Keep one neutral look. No per-app palette, typeface, gradient or radius. Change the accent only when the person asks: edit `--primary` and `--ring` in the `@theme` block of `styles.css`, nowhere else, and keep text on the accent readable.
 - For a one-off spacing or width, pass `className`. Do not edit a file in `components/ui/` to change one screen.
-- The components sit on Base UI, not Radix. There is no `asChild`. To make a trigger render another element, pass `render`: `<DialogTrigger render={<Button />}>Novo pedido</DialogTrigger>`. `Select` takes an `items` array of `{ label, value }`. The type check reports both mistakes.
+- The components sit on Base UI, not Radix. There is no `asChild`. To make a trigger render another element, pass `render`: `<DialogTrigger render={<Button />}>Novo chamado</DialogTrigger>`. `Select` takes an `items` array of `{ label, value }`. The type check reports both mistakes.
 
 ## Layout patterns
 
 - **App shell.** A sidebar with the app's own sections, 3 to 7 items named with the person's words, and a content area. Each page starts with an `h1` and the one primary action on its right. The shell lives in the root route of `router.tsx`. An app with a single screen needs no shell.
-- **List with filters, then detail.** Filters in one row above the table, the search field first. The table below, with the count of results. Filters live in the URL search params. A row opens `/pedidos/$id`, or a `Sheet` for a quick look. Past about 25 rows, paginate.
+- **List with filters, then detail.** Filters in one row above the table, the search field first. The table below, with the count of results. Filters live in the URL search params. A row opens `/visitas/$id`, or a `Sheet` for a quick look. Past about 25 rows, paginate.
 - **Form.** One column, at most `max-w-xl`. Each input is a `Field` with the label above, the hint in `FieldDescription` and the error in `FieldError`. Long forms split into `FieldSet` groups with a `FieldLegend`. Up to four fields fit a `Dialog`. More get their own page. The submit button names the action and sits at the end of the form.
 - **Dashboard.** First a row of 3 or 4 KPI cards, each with one number and a short label. Then one or two charts. Then the detail table that explains them. Lead with what the person decides on.
 
 ## Charts
 
-Recharts through `@/components/ui/chart`. `references/sales-chart.tsx` is a complete example.
+Recharts through `@/components/ui/chart`. `references/tickets-chart.tsx` is a complete example.
 
 - Pick the form by the question. Bars compare categories, and lie on their side when labels are long. A line shows change over time. One number is a KPI card, not a chart. A pie or donut shows parts of a whole only with 2 to 5 parts, otherwise use bars. Two measures with different units are two charts, not two axes.
 - Color comes from the `--chart-1` to `--chart-5` tokens: `color: 'var(--chart-1)'` in the `ChartConfig`, and `fill="var(--color-<key>)"` on the series. One series uses `--chart-1`. Never give meaning by color alone.
@@ -40,9 +40,9 @@ Recharts through `@/components/ui/chart`. `references/sales-chart.tsx` is a comp
 
 Words on a screen exist to make it easier to understand and use. Bring the same restraint to them as to spacing and color.
 
-- Write for the person using the app, in the vocabulary of their request and the plan. They manage "pedidos", not "registros da tabela".
-- Use active voice. A button says exactly what happens: "Salvar pedido", not "Enviar". An action keeps its name through the flow. The button "Salvar pedido" produces the message "Pedido salvo".
-- Failure and emptiness give direction. Say what happened and what to do next. An error does not apologize, does not say "Ops", and never shows a code. "Não foi possível carregar os pedidos. Tente de novo em instantes." An empty screen invites an action: "Nenhum pedido ainda. Crie o primeiro."
+- Write for the person using the app, in the vocabulary of their request and the plan. They manage "visitas", not "registros da tabela".
+- Use active voice. A button says exactly what happens: "Salvar chamado", not "Enviar". An action keeps its name through the flow. The button "Salvar chamado" produces the message "Chamado salvo".
+- Failure and emptiness give direction. Say what happened and what to do next. An error does not apologize, does not say "Ops", and never shows a code. "Não foi possível carregar as visitas. Tente de novo em instantes." An empty screen invites an action: "Nenhuma visita ainda. Crie a primeira."
 - Plain verbs, sentence case, no filler. Each written element does one job. Dates read `dd/mm/aaaa`, money reads `R$ 1.234,56`.
 
 ## Quality floor

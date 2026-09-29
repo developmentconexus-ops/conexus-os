@@ -52,7 +52,7 @@ for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code']) {
 test('the conexus-app-code skill cites every reference file it ships', () => {
   const text = skillText('conexus-app-code')
   const shipped = readdirSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references'))
-  assert.deepEqual(shipped.sort(), ['order-form.tsx', 'orders-screen.tsx', 'orders-table.tsx', 'router.tsx'])
+  assert.deepEqual(shipped.sort(), ['router.tsx', 'ticket-form.tsx', 'visits-screen.tsx', 'visits-table.tsx'])
   for (const file of shipped) {
     assert.ok(text.includes(`references/${file}`), `SKILL.md does not cite ${file}`)
   }

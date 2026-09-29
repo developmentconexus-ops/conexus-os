@@ -14,33 +14,33 @@ const { generateClient, API_GEN_PATH } = await import(join(compilerRoot, 'genera
 const { fixedApplicationStarterFiles } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false })
-const operation = (input, output) => ({ handler: 'handlers/orders.ts', export: 'handle', input, output })
+const operation = (input, output) => ({ handler: 'handlers/visits.ts', export: 'handle', input, output })
 
 // The operations the examples call, as a Project's manifest would declare them.
 const MANIFEST = {
   operations: {
-    listOrders: operation(
+    listVisits: operation(
       object({ search: { type: 'string', maxLength: 80 } }, []),
-      { type: 'array', items: object({ customer: { type: 'string' }, status: { type: 'string' }, total: { type: 'number' }, createdAt: { type: 'string' } }) },
+      { type: 'array', items: object({ customer: { type: 'string' }, status: { type: 'string' }, minutes: { type: 'number' }, scheduledAt: { type: 'string' } }) },
     ),
-    createOrder: operation(
-      object({ customer: { type: 'string', minLength: 1, maxLength: 80 }, total: { type: 'number', minimum: 0 } }),
+    createTicket: operation(
+      object({ subject: { type: 'string', minLength: 1, maxLength: 80 }, affectedUsers: { type: 'integer', minimum: 0 } }),
       object({ id: { type: 'string' } }),
     ),
-    salesByMonth: operation(
-      object({ year: { type: 'integer', minimum: 2000, maximum: 2100 } }),
-      { type: 'array', items: object({ month: { type: 'string' }, total: { type: 'number' } }) },
+    ticketsByWeek: operation(
+      object({ weeks: { type: 'integer', minimum: 1, maximum: 52 } }),
+      { type: 'array', items: object({ week: { type: 'string' }, total: { type: 'number' } }) },
     ),
   },
 }
 
 // Where a Project puts each example, as the two skills tell the Builder to.
 const PLACEMENT = {
-  'builder-skills/conexus-app-code/references/order-form.tsx': 'app/src/routes/order-form.tsx',
-  'builder-skills/conexus-app-code/references/orders-screen.tsx': 'app/src/routes/orders-screen.tsx',
-  'builder-skills/conexus-app-code/references/orders-table.tsx': 'app/src/routes/orders-table.tsx',
+  'builder-skills/conexus-app-code/references/ticket-form.tsx': 'app/src/routes/ticket-form.tsx',
+  'builder-skills/conexus-app-code/references/visits-screen.tsx': 'app/src/routes/visits-screen.tsx',
+  'builder-skills/conexus-app-code/references/visits-table.tsx': 'app/src/routes/visits-table.tsx',
   'builder-skills/conexus-app-code/references/router.tsx': 'app/src/router.tsx',
-  'builder-skills/conexus-app-ui/references/sales-chart.tsx': 'app/src/routes/sales.lazy.tsx',
+  'builder-skills/conexus-app-ui/references/tickets-chart.tsx': 'app/src/routes/tickets.lazy.tsx',
 }
 
 const typecheck = (extraFiles = {}) => {
@@ -69,10 +69,10 @@ test('every skill example typechecks against the starter components, the generat
 })
 
 test('the guard bites: an example that calls an operation the manifest does not declare fails the same typecheck', () => {
-  const screen = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/orders-screen.tsx'), 'utf8')
-  const result = typecheck({ 'app/src/routes/orders-screen.tsx': screen.replace('api.listOrders(input)', 'api.listOrdrs(input)') })
+  const screen = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/visits-screen.tsx'), 'utf8')
+  const result = typecheck({ 'app/src/routes/visits-screen.tsx': screen.replace('api.listVisits(input)', 'api.listVisitz(input)') })
   assert.equal(result.status, 2)
-  assert.match(result.output, /^app\/src\/routes\/orders-screen\.tsx\(\d+,\d+\): error TS2551: Property 'listOrdrs' does not exist/m)
+  assert.match(result.output, /^app\/src\/routes\/visits-screen\.tsx\(\d+,\d+\): error TS2551: Property 'listVisitz' does not exist/m)
 })
 
 const serverGuide = () => readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')

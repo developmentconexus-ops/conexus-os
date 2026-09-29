@@ -7,21 +7,21 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/conexus/api.gen'
 import { errorMessage } from '@/lib/errors'
-import { formatMoney, formatMonth, formatNumber } from '@/lib/format'
+import { formatDate, formatNumber } from '@/lib/format'
 
 // Colors come from the --chart-* tokens in styles.css, never from a literal.
-const config = { total: { label: 'Vendas', color: 'var(--chart-1)' } } satisfies ChartConfig
+const config = { total: { label: 'Chamados', color: 'var(--chart-1)' } } satisfies ChartConfig
 
-function Sales() {
-  const input = { year: 2026 }
-  const sales = useQuery({ queryKey: ['salesByMonth', input], queryFn: () => api.salesByMonth(input) })
+function Tickets() {
+  const input = { weeks: 12 }
+  const tickets = useQuery({ queryKey: ['ticketsByWeek', input], queryFn: () => api.ticketsByWeek(input) })
 
-  if (sales.isPending) return <Skeleton className="h-72 w-full" />
-  if (sales.isError) {
+  if (tickets.isPending) return <Skeleton className="h-72 w-full" />
+  if (tickets.isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Não foi possível carregar as vendas</AlertTitle>
-        <AlertDescription>{errorMessage(sales.error)}</AlertDescription>
+        <AlertTitle>Não foi possível carregar os chamados</AlertTitle>
+        <AlertDescription>{errorMessage(tickets.error)}</AlertDescription>
       </Alert>
     )
   }
@@ -29,21 +29,21 @@ function Sales() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Vendas por mês</CardTitle>
+        <CardTitle>Chamados abertos por semana</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={config}>
-          <BarChart data={sales.data}>
+          <BarChart data={tickets.data}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey="month" tickFormatter={formatMonth} tickLine={false} axisLine={false} />
+            <XAxis dataKey="week" tickFormatter={formatDate} tickLine={false} axisLine={false} />
             <YAxis tickFormatter={formatNumber} width={72} tickLine={false} axisLine={false} />
             <ChartTooltip
               content={
                 <ChartTooltipContent
                   formatter={(value) => (
                     <div className="flex w-full justify-between gap-4">
-                      <span className="text-muted-foreground">Vendas</span>
-                      <span className="font-medium tabular-nums">{formatMoney(Number(value))}</span>
+                      <span className="text-muted-foreground">Chamados</span>
+                      <span className="font-medium tabular-nums">{formatNumber(Number(value))}</span>
                     </div>
                   )}
                 />
@@ -57,5 +57,5 @@ function Sales() {
   )
 }
 
-// routes/sales.lazy.tsx: the file router.tsx imports on first visit to /vendas.
-export const salesLazyRoute = createLazyRoute('/vendas')({ component: Sales })
+// routes/tickets.lazy.tsx: the file router.tsx imports on first visit to /chamados.
+export const ticketsLazyRoute = createLazyRoute('/chamados')({ component: Tickets })
