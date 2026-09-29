@@ -102,6 +102,23 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual(await row(), [{ project_id: projectId, mirror_head: OTHER, synced_main: STARTER, ended: true }])
   })
 
+  await t.test('record_conversation_sandbox keeps the VM a conversation resumes, read back only in its own Project, for the executor only', async () => {
+    const conversationId = randomUUID()
+    const recordSandbox = (parameters) => callAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_sandbox($1,$2,$3)', parameters)
+    const read = async (project) => one(connectionString, 'hub_builder_executor', 'SELECT builder.read_conversation_sandbox($1,$2)', [project, conversationId])
+    assert.equal(await read(projectId), null)
+    await recordSandbox([projectId, conversationId, 'ivm1first'])
+    await recordSandbox([projectId, conversationId, 'ivm2second'])
+    assert.equal(await read(projectId), 'ivm2second')
+    await callAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, CANDIDATE, null, true])
+    assert.deepEqual((await query(connectionString, 'SELECT provider_sandbox_id, mirror_head FROM builder.conversation_session WHERE conversation_id = $1', [conversationId])).rows, [{ provider_sandbox_id: 'ivm2second', mirror_head: CANDIDATE }])
+    assert.equal(await read(unregistered), null)
+    assert.match(await refusalAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_sandbox($1,$2,$3)', [unregistered, conversationId, 'ivm3']), /BUILDER_CONVERSATION_SESSION_REFUSED/)
+    assert.match(await refusalAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_sandbox($1,$2,$3)', [projectId, conversationId, 'not an id']), /BUILDER_CONVERSATION_SESSION_REFUSED/)
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_conversation_sandbox($1,$2)', [projectId, conversationId]), /permission denied/)
+    assert.equal(await read(projectId), 'ivm2second')
+  })
+
   await t.test('lock_project_for_run admits a builder of a registered Project and refuses the rest', async () => {
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, projectId]), true)
     assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, unregistered]), /BUILDER_SUBJECT_NOT_FOUND/)
