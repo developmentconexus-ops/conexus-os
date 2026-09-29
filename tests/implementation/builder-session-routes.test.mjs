@@ -171,6 +171,19 @@ test("a conversation's mode switches only while no run is in flight, and never o
   assert.deepEqual(refused.json().title, 'O modo só muda quando o Builder está parado')
 })
 
+test("a model chosen on a run's own session, for both modes, is the conversation's model, even while the run is in flight", async (t) => {
+  const { app, controller } = await createBuilderApp(t)
+  const liveRun = `builder:${randomUUID()}`
+  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
+  const chosen = []
+  for (const modeId of ['plan', 'build']) {
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/model?sessionScope=${liveRun}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread', modeId } })
+    chosen.push(response.statusCode)
+  }
+  const state = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation()}`, ...authentic })
+  assert.deepEqual([chosen, state.json().modelId], [[200, 200], 'google-ai-pro/gemini-3-flash'])
+})
+
 test('only the Builder controller id is served, the Factory mount is gone, and the browser may not create, switch, rename or delete threads', async (t) => {
   const { app } = await createBuilderApp(t)
   const answers = await Promise.all([
