@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { RequestContext } from '@mastra/core/request-context'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
-import { readConnectorBrief, readModeId, readProjectKnowledge, readPromptVariant } from './request-context.js'
+import { readConnectorBrief, readModeId, readProjectKnowledge, readPromptVariant, readTurnConflicts } from './request-context.js'
 
 /**
  * The prompt variants the Hub ships, each a folder `prompt/<id>/` holding `conexus.md` and one file
@@ -43,7 +43,7 @@ const promptFile = (promptRoot: string, variant: PromptVariantId, name: string):
 
 /**
  * Builds the agent's dynamic `instructions` function: the Conexus prompt, the current mode's prompt,
- * the connector brief under a Conexões heading, then the Project's `AGENTS.md` under a
+ * the paths the turn's start left in conflict, the connector brief under a Conexões heading, then the Project's `AGENTS.md` under a
  * project-knowledge heading, all of the run's prompt variant. The brief and its integrator guides are
  * instructions, so they come before the notes and never read as part of them. The mode prompt lives here, in agent
  * instructions, rather than in the `AgentController` mode's own `instructions`, because only agent
@@ -59,9 +59,11 @@ export const conexusInstructions = (
   const mode = modes[readModeId(requestContext) ?? DEFAULT_BUILDER_MODE]
   const projectKnowledge = readProjectKnowledge(requestContext)
   const connectorBrief = readConnectorBrief(requestContext)
+  const conflicts = readTurnConflicts(requestContext)
   return [
     promptFile(promptRoot, variant, 'conexus.md'),
     promptFile(promptRoot, variant, mode.promptFile),
+    ...(conflicts.length > 0 ? [`## Merge conflicts\n\nBringing the Project's current main into these files left conflict markers; resolve them before any other change: ${conflicts.map((path) => `\`${path}\``).join(', ')}.`] : []),
     ...(connectorBrief ? [`## Conexões\n\n${connectorBrief}`] : []),
     ...(projectKnowledge ? [`## Project knowledge\n\n${projectKnowledge}`] : []),
   ].join('\n\n')

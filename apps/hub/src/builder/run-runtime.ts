@@ -13,7 +13,7 @@ import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
 import { candidateSnapshot, mirrorSnapshot, pullSnapshot, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, type PromptVariantId } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
@@ -268,6 +268,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
       const knowledge = readProjectKnowledge(await ports.git.readBlob(input.projectId, base, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
       const memorySettings = await ports.readMemorySettings?.(input.accountId)
+      // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
+      let conflicted: readonly string[] = []
       const bindContext: RunContextBinder = (requestContext) => {
         if (memorySettings) requestContext.setRaw(MEMORY_SETTINGS_KEY, memorySettings)
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
@@ -276,6 +278,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
         requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, input.promptVariant)
+        requestContext.setRaw(CONEXUS_TURN_CONFLICTS_KEY, conflicted.join('\n'))
         connectorRun?.bind(requestContext)
       }
 
@@ -318,7 +321,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
       const turnStart = await ports.git.startTurn(input.projectId, input.conversationId, base)
-      if (turnStart.conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
+      conflicted = turnStart.conflicted
+      if (conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
       await seedSandbox({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
       mirror = createTurnMirror({
         git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,

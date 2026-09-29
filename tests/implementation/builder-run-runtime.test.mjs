@@ -13,6 +13,8 @@ const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
+const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
+const { RequestContext } = await import('@mastra/core/request-context')
 
 const runId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
@@ -577,6 +579,14 @@ test("a stopped turn's files are there at the next turn, and a turn that only an
   assert.equal(await run.main(), kept)
 })
 
+// The instructions the agent's last turn received, built from what the run put in its session context.
+const agentInstructions = (run) => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId: 'build' } })
+  for (const [key, value] of run.sessionContext) requestContext.setRaw(key, value)
+  return conexusInstructions()({ requestContext })
+}
+
 // A commit another conversation put on `main`, made the way any writer of the Conexus Git would.
 const commitOnMain = (run, files) => {
   const work = mkdtempSync(join(tmpdir(), 'conexus-other-conversation-'))
@@ -620,6 +630,8 @@ test("main that moved meanwhile merges clean into the conversation's files at th
   assert.equal(run.mirror(), merge)
   assert.deepEqual(run.sessions.at(-1), { projectId, conversationId, mirrorHead: merge, syncedMain: other, turnEnded: true })
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [])
+  assert.equal(run.sessionContext.get('conexusTurnConflicts'), '')
+  assert.equal(agentInstructions(run).includes('Merge conflicts'), false)
 })
 
 test('a conflict with main is left in the checkout with its markers, and the turn resolves it and proceeds', async (t) => {
@@ -645,6 +657,7 @@ test('a conflict with main is left in the checkout with its markers, and the tur
   assert.equal(seen[0], '<h1>base</h1>\n')
   assert.match(seen[1], /^<<<<<<< [0-9a-f]{40}\n<h1>mine<\/h1>\n=======\n<h1>theirs<\/h1>\n>>>>>>> [0-9a-f]{40}\n$/)
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [`BUILDER_TURN_START_CONFLICT:${runId}:app/index.html`])
+  assert.equal(agentInstructions(run).includes("## Merge conflicts\n\nBringing the Project's current main into these files left conflict markers; resolve them before any other change: `app/index.html`."), true)
   assert.equal(await run.main(), run.result())
   assert.equal(run.inBare('show', `${run.result()}:app/index.html`), '<h1>resolved</h1>')
 })
