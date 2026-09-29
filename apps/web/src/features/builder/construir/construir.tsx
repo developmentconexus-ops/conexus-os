@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -151,6 +151,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // before the conversation's saved mode catches up when the run closes.
   const shownMode = conversationTurn.status === 'LIVE' && conversationTurn.mode ? conversationTurn.mode : sessionModel.mode
   const shownModelId = conversationTurn.status === 'LIVE' && conversationTurn.modelId ? conversationTurn.modelId : sessionModel.modelId
+  const shownMemory = conversationTurn.status === 'LIVE' && conversationTurn.memory ? conversationTurn.memory : sessionModel.memory
   const pending = Object.values(conversationTurn.waiting)
 
   // A run that settles refreshes what it touched: its session, its messages and the titles.
@@ -347,6 +348,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           reasoning={sessionModel.reasoning}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           agentMode={shownMode}
+          memory={shownMemory}
           onAgentModeChange={(next) => sessionModel.chooseMode.mutate(next, {
             onSuccess: () => setSendError(null),
             onError: () => setSendError('O modo só muda quando o Builder está parado.'),
