@@ -2,7 +2,7 @@ import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { type BuilderMode, type LiveTurn, type PendingAnswer, type PendingReply, asBuilderMode, idleTurn, reduceTurn } from './live-turn'
+import { type BuilderMode, type LiveTurn, type PendingAnswer, type PendingReply, asBuilderMode, builderModes, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
 export type { ActiveTool, BuilderMode, LiveTurn, PendingAnswer, PendingReply } from './live-turn'

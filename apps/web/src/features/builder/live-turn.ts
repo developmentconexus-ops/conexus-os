@@ -10,7 +10,7 @@ type TaskSnapshot = DisplayState['tasks'][number]
 
 // The Builder's two modes, Planejar and Construir, held by the conversation's thread; a new
 // conversation starts in Planejar.
-const builderModes = ['plan', 'build'] as const
+export const builderModes = ['plan', 'build'] as const
 export type BuilderMode = typeof builderModes[number]
 export const asBuilderMode = (value: unknown): BuilderMode => value === 'build' ? 'build' : 'plan'
 
