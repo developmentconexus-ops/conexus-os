@@ -10,10 +10,17 @@ const TRUNK = 'main'
 
 const ROOT_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'docs/index.md', 'docs/roadmap.md', '.github/pull_request_template.md'])
 // The Mastra skill is the upstream skill as published; its commands address a Mastra project, not this one.
+// Every skill installed by `npx skills add` is listed in skills-lock.json and is upstream text as well.
 const VENDORED = ['.agents/skills/mastra/']
 
-export function inScope(path) {
-  if (VENDORED.some(prefix => path.startsWith(prefix))) return false
+export function vendoredPrefixes(root) {
+  const lock = join(root, 'skills-lock.json')
+  const installed = existsSync(lock) ? Object.keys(JSON.parse(readFileSync(lock, 'utf8')).skills ?? {}) : []
+  return [...VENDORED, ...installed.map(name => `.agents/skills/${name}/`)]
+}
+
+export function inScope(path, vendored = VENDORED) {
+  if (vendored.some(prefix => path.startsWith(prefix))) return false
   return ROOT_FILES.has(path) || /(^|\/)AGENTS\.md$/.test(path)
     || (/^(\.agents\/skills|docs\/development)\//.test(path) && path.endsWith('.md'))
 }
@@ -108,8 +115,9 @@ function brokenLink(path, target, text, root) {
 
 export function checkRepository(root) {
   const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {}
+  const vendored = vendoredPrefixes(root)
   const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0').filter(path => path && inScope(path) && existsSync(join(root, path)))
+    .split('\0').filter(path => path && inScope(path, vendored) && existsSync(join(root, path)))
   const findings = [...new Set(files)].sort()
     .flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts }))
   return { files: files.length, findings }
