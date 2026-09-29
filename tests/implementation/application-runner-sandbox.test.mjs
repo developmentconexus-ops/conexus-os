@@ -12,7 +12,7 @@ import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
-import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord } from './connector-record.mjs'
 
 // The real runner path: a supervisor that provisions with app_provisioner, migrates and invokes
@@ -391,6 +391,21 @@ test('the runner socket admits an invocation only with an exact platform caller 
 // A handler reaching the Connector broker through the one socket the runner binds: the order comes
 // back, and the handler still holds no credential, no token and no other way out.
 const CONNECTOR_HANDLER = `const READ = 'sankhya.purchase-order.read'
+const ROUTE = '/gateway/v1/mge/service.sbr'
+const LOAD = 'CRUDServiceProvider.loadRecords'
+const DATASET = ${JSON.stringify(NATIVE_ORDER_DATASET)}
+const nativeRead = () => ({ connection: 'erp', method: 'POST', path: ROUTE, query: { serviceName: LOAD, outputType: 'json' }, body: { serviceName: LOAD, requestBody: { dataSet: DATASET } } })
+export const fetchOrder = async (input, { connectors }) => ({ text: JSON.stringify(await connectors.fetch(nativeRead())) })
+export const fetchShapes = async (input, { connectors }) => {
+  const read = nativeRead()
+  return { text: JSON.stringify([
+    await connectors.fetch(42),
+    await connectors.fetch({ ...read, path: '//127.0.0.2:' + input.port + '/authenticate' }),
+    await connectors.fetch({ ...read, headers: { authorization: 'x' } }),
+    await connectors.fetch({ ...read, query: { serviceName: 'CRUDServiceProvider.saveRecord', outputType: 'json' }, body: { serviceName: 'CRUDServiceProvider.saveRecord', requestBody: {} } }),
+  ]) }
+}
+export const leakBody = async (input, { connectors }) => { const read = await connectors.fetch(nativeRead()); return { text: 'x', extra: read.body } }
 export const readOrder = async (input, { connectors }) => ({ text: JSON.stringify(await connectors.call(READ, { documentNumber: input.documentNumber })) })
 export const callShapes = async (input, { connectors }) => ({ text: JSON.stringify([
   await connectors.call(42, {}),
@@ -417,12 +432,16 @@ export const probe = async (input, context) => {
   }) }
 }
 `
+const fetchInput = { type: 'object', properties: { port: { type: 'integer' } }, additionalProperties: false }
 const connectorTree = () => {
   const manifest = {
     version: 1,
     operations: {
       readOrder: { module: 'handlers/connector.mjs', export: 'readOrder', input: { type: 'object', properties: { documentNumber: { type: 'integer' } }, required: ['documentNumber'], additionalProperties: false }, output: text },
       callShapes: { module: 'handlers/connector.mjs', export: 'callShapes', input: empty, output: text },
+      fetchOrder: { module: 'handlers/connector.mjs', export: 'fetchOrder', input: fetchInput, output: text },
+      fetchShapes: { module: 'handlers/connector.mjs', export: 'fetchShapes', input: fetchInput, output: text },
+      leakBody: { module: 'handlers/connector.mjs', export: 'leakBody', input: fetchInput, output: text },
       probe: { module: 'handlers/connector.mjs', export: 'probe', input: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } }, port: { type: 'integer' } }, required: ['paths', 'port'], additionalProperties: false }, output: text },
     },
     migrations: [],
@@ -495,7 +514,7 @@ test('a handler reads the order through the bound connector socket, and holds no
     fetch: false,
     env: { PWD: '/' },
     context: ['caller', 'connectors', 'db'],
-    connectorKeys: ['call'],
+    connectorKeys: ['call', 'fetch'],
     frozen: true,
     files: { environ: 'ERR_ACCESS_DENIED', cmdline: 'ERR_ACCESS_DENIED' },
   })
@@ -518,6 +537,46 @@ test('a handler reads the order through the bound connector socket, and holds no
   await t.test('a closed port refuses its next connection: the socket dies with the invocation', async () => {
     await portA.close()
     assert.deepEqual(await invoke('readOrder', { documentNumber: 22790 }, portA.socketPath), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } })
+  })
+})
+
+test('a handler fetches through the socket: another Project gets NOT_GRANTED with no request, and nothing secret is visible', async (t) => {
+  const { fake, open, invoke, project, otherProject, port } = await connectorSetup(t)
+  const portA = await open(project)
+  const portB = await open(otherProject)
+  const FETCH = {}
+  const run = async (operation, input, socket = portA.socketPath) => {
+    const answer = await invoke(operation, input, socket)
+    assert.equal(answer.status, 200, JSON.stringify(answer.body))
+    return JSON.parse(answer.body.text)
+  }
+
+  assert.deepEqual(await run('fetchOrder', FETCH), { ok: true, status: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), body: EXPECTED_NATIVE_ORDER })
+  assert.deepEqual(await run('fetchOrder', FETCH, portB.socketPath), { ok: false, code: 'NOT_GRANTED' })
+  assert.equal(fake.requests.length, 2, 'the other Project reached no gateway')
+
+  assert.deepEqual(await run('fetchShapes', { ...FETCH, port }), [
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/'] },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/path'] },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/<unrecognized>'] },
+    { ok: false, code: 'SERVICE_REFUSED' },
+  ])
+  assert.equal(fake.requests.length, 2, 'refused shapes sent nothing')
+
+  const leaked = await invoke('leakBody', {}, portA.socketPath)
+  assert.equal(leaked.status, 502)
+  assert.equal(leaked.body.error.code, 'HANDLER_OUTPUT_REFUSED')
+
+  const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath], port })
+  noSecretIn(JSON.stringify(seen))
+  assert.deepEqual([seen.context, seen.connectorKeys], [['caller', 'connectors', 'db'], ['call', 'fetch']])
+  // The vendor's own body is the handler's to read, and the fake plants its marker in it; the credential and the token never are.
+  const fetched = JSON.stringify(await run('fetchOrder', FETCH))
+  for (const secret of [...Object.values(FAKE_CREDENTIAL), 'fake-token-']) assert.equal(fetched.includes(secret), false, `${secret} reached the handler`)
+
+  await t.test('without a bound socket fetch answers CONNECTOR_UNCONFIGURED', async () => {
+    const answer = await invoke('fetchOrder', {})
+    assert.deepEqual(JSON.parse(answer.body.text), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   })
 })
 

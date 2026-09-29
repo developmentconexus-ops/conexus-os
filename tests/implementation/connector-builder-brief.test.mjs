@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { z } from 'zod'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -41,7 +41,7 @@ test('a Project with no binding is told to change nothing and ask for a Conexão
 
   const mixed = await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(mixed.startsWith(BINDING_LINE('`erp` (integrator sankhya), `crm` (integrator synthetic-rest)')), mixed)
-  assert.ok(mixed.includes(READ), 'one Sankhya binding beside another integrator reaches the operation')
+  assert.equal(mixed.includes(READ), false, 'no binding mix names the operation path to the Builder')
 })
 
 test('a Project with a binding is never told it has none, and is told to ask for a Conexão only for a system none of its bindings reaches', async () => {
@@ -62,15 +62,27 @@ test('the brief tells the Builder to narrow a read that answers RESPONSE_TOO_LAR
   assert.ok(sankhyaDefinition.builderSkill.includes('Se a leitura responder `RESPONSE_TOO_LARGE`'))
 })
 
-test('a Project with one Sankhya binding gets a brief naming the operation and both its JSON Schemas', async () => {
-  const brief = briefOf(storeOf([bound('erp')]))
-  const text = await brief(scope)
-  assert.ok(text.includes(READ))
-  assert.ok(text.includes(sankhyaDefinition.operations[0].summary))
-  assert.ok(text.includes(JSON.stringify(z.toJSONSchema(sankhyaDefinition.operations[0].input))))
-  assert.ok(text.includes(JSON.stringify(z.toJSONSchema(sankhyaDefinition.operations[0].output))))
-  assert.ok(text.includes(`connectors.call('${READ}'`))
+test('a Project bound as erp is taught connector_fetch and connectors.fetch, and never the operation path', async () => {
+  const text = await briefOf(storeOf([bound('erp')]))(scope)
+  assert.ok(text.includes('connector_fetch'))
+  assert.ok(text.includes('connectors.fetch'))
   assert.ok(text.includes(sankhyaDefinition.builderSkill))
+  assert.equal(text.includes('connectors.call'), false)
+  assert.equal(text.includes(READ), false)
+  assert.equal(text.includes('Connector operations granted'), false)
+})
+
+test('the unavailable notice names connectors.fetch, not connectors.call', () => {
+  assert.ok(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.fetch'))
+  assert.equal(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.call'), false)
+})
+
+test('the Builder guidance never teaches connectors.call: the conexus-server skill and the Sankhya Skill teach fetch', () => {
+  const serverSkill = readFileSync(new URL('../../factory-skills/conexus-server/SKILL.md', import.meta.url), 'utf8')
+  assert.equal(serverSkill.includes('connectors.call'), false)
+  assert.equal(sankhyaDefinition.builderSkill.includes('connectors.call'), false)
+  assert.ok(serverSkill.includes('connectors.fetch'))
+  assert.ok(sankhyaDefinition.builderSkill.includes('connectors.fetch'))
 })
 
 test('an unbound Connection leaves the Project told it has none', async () => {
