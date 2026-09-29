@@ -51,7 +51,8 @@ const bindingSection = (bindings: readonly BoundConnection[]): string => [
   'Before you write code that depends on one of them, read it with the connector_fetch tool, in its integrator\'s native '
     + 'request format below, and build on the field names and values it returns. When a read answers RESPONSE_TOO_LARGE, '
     + 'narrow it before you read again: ask for fewer fields, filter it further, or read one page at a time. CALL_LIMIT means '
-    + 'this run\'s reads are spent. When a read is refused with another code, tell the person which code it answered, and '
+    + 'this run\'s reads are spent. When a read is refused with another code, tell the person in plain words what failed, '
+    + 'such as the system refusing the Conexão\'s access or not answering, without the code itself unless they ask for it, and '
     + `build nothing on data you did not read. When a request needs a system none of these Connections reaches, ${TO_BIND}`,
 ].join(' ')
 
