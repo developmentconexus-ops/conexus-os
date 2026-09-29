@@ -49,7 +49,7 @@ const failedReport = (step, problems) => {
 // A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run.
-const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER } = {}) => {
+const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -162,6 +162,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     git,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
+    ...(memorySettings ? { readMemorySettings: async (payer) => { events.push(['memory-settings', payer]); return memorySettings } } : {}),
     log: (line) => { logs.push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -823,6 +824,15 @@ test("a run checks its start model once, names its payer in every turn's context
     assert.deepEqual(run.destroyed, ['sbx-1'])
     assert.equal(run.events.at(-1), 'destroy')
   }
+})
+
+test('a run reads the observational-memory settings of the person it is for once, and every turn carries them', async (t) => {
+  const settings = { observerModelId: 'anthropic/claude-haiku-4-5', reflectorModelId: null, observationThreshold: 50_000, reflectionThreshold: 60_000 }
+  const run = await harness(t, { memorySettings: settings })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'memory-settings'), [['memory-settings', accountId]])
+  assert.deepEqual(run.sessionContext.get('conexusBuilderMemorySettings'), settings)
 })
 
 test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUSED before the agent runs', async (t) => {

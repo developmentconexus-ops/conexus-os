@@ -7,6 +7,7 @@ import type { CheckReport } from './application-check.js'
 import { CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
+import { MEMORY_SETTINGS_KEY, type MemorySettings } from './memory.js'
 import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
 import { pullCandidate, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
@@ -69,6 +70,8 @@ export type BuilderRunPorts = Readonly<{
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
+  /** The observational-memory settings of the person a run is for, read when it starts. Absent, the run keeps Mastra Code's defaults. */
+  readMemorySettings?(accountId: string): Promise<MemorySettings>
   log(line: string): void
 }>
 
@@ -144,7 +147,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     try {
       // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
       const knowledge = readProjectKnowledge(await ports.git.readBlob(input.projectId, base, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
+      const memorySettings = await ports.readMemorySettings?.(input.accountId)
       const bindContext: RunContextBinder = (requestContext) => {
+        if (memorySettings) requestContext.setRaw(MEMORY_SETTINGS_KEY, memorySettings)
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
         requestContext.setRaw(RUN_ID_KEY, input.executionId)
         requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)

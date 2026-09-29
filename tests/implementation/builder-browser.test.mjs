@@ -66,7 +66,7 @@ const routeBuilder = async (page, state) => {
   await page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: state.modeId, threadId: conversationOf(route.request().url()) }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: state.modeId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
     state.modelId = route.request().postDataJSON().modelId
     state.modelSwitches.push([state.modelId, route.request().postDataJSON().modeId])
@@ -747,7 +747,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   assert.match(await status.innerText(), /Agente trabalhando/)
   assert.match(await status.innerText(), /há 1 min \d\d s/)
   const cancelRequest = page.waitForRequest((request) => request.url().endsWith(`/runs/${runId}/cancel`) && request.method() === 'POST')
-  await page.getByRole('button', { name: 'Parar' }).click()
+  await page.getByRole('button', { name: 'Parar', exact: true }).click()
   await cancelRequest
   await page.getByRole('button', { name: 'Parando' }).waitFor()
   assert.deepEqual(cancels, [runId])
@@ -1415,39 +1415,130 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
 })
 
 
-test('an idle conversation switches between Planejar and Construir on its own session, and the choice holds', async (t) => {
-  const accountId = '70000000-0000-4000-8000-000000000221'
-  const projectId = '70000000-0000-4000-8000-000000000222'
-  const conversationId = 'conversation-mode'
+// A conversation of Project "Agenda" whose latest run, when given, is working in Planejar.
+const openAgenda = async (t, { accountId, projectId, conversationId, runId = null, stream = [], omProgress = null, viewport = { width: 1100, height: 900 } }) => {
   const sourceRevision = 'a'.repeat(40)
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
-  const legacyRequests = trackLegacyRequests(page)
-
-  const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: [] })
+  const page = await browser.newPage({ viewport })
+  const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: runId ? [userMessage('user-1', 'Crie uma agenda')] : [] })
   state.modeId = 'plan'
+  state.omProgress = omProgress
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    projectId,
+    latestBuilderRun: runId ? {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+    } : null,
+    latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     runHistory: [],
   }) }))
-
+  if (runId) await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...stream)))
   await page.goto(`${origin}/projects/${projectId}/build`)
-  const planButton = page.getByRole('button', { name: 'Planejar', exact: true })
-  const buildButton = page.getByRole('button', { name: 'Construir', exact: true })
-  await planButton.waitFor()
-  assert.equal(await planButton.getAttribute('aria-pressed'), 'true')
-  assert.equal(await buildButton.getAttribute('aria-pressed'), 'false')
+  return { page, state }
+}
+const OM_IDLE = {
+  status: 'idle', pendingTokens: 12_400, threshold: 30_000, thresholdPercent: 41.3, observationTokens: 3_100, reflectionThreshold: 40_000, reflectionThresholdPercent: 7.75,
+  projectedMessageRemoval: 0, projectedReflectionSavings: 0,
+}
 
-  await buildButton.click()
-  await page.waitForFunction(() => document.querySelector('.cx-agent-mode button[aria-pressed="true"]')?.textContent === 'Construir')
-  assert.deepEqual(state.modeSwitches, [[conversationId, 'build']])
+test('an idle conversation switches between Planejar and Construir from the mode chip and with Shift+Tab, on its own session', async (t) => {
+  const conversationId = 'conversation-mode'
+  const { page, state } = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000221', projectId: '70000000-0000-4000-8000-000000000222', conversationId })
+  const legacyRequests = trackLegacyRequests(page)
+
+  const chip = page.getByRole('button', { name: /^Modo: / })
+  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
+  await chip.click()
+  assert.deepEqual(await page.getByRole('menuitemradio').allInnerTexts(), [
+    'Planejar\nLê o app e propõe um plano antes de mudar qualquer arquivo',
+    'Construir\nMuda o app e publica a prévia',
+  ])
+  await page.getByRole('menuitemradio', { name: /^Construir/ }).click()
+  await page.getByRole('button', { name: 'Modo: Construir', exact: true }).waitFor()
+
+  await messageBox(page).focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
+  assert.deepEqual(state.modeSwitches, [[conversationId, 'build'], [conversationId, 'plan']])
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Mensagem para o agente', 'Shift+Tab keeps the cursor in the message')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('while a run works the mode chip stays readable, says why it cannot change, and Shift+Tab says so too', async (t) => {
+  const conversationId = 'conversation-mode-running'
+  const { page, state } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000224', projectId: '70000000-0000-4000-8000-000000000225', conversationId,
+    runId: '70000000-0000-4000-8000-000000000226',
+  })
+
+  const chip = page.getByRole('button', { name: 'Modo: Planejar. O modo muda quando o Builder parar.', exact: true })
+  await chip.waitFor()
+  await chip.click()
+  await page.getByText('O modo muda quando o Builder parar.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('menuitemradio').count(), 0, 'no mode is offered while the run works')
+  await page.keyboard.press('Escape')
+
+  await messageBox(page).focus()
+  await page.keyboard.press('Shift+Tab')
+  assert.equal(await page.getByRole('status').filter({ hasText: 'O modo muda quando o Builder parar.' }).count(), 1)
+  assert.deepEqual(state.modeSwitches, [])
+})
+
+test('the memory rings under the composer read the conversation\'s memory, then the run\'s live one', async (t) => {
+  const meters = async (page) => page.locator('.cx-memory-status [role="meter"]').evaluateAll((nodes) => nodes.map((node) => [node.getAttribute('aria-label'), node.getAttribute('aria-valuetext')]))
+  const idle = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000227', projectId: '70000000-0000-4000-8000-000000000228', conversationId: 'conversation-memory', omProgress: OM_IDLE })
+  const trigger = idle.page.getByRole('button', { name: /^Memória da conversa/ })
+  await trigger.waitFor()
+  assert.equal(await trigger.getAttribute('aria-label'), 'Memória da conversa: Mensagens até a próxima observação, 12,4 de 30 mil tokens. Observações até a próxima reflexão, 3,1 de 40 mil tokens')
+  assert.deepEqual(await meters(idle.page), [['Mensagens até a próxima observação', '12.4/30k'], ['Observações até a próxima reflexão', '3.1/40k']])
+  await trigger.click()
+  await idle.page.getByText('Quando encher, o Builder resume a conversa para lembrar do que importa', { exact: true }).waitFor()
+
+  const live = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000229', projectId: '70000000-0000-4000-8000-00000000022a', conversationId: 'conversation-memory-live',
+    runId: '70000000-0000-4000-8000-00000000022b', omProgress: OM_IDLE,
+    stream: [{ type: 'display_state_changed', displayState: { activeTools: {}, tasks: [], omProgress: { ...OM_IDLE, status: 'observing', pendingTokens: 29_000, observationTokens: 0 }, bufferingMessages: false, bufferingObservations: false } }],
+  })
+  await live.page.locator('.cx-memory-status [role="meter"][aria-valuetext="29/30k"]').waitFor()
+  assert.deepEqual(await meters(live.page), [['Guardando as mensagens na memória', '29/30k']], 'an empty observation budget is not drawn, as in the Factory')
+})
+
+test('at a 420px chat panel the mode chip, the model name and the send button share one row without overlapping', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-00000000022c', projectId: '70000000-0000-4000-8000-00000000022d', conversationId: 'conversation-420',
+    omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
+  })
+  const chat = page.locator('.cx-chat')
+  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
+  const separator = await page.locator('[data-separator]').boundingBox()
+  const width = (await chat.boundingBox()).width
+  await page.mouse.move(separator.x + separator.width / 2, separator.y + separator.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(separator.x + separator.width / 2 - (420 - width), separator.y + separator.height / 2, { steps: 8 })
+  await page.mouse.up()
+
+  const measured = await page.evaluate(() => {
+    const box = (selector) => document.querySelector(selector).getBoundingClientRect()
+    const chip = box('.cx-mode-chip')
+    const model = box('.cx-model-button')
+    const send = box('.cx-send-button')
+    const name = document.querySelector('.cx-model-name')
+    return {
+      chat: Math.round(box('.cx-chat').width),
+      chipBeforeModel: chip.right <= model.left,
+      modelBeforeSend: model.right <= send.left,
+      oneRow: Math.abs(chip.top + chip.height / 2 - (model.top + model.height / 2)) < 2,
+      modelNameWhole: name.scrollWidth <= name.clientWidth,
+    }
+  })
+  assert.deepEqual(measured, { chat: 420, chipBeforeModel: true, modelBeforeSend: true, oneRow: true, modelNameWhole: true })
 })
 
 test('a plan the agent submits is sent back with feedback from its card, on the run\'s own session', async (t) => {
@@ -1685,7 +1776,7 @@ for (const width of [1536, 1700]) {
         chatOverflow: chat.scrollWidth - chat.clientWidth,
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
         composerRight: Math.ceil(composer.getBoundingClientRect().right),
-        chipsOverlap: document.querySelector('.cx-agent-mode').getBoundingClientRect().right > document.querySelector('.cx-model-button').getBoundingClientRect().left,
+        chipsOverlap: document.querySelector('.cx-mode-chip').getBoundingClientRect().right > document.querySelector('.cx-model-button').getBoundingClientRect().left,
         chatRight: Math.floor(chat.getBoundingClientRect().right),
       }
     })

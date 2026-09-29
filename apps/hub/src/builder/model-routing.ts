@@ -48,12 +48,15 @@ export const createModelRouting = ({ routes, modelAccounts, modelOf, readDefault
       const startMode: BuilderModeId = mode === 'BUILD' ? 'build' : 'plan'
       await accountFor(accountId, await modelOf(projectId, conversationId, startMode) ?? await readDefault(ROLE_OF_MODE[startMode]))
     },
-    /** The model a call uses; the controller's `model` resolver. */
-    resolve: async ({ requestContext }: Readonly<{ requestContext: RequestContext }>): Promise<MastraModelConfig> => {
+    /**
+     * The model a call uses; the controller's `model` resolver. `chosen` is a model an
+     * observational-memory role was set to, in place of the conversation's own.
+     */
+    resolve: async ({ requestContext }: Readonly<{ requestContext: RequestContext }>, chosen: string | null = null): Promise<MastraModelConfig> => {
       const runId = requestContext.getRaw(RUN_ID_KEY)
       const payer = requestContext.getRaw(RUN_ACCOUNT_ID_KEY)
       const controller = requestContext.get('controller') as Readonly<{ session?: Readonly<{ modelId?: unknown }> }> | undefined
-      const selected = typeof controller?.session?.modelId === 'string' && controller.session.modelId ? controller.session.modelId : null
+      const selected = chosen ?? (typeof controller?.session?.modelId === 'string' && controller.session.modelId ? controller.session.modelId : null)
       if (typeof runId !== 'string' || typeof payer !== 'string') throw new Error('BUILDER_MODEL_NOT_SELECTED')
       const { route, account, modelId } = await accountFor(payer, selected ?? await readDefault(ROLE_OF_MODE[readModeId(requestContext) ?? 'plan']))
       await record(runId, account.modelAccountId)

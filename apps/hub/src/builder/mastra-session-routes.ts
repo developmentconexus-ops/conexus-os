@@ -219,9 +219,12 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 
 // A conversation's session is bound to its thread and reads the thread's settings again on every
 // request, so the mode or model a run changed on the thread is what the browser sees and changes.
+// Its observational-memory progress is read again too: only a run's own session observes, so the
+// conversation's session learns what that run stored from Mastra's own record.
 const bindConversationSession = async (controller: AgentController, resourceId: string, scope: string, conversationId: string): Promise<BuilderSession> => {
   const session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext: new RequestContext() })
   await session.thread.loadMetadata()
+  await controller.loadOMProgress(session)
   return session
 }
 

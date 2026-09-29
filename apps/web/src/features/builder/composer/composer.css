@@ -138,7 +138,26 @@
 .cx-effort-slider[aria-disabled="true"] .cx-effort-fill { opacity: .45; }
 .cx-effort-slider[aria-disabled="true"] .cx-effort-thumb { box-shadow: none; }
 .cx-effort-locked { margin: 0; color: var(--cx-text-2); font-size: .75rem; }
-.cx-agent-mode { display: inline-flex; gap: 2px; min-width: 0; margin: 0; padding: 2px; border: 0; border-radius: 999px; background: var(--cx-surface-3); }
-.cx-agent-mode-option { height: 28px; padding: 0 .7rem; border: 0; border-radius: 999px; background: transparent; color: var(--cx-text-2); font: 500 .8125rem/1 var(--cx-font-body); }
-.cx-agent-mode-option[aria-pressed="true"] { background: var(--cx-surface); color: var(--cx-text); box-shadow: 0 0 0 1px var(--cx-line); }
-.cx-agent-mode-option:disabled { opacity: .55; cursor: default; }
+.cx-mode-chip { display: inline-flex; flex: none; align-items: center; gap: .35rem; height: 28px; margin: 0 0 0 .15rem; padding: 0 .55rem 0 .6rem; border: 1px solid var(--cx-line); border-radius: 999px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1 var(--cx-font-body); cursor: pointer; }
+.cx-mode-chip svg { flex: none; color: var(--cx-text-2); }
+.cx-mode-chip[data-mode="build"] > svg:first-child { color: var(--cx-accent-text); }
+.cx-mode-chip:hover:not([data-locked]), .cx-mode-chip:focus-visible, .cx-mode-chip[data-popup-open] { background: var(--cx-accent-soft); }
+.cx-mode-chip[data-locked] { color: var(--cx-text-2); border-style: dashed; cursor: help; }
+.cx-mode-menu { width: min(17rem, calc(100vw - 2rem)); padding: .35rem; }
+.cx-mode-menu .cx-mode-option { display: flex; align-items: flex-start; gap: .6rem; height: auto; padding: .5rem .55rem; white-space: normal; text-align: left; }
+.cx-mode-menu .cx-mode-option > svg:first-child { flex: none; margin-top: .1rem; color: var(--cx-text-2); }
+.cx-mode-menu .cx-mode-option[data-checked] > svg:first-child { color: var(--cx-accent-text); }
+.cx-mode-menu .cx-mode-option-text { display: grid; flex: 1; gap: .2rem; min-width: 0; overflow: visible; white-space: normal; }
+.cx-mode-option-name { font: 600 .8125rem/1.2 var(--cx-font-body); }
+.cx-mode-option-hint { color: var(--cx-text-2); font: 400 .75rem/1.35 var(--cx-font-body); }
+.cx-mode-note[data-slot="popover-content"] { width: auto; max-width: 16rem; padding: .5rem .7rem; font-size: .8125rem; }
+
+/* Under the composer: the conversation's memory on the left, the keys on the right. */
+.cx-composer-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .25rem .75rem; min-width: 0; }
+.cx-composer-foot:has(.cx-memory-status) { justify-content: space-between; }
+.cx-composer-foot:has(.cx-memory-status) .cx-composer-hint { text-align: end; }
+/* TokenBudget paints its two budgets with Mastra's blue and violet; here they are Conexus ink and ipê. */
+.cx-memory-status, .cx-memory-detail { --color-blue-500: var(--cx-text-2); --color-violet-500: var(--cx-accent-text); }
+.cx-memory-status { display: inline-flex; align-items: center; gap: .7rem; height: 24px; padding: 0 .45rem; border: 0; border-radius: 999px; background: transparent; font: 500 .75rem/1 var(--cx-font-mono); cursor: pointer; }
+.cx-memory-status:hover, .cx-memory-status:focus-visible, .cx-memory-status[data-popup-open] { background: var(--cx-accent-soft); }
+.cx-memory-detail[data-slot="popover-content"] { display: grid; gap: .9rem; width: min(19rem, calc(100vw - 2rem)); }

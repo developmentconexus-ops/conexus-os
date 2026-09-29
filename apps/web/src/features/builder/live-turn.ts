@@ -1,5 +1,5 @@
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
-import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
+import type { AgentControllerEvent, AgentControllerOMProgress, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
 export type ActiveTool = DisplayState['activeTools'][string]
@@ -13,6 +13,14 @@ type TaskSnapshot = DisplayState['tasks'][number]
 export const builderModes = ['plan', 'build'] as const
 export type BuilderMode = typeof builderModes[number]
 export const asBuilderMode = (value: unknown): BuilderMode => value === 'build' ? 'build' : 'plan'
+
+// Observational memory as the controller reports it: the two budgets, from a run's display state
+// or a conversation's session state, and whether either is being filled or drained in the background.
+export type MemoryGauge = Readonly<{
+  progress: Readonly<Pick<AgentControllerOMProgress, 'status' | 'pendingTokens' | 'threshold' | 'observationTokens' | 'reflectionThreshold'>>
+  bufferingMessages: boolean
+  bufferingObservations: boolean
+}>
 
 export type LiveTurn = Readonly<{
   runId: string | null
@@ -28,6 +36,8 @@ export type LiveTurn = Readonly<{
   // until one arrives.
   mode: BuilderMode | null
   modelId: string | null
+  // The run's memory from its latest display state; null until one arrives.
+  memory: MemoryGauge | null
   error: string | null
 }>
 
@@ -38,7 +48,7 @@ export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; t
 type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
 export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
 
-export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, error: null }
+export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, error: null }
 
 const parked = (state: DisplayState): LiveTurn['waiting'] => ({
   ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
@@ -99,7 +109,10 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
     case 'display_state_changed':
       // A page opened while the run is parked on the person never saw the tool_suspended event, so the
       // snapshot the subscription starts with is what brings the question card back.
-      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, waiting: { ...turn.waiting, ...parked(event.displayState) }, tasks: event.displayState.tasks }
+      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, waiting: { ...turn.waiting, ...parked(event.displayState) }, tasks: event.displayState.tasks,
+        memory: event.displayState.omProgress
+          ? { progress: event.displayState.omProgress, bufferingMessages: event.displayState.bufferingMessages ?? false, bufferingObservations: event.displayState.bufferingObservations ?? false }
+          : turn.memory }
     case 'mode_changed':
       return { ...turn, mode: asBuilderMode(event.modeId) }
     case 'model_changed':

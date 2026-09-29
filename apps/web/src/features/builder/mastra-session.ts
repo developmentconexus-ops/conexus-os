@@ -2,10 +2,10 @@ import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { type BuilderMode, type LiveTurn, type PendingAnswer, type PendingReply, asBuilderMode, builderModes, idleTurn, reduceTurn } from './live-turn'
+import { type BuilderMode, type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, asBuilderMode, builderModes, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
-export type { ActiveTool, BuilderMode, LiveTurn, PendingAnswer, PendingReply } from './live-turn'
+export type { ActiveTool, BuilderMode, LiveTurn, MemoryGauge, PendingAnswer, PendingReply } from './live-turn'
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
@@ -123,7 +123,9 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     queryKey: [...sessionModelKey(projectId), conversationId],
     queryFn: async () => {
       const current = await conversationSession(projectId, conversationId ?? '').state()
-      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), mode: asBuilderMode(current.modeId) }
+      // The Hub reloads the memory a run of this conversation stored before it answers.
+      const memory: MemoryGauge | null = current.omProgress ? { progress: current.omProgress, bufferingMessages: false, bufferingObservations: false } : null
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), mode: asBuilderMode(current.modeId), memory }
     },
     enabled: Boolean(conversationId),
   })
@@ -162,7 +164,7 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, mode: state.data?.mode ?? 'plan', choose, chooseReasoning, chooseMode }
+  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, mode: state.data?.mode ?? 'plan', memory: state.data?.memory ?? null, choose, chooseReasoning, chooseMode }
 }
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
