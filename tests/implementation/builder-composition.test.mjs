@@ -6,7 +6,7 @@ import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { ConexusRunSandbox, createRunSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
+const { ConexusRunSandbox, createConversationSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
 const { createBuilderStorage } = await import(built('builder/module.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
@@ -32,11 +32,12 @@ const baseEnvironment = {
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
 }
 const storageEnvironment = { CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db' }
-const RUN = '11111111-1111-4111-8111-111111111111'
+const CONVERSATION = '44444444-4444-4444-8444-444444444444'
 
 const fakeVm = (sandboxId) => {
-  const vm = { sandboxId, killed: false, runs: [] }
+  const vm = { sandboxId, killed: false, paused: 0, runs: [] }
   vm.kill = async () => { vm.killed = true }
+  vm.pause = async () => { vm.paused += 1; return true }
   vm.commands = {
     run: async (script, options) => {
       vm.runs.push({ script, options })
@@ -47,26 +48,44 @@ const fakeVm = (sandboxId) => {
   return vm
 }
 
-const offlineRunSandbox = (vm, { timeoutMs } = {}) => {
-  const sandbox = createRunSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', builderRunId: RUN, ...(timeoutMs ? { timeoutMs } : {}) })
+// E2B as the conversation's sandbox sees it: `found` is the VM E2B already has for its logical id.
+const offlineRunSandbox = (vm, { timeoutMs, found = () => undefined } = {}) => {
+  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null, ...(timeoutMs ? { timeoutMs } : {}) })
   const created = []
-  sandbox.findExistingSandbox = async () => undefined
+  sandbox.findExistingSandbox = async () => found()
   sandbox.createSdkSandbox = async (templateId, options) => { created.push({ templateId, options }); return vm }
   return { sandbox, created }
 }
 
-test("a run's sandbox is its own E2B sandbox, named for the run, with no environment and the agent's commands starting in the checkout", () => {
-  const sandbox = createRunSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', builderRunId: RUN })
+test("a conversation's sandbox is its own E2B sandbox, named for the conversation, with no environment and the agent's commands starting in the checkout", () => {
+  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null })
   assert.ok(sandbox instanceof ConexusRunSandbox)
-  assert.deepEqual({ id: sandbox.id, workingDirectory: sandbox.workingDirectory, env: sandbox.getEnv() }, { id: `conexus-run-${RUN}`, workingDirectory: '/workspace/repo', env: {} })
+  assert.deepEqual({ id: sandbox.id, workingDirectory: sandbox.workingDirectory, env: sandbox.getEnv() }, { id: `conexus-conv-${CONVERSATION}`, workingDirectory: '/workspace/repo', env: {} })
   const workspace = createRunWorkspace(sandbox)
   assert.equal(workspace.sandbox, sandbox)
 })
 
-test("a run's sandbox is created from the template, closed to public inbound traffic", async () => {
+test("a conversation's sandbox is created from the template, closed to public inbound traffic, tagged with its conversation and paused at its timeout", async () => {
   const { sandbox, created } = offlineRunSandbox(fakeVm('vm-fresh'))
   await sandbox.start()
-  assert.deepEqual(created.map(({ templateId, options }) => ({ templateId, network: options.network })), [{ templateId: 'conexus:tpl', network: { allowPublicTraffic: false } }])
+  assert.deepEqual(created.map(({ templateId, options }) => ({ templateId, network: options.network, lifecycle: options.lifecycle, metadata: options.metadata })), [{
+    templateId: 'conexus:tpl', network: { allowPublicTraffic: false }, lifecycle: { onTimeout: 'pause' },
+    metadata: { 'conexus-builder-conversation': CONVERSATION, 'mastra-sandbox-id': `conexus-conv-${CONVERSATION}` },
+  }])
+})
+
+test("a conversation's sandbox pauses at a turn end and the next start resumes the same VM without creating one", async () => {
+  const vm = fakeVm('vm-kept')
+  let paused = false
+  const { sandbox, created } = offlineRunSandbox(vm, { found: () => (paused ? vm : undefined) })
+  assert.deepEqual(await sandbox.start(), { outcome: 'created' })
+  await sandbox.pause()
+  paused = true
+  assert.deepEqual({ paused: vm.paused, killed: vm.killed, status: sandbox.status }, { paused: 1, killed: false, status: 'stopped' })
+  assert.deepEqual(await sandbox.start(), { outcome: 'connected' })
+  assert.deepEqual({ sandboxId: sandbox.sandboxId, created: created.length, status: sandbox.status }, { sandboxId: 'vm-kept', created: 1, status: 'running' })
+  await sandbox.kill()
+  assert.deepEqual({ killed: vm.killed, status: sandbox.status }, { killed: true, status: 'destroyed' })
 })
 
 test('a Hub root command runs as root from / with exactly the environment given, and a nonzero exit is returned, not thrown', async () => {

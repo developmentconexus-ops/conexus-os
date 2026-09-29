@@ -439,8 +439,9 @@ copied code the providers may change; native web search may be missing for a pil
 
 ## Amendment, 2026-09-29: a conversation owns its sandbox and its branch
 
-**Status**: decided by the operator on 2026-09-29. Not built. Units B1 to B8 below carry it, and
-none of them is built at `47794034`. The
+**Status**: decided by the operator on 2026-09-29. Units B1 to B8 below carry it. B1 and B2 are
+built and merged as `9d1f8dc5`. B3 is built on `feat/builder-conversation-sandbox`. B4 to B8 are
+not built. The
 [Builder own harness task](../../stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work)
 tracks their state.
 
@@ -467,9 +468,11 @@ right stop falls out of the same design. The studies are
    detector and no dedicated eval case (study 23, lines 451-465).
 4. **The Preview shows `main` only.** A draft Preview of the conversation branch is unit B7, later
    (study 23, lines 467-469).
-5. **A paused idle sandbox is deleted after 7 days** by default. Confirm the value against E2B's
-   paused retention and storage price when B3 is built. The branch mirror keeps the files, so the
-   value decides speed, never loss (study 23, lines 470-471).
+5. **A paused idle sandbox is deleted after 7 days** by default. The branch mirror keeps the files,
+   so the value decides speed, never loss (study 23, lines 470-471). Checked when B3 was built: E2B
+   keeps a paused sandbox until someone kills it, and sandbox storage is free on every plan
+   ([persistence](https://e2b.dev/docs/sandbox/persistence), [pricing](https://e2b.dev/pricing)).
+   So 7 days holds, and the B6 sweeper is the only thing that deletes one.
 6. **Stop interrupts the agent and nothing else.** The files stay in the conversation's sandbox and
    branch, and they go into the next version with the next request once its check passes. No stop
    discards work, and there is no undo button now. The person asks the Builder to undo (study 24,

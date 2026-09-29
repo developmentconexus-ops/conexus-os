@@ -75,6 +75,9 @@ export type BuilderStore = Readonly<{
   listAdmissionRuns(): Promise<readonly AdmissionRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
+  // The E2B sandbox a conversation's turns resume, by its provider id.
+  recordConversationSandbox(input: Readonly<{ projectId: string; conversationId: string; providerSandboxId: string }>): Promise<void>
+  readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
   close(): Promise<void>
 }>
 
@@ -237,6 +240,13 @@ export const createBuilderStore = ({
     await executorPool.query(
       'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, mirrorHead, syncedMain ?? null, turnEnded],
     )
+  },
+  recordConversationSandbox: async ({ projectId, conversationId, providerSandboxId }) => {
+    await executorPool.query('SELECT builder.record_conversation_sandbox($1,$2,$3)', [projectId, conversationId, providerSandboxId])
+  },
+  readConversationSandbox: async ({ projectId, conversationId }) => {
+    const result = await executorPool.query<Readonly<{ value: string | null }>>('SELECT builder.read_conversation_sandbox($1,$2) AS value', [projectId, conversationId])
+    return result.rows[0]?.value ?? null
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

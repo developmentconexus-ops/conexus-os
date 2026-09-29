@@ -88,7 +88,7 @@ export const buildModelInput = async ({ project, thread, mode, model, revision =
   const { readProjectKnowledge } = await import(hubModuleUrl('builder/project-knowledge.js'))
   const { createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
   const { sendBuilderSessionMessage } = await import(hubModuleUrl('builder/runtime.js'))
-  const { createRunSandbox, createRunWorkspace } = await import(hubModuleUrl('builder/sandbox.js'))
+  const { createConversationSandbox, createRunWorkspace } = await import(hubModuleUrl('builder/sandbox.js'))
 
   const { connectorFetch, run } = await openConnectorRun()
   const requestContext = new RequestContext()
@@ -97,7 +97,7 @@ export const buildModelInput = async ({ project, thread, mode, model, revision =
   run.bind(requestContext)
 
   // The run's own workspace class over an E2B sandbox that is never started: Mastra reads its instructions from the objects alone.
-  const workspace = createRunWorkspace(createRunSandbox({ apiKey: 'not-used', templateId: 'not-used', builderRunId: RUN_ID }))
+  const workspace = createRunWorkspace(createConversationSandbox({ apiKey: 'not-used', templateId: 'not-used', conversationId: RUN_ID, providerSandboxId: null }))
   const { captured, model: capturing } = capturingModel(model)
   const controller = createBuilderController({
     model: capturing,

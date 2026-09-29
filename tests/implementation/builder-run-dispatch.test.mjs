@@ -30,10 +30,12 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const calls = []
   const store = {
     createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
-    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
+    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, conversationId: 'conv-plan', state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async (_id, messageId) => calls.push(['message', messageId]),
     bindBuilderRunSandbox: async (_id, sandboxId) => calls.push(['sandbox', sandboxId]),
+    readConversationSandbox: async (input) => { calls.push(['read-conversation-sandbox', input]); return 'vm-before' },
+    recordConversationSandbox: async (input) => calls.push(['conversation-sandbox', input]),
     settleBuilderRun: async (input) => calls.push(['settle', input.resultKind]),
     failBuilderRun: async () => calls.push('fail'),
     close: async () => {},
@@ -42,7 +44,7 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
     store,
     runs: makeRuns({
       execute: async (input) => {
-        calls.push(['execute', input.mode, input.intent])
+        calls.push(['execute', input.mode, input.intent, input.providerSandboxId])
         await input.bindPhysicalSandbox('physical-sandbox')
         await input.bindMessage('mastra-message')
         return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
@@ -53,7 +55,11 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', conversationId: 'conv-plan' })
   await service.close()
   assert.equal(result.builderRunId, runId)
-  assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
+  assert.deepEqual(calls, [
+    'claim', ['phase', 'PREPARING'], ['read-conversation-sandbox', { projectId, conversationId: 'conv-plan' }], ['execute', 'PLAN', 'Explique o app', 'vm-before'],
+    ['sandbox', 'physical-sandbox'], ['conversation-sandbox', { projectId, conversationId: 'conv-plan', providerSandboxId: 'physical-sandbox' }],
+    ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY'],
+  ])
 })
 
 test('createBuilderRun hands the store a base read from main in the Conexus Git', async () => {
@@ -92,6 +98,7 @@ test('a failure before the agent keeps the operator request on the run and names
     createBuilderRun: async (input) => { stored = input.content; return row('QUEUED', null) },
     claimBuilderRun: async () => row('RUNNING', null),
     setBuilderRunPhase: async () => {},
+    readConversationSandbox: async () => null,
     failBuilderRun: async (_id, code) => { failed = code },
     close: async () => {},
   }
@@ -131,7 +138,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
     requestBuilderRunCancellation: async () => { calls.push('request-cancellation'); return { ...run, state: 'RUNNING', cancellationRequested: true } },
     interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
   }
   const service = createBuilderService({
     store,
@@ -170,7 +177,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
       setBuilderRunPhase: async () => {},
       requestBuilderRunCancellation: async () => ({ ...run, state: 'RUNNING', cancellationRequested: true }),
       interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
-      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     },
     runs: makeRuns({
       execute: async (input) => {
@@ -200,7 +207,7 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async input => calls.push(['build-settle', input.artifactRevisionId, input.artifactDigest]),
   }
@@ -243,7 +250,7 @@ test('a build or smoke failure still admits and advances the source, and settles
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
@@ -284,7 +291,7 @@ test('a runtime failure that is not a build or smoke failure still fails the run
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]),
     close: async () => {},
     advanceBuilderRunSource: async () => { throw new Error('must not admit: the runtime never returned a result') },
@@ -319,7 +326,7 @@ test('a source-shape refusal from the application server settles with the runner
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
@@ -359,7 +366,7 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     createBuilderRun: async () => run,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),

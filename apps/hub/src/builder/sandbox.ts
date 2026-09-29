@@ -3,7 +3,7 @@ import { Workspace } from '@mastra/core/workspace'
 import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
 
-// The template's own home for the agent; the run's checkout of its Project's `main` lives inside it.
+// The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
 export const SANDBOX_CHECKOUT = `${SANDBOX_HOME}/repo`
 // The template's unprivileged user: every agent command and file write runs as it.
@@ -21,6 +21,20 @@ export class ConexusRunSandbox extends E2BSandbox {
   constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>) {
     super({ ...options, workingDirectory: SANDBOX_CHECKOUT })
     this.#timeoutMs = options.timeout
+  }
+
+  /**
+   * A turn's end: Mastra's stop, which pauses the VM with its files and its memory and stops the
+   * bill. The next `start()` finds the paused VM and resumes it. `stop()` alone would leave the
+   * instance marked running, and that `start()` would then do nothing.
+   */
+  pause(): Promise<void> {
+    return this._stop()
+  }
+
+  /** A broken VM: Mastra's destroy, which kills it at E2B. */
+  kill(): Promise<void> {
+    return this._destroy()
   }
 
   /** `executeCommand`, which the base class declares optional and E2B always has. */
@@ -94,26 +108,32 @@ export class ConexusRunSandbox extends E2BSandbox {
   }
 }
 
-/** One fresh sandbox per run (spec 0002, AC-14), never reused by another run. */
-export const createRunSandbox = ({ apiKey, templateId, builderRunId, timeoutMs = 15 * 60_000 }: Readonly<{
+/**
+ * A conversation's own sandbox (spec 0002 amendment, B3): `start()` resumes the VM it had, by the
+ * provider id the Hub recorded and else by the logical id, and creates one only when E2B has none.
+ * A Hub that stops keeping it alive mid-turn leaves it to pause at its timeout, never to die.
+ */
+export const createConversationSandbox = ({ apiKey, templateId, conversationId, providerSandboxId, timeoutMs = 15 * 60_000 }: Readonly<{
   apiKey: string
   templateId: string
-  builderRunId: string
+  conversationId: string
+  providerSandboxId: string | null
   timeoutMs?: number
 }>): ConexusRunSandbox => new ConexusRunSandbox({
-  id: `conexus-run-${builderRunId}`,
+  id: `conexus-conv-${conversationId}`,
+  ...(providerSandboxId ? { sandboxId: providerSandboxId } : {}),
   template: templateId,
   apiKey,
   timeout: timeoutMs,
-  lifecycle: { onTimeout: 'kill' },
+  lifecycle: { onTimeout: 'pause' },
   // E2B otherwise serves every listening port at a public URL, loopback-bound ones included.
   network: { allowPublicTraffic: false },
   env: {},
-  metadata: { 'conexus-builder-run': builderRunId },
+  metadata: { 'conexus-builder-conversation': conversationId },
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
 })
 
-/** The agent's workspace on a run's sandbox: its file tools and its commands share the checkout. */
+/** The agent's workspace on a conversation's sandbox: its file tools and its commands share the checkout. */
 export const createRunWorkspace = (sandbox: ConexusRunSandbox): Workspace => new Workspace({
   id: `conexus-run-workspace-${sandbox.id}`,
   name: 'Conexus Builder run',

@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0039",
+ "head": "0040",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -531,10 +531,12 @@
    "function builder.lock_project_for_run(p_account_id uuid, p_project_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=4bcc393560b9fa67a83c9de2ecc23a59",
    "function builder.purge_project(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=433a6076c0190730a3e4aec9ba8611e2",
    "function builder.read_builder_run(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=c79a1b638441948f7a4f999af90e233b",
+   "function builder.read_conversation_sandbox(p_project_id uuid, p_conversation_id uuid) returns text kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=4d322550848490450b52f3da392d255c",
    "function builder.read_latest_code_changing_builder_run(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=4d235eddfbe6ac0a74f48567b2e67abf",
    "function builder.read_preview_subject(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=dc912a6211932517299774cf8641e0ff",
    "function builder.record_builder_run_candidate(p_builder_run_id uuid, p_source_revision text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=a7ab5b14b7b053ab2dd743c229cf3549",
    "function builder.record_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=8f5efd83107057badd560987f46f871c",
+   "function builder.record_conversation_sandbox(p_project_id uuid, p_conversation_id uuid, p_provider_sandbox_id text) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=98380b577eb8e7ccfee830a21168dfc4",
    "function builder.record_conversation_session(p_project_id uuid, p_conversation_id uuid, p_mirror_head text, p_synced_main text, p_turn_ended boolean) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=5828f0805cd7c3e7394e39ea1d79d13d",
    "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=263f94a5196b117a7362fc096a5a1265",
    "function builder.register_project_repository(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=fd5090601b26022f638bbf723909ca90",

@@ -51,7 +51,8 @@ const failedReport = (step, problems) => {
 
 // A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
-// own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run.
+// own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
+// conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
 const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings, mirrorDebounceMs = 0 } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -88,7 +89,11 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const builtFrom = []
   const admissionChecks = []
   const agentChecks = []
-  const destroyed = []
+  const paused = []
+  const killed = []
+  // What the service read and recorded of the conversation's sandbox.
+  const sandboxRefs = []
+  let recordedSandbox = null
   // What the run put in its session's request context.
   const sessionContext = new Map()
   // What the service recorded of the conversation's session.
@@ -99,7 +104,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const sandbox = {
     sandboxId: 'sbx-1',
     workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
-    destroy: async () => { events.push('destroy'); destroyed.push(sandbox.sandboxId) },
+    pause: async () => { events.push('pause'); paused.push(sandbox.sandboxId) },
+    kill: async () => { events.push('kill'); killed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
@@ -151,7 +157,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     assert.match(String(written), /^Wrote /, `the write tool wrote ${path}`)
   }
   const runtime = createBuilderRunRuntime({
-    createSandbox: (builderRunId) => { events.push(['sandbox', builderRunId]); return sandbox },
+    openSandbox: (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
       if (!modelAccount) throw new Error('BUILDER_MODEL_NOT_SELECTED')
@@ -167,7 +173,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
           writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
           return completed()
         },
-        close: async () => { events.push('close'); if (close) await close() },
+        end: async () => { events.push('close'); if (close) await close() },
+        discard: async () => { events.push('discard') },
       }
     },
     git,
@@ -192,6 +199,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
+    readConversationSandbox: async () => recordedSandbox,
+    recordConversationSandbox: async ({ providerSandboxId }) => { recordedSandbox = providerSandboxId },
     settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
     advanceBuilderRunSource: async (_id, revision) => {
       if (lostAdvances-- > 0) {
@@ -241,6 +250,11 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     Object.assign(row, { running: true, candidate: null, result: null })
     return start()
   }
+  // E2B lost the conversation's VM between turns: the next start gets a new one with no checkout.
+  const loseVm = (sandboxId) => {
+    rmSync(checkout, { recursive: true, force: true })
+    sandbox.sandboxId = sandboxId
+  }
   const main = () => conexusGit.readMain(projectId)
   const MIRROR = `refs/conexus/conversations/${conversationId}`
   // The conversation's mirror head, and the files it holds, as the Conexus Git has them.
@@ -253,7 +267,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
+  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -421,6 +435,7 @@ test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNAT
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
   assert.equal(await run.main(), run.base)
+  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-2'], paused: [] }, 'a VM replaced mid-turn is killed, never kept')
 })
 
 test('a run holds its sandbox open before its first command', async (t) => {
@@ -476,6 +491,7 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:')), [
     `BUILDER_SANDBOX_KEEPALIVE_FAILED:${runId}:Sandbox sbx-1 not found`,
   ])
+  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a VM whose keepalive lapsed is killed, never kept')
 })
 
 test('a build failure still fast forwards main to the candidate and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
@@ -517,8 +533,8 @@ test('the checkout is seeded from a bundle of the base that root wrote, and hold
   await run.start()
   await run.service.close()
   assert.deepEqual(before, { index: '<h1>base</h1>\n', files: BASE_FILES })
-  const seedWrite = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === `/var/lib/conexus-seed/${runId}.bundle`)
-  const seeded = run.events.findIndex((event) => typeof event === 'string' && event.includes(`/var/lib/conexus-seed/${runId}.bundle`))
+  const seedWrite = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === '/var/lib/conexus-seed/turn.bundle')
+  const seeded = run.events.findIndex((event) => typeof event === 'string' && event.includes('/var/lib/conexus-seed/turn.bundle'))
   assert.ok(run.events.indexOf('start') < seedWrite && seedWrite < seeded && seeded < run.events.indexOf('turn'), 'start, root writes the seed, the checkout fetches it, then the agent')
   assert.equal(run.commands().some((line) => /https?:\/\/|remote add|credential/.test(line)), false, 'the checkout reaches no remote')
 })
@@ -632,6 +648,9 @@ test("main that moved meanwhile merges clean into the conversation's files at th
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [])
   assert.equal(run.sessionContext.get('conexusTurnConflicts'), '')
   assert.equal(agentInstructions(run).includes('Merge conflicts'), false)
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
+    `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
+  ], 'the kept VM fetched the merge and took it in place')
 })
 
 test('a conflict with main is left in the checkout with its markers, and the turn resolves it and proceeds', async (t) => {
@@ -745,7 +764,7 @@ test('an agent that aborts with no stop from the person fails with a named reaso
   const run = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.logs, [`BUILDER_AGENT_END:aborted:${runId}`])
+  assert.deepEqual(run.logs, [`BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_AGENT_END:aborted:${runId}`])
   assert.notDeepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.ok(JSON.stringify(run.calls.at(-1)).includes('BUILDER_MODEL_INCOMPLETE'), JSON.stringify(run.calls.at(-1)))
   assert.equal(await run.main(), run.base)
@@ -948,7 +967,7 @@ test('a person with no model account is refused before a sandbox exists', async 
   assert.equal(run.events.some((event) => Array.isArray(event) && event[0] === 'sandbox'), false)
 })
 
-test("a run checks its start model once, names its payer in every turn's context, and destroys its own sandbox however it ends", async (t) => {
+test("a run checks its start model once, names its payer in every turn's context, and keeps the conversation's sandbox however it ends: the agent's processes are killed, then the VM pauses", async (t) => {
   const ok = await harness(t)
   await ok.start()
   await ok.service.close()
@@ -958,8 +977,10 @@ test("a run checks its start model once, names its payer in every turn's context
   for (const run of [ok, failed]) {
     assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'model-check'), [['model-check', runId, accountId]])
     assert.equal(run.sessionContext.get('conexusBuilderAccountId'), accountId)
-    assert.deepEqual(run.destroyed, ['sbx-1'])
-    assert.equal(run.events.at(-1), 'destroy')
+    assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1'], killed: [] })
+    const processesKilled = run.events.lastIndexOf('sh -c kill -KILL -1 2>/dev/null; true')
+    assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
+    assert.equal(run.events.at(-1), 'pause')
   }
 })
 
@@ -981,6 +1002,7 @@ test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_
   assert.match(run.logs[0], new RegExp(`^BUILDER_RUN_FAILED:${runId}:BUILDER_SOURCE_BASE_PIN_REFUSED \\{"exitCode":128,`))
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.events.includes('turn'), false)
+  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a checkout that cannot take the start takes its VM with it')
 })
 
 test('a VM whose commands run as root, from a template before the agent user, is refused before the seed', async (t) => {
@@ -1017,7 +1039,10 @@ test('a starter inspection that fails writes its command evidence to the Hub log
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED'])
-  assert.deepEqual(run.logs, [`BUILDER_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`])
+  assert.deepEqual(run.logs, [
+    `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`,
+    `BUILDER_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`,
+  ])
 })
 
 const briefOnly = (brief) => async () => ({ brief, bind: () => {}, end: () => {} })
@@ -1263,4 +1288,116 @@ test('a mirror moved by someone else after the turn started fails the write with
   assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
   assert.equal(run.mirror(), run.base)
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [`BUILDER_MIRROR_FAILED:${runId}:CONEXUS_GIT_REF_MOVED`])
+})
+
+// The seed bundle's root writes, one per turn that fetched one.
+const seedWrites = (run) => run.events.filter((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === '/var/lib/conexus-seed/turn.bundle').length
+
+test("the conversation's next turn runs on the same sandbox, resumed by the id the first turn recorded", async (t) => {
+  let turns = 0
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      turns += 1
+      if (turns === 1) writeFileSync(join(checkout, 'app/index.html'), '<h1>first</h1>\n')
+      return turns === 1 ? { reason: 'error', userMessageId: 'user-message', summary: '' } : completed()
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(run.sandboxRefs, [{ conversationId, providerSandboxId: null }, { conversationId, providerSandboxId: 'sbx-1' }])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-1']])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
+    `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
+  ])
+  assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1', 'sbx-1'], killed: [] })
+})
+
+test("a paused sandbox resumes with the previous turn's files, its plan and an edit the mirror never saw, without a new seed", async (t) => {
+  let turns = 0
+  const seen = []
+  const run = await harness(t, {
+    turn: async ({ checkout, write, mirror }) => {
+      turns += 1
+      if (turns === 1) {
+        await write('app/a.ts', 'export const a = 1\n')
+        mkdirSync(join(checkout, '.conexus/plans'), { recursive: true })
+        writeFileSync(join(checkout, '.conexus/plans/plan.md'), '# plano\n')
+        return { reason: 'error', userMessageId: 'user-message', summary: '' }
+      }
+      seen.push({ files: listFiles(checkout).filter((path) => !path.startsWith('.git/')), mirror: mirror() })
+      return completed()
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  const mirrored = run.mirror()
+  // Written into the VM after the turn-end mirror, as by a mirror that failed; only the VM has it.
+  writeFileSync(join(run.checkout, 'app/late.ts'), 'export const late = 1\n')
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [{ files: ['.conexus/plans/plan.md', 'AGENTS.md', 'app/a.ts', 'app/index.html', 'app/late.ts'], mirror: mirrored }])
+  assert.equal(seedWrites(run), 1, 'only the first turn wrote a seed bundle')
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')).at(-1), `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`)
+})
+
+test('a sandbox E2B lost between turns is rebuilt from the mirror on a new VM, and the conversation records the new one', async (t) => {
+  let turns = 0
+  const seen = []
+  const run = await harness(t, {
+    turn: async ({ checkout, write }) => {
+      turns += 1
+      if (turns === 1) {
+        await write('app/a.ts', 'export const a = 1\n')
+        return { reason: 'error', userMessageId: 'user-message', summary: '' }
+      }
+      seen.push({ files: listFiles(checkout).filter((path) => !path.startsWith('.git/')), a: readFileSync(join(checkout, 'app/a.ts'), 'utf8') })
+      return completed()
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  run.loseVm('sbx-2')
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [{ files: ['AGENTS.md', 'app/a.ts', 'app/index.html'], a: 'export const a = 1\n' }])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
+    `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-2`,
+  ])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-2']])
+  assert.deepEqual(run.sandboxRefs.at(-1), { conversationId, providerSandboxId: 'sbx-1' })
+  assert.equal(seedWrites(run), 2)
+})
+
+test("a local edit that main also changed makes the resumed checkout seed again from the conversation's mirror", async (t) => {
+  let turns = 0
+  const seen = []
+  const run = await harness(t, {
+    turn: async ({ checkout, write }) => {
+      turns += 1
+      if (turns === 1) {
+        await write('app/a.ts', 'export const a = 1\n')
+        return { reason: 'error', userMessageId: 'user-message', summary: '' }
+      }
+      seen.push({ knowledge: readFileSync(join(checkout, 'AGENTS.md'), 'utf8'), a: readFileSync(join(checkout, 'app/a.ts'), 'utf8') })
+      return completed()
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  writeFileSync(join(run.checkout, 'AGENTS.md'), '# unmirrored\n')
+  const knowledge = '# Project knowledge\n\nMain moved.\n'
+  const blob = spawnSync('git', ['--git-dir', run.bare, 'hash-object', '-w', '--stdin'], { input: knowledge, encoding: 'utf8', env: GIT_ENV }).stdout.trim()
+  const listing = run.inBare('ls-tree', run.base).replace(/^100644 blob [0-9a-f]{40}\tAGENTS\.md$/m, `100644 blob ${blob}\tAGENTS.md`)
+  const tree = spawnSync('git', ['--git-dir', run.bare, 'mktree'], { input: `${listing}\n`, encoding: 'utf8', env: GIT_ENV }).stdout.trim()
+  run.moveMain(run.inBare('commit-tree', tree, '-p', run.base, '-m', 'main edits AGENTS.md'))
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')).at(-1), `BUILDER_TURN_CHECKOUT:${runId}:RESEEDED:sbx-1`)
+  assert.deepEqual(seen, [{ knowledge, a: 'export const a = 1\n' }])
 })

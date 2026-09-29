@@ -25,7 +25,7 @@ import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
-import { createBuilderRunRuntime, createControllerRunSessions, e2bRunSandboxes } from './run-runtime.js'
+import { createBuilderRunRuntime, createControllerRunSessions, e2bConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
@@ -41,7 +41,7 @@ import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
-import { createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
+import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
 import { BuilderMemorySettings, createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
@@ -319,7 +319,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
   })
   const runContexts = new Map<string, RunContextBinder>()
-  const runWorkspaces = new Map<string, Workspace>()
+  const conversationWorkspaces = new Map<string, Workspace>()
   const runTools = new Map<string, RunTools>()
   const modelRouting = createModelRouting({
     routes,
@@ -332,8 +332,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
     workspace: ({ requestContext }) => {
-      const runId = requestContext.getRaw(RUN_ID_KEY)
-      return typeof runId === 'string' ? runWorkspaces.get(runId) : undefined
+      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
+      return typeof conversationId === 'string' ? conversationWorkspaces.get(conversationId) : undefined
     },
     runTools: ({ requestContext }) => {
       const runId = requestContext.getRaw(RUN_ID_KEY)
@@ -358,9 +358,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runTools })
+  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools })
   const runtime = createBuilderRunRuntime({
-    createSandbox: e2bRunSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
+    openSandbox: e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
     openSession: async (input) => {
       await ready
       return openSession(input)

@@ -303,7 +303,7 @@ screens and its speed; then the sandbox per conversation.
 | 10 | Wave 2: a Construir tool that runs one app operation on real data and returns shape and counts, a tested helper that pages and decodes a Sankhya list, the project `AGENTS.md` as a domain map | next, after item 9 | `S29:22-27`, `S27:309-355`, `S28:296-307` | The replay's app shows every line of the test quote with real costs, prices, promotions and stock |
 | 11 | Record the declared gate runs in the [evidence](../evidence/builder-own-harness/README.md): AC-28 case A, AC-27 `todo-reload` and `erp/sankhya-not-connected`, the AC-12 refusal | next | Section 6 | The evidence tables filled, with values masked |
 | 12 | Context7 for the Builder | later, an idea. It needs a key and a measured replay | No study yet. Context7 lists the Sankhya developer reference with no snippets | A replay with and without it |
-| 13 | Sandbox per conversation, units B1 to B8 | later, decided and not built | [Spec 0002 amendment](specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch), `S23:383-400`, `S24:276-288` | One crash test per unit (`S23:387-398`) |
+| 13 | Sandbox per conversation, units B1 to B8 | B1 and B2 are built, merged as `9d1f8dc5`. B3 is built on `feat/builder-conversation-sandbox`. B4 to B8 are not built | [Spec 0002 amendment](specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch), `S23:383-400`, `S24:276-288` | One crash test per unit (`S23:387-398`). B3's pause and resume on a real E2B VM has not run |
 
 Open defects. Each one needs a fix and a test before the pilot runs on this Builder.
 

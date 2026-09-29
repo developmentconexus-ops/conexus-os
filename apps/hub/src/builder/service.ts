@@ -128,16 +128,21 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     const work = (async () => {
       const claimed = await store.claimBuilderRun(run.builderRunId)
       await setPhase('PREPARING')
+      const conversation = { projectId: claimed.projectId, conversationId: claimed.conversationId }
       const result = await runs.runtime.execute({
         projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
         executionId: claimed.builderRunId, intent: input.content, promptVariant: input.promptVariant ?? DEFAULT_PROMPT_VARIANT,
         mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision,
+        providerSandboxId: await store.readConversationSandbox(conversation),
         signal: controller.signal,
         setPhase: async (phase: BuilderRunningPhase) => {
           await setPhase(phase)
           if (phase === 'AGENT') unadmittedAgentRun = claimed
         },
-        bindPhysicalSandbox: (sandboxId: string) => store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId),
+        bindPhysicalSandbox: async (sandboxId: string) => {
+          await store.bindBuilderRunSandbox(claimed.builderRunId, sandboxId)
+          await store.recordConversationSandbox({ ...conversation, providerSandboxId: sandboxId })
+        },
         bindMessage: (messageId: string) => store.bindBuilderRunMessage(claimed.builderRunId, messageId),
         recordCandidate: async (sourceRevision: string) => {
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)

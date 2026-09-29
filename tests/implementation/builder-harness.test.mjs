@@ -500,7 +500,7 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
   assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
 })
 
-test("a run's turn lasts through the person's answer and the plan approval, on the run's own session and workspace, and closing it forgets both (AC-16)", async (t) => {
+test("a turn lasts through the person's answer and the plan approval, on the conversation's session and workspace, and ending it keeps the session for the next turn (AC-16)", async (t) => {
   const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -508,25 +508,26 @@ test("a run's turn lasts through the person's answer and the plan approval, on t
   writeFileSync(resolve(root, '.conexus/plans/p.md'), '# Plano\n\n1. Fazer a tela.\n')
   const workspace = new Workspace({ id: 'run-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
   const runContexts = new Map()
-  const runWorkspaces = new Map()
+  const conversationWorkspaces = new Map()
   const { model, calls } = scriptedModel()
   const { Memory } = await import('@mastra/memory')
   const storage = new InMemoryStore()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
   const projectId = '22222222-2222-4222-8222-222222222222'
   const builderRunId = '11111111-1111-4111-8111-111111111111'
-  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runTools: new Map() })
+  const conversationId = '44444444-4444-4444-8444-444444444444'
+  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools: new Map() })
   const run = await openSession({
-    projectId, conversationId: '44444444-4444-4444-8444-444444444444', builderRunId, workspace,
+    projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
-  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
   const answered = []
   live.subscribe((event) => {
     if (event.type !== 'tool_suspended') return
@@ -537,9 +538,26 @@ test("a run's turn lasts through the person's answer and the plan approval, on t
   const turn = await run.sendTurn('faça um app')
   assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length, mode: live.mode.get() }, { reason: 'complete', summary: 'ok', answered: ['ask_user', 'submit_plan'], calls: 5, mode: 'build' })
   assert.equal(typeof turn.userMessageId, 'string')
-  assert.deepEqual([[...runContexts.keys()], [...runWorkspaces.keys()]], [[`builder:${builderRunId}`], [builderRunId]])
-  await run.close()
-  assert.deepEqual([runContexts.size, runWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)], [0, 0, undefined])
+  assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
+  await run.end()
+  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])
+
+  const nextRunId = '55555555-5555-4555-8555-555555555555'
+  const next = await openSession({
+    projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING,
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', nextRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+  })
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), live, 'the next turn on the same VM runs in the same session')
+  await next.end()
+  const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const onNewVm = await openSession({
+    projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING,
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', nextRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+  })
+  const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  assert.deepEqual({ same: remade === live, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
+  await onNewVm.discard()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined)
 })
 
 test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes keeps Planejar, and the approval builds in the same run (AC-4, AC-16)", async (t) => {
@@ -566,23 +584,24 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
       return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
     },
   }
-  const runWorkspaces = new Map()
+  const conversationWorkspaces = new Map()
   const { Memory } = await import('@mastra/memory')
   const storage = new InMemoryStore()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
   const projectId = '22222222-2222-4222-8222-222222222222'
   const builderRunId = '66666666-6666-4666-8666-666666666666'
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
-    projectId, conversationId: '77777777-7777-4777-8777-777777777777', builderRunId, workspace,
+  const conversationId = '77777777-7777-4777-8777-777777777777'
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map() })({
+    projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
-  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
   const seen = []
   const suspended = []
   live.subscribe((event) => {
@@ -608,7 +627,7 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
   assert.deepEqual(seen.map(([kind, id, , mode]) => [kind, id, mode]), [['end', 'w1', 'plan'], ['end', 'p1', 'plan'], ['end', 'p2', 'build'], ['end', 'c1', 'build']], 'no tool asked for approval')
   assert.match(seen[1][2], /User feedback: Coloque o botão no rodapé\./)
   assert.equal(seen[2][2], 'Plan approved. Proceed with implementation following the approved plan.')
-  await run.close()
+  await run.end()
 })
 
 test('a model switched while the plan card waits is the model the build runs on', async (t) => {
@@ -639,11 +658,11 @@ test('a model switched while the plan card waits is the model the build runs on'
     modelIds.push(requestContext.get('controller')?.session?.modelId)
     return scripted
   }
-  const runWorkspaces = new Map()
+  const conversationWorkspaces = new Map()
   const { Memory } = await import('@mastra/memory')
   const storage = new InMemoryStore()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
@@ -655,12 +674,12 @@ test('a model switched while the plan card waits is the model the build runs on'
   const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   await conversation.model.switch({ modelId: 'openai/gpt-5.6-sol', scope: 'thread' })
 
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
-  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
   live.subscribe((event) => {
     if (event.type !== 'tool_suspended' || event.toolName !== 'submit_plan') return
     void (async () => {
@@ -681,7 +700,7 @@ test('a model switched while the plan card waits is the model the build runs on'
     { plan: thread.metadata.modeModelId_plan, build: thread.metadata.modeModelId_build },
     { plan: 'google-ai-pro/gemini-3-flash', build: 'google-ai-pro/gemini-3-flash' },
   )
-  await run.close()
+  await run.end()
 })
 
 test("the conversation's mode follows a plan approval, once the run closes (item C)", async (t) => {
@@ -707,11 +726,11 @@ test("the conversation's mode follows a plan approval, once the run closes (item
       return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
     },
   }
-  const runWorkspaces = new Map()
+  const conversationWorkspaces = new Map()
   const { Memory } = await import('@mastra/memory')
   const storage = new InMemoryStore()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
@@ -725,12 +744,12 @@ test("the conversation's mode follows a plan approval, once the run closes (item
   const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   assert.equal(conversation.mode.get(), 'plan', 'a new conversation starts in Planejar')
 
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
-  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
   live.subscribe((event) => {
     if (event.type === 'tool_suspended' && event.toolName === 'submit_plan') {
       void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: { action: 'approved' } })
@@ -741,6 +760,17 @@ test("the conversation's mode follows a plan approval, once the run closes (item
   assert.equal(live.mode.get(), 'build', 'the run session itself is on Construir once the plan is approved')
   assert.equal(conversation.mode.get(), 'plan', 'before the run closes, the conversation session the browser reads is still stale')
 
-  await run.close()
+  await run.end()
   assert.equal(conversation.mode.get(), 'build', 'closing the run rehydrates the conversation session from the thread')
+
+  // Between turns the person moves the conversation back to Planejar; the kept session reads it at the next turn.
+  await conversation.mode.switch({ modeId: 'plan' })
+  const nextRunId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const next = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map() })({
+    projectId, conversationId, builderRunId: nextRunId, workspace,
+    runCheck: async () => PASSING,
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', nextRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+  })
+  assert.deepEqual({ same: await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, mode: live.mode.get() }, { same: true, mode: 'plan' })
+  await next.end()
 })
