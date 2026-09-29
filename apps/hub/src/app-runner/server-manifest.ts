@@ -151,7 +151,12 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
   return value as SourceManifest | ServerManifest
 }
 
-/** The first place `value` breaks `schema`, as `<json pointer>: <why>`, or null when it conforms. */
+const UNDECLARED_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
+
+/**
+ * The first place `value` breaks `schema`, as `<json pointer>: <why>`, or null when it conforms. The
+ * text names only schema facts and array positions, so the runner may log it.
+ */
 export const schemaViolation = (schema: ValueSchema, value: unknown, where = ''): string | null => {
   const at = where || '/'
   switch (schema.type) {
@@ -181,7 +186,8 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, where = '')
     case 'object': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return `${at}: expected object`
       const record = value as Record<string, unknown>
-      for (const key of Object.keys(record)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${key}: not declared`
+      // The key comes from the value, so one that is not a property name is not repeated.
+      for (const key of Object.keys(record)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${UNDECLARED_KEY_NAME.test(key) ? key : '(key)'}: not declared`
       for (const key of schema.required ?? []) if (!Object.hasOwn(record, key)) return `${where}/${key}: required`
       for (const [key, property] of Object.entries(schema.properties)) {
         if (!Object.hasOwn(record, key)) continue
