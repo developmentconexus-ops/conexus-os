@@ -64,3 +64,10 @@ test("a refused candidate's note says why, so the next turn in the conversation 
   assert.deepEqual(await texts(), [['assistant',
     `A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_AGENTS_MD_REFUSED. Motivo: AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB. Corrija isso na próxima execução.`]])
 })
+
+test('boot problems in an admitted app tell the next turn what the page did, and that the Preview is up', async () => {
+  const { appendDiagnostic, texts } = await conversationThread()
+  await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'APPLICATION_BOOT_PROBLEMS', outcome: 'BOOT_PROBLEMS', sourceRevision: 'd'.repeat(40), detail: 'boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes' })
+  assert.deepEqual(await texts(), [['assistant',
+    `A execução ${runId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas. Detalhe: boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes Corrija isso na próxima execução.`]])
+})

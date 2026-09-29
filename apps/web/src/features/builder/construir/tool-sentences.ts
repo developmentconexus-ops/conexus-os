@@ -25,6 +25,7 @@ const sentences: Readonly<Record<string, Sentence>> = {
   delete: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo' },
   delete_file: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo' },
   mkdir: { running: 'Criando uma pasta', done: 'Criou uma pasta', ask: 'criar uma pasta' },
+  conexus_check: { running: 'Verificando o app', done: 'Verificou o app', ask: 'verificar o app' },
   ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' },
   task_write: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas' },
   task_update: { running: 'Atualizando as tarefas', done: 'Atualizou as tarefas', ask: 'atualizar as tarefas' },

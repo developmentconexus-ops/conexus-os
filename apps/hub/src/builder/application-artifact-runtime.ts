@@ -3,6 +3,10 @@ import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
 import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, parseCheckReport, redactEvidence } from './application-check.js'
 import type { CheckReport } from './application-check.js'
+import type { SANDBOX_AGENT_USER } from './sandbox.js'
+
+/** Who runs the check's command: root for the Hub's own runs, the agent's user for the Builder's tool. */
+type CheckUser = 'root' | typeof SANDBOX_AGENT_USER
 
 export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
 export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
@@ -67,7 +71,7 @@ const mediaTypeForPath = (path: string): string => {
 }
 
 // Where the check wrote the build and who reads it: the Hub reads as root what the agent's user wrote.
-type BuildPlace = Readonly<{ out: string; user?: 'root' }>
+type BuildPlace = Readonly<{ out: string; user?: CheckUser }>
 const distRoot = (place: BuildPlace): string => place.out
 
 const outputPath = (place: BuildPlace, path: string): string => {
@@ -84,7 +88,7 @@ const assertNotAborted = (signal: AbortSignal | undefined): void => {
   if (signal?.aborted) throw cancellation()
 }
 
-const requestOptions = (signal: AbortSignal | undefined, place?: BuildPlace): Readonly<{ requestTimeoutMs: number; signal?: AbortSignal; user?: 'root' }> => ({
+const requestOptions = (signal: AbortSignal | undefined, place?: BuildPlace): Readonly<{ requestTimeoutMs: number; signal?: AbortSignal; user?: CheckUser }> => ({
   requestTimeoutMs: REQUEST_TIMEOUT_MS,
   ...(signal ? { signal } : {}),
   ...(place?.user ? { user: place.user } : {}),
@@ -185,7 +189,7 @@ export type ApplicationCheckRun = Readonly<{
  */
 export const checkApplicationInSandbox = async (
   sandbox: Sandbox,
-  input: Readonly<{ root: string; out: string; collect: boolean; user?: 'root'; signal?: AbortSignal }>,
+  input: Readonly<{ root: string; out: string; collect: boolean; user?: CheckUser; signal?: AbortSignal }>,
 ): Promise<ApplicationCheckRun> => {
   if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out)) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
   const place: BuildPlace = { out: input.out, ...(input.user ? { user: input.user } : {}) }

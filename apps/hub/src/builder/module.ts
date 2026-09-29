@@ -7,6 +7,7 @@ import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/ob
 import { SpanType } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
+import type { CheckReport } from './application-check.js'
 import type { Workspace } from '@mastra/core/workspace'
 import { Memory } from '@mastra/memory'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
@@ -123,6 +124,8 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
   CANDIDATE_REFUSED: ({ builderRunId, code, detail, sourceRevision }) =>
     `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
+  BOOT_PROBLEMS: ({ builderRunId, detail }) =>
+    `A execução ${builderRunId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas.${detail ? ` Detalhe: ${detail}` : ''} Corrija isso na próxima execução.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
@@ -317,6 +320,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const runContexts = new Map<string, RunContextBinder>()
   const runWorkspaces = new Map<string, Workspace>()
+  const runChecks = new Map<string, () => Promise<CheckReport>>()
   const modelRouting = createModelRouting({
     routes,
     modelAccounts,
@@ -330,6 +334,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     workspace: ({ requestContext }) => {
       const runId = requestContext.getRaw(RUN_ID_KEY)
       return typeof runId === 'string' ? runWorkspaces.get(runId) : undefined
+    },
+    runCheck: ({ requestContext }) => {
+      const runId = requestContext.getRaw(RUN_ID_KEY)
+      return typeof runId === 'string' ? runChecks.get(runId) : undefined
     },
     model: modelRouting.resolve,
     memory: new Memory({ options: { lastMessages: 40, semanticRecall: false } }),
@@ -350,7 +358,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces })
+  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runChecks })
   const runtime = createBuilderRunRuntime({
     createSandbox: e2bRunSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
     openSession: async (input) => {

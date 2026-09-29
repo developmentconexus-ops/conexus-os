@@ -16,7 +16,8 @@ type CodingWorkerResultScope = Readonly<{
 // admitted source still settles as a build failure. Anything else (a workspace fault, cancellation)
 // is still a thrown failure.
 export type ApplicationBuildOutcome =
-  | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication }>
+  /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
+  | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; bootProblems?: string }>
   | Readonly<{ kind: 'BUILD_FAILED'; code: string; detail?: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>

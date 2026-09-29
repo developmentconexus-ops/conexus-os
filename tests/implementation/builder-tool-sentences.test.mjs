@@ -43,3 +43,8 @@ test('an unmapped id still reads as a question when it names ask_user or approve
 test('TASK_TOOL_NAMES names exactly the Mastra Code task tools', () => {
   assert.deepEqual([...TASK_TOOL_NAMES].sort(), ['task_check', 'task_complete', 'task_update', 'task_write'])
 })
+
+test('conexus_check reads as checking the app, running and done', () => {
+  assert.equal(toolSentence('conexus_check', true), 'Verificando o app')
+  assert.equal(toolSentence('conexus_check', false), 'Verificou o app')
+})

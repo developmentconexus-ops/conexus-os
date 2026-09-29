@@ -3,6 +3,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
+import type { CheckReport } from './application-check.js'
 import { CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
@@ -28,12 +29,15 @@ export type RunSandbox = Readonly<{
   readAgentFile(path: string): Promise<Uint8Array>
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
-  runCheck(input: Readonly<{ root: string; out: string; collect: boolean }>): Promise<ApplicationCheckRun>
+  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
   destroy(): Promise<void>
 }>
+
+// Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
+const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 
 type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string }>
 
@@ -53,6 +57,8 @@ export type BuilderRunPorts = Readonly<{
   createSandbox(builderRunId: string): RunSandbox
   openSession(input: Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
+    /** The check `conexus_check` runs: the Hub's script on the checkout, as the agent's user. */
+    runCheck: () => Promise<CheckReport>
   }>): Promise<RunSession>
   /**
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
@@ -202,6 +208,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       session = await ports.openSession({
         projectId: input.projectId, conversationId: input.conversationId, builderRunId: input.executionId,
         workspace: sandbox.workspace, bindContext,
+        runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
       })
       await input.setPhase('AGENT')
       const turn = await session.sendTurn(input.intent, input.signal)
@@ -250,7 +257,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         `rm -f ${quoted(candidateTar)}`,
       ].join(' && '))
       if (unpackedCandidate.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-      const admission = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: false })
+      const admission = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: false, user: 'root' })
       ports.log(`BUILDER_CHECK:admission:${input.executionId}:${checkSummary(admission.report)}`)
       const refusedStep = refusingStep(admission.report)
       if (refusedStep) throw new CandidateRefused('BUILDER_CHECK_FAILED', failedStepEvidence(refusedStep))
@@ -283,18 +290,19 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         // The Preview is built by the steps the model saw. A source the check refuses, or a page
         // that threw or drew nothing, leaves the admitted source in place without a Preview.
-        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true })
+        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, user: 'root' })
         ports.log(`BUILDER_CHECK:preview:${input.executionId}:${checkSummary(built.report)}`)
         const refused = refusingStep(built.report)
         const notBooting = unrenderedBootStep(built.report)
         const bootProblems = failedBootStep(built.report)
-        if (bootProblems && !notBooting) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(bootProblems.problems).slice(0, 2_000)}`)
+        const renderedWithProblems = bootProblems && !notBooting ? bootProblems : null
+        if (renderedWithProblems) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(renderedWithProblems.problems).slice(0, 2_000)}`)
         if (refused) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_COMPILATION_FAILED', detail: failedStepEvidence(refused) }
         else if (notBooting) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_FAILED', detail: failedStepEvidence(notBooting) }
         else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
-        } }
+        }, ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
         else throw new Error('APPLICATION_CHECK_UNREADABLE')
       } catch (error) {
         const code = error instanceof Error ? error.message : ''
@@ -327,22 +335,26 @@ const builderRunScope = (builderRunId: string): string => `builder:${builderRunI
  * turn that lasts until the agent is done, including while it waits for the person to approve a
  * plan or answer a question (AC-16).
  */
-export const createControllerRunSessions = ({ controller, runContexts, runWorkspaces }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, runWorkspaces, runChecks }: Readonly<{
   controller: AgentController
   /** The live runs' context binders by session scope, which the browser mount applies to every request it serves a run. */
   runContexts: Map<string, RunContextBinder>
   /** The live runs' workspaces by run id, which the controller's workspace resolver hands a run's session. */
   runWorkspaces: Map<string, Workspace>
-}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext }) => {
+  /** The live runs' checks by run id, which the controller's `conexus_check` reads. */
+  runChecks: Map<string, () => Promise<CheckReport>>
+}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck }) => {
   const resourceId = projectResourceId(projectId)
   const scope = builderRunScope(builderRunId)
   const requestContext = new RequestContext()
   bindContext(requestContext)
   runWorkspaces.set(builderRunId, workspace)
+  runChecks.set(builderRunId, runCheck)
   runContexts.set(scope, bindContext)
   const forget = (): void => {
     runContexts.delete(scope)
     runWorkspaces.delete(builderRunId)
+    runChecks.delete(builderRunId)
   }
   const close = async (): Promise<void> => {
     forget()
@@ -419,7 +431,7 @@ export const e2bRunSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: strin
     runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
     writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
     readAgentFile: (path: string) => sandbox.readAgentFile(path),
-    runCheck: ({ root, out, collect }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: 'root' }),
+    runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
     holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
     destroy: () => sandbox.destroy(),
   })
