@@ -91,24 +91,23 @@ only: no functions, procedures, triggers, DO blocks, extensions, roles, grants o
 
 ## Calling an operation from the browser
 
+Conexus generates a typed client from `manifest.json` into `app/src/conexus/api.gen.ts` on every
+check. Never write or edit it, and never call an operation with `fetch`. Screens use it like this:
+
 ```ts
-const response = await fetch('/__conexus/api/listItems', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ category: 'a' }),
-})
-if (!response.ok) {
-  const { error } = await response.json() // { code, detail? }
-  // show the failure; the app must keep rendering
-} else {
-  const items = await response.json()
-}
+import { api } from '@/conexus/api.gen'
+
+const items = await api.listItems({ category: 'a' }) // typed from the manifest
+// a failure throws ConexusError { code, detail }; the screen shows a message and keeps rendering
 ```
 
-The build check answers every operation with the smallest value its output schema admits, so the
-app must render with empty data as well as when a call fails.
+Add or rename a field in the manifest and the type check names every screen and handler that no
+longer matches. Handlers can type their signature with the generated `conexus/types.gen.ts`
+(`Input<'listItems'>`, `Output<'listItems'>`), plain types a handler may import. How a screen reads, writes and shows errors is in the `conexus-app-code` skill.
 
 When you finish, Conexus checks the result. It type checks `app/` and `conexus/`, builds `app/`, then
 validates `manifest.json`, bundles the handlers and lists the migrations, and opens the app in a
-browser. A type, build or manifest error refuses the result, so read `conexus/` against these rules
-before you finish.
+browser once with every operation answering the smallest value its output schema admits, so the app
+must render with empty data as well as when a call fails. It does not run the handlers or migrations,
+so a handler's logic is proven only when the Prévia calls it. A type, build or manifest error refuses
+the result. `conexus_check` reports each problem with its file and line. Fix all of them.

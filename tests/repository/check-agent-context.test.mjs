@@ -119,3 +119,23 @@ test('the vendored Mastra skill is not checked against this package.json', conte
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2, warnings=0).\n')
 })
+
+test('a skill installed by npx skills add and listed in skills-lock.json is not checked', context => {
+  const candidate = fixture(context, {
+    'skills-lock.json': '{"version":1,"skills":{"shadcn":{"source":"shadcn-ui/ui"}}}\n',
+    '.agents/skills/shadcn/SKILL.md': 'Run `npm run shadcn-only` and read [a](missing.md).\n',
+  })
+  const result = run(candidate)
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, 'Agent context checks passed (files=2, warnings=0).\n')
+})
+
+test('a skill under .agents/skills that is not in skills-lock.json is still checked', context => {
+  const candidate = fixture(context, {
+    'skills-lock.json': '{"version":1,"skills":{"shadcn":{"source":"shadcn-ui/ui"}}}\n',
+    '.agents/skills/ours/SKILL.md': 'Run `npm run ours-only`.\n',
+  })
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'error .agents/skills/ours/SKILL.md:1: npm run ours-only is not a script in package.json\n')
+})
