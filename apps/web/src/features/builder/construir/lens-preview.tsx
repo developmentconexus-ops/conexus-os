@@ -5,7 +5,9 @@ import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import type { BuilderRun } from '../api'
 import { failureReason } from '../failure-reasons'
 import './lens-surfaces.css'
-import type { RunView } from './run-state'
+import type { PreviewWait } from './preview-wait'
+import { type RunView, elapsedLabel } from './run-state'
+import { TaskListPtRow } from './task-list-pt'
 import type { Preview } from './use-preview'
 
 const changedRuns = (history: readonly BuilderRun[]): readonly BuilderRun[] =>
@@ -22,9 +24,10 @@ const addressOf = (url: string): string => {
   try { return new URL(url).host } catch { return url }
 }
 
-export function LensPreview({ preview, view, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
+export function LensPreview({ preview, view, wait, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
   preview: Preview
   view: RunView
+  wait: PreviewWait | null
   history: readonly BuilderRun[]
   lastGoodSourceRevision: string | null
   sourceAhead: boolean
@@ -52,9 +55,10 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
   const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
   if (!preview.ready && !lease) {
+    if (wait) return <PreviewWaiting wait={wait} />
     return <div className="cx-preview-empty">
-      <ConexusMark size={40} working={view.kind === 'ACTIVE'} />
-      <p>{view.kind === 'ACTIVE' ? 'Gerando a primeira prévia…' : 'Ainda não há uma prévia disponível. Descreva o aplicativo para começar.'}</p>
+      <ConexusMark size={40} />
+      <p>Ainda não há uma prévia disponível. Descreva o aplicativo para começar.</p>
       {failedRun && <FailureNote run={failedRun} />}
     </div>
   }
@@ -102,6 +106,20 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
         ? 'Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.'
         : 'Acesso autorizado. Abrindo a prévia…'}</p>
     </>}
+  </div>
+}
+
+// The first version takes minutes. The wait names the phase, the tasks the agent wrote and the time
+// it has run, and claims nothing about how far along it is.
+function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
+  const { tasks } = wait
+  const current = tasks.findIndex((task) => task.status === 'in_progress')
+  return <div className="cx-preview-empty cx-preview-wait">
+    <ConexusMark size={40} working />
+    <p className="cx-preview-wait-title" role="status">{wait.title}</p>
+    {current !== -1 && <p>Tarefa {current + 1} de {tasks.length}: {tasks[current]?.activeForm}</p>}
+    {tasks.length > 0 && <ul className="cx-preview-wait-tasks">{tasks.map((task) => <TaskListPtRow key={task.id} task={task} />)}</ul>}
+    <p className="cx-preview-wait-time">Há {elapsedLabel(wait.elapsedMs)} · a prévia aparece quando a primeira versão compilar</p>
   </div>
 }
 

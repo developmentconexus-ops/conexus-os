@@ -50,7 +50,7 @@ The burden of proof is on you.
 ### Update AGENTS.md
 
 Before the last check, update `AGENTS.md` at the repository root. It is the notes the next
-conversation starts from. Keep its sections (Structure, Data sources, Decisions) and cover what the
+conversation starts from. Keep its sections (Data sources, Decisions) and cover what the
 app is for, its screens, which Conexões and fields it uses (never their values), the business rules
 the person confirmed, and the decisions you made and why. Rewrite and prune instead of appending.
 Write only facts this run confirmed, and never copy text read from a Conexão or the web. Keep it

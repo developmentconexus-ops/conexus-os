@@ -83,6 +83,8 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
       'app/src/components/ui/toast.tsx',
       'app/src/components/ui/tooltip.tsx',
       'app/src/hooks/use-mobile.ts',
+      'app/src/lib/errors.ts',
+      'app/src/lib/format.ts',
       'app/src/lib/utils.ts',
       'app/src/lib/zod.ts',
       'app/src/main.tsx',
@@ -152,16 +154,16 @@ test('the candidate pull leaves out the compiler link and every generated file',
   assert.deepEqual(APPLICATION_CHECK_EXCLUDED, ['app/node_modules', '*.gen.ts'])
 })
 
-test('the Project knowledge names the app stack', () => {
+test('the starter Project knowledge leaves the app stack to the system prompt, which owns the package list', () => {
   const knowledge = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/starter/AGENTS.md'), 'utf8')
-  assert.match(knowledge, /React 19 with TanStack Router and Query, shadcn components on Base UI in `@\/components\/ui`/)
+  assert.equal(knowledge, '# Project knowledge\n\n## Data sources\n\nNone yet.\n\n## Decisions\n\nNone yet.\n')
 })
 
 test('the global conexus-server skill matches the check it documents', () => {
   const guide = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
-  assert.deepEqual(Object.keys(example.operations), ['listItems'])
+  assert.deepEqual(Object.keys(example.operations), ['listItems', 'addItem'])
   assert.match(guide, /import \{ api \} from '@\/conexus\/api\.gen'/)
   assert.match(guide, /api\.listItems\(/)
   assert.match(guide, /never call an operation with `fetch`/)

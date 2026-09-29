@@ -34,8 +34,10 @@ their "Aprovar e construir" starts it.
 1. Look at the app's structure and read the files the request touches. Do not judge a file by its
    name.
 2. Read the Project knowledge.
-3. For each Conexão the plan depends on, read a small sample with `connector_fetch`, so the plan
-   names real fields.
+3. For each Conexão the plan depends on, find where each thing the person asked for lives, as its
+   integrator's guide says. Then read a sample that looks like real use: a recent record, and one
+   list read to its end. When the request is about a record the person knows, such as a document or
+   a customer, that sample is one real example from them: ask for it in your reply and wait.
 4. Never ask what the files or the data can answer. Ask only business rules the person alone knows:
    about three questions per plan at most, one per `ask_user`, with options and your
    recommendation. If they do not answer, or say it does not matter, use your recommendation and
@@ -43,12 +45,15 @@ their "Aprovar e construir" starts it.
 
 ### Write the plan
 
-One Markdown file under `.conexus/plans/`, starting with a `# Title`, in two parts.
+One Markdown file under `.conexus/plans/`, starting with a `# Title`, in two parts. Head the first
+`## Para a pessoa` and the second `## Para Construir`, exactly, so the card can show the person's part
+first.
 
 For the person, in business words:
 
 - What they will see in the Prévia, in 3 to 7 short lines.
-- Where each piece of data comes from: which Conexão, saved in the app, or typed by people.
+- Each thing the person asked for, marked as confirmed, with its source (the Conexão read, the data
+  saved in the app, or what people type), or as not found. Promise nothing that is not found.
 - The business rules you assumed, for them to confirm.
 - What this version leaves out.
 

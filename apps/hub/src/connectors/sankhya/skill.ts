@@ -1,90 +1,58 @@
-// The business concepts below (that a document number identifies a purchase order, that a purchase
-// order has a header and a list of items, and the shape of a purchases follow-up) come from
-// https://github.com/andressaolivi/sankhya-skills (MIT). The native request format and the service,
-// entity, table and field names are the ones this connector's native rule
-// admits (C-030 lets a consumer name them); `purchase-order.ts` marks which of them the first real read
-// still has to confirm. No host, URL, header or credential name enters this text.
+// The note that one document number can match several documents comes from
+// https://github.com/andressaolivi/sankhya-skills (MIT). The request format, the services and the
+// table, entity and field names are generic Sankhya ones this connector's native rule admits (C-030
+// lets a consumer name them), and the dictionary method follows the Sankhya developer reference. No
+// company value, host, URL, header or credential name enters this text.
 export const SANKHYA_BUILDER_SKILL: string = [
-  'Esta Skill cobre as Conexões Sankhya deste Project: como investigá-las com a ferramenta `connector_fetch` enquanto '
-    + 'você constrói, e como o aplicativo as lê em produção. Não existe outra forma de chegar ao Sankhya: não há endereço, '
-    + 'credencial ou biblioteca cliente para usar por conta própria, e nada disso deve ser pedido.',
-  'Investigação com `connector_fetch`. Antes de escrever código que dependa do Sankhya, leia os dados reais. A ferramenta '
-    + "recebe a requisição nativa do gateway: `connection` com o nome local da Conexão, `method: 'POST'`, "
-    + "`path: '/gateway/v1/mge/service.sbr'`, `query: { serviceName: 'CRUDServiceProvider.loadRecords', outputType: 'json' }` "
-    + "e um `body` `{ serviceName: 'CRUDServiceProvider.loadRecords', requestBody: { dataSet: { rootEntity, "
-    + "includePresentationFields: 'N', offsetPage: '0', criteria: { expression: { $: \"this.NUMNOTA = ?\" }, parameter: "
-    + "[{ $: '22790', type: 'I' }] }, entity: { fieldset: { list: 'NUNOTA,NUMNOTA' } } } } }`. Existem dois serviços de "
-    + 'leitura, esse e a consulta SQL descrita abaixo; qualquer outro é recusado com `SERVICE_REFUSED` antes de chegar ao Sankhya.',
-  'Coloque todo valor em `parameter`, com `?` na expressão (`type` `I` para número, `S` para texto); nunca escreva um valor '
-    + 'dentro da expressão. Uma entidade relacionada entra como outro item de `entity`, por exemplo '
-    + "`{ path: 'Parceiro', fieldset: { list: 'NOMEPARC' } }`, e seus campos voltam como `Parceiro_NOMEPARC`.",
-  'A resposta traz `responseBody.entities`: `metadata.fields.field` lista o nome de cada coluna, na ordem; cada linha de '
-    + '`entity` (um objeto quando há uma só linha, uma lista quando há várias) traz os valores como `f0`, `f1`, ... nessa mesma '
-    + "ordem, cada um no formato `{ $: 'valor' }`, e `{}` quando o valor está vazio. `total` diz quantas linhas existem e "
-    + "`hasMoreResult: 'true'` diz que há mais páginas.",
-  'Consulta SQL de leitura. Quando a tela precisa juntar tabelas, ou filtrar de um jeito que uma entidade só não cobre, '
-    + "use `DbExplorerSP.executeQuery`: o mesmo `method` e o mesmo `path`, `query: { serviceName: 'DbExplorerSP.executeQuery', "
-    + "outputType: 'json' }` e `body: { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql } }`. Por exemplo, `sql` "
-    + 'igual a `SELECT CAB.NUNOTA, CAB.DTNEG, PRO.CODPROD, PRO.DESCRPROD FROM TGFCAB CAB JOIN TGFITE ITE ON ITE.NUNOTA = '
-    + 'CAB.NUNOTA JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD WHERE CAB.NUMNOTA = 1234`. A SQL é a do banco da instalação '
-    + 'Sankhya (Oracle ou SQL Server); confirme qual na primeira consulta.',
-  'A consulta só lê. Antes de chegar ao Sankhya, o Conexus recusa com `INPUT_REFUSED` e a issue `/body/requestBody/sql` '
-    + 'toda SQL que não seja uma única instrução começando por `SELECT` ou `WITH`, que tenha um `;` seguido de mais texto, ou '
-    + 'que traga, fora de comentários e de textos entre aspas, uma palavra como `INSERT`, `UPDATE`, `DELETE`, `MERGE`, '
-    + '`CREATE`, `DROP`, `ALTER`, `EXEC`, `CALL` ou `INTO`. Por isso `SELECT ... INTO` também é recusado, e um apelido de '
-    + 'coluna com um desses nomes precisa de outro nome. Não tente contornar a recusa: reescreva a consulta como uma leitura.',
+  'Esta Skill cobre as Conexões Sankhya deste Project: como investigá-las com `connector_fetch` enquanto você constrói, e '
+    + 'como o aplicativo as lê. A Conexão é o único caminho até o Sankhya.',
+  "A requisição. Toda leitura usa `method: 'POST'`, `path: '/gateway/v1/mge/service.sbr'`, `query: { serviceName, "
+    + "outputType: 'json' }` e `body: { serviceName, requestBody }`, com o mesmo `serviceName` nos dois lugares. Há dois "
+    + 'serviços de leitura, a consulta SQL e o `loadRecords`, descritos abaixo; qualquer outro é recusado com '
+    + '`SERVICE_REFUSED`. O contrato de cada serviço está na referência oficial, https://developer.sankhya.com.br/reference '
+    + '(a página `get_loadrecords` descreve o `loadRecords`). Leia-a com `web_fetch` quando precisar de um detalhe que esta '
+    + 'Skill não traz.',
+  "A consulta SQL é `DbExplorerSP.executeQuery`, com `requestBody: { sql }`. É com ela que você descobre onde cada dado "
+    + 'mora e junta tabelas. Para cada coisa que a pessoa pediu:',
+  '1. Na primeira consulta, descubra o banco: `SELECT 1 FROM DUAL` responde no Oracle e falha no SQL Server. Escreva toda '
+    + 'SQL nesse dialeto.',
+  '2. Procure a palavra da pessoa nos rótulos do dicionário de dados do Sankhya, que são os nomes que as telas do Sankhya '
+    + "mostram: `SELECT NOMETAB, NOMECAMPO, DESCRCAMPO FROM TDDCAM WHERE UPPER(DESCRCAMPO) LIKE '%CUSTO%'`. Tente as "
+    + 'palavras do pedido e seus sinônimos.',
+  '3. Confirme que a coluna existe antes de usá-la, porque o dicionário lista campos que a tabela não tem. No Oracle: '
+    + "`SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TGFPRO'`; no SQL Server, `INFORMATION_SCHEMA.COLUMNS`.",
+  '4. Antes de juntar uma tabela, conte as linhas por chave. Tabelas de histórico, como as de custo e de preço, guardam uma '
+    + 'linha por data, e juntá-las sem escolher a linha certa multiplica as linhas do resultado.',
+  'A consulta SQL só lê. O Conexus recusa com `INPUT_REFUSED` (issue `/body/requestBody/sql`) toda SQL que não seja uma única '
+    + 'instrução `SELECT` ou `WITH`, ou que traga, fora de comentários e de textos entre aspas, uma palavra como `INSERT`, '
+    + '`UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`, `ALTER`, `EXEC`, `CALL` ou `INTO`. Um apelido de coluna com um desses '
+    + 'nomes precisa de outro nome. Não contorne a recusa: reescreva a consulta como uma leitura.',
   'A consulta não tem parâmetros: o valor vai escrito dentro da SQL. Por isso o handler só coloca na SQL um valor que ele '
     + 'mesmo validou antes: um número conferido com `Number.isInteger`, uma data conferida no formato `AAAA-MM-DD`, ou um '
     + 'código escolhido de uma lista fixa do próprio aplicativo. Nunca coloque na SQL um texto livre digitado pela pessoa. '
     + 'Quando a leitura cabe numa entidade só, prefira `loadRecords`, que leva o valor em `parameter`.',
-  'A resposta da consulta traz `responseBody.fieldsMetadata`, com o nome de cada coluna em `name`, na ordem, e '
-    + '`responseBody.rows`, uma lista de linhas em que cada linha é uma lista de valores nessa mesma ordem. Monte cada linha '
-    + 'como um objeto `{ NOME_DA_COLUNA: valor }`, a mesma forma das linhas de `loadRecords`. Confirme na primeira consulta se '
-    + 'os valores vêm como texto ou como número: um valor decimal que vier como número perde precisão, então converta-o para '
-    + 'texto na própria SQL. A resposta passa pelo mesmo limite de tamanho: peça só as colunas e as linhas que a tela mostra.',
-  'Para pedidos de compra: o cabeçalho é `CabecalhoNota`, com `NUNOTA` (chave interna), `NUMNOTA` (número do documento), '
-    + "`DTNEG`, `STATUSNOTA`, `VLRNOTA` e `TIPMOV = 'O'` para compras; os itens são `ItemNota`, ligados ao cabeçalho pelo "
-    + '`NUNOTA`, com `SEQUENCIA`, `CODPROD`, `QTDNEG`, `CODVOL`, `VLRUNIT` e `VLRTOT`, e a descrição em `Produto` '
-    + '(`DESCRPROD`). Confirme esses nomes e o formato dos valores na primeira leitura, antes de escrever o aplicativo.',
-  'Se a leitura responder `RESPONSE_TOO_LARGE`, ela passou do limite de tamanho: leia de novo pedindo menos campos em '
-    + '`fieldset.list`, filtrando mais em `criteria` (por número, data ou situação), ou uma página por vez com `offsetPage`. '
-    + 'Nunca repita a mesma leitura sem mudá-la. `CALL_LIMIT` quer dizer que as leituras desta execução acabaram. '
-    + '`PROVIDER_ERROR` com `vendorStatus` é um erro do próprio Sankhya, por exemplo um campo ou entidade que não existe: '
-    + 'corrija a requisição.',
-  'No aplicativo. O handler do servidor lê o Sankhya com `connectors.fetch(requisição)`, com a mesma requisição nativa '
-    + 'que você testou no `connector_fetch` e o mesmo nome local da Conexão. A resposta é `{ ok: true, status, bytes, body }`, '
-    + 'com o JSON do Sankhya em `body`, ou `{ ok: false, code }`. O handler decodifica `body.responseBody` como descrito '
-    + 'acima. No `loadRecords`: os nomes em `entities.metadata.fields.field`, os valores em `f0`, `f1`, ..., `entity` como '
-    + "objeto ou lista, e `total: '0'` como nenhuma linha. Na consulta SQL: os nomes em `fieldsMetadata` e os valores em "
-    + '`rows`. Depois devolve só os campos que a tela mostra. O navegador recebe apenas o que o '
-    + 'handler devolve: nunca devolva `body` nem a resposta inteira. Cada execução do handler faz no máximo 8 chamadas e '
-    + 'termina em 5 segundos, então peça numa leitura só os campos e as linhas de que a tela precisa. Se `hasMoreResult` '
-    + "vier `'true'`, há mais páginas; leia a próxima com `offsetPage` só se a tela precisar dela.",
-  'Um número de documento pode não bater com nenhum pedido, bater com exatamente um, ou bater com vários '
-    + '(o mesmo número pode se repetir em séries diferentes). Mostre de acordo: "nenhum pedido encontrado" '
-    + 'quando a lista vier vazia, o pedido único quando vier com um item, e todos quando vier com mais de '
-    + 'um. Nunca assuma que o primeiro resultado é o único.',
-  'Notas de acompanhamento e qualquer status que a equipe controle (por exemplo "em contato com o '
-    + 'fornecedor", "aguardando entrega") não existem nesse sistema externo e não podem ser gravados nele. '
-    + 'Guarde-os em uma tabela própria deste Project, criada por uma migração, com uma coluna para o '
-    + 'número do documento, para que a nota se ligue de volta ao pedido a que se refere.',
-  'Toda quantidade, preço unitário e valor total chega como texto decimal (por exemplo "1234.50"), nunca '
-    + 'como número binário. Formate esse texto para exibição. Nunca use `parseFloat` nele para somar vários '
-    + 'valores como números de ponto flutuante: o arredondamento pode sair errado. Some textos decimais '
-    + 'com uma biblioteca decimal, ou mantenha a soma como texto e converta só na exibição final.',
-  'A chamada `connectors.fetch` nunca lança exceção. Mostre uma mensagem adequada para cada código, e nunca repita a '
-    + 'chamada automaticamente sem que a pessoa peça de novo:',
-  '- `INPUT_REFUSED` ou `SERVICE_REFUSED`: a requisição do handler está errada (`issues` diz onde); é um erro no código '
-    + 'do aplicativo, não algo que quem o usa possa corrigir.',
-  '- `NOT_GRANTED`: este Project não tem mais essa Conexão; avise que alguém que administra o Workspace precisa '
-    + 'vinculá-la de novo, sem sugerir que o aplicativo está quebrado.',
-  '- `CONNECTOR_UNCONFIGURED`: a integração não está configurada nesta instalação; avise que isso não depende deste '
-    + 'Project.',
-  '- `CREDENTIAL_REFUSED`: a integração foi recusada do outro lado; ela precisa de atenção de quem a administra.',
-  '- `PROVIDER_TIMEOUT` ou `PROVIDER_UNAVAILABLE`: o Sankhya não respondeu a tempo; convide a pessoa a tentar de novo '
-    + 'em instantes.',
-  '- `PROVIDER_ERROR` (com `vendorStatus` quando o erro é do próprio Sankhya) ou `RESPONSE_REFUSED`: avise que a leitura '
-    + 'não pôde ser concluída agora.',
-  '- `RESPONSE_TOO_LARGE`: a resposta passou de 256 KiB; o código deve pedir menos campos ou menos linhas.',
-  '- `CALL_LIMIT`: o handler passou de 8 chamadas numa execução; junte as leituras.',
+  "`CRUDServiceProvider.loadRecords` lê uma entidade pelo nome de instância: `requestBody: { dataSet: { rootEntity: 'Produto', "
+    + "includePresentationFields: 'N', offsetPage: '0', criteria: { expression: { $: 'this.CODPROD = ?' }, parameter: "
+    + "[{ $: '<código>', type: 'I' }] }, entity: [{ path: '', fieldset: { list: 'CODPROD,DESCRPROD' } }, "
+    + "{ path: 'GrupoProduto', fieldset: { list: 'DESCRGRUPOPROD' } }] } }`. Todo valor vai em `parameter`, com `?` na "
+    + 'expressão (`type` `I` para número, `S` para texto). O primeiro item de `entity`, com `path` vazio, é a própria '
+    + 'entidade; cada entidade relacionada é mais um item da lista, com o nome da relação em `path`.',
+  'O `loadRecords` responde `responseBody.entities`: `metadata.fields.field` lista o nome de cada coluna, na ordem, e cada '
+    + "linha de `entity` traz os valores como `f0`, `f1`, ... nessa ordem, no formato `{ $: 'valor' }`, ou `{}` quando vazio. "
+    + '`entity` é uma lista quando a página tem várias linhas e um objeto quando tem uma. Todo valor chega como texto. Cada '
+    + "resposta é uma página: `total` conta as linhas desta página, não da lista inteira, e `total: '0'` é nenhuma linha. A "
+    + "lista só termina quando `hasMoreResult` não é `'true'`; até lá, leia a página seguinte aumentando `offsetPage`.",
+  'A consulta SQL responde `responseBody.fieldsMetadata`, com o nome de cada coluna em `name`, na ordem, e '
+    + '`responseBody.rows`, uma lista de linhas em que cada linha é uma lista de valores nessa ordem. Monte cada linha como '
+    + '`{ NOME_DA_COLUNA: valor }`. Aqui um decimal chega como número JSON, que perde precisão, e uma data chega como texto '
+    + '`DDMMYYYY HH:MM:SS`. Converta os dois na própria SQL; no Oracle, `TO_CHAR(VALOR, \'FM999999999990.00\')` dá o decimal '
+    + 'com ponto, na escala do valor, e `TO_CHAR(DATA, \'YYYY-MM-DD\')` dá a data. Sem um formato, o separador decimal da '
+    + 'sessão pode ser a vírgula. Faça as contas com decimais na SQL, onde o banco calcula exato.',
+  'No aplicativo, o handler lê com `connectors.fetch`, com a mesma requisição que você testou no `connector_fetch` e o mesmo '
+    + 'nome local da Conexão, e decodifica a resposta como acima. Uma lista que a tela mostra inteira é lida até o fim, e '
+    + 'cada página gasta uma das chamadas que o handler tem. '
+    + 'Decimais e datas seguem como texto até a tela.',
+  'Um número de documento (`NUMNOTA`) se repete entre tipos de operação, empresas e séries. Filtre pelo tipo de operação '
+    + 'que a pessoa quer e trate os três casos: nenhum documento, um só (mostre-o direto) e vários (a pessoa escolhe). Nunca '
+    + 'assuma que o primeiro resultado é o único.',
 ].join('\n\n')

@@ -93,6 +93,20 @@ test('AC-1: conexusInstructions carries the mode text and none of the banned ter
   assert.equal(bareText.includes('## Project knowledge'), false)
 })
 
+test('the Conexões section has its own heading, after the mode text and above Project knowledge, and Precedence ranks it as instructions', () => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId: 'build' } })
+  requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, '# Notes\n\n## Verification\n\nThe list screen was read.')
+  requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, 'Conexões bound to this Project: `erp`.')
+  const text = conexusInstructions()({ requestContext })
+  const mode = text.indexOf('## Mode: Construir')
+  const conexoes = text.indexOf('## Conexões\n\nConexões bound to this Project: `erp`.')
+  const knowledge = text.indexOf('## Project knowledge\n\n# Notes')
+  assert.deepEqual([mode > 0, conexoes > mode, knowledge > conexoes], [true, true, true])
+  assert.equal(text.endsWith('The list screen was read.'), true, 'nothing follows the notes')
+  assert.equal(text.includes('These instructions come first, the Conexões section and its integrator guides included, then the\nperson\'s current request, then the Project knowledge.'), true)
+})
+
 const renderPrompt = ({ modeId, variant }) => {
   const requestContext = new RequestContext()
   requestContext.set('controller', { session: { modeId } })

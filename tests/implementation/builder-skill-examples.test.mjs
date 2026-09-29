@@ -36,8 +36,6 @@ const MANIFEST = {
 
 // Where a Project puts each example, as the two skills tell the Builder to.
 const PLACEMENT = {
-  'builder-skills/conexus-app-code/references/errors.ts': 'app/src/lib/errors.ts',
-  'builder-skills/conexus-app-code/references/format.ts': 'app/src/lib/format.ts',
   'builder-skills/conexus-app-code/references/order-form.tsx': 'app/src/routes/order-form.tsx',
   'builder-skills/conexus-app-code/references/orders-screen.tsx': 'app/src/routes/orders-screen.tsx',
   'builder-skills/conexus-app-code/references/orders-table.tsx': 'app/src/routes/orders-table.tsx',
@@ -75,4 +73,37 @@ test('the guard bites: an example that calls an operation the manifest does not 
   const result = typecheck({ 'app/src/routes/orders-screen.tsx': screen.replace('api.listOrders(input)', 'api.listOrdrs(input)') })
   assert.equal(result.status, 2)
   assert.match(result.output, /^app\/src\/routes\/orders-screen\.tsx\(\d+,\d+\): error TS2551: Property 'listOrdrs' does not exist/m)
+})
+
+const serverGuide = () => readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
+
+// The conexus-server handler example, checked as a Project's server half: its manifest, the types the
+// check generates from it, and the handler file, under the compiler's server project.
+const typecheckServerExample = (edit = (handler) => handler) => {
+  const guide = serverGuide()
+  const manifest = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
+  const handler = /```ts\n(import type \{ Input, Output \}[\s\S]*?)\n```/.exec(guide)[1]
+  const root = mkdtempSync(join(tmpdir(), 'conexus-server-example-'))
+  try {
+    mkdirSync(join(root, 'conexus/handlers'), { recursive: true })
+    writeFileSync(join(root, 'conexus/manifest.json'), JSON.stringify(manifest))
+    writeFileSync(join(root, 'conexus/types.gen.ts'), generateClient(manifest).typesGen)
+    writeFileSync(join(root, 'conexus/handlers/items.ts'), edit(handler))
+    const config = join(root, 'tsconfig.server.json')
+    writeFileSync(config, JSON.stringify(typescriptProjects({ compilerRoot, root }).server))
+    const result = spawnSync(process.execPath, [join(compilerRoot, 'node_modules/typescript/bin/tsc'), '-p', config, '--pretty', 'false'], { encoding: 'utf8', cwd: root })
+    return { status: result.status, output: `${result.stdout}${result.stderr}`.trim() }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('the conexus-server handler example typechecks against the types its own manifest generates', () => {
+  assert.deepEqual(typecheckServerExample(), { status: 0, output: '' })
+})
+
+test('the typed handler contract bites: returning a field the manifest does not declare fails the same typecheck', () => {
+  const result = typecheckServerExample((handler) => handler.replace('return { id: rows[0].id }', 'return { id: rows[0].id, items: [] }'))
+  assert.equal(result.status, 2)
+  assert.match(result.output, /^conexus\/handlers\/items\.ts\(\d+,\d+\): error TS2353: Object literal may only specify known properties, and 'items' does not exist/m)
 })

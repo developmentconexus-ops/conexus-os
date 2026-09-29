@@ -24,6 +24,7 @@ import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
 import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
+import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
 import { clockLabel, isActive, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
@@ -229,6 +230,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const diffVersion = diffRun ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === diffRun.builderRunId) + 1 : 0
   const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
 
+  const wait = view.kind === 'ACTIVE'
+    ? previewWait(view, runHere ? { mode: shownMode, waiting: pending.length > 0, tasks: conversationTurn.tasks } : { mode: null, waiting: false, tasks: [] }, now)
+    : null
+
   const stage = <section className="cx-stage" aria-label="Palco">
     <div className="cx-stagebar">
       <div className="cx-lenses" role="tablist" aria-label="Visões">
@@ -260,7 +265,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Project…</p></div> : <>
         {/* The Preview stays mounted under the other lenses so its frame never reloads on a lens switch. */}
         <div className="cx-lens-layer" hidden={lens !== 'preview'}>
-          <LensPreview preview={preview} view={view} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
+          <LensPreview preview={preview} view={view} wait={wait} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
         {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} requestText={diffRun?.requestText ?? null} requestTime={diffRun ? clockLabel(diffRun.createdAt) : null} version={diffVersion} />}

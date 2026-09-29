@@ -1078,9 +1078,9 @@ test('a reply the controller finalizes under a different id than its live stream
 
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
     'the persisted reply renders once, not once per message id it happened to carry')
-  assert.equal(await page.locator('.cx-tool-group summary').count(), 1,
+  assert.equal(await page.locator('.cx-tool-trigger').count(), 1,
     'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
-  await page.locator('.cx-tool-group summary').getByText('6 ações concluídas', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Leu 2 arquivos, editou 2 arquivos, executou 2 comandos', exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
@@ -1143,8 +1143,8 @@ test('a suspended ask_user with options renders the options and submits the chos
   // task_write call above never shows as a conversation row, and the checklist counts and names
   // the in-progress task by its activeForm.
   await page.getByText('Tarefas · 1 de 3', { exact: true }).waitFor()
-  await page.getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
-  assert.equal(await page.locator('.cx-tool-group').count(), 0, 'task_write drives the checklist, not a conversation row')
+  await page.getByTestId('task-list').getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
+  assert.equal(await page.locator('.cx-tool-trigger').count(), 0, 'task_write drives the checklist, not a conversation row')
 
   // AskUser renders the agent's own options as radio controls (single_select), not the old
   // hand-made free-text textarea (that one lived in .cx-pending, gone with the swap; the
@@ -1164,9 +1164,9 @@ test('a suspended ask_user with options renders the options and submits the chos
   // playground-ui's TaskList/AskUser hard-code their labels in English (no labels prop exists), so
   // the Construir screen composes its own pt-BR wrappers around the same primitives; this pins the
   // three task-list statuses the fixture now exercises plus the container/progress aria-labels.
-  assert.equal(await page.locator('[aria-label="Concluída"]').count(), 1, 'the completed task carries the pt-BR status icon label')
-  assert.equal(await page.locator('[aria-label="Em andamento"]').count(), 1, 'the in-progress task carries the pt-BR status icon label')
-  assert.equal(await page.locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Concluída"]').count(), 1, 'the completed task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Em andamento"]').count(), 1, 'the in-progress task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
   await page.locator('[aria-label="Lista de tarefas"]').waitFor()
   await page.getByRole('progressbar', { name: 'Progresso das tarefas' }).waitFor()
 })
@@ -1218,18 +1218,82 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
-test('a reasoning summary reads as running text under a small header, outside any tool disclosure', async (t) => {
-  const reasoning = { type: 'reasoning', reasoning: 'Vou ler o arquivo antes de mudar.', details: [{ type: 'text', text: 'Vou ler o arquivo antes de mudar.' }] }
+const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
+
+test('a reasoning part still streaming is one "Pensando…" line and never the provider\'s own summary', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-1', 'Certo.') },
-    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoning } },
-    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 2, part: { type: 'text', text: 'Pronto.' } } },
+    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoningPart } },
   ])
-  const block = page.locator('.cx-messages .cx-reasoning')
-  await block.waitFor()
-  assert.equal(await block.locator('.cx-reasoning-head').textContent(), 'Raciocínio')
-  assert.equal(await block.getByText('Vou ler o arquivo antes de mudar.', { exact: true }).isVisible(), true, 'the text is on screen without opening anything')
-  assert.equal(await block.evaluate((node) => node.closest('details, [data-state]') === null && node.querySelector('button') === null), true, 'it is not wrapped in a disclosure')
+  await page.getByText('Pensando…', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'the English summary is not on screen')
+})
+
+test('a reasoning part that settled leaves nothing in the thread', async (t) => {
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('live-reasoning-2', 'Certo.') },
+    { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 1, part: reasoningPart } },
+    { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 2, part: { type: 'text', text: 'Pronto.' } } },
+  ])
+  await page.locator('.cx-messages').getByText('Pronto.', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Pensando…').count(), 0)
+  assert.equal(await page.getByText('Planning schema validation').count(), 0)
+})
+
+const toolPart = (id, toolName, args, state = 'result', result = 'ok') => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state, args, result } })
+const streamParts = (id, parts) => [
+  { type: 'message_start', message: assistantMessage(id, 'Vou trabalhar.') },
+  ...parts.map((part, index) => ({ type: 'message_update', id, event: { type: 'part', index: index + 1, part } })),
+]
+
+test('one or two tool calls are plain rows and three or more fold into one line that says what they did', async (t) => {
+  const two = await openLiveTurn(t, streamParts('rows-two', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('b', 'read_file', { path: 'app/src/b.ts' }),
+  ]))
+  await two.getByRole('button', { name: 'Editou um arquivo app/src/a.ts' }).waitFor()
+  await two.getByRole('button', { name: 'Leu um arquivo app/src/b.ts' }).waitFor()
+
+  const four = await openLiveTurn(t, streamParts('rows-four', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('b', 'edit_file', { path: 'app/src/b.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('c', 'edit_file', { path: 'app/src/c.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('d', 'execute_command', { command: 'npm test' }),
+  ]))
+  await four.getByRole('button', { name: 'Editou 3 arquivos, executou 1 comando', exact: true }).waitFor()
+  assert.equal(await four.locator('.cx-tool-trigger').count(), 1, 'the four calls are one line until it is opened')
+})
+
+test('a running group names the call in progress and how many are done', async (t) => {
+  const page = await openLiveTurn(t, streamParts('rows-running', [
+    toolPart('a', 'read_file', { path: 'app/src/a.ts' }),
+    toolPart('b', 'read_file', { path: 'app/src/b.ts' }),
+    toolPart('c', 'read_file', { path: 'app/src/c.ts' }),
+    toolPart('d', 'edit_file', { path: 'app/src/lib/format.ts', old_str: 'x', new_str: 'y' }, 'call'),
+  ]))
+  const header = page.getByRole('button', { name: /Editando um arquivo/ })
+  await header.waitFor()
+  assert.equal((await header.textContent()).replace(/\s+/g, ' ').trim(), 'Editando um arquivoapp/src/lib/format.ts3/4')
+})
+
+// Mastra's ToolCall trigger takes its border and padding from Tailwind's reset. styles.css puts a
+// default on every bare <button> in the same cascade layer, after it, so it landed on the row and made
+// it a bordered card about 50 px tall.
+test('an opened tool row is a borderless line, and its body is the diff or the command with a short output', async (t) => {
+  const longOutput = 'linha '.repeat(400)
+  const page = await openLiveTurn(t, streamParts('rows-open', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'antigo', new_str: 'novo' }, 'result', 'Editado com sucesso e o arquivo inteiro de volta'),
+    toolPart('b', 'execute_command', { command: 'npm test' }, 'result', longOutput),
+  ]))
+  const edit = page.getByRole('button', { name: 'Editou um arquivo app/src/a.ts' })
+  await edit.click()
+  const box = await edit.evaluate((node) => ({ height: node.getBoundingClientRect().height, border: getComputedStyle(node).borderTopWidth, padding: getComputedStyle(node).paddingTop }))
+  assert.deepEqual(box, { height: 26, border: '0px', padding: '0px' })
+  assert.equal(await page.getByText('Editado com sucesso').count(), 0, 'an edit shows its diff, not the result echoed back')
+
+  await page.getByRole('button', { name: 'Executou um comando npm test' }).click()
+  const output = await page.locator('pre').filter({ hasText: 'linha linha' }).textContent()
+  assert.equal(output.length, 801, 'a command shows 800 characters of its output and an ellipsis')
 })
 
 // @mastra/core 1.71 announces a text span that opens after a tool call as its own empty part before
@@ -1244,7 +1308,7 @@ test('text streamed after a tool call renders after it, not appended to the text
   ])
   const body = page.locator('.cx-messages .builder-turn-assistant .builder-turn-body')
   await body.getByText('Depois', { exact: true }).waitFor()
-  assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-group') ? 'tool' : child.textContent.trim())),
+  assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-rows') ? 'tool' : child.textContent.trim())),
     ['Antes', 'tool', 'Depois'])
 })
 
@@ -1367,8 +1431,8 @@ test('a plan the agent submits is sent back with feedback from its card, on the 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText('Agenda semanal', { exact: true }).waitFor()
   const planCard = page.getByRole('region', { name: 'Plano para aprovar' })
-  assert.equal(await planCard.locator('details[open] pre').textContent(), '1. Tela da semana', 'the whole plan is open on the card')
-  assert.equal(await planCard.evaluate((card) => card.querySelector('pre').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
+  await planCard.locator('.cx-plan-clamp li', { hasText: 'Tela da semana' }).waitFor()
+  assert.equal(await planCard.evaluate((card) => card.querySelector('.cx-plan-clamp').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
   const askChanges = page.getByRole('button', { name: 'Pedir ajustes' })
   assert.equal(await askChanges.isDisabled(), true, 'feedback is required to send a plan back')
   await page.getByLabel('O que mudar no plano').fill('Inclua os fins de semana')
@@ -1419,6 +1483,94 @@ test('approving a submitted plan answers it with the approval the controller mov
   await page.getByRole('button', { name: 'Aprovar e construir' }).click()
   await answered
   assert.deepEqual(answers, [{ toolCallId: 'plan-2', resumeData: { action: 'approved' } }])
+})
+
+const PLAN_TEXT = [
+  '## Para a pessoa', '', 'Uma tela com **Compras** do mês e um botão para exportar.', '',
+  '## Para Construir', '', '- Rota `/pedidos` com a operação `listarPedidos`',
+].join('\n')
+
+// A Project whose Planejar run is waiting on the person's approval of PLAN_TEXT.
+const openPlanCard = async (t, answers) => {
+  const accountId = '70000000-0000-4000-8000-000000000271'
+  const projectId = '70000000-0000-4000-8000-000000000272'
+  const runId = '70000000-0000-4000-8000-000000000273'
+  const conversationId = 'conversation-plan-reader'
+  const sourceRevision = 'd'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const state = builderState([conversation(conversationId, 'Compras')], { [conversationId]: [userMessage('user-1', 'Crie uma tela de compras')] })
+  state.modeId = 'plan'
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Compras', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie uma tela de compras', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    answers.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'tool_suspended', toolCallId: 'plan-r', toolName: 'submit_plan', args: { title: 'Compras do mês', plan: PLAN_TEXT }, suspendPayload: { title: 'Compras do mês', plan: PLAN_TEXT } },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  return page.getByRole('region', { name: 'Plano para aprovar' })
+}
+
+test('the plan card renders the Markdown of the person\'s part and leaves the technical part for the reader', async (t) => {
+  const card = await openPlanCard(t, [])
+  await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
+  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
+  assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
+  assert.equal(await card.locator('pre').count(), 0, 'the plan is not a monospace block')
+})
+
+test('Ler plano completo opens the whole plan over the screen, Esc closes it, and approving from it answers the plan and closes it', async (t) => {
+  const answers = []
+  const card = await openPlanCard(t, answers)
+  const page = card.page()
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const reader = page.getByRole('alertdialog', { name: 'Compras do mês' })
+  await reader.getByText('listarPedidos').waitFor()
+  await reader.getByRole('heading', { name: 'Para Construir' }).waitFor()
+
+  await page.keyboard.press('Escape')
+  await reader.waitFor({ state: 'detached' })
+
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
+  await reader.getByRole('button', { name: 'Aprovar e construir' }).click()
+  await answered
+  assert.deepEqual(answers, [{ toolCallId: 'plan-r', resumeData: { action: 'approved' } }])
+  await reader.waitFor({ state: 'detached' })
+})
+
+test('while the first version does not exist the Preview names the phase, the tasks and the time', async (t) => {
+  const tasks = [
+    { id: 'task_data', content: 'Criar armazenamento', status: 'completed', activeForm: 'Criando armazenamento' },
+    { id: 'task_ui', content: 'Montar a lista', status: 'in_progress', activeForm: 'Montando a lista' },
+    { id: 'task_check', content: 'Verificar a Prévia', status: 'pending', activeForm: 'Verificando a Prévia' },
+  ]
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('wait-1', 'Vou construir.') },
+    { type: 'display_state_changed', displayState: { activeTools: {}, tasks } },
+  ])
+  const wait = page.locator('.cx-preview-wait')
+  await wait.getByText('Construindo o app', { exact: true }).waitFor()
+  await wait.getByText('Tarefa 2 de 3: Montando a lista', { exact: true }).waitFor()
+  assert.deepEqual(await wait.locator('li').allTextContents(), ['Criar armazenamento', 'Montando a lista', 'Verificar a Prévia'])
+  assert.match(await wait.locator('.cx-preview-wait-time').textContent(), /^Há \d+ s · a prévia aparece quando a primeira versão compilar$/)
 })
 
 for (const width of [1536, 1700]) {

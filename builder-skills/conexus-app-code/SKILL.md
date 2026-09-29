@@ -1,11 +1,11 @@
 ---
 name: conexus-app-code
-description: Use before building or changing the code of an app's screens. Covers the folder structure, routes in router.tsx, data through api.<operation> with TanStack Query, loading and error states, forms, TanStack Table v9, pt-BR formatting, lazy routes and the final check.
+description: Use before building or changing the code of an app's screens. Covers the folder structure, routes in router.tsx, data through api.<operation> with TanStack Query, loading and error states, forms, TanStack Table v9, pt-BR formatting and lazy routes.
 ---
 
 # Building app screens in code
 
-The packages are fixed and the platform generates the client for the server operations. Look at `conexus-app-ui` for how screens should look. This skill is how the code is put together. Every file in `references/` is a small, type-checked example. Read the one you need and copy its shape.
+Look at `conexus-app-ui` for how screens should look. This skill is how the code is put together. Every file in `references/` is a small, type-checked example. Read the one you need and copy its shape.
 
 ## Structure
 
@@ -17,11 +17,10 @@ app/src/
   components/ui/      the kit. Do not edit.
   components/         your components shared by two or more screens
   lib/                utils.ts, zod.ts (zod without eval, leave it), format.ts, errors.ts
+                      (the formatters and error messages; use and extend them)
   conexus/api.gen.ts  generated on every check. Never edit or write it.
   styles.css          the design tokens
 ```
-
-Start `lib/format.ts` and `lib/errors.ts` from `references/format.ts` and `references/errors.ts` when the first date, amount or error message appears.
 
 ## Routes
 
@@ -33,7 +32,7 @@ Start `lib/format.ts` and `lib/errors.ts` from `references/format.ts` and `refer
 
 ## Data
 
-- Call the server only through `api` from `@/conexus/api.gen`. It is generated from `conexus/manifest.json`, so a wrong field name or a missing field fails the type check. It exports `api.<operation>(input)`, `schemas.<operation>.input` and `.output`, the types `Input<'op'>` and `Output<'op'>`, and `ConexusError`. Never call an operation with `fetch`.
+- Call the server only through `api` from `@/conexus/api.gen`. It is generated from `conexus/manifest.json`, so a wrong field name or a missing field fails the type check. It exports `api.<operation>(input)`, `schemas.<operation>.input` and `.output`, the types `Input<'op'>` and `Output<'op'>`, and `ConexusError`.
 - Read with `useQuery`. The key is `[operationId, input]` and the input object is the whole cache identity:
 
   ```ts
@@ -43,9 +42,7 @@ Start `lib/format.ts` and `lib/errors.ts` from `references/format.ts` and `refer
 
 - Write with `useMutation({ mutationFn: api.createOrder })`. On success, invalidate every read the write changes by its operation id: `queryClient.invalidateQueries({ queryKey: ['listOrders'] })`. That covers every filter already cached. Do not copy server data into `useState`.
 - Every screen that reads data shows four cases (`references/orders-screen.tsx`): loading (`Skeleton`), error (`Alert` with `errorMessage(error)`), empty (`Empty` that invites an action) and data. Tell "no rows exist" from "no row matches the filter" in the empty text.
-- `errorMessage` turns a `ConexusError.code` into a plain Portuguese sentence. Never show the code, the `detail` or a stack to the person.
-- The check opens the app once with every operation answering empty. A screen must render when a list is empty and when a call fails.
-- Postgres `bigint` and `numeric` arrive as strings, so alias them in the handler's SQL (`total::float8 AS total`) to match an output schema that says `number`.
+- `errorMessage(error)` from `lib/errors.ts` turns a thrown `ConexusError` into a plain Portuguese sentence. `connectionMessage(data.failure)` does the same for a failed Conexão read that the handler returned (`conexus-server`, Failures), shown in the same `Alert`. Never show a code, the `detail` or a stack to the person.
 
 ## Forms
 
@@ -71,15 +68,8 @@ Models know TanStack Table v8. The installed version is v9, and the v8 construct
 
 ## pt-BR formatting
 
-`references/format.ts` holds the formatters. Use them instead of ad hoc calls.
-
-- Money is `Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })`, which prints `R$ 1.234,56`. Numbers and percentages use the same locale.
-- A date from a handler is an ISO string. Format it with `date-fns` and the `ptBR` locale from `date-fns/locale`, as `dd/MM/yyyy`. Never call `toLocaleDateString()` without a locale.
-- `calendar.tsx` takes `locale={ptBR}`. A native `type="date"` input gives `yyyy-mm-dd`, which is what the operation should receive as a string.
-
-## Finish with the check
-
-After your last edit, call `conexus_check`, fix every problem it names, and call it again until it passes. Then report what it did as facts and counts, for example "o app compilou e abriu; 3 operações e 1 migração". The check does not run your handlers or click through the app, so never say the app or its operations were "validados" or "testados".
+- `lib/format.ts` prints money (`R$ 1.234,56`), numbers, percentages and ISO dates (`dd/MM/yyyy`) for pt-BR, from a number or from decimal text. Use it instead of `toLocaleString` or a new `Intl` call.
+- `calendar.tsx` takes `locale={ptBR}` from `date-fns/locale`. A native `type="date"` input gives `yyyy-mm-dd`, which is what the operation should receive as a string.
 
 ## References
 
@@ -87,4 +77,3 @@ After your last edit, call `conexus_check`, fix every problem it names, and call
 - `references/orders-screen.tsx`: a list screen with search params, a query and its four states.
 - `references/orders-table.tsx`: the TanStack Table v9 worked example.
 - `references/order-form.tsx`: a form with `zodResolver`, `Field`, a mutation and invalidation.
-- `references/errors.ts`, `references/format.ts`: the message and formatting helpers for `lib/`.

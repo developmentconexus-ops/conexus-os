@@ -47,11 +47,12 @@ export const openBuilderRun = async (
   })
 }
 
-const DESCRIPTION = 'Read one of the Connections bound to this Project, while you build, to learn its real data before you write '
+const DESCRIPTION = 'Read one of the Conexões bound to this Project, while you build, to learn its real data before you write '
   + 'code that depends on it. Send one request in the integrator\'s native format: `connection` is the Project-local name '
-  + 'these instructions list, `path` is relative to the Connection\'s own address, and `query` and `body` are optional. '
+  + 'these instructions list, `path` is relative to the Conexão\'s own address, and `query` and `body` are optional. '
   + 'Answers `{ ok: true, status, bytes, body }` with the vendor\'s JSON, or `{ ok: false, code }` with one of: '
-  + `${BROKER_ERROR_CODES.join(', ')}. Only read services are sent, and each run has a limited number of calls.`
+  + `${BROKER_ERROR_CODES.join(', ')}. Only read services are sent, and each run has ${BUILDER_RUN_TERMS.calls} calls in all, `
+  + 'so answer several questions with one read where you can.'
 
 const connectorFetchTool = (broker: Broker, consumer: Consumer) => {
   // The display and transcript targets project the same input: one binding lookup serves both.

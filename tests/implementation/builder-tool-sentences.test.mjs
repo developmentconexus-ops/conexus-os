@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
-import { TASK_TOOL_NAMES, toolRequest, toolSentence } from '../../apps/web/src/features/builder/construir/tool-sentences.ts'
+import { TASK_TOOL_NAMES, groupSummary, toolRequest, toolSentence } from '../../apps/web/src/features/builder/construir/tool-sentences.ts'
 
 // Regression for the mislabeled-row bug: Mastra Code's task_update/task_check/task_complete
 // reached the heuristics (only task_write had a table entry) where /ask|approve|confirm|question/i
@@ -87,4 +87,15 @@ test('every tool a Builder mode registers has its own pt-BR sentence, running an
     assert.notEqual(toolSentence(toolName, true), 'Usando uma ferramenta', toolName)
     assert.notEqual(toolRequest(toolName), 'usar uma ferramenta', toolName)
   }
+})
+
+test('groupSummary says what a run of calls did, by kind, in the order the kinds first appear', () => {
+  assert.equal(groupSummary(['edit_file', 'edit_file', 'edit_file', 'edit_file', 'execute_command'], 0), 'Editou 4 arquivos, executou 1 comando')
+  assert.equal(groupSummary(['read_file', 'grep', 'grep', 'conexus_check'], 0), 'Leu 1 arquivo, buscou 2 vezes, verificou o app 1 vez')
+  assert.equal(groupSummary(['mkdir', 'read_file'], 0), 'Fez 1 outra ação, leu 1 arquivo')
+})
+
+test('groupSummary names the failures when there are any', () => {
+  assert.equal(groupSummary(['edit_file', 'edit_file', 'execute_command'], 1), 'Editou 2 arquivos, executou 1 comando · 1 falhou')
+  assert.equal(groupSummary(['edit_file', 'edit_file', 'execute_command'], 2), 'Editou 2 arquivos, executou 1 comando · 2 falharam')
 })
