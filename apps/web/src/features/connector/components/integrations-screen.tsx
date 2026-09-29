@@ -2,6 +2,7 @@ import { AlertDialog } from '@mastra/playground-ui/components/AlertDialog'
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { Label } from '@mastra/playground-ui/components/Label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@mastra/playground-ui/components/Select'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
@@ -14,7 +15,10 @@ import {
   checkConnectionMessage,
   checkOutcomeMessage,
   checkWorkspaceConnection,
+  type ConnectorDestination,
   createWorkspaceConnection,
+  DESTINATION_OPTIONS,
+  destinationLabel,
   disableConnectionMessage,
   disableWorkspaceConnection,
   isConnectorAdminRequired,
@@ -104,7 +108,7 @@ function ConnectionRow({ workspaceId, connection, onChanged }: Readonly<{ worksp
   return <li className="cx-connection">
     <div className="cx-connection-main">
       <strong>{connection.label}</strong>
-      <span className="cx-connection-meta">Sankhya · criada em {formatDate(connection.createdAt)}{disabled ? ' · desativada' : ''}</span>
+      <span className="cx-connection-meta">Sankhya · {destinationLabel(connection.destination)} · criada em {formatDate(connection.createdAt)}{disabled ? ' · desativada' : ''}</span>
       <code className="cx-connection-id">{connection.connectionId}</code>
     </div>
     <div className="cx-connection-actions">
@@ -137,13 +141,15 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
   const clientIdId = useId()
   const clientSecretId = useId()
   const xTokenId = useId()
+  const destinationId = useId()
+  const [destination, setDestination] = useState<ConnectorDestination | null>(null)
   const [message, setMessage] = useState('')
   const [created, setCreated] = useState(false)
   // One id per Connection the administrator is adding, kept across a failed submit: if the server
   // committed but the answer was lost, the resubmit is the same request and answers 200.
   const pendingConnectionId = useRef<string | null>(null)
   const create = useMutation({
-    mutationFn: (input: Readonly<{ connectionId: string; connectorId: 'sankhya'; label: string; credential: Readonly<{ clientId: string; clientSecret: string; xToken: string }> }>) =>
+    mutationFn: (input: Readonly<{ connectionId: string; connectorId: 'sankhya'; label: string; destination: ConnectorDestination; credential: Readonly<{ clientId: string; clientSecret: string; xToken: string }> }>) =>
       createWorkspaceConnection(workspaceId, input),
     onSuccess: () => { pendingConnectionId.current = null; setMessage(''); setCreated(true); onCreated() },
     onError: (error) => { setCreated(false); setMessage(workspaceConnectionsMessage(error)) },
@@ -158,16 +164,16 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
     const clientId = String(data.get('clientId') ?? '')
     const clientSecret = String(data.get('clientSecret') ?? '')
     const xToken = String(data.get('xToken') ?? '')
-    if (!label || !clientId || !clientSecret || !xToken) {
+    if (!label || !clientId || !clientSecret || !xToken || !destination) {
       setMessage('Preencha todos os campos.')
       return
     }
     setCreated(false)
     pendingConnectionId.current ??= crypto.randomUUID()
     create.mutate(
-      { connectionId: pendingConnectionId.current, connectorId: 'sankhya', label, credential: { clientId, clientSecret, xToken } },
+      { connectionId: pendingConnectionId.current, connectorId: 'sankhya', label, destination, credential: { clientId, clientSecret, xToken } },
       // reset() also drops the mutation's cached variables, which hold the credential.
-      { onSuccess: () => { form.reset(); create.reset() } },
+      { onSuccess: () => { form.reset(); setDestination(null); create.reset() } },
     )
   }
 
@@ -176,6 +182,15 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
     <div className="cx-field">
       <Label htmlFor={labelId}>Nome da conexão</Label>
       <Input id={labelId} name="label" type="text" autoComplete="off" required placeholder="ERP principal" />
+    </div>
+    <div className="cx-field">
+      <Label htmlFor={destinationId}>Ambiente do Sankhya</Label>
+      <Select value={destination} onValueChange={(value) => setDestination(DESTINATION_OPTIONS.find((option) => option.value === value)?.value ?? null)} items={DESTINATION_OPTIONS}>
+        <SelectTrigger id={destinationId}><SelectValue placeholder="Escolha o ambiente" /></SelectTrigger>
+        <SelectContent>
+          {DESTINATION_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
     <div className="cx-field">
       <Label htmlFor={clientIdId}>Client id</Label>
@@ -262,7 +277,7 @@ function BindingRow({ projectId, binding, onChanged }: Readonly<{ projectId: str
   return <li className="cx-connection">
     <div className="cx-connection-main">
       <strong>{binding.label}</strong>
-      <span className="cx-connection-meta">vinculada em {formatDate(binding.boundAt)}</span>
+      <span className="cx-connection-meta">{destinationLabel(binding.destination)} · vinculada em {formatDate(binding.boundAt)}</span>
       <code className="cx-connection-id">{binding.name}</code>
     </div>
     <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(true)}>Desvincular</Button>
@@ -309,6 +324,7 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
   return <li className="cx-connection">
     <div className="cx-connection-main">
       <strong>{connection.label}</strong>
+      <span className="cx-connection-meta">{destinationLabel(connection.destination)}</span>
       <Label htmlFor={nameId} className="cx-connection-meta">Nome no Projeto</Label>
     </div>
     <form className="cx-connection-actions" onSubmit={submit} noValidate>

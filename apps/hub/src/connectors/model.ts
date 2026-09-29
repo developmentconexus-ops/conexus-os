@@ -7,6 +7,10 @@ export type BindingName = string & { readonly __brand: 'BindingName' }
  * here: the set of admitted ids is the Connector Definition's, not this schema's. */
 export type OperationId = string & { readonly __brand: 'OperationId' }
 export type Environment = 'preview'
+/** Which system a Connection reaches: the company's live one or its test one. Fixed at creation. */
+const DESTINATIONS = ['production', 'sandbox'] as const
+export type Destination = typeof DESTINATIONS[number]
+export const isDestination = (value: unknown): value is Destination => DESTINATIONS.some((destination) => destination === value)
 
 export const connectionId = (value: string): ConnectionId => value as ConnectionId
 export const bindingId = (value: string): BindingId => value as BindingId
@@ -17,6 +21,7 @@ export type Connection = Readonly<{
   connectionId: ConnectionId
   connectorId: ConnectorId
   label: string
+  destination: Destination
   createdAt: Date
   disabledAt: Date | null
 }>
@@ -28,6 +33,7 @@ export type ProjectBinding = Readonly<{
   connectionId: ConnectionId
   connectorId: ConnectorId
   label: string
+  destination: Destination
   boundAt: Date
 }>
 
@@ -36,13 +42,14 @@ type BindableConnection = Readonly<{
   connectionId: ConnectionId
   connectorId: ConnectorId
   label: string
+  destination: Destination
 }>
 
 export type ProjectBindingEntry = ProjectBinding | BindableConnection
 
 /** What the broker reads per call. `connectorId` is the stored text: the registry decides whether it
  * names a registered integrator. */
-export type BoundConnection = Readonly<{ bindingId: BindingId; name: BindingName; connectionId: ConnectionId; connectorId: string }>
+export type BoundConnection = Readonly<{ bindingId: BindingId; name: BindingName; connectionId: ConnectionId; connectorId: string; destination: Destination }>
 
 /** Every refusal a caller sees is one of these shapes: not told the Project or Connection exists,
  * not an administrator/Owner, or a conflict. The store never throws anything else it has a name for. */

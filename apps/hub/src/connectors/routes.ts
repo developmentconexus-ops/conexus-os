@@ -29,7 +29,7 @@ export type CheckConnection = (input: Readonly<{ actor: AccountId; workspaceId: 
 
 const bindingBody = (binding: ProjectBinding) => ({
   kind: 'binding', bindingId: binding.bindingId, name: binding.name, connectionId: binding.connectionId,
-  connectorId: binding.connectorId, label: binding.label, boundAt: binding.boundAt.toISOString(),
+  connectorId: binding.connectorId, label: binding.label, destination: binding.destination, boundAt: binding.boundAt.toISOString(),
 })
 
 export type ConnectorRouteDependencies = Readonly<{
@@ -84,7 +84,7 @@ export const registerConnectorRoutes = async (
       if (!await requireAdministrator(actor, reply)) return reply
       if (!isUuid(request.params.workspaceId)) return { entries: [] }
       const connections = await store.listConnections({ actor, workspaceId: request.params.workspaceId })
-      return { entries: connections.map((connection) => ({ connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(), ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}) })) }
+      return { entries: connections.map((connection) => ({ connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, destination: connection.destination, createdAt: connection.createdAt.toISOString(), ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}) })) }
     },
   })
 
@@ -94,7 +94,7 @@ export const registerConnectorRoutes = async (
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       if (!await requireAdministrator(actor, reply)) return reply
-      const { connectionId, connectorId, label, credential } = request.body
+      const { connectionId, connectorId, label, destination, credential } = request.body
       if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
       if (!label.trim()) return sendProblem(reply, 422, 'connector-label-refused', 'Connector Connection label refused')
       const schema = credentialSchemas[connectorId]
@@ -103,10 +103,10 @@ export const registerConnectorRoutes = async (
       }
       try {
         const { connection, created } = await store.createConnection({
-          actor, connectionId: toConnectionId(connectionId), workspaceId: request.params.workspaceId, connectorId, label, credential,
+          actor, connectionId: toConnectionId(connectionId), workspaceId: request.params.workspaceId, connectorId, label, destination, credential,
         })
         return reply.code(created ? 201 : 200).send({
-          connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(),
+          connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, destination: connection.destination, createdAt: connection.createdAt.toISOString(),
           ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}),
         })
       } catch (error) {
@@ -154,7 +154,7 @@ export const registerConnectorRoutes = async (
         const entries = await store.listProjectBindings({ actor, projectId: request.params.projectId })
         return { entries: entries.map((entry) => entry.kind === 'binding'
           ? bindingBody(entry)
-          : { kind: 'bindable', connectionId: entry.connectionId, connectorId: entry.connectorId, label: entry.label }) }
+          : { kind: 'bindable', connectionId: entry.connectionId, connectorId: entry.connectorId, label: entry.label, destination: entry.destination }) }
       } catch (error) {
         return refusedOwner(reply, error)
       }

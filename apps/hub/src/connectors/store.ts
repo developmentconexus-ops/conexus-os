@@ -2,13 +2,20 @@ import type { QueryResultRow } from 'pg'
 import type { AccountId } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { BindingId, BindingName, BoundConnection, Connection, ConnectionId, ConnectorId, Environment, ProjectBinding, ProjectBindingEntry } from './model.js'
-import { bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'
+import type { BindingId, BindingName, BoundConnection, Connection, ConnectionId, ConnectorId, Destination, Environment, ProjectBinding, ProjectBindingEntry } from './model.js'
+import { isDestination, bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'
+
+// The column has a CHECK; a value outside it is a broken row, which the broker maps to PROVIDER_UNAVAILABLE.
+const toDestination = (value: unknown): Destination => {
+  if (!isDestination(value)) throw new Error('CONNECTOR_DESTINATION_UNREADABLE')
+  return value
+}
 
 type ConnectionRow = QueryResultRow & {
   connection_id: string
   connector_id: ConnectorId
   label: string
+  destination: string
   created_at: Date
   disabled_at: Date | null
 }
@@ -17,15 +24,16 @@ const toConnection = (row: ConnectionRow): Connection => ({
   connectionId: toConnectionId(row.connection_id),
   connectorId: row.connector_id,
   label: row.label,
+  destination: toDestination(row.destination),
   createdAt: row.created_at,
   disabledAt: row.disabled_at,
 })
 
-type BindingRow = QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: ConnectorId; label: string; bound_at: Date }
+type BindingRow = QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: ConnectorId; label: string; destination: string; bound_at: Date }
 
 type BindingEntryRow = QueryResultRow & (
   | Readonly<{ kind: 'binding' } & BindingRow>
-  | Readonly<{ kind: 'bindable'; binding_id: null; name: null; connection_id: string; connector_id: ConnectorId; label: string; bound_at: null }>
+  | Readonly<{ kind: 'bindable'; binding_id: null; name: null; connection_id: string; connector_id: ConnectorId; label: string; destination: string; bound_at: null }>
 )
 
 const toProjectBinding = (row: BindingRow): ProjectBinding => ({
@@ -35,13 +43,14 @@ const toProjectBinding = (row: BindingRow): ProjectBinding => ({
   connectionId: toConnectionId(row.connection_id),
   connectorId: row.connector_id,
   label: row.label,
+  destination: toDestination(row.destination),
   boundAt: row.bound_at,
 })
 
 const toBindingEntry = (row: BindingEntryRow): ProjectBindingEntry =>
   row.kind === 'binding'
     ? toProjectBinding(row)
-    : { kind: 'bindable', connectionId: toConnectionId(row.connection_id), connectorId: row.connector_id, label: row.label }
+    : { kind: 'bindable', connectionId: toConnectionId(row.connection_id), connectorId: row.connector_id, label: row.label, destination: toDestination(row.destination) }
 
 /** Every method's authority error is one of `isConnectorNotAdmitted`, `isConnectorProjectNotFound`,
  * `isConnectorConnectionNotAvailable`, `isConnectorConnectionConflict` or `isConnectorBindingConflict`
@@ -53,7 +62,7 @@ export type ConnectorStore = Readonly<{
    * `created` is false when an earlier request with this id and these same fields made the row. */
   createConnection(input: Readonly<{
     actor: AccountId; connectionId: ConnectionId; workspaceId: string; connectorId: ConnectorId
-    label: string; credential: Readonly<Record<string, string>>
+    label: string; destination: Destination; credential: Readonly<Record<string, string>>
   }>): Promise<Readonly<{ connection: Connection; created: boolean }>>
   disableConnection(input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: ConnectionId }>): Promise<boolean>
   listProjectBindings(input: Readonly<{ actor: AccountId; projectId: string }>): Promise<readonly ProjectBindingEntry[]>
@@ -72,13 +81,14 @@ export type BrokerStore = Readonly<{
 
 export const createBrokerStore = (pool: PostgresPool): BrokerStore => Object.freeze({
   async listBindings({ projectId, environment }) {
-    const result = await pool.query<QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: string }>(
-      'SELECT binding_id, name, connection_id, connector_id FROM connector.list_bound_connections($1, $2)', [projectId, environment])
+    const result = await pool.query<QueryResultRow & { binding_id: string; name: string; connection_id: string; connector_id: string; destination: string }>(
+      'SELECT binding_id, name, connection_id, connector_id, destination FROM connector.list_bound_connections($1, $2)', [projectId, environment])
     return result.rows.map((row) => ({
       bindingId: toBindingId(row.binding_id),
       name: toBindingName(row.name),
       connectionId: toConnectionId(row.connection_id),
       connectorId: row.connector_id,
+      destination: toDestination(row.destination),
     }))
   },
   async readConnectionCredential(connectionId) {
@@ -91,17 +101,17 @@ export const createBrokerStore = (pool: PostgresPool): BrokerStore => Object.fre
 export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: PostgresPool; envelope: SecretEnvelope }>): ConnectorStore => Object.freeze({
   async listConnections({ actor, workspaceId }) {
     const result = await pool.query<ConnectionRow>(
-      'SELECT connection_id, connector_id, label, created_at, disabled_at FROM connector.list_connections($1, $2)',
+      'SELECT connection_id, connector_id, label, destination, created_at, disabled_at FROM connector.list_connections($1, $2)',
       [actor, workspaceId])
     return result.rows.map(toConnection)
   },
-  async createConnection({ actor, connectionId, workspaceId, connectorId, label, credential }) {
+  async createConnection({ actor, connectionId, workspaceId, connectorId, label, destination, credential }) {
     const sealed = await envelope.seal(JSON.stringify(credential))
     // Sorted keys, so a retry that sends the same fields in another order has the same digest.
     const digests = envelope.fingerprints(JSON.stringify(credential, Object.keys(credential).sort()))
     const result = await pool.query<ConnectionRow & { created: boolean }>(
-      'SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1, $2, $3, $4, $5, $6, $7)',
-      [actor, connectionId, workspaceId, connectorId, label, sealed, digests])
+      'SELECT connection_id, connector_id, label, destination, created_at, disabled_at, created FROM connector.create_connection($1, $2, $3, $4, $5, $6, $7, $8)',
+      [actor, connectionId, workspaceId, connectorId, label, destination, sealed, digests])
     const row = result.rows[0]
     if (!row) throw new Error('CONNECTOR_CONNECTION_NOT_READABLE')
     return { connection: toConnection(row), created: row.created }
@@ -113,13 +123,13 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
   },
   async listProjectBindings({ actor, projectId }) {
     const result = await pool.query<BindingEntryRow>(
-      'SELECT kind, binding_id, name, connection_id, connector_id, label, bound_at FROM connector.list_project_bindings($1, $2)',
+      'SELECT kind, binding_id, name, connection_id, connector_id, label, destination, bound_at FROM connector.list_project_bindings($1, $2)',
       [actor, projectId])
     return result.rows.map(toBindingEntry)
   },
   async bindConnection({ actor, projectId, connectionId, name }) {
     const result = await pool.query<BindingRow>(
-      'SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1, $2, $3, $4)',
+      'SELECT binding_id, name, connection_id, connector_id, label, destination, bound_at FROM connector.bind_connection($1, $2, $3, $4)',
       [actor, projectId, connectionId, name])
     const row = result.rows[0]
     if (!row) throw new Error('CONNECTOR_BINDING_NOT_READABLE')

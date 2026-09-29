@@ -35,7 +35,8 @@ const call = (socketPath, body) => new Promise((resolve) => {
   outgoing.end(payload)
 })
 
-const setup = async (t, { database, beforeBindings = async () => {} } = {}) => {
+// `legacySchema`: the database is still before 0039, so the Connection is inserted the way that schema stored it.
+const setup = async (t, { database, beforeBindings = async () => {}, legacySchema = false } = {}) => {
   const fixture = database ?? await buildHubDatabase(t, 'connector_broker')
   const owner = new pg.Client({ connectionString: fixture.connectionString })
   await owner.connect()
@@ -61,13 +62,18 @@ const setup = async (t, { database, beforeBindings = async () => {} } = {}) => {
   const envelope = createSecretEnvelope('ab'.repeat(32))
   const store = createConnectorStore({ pool: runtimePool, envelope })
   const connectionId = randomUUID()
-  await store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP', credential: FAKE_CREDENTIAL })
+  if (legacySchema) {
+    await owner.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
+      VALUES ($1, $2, 'sankhya', 'ERP', $3, $4, $5)`, [connectionId, workspaceId, await envelope.seal(JSON.stringify(FAKE_CREDENTIAL)), envelope.fingerprints(JSON.stringify(FAKE_CREDENTIAL, Object.keys(FAKE_CREDENTIAL).sort()))[0], admin])
+  } else {
+    await store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP', destination: 'production', credential: FAKE_CREDENTIAL })
+  }
   await beforeBindings({ owner, admin, workspaceId, connectionId, project })
 
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }],
     store: createBrokerStore(runtimePool), envelope, observability: connectorRecord().observability,
   })
   const directory = mkdtempSync(join(tmpdir(), 'cx-broker-pg-'))
@@ -117,7 +123,7 @@ test('the operation path never picks between two bindings of one integrator: a s
   assert.deepEqual(await call(port.socketPath, { operation: READ, input: { documentNumber: 22790 } }), { ok: true, value: EXPECTED_ORDER_22790 })
 
   const branch = randomUUID()
-  await store.createConnection({ actor: admin, connectionId: branch, workspaceId, connectorId: 'sankhya', label: 'ERP filial', credential: FAKE_CREDENTIAL })
+  await store.createConnection({ actor: admin, connectionId: branch, workspaceId, connectorId: 'sankhya', label: 'ERP filial', destination: 'production', credential: FAKE_CREDENTIAL })
   const second = await store.bindConnection({ actor: admin, projectId, connectionId: branch, name: 'filial' })
   const before = fake.requests.length
   assert.deepEqual(await call(port.socketPath, { operation: READ, input: { documentNumber: 22790 } }), { ok: false, code: 'NOT_GRANTED' })
@@ -133,6 +139,7 @@ test('a grant made before 0031 reads through its migrated binding, and unbinding
   let grantId
   const { admin, store, openPort } = await setup(t, {
     database: fixture,
+    legacySchema: true,
     beforeBindings: async ({ owner, admin: actor, connectionId, project }) => {
       grantedProject = await project('granted')
       grantId = (await owner.query('SELECT grant_id FROM connector.grant_capability($1, $2, $3, $4)', [actor, grantedProject, connectionId, READ])).rows[0].grant_id

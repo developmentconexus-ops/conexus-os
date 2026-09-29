@@ -113,7 +113,7 @@ const setupFixture = async (t) => {
   const port = await findFreePort()
   const origin = `http://127.0.0.1:${port}`
   const envelope = createSecretEnvelope('cd'.repeat(32))
-  const connectors = createConnectorModule({ pool: runtimePool, envelope, origin, resolveCurrentSession, isInstallationAdministrator })
+  const connectors = createConnectorModule({ pool: runtimePool, envelope, origin, resolveCurrentSession, isInstallationAdministrator, sankhyaDestinations: [] })
 
   const app = await createHttpApp({
     staticRoot,
@@ -183,8 +183,12 @@ const sections = (page) => ({
   bindings: page.locator('section[aria-labelledby="connector-bindings"]'),
 })
 
-const addConnection = async (page, label) => {
+const addConnection = async (page, label, destination = 'Produção') => {
   await page.getByLabel('Nome da conexão').fill(label)
+  if (destination) {
+    await page.getByLabel('Ambiente do Sankhya').click()
+    await page.getByRole('option', { name: destination, exact: true }).click()
+  }
   await page.getByLabel('Client id').fill(CREDENTIAL.clientId)
   await page.getByLabel('Client secret').fill(CREDENTIAL.clientSecret)
   await page.getByLabel('X-Token').fill(CREDENTIAL.xToken)
@@ -201,11 +205,16 @@ test('an installation administrator and Owner adds two Connections and binds one
   await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
 
-  await addConnection(page, 'ERP de teste')
+  await addConnection(page, 'ERP sem ambiente', null)
+  await page.getByText('Preencha todos os campos.').waitFor()
+  assert.equal(await connections.locator('.cx-connection').count(), 0, 'without an environment chosen nothing is saved')
+
+  await addConnection(page, 'ERP de teste', 'Sandbox (testes)')
   await connections.getByText('ERP de teste').waitFor()
   await page.getByText('Para trocar a credencial de uma conexão, desative-a e adicione outra.').waitFor()
   assert.deepEqual(await page.$$eval('input[name="clientId"], input[name="clientSecret"], input[name="xToken"]', (inputs) => inputs.map((input) => input.value)),
     ['', '', ''], 'the form is reset once the Connection is saved, so no field holds a value')
+  assert.equal(await page.getByLabel('Ambiente do Sankhya').innerText(), 'Escolha o ambiente', 'the environment is chosen again for the next Connection')
 
   await page.getByRole('button', { name: 'Testar' }).click()
   await page.getByText('O conector ainda não está configurado no servidor.').waitFor()
@@ -213,6 +222,8 @@ test('an installation administrator and Owner adds two Connections and binds one
   await addConnection(page, 'ERP filial')
   await connections.getByText('ERP filial').waitFor()
   assert.deepEqual(await connections.locator('.cx-connection strong').allInnerTexts(), ['ERP de teste', 'ERP filial'], 'a second Sankhya Connection is its own row')
+  assert.deepEqual(await connections.locator('.cx-connection-meta').evaluateAll((nodes) => nodes.map((node) => node.textContent?.split(' · ').slice(0, 2).join(' · '))),
+    ['Sankhya · Sandbox (testes)', 'Sankhya · Produção'])
 
   const row = bindableRow(page, 'ERP de teste')
   await row.getByLabel('Nome no Projeto').fill('ERP')
@@ -237,6 +248,9 @@ test('an installation administrator and Owner adds two Connections and binds one
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
   await bindings.getByText('erp', { exact: true }).waitFor()
   assert.deepEqual(await bindings.locator('.cx-connection strong').allInnerTexts(), ['ERP de teste', 'ERP filial'])
+  const [boundText, bindableText] = await bindings.locator('.cx-connection').allInnerTexts()
+  assert.match(boundText, /^ERP de teste\nSandbox \(testes\) · vinculada em /, 'the Owner sees which environment the bound Connection reaches')
+  assert.match(bindableText, /^ERP filial\nProdução\n/, 'and which one the bindable Connection reaches')
   assert.deepEqual(await bindings.locator('.cx-connection code').allInnerTexts(), ['erp'], 'the refused bind saved nothing')
   await assertNoCredential({ page, responseBodies, logLines: fixture.logLines })
 

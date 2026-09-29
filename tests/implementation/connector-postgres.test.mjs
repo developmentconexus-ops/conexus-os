@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { loadHubMigrationFiles, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, createEmptyDatabase } from './hub-database.mjs'
 
@@ -50,20 +50,20 @@ const connectorDatabase = async (t) => {
   const administrator = async (accountId) => {
     await client.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [accountId])
   }
-  const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest = DIGEST) =>
-    client.query('SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1,$2,$3,$4,$5,$6,$7)',
-      [actor, connectionId, workspaceId, connectorId, label, credentialSealed, [credentialDigest]])
+  const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest = DIGEST, destination = 'production') =>
+    client.query('SELECT connection_id, connector_id, label, destination, created_at, disabled_at, created FROM connector.create_connection($1,$2,$3,$4,$5,$6,$7,$8)',
+      [actor, connectionId, workspaceId, connectorId, label, destination, credentialSealed, [credentialDigest]])
   const bind = (actor, projectId, connectionId, name) =>
-    client.query('SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1,$2,$3,$4)',
+    client.query('SELECT binding_id, name, connection_id, connector_id, label, destination, bound_at FROM connector.bind_connection($1,$2,$3,$4)',
       [actor, projectId, connectionId, name])
   const unbind = (actor, projectId, bindingId) =>
     client.query('SELECT connector.unbind_connection($1,$2,$3) AS found', [actor, projectId, bindingId])
   const disable = (actor, workspaceId, connectionId) =>
     client.query('SELECT connector.disable_connection($1,$2,$3) AS found', [actor, workspaceId, connectionId])
   const listProjectBindings = async (actor, projectId) =>
-    (await client.query('SELECT kind, binding_id, name, connection_id, connector_id, label FROM connector.list_project_bindings($1,$2)', [actor, projectId])).rows
+    (await client.query('SELECT kind, binding_id, name, connection_id, connector_id, label, destination FROM connector.list_project_bindings($1,$2)', [actor, projectId])).rows
   const boundConnections = async (projectId) =>
-    (await client.query('SELECT binding_id, name, connection_id, connector_id FROM connector.list_bound_connections($1, $2)', [projectId, 'preview'])).rows
+    (await client.query('SELECT binding_id, name, connection_id, connector_id, destination FROM connector.list_bound_connections($1, $2)', [projectId, 'preview'])).rows
 
   return { fixture, client, ...seeding(client), administrator, createConnection, bind, unbind, disable, listProjectBindings, boundConnections }
 }
@@ -143,6 +143,19 @@ test('installation administrators hold a Workspace Connection; idempotent create
     assert.equal((await refusal(() => client.query('SELECT * FROM connector.list_connections($1, $2)', [nonAdmin, workspaceId]))).code, '42501')
   })
 
+  await t.test('a sandbox Connection reads back as sandbox in every list, and a retry that changes the destination is a conflict', async () => {
+    const sandbox = randomUUID()
+    const created = (await createConnection(admin, sandbox, workspaceId, 'sankhya', 'ERP teste', sealed, DIGEST, 'sandbox')).rows[0]
+    assert.deepEqual({ label: created.label, destination: created.destination, created: created.created }, { label: 'ERP teste', destination: 'sandbox', created: true })
+    assert.deepEqual((await client.query('SELECT label, destination FROM connector.list_connections($1, $2) WHERE connection_id = $3', [admin, workspaceId, sandbox])).rows,
+      [{ label: 'ERP teste', destination: 'sandbox' }])
+    const repeat = (await createConnection(admin, sandbox, workspaceId, 'sankhya', 'ERP teste', sealed, DIGEST, 'sandbox')).rows[0]
+    assert.deepEqual({ destination: repeat.destination, created: repeat.created }, { destination: 'sandbox', created: false })
+    assert.deepEqual(await refusal(() => createConnection(admin, sandbox, workspaceId, 'sankhya', 'ERP teste', sealed, DIGEST, 'production')),
+      { code: 'P0001', message: 'CONNECTOR_CONNECTION_CONFLICT' })
+    assert.equal((await refusal(() => createConnection(admin, randomUUID(), workspaceId, 'sankhya', 'ERP url', sealed, DIGEST, 'https://api.sankhya.com.br'))).code, '23514')
+  })
+
   await t.test('disabling is idempotent, narrowing, and keeps the row as the record', async () => {
     const other = await workspace('other-a')
     assert.equal((await refusal(() => disable(nonAdmin, workspaceId, connectionId))).code, '42501')
@@ -212,12 +225,12 @@ test('Project bindings: P7 cross-Workspace is unrepresentable and non-disclosing
     assert.deepEqual(await refusal(() => bind(owner, projectId, branch, 'erp')), conflict)
     const filial = (await bind(owner, projectId, branch, 'filial')).rows[0]
     assert.deepEqual(await listProjectBindings(owner, projectId), [
-      { kind: 'binding', binding_id: erp, name: 'erp', connection_id: principal, connector_id: 'sankhya', label: 'ERP principal' },
-      { kind: 'binding', binding_id: filial.binding_id, name: 'filial', connection_id: branch, connector_id: 'sankhya', label: 'ERP filial' },
+      { kind: 'binding', binding_id: erp, name: 'erp', connection_id: principal, connector_id: 'sankhya', label: 'ERP principal', destination: 'production' },
+      { kind: 'binding', binding_id: filial.binding_id, name: 'filial', connection_id: branch, connector_id: 'sankhya', label: 'ERP filial', destination: 'production' },
     ])
     assert.deepEqual(await listProjectBindings(owner, secondProject), [
-      { kind: 'bindable', binding_id: null, name: null, connection_id: branch, connector_id: 'sankhya', label: 'ERP filial' },
-      { kind: 'bindable', binding_id: null, name: null, connection_id: principal, connector_id: 'sankhya', label: 'ERP principal' },
+      { kind: 'bindable', binding_id: null, name: null, connection_id: branch, connector_id: 'sankhya', label: 'ERP filial', destination: 'production' },
+      { kind: 'bindable', binding_id: null, name: null, connection_id: principal, connector_id: 'sankhya', label: 'ERP principal', destination: 'production' },
     ])
   })
 
@@ -269,21 +282,21 @@ test('P8: the broker sees a bound Connection only while the binding is open, the
   const bindingB = (await bind(owner, projectB, connectionId, 'erp')).rows[0].binding_id
 
   await t.test('an open binding, an enabled Connection and a live Project are listed', async () => {
-    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
+    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya', destination: 'production' }])
+    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya', destination: 'production' }])
   })
 
   await t.test('an archived Project lists nothing', async () => {
     await client.query('UPDATE project.project SET archived = true WHERE project_id = $1', [projectA])
     assert.deepEqual(await boundConnections(projectA), [])
     await client.query('UPDATE project.project SET archived = false WHERE project_id = $1', [projectA])
-    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
+    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya', destination: 'production' }])
   })
 
   await t.test("unbinding one Project's binding empties only its own list", async () => {
     await unbind(owner, projectA, bindingA)
     assert.deepEqual(await boundConnections(projectA), [])
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
+    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya', destination: 'production' }])
   })
 
   await t.test('disabling the Connection ends every open binding of it, and the rows stay as the record', async () => {
@@ -297,11 +310,11 @@ test('P8: the broker sees a bound Connection only while the binding is open, the
     const replacement = randomUUID()
     await createConnection(admin, replacement, workspaceId, 'sankhya', 'ERP principal novo', sealed)
     assert.deepEqual(await listProjectBindings(owner, projectB), [
-      { kind: 'bindable', binding_id: null, name: null, connection_id: replacement, connector_id: 'sankhya', label: 'ERP principal novo' },
+      { kind: 'bindable', binding_id: null, name: null, connection_id: replacement, connector_id: 'sankhya', label: 'ERP principal novo', destination: 'production' },
     ], 'no binding is left open on the disabled Connection')
     const bound = (await bind(owner, projectB, replacement, 'erp')).rows[0]
     assert.notEqual(bound.binding_id, bindingB)
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bound.binding_id, name: 'erp', connection_id: replacement, connector_id: 'sankhya' }])
+    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bound.binding_id, name: 'erp', connection_id: replacement, connector_id: 'sankhya', destination: 'production' }])
   })
 })
 
@@ -350,7 +363,7 @@ test('read_connection_credential and list_bound_connections: the broker surface 
 
   const read = async (id) => (await client.query('SELECT connector.read_connection_credential($1) AS sealed', [id])).rows[0].sealed
   assert.equal(JSON.parse(await envelope.open(await read(connectionId))).clientId, 'client-d')
-  assert.deepEqual(await boundConnections(projectId), [{ binding_id: bindingId, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
+  assert.deepEqual(await boundConnections(projectId), [{ binding_id: bindingId, name: 'erp', connection_id: connectionId, connector_id: 'sankhya', destination: 'production' }])
 
   await disable(admin, workspaceId, connectionId)
   assert.equal(await read(connectionId), null, 'a disabled Connection answers no credential')
@@ -393,7 +406,7 @@ test('0031 moves every grant to a binding: open grants of one Connection collaps
   await grant(WITHDRAWN, orders, principal, 'sankhya.order-item.read', owner, '2026-09-23T12:00:00Z', successor, '2026-09-25T08:00:00Z')
   await grant(NOTES, notes, principal, 'sankhya.purchase-order.read', successor, '2026-09-24T12:00:00Z')
 
-  const result = await runHubMigrations({ connectionString: fixture.connectionString })
+  const result = await runMigrations({ connectionString: fixture.connectionString, migrations: migrations.filter(({ version }) => version <= '0031'), catalogSnapshot: null })
   assert.deepEqual(result.appliedNow, ['0031'])
 
   const rows = (await client.query(`SELECT binding_id, project_id, environment, connection_id, name, bound_by, bound_at, unbound_by, unbound_at
@@ -433,7 +446,7 @@ test('the Hub store tells an identical retry from a changed credential without o
   await administrator(admin)
   const workspaceId = await workspace('purchasing-store', [[admin, 'owner']])
   const credential = { clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }
-  const create = (connectionId, fields = {}) => store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  const create = (connectionId, fields = {}) => store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', destination: 'production', credential, ...fields })
   const summary = ({ connection, created }) => ({ connectionId: connection.connectionId, created })
 
   const connectionId = randomUUID()
@@ -451,18 +464,18 @@ test('the Hub store tells an identical retry from a changed credential without o
 
   // The installation key rotates, and the old one stays configured to open what it sealed.
   const rotated = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32), ['ab'.repeat(32)]) })
-  const createRotated = (fields = {}) => rotated.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  const createRotated = (fields = {}) => rotated.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', destination: 'production', credential, ...fields })
   assert.deepEqual(summary(await createRotated()), { connectionId, created: false }, 'an identical retry after the rotation still replays')
   const changedAfterRotation = await createRotated({ credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
   assert.equal(isConnectorConnectionConflict(changedAfterRotation), true, 'a changed credential is still a conflict after the rotation')
   const forgotten = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32)) })
-  const afterRetirement = await forgotten.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential }).then(() => null, (error) => error)
+  const afterRetirement = await forgotten.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', destination: 'production', credential }).then(() => null, (error) => error)
   assert.equal(isConnectorConnectionConflict(afterRetirement), true, 'once the old key is no longer configured, the stored digest cannot be matched')
 
   // A client that times out and retries while its first request is still in flight.
   const racedId = randomUUID()
   const other = await workspace('purchasing-race', [[admin, 'owner']])
-  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', credential })))
+  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', destination: 'production', credential })))
   assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
   assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
 
@@ -470,9 +483,37 @@ test('the Hub store tells an identical retry from a changed credential without o
   const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ actor: admin, projectId, connectionId: racedId, name: 'erp' })))
   assert.equal(new Set(bindings.map((binding) => binding.bindingId)).size, 1)
   const { bindingId: _settled, boundAt: _at, ...settled } = bindings[0]
-  assert.deepEqual(settled, { kind: 'binding', name: 'erp', connectionId: racedId, connectorId: 'sankhya', label: 'ERP' })
+  assert.deepEqual(settled, { kind: 'binding', name: 'erp', connectionId: racedId, connectorId: 'sankhya', label: 'ERP', destination: 'production' })
   const open = await client.query('SELECT count(*)::int AS open FROM connector.project_binding WHERE project_id = $1 AND unbound_at IS NULL', [projectId])
   assert.deepEqual(open.rows, [{ open: 1 }])
   const listed = await store.listProjectBindings({ actor: admin, projectId })
   assert.deepEqual(listed, [bindings[0]])
+})
+
+test('0039 marks every Connection created before it production, in every list; the CHECK admits nothing else', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const fixture = await createEmptyDatabase(t, 'connector_destination')
+  const migrations = loadHubMigrationFiles()
+  await runMigrations({ connectionString: fixture.connectionString, migrations: migrations.filter(({ version }) => version <= '0031'), catalogSnapshot: null })
+  const client = new pg.Client(fixture.connection)
+  await client.connect()
+  fixture.onCleanup(() => client.end())
+  const { account, workspace, project } = seeding(client)
+  const owner = await account('owner-destination')
+  await client.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [owner])
+  const workspaceId = await workspace('purchasing-destination', [[owner, 'owner']])
+  const projectId = await project(workspaceId, 'Pedidos')
+  const legacy = randomUUID()
+  await client.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
+    VALUES ($1, $2, 'sankhya', 'ERP existente', 'mastra:factory-secret:v1:legacy', $3, $4)`, [legacy, workspaceId, DIGEST, owner])
+  await client.query("SELECT connector.bind_connection($1, $2, $3, 'erp')", [owner, projectId, legacy])
+
+  const result = await runMigrations({ connectionString: fixture.connectionString, migrations, catalogSnapshot: null })
+  assert.deepEqual(result.appliedNow, ['0039'])
+  assert.deepEqual((await client.query('SELECT label, destination FROM connector.list_connections($1, $2)', [owner, workspaceId])).rows, [{ label: 'ERP existente', destination: 'production' }])
+  assert.deepEqual((await client.query('SELECT name, destination FROM connector.list_bound_connections($1, $2)', [projectId, 'preview'])).rows, [{ name: 'erp', destination: 'production' }])
+  assert.deepEqual((await client.query('SELECT kind, destination FROM connector.list_project_bindings($1, $2)', [owner, projectId])).rows, [{ kind: 'binding', destination: 'production' }])
+  await assert.rejects(
+    () => client.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, destination, credential_sealed, credential_digest, created_by)
+      VALUES ($1, $2, 'sankhya', 'ERP', 'staging', 'mastra:factory-secret:v1:x', $3, $4)`, [randomUUID(), workspaceId, DIGEST, owner]),
+    { code: '23514' })
 })

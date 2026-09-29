@@ -65,7 +65,7 @@ const setup = async (t) => {
   const store = createConnectorStore({ pool: runtimePool, envelope })
   const connection = async (connectorId, label, credential) => {
     const connectionId = randomUUID()
-    await store.createConnection({ actor: admin, connectionId, workspaceId, connectorId, label, credential })
+    await store.createConnection({ actor: admin, connectionId, workspaceId, connectorId, label, destination: 'production', credential })
     return connectionId
   }
   const bind = (projectId, connectionId, name) => store.bindConnection({ actor: admin, projectId, connectionId, name })
@@ -78,8 +78,8 @@ const setup = async (t) => {
   t.after(() => Promise.all([fake.close(), other.close(), rest.close()]))
   const broker = createBroker({
     connectors: [
-      { definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) },
-      { definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) },
+      { definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } },
+      { definition: restDefinition, adapters: { production: createRestAdapter({ origin: rest.origin }) } },
     ],
     store: createBrokerStore(runtimePool), envelope, observability: connectorRecord().observability,
   })

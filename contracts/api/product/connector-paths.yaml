@@ -208,10 +208,14 @@ paths:
 
 components:
   schemas:
+    ConnectorDestination:
+      type: string
+      enum: [production, sandbox]
+      description: Which system the Connection reaches, fixed at creation. The Hub maps the name to the address; no URL is ever sent or returned.
     ConnectorConnection:
       type: object
       additionalProperties: false
-      required: [connectionId, connectorId, label, createdAt]
+      required: [connectionId, connectorId, label, destination, createdAt]
       description: Never a credential field, sealed or otherwise; CON-02 is the only operation that accepts one, and it is writeOnly there.
       properties:
         connectionId: { type: string, format: uuid }
@@ -219,17 +223,18 @@ components:
           type: string
           enum: [sankhya]
         label: { type: string, minLength: 1 }
+        destination: { $ref: '#/components/schemas/ConnectorDestination' }
         createdAt: { type: string, format: date-time }
         disabledAt: { type: string, format: date-time }
     CreateWorkspaceConnectionRequest:
       type: object
       additionalProperties: false
-      required: [connectionId, connectorId, label, credential]
+      required: [connectionId, connectorId, label, destination, credential]
       properties:
         connectionId:
           type: string
           format: uuid
-          description: Client-chosen identity of the Connection. A retry with this same id and the same fields answers the same row; a retry with different fields is a conflict.
+          description: Client-chosen identity of the Connection. A retry with this same id and the same fields, destination included, answers the same row; a retry with different fields is a conflict.
         connectorId:
           type: string
           enum: [sankhya]
@@ -238,6 +243,7 @@ components:
           minLength: 1
           maxLength: 200
           description: Installation-administrator-chosen human label; never authorization.
+        destination: { $ref: '#/components/schemas/ConnectorDestination' }
         credential:
           $ref: '#/components/schemas/SankhyaCredential'
     SankhyaCredential:
@@ -252,7 +258,7 @@ components:
     ConnectionBinding:
       type: object
       additionalProperties: false
-      required: [kind, bindingId, name, connectionId, connectorId, label, boundAt]
+      required: [kind, bindingId, name, connectionId, connectorId, label, destination, boundAt]
       properties:
         kind: { const: binding }
         bindingId: { type: string, format: uuid }
@@ -262,11 +268,12 @@ components:
           type: string
           enum: [sankhya]
         label: { type: string, minLength: 1 }
+        destination: { $ref: '#/components/schemas/ConnectorDestination' }
         boundAt: { type: string, format: date-time }
     BindableConnection:
       type: object
       additionalProperties: false
-      required: [kind, connectionId, connectorId, label]
+      required: [kind, connectionId, connectorId, label, destination]
       description: An enabled Connection of the Project's Workspace that this Project has not bound.
       properties:
         kind: { const: bindable }
@@ -275,6 +282,7 @@ components:
           type: string
           enum: [sankhya]
         label: { type: string, minLength: 1 }
+        destination: { $ref: '#/components/schemas/ConnectorDestination' }
     ConnectionBindingEntry:
       oneOf:
         - $ref: '#/components/schemas/ConnectionBinding'

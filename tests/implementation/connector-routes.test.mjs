@@ -18,10 +18,10 @@ const notAdmitted = () => Object.assign(new Error('NOT_ADMITTED'), { code: '4250
 const projectNotFound = () => Object.assign(new Error('CONNECTOR_PROJECT_NOT_FOUND'), { code: 'P0002' })
 const connectionUnavailable = () => Object.assign(new Error('CONNECTOR_CONNECTION_NOT_AVAILABLE'), { code: 'P0002' })
 
-const connectionEntry = { connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: new Date('2026-09-24T10:00:00.000Z'), disabledAt: null }
+const connectionEntry = { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', createdAt: new Date('2026-09-24T10:00:00.000Z'), disabledAt: null }
 const otherConnectionId = '77777777-7777-4777-8777-777777777777'
-const binding = { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', boundAt: new Date('2026-09-24T11:00:00.000Z') }
-const bindable = { kind: 'bindable', connectionId: otherConnectionId, connectorId: 'sankhya', label: 'ERP filial' }
+const binding = { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', boundAt: new Date('2026-09-24T11:00:00.000Z') }
+const bindable = { kind: 'bindable', connectionId: otherConnectionId, connectorId: 'sankhya', label: 'ERP filial', destination: 'production' }
 const bindingConflict = () => Object.assign(new Error('CONNECTOR_BINDING_CONFLICT'), { code: 'P0001' })
 
 const makeStore = (overrides = {}) => {
@@ -82,16 +82,16 @@ test('an installation administrator lists, creates and disables a Workspace Conn
   const listed = await app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/connections`, cookies: session })
   assert.equal(listed.statusCode, 200)
   bodyHasNoCredential(listed.json())
-  assert.deepEqual(listed.json(), { entries: [{ connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-24T10:00:00.000Z' }] })
+  assert.deepEqual(listed.json(), { entries: [{ connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', createdAt: '2026-09-24T10:00:00.000Z' }] })
 
   const created = await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
-    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential },
+    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential },
   })
   assert.equal(created.statusCode, 201)
   bodyHasNoCredential(created.json())
-  assert.deepEqual(created.json(), { connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-24T10:00:00.000Z' })
-  assert.deepEqual(store.calls.at(-1), { name: 'createConnection', input: { actor: adminAccountId, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential } })
+  assert.deepEqual(created.json(), { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', createdAt: '2026-09-24T10:00:00.000Z' })
+  assert.deepEqual(store.calls.at(-1), { name: 'createConnection', input: { actor: adminAccountId, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential } })
 
   const disabled = await app.inject({ method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}`, ...authenticDelete })
   assert.equal(disabled.statusCode, 204)
@@ -106,11 +106,11 @@ test('a retry the store recognizes answers 200, a changed one 409, and a Workspa
   ]
   const app = await makeApp(makeStore({ createConnection: () => outcomes.shift()() }))
   t.after(() => app.close())
-  const post = () => app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential } })
+  const post = () => app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential } })
 
   const retried = await post()
   assert.deepEqual({ status: retried.statusCode, body: retried.json() },
-    { status: 200, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-24T10:00:00.000Z' } })
+    { status: 200, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', createdAt: '2026-09-24T10:00:00.000Z' } })
   const changed = await post()
   assert.deepEqual({ status: changed.statusCode, type: changed.json().type }, { status: 409, type: 'urn:conexus:problem:connector-connection-conflict' })
   const nowhere = await post()
@@ -125,9 +125,9 @@ test('a malformed id gets the declared 400, 404 or 422, and never reaches the st
   const bad = 'not-a-uuid'
   const cases = [
     { method: 'GET', url: `/api/control/workspaces/${bad}/connections`, cookies: session, expected: { status: 200, body: { entries: [] } } },
-    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-workspace-not-found' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', credential }, expected: { status: 422, type: 'connector-label-refused' } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', destination: 'sandbox', credential }, expected: { status: 422, type: 'connector-workspace-not-found' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', destination: 'sandbox', credential }, expected: { status: 400, type: 'request-invalid' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', destination: 'sandbox', credential }, expected: { status: 422, type: 'connector-label-refused' } },
     { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
     { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
     { method: 'DELETE', url: `/api/control/workspaces/${bad}/connections/${connectionId}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
@@ -157,7 +157,7 @@ test('the credential fields are writeOnly: a malformed credential is refused bef
 
   const malformed = await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
-    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential: { clientId: 'client-a', clientSecret: '', xToken: 'x' } },
+    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential: { clientId: 'client-a', clientSecret: '', xToken: 'x' } },
   })
   assert.equal(malformed.statusCode, 400, 'the wire schema itself refuses an empty field before any handler runs')
   bodyHasNoCredential(malformed.json())
@@ -165,7 +165,7 @@ test('the credential fields are writeOnly: a malformed credential is refused bef
 
   const extraField = await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
-    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential: { ...credential, mgeUser: 'x' } },
+    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential: { ...credential, mgeUser: 'x' } },
   })
   assert.equal(extraField.statusCode, 400, 'the wire schema is additionalProperties:false on the credential object, so no MGE field is ever admitted')
   assert.equal(store.calls.length, 0)
@@ -177,7 +177,7 @@ test('a registered wire connectorId with no matching Definition schema is refuse
   t.after(() => app.close())
   const response = await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic,
-    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential },
+    payload: { connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', credential },
   })
   assert.equal(response.statusCode, 422)
   bodyHasNoCredential(response.json())
@@ -202,13 +202,30 @@ test('an authentication check of a Connection absent from the Workspace is a 404
   assert.equal(response.json().type, 'urn:conexus:problem:connector-connection-not-found')
 })
 
+test('CON-02 requires a destination of production or sandbox, and never takes an address', async (t) => {
+  const store = makeStore()
+  const app = await makeApp(store)
+  t.after(() => app.close())
+  const post = (payload) => app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload })
+  const base = { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential }
+  for (const payload of [base, { ...base, destination: 'staging' }, { ...base, destination: 'https://api.sankhya.com.br' }, { ...base, destination: 'sandbox', origin: 'https://api.sandbox.sankhya.com.br' }]) {
+    const refused = await post(payload)
+    assert.deepEqual([refused.statusCode, refused.json().type], [400, 'urn:conexus:problem:request-invalid'], JSON.stringify(payload.destination))
+  }
+  assert.deepEqual(store.calls, [])
+  const created = await post({ ...base, destination: 'sandbox' })
+  assert.equal(created.statusCode, 201)
+  assert.equal(created.json().destination, 'sandbox')
+  assert.equal(store.calls.at(-1).input.destination, 'sandbox')
+})
+
 test('a non-administrator is refused every Connection operation', async (t) => {
   const app = await makeApp(makeStore(), { isAdmin: false, currentAccountId: memberAccountId })
   t.after(() => app.close())
   const list = await app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/connections`, cookies: session })
   assert.equal(list.statusCode, 403)
   assert.equal(list.json().type, 'urn:conexus:problem:installation-administrator-required')
-  const create = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential } })
+  const create = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', destination: 'sandbox', credential } })
   assert.equal(create.statusCode, 403)
   const disable = await app.inject({ method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}`, ...authenticDelete })
   assert.equal(disable.statusCode, 403)
@@ -225,15 +242,15 @@ test('an Owner lists, binds and unbinds a Project Connection binding', async (t)
   assert.equal(listed.statusCode, 200)
   assert.deepEqual(listed.json(), {
     entries: [
-      { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T11:00:00.000Z' },
-      { kind: 'bindable', connectionId: otherConnectionId, connectorId: 'sankhya', label: 'ERP filial' },
+      { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', boundAt: '2026-09-24T11:00:00.000Z' },
+      { kind: 'bindable', connectionId: otherConnectionId, connectorId: 'sankhya', label: 'ERP filial', destination: 'production' },
     ],
   })
   assert.deepEqual(store.calls.at(-1), { name: 'listProjectBindings', input: { actor: memberAccountId, projectId } })
 
   const bound = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' } })
   assert.equal(bound.statusCode, 200)
-  assert.deepEqual(bound.json(), { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T11:00:00.000Z' })
+  assert.deepEqual(bound.json(), { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', destination: 'sandbox', boundAt: '2026-09-24T11:00:00.000Z' })
   assert.deepEqual(store.calls.at(-1), { name: 'bindConnection', input: { actor: memberAccountId, projectId, connectionId, name: 'erp' } })
 
   const unbound = await app.inject({ method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bindingId}`, ...authenticDelete })
@@ -282,7 +299,7 @@ test('a state change without the exact Origin or the CSRF token is refused befor
     { headers: { ...authentic.headers, 'x-conexus-csrf': 'other' } },
   ]
   for (const { headers } of cases) {
-    const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, headers, cookies: session, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential } })
+    const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, headers, cookies: session, payload: { connectionId, connectorId: 'sankhya', label: 'x', destination: 'sandbox', credential } })
     assert.equal(response.statusCode, 403)
     assert.equal(response.json().type, 'urn:conexus:problem:request-authenticity-denied')
   }
@@ -296,6 +313,6 @@ test('without a session every operation answers 401', async (t) => {
   assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/connection-bindings` })).statusCode, 401)
   assert.equal((await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`,
-    headers: authentic.headers, cookies: { '__Host-conexus_csrf': 'csrf-1' }, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential },
+    headers: authentic.headers, cookies: { '__Host-conexus_csrf': 'csrf-1' }, payload: { connectionId, connectorId: 'sankhya', label: 'x', destination: 'sandbox', credential },
   })).statusCode, 401)
 })

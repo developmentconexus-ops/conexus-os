@@ -107,7 +107,7 @@ must agree exactly.
 | `BLD-28` | `CreateFactoryConversation` | Builder over Factory storage | authorized Project bound to its Factory repository + client-chosen conversation id; a retry returns the existing row | command |
 | `BLD-29` | `CompareProjectSourceRevisions` | Project Git via Builder | authorized Project + two exact admitted source revisions; file content stays behind GetProjectSourceFile | read |
 | `CON-01` | `ListWorkspaceConnections` | Connector | the Workspace's Connections, never a credential field; installation administrator only | read |
-| `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it, and a retry with this id whose fields differ is a conflict; the credential fields are write-only and never returned | command |
+| `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; the Connection's destination, production or sandbox, fixed at creation; client-chosen Connection id, idempotent on it, and a retry with this id whose fields differ is a conflict; the credential fields are write-only and never returned | command |
 | `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | read |
 | `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, ends the Connection's open bindings, and the rows stay as the record | narrowing command |
 | `CON-08` | `ListProjectConnectionBindings` | Connector | exact Project's open bindings and the Workspace's enabled Connections it has not bound, in one projection; Owner of the Project's Workspace only | read |

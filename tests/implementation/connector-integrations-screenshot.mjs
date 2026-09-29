@@ -26,8 +26,8 @@ async function mockRoutes(page) {
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       entries: [
-        { connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-20T13:00:00.000Z' },
-        { connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial', createdAt: '2026-09-27T09:00:00.000Z' },
+        { connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', destination: 'production', createdAt: '2026-09-20T13:00:00.000Z' },
+        { connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial', destination: 'sandbox', createdAt: '2026-09-27T09:00:00.000Z' },
       ],
     }),
   }))
@@ -35,8 +35,8 @@ async function mockRoutes(page) {
     status: 200, contentType: 'application/json',
     body: JSON.stringify({
       entries: [
-        { kind: 'binding', bindingId: 'binding-1', name: 'erp', connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T10:00:00.000Z' },
-        { kind: 'bindable', connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial' },
+        { kind: 'binding', bindingId: 'binding-1', name: 'erp', connectionId: 'conn-1', connectorId: 'sankhya', label: 'ERP principal', destination: 'production', boundAt: '2026-09-24T10:00:00.000Z' },
+        { kind: 'bindable', connectionId: 'conn-2', connectorId: 'sankhya', label: 'ERP filial', destination: 'sandbox' },
       ],
     }),
   }))

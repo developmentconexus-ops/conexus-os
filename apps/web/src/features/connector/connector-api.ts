@@ -15,6 +15,16 @@ export const workspaceConnectionsQueryKey = (workspaceId: string) =>
 export const projectConnectionBindingsQueryKey = (projectId: string) =>
   ['connector', 'project-bindings', projectId] as const
 
+export type ConnectorDestination = ConnectorConnection['destination']
+
+export const DESTINATION_OPTIONS: readonly Readonly<{ value: ConnectorDestination; label: string }>[] = [
+  { value: 'production', label: 'Produção' },
+  { value: 'sandbox', label: 'Sandbox (testes)' },
+]
+
+export const destinationLabel = (destination: ConnectorDestination): string =>
+  DESTINATION_OPTIONS.find((option) => option.value === destination)?.label ?? destination
+
 export type ProjectConnectionBinding = Extract<ConnectionBindingEntry, { kind: 'binding' }>
 export type BindableConnection = Extract<ConnectionBindingEntry, { kind: 'bindable' }>
 
