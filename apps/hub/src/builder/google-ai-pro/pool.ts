@@ -42,6 +42,8 @@ export type CliproxyPool = Readonly<{
 
 const START_ATTEMPTS = 3
 const STOP_GRACE_MS = 5_000
+// Enough for the proxy to refresh an expired access token over the network.
+const AUTH_READY_TIMEOUT_MS = 15_000
 
 export const defaultCliproxyStateDir = (): string =>
   join(process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'conexus', 'cliproxy')
@@ -114,12 +116,13 @@ const processGone = async (pid: number, ms: number): Promise<boolean> => {
   return false
 }
 
-export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, sweepEveryMs = 60_000, readyTimeoutMs = 10_000 }: Readonly<{
+export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, sweepEveryMs = 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: Readonly<{
   binary: string
   stateDir: string
   idleMs?: number
   sweepEveryMs?: number
   readyTimeoutMs?: number
+  authReadyTimeoutMs?: number
 }>): CliproxyPool => {
   const instances = new Map<InstanceId, Instance>()
   const logins = new Set<LoginInstance>()
@@ -160,6 +163,24 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
     return false
   }
 
+  // The proxy answers /v1/models as soon as it listens, before it has loaded the stored sign-in: a
+  // token that expired while stored is refreshed after that, and until then the account is
+  // unavailable and every call gets 503 auth_unavailable. Its management API says when it is not.
+  const waitAccountAvailable = async (child: ChildProcess, url: string, managementKey: string): Promise<boolean> => {
+    for (const deadline = Date.now() + authReadyTimeoutMs; Date.now() < deadline; await delay(100)) {
+      if (exited(child)) return false
+      try {
+        const answer = await fetch(`${url}/v0/management/auth-files`, { headers: { 'x-management-key': managementKey }, signal: AbortSignal.timeout(1_000) })
+        const parsed: unknown = answer.ok ? await answer.json() : await answer.body?.cancel().then(() => null)
+        const files = (parsed as { files?: readonly { unavailable?: unknown }[] } | null)?.files
+        if (files !== undefined && files.length > 0 && files.every((file) => file.unavailable === false)) return true
+      } catch {
+        // Not answering yet.
+      }
+    }
+    return false
+  }
+
   // The port is free when read and may be taken before the child binds it; a retry covers that.
   const launch = async (dir: string, authDir: string, environment: Readonly<Record<string, string>>) => {
     const config = join(dir, 'config.yaml')
@@ -189,7 +210,12 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       await mkdir(join(dir, 'auth'), { recursive: true, mode: 0o700 })
       const record = decodeKey(key)
       await writeFile(join(dir, 'auth', record.fileName), record.bytes, { mode: 0o600 })
-      const { child, url, proxyKey } = await launch(dir, join(dir, 'auth'), {})
+      const managementKey = randomBytes(24).toString('base64url')
+      const { child, url, proxyKey } = await launch(dir, join(dir, 'auth'), { MANAGEMENT_PASSWORD: managementKey })
+      if (!await waitAccountAvailable(child, url, managementKey)) {
+        await terminate(child)
+        throw new Error('GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE')
+      }
       const ready: Ready = { state: 'ready', dir, url, proxyKey, child, leases: 0, idleSince: Date.now() }
       child.once('exit', () => {
         if (instances.get(id) !== ready) return

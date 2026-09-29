@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, memoryFailed: null, error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -349,6 +349,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           agentMode={shownMode}
           memory={shownMemory}
+          memoryFailed={conversationTurn.memoryFailed}
           onAgentModeChange={(next) => sessionModel.chooseMode.mutate(next, {
             onSuccess: () => setSendError(null),
             onError: () => setSendError('O modo só muda quando o Builder está parado.'),

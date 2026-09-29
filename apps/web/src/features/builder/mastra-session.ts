@@ -5,7 +5,7 @@ import { useEffect, useReducer } from 'react'
 import { type BuilderMode, type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, asBuilderMode, builderModes, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
-export type { ActiveTool, BuilderMode, LiveTurn, MemoryGauge, PendingAnswer, PendingReply } from './live-turn'
+export type { ActiveTool, BuilderMode, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 

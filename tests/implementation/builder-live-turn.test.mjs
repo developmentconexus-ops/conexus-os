@@ -29,3 +29,21 @@ test('a page that subscribes while the run waits on the person gets the question
   const answered = reduceTurn(turn, event('run-1', { type: 'tool_end', toolCallId: 'call1', result: 'A', isError: false }))
   assert.deepEqual(answered.waiting, {})
 })
+
+test('a failed observation stays marked on the turn until an observation succeeds', () => {
+  const failed = reduceTurn(idleTurn, event('run-1', { type: 'om_observation_failed', cycleId: 'c1', error: 'auth_unavailable: no auth available (providers=antigravity, model=gemini-3.6-flash-high)', durationMs: 5 }))
+  assert.equal(failed.memoryFailed, 'observation')
+  const reflectionEnded = reduceTurn(failed, event('run-1', { type: 'om_reflection_end', cycleId: 'c2', durationMs: 1, compressedTokens: 10 }))
+  assert.equal(reflectionEnded.memoryFailed, 'observation')
+  const observed = reduceTurn(failed, event('run-1', { type: 'om_observation_end', cycleId: 'c3', durationMs: 9, tokensObserved: 31000, observationTokens: 900 }))
+  assert.equal(observed.memoryFailed, null)
+})
+
+test('a failed reflection and a failed background buffer are marked by what they were doing', () => {
+  const reflection = reduceTurn(idleTurn, event('run-1', { type: 'om_reflection_failed', cycleId: 'c1', error: 'boom', durationMs: 5 }))
+  assert.equal(reflection.memoryFailed, 'reflection')
+  const buffering = reduceTurn(idleTurn, event('run-1', { type: 'om_buffering_failed', cycleId: 'c2', operationType: 'observation', error: 'boom' }))
+  assert.equal(buffering.memoryFailed, 'observation')
+  const buffered = reduceTurn(buffering, event('run-1', { type: 'om_buffering_end', cycleId: 'c3', operationType: 'observation', tokensBuffered: 100, bufferedTokens: 100 }))
+  assert.equal(buffered.memoryFailed, null)
+})
