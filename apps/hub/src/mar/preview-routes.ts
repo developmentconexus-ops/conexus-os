@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { classifyAppPath, SERVER_ROOT } from './app-path.js'
 import type { Caller } from '../platform/caller.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
@@ -76,7 +77,6 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
 
-export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
 
@@ -87,17 +87,6 @@ export const callerLeft = (reply: FastifyReply): AbortSignal => {
   const left = new AbortController()
   reply.raw.once('close', () => { if (!reply.raw.writableEnded) left.abort() })
   return left.signal
-}
-
-export const pathForRequest = (pathname: string): string | null => {
-  if (pathname === '/') return 'index.html'
-  try {
-    const path = decodeURIComponent(pathname.slice(1))
-    if (!path || path.includes('\0') || path.split('/').some((segment) => segment === '.' || segment === '..')) return null
-    return /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(path) ? path : null
-  } catch {
-    return null
-  }
 }
 
 export const registerPreviewRoutes = async (
@@ -159,7 +148,7 @@ export const registerPreviewRoutes = async (
       .send()
   }))
 
-  type PreviewRequest = { headers: { host?: string | undefined }; cookies: Record<string, string | undefined>; url: string }
+  type PreviewRequest = { headers: { host?: string | undefined }; cookies: Record<string, string | undefined>; url: string; method: string }
   type PreviewReply = {
     code(status: number): PreviewReply
     header(name: string, value: string): PreviewReply
@@ -188,10 +177,12 @@ export const registerPreviewRoutes = async (
     const active = await activePreview(request)
     if (typeof active === 'number') return reply.code(active).send()
     const { binding: before, cookie } = active
-    const path = pathForRequest(request.url.split('?', 1)[0] ?? '')
-    // The server tree is retained with the artifact for the runner; the browser never receives it.
-    const declared = path ? before.manifest.files.find((file) => file.path === path) : undefined
-    if (!path || path.startsWith(SERVER_ROOT) || !declared) return reply.code(404).send()
+    // The server tree is retained with the artifact for the runner; the classifier never serves it.
+    const served = classifyAppPath(request.method, request.url.split('?', 1)[0] ?? '', (candidate) => before.manifest.files.some((file) => file.path === candidate))
+    if (served.kind === 'not-found') return reply.code(404).send()
+    const path = served.kind === 'file' ? served.path : before.manifest.entryPath
+    const declared = before.manifest.files.find((file) => file.path === path)
+    if (!declared) return reply.code(404).send()
     let file: Awaited<ReturnType<RegistryReader>>
     try {
       file = await dependencies.registryReader({

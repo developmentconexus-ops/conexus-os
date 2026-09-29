@@ -428,3 +428,21 @@ test('an unrecognized reason value falls back to the plain no-access page', asyn
   assert.equal(response.statusCode, 403)
   assert.match(response.body, /Você não tem acesso a este aplicativo/)
 })
+
+test('the application host answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
+  const { app, reads } = await harness(t)
+  const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })
+  for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
+    const answer = await app.inject({ method, url, headers: { host: HOST_A }, ...signedIn })
+    assert.equal(answer.statusCode, 200, `${method} ${url}`)
+    assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8', `${method} ${url}`)
+    assert.equal(answer.headers['content-security-policy'], index.headers['content-security-policy'], `${method} ${url}`)
+    assert.match(answer.headers['content-security-policy'], /frame-ancestors 'none'$/, `${method} ${url}`)
+    if (method === 'GET') assert.equal(answer.body, files['index.html'].text, url)
+  }
+  reads.length = 0
+  for (const url of ['/x.js', '/x.js/', '/conexus-server/nope', '/conexus-server', '/__conexus/other']) {
+    assert.equal((await app.inject({ method: 'GET', url, headers: { host: HOST_A }, ...signedIn })).statusCode, 404, url)
+  }
+  assert.deepEqual(reads, ['readServedFile x.js', 'readServedFile x.js'])
+})
