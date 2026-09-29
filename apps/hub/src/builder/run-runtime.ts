@@ -331,6 +331,12 @@ export const createControllerRunSessions = ({ controller, runContexts, runWorksp
     forget()
     const deleted = await controller.deleteSession({ resourceId, scope })
     if (!deleted || await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+    // The conversation's session, if the browser has it open, keeps the mode and model it had when it
+    // was created; a plan's approval writes the new mode to the thread from this run's own scope, so
+    // the conversation's in-memory session never sees it (item C). Rehydrating from the thread is
+    // Mastra's own mechanism for this, and it emits `mode_changed` for the browser to pick up.
+    const conversation = await controller.getSessionByResource(resourceId, `conversation:${conversationId}`)
+    await conversation?.thread.loadMetadata()
   }
   let session: Awaited<ReturnType<AgentController['createSession']>>
   try {

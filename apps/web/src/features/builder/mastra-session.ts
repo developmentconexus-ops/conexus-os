@@ -276,7 +276,12 @@ export const useBuilderLiveTurn = (
         const subscription = await session.subscribe({
           onEvent: (event) => {
             dispatch({ runId: builderRunId, kind: 'event', event })
-            if (event.type === 'agent_end') resync()
+            if (event.type === 'agent_end') {
+              resync()
+              // A plan's approval can change the conversation's mode (item C); the Hub rehydrates it
+              // when the run's session closes, so the chip refetches once the run is truly over.
+              if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
+            }
           },
           onReconnect: resync,
           onError: () => dispatch({ runId: builderRunId, kind: 'lost' }),

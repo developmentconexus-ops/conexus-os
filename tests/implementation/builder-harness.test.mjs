@@ -449,3 +449,63 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
   assert.equal(seen[2][2], 'Plan approved. Proceed with implementation following the approved plan.')
   await run.close()
 })
+
+test("the conversation's mode follows a plan approval, once the run closes (item C)", async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-chip-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'chip-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const steps = [
+    { toolCallId: 'w1', toolName: 'mastra_workspace_write_file', input: { path: '.conexus/plans/p.md', content: '# Plano\n\n1. Botão.\n' } },
+    { toolCallId: 'p1', toolName: 'submit_plan', input: { path: '.conexus/plans/p.md' } },
+    { toolCallId: 'c1', toolName: 'mastra_workspace_execute_command', input: { command: 'echo', args: ['construído'] } },
+  ]
+  const calls = []
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream() {
+      const step = steps[calls.length]
+      calls.push(calls.length)
+      const parts = step
+        ? [{ type: 'tool-call', toolCallId: step.toolCallId, toolName: step.toolName, input: JSON.stringify(step.input) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'pronto' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
+    },
+  }
+  const runWorkspaces = new Map()
+  const { Memory } = await import('@mastra/memory')
+  const storage = new InMemoryStore()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const conversationId = '88888888-8888-4888-8888-888888888888'
+  const builderRunId = '99999999-9999-4999-8999-999999999999'
+
+  // The conversation session the browser keeps mounted while the person watches the run, the way
+  // the web app's mastra-session-routes GET does.
+  const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
+  assert.equal(conversation.mode.get(), 'plan', 'a new conversation starts in Planejar')
+
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces })({
+    projectId, conversationId, builderRunId, workspace,
+    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+  })
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
+  live.subscribe((event) => {
+    if (event.type === 'tool_suspended' && event.toolName === 'submit_plan') {
+      void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: { action: 'approved' } })
+    }
+  })
+  const turn = await run.sendTurn('quero um botão')
+  assert.equal(turn.reason, 'complete')
+  assert.equal(live.mode.get(), 'build', 'the run session itself is on Construir once the plan is approved')
+  assert.equal(conversation.mode.get(), 'plan', 'before the run closes, the conversation session the browser reads is still stale')
+
+  await run.close()
+  assert.equal(conversation.mode.get(), 'build', 'closing the run rehydrates the conversation session from the thread')
+})
