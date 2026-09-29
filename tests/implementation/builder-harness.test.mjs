@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
@@ -13,7 +13,7 @@ const { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROM
 const { conexusInstructions, DEFAULT_PROMPT_VARIANT, PROMPT_VARIANTS } = await import(hubModuleUrl('builder/harness/prompt.js'))
 const { attachBuilderModeGuard, createBuilderModeGuard } = await import(hubModuleUrl('builder/harness/guard.js'))
 const { createSubmitPlanTool } = await import(hubModuleUrl('builder/harness/tools.js'))
-const { createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
+const { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
@@ -114,6 +114,28 @@ test('a prompt variant the Hub does not ship fails the turn instead of falling b
   assert.throws(() => renderPrompt({ modeId: 'plan', variant: 'v1' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
   assert.throws(() => renderPrompt({ modeId: 'plan', variant: 'v9' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
   assert.throws(() => renderPrompt({ modeId: 'build', variant: '../v2' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
+})
+
+test('the prompt names the compiler stack, the three skills, the check and the generated client as they exist now', () => {
+  const plan = renderPrompt({ modeId: 'plan' })
+  const build = renderPrompt({ modeId: 'build' })
+  const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, 'apps/hub/compiler-template/package.json'), 'utf8'))
+  const tooling = new Set(['typescript', 'vite', '@vitejs/plugin-react', '@tailwindcss/vite'])
+  const appPackages = Object.keys(manifest.dependencies).filter((name) => !name.startsWith('@types/') && !tooling.has(name)).sort()
+  const listed = /The only packages are ([\s\S]*?)\. You cannot add packages/.exec(build)[1]
+  assert.deepEqual([...listed.matchAll(/`([^`]+)`/g)].map(([, name]) => name).sort(), appPackages)
+
+  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app-code', 'conexus-app-ui', 'conexus-server'])
+  for (const name of BUILDER_SKILL_NAMES) assert.equal(existsSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md')), true, `${name} exists`)
+  assert.equal(build.includes('Load the `conexus-server` skill before you touch `conexus/`, and the `conexus-app-ui` and\n  `conexus-app-code` skills before you build screens.'), true)
+  for (const text of [plan, build]) for (const [, name] of text.matchAll(/`(conexus-[a-z-]+)` skill/g)) assert.equal(BUILDER_SKILL_NAMES.includes(name), true, `${name} is a shipped skill`)
+
+  assert.equal(build.includes('call `conexus_check`'), true)
+  assert.equal(plan.includes('conexus_check'), false, 'Planejar has no check tool')
+  assert.equal(BUILDER_MODES.plan.availableTools.has('conexus_check'), false)
+  assert.equal(BUILDER_MODES.build.availableTools.has('conexus_check'), true)
+  assert.equal(build.includes('never call a\n  server operation with `fetch`'), true)
+  for (const text of [plan, build]) assert.doesNotMatch(text, /check\.sh|\bV1\b|REACT_VITE_V1|`fetch\(/)
 })
 
 test('v2 carries the Conexus layer and its mode rules, and no source notice, coding-tool identity or version-control text', () => {

@@ -35,10 +35,11 @@ by step. Otherwise build the person's request.
 ### Check
 
 After your last edit, call `conexus_check`. It generates the typed client, type checks `app/` and
-`conexus/`, builds the app and the server half, and opens the app once with empty answers to catch
-errors on load. It reports each problem with its file and line. Fix every problem it reports and call
-it again. Your turn is not done while `ok` is false. A problem in the `boot` step does not stop the
-version from being saved, but the person will see that error in the Prévia, so fix it too.
+`conexus/`, builds the app and the server half, and opens the app once, answering each operation
+with the smallest value its output allows, to catch errors on load. It reports each problem with its
+file and line. Fix every problem it reports and call it again. Your turn is not done while `ok` is
+false. A problem in the `boot` step does not stop the version from being saved, but the person will
+see that error in the Prévia, so fix it too.
 
 A passing check proves the app builds and opens. It does not run handlers, touch data or click
 through features. So, after it passes, walk each promise and acceptance check of the plan to the code
