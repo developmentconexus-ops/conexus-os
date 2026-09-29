@@ -436,7 +436,7 @@ test('a Google AI Pro model lists its tools without throwing and has no web_sear
   assert.equal('web_search' in nativeTools, true, 'a model on a native-search provider keeps web_search')
 })
 
-test('a ChatGPT subscription model lists its tools without throwing and has no web_search: it reports provider openai.responses, which Mastra cannot map to native search', async () => {
+test('a ChatGPT subscription model lists its tools without throwing and gets OpenAI\'s Responses web_search: it reports provider openai.responses, which Mastra\'s webSearchTool cannot map', async () => {
   const { openaiCodexModel } = await import(hubModuleUrl('builder/openai-codex/model.js'))
   const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
   // The model module.ts's resolver returns for an `openai/*` selection on a ChatGPT subscription.
@@ -444,7 +444,8 @@ test('a ChatGPT subscription model lists its tools without throwing and has no w
   const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
   const session = await controller.createSession({ resourceId: 'project:probe-chatgpt', scope: 'probe-chatgpt' })
   const tools = await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() })
-  assert.deepEqual(['web_search' in tools, 'web_fetch' in tools, (await model()).provider], [false, true, 'openai.responses'])
+  assert.deepEqual(['web_search' in tools, 'web_fetch' in tools, (await model()).provider], [true, true, 'openai.responses'])
+  assert.deepEqual(tools.web_search, { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} })
 })
 
 test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {
