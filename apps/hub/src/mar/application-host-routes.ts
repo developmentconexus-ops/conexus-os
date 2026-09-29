@@ -6,7 +6,7 @@ import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
-import { classifyAppPath, SERVER_ROOT } from './app-path.js'
+import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 
 const ENTRY_PATH = 'index.html'

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { classifyAppPath, SERVER_ROOT } from './app-path.js'
+import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'

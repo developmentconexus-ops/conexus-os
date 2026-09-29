@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
-import { appPathClassifierSource } from '../mar/app-path.js'
+import { appPathClassifierSource } from '../platform/application-path.js'
 import { admitManifest } from '../app-runner/server-manifest.js'
 
 /**
