@@ -442,6 +442,20 @@ test('a run releases its sandbox after the turn, and logs a lapse without failin
   assert.ok(run.logs.some((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:') && line.endsWith(':E2B_TIMEOUT_REFUSED')), JSON.stringify(run.logs))
 })
 
+test('a terminal keepalive lapse aborts the turn and fails the run for recovery from main', async (t) => {
+  const run = await harness(t, {
+    onHoldOpen: (onLapse) => onLapse(new Error('Sandbox sbx-1 not found')),
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(await run.main(), run.base)
+  assert.deepEqual(run.calls.filter(([kind]) => ['fail', 'advance', 'settleBuild'].includes(kind)), [['fail', 'BUILDER_SANDBOX_KEEPALIVE_FAILED']])
+  assert.deepEqual(run.diagnostics.map(({ code, outcome }) => [code, outcome]), [['BUILDER_SANDBOX_KEEPALIVE_FAILED', 'RUN_NOT_FINISHED']])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:')), [
+    `BUILDER_SANDBOX_KEEPALIVE_FAILED:${runId}:Sandbox sbx-1 not found`,
+  ])
+})
+
 test('a build failure still fast forwards main to the candidate and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
   const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
   await run.start()

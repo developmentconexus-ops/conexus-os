@@ -117,6 +117,26 @@ test('holdOpen reports a failed extension to onLapse, and refuses when the first
   await assert.rejects(failingFirst.holdOpen(() => {}), { message: 'E2B_TIMEOUT_REFUSED' })
 })
 
+test('holdOpen stops retrying when E2B says the sandbox no longer exists', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const vm = fakeVm('vm-gone')
+  let extensions = 0
+  vm.setTimeout = async () => {
+    extensions += 1
+    if (extensions > 1) throw new Error('Sandbox vm-gone not found')
+  }
+  const { sandbox } = offlineRunSandbox(vm, { timeoutMs: 600_000 })
+  await sandbox.start()
+  const lapses = []
+  const release = await sandbox.holdOpen((error) => { lapses.push(error.message) })
+  t.mock.timers.tick(200_000)
+  await new Promise((resolve) => setImmediate(resolve))
+  t.mock.timers.tick(2_000_000)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual({ extensions, lapses }, { extensions: 2, lapses: ['Sandbox vm-gone not found'] })
+  release()
+})
+
 const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: _modelAccount, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
 test('with no Builder and no storage role the Hub boots, with the installation credential key', () => {
