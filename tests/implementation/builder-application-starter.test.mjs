@@ -10,8 +10,9 @@ const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
 mkdirSync(cacheRoot, { recursive: true })
 
 const {
-  APPLICATION_CHECK_FILES,
-  materializeApplicationCheck,
+  APPLICATION_CHECK_EXCLUDED,
+  APPLICATION_SHAPE_FILES,
+  materializeApplicationShape,
   FIXED_APPLICATION_STARTER_FILES,
   materializeFixedApplicationStarter,
   removeStaleServerSkill,
@@ -101,21 +102,14 @@ test('preserves every existing app entry, including a different source filename'
   }
 })
 
-test('the application check builds app/ and then the server half into /tmp/conexus-check-dist', () => {
-  assert.deepEqual(APPLICATION_CHECK_FILES.map((file) => file.path), ['conexus.json', 'conexus/check.sh'])
-  const [manifest, check] = APPLICATION_CHECK_FILES.map((file) => file.content)
-  assert.deepEqual(JSON.parse(manifest), { shape: 'REACT_VITE_V1', check: 'sh conexus/check.sh' })
-  assert.equal(check, [
-    '#!/bin/sh',
-    '# Builds app/ and the conexus/ server half the way Conexus builds them before a Preview. Run it from the repository root.',
-    'set -eu',
-    'root=$(cd "$(dirname "$0")/.." && pwd)',
-    'ln -sfn /opt/conexus/compiler/node_modules "$root/app/node_modules"',
-    'cd "$root/app"',
-    'CONEXUS_COMPILE_ROOT="$root/app" node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native --outDir /tmp/conexus-check-dist --emptyOutDir',
-    'node /opt/conexus/server-build.mjs "$root" /tmp/conexus-check-dist',
-    '',
-  ].join('\n'))
+test('the starter carries a shape file and no check script or check field', () => {
+  assert.deepEqual(APPLICATION_SHAPE_FILES.map((file) => file.path), ['conexus.json'])
+  assert.deepEqual(JSON.parse(APPLICATION_SHAPE_FILES[0].content), { shape: 'REACT_VITE_V1' })
+  assert.deepEqual(FIXED_APPLICATION_STARTER_FILES.map((file) => file.path).filter((path) => path.includes('check')), [])
+})
+
+test('the candidate pull leaves out the compiler link and every generated file', () => {
+  assert.deepEqual(APPLICATION_CHECK_EXCLUDED, ['app/node_modules', '*.gen.ts'])
 })
 
 test('the global conexus-server skill matches the check it documents', () => {
@@ -130,24 +124,22 @@ test('the global conexus-server skill matches the check it documents', () => {
   assert.match(guide, /type Caller = \{ accountId: string; email: string \| null; displayName: string \}/)
   assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
   assert.match(guide, /never add a name or author field to the input/)
+  assert.doesNotMatch(guide, /conexus\/check\.sh/)
 })
 
-test('writes only the application check files a checkout lacks, and never over a symlink', async () => {
+test('writes only the shape file a checkout lacks, and never over a symlink', async () => {
   const root = mkdtempSync(resolve(cacheRoot, 'starter-check-'))
   try {
-    mkdirSync(join(root, 'conexus'))
-    writeFileSync(join(root, 'conexus/check.sh'), 'echo edited by the agent\n')
     const writes = []
-    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.deepEqual(writes, [join(root, 'conexus.json')])
-    assert.equal(readFileSync(join(root, 'conexus/check.sh'), 'utf8'), 'echo edited by the agent\n')
 
-    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.equal(writes.length, 1)
 
     rmSync(join(root, 'conexus.json'))
     symlinkSync('/etc/hostname', join(root, 'conexus.json'))
-    await assert.rejects(materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
+    await assert.rejects(materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
     assert.equal(writes.length, 1)
   } finally {
     rmSync(root, { recursive: true, force: true })

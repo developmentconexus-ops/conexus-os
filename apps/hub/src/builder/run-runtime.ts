@@ -1,9 +1,10 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
-import { buildApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
-import type { CompiledApplication } from './application-artifact-runtime.js'
-import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationCheck, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
+import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
+import type { ApplicationCheckRun } from './application-artifact-runtime.js'
+import { CHECK_SCRIPT_PATH, checkScriptSource, failedBootStep, failedStepEvidence, refusingStep } from './application-check.js'
+import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
 import { pullCandidate, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
@@ -24,8 +25,9 @@ export type RunSandbox = Readonly<{
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   writeRootFile(path: string, bytes: Uint8Array): Promise<void>
   readAgentFile(path: string): Promise<Uint8Array>
-  // Builds <buildRoot>/app as root, writing only under buildRoot.
-  buildApplication(buildRoot: string): Promise<CompiledApplication['files']>
+  // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
+  // build to `out`; `collect` also reads the build back when the source passed.
+  runCheck(input: Readonly<{ root: string; out: string; collect: boolean }>): Promise<ApplicationCheckRun>
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
@@ -97,14 +99,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> = async (input) => {
   await materializeFixedApplicationStarter(input)
   await removeStaleServerSkill(input)
-  await materializeApplicationCheck(input)
+  await materializeApplicationShape(input)
 }
 
 // Root-only folders: the base bundle the checkout is seeded from, and the tree the build compiles.
 const SEED_ROOT = '/var/lib/conexus-seed'
 const BUILD_ROOT = '/var/lib/conexus-build'
-// The agent user's own copy of the candidate, where the Hub runs the Project's check.
-const CHECK_ROOT = '/tmp/conexus-candidate-check'
 
 const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 
@@ -184,13 +184,18 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       await seedSandbox({ git: ports.git, projectId: input.projectId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
 
-      // The Project check runs the Hub's server build from a path only root can write, so the agent
-      // and the admission below see exactly the refusal the Conexus build would give.
+      // The Hub's check and its server build run from paths only root can write, so the agent and
+      // the admission below see exactly the refusal the Conexus build would give, and neither can
+      // change the gate.
       const installed = await asRoot([
         `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
         serverBuildScriptSource(),
         'CONEXUS_SERVER_BUILD_EOF',
-        `chmod 644 '${SERVER_BUILD_SCRIPT_PATH}.next' && mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}'`,
+        `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
+        checkScriptSource(),
+        'CONEXUS_CHECK_EOF',
+        `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
+        `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
       ].join('\n'))
       if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
       // A run that starts in Planejar builds in the same run once its plan is approved (AC-4).
@@ -232,21 +237,28 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
 
-      // Admission (AC-9, AC-14): the candidate's AGENTS.md is within the rule and its own check
-      // passes on the candidate's tree, taken from the Conexus Git once every process of the
-      // agent's user is gone.
+      // Admission (AC-9, AC-14): the candidate's AGENTS.md is within the rule and the Hub's own check
+      // passes on the candidate's tree, taken from the Conexus Git once every process of the agent's
+      // user is gone. The check runs as root on that copy and drops to the agent's user for every step
+      // that executes application code; nothing in the tree is ever run as the gate.
       await input.setPhase('SOURCE_ADMISSION')
       const refusal = refuseCandidateKnowledge(await ports.git.readBlob(input.projectId, result, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
       if (refusal) throw new CandidateRefused('BUILDER_AGENTS_MD_REFUSED', refusal)
       await sh('kill -KILL -1 2>/dev/null; true')
       const candidateTar = `${SEED_ROOT}/${input.executionId}.candidate.tar`
       await writeRootFile(candidateTar, await ports.git.archive(input.projectId, result, []))
-      const check = await sh([
-        `rm -rf ${quoted(CHECK_ROOT)} && mkdir -p ${quoted(CHECK_ROOT)}`,
-        `tar -x -C ${quoted(CHECK_ROOT)} -f ${quoted(candidateTar)}`,
-        `cd ${quoted(CHECK_ROOT)} && sh conexus/check.sh`,
-      ].join(' && '), 600_000)
-      if (check.exitCode !== 0) throw new CandidateRefused('BUILDER_CHECK_FAILED', commandEvidence(`${check.stdout}\n${check.stderr}`.trim()))
+      const checkRoot = `${BUILD_ROOT}/${input.executionId}.admission`
+      const unpackedCandidate = await asRoot([
+        `rm -rf ${quoted(BUILD_ROOT)}`,
+        `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
+        `mkdir -m 755 ${quoted(checkRoot)}`,
+        `tar -x -C ${quoted(checkRoot)} -f ${quoted(candidateTar)}`,
+        `rm -f ${quoted(candidateTar)}`,
+      ].join(' && '))
+      if (unpackedCandidate.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+      const admission = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: false })
+      const refusedStep = refusingStep(admission.report)
+      if (refusedStep) throw new CandidateRefused('BUILDER_CHECK_FAILED', failedStepEvidence(refusedStep))
 
       // The last step a stop can prevent. The candidate is recorded before `main` moves, so a restart
       // finds what may be on main; a stopped run is refused and stops here.
@@ -267,18 +279,25 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         const tree = `${BUILD_ROOT}/${input.executionId}.tar`
         const prepared = await asRoot([
           `rm -rf '${BUILD_ROOT}'`,
-          `mkdir -p -m 700 '${BUILD_ROOT}'`,
-          `mkdir -m 700 '${buildRoot}'`,
+          `mkdir -p -m 711 '${BUILD_ROOT}'`,
+          `mkdir -m 755 '${buildRoot}'`,
         ].join(' && '))
         if (prepared.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         await writeRootFile(tree, await ports.git.archive(input.projectId, result, archived))
         const unpacked = await asRoot(`tar -x -C '${buildRoot}' -f '${tree}' && rm -f '${tree}'`)
         if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-        const files = await sandbox.buildApplication(buildRoot)
-        applicationBuild = { kind: 'BUILT', compiledApplication: {
+        // The Preview is built by the steps the model saw. A source the check refuses, or a page
+        // that does not boot, leaves the admitted source in place without a Preview.
+        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true })
+        const refused = refusingStep(built.report)
+        const notBooting = failedBootStep(built.report)
+        if (refused) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_COMPILATION_FAILED', detail: failedStepEvidence(refused) }
+        else if (notBooting) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_FAILED', detail: failedStepEvidence(notBooting) }
+        else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
-          templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files,
+          templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
         } }
+        else throw new Error('APPLICATION_CHECK_UNREADABLE')
       } catch (error) {
         const code = error instanceof Error ? error.message : ''
         if (code !== 'APPLICATION_COMPILATION_FAILED' && code !== 'BUILDER_APPLICATION_SOURCE_REFUSED' &&
@@ -402,7 +421,7 @@ export const e2bRunSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: strin
     runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
     writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
     readAgentFile: (path: string) => sandbox.readAgentFile(path),
-    buildApplication: (buildRoot: string) => buildApplicationInSandbox(sandbox.e2b, { workRoot: buildRoot, appRoot: `${buildRoot}/app`, user: 'root' }),
+    runCheck: ({ root, out, collect }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: 'root' }),
     holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
     destroy: () => sandbox.destroy(),
   })

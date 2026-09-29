@@ -79,27 +79,101 @@ test('a VM that E2B killed for idling is replaced by the next command, and root 
   }
 })
 
-test('the application check builds the starter in the real template, keeps its link out of Git, and fails on broken code', { skip, timeout: 5 * 60_000 }, async () => {
+const serverPass = 'process.exit(0)\n'
+const CHECK_ROOT = '/var/lib/conexus-build/live'
+const CHECK_OUT = `${CHECK_ROOT}.dist`
+
+// The Hub's check placed the way a run places it, and a tree only root can change.
+const placeHubCheck = async (sandbox, files) => {
   const hub = await loadHub()
-  const { ConexusRunSandbox } = await hub('builder/sandbox.js')
-  const { APPLICATION_CHECK_EXCLUDED, APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } = await hub('builder/application-starter.js')
+  const { checkScriptSource } = await hub('builder/application-check.js')
+  const { serverBuildScriptSource } = await hub('builder/application-server-build.js')
+  await sandbox.writeRootFile('/opt/conexus/check.mjs', Buffer.from(checkScriptSource()))
+  await sandbox.writeRootFile('/opt/conexus/server-build.mjs', Buffer.from(serverBuildScriptSource()))
+  assert.equal((await sandbox.runAsRoot("chmod 555 /opt/conexus/check.mjs /opt/conexus/server-build.mjs && rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
+  for (const [path, content] of Object.entries(files)) await sandbox.writeRootFile(`${CHECK_ROOT}/${path}`, Buffer.from(content))
+}
+
+const rootCheck = async (sandbox, extra = '') => {
+  const ran = await sandbox.runAsRoot(`/usr/local/bin/node /opt/conexus/check.mjs --root ${CHECK_ROOT} --out ${CHECK_OUT} --as 1500:1500 ${extra}`, {})
+  const { parseCheckReport } = await (await loadHub())('builder/application-check.js')
+  assert.equal(ran.exitCode, 0, ran.stderr)
+  return parseCheckReport(ran.stdout)
+}
+
+const starterFiles = async () => {
+  const { FIXED_APPLICATION_STARTER_FILES } = await (await loadHub())('builder/application-starter.js')
+  return Object.fromEntries(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, file.content]))
+}
+
+test('the Hub check runs the starter in the real template as root with every step as the agent user, and as the agent user itself', { skip, timeout: 5 * 60_000 }, async (t) => {
+  const { ConexusRunSandbox } = await (await loadHub())('builder/sandbox.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = new ConexusRunSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 180_000, lifecycle: { onTimeout: 'kill' }, env: {} })
-  const root = '/workspace/check-probe'
-  const sh = (script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: root })
+  const sandbox = new ConexusRunSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 240_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
-    await sandbox.writeFiles([...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES].map((file) => ({ path: `${root}/${file.path}`, content: file.content })))
-    const excluded = APPLICATION_CHECK_EXCLUDED.map((path) => `':(exclude)${path}'`).join(' ')
-    const passed = await sh(`git init -q && sh conexus/check.sh >/dev/null && test -f /tmp/conexus-check-dist/index.html && test -L app/node_modules && git add --all -- . ${excluded} && git diff --cached --name-only`)
-    assert.equal(passed.exitCode, 0, passed.stderr)
-    assert.deepEqual(passed.stdout.trim().split('\n').sort(), [
-      'app/index.html', 'app/src/main.tsx', 'app/src/style.css', 'conexus.json', 'conexus/check.sh',
-    ])
+    const files = await starterFiles()
+    await placeHubCheck(sandbox, files)
+    const started = Date.now()
+    const report = await rootCheck(sandbox)
+    t.diagnostic(`root check ${Date.now() - started} ms wall, steps ${JSON.stringify(report.steps.map((step) => [step.step, step.status, step.durationMs]))}`)
+    assert.equal(report.ok, true, JSON.stringify(report.steps))
+    assert.deepEqual(report.steps.map((step) => step.status), ['passed', 'passed', 'passed', 'passed', 'passed'])
+    assert.equal((await sandbox.runAsRoot(`stat -c %U ${CHECK_OUT}/index.html`, {})).stdout.trim(), 'conexus-agent', 'the build was written by the agent user')
 
-    await sandbox.writeFiles([{ path: `${root}/app/src/main.tsx`, content: 'import { missing } from "./nowhere"\nmissing(\n' }])
-    const failed = await sh('sh conexus/check.sh')
-    assert.notEqual(failed.exitCode, 0, 'broken code fails the check')
+    // The same script as the agent user: what the Builder's tool will do.
+    await sandbox.writeFiles(Object.entries(files).map(([path, content]) => ({ path: `/workspace/check-probe/${path}`, content })))
+    const asAgent = await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })
+    const { parseCheckReport } = await (await loadHub())('builder/application-check.js')
+    const agentReport = parseCheckReport(asAgent.stdout)
+    t.diagnostic(`agent check steps ${JSON.stringify(agentReport.steps.map((step) => [step.step, step.status, step.durationMs]))}`)
+    assert.deepEqual(agentReport.steps.map((step) => step.status), ['passed', 'passed', 'passed', 'passed', 'passed'], 'Chromium boots the starter as the agent user')
+
+    assert.notEqual((await sandbox.executeCommand('sh', ['-c', 'echo x > /opt/conexus/check.mjs'], { env: {}, cwd: '/workspace' })).exitCode, 0, 'the agent user cannot replace the script')
+
+    await sandbox.writeFiles([{ path: '/workspace/check-probe/app/src/main.tsx', content: 'const answer: number = "six"\nexport { answer }\n' }])
+    const refused = parseCheckReport((await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })).stdout)
+    assert.equal(refused.ok, false)
+    assert.deepEqual(refused.steps.find((step) => step.status === 'failed').problems, [
+      { file: 'app/src/main.tsx', line: 1, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
+    ])
+  } finally {
+    await sandbox.destroy().catch(() => undefined)
+  }
+})
+
+test('under a root check, application code cannot write /opt/conexus, a hung step is killed with its processes, and Chromium runs as uid 1500', { skip, timeout: 5 * 60_000 }, async () => {
+  const { ConexusRunSandbox } = await (await loadHub())('builder/sandbox.js')
+  const { templateId, apiKey } = liveConfig()
+  const sandbox = new ConexusRunSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 240_000, lifecycle: { onTimeout: 'kill' }, env: {} })
+  const tools = '/var/lib/conexus-probe/opt'
+  try {
+    await sandbox.start()
+    await placeHubCheck(sandbox, await starterFiles())
+    // A tools folder of the probe's own: the real compiler, and a server step and a browser that report what they run as.
+    await sandbox.writeRootFile(`${tools}/server-build.mjs`, Buffer.from(`import { writeFileSync } from 'node:fs'
+try { writeFileSync('/opt/conexus/pwned', 'x') ; process.stdout.write('WROTE') } catch (error) { process.stderr.write('uid ' + process.getuid() + ' ' + error.code); process.exit(1) }
+`))
+    await sandbox.writeRootFile('/var/lib/conexus-probe/chromium', Buffer.from('#!/bin/sh\nid -u > /var/lib/conexus-probe/chromium-uid\nexec /usr/bin/chromium "$@"\n'))
+    assert.equal((await sandbox.runAsRoot(`chmod 755 /var/lib/conexus-probe/chromium && mkdir -p ${tools}/compiler && ln -s /opt/conexus/compiler/node_modules ${tools}/compiler/node_modules && cp /opt/conexus/compiler/vite.config.mjs ${tools}/compiler/ && chmod 1777 /var/lib/conexus-probe`, {})).exitCode, 0)
+    const report = await rootCheck(sandbox, `--tools ${tools} --chromium /var/lib/conexus-probe/chromium`)
+    const server = report.steps.find((step) => step.step === 'server')
+    assert.equal(server.status, 'failed')
+    assert.deepEqual(server.problems, [{ message: 'uid 1500 EACCES' }])
+    assert.equal((await sandbox.runAsRoot('test ! -e /opt/conexus/pwned', {})).exitCode, 0)
+
+    await sandbox.writeRootFile(`${tools}/server-build.mjs`, Buffer.from(`import { spawn } from 'node:child_process'
+spawn('sleep', ['300'], { stdio: 'ignore' })
+setTimeout(() => {}, 300_000)
+`))
+    const hung = await rootCheck(sandbox, `--tools ${tools} --chromium /var/lib/conexus-probe/chromium --limit server=2000`)
+    assert.deepEqual(hung.steps.find((step) => step.step === 'server').problems, [{ code: 'STEP_TIMEOUT', message: 'server exceeded 2 s and was stopped' }])
+    assert.notEqual((await sandbox.runAsRoot('pgrep -x sleep', {})).exitCode, 0, 'no sleep process survives the step')
+
+    await sandbox.writeRootFile(`${tools}/server-build.mjs`, Buffer.from(serverPass))
+    const booted = await rootCheck(sandbox, `--tools ${tools} --chromium /var/lib/conexus-probe/chromium`)
+    assert.equal(booted.steps.find((step) => step.step === 'boot').status, 'passed')
+    assert.equal((await sandbox.runAsRoot('cat /var/lib/conexus-probe/chromium-uid', {})).stdout.trim(), '1500')
   } finally {
     await sandbox.destroy().catch(() => undefined)
   }

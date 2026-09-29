@@ -7,8 +7,10 @@ The browser app lives under `app/`. Server logic and saved data live under `cone
 `conexus-server` skill before touching that folder. Keep to this shape rather than inventing another
 one.
 
-Before you finish, run `sh conexus/check.sh` at the repository root and fix everything it reports.
-Your turn is not done while it fails.
+When you finish, Conexus checks the result with its own check: it type checks `app/` and `conexus/`,
+builds the app, builds the server half and opens the app in a browser. A result that fails the type
+check, the build or the server build is refused and none of it is applied, so keep the code
+type correct and the manifest valid. The Project has no check script of its own; do not create one.
 
 Before you finish, update `AGENTS.md` at the repository root with what this run actually confirmed:
 the Project's structure, its data sources, and decisions you made and why. Write only facts you

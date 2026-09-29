@@ -157,7 +157,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const finalizing = (): Promise<void> => setPhase('FINALIZING').catch(() => undefined)
       const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => runs.appendDiagnostic({
         projectId: claimed.projectId, conversationId: claimed.conversationId, builderRunId: claimed.builderRunId, code, outcome, sourceRevision: admitted,
-        ...(detail ? { detail: detail.slice(0, 400) } : {}),
+        ...(detail ? { detail } : {}),
       }).catch(() => undefined)
       // Only a build the source broke asks the agent for a fix; a platform fault asking the same
       // teaches it to delete correct code until the fault goes away.
@@ -167,10 +167,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // there still admitted the source, so it settles as a build failure and the last good
       // Preview stays in place.
       if (result.applicationBuild.kind === 'BUILD_FAILED') {
-        const code = result.applicationBuild.code
+        const { code, detail } = result.applicationBuild
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted, failureCode: code })
-        await buildFailed(code)
+        await buildFailed(code, detail)
         return
       }
       try {
@@ -207,7 +207,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         await runs.appendDiagnostic({
           projectId: discarded.projectId, conversationId: discarded.conversationId, builderRunId: discarded.builderRunId, code,
           outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
-          sourceRevision: discarded.baseSourceRevision, ...(refused ? { detail: refused.detail.slice(0, 1_200) } : {}),
+          sourceRevision: discarded.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
         }).catch(() => undefined)
       }
       // Only the operator's cancellation aborts this controller, and what the abort surfaces depends

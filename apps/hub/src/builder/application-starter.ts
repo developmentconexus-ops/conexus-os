@@ -1,7 +1,6 @@
 import { isAbsolute, join } from 'node:path'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
-import { BUILD_COMMAND } from './application-artifact-runtime.js'
-import { SERVER_BUILD_SCRIPT_PATH } from './application-server-build.js'
+import { redactEvidence } from './application-check.js'
 
 export type FixedApplicationStarterResult = 'MATERIALIZED' | 'PRESERVED'
 
@@ -58,38 +57,22 @@ body {
   }),
 ] as const)
 
-// A repository-hosted Project carries its own check: the template's compiler, bound in place, with
-// its output kept out of /workspace/dist, where Conexus's own compile writes the Preview.
-export const APPLICATION_CHECK_FILES = Object.freeze([
-  Object.freeze({ path: 'conexus.json', content: `${JSON.stringify({ shape: 'REACT_VITE_V1', check: 'sh conexus/check.sh' }, null, 2)}\n` }),
-  Object.freeze({
-    path: 'conexus/check.sh',
-    content: [
-      '#!/bin/sh',
-      '# Builds app/ and the conexus/ server half the way Conexus builds them before a Preview. Run it from the repository root.',
-      'set -eu',
-      'root=$(cd "$(dirname "$0")/.." && pwd)',
-      'ln -sfn /opt/conexus/compiler/node_modules "$root/app/node_modules"',
-      'cd "$root/app"',
-      `CONEXUS_COMPILE_ROOT="$root/app" ${BUILD_COMMAND} --outDir /tmp/conexus-check-dist --emptyOutDir`,
-      `node ${SERVER_BUILD_SCRIPT_PATH} "$root" /tmp/conexus-check-dist`,
-      '',
-    ].join('\n'),
-  }),
+// A Project's shape file. The check that admits its source is the Hub's own script, never a file of
+// the Project's, so the shape says nothing about how it is checked.
+export const APPLICATION_SHAPE_FILES = Object.freeze([
+  Object.freeze({ path: 'conexus.json', content: `${JSON.stringify({ shape: 'REACT_VITE_V1' }, null, 2)}\n` }),
 ] as const)
 
-// The check links the compiler's dependencies into app/, and that link must never reach the tree.
-export const APPLICATION_CHECK_EXCLUDED = Object.freeze(['app/node_modules'])
+// Kept out of every candidate: the link the build makes into app/, and the files the platform
+// generates from the manifest, which it regenerates for every check and so never takes from a run.
+export const APPLICATION_CHECK_EXCLUDED = Object.freeze(['app/node_modules', '*.gen.ts'])
 
 const EVIDENCE_LIMIT = 400
 
 // A failed command's output is the only record of why it failed, so it is kept, but it can carry a
 // Git header or a token from whatever produced it, and it goes to a log.
 export const commandEvidence = (text: string): string => {
-  const redacted = text
-    .replace(/(authorization:\s*)(?:(?:basic|bearer|token)\s+)?\S+/gi, '$1[redacted]')
-    .replace(/x-access-token:[^@\s]+/gi, 'x-access-token:[redacted]')
-    .replace(/\bgh[pousr]_[A-Za-z0-9_]+/g, '[redacted]')
+  const redacted = redactEvidence(text)
   return redacted.length > EVIDENCE_LIMIT ? `${redacted.slice(0, EVIDENCE_LIMIT)}…` : redacted
 }
 
@@ -132,8 +115,8 @@ export const materializeFixedApplicationStarter = async ({
   return 'MATERIALIZED'
 }
 
-/** Writes each application check file the checkout lacks; an existing one is the repository's. */
-export const materializeApplicationCheck = async ({
+/** Writes each shape file the checkout lacks; an existing one is the repository's. */
+export const materializeApplicationShape = async ({
   repositoryRoot,
   directCommand,
   writeFiles,
@@ -144,7 +127,7 @@ export const materializeApplicationCheck = async ({
 }>): Promise<void> => {
   if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Error('BUILDER_STARTER_ROOT_REFUSED')
   const missing: SandboxFileInput[] = []
-  for (const file of APPLICATION_CHECK_FILES) {
+  for (const file of APPLICATION_SHAPE_FILES) {
     const path = join(repositoryRoot, file.path)
     const entry = await inspectEntry(directCommand, path)
     if (entry === 'UNSAFE') throw new Error('BUILDER_STARTER_ENTRY_UNSAFE')

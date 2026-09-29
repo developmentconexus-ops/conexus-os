@@ -17,7 +17,7 @@ type CodingWorkerResultScope = Readonly<{
 // is still a thrown failure.
 export type ApplicationBuildOutcome =
   | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication }>
-  | Readonly<{ kind: 'BUILD_FAILED'; code: string }>
+  | Readonly<{ kind: 'BUILD_FAILED'; code: string; detail?: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
 

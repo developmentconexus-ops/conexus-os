@@ -108,5 +108,7 @@ if (!response.ok) {
 The build check answers every operation with the smallest value its output schema admits, so the
 app must render with empty data as well as when a call fails.
 
-`sh conexus/check.sh` builds `app/`, then validates `manifest.json`, bundles the handlers and lists
-the migrations. Fix whatever it reports.
+When you finish, Conexus checks the result. It type checks `app/` and `conexus/`, builds `app/`, then
+validates `manifest.json`, bundles the handlers and lists the migrations, and opens the app in a
+browser. A type, build or manifest error refuses the result, so read `conexus/` against these rules
+before you finish.

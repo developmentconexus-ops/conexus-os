@@ -1,25 +1,30 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 const built = hubModuleUrl('builder/application-artifact-runtime.js')
-const { buildApplicationInSandbox, TEMPLATE_REF, RECIPE_SHA256 } = await import(built)
+const { checkApplicationInSandbox, TEMPLATE_REF, RECIPE_SHA256 } = await import(built)
 
-const appRoot = '/workspace/repo/app'
+const PASSING_REPORT = {
+  ok: true,
+  steps: [
+    { step: 'generate', status: 'passed', durationMs: 0 },
+    { step: 'typecheck', status: 'passed', durationMs: 900 },
+    { step: 'build', status: 'passed', durationMs: 4000 },
+    { step: 'server', status: 'passed', durationMs: 700 },
+    { step: 'boot', status: 'passed', durationMs: 1500 },
+  ],
+  facts: { operations: 0, migrations: 0, jsGzipBytes: 60_000 },
+}
 
-const isSmokeCommand = (command) => command.includes('.conexus-smoke.mjs')
-
-const fakeSandbox = (output, { buildExitCode = 0, smokeVerdict = { ok: true, childCount: 1 }, smokeExitCode } = {}) => {
+const fakeSandbox = (output, { report = PASSING_REPORT, stdout, exitCode = 0 } = {}) => {
   const calls = []
   const sandbox = {
     files: {
-      list: async (_path, options) => {
-        calls.push({ kind: 'list', options })
-        return [...output].map(([path, bytes]) => ({ path, type: 'file', size: bytes.byteLength }))
+      list: async (path, options) => {
+        calls.push({ kind: 'list', path, options })
+        return [...output].map(([entry, bytes]) => ({ path: entry, type: 'file', size: bytes.byteLength }))
       },
       read: async (path, options) => {
         calls.push({ kind: 'read', path, options })
@@ -30,318 +35,97 @@ const fakeSandbox = (output, { buildExitCode = 0, smokeVerdict = { ok: true, chi
     commands: {
       run: async (command, options) => {
         calls.push({ kind: 'run', command, options })
-        if (isSmokeCommand(command)) {
-          return { exitCode: smokeExitCode ?? (smokeVerdict.ok ? 0 : 1), stdout: JSON.stringify(smokeVerdict), stderr: '' }
-        }
-        return { exitCode: command.startsWith('node ') ? buildExitCode : 0, stdout: '', stderr: '' }
+        return { exitCode, stdout: stdout ?? `progress noise\n${JSON.stringify(report)}\n`, stderr: '' }
       },
     },
   }
   return { sandbox, calls }
 }
 
-test('a refusal E2B raises as an exit error still names which refusal it was', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox } = fakeSandbox(output)
-  const run = sandbox.commands.run
-  // E2B raises a non-zero exit as a CommandExitError that still carries the command's own output,
-  // which is where the script puts its verdict.
-  sandbox.commands.run = async (command, options) => {
-    const result = await run(command, options)
-    if (!String(command).includes('CONEXUS_SMOKE_SCRIPT_EOF')) return result
-    throw Object.assign(new Error('exit status 1'), {
-      exitCode: 1, stderr: '', stdout: JSON.stringify({ ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' }),
-    })
-  }
-  await assert.rejects(
-    buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' }),
-    /APPLICATION_SMOKE_NO_ROOT_CHILD/,
-  )
-})
+const root = '/var/lib/conexus-build/run-1'
+const out = `${root}/dist`
 
-test('the smoke script the sandbox is handed parses as the module Node will load it as', async () => {
-  const { mkdtempSync, writeFileSync, rmSync, readFileSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-
-  // The sandbox writes it to a .mjs path, so Node parses it as an ES module, where a top-level
-  // return is a syntax error. node --check on the same extension runs the same parser.
-  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
-  const scriptPath = /const SMOKE_SCRIPT_FILE = '([^']+)'/.exec(runtimeSource)?.[1]
-  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
-  assert.ok(scriptPath?.endsWith('.mjs'), 'the smoke script path moved; this test must follow its extension')
-  assert.ok(heredoc, 'the smoke heredoc marker moved; this test must follow it')
-
-  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
-  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
-  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
-  assert.ok(smoke, 'no command carried the smoke script')
-  const body = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
-  assert.ok(body && body.length > 0, 'the smoke script came through empty')
-
-  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-parse-'))
-  try {
-    const file = resolve(directory, 'smoke.mjs')
-    writeFileSync(file, body)
-    const checked = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' })
-    assert.equal(checked.status, 0, `the smoke script does not parse: ${String(checked.stderr).split('\n').filter(Boolean).slice(-3).join(' | ')}`)
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
-  }
-})
-
-test('an app that imports a web font from an unreachable host still passes the smoke in a real browser', async (t) => {
-  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const { chromium } = await import('@playwright/test')
-
-  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
-  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
-  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
-  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
-  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
-  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
-
-  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-external-'))
-  t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const dist = resolve(directory, 'dist')
-  makeDirectory(dist)
-  // 10.255.255.1 is not routable, so a connection to it neither succeeds nor is refused: it hangs,
-  // which is what a slow or unreachable font host does to the load event.
-  writeFileSync(resolve(dist, 'style.css'), "@import url('http://10.255.255.1/font.css');\nbody { margin: 0; }\n")
-  writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><head><link rel="stylesheet" href="/style.css"></head>'
-    + '<body><div id="root"></div><script>document.getElementById("root").append(document.createElement("main"))</script></body></html>')
-  const bin = resolve(directory, 'bin')
-  makeDirectory(bin)
-  writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
-  chmodSync(resolve(bin, 'chromium'), 0o755)
-  const file = resolve(directory, 'smoke.mjs')
-  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
-    .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
-
-  const started = Date.now()
-  const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
-  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
-  assert.ok(Date.now() - started < 15_000, `the smoke waited on the unreachable font for ${Date.now() - started} ms`)
-})
-
-test('an app that loads its data from its own API mounts in the smoke, and the server tree stays unserved', async (t) => {
-  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const { chromium } = await import('@playwright/test')
-
-  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
-  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
-  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
-  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
-  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
-  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
-
-  const directory = mkdtempSync(resolve(tmpdir(), 'conexus-smoke-api-'))
-  t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const dist = resolve(directory, 'dist')
-  makeDirectory(resolve(dist, 'conexus-server'), { recursive: true })
-  const note = { type: 'object', properties: { id: { type: 'integer', minimum: 1 }, note: { type: 'string', minLength: 2 } }, required: ['id', 'note'], additionalProperties: false }
-  writeFileSync(resolve(dist, 'conexus-server/manifest.json'), JSON.stringify({ version: 1, migrations: [], operations: {
-    listNotes: { module: 'handlers/notes.mjs', export: 'listNotes', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: note } },
-    lastNote: { module: 'handlers/notes.mjs', export: 'lastNote', input: { type: 'object', properties: {}, additionalProperties: false }, output: note },
-  } }))
-  // The page throws, which fails the smoke, unless every answer is the one the fixture owes it.
-  writeFileSync(resolve(dist, 'app.js'), `const post = (operation) => fetch('/__conexus/api/' + operation, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
-const [list, last, unknown, tree] = await Promise.all([post('listNotes'), post('lastNote'), post('dropNotes'), fetch('/conexus-server/manifest.json')])
-const answers = JSON.stringify([list.status, await list.json(), last.status, await last.json(), unknown.status, tree.status])
-if (answers !== JSON.stringify([200, [], 200, { id: 1, note: 'xx' }, 404, 404])) throw new Error('fixture answered ' + answers)
-document.getElementById('root').append(document.createElement('main'))
-`)
-  writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>')
-  const bin = resolve(directory, 'bin')
-  makeDirectory(bin)
-  writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
-  chmodSync(resolve(bin, 'chromium'), 0o755)
-  const file = resolve(directory, 'smoke.mjs')
-  writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
-    .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
-  const ran = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
-  assert.deepEqual(JSON.parse(ran.stdout), { ok: true, childCount: 1 })
-})
-
-test('two smokes started at the same instant do not collide on a fixed port', async (t) => {
-  const { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync: makeDirectory, chmodSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const { chromium } = await import('@playwright/test')
-  const { spawn: spawnAsync } = await import('node:child_process')
-
-  const runtimeSource = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/application-artifact-runtime.ts'), 'utf8')
-  const heredoc = /const SMOKE_HEREDOC = '([^']+)'/.exec(runtimeSource)?.[1]
-  const { sandbox, calls } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]]))
-  await buildApplicationInSandbox(sandbox, { appRoot: '/workspace/app' })
-  const smoke = calls.find((call) => call.kind === 'run' && String(call.command).includes(heredoc))
-  const script = String(smoke.command).split(`<<'${heredoc}'\n`)[1]?.split(`\n${heredoc}`)[0]
-
-  const runInstance = (label) => {
-    const directory = mkdtempSync(resolve(tmpdir(), `conexus-smoke-concurrent-${label}-`))
-    t.after(() => rmSync(directory, { recursive: true, force: true }))
-    const dist = resolve(directory, 'dist')
-    makeDirectory(dist)
-    writeFileSync(resolve(dist, 'index.html'), '<!doctype html><html><body><div id="root"></div>'
-      + '<script>document.getElementById("root").append(document.createElement("main"))</script></body></html>')
-    const bin = resolve(directory, 'bin')
-    makeDirectory(bin)
-    writeFileSync(resolve(bin, 'chromium'), `#!/bin/sh\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`)
-    chmodSync(resolve(bin, 'chromium'), 0o755)
-    const file = resolve(directory, 'smoke.mjs')
-    writeFileSync(file, script.replace(/const DIST_ROOT = "[^"]*"/, `const DIST_ROOT = ${JSON.stringify(dist)}`)
-      .replace(/const PROFILE = "[^"]*"/, `const PROFILE = ${JSON.stringify(resolve(directory, 'profile'))}`))
-    return new Promise((resolveRun, rejectRun) => {
-      const child = spawnAsync(process.execPath, [file], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } })
-      let stdout = ''
-      child.stdout.on('data', (chunk) => { stdout += chunk })
-      child.on('error', rejectRun)
-      child.on('close', () => resolveRun(stdout))
-    })
-  }
-
-  // Both instances listen on port 0 for the app server and the DevTools port alike, so nothing here
-  // pins them to the same number; a regression to a fixed literal would fail one side with EADDRINUSE.
-  const [first, second] = await Promise.all([runInstance('a'), runInstance('b')])
-  assert.deepEqual(JSON.parse(first), { ok: true, childCount: 1 })
-  assert.deepEqual(JSON.parse(second), { ok: true, childCount: 1 })
-})
-
-test('a build placed under a root-only directory runs, writes, smokes and reads there as root', async () => {
-  const workRoot = '/var/lib/conexus-build/run-1'
-  const { sandbox, calls } = fakeSandbox(new Map([[`${workRoot}/dist/index.html`, Buffer.from('<!doctype html>')]]))
-  const files = await buildApplicationInSandbox(sandbox, { workRoot, appRoot: `${workRoot}/app`, user: 'root' })
-  assert.deepEqual(files.map(({ path }) => path), ['index.html'])
-  assert.deepEqual(calls.map(({ kind, options }) => [kind, options?.user]), [['run', 'root'], ['run', 'root'], ['run', 'root'], ['list', 'root'], ['read', 'root'], ['run', 'root']])
-  const commands = calls.filter(({ kind }) => kind === 'run').map(({ command }) => String(command))
-  assert.ok(commands[1].endsWith(`--outDir '${workRoot}/dist'`), commands[1])
-  assert.ok(commands[2].startsWith(`cat > ${workRoot}/.conexus-server-build.mjs `) && commands[2].endsWith(`node ${workRoot}/.conexus-server-build.mjs '${workRoot}' '${workRoot}/dist'`), commands[2])
-  commands.splice(2, 1)
-  assert.ok(commands[2].startsWith(`cat > ${workRoot}/.conexus-smoke.mjs `) && commands[2].includes(`const DIST_ROOT = "${workRoot}/dist"`) && commands[2].includes(`const PROFILE = "${workRoot}/.conexus-smoke-profile"`))
-  assert.equal(commands.some((command) => command.includes('/workspace')), false)
-})
-
-test('buildApplicationInSandbox exports the fixed template identity', () => {
+test('the template identity stays the V1 pin', () => {
   assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440')
   assert.equal(RECIPE_SHA256, 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4')
 })
 
-test('buildApplicationInSandbox symlinks the compiler dependencies into the given appRoot and builds it', async () => {
-  const output = new Map([
-    ['/workspace/dist/index.html', Buffer.from('<!doctype html>')],
-    ['/workspace/dist/assets/app.js', Buffer.from('console.log("ok")')],
+test('the check runs the Hub script as root with the agent identity named, then reads the build as root', async () => {
+  const bytes = Buffer.from('<!doctype html>')
+  const { sandbox, calls } = fakeSandbox(new Map([[`${out}/index.html`, bytes]]))
+  const run = await checkApplicationInSandbox(sandbox, { root, out, collect: true, user: 'root' })
+  assert.deepEqual(run.report, PASSING_REPORT)
+  assert.deepEqual(run.files.map((file) => ({ path: file.path, mediaType: file.mediaType, sha256: file.sha256 })), [
+    { path: 'index.html', mediaType: 'text/html; charset=utf-8', sha256: createHash('sha256').update(bytes).digest('hex') },
   ])
-  const { sandbox, calls } = fakeSandbox(output)
-  const files = await buildApplicationInSandbox(sandbox, { appRoot })
-  assert.deepEqual(files.map(file => ({ ...file, bytes: [...file.bytes] })), [
-    { path: 'assets/app.js', mediaType: 'text/javascript; charset=utf-8', bytes: [...output.get('/workspace/dist/assets/app.js')], sha256: createHash('sha256').update(output.get('/workspace/dist/assets/app.js')).digest('hex') },
-    { path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes: [...output.get('/workspace/dist/index.html')], sha256: createHash('sha256').update(output.get('/workspace/dist/index.html')).digest('hex') },
-  ])
-  const linkCall = calls.find(call => call.kind === 'run' && call.command.startsWith('ln '))
-  assert.equal(linkCall.command, `ln -sfn /opt/conexus/compiler/node_modules ${appRoot}/node_modules`)
-  const buildCall = calls.find(call => call.kind === 'run' && call.command.startsWith('node '))
-  assert.equal(buildCall.command, "node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native --outDir '/workspace/dist'")
-  assert.equal(buildCall.options.cwd, appRoot)
-  assert.equal(buildCall.options.envs.CONEXUS_COMPILE_ROOT, appRoot)
+  const [command] = calls.filter((call) => call.kind === 'run')
+  assert.equal(command.command, `/usr/local/bin/node /opt/conexus/check.mjs --root '${root}' --out '${out}' --as 1500:1500`)
+  assert.equal(command.options.user, 'root')
+  assert.equal(command.options.cwd, '/')
+  assert.deepEqual(calls.filter((call) => call.kind !== 'run').map(({ kind, options }) => [kind, options.user]), [['list', 'root'], ['read', 'root']])
 })
 
-test('buildApplicationInSandbox rejects an already-aborted request without running any command', async () => {
+test('a check that did not pass its blocking steps reads no build', async () => {
+  const report = { ...PASSING_REPORT, ok: false, steps: [
+    PASSING_REPORT.steps[0],
+    { step: 'typecheck', status: 'failed', durationMs: 800, problems: [{ file: 'app/src/main.tsx', line: 1, column: 7, code: 'TS2322', message: 'no' }] },
+    ...['build', 'server', 'boot'].map((step) => ({ step, status: 'skipped', reason: 'after failed typecheck' })),
+  ] }
+  const { sandbox, calls } = fakeSandbox(new Map(), { report })
+  const run = await checkApplicationInSandbox(sandbox, { root, out, collect: true, user: 'root' })
+  assert.equal(run.report.ok, false)
+  assert.equal(run.files, null)
+  assert.deepEqual(calls.map(({ kind }) => kind), ['run'])
+})
+
+test('a failed boot alone does not stop the build being read', async () => {
+  const report = { ...PASSING_REPORT, steps: [...PASSING_REPORT.steps.slice(0, 4), { step: 'boot', status: 'failed', durationMs: 900, problems: [{ code: 'BOOT_UNCAUGHT_ERROR', message: 'Error: boom' }] }] }
+  const { sandbox } = fakeSandbox(new Map([[`${out}/index.html`, Buffer.from('<!doctype html>')]]), { report })
+  const run = await checkApplicationInSandbox(sandbox, { root, out, collect: true, user: 'root' })
+  assert.equal(run.report.ok, true)
+  assert.equal(run.files.length, 1)
+})
+
+test('output that is not a report is a platform failure, not a refusal of the source', async () => {
+  for (const stdout of ['', 'Segmentation fault', '{"ok":true}', JSON.stringify({ ...PASSING_REPORT, ok: false })]) {
+    const { sandbox } = fakeSandbox(new Map(), { stdout })
+    await assert.rejects(checkApplicationInSandbox(sandbox, { root, out, collect: false, user: 'root' }), /APPLICATION_CHECK_REPORT_UNREADABLE/)
+  }
+})
+
+test('a script that exits nonzero, which E2B raises as an error, is a platform failure with its stderr redacted', async () => {
+  const { sandbox } = fakeSandbox(new Map())
+  sandbox.commands.run = async () => { throw Object.assign(new Error('exit status 3'), { exitCode: 3, stdout: '', stderr: 'check setup failed: token ghp_abcdefghijklmnop' }) }
+  await assert.rejects(checkApplicationInSandbox(sandbox, { root, out, collect: false, user: 'root' }), (error) => {
+    assert.equal(error.message, 'APPLICATION_CHECK_UNREADABLE')
+    assert.deepEqual(error.cause, { exitCode: 3, stderr: 'check setup failed: token [redacted]' })
+    return true
+  })
+})
+
+test('a root or out path outside the sandbox folders refuses before any command runs', async () => {
   const { sandbox, calls } = fakeSandbox(new Map())
-  const controller = new AbortController()
-  controller.abort()
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot, signal: controller.signal }), /APPLICATION_COMPILER_CANCELLED/)
+  await assert.rejects(checkApplicationInSandbox(sandbox, { root: `${root}'; rm -rf /`, out, collect: false }), /APPLICATION_COMPILER_WORKSPACE_REFUSED/)
   assert.equal(calls.length, 0)
 })
 
-test('buildApplicationInSandbox reports a failing vite exit code as APPLICATION_COMPILATION_FAILED', async () => {
-  const { sandbox } = fakeSandbox(new Map([['/workspace/dist/index.html', Buffer.from('x')]]), { buildExitCode: 1 })
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_COMPILATION_FAILED/)
-})
-
-test('buildApplicationInSandbox serves the built dist and drives headless Chromium at it before returning', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox, calls } = fakeSandbox(output, { smokeVerdict: { ok: true, childCount: 3 } })
-  const files = await buildApplicationInSandbox(sandbox, { appRoot })
-  assert.equal(files.length, 1)
-  const smokeCall = calls.find((call) => call.kind === 'run' && isSmokeCommand(call.command))
-  assert.ok(smokeCall, 'a smoke command must run after the build produced output')
-  assert.equal(smokeCall.command.includes(appRoot), false, 'the smoke server must serve /workspace/dist, not the app source root')
-  assert.ok(smokeCall.command.includes('/workspace/dist'))
-})
-
-// A source that builds cleanly (vite exits 0) can still throw the instant its module body runs -
-// vite never sees that, only a browser evaluating the bundle does. That is exactly what the smoke
-// step exists to catch, and the record below is the sandbox script's own verdict for that case.
-test('a source that builds but throws at module evaluation fails the smoke, not the build', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox } = fakeSandbox(output, { smokeVerdict: { ok: false, reason: 'APPLICATION_SMOKE_UNCAUGHT_ERROR' } })
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_SMOKE_UNCAUGHT_ERROR/)
-})
-
-test('an app that renders nothing into the root fails the smoke', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox } = fakeSandbox(output, { smokeVerdict: { ok: false, reason: 'APPLICATION_SMOKE_NO_ROOT_CHILD' } })
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_SMOKE_NO_ROOT_CHILD/)
-})
-
-test('a nonzero smoke exit code fails closed even if a stray earlier stdout line parsed as ok: true', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  // The exit code and the JSON verdict are two independent witnesses; a killed or crashed run must
-  // not pass just because something on stdout happened to look like a success line.
-  const { sandbox } = fakeSandbox(output, { smokeExitCode: 1, smokeVerdict: { ok: true, childCount: 1 } })
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_SMOKE/)
-})
-
-test('a smoke command whose stdout cannot be parsed as a verdict fails closed', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox: base } = fakeSandbox(output)
-  const sandbox = {
-    ...base,
-    commands: {
-      run: async (command, options) => {
-        if (isSmokeCommand(command)) return { exitCode: 1, stdout: 'not json', stderr: 'boom' }
-        return base.commands.run(command, options)
-      },
-    },
-  }
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_SMOKE_VERDICT_UNREADABLE/)
-})
-
-test('the smoke command carries a bounded timeoutMs so a hung Chromium fails rather than hangs', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox, calls } = fakeSandbox(output)
-  await buildApplicationInSandbox(sandbox, { appRoot })
-  const smokeCall = calls.find((call) => call.kind === 'run' && isSmokeCommand(call.command))
-  assert.equal(typeof smokeCall.options.timeoutMs, 'number')
-  assert.ok(smokeCall.options.timeoutMs > 0 && smokeCall.options.timeoutMs < 60_000, 'the bound must be finite and well inside the overall build budget')
-})
-
-test('the smoke command failing to run at all (E2B kills it on timeout) is reported as APPLICATION_SMOKE_FAILED, not a hang', async () => {
-  const output = new Map([['/workspace/dist/index.html', Buffer.from('<!doctype html>')]])
-  const { sandbox: base } = fakeSandbox(output)
-  const sandbox = {
-    ...base,
-    commands: {
-      run: async (command, options) => {
-        if (isSmokeCommand(command)) throw new Error('sandbox command timed out')
-        return base.commands.run(command, options)
-      },
-    },
-  }
-  await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), /APPLICATION_SMOKE_FAILED/)
+test('an already-aborted request runs no command', async () => {
+  const { sandbox, calls } = fakeSandbox(new Map())
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(checkApplicationInSandbox(sandbox, { root, out, collect: false, signal: controller.signal }), /APPLICATION_COMPILER_CANCELLED/)
+  assert.equal(calls.length, 0)
 })
 
 for (const [name, entries, error] of [
-  ['symlink', [{ path: '/workspace/dist/index.html', type: 'symlink', size: 1 }], /SYMLINK_REFUSED/],
-  ['traversal', [{ path: '/workspace/dist/../index.html', type: 'file', size: 1 }], /PATH_REFUSED/],
-  ['byte limit', [{ path: '/workspace/dist/index.html', type: 'file', size: 12 * 1024 * 1024 + 1 }], /LIMIT_REFUSED/],
-  ['file count', Array.from({ length: 257 }, (_, index) => ({ path: `/workspace/dist/${index === 0 ? 'index' : index}.html`, type: 'file', size: 1 })), /LIMIT_REFUSED/],
+  ['symlink', [{ path: `${out}/index.html`, type: 'symlink', size: 1 }], /SYMLINK_REFUSED/],
+  ['traversal', [{ path: `${out}/../index.html`, type: 'file', size: 1 }], /PATH_REFUSED/],
+  ['byte limit', [{ path: `${out}/index.html`, type: 'file', size: 12 * 1024 * 1024 + 1 }], /LIMIT_REFUSED/],
+  ['file count', Array.from({ length: 257 }, (_, index) => ({ path: `${out}/${index === 0 ? 'index' : index}.html`, type: 'file', size: 1 })), /LIMIT_REFUSED/],
 ]) {
-  test(`buildApplicationInSandbox refuses output ${name} before downloading bytes`, async () => {
-    const sandbox = {
-      commands: { run: async () => ({ exitCode: 0, stdout: '', stderr: '' }) },
-      files: { list: async () => entries, read: async () => assert.fail('Rejected output must not download') },
-    }
-    await assert.rejects(buildApplicationInSandbox(sandbox, { appRoot }), error)
+  test(`the build's output ${name} is refused before downloading bytes`, async () => {
+    const { sandbox } = fakeSandbox(new Map())
+    sandbox.files = { list: async () => entries, read: async () => assert.fail('Rejected output must not download') }
+    await assert.rejects(checkApplicationInSandbox(sandbox, { root, out, collect: true, user: 'root' }), error)
   })
 }

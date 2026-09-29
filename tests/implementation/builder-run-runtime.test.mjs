@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { test } from 'node:test'
@@ -21,19 +21,35 @@ const AGENTS_MD = '# Project knowledge\n\nA base app.\n'
 const STARTER = [
   { path: 'AGENTS.md', content: AGENTS_MD },
   { path: 'app/index.html', content: '<h1>base</h1>\n' },
-  { path: 'conexus/check.sh', content: '#!/bin/sh\nexit 0\n' },
 ]
-const BASE_FILES = ['AGENTS.md', 'app/index.html', 'conexus/check.sh']
+const BASE_FILES = ['AGENTS.md', 'app/index.html']
 const MODEL_ACCOUNT = '55555555-5555-4555-8555-555555555555'
 const GIT_ENV = { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@t' }
 const completed = (summary = 'Pronto.') => ({ reason: 'complete', userMessageId: 'user-message', summary })
 const listFiles = (root) => readdirSync(root, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile()).map((entry) => relative(root, join(entry.parentPath, entry.name))).sort()
 
+const PASSING_REPORT = {
+  ok: true,
+  steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })),
+  facts: { operations: 0, migrations: 0, jsGzipBytes: 1 },
+}
+const failedReport = (step, problems) => {
+  const order = ['generate', 'typecheck', 'build', 'server', 'boot']
+  const failedAt = order.indexOf(step)
+  return {
+    ok: step === 'boot',
+    steps: order.map((id, index) => index < failedAt ? { step: id, status: 'passed', durationMs: 1 }
+      : index === failedAt ? { step: id, status: 'failed', durationMs: 1, problems }
+        : { step: id, status: 'skipped', reason: `after failed ${step}` }),
+    facts: { operations: 0, migrations: 0, jsGzipBytes: 0 },
+  }
+}
+
 // A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
-// runtime names under /workspace, /var/lib, /opt or its /tmp check folder lands under the harness's
+// runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run.
-const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER } = {}) => {
+const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -55,7 +71,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     },
   }
   const local = (text) => text.replaceAll('/workspace', `${vm}/workspace`).replaceAll('/var/lib/', `${vm}/var/lib/`).replaceAll('/opt/conexus', `${vm}/opt/conexus`)
-    .replaceAll('/tmp/conexus-candidate-check', `${vm}/tmp/conexus-candidate-check`)
+
   const shell = (command, args, cwd) => {
     const ran = spawnSync(command, args, { cwd, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: scratch, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } })
     return { exitCode: ran.status ?? 1, success: ran.status === 0, stdout: ran.stdout ?? '', stderr: ran.stderr ?? '' }
@@ -67,6 +83,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
+  const admissionChecks = []
   const destroyed = []
   // What the run put in its session's request context.
   const sessionContext = new Map()
@@ -102,12 +119,19 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
       if (line.startsWith('sh -c kill -KILL -1')) return { exitCode: 0, success: true, stdout: '', stderr: '' }
       return shell(command, args.map(local), local(options.cwd ?? '/workspace'))
     },
-    buildApplication: async (buildRoot) => {
+    runCheck: async ({ root, out, collect }) => {
+      if (!collect) {
+        events.push('admission-check')
+        admissionChecks.push({ root, out, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8') })
+        await onAdmissionCheck?.(sandbox)
+        return { report: admissionReport ?? PASSING_REPORT, files: null }
+      }
       events.push('build')
-      builtFrom.push({ buildRoot, files: listFiles(local(buildRoot)), index: readFileSync(join(local(buildRoot), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
+      builtFrom.push({ buildRoot: root, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
       buildStarted()
-      if (build) return build()
-      return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
+      if (buildReport) return { report: buildReport, files: buildReport.ok ? [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }] : null }
+      const files = build ? await build() : [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
+      return { report: PASSING_REPORT, files }
     },
   }
   const runtime = createBuilderRunRuntime({
@@ -207,7 +231,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, settled, sessionContext, checkout, outside, moveMain, destroyed, bare }
+  return { base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -269,9 +293,7 @@ test('a stop during the compile is too late: main already holds the candidate an
 test('a stop that lands while the candidate is checked is refused the admission', async (t) => {
   const context = {}
   const run = await harness(t, {
-    onCommand: (_sandbox, line) => {
-      if (line.includes('conexus/check.sh')) void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
-    },
+    onAdmissionCheck: () => { void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) },
   })
   context.run = run
   await run.start()
@@ -602,7 +624,7 @@ test('a candidate whose AGENTS.md is missing, over 8 KB, or not UTF-8 is refused
     outcomes[name] = {
       settled: run.calls.at(-1),
       main: await run.main() === run.base,
-      checked: run.commands().some((line) => line.includes('conexus/check.sh')),
+      checked: run.events.includes('admission-check'),
       note: run.diagnostics.map(({ outcome, detail }) => [outcome, detail]),
     }
   }
@@ -614,15 +636,50 @@ test('a candidate whose AGENTS.md is missing, over 8 KB, or not UTF-8 is refused
   })
 })
 
-test("a candidate whose own check fails is refused with the check's output, main stays at the base, and nothing compiles", async (t) => {
-  const run = await refusedCandidate(t, (checkout) => {
-    writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-    writeFileSync(join(checkout, 'conexus/check.sh'), '#!/bin/sh\necho "typecheck: app/index.tsx broke"\nexit 3\n')
+// A server error the Builder needs whole to fix: longer than the 400 and 1,200 characters the record cut before.
+const LONG_SERVER_MESSAGE = `conexus/handlers/notes.ts imports "../../app/src/${'a'.repeat(700)}": a handler may import only .ts, .js or .json files inside conexus/ and node: built-ins`
+
+test("a candidate the Hub's check refuses is refused with the failed step's problems whole, main stays at the base, and nothing compiles (AC-9)", async (t) => {
+  const problems = [
+    { file: 'app/src/main.tsx', line: 3, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
+    { file: 'conexus/handlers/notes.ts', message: LONG_SERVER_MESSAGE },
+  ]
+  const run = await harness(t, {
+    admissionReport: failedReport('typecheck', problems),
+    turn: ({ checkout }) => {
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      // A check of the candidate's own that says everything is fine changes nothing.
+      mkdirSync(join(checkout, 'conexus'), { recursive: true })
+      writeFileSync(join(checkout, 'conexus/check.sh'), '#!/bin/sh\nexit 0\n')
+      return completed()
+    },
   })
+  await run.start()
+  await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_CHECK_FAILED'])
   assert.equal(await run.main(), run.base)
   assert.equal(run.events.includes('build'), false)
-  assert.deepEqual(run.diagnostics.map(({ outcome, detail }) => [outcome, detail]), [['CANDIDATE_REFUSED', 'typecheck: app/index.tsx broke']])
+  assert.deepEqual(run.diagnostics.map(({ outcome, detail }) => [outcome, detail]), [['CANDIDATE_REFUSED', [
+    'typecheck failed:',
+    "app/src/main.tsx:3:7: TS2322 Type 'string' is not assignable to type 'number'.",
+    `conexus/handlers/notes.ts: ${LONG_SERVER_MESSAGE}`,
+  ].join('\n')]])
+  assert.equal(run.commands().some((line) => line.includes('check.sh')), false, 'no command runs a script of the candidate')
+  assert.ok(run.admissionChecks[0].files.includes('conexus/check.sh'), 'the candidate file is only data in the tree the Hub checks')
+})
+
+test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
+  const { checkScriptSource } = await import(built('builder/application-check.js'))
+  const run = await harness(t)
+  await run.start()
+  await run.service.close()
+  const install = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].includes("cat > '/opt/conexus/check.mjs.next'"))
+  assert.ok(install > -1 && install < run.events.indexOf('turn'), 'installed before the agent turn')
+  assert.match(run.events[install][1], /chmod 555 '\/opt\/conexus\/server-build\.mjs\.next' '\/opt\/conexus\/check\.mjs\.next'/)
+  const placed = join(run.vm, 'opt/conexus/check.mjs')
+  // The harness maps /opt/conexus into its own folder in every script it runs.
+  assert.ok(readFileSync(placed, 'utf8').trimEnd() === checkScriptSource().replaceAll('/opt/conexus', join(run.vm, 'opt/conexus')).trimEnd(), 'the placed script is the Hub script')
+  assert.equal(statSync(placed).mode & 0o777, 0o555)
 })
 
 test("the check runs on the candidate's own tree from the Conexus Git, not on the checkout the agent can still change", async (t) => {
@@ -632,13 +689,46 @@ test("the check runs on the candidate's own tree from the Conexus Git, not on th
       return completed()
     },
     onCommand: (_sandbox, line) => {
-      if (line.startsWith('sh -c kill -KILL -1')) writeFileSync(join(run_.checkout, 'conexus/check.sh'), '#!/bin/sh\nexit 9\n')
+      if (line.startsWith('sh -c kill -KILL -1')) writeFileSync(join(run_.checkout, 'app/index.html'), '<h1>late write</h1>\n')
     },
   })
   const run_ = run
   await run.start()
   await run.service.close()
+  assert.deepEqual(run.admissionChecks.map(({ root, out, index }) => [root, out, index]), [[`/var/lib/conexus-build/${runId}.admission`, `/var/lib/conexus-build/${runId}.admission.dist`, '<h1>UNIT1</h1>\n']])
   assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['advance', run.result()], ['settleBuild', run.result(), null]])
+})
+
+test('a generated file the agent wrote never reaches Git, and a file beside it does', async (t) => {
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      mkdirSync(join(checkout, 'app/src'), { recursive: true })
+      mkdirSync(join(checkout, 'conexus'), { recursive: true })
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      writeFileSync(join(checkout, 'app/src/api.gen.ts'), 'export const stale = true\n')
+      writeFileSync(join(checkout, 'conexus/types.gen.ts'), 'export type Stale = string\n')
+      writeFileSync(join(checkout, 'app/src/keep.ts'), 'export const kept = true\n')
+      return completed()
+    },
+  })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.deepEqual((await run.service.compareSourceRevisions({ accountId, projectId, baseSourceRevision: run.base, resultSourceRevision: result })).files, [
+    { path: 'app/index.html', status: 'MODIFIED', previousPath: null },
+    { path: 'app/src/keep.ts', status: 'ADDED', previousPath: null },
+  ])
+})
+
+test('a page that does not boot leaves the admitted source without a Preview and tells the next turn why, whole', async (t) => {
+  const thrown = `Error: ${'boom '.repeat(200)}`
+  const run = await harness(t, { buildReport: failedReport('boot', [{ code: 'BOOT_UNCAUGHT_ERROR', message: thrown, file: 'assets/index.js', line: 1, column: 9 }]) })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', result], ['settleBuild', result, 'APPLICATION_SMOKE_FAILED']])
+  assert.deepEqual(run.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_SMOKE_FAILED', 'BUILD_FAILED', `boot failed:\nassets/index.js:1:9: BOOT_UNCAUGHT_ERROR ${thrown}`]])
 })
 
 test("the session context carries the base's AGENTS.md, cut at 8 KB with the note when it is longer (AC-8)", async (t) => {

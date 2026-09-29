@@ -28,7 +28,7 @@ import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecret
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import { createBuilderRunRuntime, createControllerRunSessions, e2bRunSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
-import { APPLICATION_CHECK_FILES, FIXED_APPLICATION_STARTER_FILES } from './application-starter.js'
+import { APPLICATION_SHAPE_FILES, FIXED_APPLICATION_STARTER_FILES } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { createBuilderController } from './harness/index.js'
@@ -276,7 +276,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
-  const git = createConexusGit({ root: builder.gitRoot, starter: [...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_CHECK_FILES, starterProjectKnowledge()] })
+  const git = createConexusGit({ root: builder.gitRoot, starter: [...FIXED_APPLICATION_STARTER_FILES, ...APPLICATION_SHAPE_FILES, starterProjectKnowledge()] })
 
   const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20 })
   const storage = createBuilderStorage(storagePool)
