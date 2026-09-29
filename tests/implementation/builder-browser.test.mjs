@@ -1431,8 +1431,8 @@ test('a plan the agent submits is sent back with feedback from its card, on the 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText('Agenda semanal', { exact: true }).waitFor()
   const planCard = page.getByRole('region', { name: 'Plano para aprovar' })
-  assert.equal(await planCard.locator('details[open] pre').textContent(), '1. Tela da semana', 'the whole plan is open on the card')
-  assert.equal(await planCard.evaluate((card) => card.querySelector('pre').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
+  await planCard.locator('.cx-plan-clamp li', { hasText: 'Tela da semana' }).waitFor()
+  assert.equal(await planCard.evaluate((card) => card.querySelector('.cx-plan-clamp').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
   const askChanges = page.getByRole('button', { name: 'Pedir ajustes' })
   assert.equal(await askChanges.isDisabled(), true, 'feedback is required to send a plan back')
   await page.getByLabel('O que mudar no plano').fill('Inclua os fins de semana')
@@ -1483,6 +1483,77 @@ test('approving a submitted plan answers it with the approval the controller mov
   await page.getByRole('button', { name: 'Aprovar e construir' }).click()
   await answered
   assert.deepEqual(answers, [{ toolCallId: 'plan-2', resumeData: { action: 'approved' } }])
+})
+
+const PLAN_TEXT = [
+  '## Para a pessoa', '', 'Uma tela com **Compras** do mês e um botão para exportar.', '',
+  '## Para Construir', '', '- Rota `/pedidos` com a operação `listarPedidos`',
+].join('\n')
+
+// A Project whose Planejar run is waiting on the person's approval of PLAN_TEXT.
+const openPlanCard = async (t, answers) => {
+  const accountId = '70000000-0000-4000-8000-000000000271'
+  const projectId = '70000000-0000-4000-8000-000000000272'
+  const runId = '70000000-0000-4000-8000-000000000273'
+  const conversationId = 'conversation-plan-reader'
+  const sourceRevision = 'd'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const state = builderState([conversation(conversationId, 'Compras')], { [conversationId]: [userMessage('user-1', 'Crie uma tela de compras')] })
+  state.modeId = 'plan'
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Compras', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie uma tela de compras', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    answers.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'tool_suspended', toolCallId: 'plan-r', toolName: 'submit_plan', args: { title: 'Compras do mês', plan: PLAN_TEXT }, suspendPayload: { title: 'Compras do mês', plan: PLAN_TEXT } },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  return page.getByRole('region', { name: 'Plano para aprovar' })
+}
+
+test('the plan card renders the Markdown of the person\'s part and leaves the technical part for the reader', async (t) => {
+  const card = await openPlanCard(t, [])
+  await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
+  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
+  assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
+  assert.equal(await card.locator('pre').count(), 0, 'the plan is not a monospace block')
+})
+
+test('Ler plano completo opens the whole plan over the screen, Esc closes it, and approving from it answers the plan and closes it', async (t) => {
+  const answers = []
+  const card = await openPlanCard(t, answers)
+  const page = card.page()
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const reader = page.getByRole('alertdialog', { name: 'Compras do mês' })
+  await reader.getByText('listarPedidos').waitFor()
+  await reader.getByRole('heading', { name: 'Para Construir' }).waitFor()
+
+  await page.keyboard.press('Escape')
+  await reader.waitFor({ state: 'detached' })
+
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
+  await reader.getByRole('button', { name: 'Aprovar e construir' }).click()
+  await answered
+  assert.deepEqual(answers, [{ toolCallId: 'plan-r', resumeData: { action: 'approved' } }])
+  await reader.waitFor({ state: 'detached' })
 })
 
 test('while the first version does not exist the Preview names the phase, the tasks and the time', async (t) => {

@@ -43,7 +43,9 @@ their "Aprovar e construir" starts it.
 
 ### Write the plan
 
-One Markdown file under `.conexus/plans/`, starting with a `# Title`, in two parts.
+One Markdown file under `.conexus/plans/`, starting with a `# Title`, in two parts. Head the first
+`## Para a pessoa` and the second `## Para Construir`, exactly, so the card can show the person's part
+first.
 
 For the person, in business words:
 
