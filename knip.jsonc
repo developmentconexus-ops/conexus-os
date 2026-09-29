@@ -14,6 +14,7 @@
     "scripts/single-session-proof.mjs",
     "scripts/builder-eval/run.mjs",
     "scripts/builder-eval/experiment.mjs",
+    "scripts/builder-eval/oracle.mjs",
     "scripts/builder-eval/sankhya-sim.mjs",
     "scripts/builder-eval/serve.mjs",
     "scripts/builder-model-input.mjs",
