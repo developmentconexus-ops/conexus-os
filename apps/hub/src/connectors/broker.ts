@@ -56,7 +56,7 @@ export type Broker = Readonly<{
 
 const DEFAULT_DEADLINE_MS = 4000
 
-export const operationBinding = (bindings: readonly BoundConnection[], connectorId: string): BoundConnection | null => {
+const operationBinding = (bindings: readonly BoundConnection[], connectorId: string): BoundConnection | null => {
   const matching = bindings.filter((binding) => binding.connectorId === connectorId)
   return matching.length === 1 ? matching[0] ?? null : null
 }
