@@ -180,8 +180,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         return undefined
       }
       // Mastra's session routes get-or-create, so the Hub decides which session a request reaches
-      // before Mastra does: a run's own session, which only its run creates, or a conversation's,
-      // which the Hub binds to that conversation's thread.
+      // before Mastra does: the session the Hub runs a conversation's turns in (builder:<id>), which
+      // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
       if (sessionScope !== undefined && RUN_SCOPE.test(sessionScope)) {
         if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modo só muda quando o Builder está parado')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {

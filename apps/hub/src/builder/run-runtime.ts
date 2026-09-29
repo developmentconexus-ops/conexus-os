@@ -11,19 +11,19 @@ import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application
 import { MEMORY_SETTINGS_KEY, type MemorySettings } from './memory.js'
 import { buildCandidateServer, createOperationRunner } from './run-operation.js'
 import type { CandidateOperationPorts, RunOperation } from './run-operation.js'
-import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
-import { candidateSnapshot, mirrorSnapshot, pullSnapshot, seedSandbox } from './conexus-git.js'
+import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
+import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, type PromptVariantId, type RunTools } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
-import { createRunSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
+import { createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunningPhase } from './store.js'
 
-/** What a run needs of its sandbox; the E2B one in production, a fake in tests. */
-export type RunSandbox = Readonly<{
+/** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
+type RunSandbox = Readonly<{
   readonly sandboxId: string | undefined
   start(): Promise<void>
   executeCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult>
@@ -37,8 +37,14 @@ export type RunSandbox = Readonly<{
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
-  destroy(): Promise<void>
+  /** The turn's end: the VM pauses with its files and its checkout, and the next `start()` resumes it. */
+  pause(): Promise<void>
+  /** A broken VM: it is killed, and the conversation's next turn gets a new one. */
+  kill(): Promise<void>
 }>
+
+/** What the Hub knows of a conversation's VM between turns (spec 0002 amendment, B3). */
+type ConversationSandboxRef = Readonly<{ conversationId: string; providerSandboxId: string | null }>
 
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
@@ -47,10 +53,13 @@ const RUN_OPERATION_OUT = '/tmp/conexus-run-operation'
 
 type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
 
-/** One run's session on the Builder controller, scoped to builder:<runId> on the conversation's thread. */
+/** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
   sendTurn(content: string, signal?: AbortSignal): Promise<AgentTurn>
-  close(): Promise<void>
+  /** Ends the turn and keeps the session for the conversation's next one. */
+  end(): Promise<void>
+  /** Ends the turn and deletes the session, whose workspace is on a VM the conversation no longer has. */
+  discard(): Promise<void>
 }>
 
 /** One run's reach into its Project's bound Connections: the brief for its instructions, the scope its tools read through, and a handler port on that scope. */
@@ -65,7 +74,8 @@ type ConnectorRun = Readonly<{
 export type RunContextBinder = (requestContext: RequestContext) => void
 
 export type BuilderRunPorts = Readonly<{
-  createSandbox(builderRunId: string): RunSandbox
+  /** The conversation's sandbox: the same one for every turn while it lives, resumed or created by `start()`. */
+  openSandbox(ref: ConversationSandboxRef): RunSandbox
   openSession(input: Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
     /** The check `conexus_check` runs: the Hub's script on the checkout, as the agent's user. */
@@ -101,6 +111,8 @@ type BuilderRunInput = Readonly<{
   /** The prompt the run's turns load; the run's trace records it beside the run id. */
   promptVariant: PromptVariantId
   baseSourceRevision: string
+  /** The E2B sandbox the conversation's last turn ran on, which this turn resumes; null for none recorded. */
+  providerSandboxId: string | null
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage(messageId: string): Promise<void>
   setPhase(phase: BuilderRunningPhase): Promise<void>
@@ -142,8 +154,10 @@ const CHECKOUT_WRITERS: ReadonlySet<string> = new Set([
   WORKSPACE_TOOLS.FILESYSTEM.MKDIR, WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT, WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND,
 ])
 const MIRROR_DEBOUNCE_MS = 5_000
-// A turn-end mirror after a failure waits no longer than this before the sandbox is destroyed.
+// A turn-end mirror after a failure waits no longer than this before the sandbox pauses.
 const FAILED_TURN_MIRROR_MS = 30_000
+// One seed bundle per VM, replaced at every turn that fetches one.
+const SEED_FILE = `${SEED_ROOT}/turn.bundle`
 
 type TurnMirror = Readonly<{
   schedule(): void
@@ -221,8 +235,19 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
   })
 }
 
-/** Makes every checkout-changing workspace tool schedule the mirror, keeping the hooks the workspace already has. */
+// The turn whose mirror each conversation workspace feeds. The hook goes on once, at the workspace's
+// first turn, so a kept workspace never stacks one per turn.
+const fedMirrors = new WeakMap<Workspace, { current: TurnMirror }>()
+
+/** Makes every checkout-changing workspace tool schedule this turn's mirror, keeping the hooks the workspace already has. */
 const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
+  const fed = fedMirrors.get(workspace)
+  if (fed) {
+    fed.current = mirror
+    return
+  }
+  const slot = { current: mirror }
+  fedMirrors.set(workspace, slot)
   const existing = workspace.getToolsConfig() ?? {}
   const priorAfterToolCall = existing.hooks?.afterToolCall
   workspace.setToolsConfig({
@@ -230,7 +255,7 @@ const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
     hooks: {
       ...existing.hooks,
       afterToolCall: async (hookContext) => {
-        if (CHECKOUT_WRITERS.has(hookContext.workspaceToolName)) mirror.schedule()
+        if (CHECKOUT_WRITERS.has(hookContext.workspaceToolName)) slot.current.schedule()
         await priorAfterToolCall?.(hookContext)
       },
     },
@@ -253,12 +278,13 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId, mode: input.mode,
     })
     const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
-    const sandbox = ports.createSandbox(input.executionId)
+    const sandbox = ports.openSandbox({ conversationId: input.conversationId, providerSandboxId: input.providerSandboxId })
     let session: RunSession | undefined
     let release: (() => void) | undefined
     // Set once the checkout holds the turn's start; the turn end mirrors it however the run ends.
     let mirror: TurnMirror | undefined
     let incarnation: string | undefined
+    let unusable = false
     const mirrorFailed = (error: unknown): void => {
       ports.log(`BUILDER_MIRROR_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
     }
@@ -270,12 +296,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       })()
       return mirrorEnded
     }
-    // The agent's turn is the only reader of the run's connector scope, so it ends with the session.
-    const closeSession = async (): Promise<void> => {
+    // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
+    const endSession = async (keep = true): Promise<void> => {
       connectorRun?.end()
       const open = session
       session = undefined
-      await open?.close()
+      await (keep ? open?.end() : open?.discard())
     }
     try {
       // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
@@ -287,6 +313,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (memorySettings) requestContext.setRaw(MEMORY_SETTINGS_KEY, memorySettings)
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
         requestContext.setRaw(RUN_ID_KEY, input.executionId)
+        requestContext.setRaw(CONVERSATION_ID_KEY, input.conversationId)
         requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)
         requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
@@ -295,12 +322,13 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         connectorRun?.bind(requestContext)
       }
 
+      // The conversation's VM resumes when E2B still has it; a new one is created only when it has none.
       await sandbox.start()
       // The first command replaces a VM E2B already reaped, so the run records the incarnation
       // that will actually run it.
       await sandbox.executeCommand('true', [], { env: {}, cwd: '/' })
       incarnation = sandbox.sandboxId
-      if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
+      if (!incarnation) throw new Error('BUILDER_SANDBOX_ID_UNAVAILABLE')
       await input.bindPhysicalSandbox(incarnation)
       release = await sandbox.holdOpen((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
@@ -336,7 +364,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const turnStart = await ports.git.startTurn(input.projectId, input.conversationId, base)
       conflicted = turnStart.conflicted
       if (conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
-      await seedSandbox({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
+      // A checkout that cannot take the start, even seeded again, is one the agent broke: the VM goes.
+      const checkoutStart = await startCheckout({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: SEED_FILE })
+        .catch((error: unknown) => { unusable = true; throw error })
+      ports.log(`BUILDER_TURN_CHECKOUT:${input.executionId}:${checkoutStart}:${incarnation}`)
       mirror = createTurnMirror({
         git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,
         source, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
@@ -397,7 +428,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // call it could not authenticate; reporting that as their cancellation would be false.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
-      await closeSession().catch((error: unknown) => {
+      await endSession().catch((error: unknown) => {
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
 
@@ -502,67 +533,94 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       throw failure
     } finally {
       release?.()
-      await closeSession().catch(() => undefined)
-      // A lapsed keepalive or a replaced VM has no checkout left to mirror; the edit-time mirrors hold
-      // what reached it. Otherwise the turn's files are mirrored before the sandbox goes.
-      if (keepaliveFailure || sandbox.sandboxId !== incarnation) mirror?.abandon()
-      else await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
-      await sandbox.destroy().catch((error: unknown) => {
-        ports.log(`BUILDER_SANDBOX_DESTROY_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
-      })
+      // Stop included, every turn end on a live VM kills what the agent left running, so nothing
+      // changes the files after the turn-end mirror or runs on while the VM is paused. A lapsed
+      // keepalive or a replaced VM has no checkout left to mirror; the edit-time mirrors hold what
+      // reached it, and the VM is killed so the next turn rebuilds from the mirror.
+      let live = incarnation !== undefined && !keepaliveFailure && !unusable && sandbox.sandboxId === incarnation
+      if (live) {
+        await sandbox.executeCommand('sh', ['-c', 'kill -KILL -1 2>/dev/null; true'], { timeout: 30_000, cwd: '/', env: {} }).catch((error: unknown) => {
+          ports.log(`BUILDER_AGENT_PROCESSES_KILL_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+        })
+        live = sandbox.sandboxId === incarnation
+      }
+      if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
+      else mirror?.abandon()
+      await endSession(live).catch(() => undefined)
+      const failed = (code: string) => (error: unknown): void => {
+        ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+      }
+      // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
+      if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
+      else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
     }
   },
 })
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
-const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
+/** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
+const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
+
+type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /**
- * A run's session on the Builder controller: its own scope on the conversation's thread, its
- * sandbox's workspace, every tool allowed without asking (the mode guard is the enforcement), and a
- * turn that lasts until the agent is done, including while it waits for the person to approve a
- * plan or answer a question (AC-16).
+ * The conversation's session on the Builder controller for one turn (spec 0002 amendment, B3): one
+ * session per conversation on its thread, kept across turns like its sandbox, on that sandbox's
+ * workspace, with every tool allowed without asking (the mode guard is the enforcement), and a turn
+ * that lasts until the agent is done, including while it waits for the person to approve a plan or
+ * answer a question (AC-16). The context, the check and the operation run are the turn's own.
  */
-export const createControllerRunSessions = ({ controller, runContexts, runWorkspaces, runTools }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools }: Readonly<{
   controller: AgentController
-  /** The live runs' context binders by session scope, which the browser mount applies to every request it serves a run. */
+  /** The live turns' context binders by session scope, which the browser mount applies to every request it serves a turn. */
   runContexts: Map<string, RunContextBinder>
-  /** The live runs' workspaces by run id, which the controller's workspace resolver hands a run's session. */
-  runWorkspaces: Map<string, Workspace>
+  /** The live turns' workspaces by conversation id, which the controller's workspace resolver hands a new session. */
+  conversationWorkspaces: Map<string, Workspace>
   /** The live runs' checks and operation runs by run id, which the controller's `conexus_check` and `conexus_run_operation` read. */
   runTools: Map<string, RunTools>
 }>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
   const resourceId = projectResourceId(projectId)
-  const scope = builderRunScope(builderRunId)
+  const scope = conversationRunScope(conversationId)
   const requestContext = new RequestContext()
   bindContext(requestContext)
-  runWorkspaces.set(builderRunId, workspace)
+  conversationWorkspaces.set(conversationId, workspace)
   runTools.set(builderRunId, { check: runCheck, runOperation })
   runContexts.set(scope, bindContext)
   const forget = (): void => {
     runContexts.delete(scope)
-    runWorkspaces.delete(builderRunId)
+    conversationWorkspaces.delete(conversationId)
     runTools.delete(builderRunId)
   }
-  const close = async (): Promise<void> => {
-    forget()
+  const deleteSession = async (): Promise<void> => {
     const deleted = await controller.deleteSession({ resourceId, scope })
     if (!deleted || await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+  }
+  const end = async (): Promise<void> => {
+    forget()
     // The conversation's session, if the browser has it open, keeps the mode and model it had when it
-    // was created; a plan's approval writes the new mode to the thread from this run's own scope, so
+    // was created; a plan's approval writes the new mode to the thread from the turn's own scope, so
     // the conversation's in-memory session never sees it (item C). Rehydrating from the thread is
     // Mastra's own mechanism for this, and it emits `mode_changed` for the browser to pick up.
     const conversation = await controller.getSessionByResource(resourceId, `conversation:${conversationId}`)
     await conversation?.thread.loadMetadata()
   }
-  let session: Awaited<ReturnType<AgentController['createSession']>>
+  let session: ControllerSession
   try {
     session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
+    // A session resolves its workspace once, when it is made; one made on a VM the conversation no
+    // longer has is made again on this one.
+    if (session.getWorkspace() !== workspace) {
+      await deleteSession()
+      session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
+    }
     if (session.getWorkspace() !== workspace) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
+    // The mode and model the person set on the conversation since the session was made.
+    await session.thread.loadMetadata()
     await session.state.set({ yolo: true })
   } catch (error) {
-    await close().catch(() => forget())
+    forget()
+    await deleteSession().catch(() => undefined)
     throw error
   }
   return Object.freeze({
@@ -591,7 +649,11 @@ export const createControllerRunSessions = ({ controller, runContexts, runWorksp
         signal?.removeEventListener('abort', abort)
       }
     },
-    close,
+    end,
+    discard: async () => {
+      forget()
+      await deleteSession()
+    },
   })
 }
 
@@ -609,21 +671,37 @@ const nextAgentEnd = (session: Awaited<ReturnType<AgentController['createSession
   else signal?.addEventListener('abort', stopped, { once: true })
 })
 
-/** The production sandbox for a run: a fresh E2B VM with the agent's workspace on its checkout. */
-export const e2bRunSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: string; templateId: string }>) => (builderRunId: string): RunSandbox => {
-  const sandbox = createRunSandbox({ apiKey, templateId, builderRunId })
-  const workspace = createRunWorkspace(sandbox)
-  return Object.freeze({
-    get sandboxId() { return sandbox.sandboxId },
-    workspace,
-    start: async () => { await sandbox.start() },
-    executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
-    writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-    runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-    writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
-    readAgentFile: (path: string) => sandbox.readAgentFile(path),
-    runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
-    holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-    destroy: () => sandbox.destroy(),
-  })
+/**
+ * The production sandboxes: one E2B VM per conversation, with the agent's workspace on its checkout.
+ * The same instance serves every turn of the conversation in this process, so its session keeps its
+ * workspace, and `start()` after a pause resumes the VM. A killed one is forgotten, and the next turn
+ * gets a new instance and a new VM.
+ */
+export const e2bConversationSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: string; templateId: string }>): BuilderRunPorts['openSandbox'] => {
+  const open = new Map<string, RunSandbox>()
+  return ({ conversationId, providerSandboxId }) => {
+    const kept = open.get(conversationId)
+    if (kept) return kept
+    const sandbox = createConversationSandbox({ apiKey, templateId, conversationId, providerSandboxId })
+    const workspace = createRunWorkspace(sandbox)
+    const opened: RunSandbox = Object.freeze({
+      get sandboxId() { return sandbox.sandboxId },
+      workspace,
+      start: async () => { await sandbox.start() },
+      executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
+      writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+      runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
+      writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
+      readAgentFile: (path: string) => sandbox.readAgentFile(path),
+      runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+      holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
+      pause: () => sandbox.pause(),
+      kill: async () => {
+        open.delete(conversationId)
+        await sandbox.kill()
+      },
+    })
+    open.set(conversationId, opened)
+    return opened
+  }
 }

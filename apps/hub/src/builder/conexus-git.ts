@@ -31,10 +31,14 @@ export type Snapshot = Readonly<{ ref: string; parent: string }>
  * Where a conversation's turn starts (spec 0002 amendment, B2). `main` is the `main` the turn brings
  * in, and `start` is the commit the checkout holds when the agent starts, the parent of every
  * snapshot of the turn: `main` itself, the mirror head when it already holds `main`, or a Hub-made
- * merge of the two that the mirror then points at. `mirror` is the mirror's head after that, and
- * `conflicted` names the paths the merge left with conflict markers for the agent to resolve.
+ * merge of the two that the mirror then points at. `mirror` is the mirror's head after that,
+ * `previous` its head as the last turn left it, and `conflicted` names the paths the merge left with
+ * conflict markers for the agent to resolve.
  */
-export type TurnStart = Readonly<{ conversationId: string; main: string; start: string; mirror: string | null; conflicted: readonly string[] }>
+export type TurnStart = Readonly<{ conversationId: string; main: string; start: string; mirror: string | null; previous: string | null; conflicted: readonly string[] }>
+
+/** How a turn's checkout came to hold its start (spec 0002 amendment, B3). */
+export type CheckoutStart = 'RESUMED' | 'SEEDED' | 'RESEEDED'
 
 const OID = /^[0-9a-f]{40}$/
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -191,8 +195,8 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       const ref = mirrorRef(conversationId)
       const mirror = await readRef(projectId, ref)
       const isAncestor = (ancestor: string, descendant: string): Promise<boolean> => succeeds(git(projectId, ['merge-base', '--is-ancestor', ancestor, descendant]))
-      if (!mirror || await isAncestor(mirror, main)) return { conversationId, main, start: main, mirror, conflicted: [] }
-      if (await isAncestor(main, mirror)) return { conversationId, main, start: mirror, mirror, conflicted: [] }
+      if (!mirror || await isAncestor(mirror, main)) return { conversationId, main, start: main, mirror, previous: mirror, conflicted: [] }
+      if (await isAncestor(main, mirror)) return { conversationId, main, start: mirror, mirror, previous: mirror, conflicted: [] }
       const [tree = '', ...conflicted] = (await git(projectId, ['merge-tree', '--write-tree', '--name-only', '-z', '--no-messages', mirror, main], { answers: [1] }))
         .toString('utf8').split('\0').filter(Boolean)
       const merge = requireOid(await text(git(projectId, [
@@ -200,7 +204,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
         'commit-tree', requireOid(tree, 'CONEXUS_GIT_MERGE_REFUSED'), '-p', mirror, '-p', main, '-m', 'Bring main into the conversation',
       ])), 'CONEXUS_GIT_MERGE_REFUSED')
       await moveRef(projectId, ref, merge, mirror)
-      return { conversationId, main, start: merge, mirror: merge, conflicted }
+      return { conversationId, main, start: merge, mirror: merge, previous: mirror, conflicted }
     },
 
     /**
@@ -346,32 +350,71 @@ export type RunSourceSandbox = Readonly<{
 const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 const evidence = (value: string): string => value.slice(-2_000)
 
-/**
- * Puts the turn's start in the sandbox's checkout: the Hub bundles `main` and, when the turn starts
- * from the conversation's mirror, the mirror too; the sandbox fetches that bundle, and the checkout
- * is reset to exactly the start.
- */
-export const seedSandbox = async ({ git, projectId, turn, sandbox, checkout, seedFile }: Readonly<{
+type SeedInput = Readonly<{
   git: Pick<ConexusGit, 'seedBundle'>
   projectId: string
   turn: TurnStart
   sandbox: RunSourceSandbox
   checkout: string
   seedFile: string
-}>): Promise<void> => {
+}>
+
+const fetchSeed = async ({ git, projectId, turn, sandbox, seedFile }: SeedInput): Promise<string> => {
   await sandbox.writeRootFile(seedFile, await git.seedBundle(projectId, turn))
   const fetched = [`'+${MAIN}:refs/conexus/base'`, ...(turn.start === turn.main ? [] : [quoted(`+${mirrorRef(turn.conversationId)}:refs/conexus/start`)])]
-  const seeded = await sandbox.direct('sh', ['-c', [
+  return `git fetch --quiet --no-tags ${quoted(seedFile)} ${fetched.join(' ')}`
+}
+
+/**
+ * Puts the turn's start in the sandbox's checkout: the Hub bundles `main` and, when the turn starts
+ * from the conversation's mirror, the mirror too; the sandbox fetches that bundle, and the checkout
+ * is reset to exactly the start.
+ */
+const seedSandbox = async (input: SeedInput): Promise<void> => {
+  const fetch = await fetchSeed(input)
+  const seeded = await input.sandbox.direct('sh', ['-c', [
     'set -e',
-    `mkdir -p ${quoted(checkout)}`,
-    `cd ${quoted(checkout)}`,
+    `mkdir -p ${quoted(input.checkout)}`,
+    `cd ${quoted(input.checkout)}`,
     'test -d .git || git init --quiet',
-    `git fetch --quiet --no-tags ${quoted(seedFile)} ${fetched.join(' ')}`,
-    `git checkout --quiet --force -B main ${quoted(turn.start)}`,
+    fetch,
+    `git checkout --quiet --force -B main ${quoted(input.turn.start)}`,
     'git clean -fdq',
-    `test "$(git rev-parse HEAD)" = ${quoted(turn.start)}`,
+    `test "$(git rev-parse HEAD)" = ${quoted(input.turn.start)}`,
   ].join('\n')])
   if (seeded.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { exitCode: seeded.exitCode, stderr: evidence(seeded.stderr) } })
+}
+
+/**
+ * Brings the turn's start into the conversation's checkout (spec 0002 amendment, B3). A VM that kept
+ * the checkout of the turn that made the mirror's previous head (it holds that commit) takes the
+ * start in place: the Hub's bundle only when it lacks the start, a mixed reset to that head, whose
+ * tree the files are, then a checkout that git refuses rather than overwrite a local change. Every
+ * file the VM holds stays. A new VM is seeded, and one git refused is seeded again from the start.
+ */
+export const startCheckout = async (input: SeedInput): Promise<CheckoutStart> => {
+  const { turn, sandbox, checkout } = input
+  const held = await sandbox.direct('sh', ['-c', [
+    `cd ${quoted(checkout)} 2>/dev/null || { echo SEED; exit 0; }`,
+    `previous=$(git rev-parse --verify --quiet ${quoted(`${turn.previous ?? 'HEAD'}^{commit}`)}) || { echo SEED; exit 0; }`,
+    `if git cat-file -e ${quoted(`${turn.start}^{commit}`)} 2>/dev/null; then echo "HELD $previous"; else echo "FETCH $previous"; fi`,
+  ].join('\n')])
+  const [state = 'SEED', previous = ''] = held.stdout.trim().split('\n').pop()?.split(' ') ?? []
+  if (held.exitCode !== 0 || state === 'SEED' || !OID.test(previous)) {
+    await seedSandbox(input)
+    return 'SEEDED'
+  }
+  const resumed = await sandbox.direct('sh', ['-c', [
+    'set -e',
+    `cd ${quoted(checkout)}`,
+    ...(state === 'FETCH' ? [await fetchSeed(input)] : []),
+    `git reset --quiet ${quoted(previous)}`,
+    `git checkout --quiet -B main ${quoted(turn.start)}`,
+    `test "$(git rev-parse HEAD)" = ${quoted(turn.start)}`,
+  ].join('\n')])
+  if (resumed.exitCode === 0) return 'RESUMED'
+  await seedSandbox(input)
+  return 'RESEEDED'
 }
 
 /**

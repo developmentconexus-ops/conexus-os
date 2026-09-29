@@ -29,7 +29,7 @@ const killEverySandboxSeen = async (apiKey, sandboxIds) => {
 test('on a real E2B VM the checkout is seeded from a bundle only root can change, and the Hub takes the run back as one commit on the base', { skip, timeout: 5 * 60_000 }, async (t) => {
   const hub = await loadHub()
   const { ConexusRunSandbox, SANDBOX_CHECKOUT } = await hub('builder/sandbox.js')
-  const { candidateSnapshot, createConexusGit, pullSnapshot, seedSandbox } = await hub('builder/conexus-git.js')
+  const { candidateSnapshot, createConexusGit, pullSnapshot, startCheckout } = await hub('builder/conexus-git.js')
   const { templateId, apiKey } = liveConfig()
   const gitRoot = mkdtempSync(join(tmpdir(), 'conexus-live-git-'))
   t.after(() => rmSync(gitRoot, { recursive: true, force: true }))
@@ -48,8 +48,9 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
     await sandbox.start()
     assert.equal((await agent('id -un')).stdout.trim(), 'conexus-agent')
     assert.notEqual((await agent('sudo -n true')).exitCode, 0, 'the agent user has no sudo')
-    const seedFile = `/var/lib/conexus-seed/${runId}.bundle`
-    await seedSandbox({ git, projectId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile })
+    const seedFile = '/var/lib/conexus-seed/turn.bundle'
+    const turn = await git.startTurn(projectId, randomUUID(), base)
+    assert.equal(await startCheckout({ git, projectId, turn, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile }), 'SEEDED')
     assert.equal((await agent('git rev-parse HEAD', SANDBOX_CHECKOUT)).stdout.trim(), base)
     assert.notEqual((await agent(`: > '${seedFile}'`)).exitCode, 0, 'the agent user cannot replace the seed')
     assert.equal((await agent('echo changed > app/index.html && mkdir -p .conexus/plans && echo plan > .conexus/plans/p.md', SANDBOX_CHECKOUT)).exitCode, 0)
@@ -182,31 +183,56 @@ setTimeout(() => {}, 300_000)
 const TIMEOUT_MS = 15_000
 const PAST_DEADLINE_MS = TIMEOUT_MS * 2
 
-const openLiveSandbox = async (loadHub, label) => {
-  const { createRunSandbox } = await (await loadHub())('builder/sandbox.js')
+const openLiveSandbox = async (loadHub, providerSandboxId = null, conversationId = randomUUID()) => {
+  const { createConversationSandbox } = await (await loadHub())('builder/sandbox.js')
   const { templateId, apiKey } = liveConfig()
-  const sandbox = createRunSandbox({ apiKey, templateId, builderRunId: `live-keepalive-${label}-${randomUUID()}`, timeoutMs: TIMEOUT_MS })
-  await sandbox.start()
-  return { sandbox, apiKey }
+  const sandbox = createConversationSandbox({ apiKey, templateId, conversationId, providerSandboxId, timeoutMs: TIMEOUT_MS })
+  const started = await sandbox.start()
+  return { sandbox, apiKey, conversationId, started }
 }
 
-test('a sandbox left alone past its timeout is gone: the next command silently gets a new incarnation', { skip, timeout: 90_000 }, async () => {
-  const { sandbox, apiKey } = await openLiveSandbox(loadHub, 'baseline')
+test('a conversation sandbox left alone past its timeout pauses, and the next command resumes the same VM with its files', { skip, timeout: 3 * 60_000 }, async () => {
+  const { sandbox, apiKey } = await openLiveSandbox(loadHub)
   const seen = [sandbox.sandboxId]
   try {
-    await sandbox.executeCommand('true', [], { env: {} })
-    assert.equal(sandbox.sandboxId, seen[0], 'still the sandbox it created')
+    assert.equal((await sandbox.executeCommand('sh', ['-c', 'echo kept > /workspace/left.txt'], { env: {} })).exitCode, 0)
     await sleep(PAST_DEADLINE_MS)
-    await sandbox.executeCommand('true', [], { env: {} })
+    assert.equal((await Sandbox.getInfo(seen[0], { apiKey })).state, 'paused', 'E2B paused the VM at its deadline instead of killing it')
+    const read = await sandbox.executeCommand('cat', ['/workspace/left.txt'], { env: {} })
     seen.push(sandbox.sandboxId)
-    assert.notEqual(sandbox.sandboxId, seen[0], 'E2B killed the sandbox at its deadline; the next command got a different incarnation')
+    assert.deepEqual({ sandboxId: sandbox.sandboxId, file: read.stdout }, { sandboxId: seen[0], file: 'kept\n' })
   } finally {
     await killEverySandboxSeen(apiKey, seen)
   }
 })
 
+test("a conversation sandbox paused at a turn end resumes on the Hub's next instance by its provider id, with its checkout and none of the agent's processes", { skip, timeout: 3 * 60_000 }, async () => {
+  const first = await openLiveSandbox(loadHub)
+  const seen = [first.sandbox.sandboxId]
+  try {
+    assert.deepEqual(first.started, { outcome: 'created' })
+    const agent = (sandbox, script) => sandbox.executeCommand('sh', ['-c', script], { env: {}, cwd: '/workspace' })
+    assert.equal((await agent(first.sandbox, 'mkdir -p repo && echo turn-one > repo/a.txt && (setsid sleep 900 >/dev/null 2>&1 &)')).exitCode, 0)
+    // The turn end: the agent's processes die, then the VM pauses.
+    await agent(first.sandbox, 'kill -KILL -1 2>/dev/null; true')
+    await first.sandbox.pause()
+    assert.equal((await Sandbox.getInfo(seen[0], { apiKey: first.apiKey })).state, 'paused')
+
+    const resumedAt = Date.now()
+    const next = await openLiveSandbox(loadHub, seen[0], first.conversationId)
+    const resumeMs = Date.now() - resumedAt
+    seen.push(next.sandbox.sandboxId)
+    const file = await agent(next.sandbox, 'cat repo/a.txt')
+    const sleeping = await agent(next.sandbox, 'pgrep -u conexus-agent -x sleep || true')
+    console.log(`conversation sandbox resumed in ${resumeMs} ms`)
+    assert.deepEqual({ started: next.started, sandboxId: next.sandbox.sandboxId, file: file.stdout, sleeping: sleeping.stdout }, { started: { outcome: 'connected' }, sandboxId: seen[0], file: 'turn-one\n', sleeping: '' })
+  } finally {
+    await killEverySandboxSeen(first.apiKey, seen)
+  }
+})
+
 test('holdOpen() pushes a real sandbox\'s deadline out: the same incarnation survives past its original timeout', { skip, timeout: 90_000 }, async () => {
-  const { sandbox, apiKey } = await openLiveSandbox(loadHub, 'fix')
+  const { sandbox, apiKey } = await openLiveSandbox(loadHub)
   const seen = [sandbox.sandboxId]
   let release
   try {
@@ -218,6 +244,7 @@ test('holdOpen() pushes a real sandbox\'s deadline out: the same incarnation sur
     await sandbox.executeCommand('true', [], { env: {} })
     seen.push(sandbox.sandboxId)
     assert.equal(sandbox.sandboxId, seen[0], 'holdOpen kept the same incarnation alive past its original deadline')
+    assert.equal((await Sandbox.getInfo(seen[0], { apiKey })).state, 'running', 'held open, it never paused')
   } finally {
     if (release) release()
     await killEverySandboxSeen(apiKey, seen)

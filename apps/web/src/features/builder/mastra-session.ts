@@ -22,15 +22,15 @@ const clientAt = (apiPrefix: string) => new MastraClient({
 
 // The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
 // under /api/builder. A Project's conversations are the threads of its resource; each is opened as
-// its own session (scope conversation:<id>) bound to its thread, and each run has its own session
-// (scope builder:<runId>) on the same thread.
+// its own session (scope conversation:<id>) bound to its thread, and its runs share one session the
+// Hub keeps across them (scope builder:<conversationId>) on the same thread.
 const builderController = clientAt('/api/builder').getAgentController('conexus-builder')
 const projectResource = (projectId: string): string => `project:${projectId}`
 const projectSessions = (projectId: string) => builderController.session(projectResource(projectId))
 const conversationSession = (projectId: string, conversationId: string) =>
   builderController.session(projectResource(projectId), `conversation:${conversationId}`)
-const runSession = (projectId: string, builderRunId: string) =>
-  builderController.session(projectResource(projectId), `builder:${builderRunId}`)
+const runSession = (projectId: string, conversationId: string) =>
+  builderController.session(projectResource(projectId), `builder:${conversationId}`)
 
 type SessionHandle = ReturnType<typeof conversationSession>
 
@@ -115,7 +115,7 @@ export const applyThreadSettings = async (projectId: string, conversationId: str
   if (settings.reasoning) await session.setState({ thinkingLevel: settings.reasoning })
 }
 
-export const useSessionModel = (projectId: string, conversationId: string | null, builderRunId: string | null = null) => {
+export const useSessionModel = (projectId: string, conversationId: string | null, runActive = false) => {
   const queryClient = useQueryClient()
   // A session arrives with no model selected, and an empty id is how the controller says so. An
   // absent thinking level means the controller's configured default applies.
@@ -145,9 +145,9 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const choose = useMutation({
     mutationFn: async (modelId: string) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      if (builderRunId) {
+      if (runActive) {
         try {
-          return await switchConversationModel(runSession(projectId, builderRunId), modelId)
+          return await switchConversationModel(runSession(projectId, conversationId), modelId)
         } catch {
           // Not open yet (the run is still preparing): the thread carries the choice to it.
         }
@@ -185,7 +185,7 @@ export const useBuilderLiveTurn = (
   const conversationId = run?.conversationId
   useEffect(() => {
     if (!builderRunId || !conversationId || !agentActive) return undefined
-    const session = runSession(projectId, builderRunId)
+    const session = runSession(projectId, conversationId)
     let closed = false
     let unsubscribe = () => {}
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -224,14 +224,15 @@ export const useBuilderLiveTurn = (
 }
 
 /**
- * Answers a call the run parked on the person. The answer goes to the run's own session, and the
- * Hub refuses anything but approve or decline there, so there is no "always allow" to send.
+ * Answers a call the run parked on the person. The answer goes to the session the Hub runs the
+ * conversation in, and the Hub refuses anything but approve or decline there, so there is no
+ * "always allow" to send.
  */
 // respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
 // from a single-select AskUser question), a string array (the options chosen from a multi-select
 // question), or a PlanResume for submit_plan.
-export const answerPendingCall = (projectId: string, builderRunId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
-  const session = runSession(projectId, builderRunId)
+export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
+  const session = runSession(projectId, conversationId)
   if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
   if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
   return session.respondToToolSuspension(pending.toolCallId, answer.text)

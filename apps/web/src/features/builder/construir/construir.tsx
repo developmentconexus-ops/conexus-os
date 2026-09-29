@@ -120,7 +120,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const conversationActions = useConversationActions(projectId)
   const conversation = conversations.data?.find((entry) => entry.id === conversationId) ?? null
   const models = useBuilderModels()
-  const sessionModel = useSessionModel(projectId, conversationId, latestRun?.conversationId === conversationId && isActive(latestRun) ? latestRun.builderRunId : null)
+  const sessionModel = useSessionModel(projectId, conversationId, latestRun?.conversationId === conversationId && isActive(latestRun))
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the person can use.
   const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
@@ -304,7 +304,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
-                onAnswer={(answer) => answerPendingCall(projectId, runHere.builderRunId, entry, answer)}
+                onAnswer={(answer) => answerPendingCall(projectId, runHere.conversationId, entry, answer)}
               />)}
               {resultCardShown && runHere && <ResultCard
                 projectId={projectId}

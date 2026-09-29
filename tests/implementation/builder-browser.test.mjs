@@ -59,7 +59,8 @@ const trackLegacyRequests = (page) => {
 
 // Every Project is developed through the Builder's controller: its conversations are the threads
 // of its resource, project:<id>, and each conversation is its own session (conversation:<id>) bound
-// to the thread of that id; a run has its own session (builder:<runId>) on the same thread.
+// to the thread of that id; its runs share the session the Hub keeps for it (builder:<conversationId>)
+// on the same thread.
 const routeBuilder = async (page, state) => {
   await page.route(`${BUILDER_CONTROLLER}/sessions`, (route) => {
     const { resourceId, sessionScope, threadId } = route.request().postDataJSON()
@@ -238,7 +239,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   assert.ok(requests[0].key)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
-  assert.deepEqual(streamScopes.slice(0, 1), [`builder:${runId}`])
+  assert.deepEqual(streamScopes.slice(0, 1), [`builder:${conversationId}`])
   await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
   await page.locator('.cx-messages').getByText('Build concluído', { exact: true }).waitFor()
@@ -1008,7 +1009,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   await page.getByRole('button', { name: 'Enviar' }).click()
   await sendResponse
   await page.getByText('Trabalhando no repositório', { exact: true }).waitFor()
-  assert.deepEqual(streams.at(0), [`project:${projectId}`, `builder:${runId}`])
+  assert.deepEqual(streams.at(0), [`project:${projectId}`, `builder:${counterId}`])
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
@@ -1597,7 +1598,7 @@ test('a plan the agent submits is sent back with feedback from its card, on the 
   const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
   await askChanges.click()
   await answered
-  assert.deepEqual(answers, [[`project:${projectId}`, `builder:${runId}`, { toolCallId: 'plan-1', resumeData: { action: 'rejected', feedback: 'Inclua os fins de semana' } }]])
+  assert.deepEqual(answers, [[`project:${projectId}`, `builder:${conversationId}`, { toolCallId: 'plan-1', resumeData: { action: 'rejected', feedback: 'Inclua os fins de semana' } }]])
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 

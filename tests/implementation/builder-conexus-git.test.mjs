@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, seedSandbox } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(hubModuleUrl('builder/source.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -172,7 +172,7 @@ test('a snapshot is taken only from its own ref, as one commit on its parent', a
 })
 
 const CONVERSATION = '44444444-4444-4444-8444-444444444444'
-const fromMain = (main) => ({ conversationId: CONVERSATION, main, start: main, mirror: null, conflicted: [] })
+const fromMain = (main) => ({ conversationId: CONVERSATION, main, start: main, mirror: null, previous: null, conflicted: [] })
 const MIRROR = `refs/conexus/conversations/${CONVERSATION}`
 
 test('a mirror snapshot is one commit on the turn start, moved only from the head it replaces, and a turn starting from main never carries it', async (t) => {
@@ -226,11 +226,11 @@ test('a turn starts from main, from the mirror that holds it, or from a Hub merg
   const kept = commitIn(work, { 'app/kept.ts': 'kept\n' })
   push(kept, MIRROR)
   const fromMirror = await git.startTurn(PROJECT, CONVERSATION, base)
-  assert.deepEqual(fromMirror, { conversationId: CONVERSATION, main: base, start: kept, mirror: kept, conflicted: [] })
+  assert.deepEqual(fromMirror, { conversationId: CONVERSATION, main: base, start: kept, mirror: kept, previous: kept, conflicted: [] })
   const seed = await git.seedBundle(PROJECT, fromMirror)
   const header = seed.subarray(0, seed.indexOf('\n\n')).toString('utf8').split('\n').filter((line) => /^[0-9a-f]{40} /.test(line))
   assert.deepEqual(header, [`${base} refs/heads/main`, `${kept} ${MIRROR}`])
-  await seedSandbox({ git, projectId: PROJECT, turn: fromMirror, sandbox, checkout, seedFile })
+  assert.equal(await startCheckout({ git, projectId: PROJECT, turn: fromMirror, sandbox, checkout, seedFile }), 'SEEDED')
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), kept)
   assert.equal(readFileSync(join(checkout, 'app/kept.ts'), 'utf8'), 'kept\n')
 
@@ -238,13 +238,13 @@ test('a turn starts from main, from the mirror that holds it, or from a Hub merg
   const other = commitIn(work, { 'app/other.ts': 'other\n' })
   push(other, 'refs/heads/main')
   const merged = await git.startTurn(PROJECT, CONVERSATION, other)
-  assert.deepEqual({ ...merged, start: 'merge', mirror: 'merge' }, { conversationId: CONVERSATION, main: other, start: 'merge', mirror: 'merge', conflicted: [] })
+  assert.deepEqual({ ...merged, start: 'merge', mirror: 'merge' }, { conversationId: CONVERSATION, main: other, start: 'merge', mirror: 'merge', previous: kept, conflicted: [] })
   assert.equal(merged.start, merged.mirror)
   assert.equal(await git.readMirror(PROJECT, CONVERSATION), merged.start)
   assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', merged.start), `${merged.start} ${kept} ${other}`)
   assert.deepEqual(files(merged.start), ['app/index.html', 'app/kept.ts', 'app/other.ts', 'conexus/check.sh'])
-  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, other), merged, 'the next turn on the same main starts from the merge')
-  await seedSandbox({ git, projectId: PROJECT, turn: merged, sandbox, checkout, seedFile })
+  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, other), { ...merged, previous: merged.start }, 'the next turn on the same main starts from the merge')
+  assert.equal(await startCheckout({ git, projectId: PROJECT, turn: merged, sandbox, checkout, seedFile }), 'RESUMED')
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), merged.start)
 
   run(work, ['fetch', '--quiet', 'origin', MIRROR])
@@ -257,7 +257,7 @@ test('a turn starts from main, from the mirror that holds it, or from a Hub merg
   const conflict = await git.startTurn(PROJECT, CONVERSATION, theirs)
   assert.deepEqual(conflict.conflicted, ['app/index.html'])
   assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', conflict.start), `${conflict.start} ${mine} ${theirs}`)
-  await seedSandbox({ git, projectId: PROJECT, turn: conflict, sandbox, checkout, seedFile })
+  assert.equal(await startCheckout({ git, projectId: PROJECT, turn: conflict, sandbox, checkout, seedFile }), 'SEEDED')
   assert.match(readFileSync(join(checkout, 'app/index.html'), 'utf8'), /^<<<<<<< [0-9a-f]{40}\n<h1>mine<\/h1>\n=======\n<h1>theirs<\/h1>\n>>>>>>> [0-9a-f]{40}\n$/)
 
   const admitted = commitIn(work, { 'app/index.html': '<h1>resolved</h1>\n' })
@@ -265,7 +265,7 @@ test('a turn starts from main, from the mirror that holds it, or from a Hub merg
   push(admitted, 'refs/heads/main')
   const later = commitIn(work, { 'app/later.ts': 'later\n' })
   push(later, 'refs/heads/main')
-  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, later), { conversationId: CONVERSATION, main: later, start: later, mirror: admitted, conflicted: [] }, 'a mirror main already holds is left in place')
+  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, later), { conversationId: CONVERSATION, main: later, start: later, mirror: admitted, previous: admitted, conflicted: [] }, 'a mirror main already holds is left in place')
 })
 
 test('a run seeds its sandbox from main and hands back everything it changed as one commit', async (t) => {
@@ -277,7 +277,7 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   const seedFile = join(directory, 'sandbox', 'seed', `${RUN}.bundle`)
   const sandbox = localSandbox()
 
-  await seedSandbox({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile })
+  assert.equal(await startCheckout({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile }), 'SEEDED')
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), base)
   assert.equal(readFileSync(join(checkout, 'app/index.html'), 'utf8'), '<div id="root"></div>\n')
   assert.equal(await pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout }), null)
@@ -299,11 +299,14 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   assert.equal(await git.readMain(PROJECT), base)
 
   await git.fastForwardMain(PROJECT, { base, candidate })
-  await seedSandbox({ git, projectId: PROJECT, turn: fromMain(candidate), sandbox, checkout, seedFile })
+  // The next turn of the conversation, whose mirror the admitted candidate is.
+  assert.equal(await startCheckout({ git, projectId: PROJECT, turn: { ...fromMain(candidate), mirror: candidate, previous: candidate }, sandbox, checkout, seedFile }), 'RESUMED')
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), candidate)
-  assert.equal(run(checkout, ['status', '--porcelain']), '')
+  assert.equal(run(checkout, ['status', '--porcelain']), '?? .conexus/')
   assert.equal(readFileSync(join(checkout, 'node_modules/dep.js'), 'utf8'), 'ignored\n')
-  await assert.rejects(seedSandbox({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile }), { message: 'BUILDER_SOURCE_BASE_MOVED' })
+  assert.equal(readFileSync(join(checkout, '.conexus/plans/plan.md'), 'utf8'), '# never committed\n', 'the kept checkout keeps what no commit holds')
+  const fresh = join(directory, 'sandbox', 'workspace', 'fresh')
+  await assert.rejects(startCheckout({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout: fresh, seedFile }), { message: 'BUILDER_SOURCE_BASE_MOVED' })
 })
 
 test('the source view reads tree, file and diff from the Conexus Git in its own shapes', async (t) => {

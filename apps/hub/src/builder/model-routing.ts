@@ -14,6 +14,8 @@ type Role = 'plan' | 'build'
 /** Where a run's request context carries its id, and the account that pays for its calls (run-runtime.ts sets both on every turn). */
 export const RUN_ID_KEY = 'conexusBuilderRunId'
 export const RUN_ACCOUNT_ID_KEY = 'conexusBuilderAccountId'
+/** Where a turn's request context carries its conversation, whose workspace a new session resolves. */
+export const CONVERSATION_ID_KEY = 'conexusBuilderConversationId'
 const ROLE_OF_MODE: Readonly<Record<BuilderModeId, Role>> = Object.freeze({ plan: 'plan', build: 'build' })
 
 const providerOfModel = (modelId: string): string => modelId.slice(0, Math.max(0, modelId.indexOf('/')))
