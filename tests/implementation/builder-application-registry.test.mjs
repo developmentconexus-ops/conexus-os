@@ -10,11 +10,11 @@ const projectId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
 const revisionId = '44444444-4444-4444-8444-444444444444'
 const sourceRevision = 'a'.repeat(40)
-const templateRef = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
-const recipeSha256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
+const templateRef = '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755'
+const recipeSha256 = '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434'
 const bytes = Buffer.from('<!doctype html><title>Proof</title>')
 const file = { path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
-const metadata = (payload) => ({ artifact_revision_id: revisionId, artifact_digest: createHash('sha256').update(JSON.stringify(payload)).digest('hex'), project_id: projectId, source_revision: sourceRevision, profile: 'REACT_VITE_V1', template_ref: templateRef, recipe_sha256: recipeSha256, entry_path: 'index.html', files: [{ path: 'index.html', mediaType: file.mediaType, byteLength: bytes.byteLength, sha256: file.sha256 }] })
+const metadata = (payload) => ({ artifact_revision_id: revisionId, artifact_digest: createHash('sha256').update(JSON.stringify(payload)).digest('hex'), project_id: projectId, source_revision: sourceRevision, profile: 'REACT_VITE_V2', template_ref: templateRef, recipe_sha256: recipeSha256, entry_path: 'index.html', files: [{ path: 'index.html', mediaType: file.mediaType, byteLength: bytes.byteLength, sha256: file.sha256 }] })
 const application = { projectId, executionId, sourceRevision, templateRef, recipeSha256, files: [file] }
 
 test('C-020 Registry adapter uses executionId retention and immutable source reads', async () => {
@@ -36,12 +36,37 @@ test('C-020 Registry adapter uses executionId retention and immutable source rea
 })
 
 test('an application retained on the template before the agent user still reads back, and a new one must carry the current template', async () => {
-  const previous = { template_ref: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipe_sha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf' }
+  const previous = { profile: 'REACT_VITE_V1', template_ref: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipe_sha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf' }
   const calls = []
   const client = { async query(statement) { calls.push(statement); return { rows: [{ ...metadata({ files: [] }), ...previous }] } } }
   const store = createApplicationArtifactStore()
   const read = await store.getApplicationBySource(client, { accountId, projectId, sourceRevision })
-  assert.deepEqual([read.templateRef, read.recipeSha256], [previous.template_ref, previous.recipe_sha256])
+  assert.deepEqual([read.profile, read.templateRef, read.recipeSha256], ['REACT_VITE_V1', previous.template_ref, previous.recipe_sha256])
   await assert.rejects(store.retainApplication(client, { accountId, compiled: { ...application, templateRef: previous.template_ref, recipeSha256: previous.recipe_sha256 } }))
   assert.equal(calls.length, 1, 'the old template is refused before the database is asked')
+})
+
+test('an application retained on either React-only template still reads back under its own profile', async () => {
+  for (const [ref, sha] of [
+    ['537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440', 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'],
+    ['537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'],
+  ]) {
+    const client = { async query() { return { rows: [{ ...metadata({ files: [] }), profile: 'REACT_VITE_V1', template_ref: ref, recipe_sha256: sha }] } } }
+    const read = await createApplicationArtifactStore().getApplicationBySource(client, { accountId, projectId, sourceRevision })
+    assert.deepEqual([read.profile, read.templateRef, read.recipeSha256], ['REACT_VITE_V1', ref, sha])
+  }
+})
+
+test('a stored profile that does not match its template pin is refused on read', async () => {
+  const mismatched = { ...metadata({ files: [] }), profile: 'REACT_VITE_V1' }
+  const client = { async query() { return { rows: [mismatched] } } }
+  await assert.rejects(createApplicationArtifactStore().getApplicationBySource(client, { accountId, projectId, sourceRevision }))
+})
+
+test('a new application is retained as REACT_VITE_V2', async () => {
+  const calls = []
+  const client = { async query(_statement, values) { calls.push(values); return { rows: [metadata(JSON.parse(values[4]))] } } }
+  const retained = await createApplicationArtifactStore().retainApplication(client, { accountId, compiled: application })
+  assert.equal(retained.profile, 'REACT_VITE_V2')
+  assert.equal(JSON.parse(calls[0][4]).profile, 'REACT_VITE_V2')
 })

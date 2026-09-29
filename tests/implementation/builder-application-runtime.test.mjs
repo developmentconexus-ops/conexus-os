@@ -222,8 +222,8 @@ test('a build placed under a root-only directory runs, writes, smokes and reads 
 })
 
 test('buildApplicationInSandbox exports the fixed template identity', () => {
-  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440')
-  assert.equal(RECIPE_SHA256, 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4')
+  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755')
+  assert.equal(RECIPE_SHA256, '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434')
 })
 
 test('buildApplicationInSandbox symlinks the compiler dependencies into the given appRoot and builds it', async () => {

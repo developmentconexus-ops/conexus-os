@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ApplicationProfile } from '../platform/application-template-pins.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 
 export type BuilderRunApplicationBuildRequest = Readonly<{
@@ -25,7 +26,7 @@ export type ApplicationArtifactMetadata = Readonly<{
   artifactDigest: string
   projectId: string
   sourceRevision: string
-  profile: 'REACT_VITE_V1'
+  profile: ApplicationProfile
   templateRef: string
   recipeSha256: string
   entryPath: 'index.html'

@@ -176,7 +176,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, starter, agentUser = 'c
       retainApplication: async ({ compiled }) => ({
         artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
         projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
-        profile: 'REACT_VITE_V1', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
+        profile: 'REACT_VITE_V2', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
         entryPath: 'index.html', files: [],
       }),
     },

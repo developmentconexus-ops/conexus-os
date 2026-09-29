@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
+import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { serverBuildScriptSource } from './application-server-build.js'
 
-export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
-export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
+export const TEMPLATE_REF = CURRENT_TEMPLATE_PIN.templateRef
+export const RECIPE_SHA256 = CURRENT_TEMPLATE_PIN.recipeSha256
 const DEFAULT_WORK_ROOT = '/workspace'
 const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
 const MAX_FILES = 256
