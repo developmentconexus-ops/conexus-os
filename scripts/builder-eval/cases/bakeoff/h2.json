@@ -1,0 +1,48 @@
+{
+  "request": "Quero um app que mostre os clientes que pararam de comprar. Todo cliente que comprou da gente nos últimos 12 meses mas não compra há mais de 90 dias tem que aparecer, com a data da última compra, quantos dias faz, quanto ele comprou nesses 12 meses e o vendedor responsável por ele. Quero filtrar por vendedor, para cada um cobrar a sua carteira.",
+  "checks": [],
+  "oracle": "h2",
+  "person": {
+    "projectName": "Carteira de clientes",
+    "persona": "gerente comercial, que cobra cada vendedor pela sua carteira e não sabe quais tabelas do Sankhya guardam notas e cadastro.",
+    "answers": [
+      {
+        "id": "compra",
+        "topic": "o que conta como uma compra do cliente",
+        "say": "Compra é nota de venda confirmada. Devolução não conta como compra.",
+        "pick": [
+          "venda confirmada",
+          "nota de venda"
+        ]
+      },
+      {
+        "id": "vendedor",
+        "topic": "qual vendedor é o responsável pelo cliente",
+        "say": "O vendedor responsável é o do cadastro do cliente, não o da última nota.",
+        "pick": [
+          "cadastro do cliente",
+          "cadastro"
+        ]
+      },
+      {
+        "id": "empresas",
+        "topic": "de quais empresas do grupo são as notas",
+        "say": "Todas as empresas do grupo.",
+        "pick": [
+          "todas as empresas",
+          "todas"
+        ]
+      },
+      {
+        "id": "papel",
+        "topic": "se cada vendedor deve ver só a própria carteira ou todos veem tudo, quem acessa o app",
+        "say": "Por enquanto todos veem tudo e escolhem o vendedor no filtro. Depois eu quero que cada vendedor veja só a sua carteira.",
+        "pick": [
+          "todos veem",
+          "filtro"
+        ],
+        "hidden": true
+      }
+    ]
+  }
+}
