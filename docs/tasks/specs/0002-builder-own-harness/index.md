@@ -430,8 +430,8 @@ copied code the providers may change; native web search may be missing for a pil
   needs them.
 - [ ] Until the switch merges, the old Builder still exposes the Factory's 17 `source_control_*`
   tools with a real installation token. Decide whether to deny them now in `deniedTools()`.
-- [ ] Confirm the terms for using a Claude subscription through a third party app before that path
-  ships.
+- [x] Anthropic: the operator decided on 2026-09-29 to offer both the API key and the Claude
+  subscription sign in, as the Factory and Mastra Code do.
 - [ ] Close or rewrite Factory cards #333 (obsolete) and check #329, #330, #346 against the new
   backend.
 - [ ] Prompt variants (Leandro, 2026-09-28): the prompt loader takes a variant id (`prompt/<variant>/`), an eval arm names the variant beside the model, the run records it, and the best variant by the fixed eval cases becomes the default. The loader shape lands in slice 3; comparing variants comes after the switch.
