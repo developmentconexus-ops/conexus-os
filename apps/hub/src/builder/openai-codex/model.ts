@@ -11,6 +11,7 @@
 // returns the reasoning text the Builder shows (Mastra Code never asks for it). Only the file's home becomes Conexus's.
 import { createOpenAI } from '@ai-sdk/openai'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
+import { createModelStreamRecorder } from '../model-stream-recorder.js'
 
 /** A live bearer for one call: refreshed first when it has expired, never cached by the caller. */
 export type CodexBearer = () => Promise<Readonly<{ accessToken: string; accountId: string }>>
@@ -105,10 +106,11 @@ function buildOpenAICodexOAuthFetch(bearer: CodexBearer): typeof fetch {
  *
  * IMPORTANT: This uses the Codex API endpoint, not the standard OpenAI API.
  * URLs are rewritten from /v1/responses or /chat/completions to the Codex endpoint.
+ * With `streamRecordDir`, each call's stream is also recorded there (`createModelStreamRecorder`).
  */
-export function openaiCodexModel(modelId: string, bearer: CodexBearer) {
+export function openaiCodexModel(modelId: string, bearer: CodexBearer, streamRecordDir?: string) {
   return wrapLanguageModel({
     model: createOpenAI({ apiKey: 'oauth-dummy-key', fetch: buildOpenAICodexOAuthFetch(bearer) }).responses(remapForCodexOAuth(modelId)),
-    middleware: [createCodexMiddleware(CODEX_REASONING_EFFORT)],
+    middleware: [createCodexMiddleware(CODEX_REASONING_EFFORT), ...streamRecordDir ? [createModelStreamRecorder(streamRecordDir)] : []],
   })
 }
