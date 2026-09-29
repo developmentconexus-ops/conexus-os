@@ -8,14 +8,25 @@ import { z } from 'zod'
 import type { Broker } from './broker.js'
 import { refused } from './errors.js'
 import type { BrokerResult } from './errors.js'
+import type { FetchResult } from './native.js'
 import type { ConsumerScope } from './scope.js'
 
 // One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
 // Nothing on the wire names a Project.
 
-export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number }>
+export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number }>
 
-const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2 })
+const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024 })
+
+type FetchRefusal = Extract<FetchResult, { ok: false }>
+/** What a handler sees of a fetch: the executor's result without the vendor's error body, which only the Builder's model needs. */
+type HandlerFetchResult = Extract<FetchResult, { ok: true }> | Readonly<Omit<FetchRefusal, 'body'>>
+
+const forHandler = (result: FetchResult): HandlerFetchResult => {
+  if (result.ok) return result
+  const { body: _vendorErrorBody, ...refusal } = result
+  return Object.freeze(refusal)
+}
 
 export type HandlerPort = Readonly<{
   socketPath: string
@@ -31,8 +42,9 @@ export type HandlerPorts = Readonly<{
 
 const callBody = z.strictObject({ operation: z.string().max(200), input: z.unknown() })
 
-const answer = (response: ServerResponse, result: BrokerResult<unknown>): void => {
-  const payload = JSON.stringify(result)
+const answer = (response: ServerResponse, result: BrokerResult<unknown> | HandlerFetchResult, answerBytes = Infinity): void => {
+  let payload = JSON.stringify(result)
+  if (Buffer.byteLength(payload) > answerBytes) payload = JSON.stringify(refused('RESPONSE_TOO_LARGE'))
   response.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) })
   response.end(payload)
 }
@@ -79,8 +91,20 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
     let calls = 0
     let active = 0
 
+    const consumer = { kind: 'handler', invocationId, scope } as const
+    // Each verb is one route. Both spend the invocation's one budget and answer with the executor's own result.
+    const routes: Readonly<Record<string, (body: unknown) => Promise<BrokerResult<unknown> | HandlerFetchResult>>> = {
+      '/v1/call': async (body) => {
+        const parsed = callBody.safeParse(body)
+        return parsed.success ? broker.call(consumer, parsed.data.operation, parsed.data.input) : refused('INPUT_REFUSED')
+      },
+      // The executor's strict parse of the request is the boundary; the port only carries the JSON.
+      '/v1/fetch': async (body) => forHandler(await broker.fetch(consumer, body)),
+    }
+
     const handle = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
-      if (request.method !== 'POST' || request.url !== '/v1/call') {
+      const route = request.method === 'POST' && request.url !== undefined && Object.hasOwn(routes, request.url) ? routes[request.url] : undefined
+      if (!route) {
         response.writeHead(404).end()
         return
       }
@@ -92,14 +116,13 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
       active += 1
       try {
         const bytes = await readBody(request, limits.bodyBytes)
-        let body: unknown = null
-        try { body = bytes ? JSON.parse(bytes.toString('utf8')) : null } catch { body = null }
-        const parsed = callBody.safeParse(body)
-        if (!parsed.success) {
-          answer(response, refused('INPUT_REFUSED'))
-          return
+        let body: unknown
+        try {
+          body = bytes ? JSON.parse(bytes.toString('utf8')) : undefined
+        } catch {
+          body = undefined
         }
-        answer(response, await broker.call({ kind: 'handler', invocationId, scope }, parsed.data.operation, parsed.data.input))
+        answer(response, body === undefined ? refused('INPUT_REFUSED') : await route(body), limits.answerBytes)
       } finally {
         active -= 1
       }
