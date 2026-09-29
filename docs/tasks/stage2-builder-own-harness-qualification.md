@@ -2,7 +2,8 @@
 
 **Status:** PREPARED on 2026-09-29. The candidate is the branch `feat/builder-own-harness`. The
 states in section 5 are those of the integration head `40d9671d` (merge base with `main`
-`eb564cfe`).\
+`eb564cfe`). [Section 10](#10-direction-the-ordered-work) holds the ordered work and its state at
+`47794034`.\
 **Type:** runtime, dependency and Builder-evidence qualification. Q-a: it is the Builder half of the
 Q4 gate's "builds and changes a useful application". Q-b: it moves source custody and model
 credentials into Conexus and changes the Hub database. Q-c: live Builder runs are its proof. Q-d: 20
@@ -17,18 +18,29 @@ authentication: model credentials, the ChatGPT device-code sign-in and the secre
 
 ## Sources
 
-Spec 0002 (the Builder on its own harness) and spec 0003 (the app stack v2) are in the operator's
-study notes, outside this repository. This task carries their acceptance criteria and cites their
-rationale without copying it. Citations use these short forms, with line numbers as of 2026-09-29:
+Spec 0002 (the Builder on its own harness) and spec 0003 (the app stack v2) live beside this task,
+in [`specs/`](specs/). The studies behind them live in the [Builder research](../research/builder/index.md).
+This task carries the specs' acceptance criteria and cites their rationale without copying it.
+Citations use these short forms. Line numbers hold as of 2026-09-29. An amendment is appended at the
+end of a file, so earlier line numbers do not move.
 
 | Short form | File |
 | --- | --- |
-| `0002:N` | spec 0002, `specs/0002-builder-own-harness/index.md` |
-| `0002-R:N` | spec 0002 rationale, `specs/0002-builder-own-harness/rationale.md` |
-| `0003:N` | spec 0003, `specs/0003-app-stack-v2/index.md` |
-| `0003-R:N` | spec 0003 rationale, `specs/0003-app-stack-v2/rationale.md` |
-| `S17:N` | study 17, the app stack decision and its probe app |
-| `S21:N` | study 21, the census of the open work at `40d9671d` |
+| `0002:N` | spec 0002, [`specs/0002-builder-own-harness/index.md`](specs/0002-builder-own-harness/index.md) |
+| `0002-R:N` | spec 0002 rationale, [`specs/0002-builder-own-harness/rationale.md`](specs/0002-builder-own-harness/rationale.md) |
+| `0003:N` | spec 0003, [`specs/0003-app-stack-v2/index.md`](specs/0003-app-stack-v2/index.md) |
+| `0003-R:N` | spec 0003 rationale, [`specs/0003-app-stack-v2/rationale.md`](specs/0003-app-stack-v2/rationale.md) |
+| `S17:N` | study 17, the app stack decision and its probe app ([file](../research/builder/17-app-stack-decision.md)) |
+| `S20:N` | study 20, the eval plan for the AC-27 cases ([file](../research/builder/20-slice7-eval-plan.md)) |
+| `S21:N` | study 21, the census of the open work at `40d9671d` ([file](../research/builder/21-remaining-work-census.md)) |
+| `S22:N` | study 22, the handler `connectors.fetch` and the Connection destination ([file](../research/builder/22-q6-handler-connectors-fetch.md)) |
+| `S23:N` | study 23, durability and the sandbox per conversation ([file](../research/builder/23-durable-agent-and-sandbox-reuse.md)) |
+| `S24:N` | study 24, the stop button and the sandbox lifecycle ([file](../research/builder/24-stop-button-and-sandbox-lifecycle.md)) |
+| `S25:N` | study 25, the flow and performance baseline ([file](../research/builder/25-builder-flow-and-performance-baseline.md)) |
+| `S26:N` | study 26, the compact chat ([file](../research/builder/26-builder-chat-compact-ui.md)) |
+| `S27:N` | study 27, the root cause of the weak quote app ([file](../research/builder/27-builder-root-cause-quote-app.md)) |
+| `S28:N` | study 28, the audit of the Builder's context ([file](../research/builder/28-builder-context-audit.md)) |
+| `S29:N` | study 29, the improvement plan in two waves ([file](../research/builder/29-builder-improvement-plan.md)) |
 | `name:N` | the test titled at line N of `tests/implementation/name.test.mjs` |
 
 ## 1. Authority route
@@ -219,7 +231,8 @@ screenshots with every business value masked, and the `CheckReport`s go to the
 1. **`erp/sales-dashboard` cannot pass on any branch today.** An app handler can only call
    `sankhya.purchase-order.read`. The handler `connectors.fetch` (Q4 closure item 2) is not built
    (`apps/hub/src/app-runner/worker.ts:42-49`; `S21:15-17`). The same gap limits AC-29 to one
-   purchase order.
+   purchase order. The branch has had `connectors.fetch` since `12aeb4f3` (section 10, item 2).
+   The case still waits for its pass rule (limit 7).
 2. **Factory pull request #373 collides with the branch.** It adds
    `0032_application_thumbnail.sql` and edits `factory-runtime.ts`, which the branch deletes. Merging
    it first forces seven renamed migrations (`S21:141-148`). #370 overlaps the Modelos de IA screen
@@ -265,3 +278,39 @@ remain after the verdict:
 - The documents that state C-022 as current, as slice 7 of spec 0002 requires (`0002:376-380`).
 - `docs/reference/builder-c020-mastra-native.md`, which names the REACT_VITE_V1 profile at line 184.
 - The Q4 task's closure item 4, which says "a real Factory session" (`S21:92`).
+
+## 10. Direction: the ordered work
+
+This section owns the order of the Builder work on this branch and the state of each item. It
+does not own gate status, which the [roadmap](../roadmap.md) owns. States are as of 2026-09-29 at
+`47794034`. "Done" names the commit on `feat/builder-own-harness`. "Running" names the branch where
+the work is. "Next" is approved and not started. "Later" waits for the items above it.
+
+Order follows the operator's direction of 2026-09-29: first the Builder's flow, what it creates, its
+screens and its speed; then the sandbox per conversation.
+
+| # | Work | State | Why | Proof |
+| --- | --- | --- | --- | --- |
+| 1 | B0: retry a transient storage or network failure within the same turn, and name a platform fault as one | done, `0ecb20a4` | `S23:154-180`, `S23:389` | Retry and run runtime tests. Live: the first-read defect below stays open |
+| 2 | Q-6: handlers read a Connection with `connectors.fetch`. The Builder learns only `fetch` | done, built from `main` (`bb7edf96`, `6db652fc`, `c88db0f1`), merged as `12aeb4f3`, `78747137` | `S22`, `S20:129-148` | Real bubblewrap: another Project gets `NOT_GRANTED` with zero gateway requests, and no credential is visible. The Preview response scan (`S22:667-678`) has not run |
+| 3 | A production or sandbox destination per Connection (D-1) | built on `feat/connector-destination` (`85de1af1`, `97dd8983`). Lands after this branch, as migration `0039` | `S22:417-568` | Connector suites, with a real Chromium test of the Integrações select |
+| 4 | Read-only SQL consult on Sankhya (`DbExplorerSP.executeQuery`), behind a single-statement tripwire | done, `27d02d1d`, `0a9c0ed3` | `S27:146-170`, `S28:162-171` | Connector suites. The operator confirmed the integration user only reads. A live read has not run |
+| 5 | Run one step's tool calls in parallel | done, `47794034` | `S25:143-150`, `S25:324` | A red then green overlap test. The live gain is not measured |
+| 6 | Compact chat: the Preview says what is happening, one reasoning line, tool group headers, borderless rows, the plan card as Markdown with a reading panel | running, `feat/builder-compact-chat`, sent back to fix the global button default | `S26:123-276`, `S25:325` | Screenshots in both themes after the rework |
+| 7 | Restart the branch Hub and the app runner together | done on the branch Hub, by a local script outside the repository | `S25:281-288` | The runner log starts on the Hub's head. The guard against drift is an open defect below |
+| 8 | Wave 1: the integrator guide as a discovery method, one handler and screen contract, an honest plan | running, `feat/builder-guidance-w1` | `S29:8-20` | Item 9 |
+| 9 | Control eval: replay the quote request after wave 1, once on `gpt-6-luna` and once on Opus | next, after wave 1 | `S29:29-33`, `S27:373-383` | The plan names a source for all four requested metrics |
+| 10 | Wave 2: a Construir tool that runs one app operation on real data and returns shape and counts, a tested helper that pages and decodes a Sankhya list, the project `AGENTS.md` as a domain map | next, after item 9 | `S29:22-27`, `S27:309-355`, `S28:296-307` | The replay's app shows every line of the test quote with real costs, prices, promotions and stock |
+| 11 | Record the declared gate runs in the [evidence](../evidence/builder-own-harness/README.md): AC-28 case A, AC-27 `todo-reload` and `erp/sankhya-not-connected`, the AC-12 refusal | next | Section 6 | The evidence tables filled, with values masked |
+| 12 | Context7 for the Builder | later, an idea. It needs a key and a measured replay | No study yet. Context7 lists the Sankhya developer reference with no snippets | A replay with and without it |
+| 13 | Sandbox per conversation, units B1 to B8 | later, decided and not built | [Spec 0002 amendment](specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch), `S23:383-400`, `S24:276-288` | One crash test per unit (`S23:387-398`) |
+
+Open defects. Each one needs a fix and a test before the pilot runs on this Builder.
+
+| Defect | What the person or the operator sees | Evidence |
+| --- | --- | --- |
+| A storage fault on a message's first read hangs the turn | If the agent storage fails on the first `getWorkflowRunById` read of a message, before the loop step, the controller emits no error and `sendMessage` never settles. The run stays active with no timeout. B0 covers only the loop step's read | B0 worker probe on `9a9455d3`, `apps/hub/src/builder/run-runtime.ts` (no turn timeout) |
+| A first Sankhya read after a cold login can time out | The first read hit the 5 s handler limit in 2 of 11 calls. The cause is not isolated | `S25:274-277`, `S25:312-316`, `S25:329` |
+| The Hub does not recover its database pools after a database restart | The Hub answers 503 until someone restarts it | #339 |
+| The runner log drops a handler refusal's detail | `HANDLER_OUTPUT_REFUSED` is logged without the field that broke the output schema, so the cause needs a code read | `apps/hub/src/app-runner/supervisor.ts:280`, `S25:281-288` |
+| Nothing stops the Hub, the runner and the sandbox template drifting apart | An app runs older runner code than the Builder that wrote it, or a check fails on an older template | `S25:323` |

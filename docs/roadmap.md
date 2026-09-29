@@ -7,23 +7,29 @@ This file owns the status of the stage gates and names the current gate. Workstr
 
 Conexus is the platform a company uses to build, administer and evolve internal software connected to its own data and systems.
 
-The development plane is Factory-centered:
+Under C-032 the development plane is the Builder on Conexus's own harness, built on Mastra's engine:
 
 ```text
 Account / Workspace / Project
         ↓
-persistent Project conversation
+persistent Project conversations
         ↓
-Mastra Factory / Code
+Builder: AgentController over createCodingAgent (Mastra), Planejar and Construir
         ↓
-private Git repository
+E2B sandbox, seeded by the Hub; it holds no secret
         ↓
-Builder edits + checks
+Conexus Git on the Hub: main is the admitted revision
+        ↓
+platform check (conexus_check and admission)
         ↓
 Conexus build / Preview
 ```
 
-Conexus owns Product authority that the Factory must not own: Account, Workspace, Project authorization, source admission, application runtime policy, enterprise capabilities, Release and Publish.
+Conexus owns Account, Workspace, Project authorization, Project source, model accounts, the
+Builder's prompt, modes and tools, source admission, application runtime policy, enterprise
+capabilities, Release and Publish. The Mastra Factory and Mastra Code leave the Hub. The
+[Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) qualifies this plane
+on its own branch. Until that pull request merges, `main` runs the Factory-centered plane of C-022.
 
 ## Current trunk
 
@@ -90,7 +96,7 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
-| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)) |
+| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)). On `main`: the Connection and its binding (#365), the executor (#369) and the Builder tool `connector_fetch` (#372). On the Builder branch: the handler `connectors.fetch` and the read-only SQL consult. Open: the pilot on `main`, deleting the per-operation path, the Builder's investigation and useful application (closure items 4 and 5), and the verdict. Items 4 and 5 run on the Builder of C-032, so the [Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) comes first |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
@@ -208,7 +214,12 @@ it is built.
 
 ## Exact next action
 
-**Execute the amended Stage 2 Q4 task: a Project reads a real enterprise system through a Connection bound to it, with Sankhya as the first integrator.**
+**Finish the amended Stage 2 Q4 task on the Builder of C-032: a Project reads a real enterprise system through a Connection bound to it, with Sankhya as the first integrator.**
+
+First, the [Builder own harness qualification](tasks/stage2-builder-own-harness-qualification.md).
+It is the Builder half of Q4's "builds and changes a useful application", and its
+[section 10](tasks/stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work) orders
+the work. Then the Q4 closure items on the pilot, running `main`:
 
 [Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)
 
@@ -238,8 +249,10 @@ Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#f
 
 ## What the operator still owes
 
-- Confirmation from the Sankhya administrator that the integration user can only read. It does not
-  block the work. Without it, Q4 closes at most ACCEPT_WITH_BOUNDARY.
+- Nothing for Q4 today. The Sankhya administrator confirmed on 2026-09-29 that the integration
+  user can only read ([evidence](evidence/builder-own-harness/README.md#sankhya-read-only-sql-consult)).
+  C-030 also asks the Connection to record who confirmed it and when, and the Connection has no
+  field for that yet. Without that record, Q4 closes at most ACCEPT_WITH_BOUNDARY.
 
 ## Before a production installation
 
