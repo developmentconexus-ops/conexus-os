@@ -144,7 +144,7 @@ test('preserves every existing app entry, including a different source filename'
 test('the starter carries a shape file and no check script or check field', () => {
   assert.deepEqual(APPLICATION_SHAPE_FILES.map((file) => file.path), ['conexus.json'])
   assert.deepEqual(JSON.parse(APPLICATION_SHAPE_FILES[0].content), { shape: 'REACT_VITE_V2' })
-  assert.deepEqual(fixedApplicationStarterFiles().map((file) => file.path).filter((path) => path.includes('check')), [])
+  assert.deepEqual(fixedApplicationStarterFiles().map((file) => file.path).filter((path) => /(^|\/)check\.(sh|mjs)$/.test(path) || path.startsWith('conexus/')), [])
 })
 
 test('the candidate pull leaves out the compiler link and every generated file', () => {
@@ -161,7 +161,9 @@ test('the global conexus-server skill matches the check it documents', () => {
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
   assert.deepEqual(Object.keys(example.operations), ['listItems'])
-  assert.match(guide, /fetch\('\/__conexus\/api\/listItems'/)
+  assert.match(guide, /import \{ api \} from '@\/conexus\/api\.gen'/)
+  assert.match(guide, /api\.listItems\(/)
+  assert.match(guide, /never call an operation with `fetch`/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
   // The handler contract names the caller beside db and tells the Builder never to take it from input.

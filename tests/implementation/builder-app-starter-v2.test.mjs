@@ -13,7 +13,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const compilerRoot = await ensureCompilerRoot()
 const { typescriptProjects } = await import(join(compilerRoot, 'tsconfig.mjs'))
-const { fixedApplicationStarterFiles, APPLICATION_CHECK_FILES } = await import(hubModuleUrl('builder/application-starter.js'))
+const { fixedApplicationStarterFiles, APPLICATION_SHAPE_FILES } = await import(hubModuleUrl('builder/application-starter.js'))
 const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
 
 const DEMO_ROUTE = `import { useState } from 'react'
@@ -77,7 +77,7 @@ declare module '@tanstack/react-router' {
 
 const materialize = (extra = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-starter-v2-'))
-  const files = [...fixedApplicationStarterFiles(repositoryRoot), ...APPLICATION_CHECK_FILES]
+  const files = [...fixedApplicationStarterFiles(repositoryRoot), ...APPLICATION_SHAPE_FILES]
   for (const { path, content } of files) {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), content)
