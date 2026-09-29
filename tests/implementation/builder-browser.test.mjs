@@ -1547,6 +1547,32 @@ test('at a 420px chat panel the mode chip, the model name and the send button sh
   assert.deepEqual(measured, { chat: 420, chipBeforeModel: true, modelBeforeSend: true, oneRow: true, modelNameWhole: true })
 })
 
+test('a narrow chat panel keeps the model name whole and shrinks the mode chip to its icon, a wide one shows the label', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-00000000023a', projectId: '70000000-0000-4000-8000-00000000023b', conversationId: 'conversation-fit',
+    omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
+  })
+  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
+  const resizeChatTo = async (target) => {
+    const separator = await page.locator('[data-separator]').boundingBox()
+    const width = (await page.locator('.cx-chat').boundingBox()).width
+    await page.mouse.move(separator.x + separator.width / 2, separator.y + separator.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(separator.x + separator.width / 2 - (target - width), separator.y + separator.height / 2, { steps: 8 })
+    await page.mouse.up()
+  }
+  const measure = () => page.evaluate(() => {
+    const name = document.querySelector('.cx-model-name')
+    const chip = document.querySelector('.cx-mode-chip')
+    return { modelNameWhole: name.scrollWidth <= name.clientWidth, chipLabelShown: chip.querySelector('.cx-mode-label').getBoundingClientRect().width > 0, chipWidth: Math.round(chip.getBoundingClientRect().width) }
+  })
+  await resizeChatTo(340)
+  assert.deepEqual(await measure(), { modelNameWhole: true, chipLabelShown: false, chipWidth: 28 })
+  await resizeChatTo(700)
+  const wide = await measure()
+  assert.deepEqual({ modelNameWhole: wide.modelNameWhole, chipLabelShown: wide.chipLabelShown }, { modelNameWhole: true, chipLabelShown: true })
+})
+
 test('a plan the agent submits is sent back with feedback from its card, on the run\'s own session', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000231'
   const projectId = '70000000-0000-4000-8000-000000000232'
