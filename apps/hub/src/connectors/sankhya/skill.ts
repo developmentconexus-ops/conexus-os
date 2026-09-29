@@ -1,8 +1,8 @@
 // The business concepts below (that a document number identifies a purchase order, that a purchase
 // order has a header and a list of items, and the shape of a purchases follow-up) come from
 // https://github.com/andressaolivi/sankhya-skills (MIT). The native request format and the service,
-// entity and field names are the ones this connector's gateway already
-// sends (C-030 lets a consumer name them); `purchase-order.ts` marks which of them the first real read
+// entity, table and field names are the ones this connector's native rule
+// admits (C-030 lets a consumer name them); `purchase-order.ts` marks which of them the first real read
 // still has to confirm. No host, URL, header or credential name enters this text.
 export const SANKHYA_BUILDER_SKILL: string = [
   'Esta Skill cobre as Conexões Sankhya deste Project: como investigá-las com a ferramenta `connector_fetch` enquanto '
@@ -13,8 +13,8 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + "`path: '/gateway/v1/mge/service.sbr'`, `query: { serviceName: 'CRUDServiceProvider.loadRecords', outputType: 'json' }` "
     + "e um `body` `{ serviceName: 'CRUDServiceProvider.loadRecords', requestBody: { dataSet: { rootEntity, "
     + "includePresentationFields: 'N', offsetPage: '0', criteria: { expression: { $: \"this.NUMNOTA = ?\" }, parameter: "
-    + "[{ $: '22790', type: 'I' }] }, entity: { fieldset: { list: 'NUNOTA,NUMNOTA' } } } } }`. Só esse serviço de leitura "
-    + 'existe; qualquer outro é recusado com `SERVICE_REFUSED` antes de chegar ao Sankhya.',
+    + "[{ $: '22790', type: 'I' }] }, entity: { fieldset: { list: 'NUNOTA,NUMNOTA' } } } } }`. Existem dois serviços de "
+    + 'leitura, esse e a consulta SQL descrita abaixo; qualquer outro é recusado com `SERVICE_REFUSED` antes de chegar ao Sankhya.',
   'Coloque todo valor em `parameter`, com `?` na expressão (`type` `I` para número, `S` para texto); nunca escreva um valor '
     + 'dentro da expressão. Uma entidade relacionada entra como outro item de `entity`, por exemplo '
     + "`{ path: 'Parceiro', fieldset: { list: 'NOMEPARC' } }`, e seus campos voltam como `Parceiro_NOMEPARC`.",
@@ -22,6 +22,26 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + '`entity` (um objeto quando há uma só linha, uma lista quando há várias) traz os valores como `f0`, `f1`, ... nessa mesma '
     + "ordem, cada um no formato `{ $: 'valor' }`, e `{}` quando o valor está vazio. `total` diz quantas linhas existem e "
     + "`hasMoreResult: 'true'` diz que há mais páginas.",
+  'Consulta SQL de leitura. Quando a tela precisa juntar tabelas, ou filtrar de um jeito que uma entidade só não cobre, '
+    + "use `DbExplorerSP.executeQuery`: o mesmo `method` e o mesmo `path`, `query: { serviceName: 'DbExplorerSP.executeQuery', "
+    + "outputType: 'json' }` e `body: { serviceName: 'DbExplorerSP.executeQuery', requestBody: { sql } }`. Por exemplo, `sql` "
+    + 'igual a `SELECT CAB.NUNOTA, CAB.DTNEG, PRO.CODPROD, PRO.DESCRPROD FROM TGFCAB CAB JOIN TGFITE ITE ON ITE.NUNOTA = '
+    + 'CAB.NUNOTA JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD WHERE CAB.NUMNOTA = 1234`. A SQL é a do banco da instalação '
+    + 'Sankhya (Oracle ou SQL Server); confirme qual na primeira consulta.',
+  'A consulta só lê. Antes de chegar ao Sankhya, o Conexus recusa com `INPUT_REFUSED` e a issue `/body/requestBody/sql` '
+    + 'toda SQL que não seja uma única instrução começando por `SELECT` ou `WITH`, que tenha um `;` seguido de mais texto, ou '
+    + 'que traga, fora de comentários e de textos entre aspas, uma palavra como `INSERT`, `UPDATE`, `DELETE`, `MERGE`, '
+    + '`CREATE`, `DROP`, `ALTER`, `EXEC`, `CALL` ou `INTO`. Por isso `SELECT ... INTO` também é recusado, e um apelido de '
+    + 'coluna com um desses nomes precisa de outro nome. Não tente contornar a recusa: reescreva a consulta como uma leitura.',
+  'A consulta não tem parâmetros: o valor vai escrito dentro da SQL. Por isso o handler só coloca na SQL um valor que ele '
+    + 'mesmo validou antes: um número conferido com `Number.isInteger`, uma data conferida no formato `AAAA-MM-DD`, ou um '
+    + 'código escolhido de uma lista fixa do próprio aplicativo. Nunca coloque na SQL um texto livre digitado pela pessoa. '
+    + 'Quando a leitura cabe numa entidade só, prefira `loadRecords`, que leva o valor em `parameter`.',
+  'A resposta da consulta traz `responseBody.fieldsMetadata`, com o nome de cada coluna em `name`, na ordem, e '
+    + '`responseBody.rows`, uma lista de linhas em que cada linha é uma lista de valores nessa mesma ordem. Monte cada linha '
+    + 'como um objeto `{ NOME_DA_COLUNA: valor }`, a mesma forma das linhas de `loadRecords`. Confirme na primeira consulta se '
+    + 'os valores vêm como texto ou como número: um valor decimal que vier como número perde precisão, então converta-o para '
+    + 'texto na própria SQL. A resposta passa pelo mesmo limite de tamanho: peça só as colunas e as linhas que a tela mostra.',
   'Para pedidos de compra: o cabeçalho é `CabecalhoNota`, com `NUNOTA` (chave interna), `NUMNOTA` (número do documento), '
     + "`DTNEG`, `STATUSNOTA`, `VLRNOTA` e `TIPMOV = 'O'` para compras; os itens são `ItemNota`, ligados ao cabeçalho pelo "
     + '`NUNOTA`, com `SEQUENCIA`, `CODPROD`, `QTDNEG`, `CODVOL`, `VLRUNIT` e `VLRTOT`, e a descrição em `Produto` '
@@ -33,9 +53,10 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + 'corrija a requisição.',
   'No aplicativo. O handler do servidor lê o Sankhya com `connectors.fetch(requisição)`, com a mesma requisição nativa '
     + 'que você testou no `connector_fetch` e o mesmo nome local da Conexão. A resposta é `{ ok: true, status, bytes, body }`, '
-    + 'com o JSON do Sankhya em `body`, ou `{ ok: false, code }`. O handler decodifica `body.responseBody.entities` como '
-    + 'descrito acima: os nomes em `metadata.fields.field`, os valores em `f0`, `f1`, ..., `entity` como objeto ou lista, e '
-    + "`total: '0'` como nenhuma linha. Depois devolve só os campos que a tela mostra. O navegador recebe apenas o que o "
+    + 'com o JSON do Sankhya em `body`, ou `{ ok: false, code }`. O handler decodifica `body.responseBody` como descrito '
+    + 'acima. No `loadRecords`: os nomes em `entities.metadata.fields.field`, os valores em `f0`, `f1`, ..., `entity` como '
+    + "objeto ou lista, e `total: '0'` como nenhuma linha. Na consulta SQL: os nomes em `fieldsMetadata` e os valores em "
+    + '`rows`. Depois devolve só os campos que a tela mostra. O navegador recebe apenas o que o '
     + 'handler devolve: nunca devolva `body` nem a resposta inteira. Cada execução do handler faz no máximo 8 chamadas e '
     + 'termina em 5 segundos, então peça numa leitura só os campos e as linhas de que a tela precisa. Se `hasMoreResult` '
     + "vier `'true'`, há mais páginas; leia a próxima com `offsetPage` só se a tela precisar dela.",
