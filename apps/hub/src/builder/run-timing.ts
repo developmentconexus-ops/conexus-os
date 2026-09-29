@@ -4,8 +4,8 @@
  * A stage's time runs from the previous mark, so the marks partition the run and their sum is the
  * run's wall time. A stage the run never reached is left out of the line.
  */
-export const RUN_TIMING_STAGES = ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'] as const
-export type RunTimingStage = (typeof RUN_TIMING_STAGES)[number]
+const RUN_TIMING_STAGES = ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'] as const
+type RunTimingStage = (typeof RUN_TIMING_STAGES)[number]
 
 export type RunTiming = Readonly<{
   /** Ends `stage` now. */

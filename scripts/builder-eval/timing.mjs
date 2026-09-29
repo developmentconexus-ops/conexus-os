@@ -15,7 +15,7 @@ const sum = (values) => values.reduce((total, value) => total + value, 0)
 const percentile = (sorted, fraction) => (sorted.length === 0 ? null : sorted[Math.min(sorted.length - 1, Math.ceil(fraction * sorted.length) - 1)])
 
 /** Hub stage names in the order BUILDER_RUN_TIMING prints them (apps/hub/src/builder/run-timing.ts). */
-export const HUB_STAGES = Object.freeze(['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'])
+const HUB_STAGES = Object.freeze(['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'])
 
 /**
  * Pure. One `BUILDER_RUN_TIMING:<runId>:sandbox=1200:seed=900:...` log line, in milliseconds per

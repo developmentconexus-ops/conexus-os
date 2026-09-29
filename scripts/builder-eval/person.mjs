@@ -9,13 +9,13 @@ import { readFileSync } from 'node:fs'
 import { Agent } from '@mastra/core/agent'
 import { z } from 'zod'
 
-export const PERSON_MODEL_ENV = 'CONEXUS_EVAL_PERSON_MODEL'
-export const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
+const PERSON_MODEL_ENV = 'CONEXUS_EVAL_PERSON_MODEL'
+const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
 // A Sonnet-class model through Mastra's router, listed by the provider registry when this was
 // written. It needs ANTHROPIC_API_KEY in the environment; the Hub is not involved.
-export const DEFAULT_PERSON_MODEL = 'anthropic/claude-sonnet-5'
-export const SILENT_TEXT = 'Não sei.'
-export const DEFAULT_CONTINUE_TEXT = 'Pode seguir com a próxima fatia.'
+const DEFAULT_PERSON_MODEL = 'anthropic/claude-sonnet-5'
+const SILENT_TEXT = 'Não sei.'
+const DEFAULT_CONTINUE_TEXT = 'Pode seguir com a próxima fatia.'
 
 const SILENT_OPTION = /n[ãa]o sei|tanto faz|qualquer|voc[êe] decide|voc[êe] escolhe/i
 const RECOMMENDED = /recomend/i

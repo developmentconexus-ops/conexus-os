@@ -48,5 +48,5 @@
   "ignoreDependencies": [
     "class-variance-authority"
   ],
-  "ignoreBinaries": ["setpriv"]
+  "ignoreBinaries": ["setpriv", "pgrep"]
 }
