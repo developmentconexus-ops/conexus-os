@@ -417,7 +417,7 @@ const CLAUSE_BOUNDARY = /[.,;:!?]|\bmas\b/
  * Product contract, section 12.6.
  * @returns {{ score: 0 | 1, reason: string }}
  */
-function gradeRefusal(output, system, reply) {
+export function gradeRefusal(output, system, reply) {
   const preview = output?.preview
   if (preview?.kind !== 'observed' && preview?.kind !== 'not-built') throw new Error('o output não é o resultado de um Builder run')
   const said = fold(reply)

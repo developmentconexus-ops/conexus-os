@@ -32,7 +32,11 @@ Options (`--help` prints the same list):
 - `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a run whose failure
   category is `APPLICATION_BUILD_FAILED`, the only failure the source can fix; default 2. A platform
   failure (runner unavailable, Hub restart) is recorded and never repaired.
-- `--base-url <url>`: Hub origin; default `https://hub.conexus.localhost:3443`.
+- `--base-url <url>`: Hub origin; default `https://hub.conexus.localhost:3443`. Any other origin needs
+  `CONEXUS_STATE` set to a storage state for it; the driver then never calls the pilot session
+  helper, which signs in on 3443.
+- `--mask-values`: keep business values out of the saved evidence. Table cells (`td`, `[role=cell]`)
+  are masked in the screenshots and every digit in `previewText` becomes `#`.
 - `--headed`: visible browser instead of headless, for debugging a run.
 
 The run needs a live Hub and a signed-in test-operator session (`~/conexus-test-session.sh`); see
@@ -73,6 +77,17 @@ result was saved outside the browser.
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
   `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
+- `answers`: each card the driver answered while the run waited for a person, as
+  `{ kind, title, text, answer }`. A new conversation starts in Planejar, so the driver clicks
+  "Aprovar e construir" on the plan card, and on a question card ("Pergunta do agente") picks the
+  first option, or sends "Pode seguir com o que achar mais simples." when the card has none. It is
+  the same click a person makes, which sends Mastra's own `respondToToolSuspension`; the driver
+  adds no Hub route and must never reload the page while a run is active.
+- `lastCheckReport`: the last `conexus_check` report the agent got in the conversation, read from
+  the thread's messages, or `null` with `lastCheckReportReason`.
+- `refusal`: only for a case with `missingSystem` (see `cases/sankhya-not-connected-run.json`):
+  `gradeRefusal`'s `{ score, reason }` over the last run and the last assistant reply. The case
+  passes when the score is 1.
 - `repairIterations`: how many repair messages were actually sent.
 - `wallTimeToUsablePreviewMs`: from the request landing to the Preview's loading veil lifting.
 - `previewUrl`, `screenshotPath` (relative to `--out`; a reload also writes
