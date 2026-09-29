@@ -36,8 +36,10 @@ their "Aprovar e construir" starts it.
 2. Read the Project knowledge.
 3. For each Conexão the plan depends on, find where each thing the person asked for lives, as its
    integrator's guide says. Then read a sample that looks like real use: a recent record, and one
-   list read to its end. When the request is about a record the person knows, such as a document or
-   a customer, that sample is one real example from them: ask for it in your reply and wait.
+   list read to its end, because an old or small record hides the cases that shape the code: lists
+   with several pages, empty fields, repeated rows. When the request is about a record the person
+   knows, such as a document or a customer, that sample is one real example from them: ask for it in
+   your reply and wait.
 4. Never ask what the files or the data can answer. Ask only business rules the person alone knows:
    about three questions per plan at most, one per `ask_user`, with options and your
    recommendation. If they do not answer, or say it does not matter, use your recommendation and

@@ -17,12 +17,14 @@ export const SANKHYA_BUILDER_SKILL: string = [
   '1. Na primeira consulta, descubra o banco: `SELECT 1 FROM DUAL` responde no Oracle e falha no SQL Server. Escreva toda '
     + 'SQL nesse dialeto.',
   '2. Procure a palavra da pessoa nos rótulos do dicionário de dados do Sankhya, que são os nomes que as telas do Sankhya '
-    + "mostram: `SELECT NOMETAB, NOMECAMPO, DESCRCAMPO FROM TDDCAM WHERE UPPER(DESCRCAMPO) LIKE '%CUSTO%'`. Tente as "
-    + 'palavras do pedido e seus sinônimos.',
+    + "mostram: `SELECT NOMETAB, NOMECAMPO, DESCRCAMPO FROM TDDCAM WHERE UPPER(DESCRCAMPO) LIKE '%<PALAVRA>%'`. Use a raiz "
+    + "da palavra da pessoa, em maiúsculas: para 'transportadora', procure `TRANSPORT`. Tente também os sinônimos e a forma "
+    + 'sem acento, porque o rótulo da tela pode usar outra palavra.',
   '3. Confirme que a coluna existe antes de usá-la, porque o dicionário lista campos que a tabela não tem. No Oracle: '
-    + "`SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'TGFPRO'`; no SQL Server, `INFORMATION_SCHEMA.COLUMNS`.",
-  '4. Antes de juntar uma tabela, conte as linhas por chave. Tabelas de histórico, como as de custo e de preço, guardam uma '
-    + 'linha por data, e juntá-las sem escolher a linha certa multiplica as linhas do resultado.',
+    + "`SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = '<TABELA>'`; no SQL Server, `INFORMATION_SCHEMA.COLUMNS`.",
+  '4. Antes de juntar uma tabela, conte as linhas por chave. Se uma chave tem várias linhas, a tabela guarda histórico, uma '
+    + 'linha por data ou por vigência. Escolha a linha certa para cada chave antes de juntar, por exemplo a mais recente até a '
+    + 'data que importa, porque juntar todas multiplica as linhas do resultado.',
   'A consulta SQL só lê. O Conexus recusa com `INPUT_REFUSED` (issue `/body/requestBody/sql`) toda SQL que não seja uma única '
     + 'instrução `SELECT` ou `WITH`, ou que traga, fora de comentários e de textos entre aspas, uma palavra como `INSERT`, '
     + '`UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`, `ALTER`, `EXEC`, `CALL` ou `INTO`. Um apelido de coluna com um desses '
@@ -31,12 +33,13 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + 'mesmo validou antes: um número conferido com `Number.isInteger`, uma data conferida no formato `AAAA-MM-DD`, ou um '
     + 'código escolhido de uma lista fixa do próprio aplicativo. Nunca coloque na SQL um texto livre digitado pela pessoa. '
     + 'Quando a leitura cabe numa entidade só, prefira `loadRecords`, que leva o valor em `parameter`.',
-  "`CRUDServiceProvider.loadRecords` lê uma entidade pelo nome de instância: `requestBody: { dataSet: { rootEntity: 'Produto', "
-    + "includePresentationFields: 'N', offsetPage: '0', criteria: { expression: { $: 'this.CODPROD = ?' }, parameter: "
-    + "[{ $: '<código>', type: 'I' }] }, entity: [{ path: '', fieldset: { list: 'CODPROD,DESCRPROD' } }, "
-    + "{ path: 'GrupoProduto', fieldset: { list: 'DESCRGRUPOPROD' } }] } }`. Todo valor vai em `parameter`, com `?` na "
+  "`CRUDServiceProvider.loadRecords` lê uma entidade pelo nome de instância: `requestBody: { dataSet: { rootEntity: '<Entidade>', "
+    + "includePresentationFields: 'N', offsetPage: '0', criteria: { expression: { $: 'this.<CHAVE> = ?' }, parameter: "
+    + "[{ $: '<valor>', type: 'I' }] }, entity: [{ path: '', fieldset: { list: '<CHAVE>,<CAMPO>' } }, "
+    + "{ path: '<Relação>', fieldset: { list: '<CAMPO_DA_RELAÇÃO>' } }] } }`. Todo valor vai em `parameter`, com `?` na "
     + 'expressão (`type` `I` para número, `S` para texto). O primeiro item de `entity`, com `path` vazio, é a própria '
-    + 'entidade; cada entidade relacionada é mais um item da lista, com o nome da relação em `path`.',
+    + 'entidade; cada entidade relacionada é mais um item da lista, com o nome da relação em `path`, e não um campo dentro '
+    + 'do primeiro item. O nome da entidade e o da relação vêm do dicionário ou de uma leitura; nunca os adivinhe.',
   'O `loadRecords` responde `responseBody.entities`: `metadata.fields.field` lista o nome de cada coluna, na ordem, e cada '
     + "linha de `entity` traz os valores como `f0`, `f1`, ... nessa ordem, no formato `{ $: 'valor' }`, ou `{}` quando vazio. "
     + '`entity` é uma lista quando a página tem várias linhas e um objeto quando tem uma. Todo valor chega como texto. Cada '
@@ -52,7 +55,8 @@ export const SANKHYA_BUILDER_SKILL: string = [
     + 'nome local da Conexão, e decodifica a resposta como acima. Uma lista que a tela mostra inteira é lida até o fim, e '
     + 'cada página gasta uma das chamadas que o handler tem. '
     + 'Decimais e datas seguem como texto até a tela.',
-  'Um número de documento (`NUMNOTA`) se repete entre tipos de operação, empresas e séries. Filtre pelo tipo de operação '
-    + 'que a pessoa quer e trate os três casos: nenhum documento, um só (mostre-o direto) e vários (a pessoa escolhe). Nunca '
-    + 'assuma que o primeiro resultado é o único.',
+  'Quando a pessoa digita um código para achar um registro (um número de documento, um documento de cadastro, um nome), a '
+    + 'busca pode achar nenhum, um ou vários registros. Trate os três: nenhum tem uma mensagem, um só aparece direto, vários '
+    + 'deixam a pessoa escolher. Nunca assuma que o primeiro resultado é o único. No Sankhya, o número de documento '
+    + '(`NUMNOTA`) se repete entre tipos de operação, empresas e séries, então filtre pelo tipo de operação que a pessoa quer.',
 ].join('\n\n')

@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Output } from '@/conexus/api.gen'
-import { formatDate, formatMoney } from '@/lib/format'
+import { formatDate, formatNumber } from '@/lib/format'
 
-type Order = Output<'listOrders'>[number]
+type Visit = Output<'listVisits'>[number]
 
 // v9: a table declares the features it uses. Sorting and filtering do nothing until registered here,
 // and each row model is a slot of the same object. Keep this at module scope.
@@ -30,7 +30,7 @@ const features = tableFeatures({
   filterFns: { includesString: filterFn_includesString },
 })
 
-const column = createColumnHelper<typeof features, Order>()
+const column = createColumnHelper<typeof features, Visit>()
 
 const columns = column.columns([
   column.accessor('customer', {
@@ -42,18 +42,18 @@ const columns = column.columns([
     ),
   }),
   column.accessor('status', { header: 'Situação' }),
-  column.accessor('total', {
-    header: () => <div className="text-right">Total</div>,
-    cell: (info) => <div className="text-right tabular-nums">{formatMoney(info.getValue())}</div>,
+  column.accessor('minutes', {
+    header: () => <div className="text-right">Minutos</div>,
+    cell: (info) => <div className="text-right tabular-nums">{formatNumber(info.getValue())}</div>,
   }),
-  column.accessor('createdAt', { header: 'Criado em', cell: (info) => formatDate(info.getValue()) }),
+  column.accessor('scheduledAt', { header: 'Agendada para', cell: (info) => formatDate(info.getValue()) }),
 ])
 
 // A fresh [] on every render would rebuild the row models each time.
-const NO_ORDERS: Order[] = []
+const NO_VISITS: Visit[] = []
 
-export function OrdersTable({ orders }: { orders: Order[] | undefined }) {
-  const table = useTable({ features, columns, data: orders ?? NO_ORDERS })
+export function VisitsTable({ visits }: { visits: Visit[] | undefined }) {
+  const table = useTable({ features, columns, data: visits ?? NO_VISITS })
 
   return (
     <div className="space-y-3">
@@ -88,7 +88,7 @@ export function OrdersTable({ orders }: { orders: Order[] | undefined }) {
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  Nenhum pedido com esse filtro.
+                  Nenhuma visita com esse filtro.
                 </TableCell>
               </TableRow>
             )}

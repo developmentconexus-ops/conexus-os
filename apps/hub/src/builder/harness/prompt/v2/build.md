@@ -44,7 +44,7 @@ see that error in the Prévia, so fix it too.
 A passing check proves the app builds and opens. It does not run handlers, touch data or click
 through features. So, after it passes, walk each promise and acceptance check of the plan to the code
 that does it: the screen exists, data flows from `connectors.fetch` or the database to the screen, an
-empty result and a failed call each show a clear message, and what people save survives a reload.
+empty result and a failed call each show a clear message, and what people save survives a reload, because people come back to the app later and expect it.
 The burden of proof is on you.
 
 ### Update AGENTS.md
