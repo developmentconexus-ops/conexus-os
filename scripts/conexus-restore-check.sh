@@ -1,31 +1,23 @@
 #!/usr/bin/env bash
 # Restore a backup folder into a scratch Postgres and a scratch folder, then compare
-# per-table row counts against the source and run git fsck on every restored repository.
+# per-table row counts against the manifest and run git fsck on every restored repository.
+# Never connects to the source database.
 # Prints PASS, or the differences and exits 1.
 set -euo pipefail
 
 usage() {
-  echo "usage: conexus-restore-check.sh --backup DIR --source-container NAME --source-database NAME [--user postgres] [--password-file FILE]" >&2
+  echo "usage: conexus-restore-check.sh --backup DIR" >&2
   exit 2
 }
 
-backup= source_container= source_db= db_user=postgres password_file=
+backup=
 while [ $# -gt 0 ]; do
   case "$1" in
     --backup) backup=${2:-}; shift 2 ;;
-    --source-container) source_container=${2:-}; shift 2 ;;
-    --source-database) source_db=${2:-}; shift 2 ;;
-    --user) db_user=${2:-}; shift 2 ;;
-    --password-file) password_file=${2:-}; shift 2 ;;
     *) usage ;;
   esac
 done
-[ -n "$backup" ] && [ -n "$source_container" ] && [ -n "$source_db" ] || usage
-
-if [ -n "$password_file" ]; then
-  PGPASSWORD="$(cat "$password_file")"
-  export PGPASSWORD
-fi
+[ -n "$backup" ] || usage
 
 scratch_name="conexus-restore-check-$$"
 scratch_dir="$(mktemp -d)"
@@ -38,7 +30,7 @@ cleanup() {
 trap cleanup EXIT
 
 while read -r sha bytes name; do
-  case "$sha" in '#'*) continue ;; esac
+  case "$sha" in '#'*|rows) continue ;; esac
   actual="$(sha256sum "$backup/$name" | cut -d' ' -f1)"
   [ "$actual" = "$sha" ] || failures+=("checksum differs for $name")
 done < "$backup/manifest.txt"
@@ -55,11 +47,11 @@ sleep 1
 docker exec "$scratch_name" createdb -U postgres restored
 docker exec -i "$scratch_name" pg_restore -U postgres -d restored --no-owner --no-privileges --exit-on-error < "$backup/database.dump"
 
-count_sql="SELECT n.nspname || '.' || c.relname, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname), false, true, '')))[1]::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r','p') AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%' ORDER BY 1"
-docker exec -e PGPASSWORD "$source_container" psql -U "$db_user" -d "$source_db" -At -F ' ' -c "$count_sql" > "$scratch_dir/source.counts"
-docker exec "$scratch_name" psql -U postgres -d restored -At -F ' ' -c "$count_sql" > "$scratch_dir/restored.counts"
-if ! diff_out="$(diff "$scratch_dir/source.counts" "$scratch_dir/restored.counts")"; then
-  failures+=("row counts differ (< source, > restored):"$'\n'"$diff_out")
+count_sql="SELECT n.nspname || '.' || c.relname || ' ' || (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', n.nspname, c.relname), false, true, '')))[1]::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r','p') AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%'"
+sed -n 's/^rows //p' "$backup/manifest.txt" | LC_ALL=C sort > "$scratch_dir/manifest.counts"
+docker exec "$scratch_name" psql -U postgres -d restored -At -c "$count_sql" | LC_ALL=C sort > "$scratch_dir/restored.counts"
+if ! diff_out="$(diff "$scratch_dir/manifest.counts" "$scratch_dir/restored.counts")"; then
+  failures+=("row counts differ (< manifest, > restored):"$'\n'"$diff_out")
 fi
 tables="$(wc -l < "$scratch_dir/restored.counts")"
 

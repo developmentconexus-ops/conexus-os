@@ -38,22 +38,26 @@ test.after(() => {
   rmSync(scratch, { recursive: true, force: true })
 })
 
-test('backup then restore check passes, and fails when the source no longer matches', () => {
+test('the backup describes itself: it passes after the source changed and fails on a wrong count', () => {
   void sourceReady
   const backup = sh(script('conexus-backup.sh'), ['--container', SOURCE, '--database', 'app', '--git-root', gitRoot, '--out-root', outRoot])
   assert.equal(backup.status, 0, backup.stderr)
   const [folder] = readdirSync(outRoot)
   const dir = join(outRoot, folder)
   assert.deepEqual(readdirSync(dir).sort(), ['database.dump', 'git.tar.gz', 'manifest.txt'])
-  assert.match(readFileSync(join(dir, 'manifest.txt'), 'utf8'), /^[0-9a-f]{64} {2}\d+ {2}database\.dump$/m)
+  const manifest = readFileSync(join(dir, 'manifest.txt'), 'utf8')
+  assert.match(manifest, /^[0-9a-f]{64} {2}\d+ {2}database\.dump$/m)
+  assert.match(manifest, /^rows public\.notes 3$/m)
+  assert.match(manifest, /^rows public\.tags 2$/m)
 
-  const args = ['--backup', dir, '--source-container', SOURCE, '--source-database', 'app']
+  const args = ['--backup', dir]
+  psql('DELETE FROM notes WHERE id = 3')
   const pass = sh(script('conexus-restore-check.sh'), args)
   assert.equal(pass.stdout.trim(), 'PASS tables=2 repositories=1', pass.stderr)
   assert.equal(pass.status, 0)
 
-  psql("DELETE FROM notes WHERE id = 3")
+  writeFileSync(join(dir, 'manifest.txt'), manifest.replace('rows public.notes 3', 'rows public.notes 4'))
   const fail = sh(script('conexus-restore-check.sh'), args)
   assert.equal(fail.status, 1)
-  assert.equal(fail.stdout.trim(), 'FAIL\nrow counts differ (< source, > restored):\n1c1\n< public.notes 2\n---\n> public.notes 3')
+  assert.equal(fail.stdout.trim(), 'FAIL\nrow counts differ (< manifest, > restored):\n1c1\n< public.notes 4\n---\n> public.notes 3')
 })
