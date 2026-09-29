@@ -181,7 +181,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const store = {
     createBuilderRun: async (input) => {
       calls.push(['create'])
-      return { ...claimed, baseSourceRevision: await input.readBase(), state: 'QUEUED', phase: null }
+      claimed.baseSourceRevision = await input.readBase()
+      return { ...claimed, state: 'QUEUED', phase: null }
     },
     admitSourceRevision: async () => true,
     claimBuilderRun: async () => claimed,
@@ -520,11 +521,16 @@ test('the checkout is seeded from a bundle of the base that root wrote, and hold
   assert.equal(run.commands().some((line) => /https?:\/\/|remote add|credential/.test(line)), false, 'the checkout reaches no remote')
 })
 
-test('the next run discards what a failed run left in the checkout', async (t) => {
+test("a failed turn's files are there at the next turn, and the next turn admits them with its own", async (t) => {
   const seen = []
+  let turns = 0
   const run = await harness(t, {
     turn: ({ checkout }) => {
       seen.push({ index: readFileSync(join(checkout, 'app/index.html'), 'utf8'), files: listFiles(checkout).filter((path) => !path.startsWith('.git/')) })
+      if (turns++ > 0) {
+        writeFileSync(join(checkout, 'app/second.ts'), 'second\n')
+        return completed()
+      }
       writeFileSync(join(checkout, 'stray.txt'), 'left behind\n')
       writeFileSync(join(checkout, 'app/index.html'), '<h1>edited</h1>\n')
       return { reason: 'error', userMessageId: 'user-message', summary: '' }
@@ -532,12 +538,115 @@ test('the next run discards what a failed run left in the checkout', async (t) =
   })
   await run.start()
   assert.equal(await run.settled(), true)
+  const kept = run.mirror()
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  const base = { index: '<h1>base</h1>\n', files: BASE_FILES }
-  assert.deepEqual(seen, [base, base])
-  assert.equal(await run.main(), run.base)
+  assert.deepEqual(seen, [
+    { index: '<h1>base</h1>\n', files: BASE_FILES },
+    { index: '<h1>edited</h1>\n', files: ['AGENTS.md', 'app/index.html', 'stray.txt'] },
+  ])
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.equal(run.inBare('rev-list', '--parents', '-n', '1', result), `${result} ${kept}`)
+  assert.deepEqual(run.inBare('ls-tree', '-r', '--name-only', result).split('\n'), ['AGENTS.md', 'app/index.html', 'app/second.ts', 'stray.txt'])
+})
+
+test("a stopped turn's files are there at the next turn, and a turn that only answers makes them the version", async (t) => {
+  const context = {}
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: async ({ checkout }) => {
+      seen.push(listFiles(checkout).filter((path) => !path.startsWith('.git/')))
+      if (turns++ > 0) return completed('Só uma resposta.')
+      writeFileSync(join(checkout, 'app/stopped.ts'), 'export const stopped = true\n')
+      await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+      return { reason: 'aborted', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  context.run = run
+  await run.start()
+  assert.equal(await run.settled(), true)
+  const kept = run.mirror()
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [BASE_FILES, ['AGENTS.md', 'app/index.html', 'app/stopped.ts']])
+  assert.deepEqual(admissionCalls(run), [['interrupt', 'USER_CANCELLED'], ['candidate', kept], ['advance', kept], ['settleBuild', kept, null]])
+  assert.equal(await run.main(), kept)
+})
+
+// A commit another conversation put on `main`, made the way any writer of the Conexus Git would.
+const commitOnMain = (run, files) => {
+  const work = mkdtempSync(join(tmpdir(), 'conexus-other-conversation-'))
+  try {
+    const git = (...args) => spawnSync('git', args, { cwd: work, encoding: 'utf8', env: GIT_ENV })
+    git('clone', '--quiet', run.bare, '.')
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(work, path)), { recursive: true })
+      writeFileSync(join(work, path), content)
+    }
+    git('add', '--all')
+    git('commit', '--quiet', '-m', 'another conversation')
+    git('push', '--quiet', 'origin', 'HEAD:refs/heads/main')
+    return git('rev-parse', 'HEAD').stdout.trim()
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
+}
+
+test("main that moved meanwhile merges clean into the conversation's files at the next turn", async (t) => {
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      seen.push(listFiles(checkout).filter((path) => !path.startsWith('.git/')))
+      if (turns++ > 0) return completed()
+      writeFileSync(join(checkout, 'app/kept.ts'), 'kept\n')
+      return { reason: 'error', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  const kept = run.mirror()
+  const other = commitOnMain(run, { 'app/other.ts': 'other\n' })
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [BASE_FILES, ['AGENTS.md', 'app/index.html', 'app/kept.ts', 'app/other.ts']])
+  const merge = await run.main()
+  assert.equal(run.inBare('rev-list', '--parents', '-n', '1', merge), `${merge} ${kept} ${other}`)
+  assert.equal(run.mirror(), merge)
+  assert.deepEqual(run.sessions.at(-1), { projectId, conversationId, mirrorHead: merge, syncedMain: other, turnEnded: true })
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [])
+})
+
+test('a conflict with main is left in the checkout with its markers, and the turn resolves it and proceeds', async (t) => {
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      seen.push(readFileSync(join(checkout, 'app/index.html'), 'utf8'))
+      if (turns++ > 0) {
+        writeFileSync(join(checkout, 'app/index.html'), '<h1>resolved</h1>\n')
+        return completed()
+      }
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>mine</h1>\n')
+      return { reason: 'error', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  commitOnMain(run, { 'app/index.html': '<h1>theirs</h1>\n' })
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(seen[0], '<h1>base</h1>\n')
+  assert.match(seen[1], /^<<<<<<< [0-9a-f]{40}\n<h1>mine<\/h1>\n=======\n<h1>theirs<\/h1>\n>>>>>>> [0-9a-f]{40}\n$/)
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [`BUILDER_TURN_START_CONFLICT:${runId}:app/index.html`])
+  assert.equal(await run.main(), run.result())
+  assert.equal(run.inBare('show', `${run.result()}:app/index.html`), '<h1>resolved</h1>')
 })
 
 test('an admission that finds main already at the candidate counts it admitted', async (t) => {
@@ -629,7 +738,7 @@ test('an agent that aborts with no stop from the person fails with a named reaso
   assert.equal(await run.main(), run.base)
 })
 
-test('a run that reached the agent and admitted nothing leaves one note that its edits were discarded at the base', async (t) => {
+test('a run that reached the agent and admitted nothing leaves one note that its files are kept, with main still at the base', async (t) => {
   const run = await harness(t, { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: 'Concluído.' }) })
   await run.start()
   await run.service.close()
@@ -639,7 +748,7 @@ test('a run that reached the agent and admitted nothing leaves one note that its
   }])
 })
 
-test('a run the person stopped during the agent turn also leaves the discarded note', async (t) => {
+test('a run the person stopped during the agent turn also leaves the note that its files are kept', async (t) => {
   const context = {}
   const run = await harness(t, {
     turn: async () => {
@@ -1068,7 +1177,7 @@ test('a turn the person stops keeps its file in the mirror, written at the turn 
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.deepEqual(run.mirrorFiles(), ['AGENTS.md', 'app/index.html', 'app/stopped.ts'])
-  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: run.mirror(), turnEnded: true }])
+  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: run.mirror(), syncedMain: run.base, turnEnded: true }])
   assert.equal(await run.main(), run.base)
 })
 
@@ -1090,7 +1199,7 @@ test('an admitted turn moves the mirror to its candidate without a second bundle
   assert.equal(await run.main(), result)
   assert.equal(run.mirror(), result)
   assert.equal(run.commands().some((line) => line.includes('conexus-mirror')), false)
-  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: result, turnEnded: true }])
+  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: result, syncedMain: run.base, turnEnded: true }])
 })
 
 test('a turn that changed nothing leaves the conversation without a mirror', async (t) => {

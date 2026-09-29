@@ -32,7 +32,7 @@ export type RunNote = Readonly<{
   builderRunId: string
   code: string
   outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'CANDIDATE_REFUSED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET' | 'BOOT_PROBLEMS'
-  // The revision the files are at after the run: its base when discarded, its result when admitted.
+  // `main` after the run: its base when nothing was admitted, its result when admitted.
   sourceRevision: string
   // The Project's own diagnostic, such as the database's error for its migration.
   detail?: string
@@ -122,7 +122,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
     }
     // A run whose agent ran has tool calls in its conversation thread until its source is
-    // admitted; if it never is, the thread gets a note that those edits were discarded.
+    // admitted; if it never is, the thread gets a note that its files are kept for the next turn.
     let unadmittedAgentRun: BuilderRunSummary | null = null
     let candidateRecorded = false
     const work = (async () => {
@@ -143,7 +143,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
           candidateRecorded = true
         },
-        recordMirror: (head: string) => store.recordConversationSession({ projectId: claimed.projectId, conversationId: claimed.conversationId, mirrorHead: head, turnEnded: true }),
+        recordMirror: (head: string) => store.recordConversationSession({ projectId: claimed.projectId, conversationId: claimed.conversationId, mirrorHead: head, syncedMain: claimed.baseSourceRevision, turnEnded: true }),
       })
       if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
       if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
@@ -205,14 +205,14 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         reconcileSoon()
         return
       }
-      const discarded: BuilderRunSummary | null = unadmittedAgentRun
-      if (discarded) {
+      const unadmitted: BuilderRunSummary | null = unadmittedAgentRun
+      if (unadmitted) {
         // A refused candidate says why, so the next turn in this conversation can fix it.
         const refused = error instanceof CandidateRefused ? error : null
         await runs.appendDiagnostic({
-          projectId: discarded.projectId, conversationId: discarded.conversationId, builderRunId: discarded.builderRunId, code,
+          projectId: unadmitted.projectId, conversationId: unadmitted.conversationId, builderRunId: unadmitted.builderRunId, code,
           outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
-          sourceRevision: discarded.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
+          sourceRevision: unadmitted.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
         }).catch(() => undefined)
       }
       // Only the operator's cancellation aborts this controller, and what the abort surfaces depends

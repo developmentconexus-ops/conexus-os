@@ -317,7 +317,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                 <p>Outra conversa mudou o app antes. Nada foi sobrescrito.</p>
                 <Button size="sm" onClick={() => setDraft(runHere.requestText ?? '')}>Enviar de novo sobre a versão atual</Button>
               </div>}
-              {(settledHere?.outcome === 'STOPPED' || settledHere?.outcome === 'DISCARDED') && <p className="cx-note-line">As alterações desta execução não foram aplicadas.</p>}
+              {(settledHere?.outcome === 'STOPPED' || settledHere?.outcome === 'DISCARDED') && <p className="cx-note-line">As alterações desta execução não foram aplicadas, mas os arquivos ficaram guardados nesta conversa e seguem no próximo pedido.</p>}
             </MessageScrollerItem>
           </ChatShell.Column>
         </ChatShell.Content>

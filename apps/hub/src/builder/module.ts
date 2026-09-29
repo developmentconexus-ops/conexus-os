@@ -113,22 +113,22 @@ export const createBuilderObservabilityLifecycle = (
 const diagnosticMessageId = (builderRunId: string, code: string): string =>
   createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
 
-// The next turn reads this thread, and a discarded run's tool calls in it describe edits the files
-// no longer have, so the note is written for the agent as much as for the person.
-const discarded = (sourceRevision: string): string =>
-  `As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${sourceRevision}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico.`
+// The next turn reads this thread, and an unadmitted run's tool calls in it describe edits that are
+// in the conversation's files but not on `main`, so the note is written for the agent as much as for the person.
+const kept = (sourceRevision: string): string =>
+  `Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${sourceRevision}. Leia os arquivos antes de confiar neste histórico.`
 
 const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>> = Object.freeze({
   SOURCE_BASE_MOVED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele começará da versão atual da fonte.`,
+    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${kept(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele juntará os arquivos desta conversa com a versão atual da fonte.`,
   RUN_NOT_FINISHED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
+    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.`,
   BUILD_FAILED: ({ builderRunId, code, detail }) =>
     `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
   PLATFORM_FAILED: ({ builderRunId, code }) =>
     `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
   CANDIDATE_REFUSED: ({ builderRunId, code, detail, sourceRevision }) =>
-    `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
+    `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
   BOOT_PROBLEMS: ({ builderRunId, detail }) =>
     `A execução ${builderRunId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas.${detail ? ` Detalhe: ${detail}` : ''} Corrija isso na próxima execução.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>

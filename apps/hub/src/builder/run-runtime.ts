@@ -67,7 +67,7 @@ export type BuilderRunPorts = Readonly<{
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
   checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<void>
-  git: Pick<ConexusGit, 'seedBundle' | 'acceptSnapshot' | 'readMirror' | 'moveMirror' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
+  git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
   /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
   mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
@@ -316,10 +316,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
 
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      const mirrorHead = await ports.git.readMirror(input.projectId, input.conversationId)
-      await seedSandbox({ git: ports.git, projectId: input.projectId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
+      // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
+      const turnStart = await ports.git.startTurn(input.projectId, input.conversationId, base)
+      if (turnStart.conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
+      await seedSandbox({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
       mirror = createTurnMirror({
-        git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: base, head: mirrorHead,
+        git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,
         source, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
       })
       mirrorAfterEdits(sandbox.workspace, mirror)
@@ -365,10 +367,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
 
-      const result = await pullSnapshot({
-        git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, base),
+      // A turn that changed nothing still offers the files it started from when they are not on `main`.
+      const changed = await pullSnapshot({
+        git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
         scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED,
       })
+      const result = changed ?? (turnStart.start === base ? null : turnStart.start)
       await endMirror(result)
       const scope = {
         runtimeId: 'conexus-builder-e2b-v1' as const,

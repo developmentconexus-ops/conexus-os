@@ -42,27 +42,27 @@ const conversationThread = async () => {
   return { appendDiagnostic, texts }
 }
 
-test('a run whose edits were discarded leaves exactly one note in its conversation, and a retried append does not add a second', async () => {
+test('a run that kept its files unadmitted leaves exactly one note in its conversation, and a retried append does not add a second', async () => {
   const { appendDiagnostic, texts } = await conversationThread()
   const note = { projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: 'd'.repeat(40) }
   await appendDiagnostic(note)
   await appendDiagnostic(note)
   assert.deepEqual(await texts(), [['assistant',
-    `A execução ${runId} não terminou e nada dela foi aplicado. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_MODEL_INCOMPLETE.`]])
+    `A execução ${runId} não terminou e nada dela foi aplicado. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_MODEL_INCOMPLETE.`]])
 })
 
-test('a run that lost the compare-and-swap says its edits were discarded and the next request starts from the current source', async () => {
+test('a run that lost the compare-and-swap says its files are kept and the next request joins them with the current source', async () => {
   const { appendDiagnostic, texts } = await conversationThread()
   await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: 'd'.repeat(40) })
   assert.deepEqual(await texts(), [['assistant',
-    `A execução ${runId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_SOURCE_BASE_MOVED. Envie o pedido novamente: ele começará da versão atual da fonte.`]])
+    `A execução ${runId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_SOURCE_BASE_MOVED. Envie o pedido novamente: ele juntará os arquivos desta conversa com a versão atual da fonte.`]])
 })
 
 test("a refused candidate's note says why, so the next turn in the conversation can fix it (AC-9)", async () => {
   const { appendDiagnostic, texts } = await conversationThread()
   await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_AGENTS_MD_REFUSED', outcome: 'CANDIDATE_REFUSED', sourceRevision: 'd'.repeat(40), detail: 'AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB.' })
   assert.deepEqual(await texts(), [['assistant',
-    `A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${'d'.repeat(40)}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_AGENTS_MD_REFUSED. Motivo: AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB. Corrija isso na próxima execução.`]])
+    `A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_AGENTS_MD_REFUSED. Motivo: AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB. Corrija isso na próxima execução.`]])
 })
 
 test('boot problems in an admitted app tell the next turn what the page did, and that the Preview is up', async () => {

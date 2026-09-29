@@ -27,6 +27,15 @@ export type GitChange = Readonly<{ status: string; path: string; previousPath: s
  */
 export type Snapshot = Readonly<{ ref: string; parent: string }>
 
+/**
+ * Where a conversation's turn starts (spec 0002 amendment, B2). `main` is the `main` the turn brings
+ * in, and `start` is the commit the checkout holds when the agent starts, the parent of every
+ * snapshot of the turn: `main` itself, the mirror head when it already holds `main`, or a Hub-made
+ * merge of the two that the mirror then points at. `mirror` is the mirror's head after that, and
+ * `conflicted` names the paths the merge left with conflict markers for the agent to resolve.
+ */
+export type TurnStart = Readonly<{ conversationId: string; main: string; start: string; mirror: string | null; conflicted: readonly string[] }>
+
 const OID = /^[0-9a-f]{40}$/
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const PROJECT_ID = new RegExp(`^${UUID_PATTERN}$`)
@@ -55,7 +64,9 @@ const gitEnvironment = (extra: Readonly<Record<string, string>> = {}): NodeJS.Pr
   ...extra,
 })
 
-const runGit = (args: readonly string[], options: Readonly<{ input?: Uint8Array | string; env?: Readonly<Record<string, string>> }> = {}): Promise<Buffer> =>
+// `answers` names the exit codes besides 0 that are an answer rather than a failure, as 1 is for a
+// merge with conflicts.
+const runGit = (args: readonly string[], options: Readonly<{ input?: Uint8Array | string; env?: Readonly<Record<string, string>>; answers?: readonly number[] }> = {}): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', ...args], { env: gitEnvironment(options.env), stdio: ['pipe', 'pipe', 'pipe'] })
     const stdout: Buffer[] = []
@@ -69,7 +80,7 @@ const runGit = (args: readonly string[], options: Readonly<{ input?: Uint8Array 
     child.stderr.on('data', (chunk: Buffer) => { stderr.push(chunk) })
     child.on('error', reject)
     child.on('close', (code) => {
-      if (code === 0 && size <= MAX_OUTPUT_BYTES) resolve(Buffer.concat(stdout))
+      if ((code === 0 || options.answers?.includes(code ?? -1)) && size <= MAX_OUTPUT_BYTES) resolve(Buffer.concat(stdout))
       else reject(new GitCommandError(code ?? -1, Buffer.concat(stderr).toString('utf8')))
     })
     child.stdin.on('error', () => undefined)
@@ -169,12 +180,39 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 
     readMain,
 
-    /** A bundle of `main` whose tip is `base`, for a run to fetch into its sandbox. */
-    seedBundle: async (projectId: string, base: string): Promise<Buffer> => {
-      const bundle = await git(projectId, ['bundle', 'create', '--quiet', '-', MAIN])
+    /**
+     * Brings `main` into the conversation's mirror at the start of a turn. A mirror that already
+     * holds `main` is the start as it is; one `main` already holds is left for the turn's first
+     * snapshot to replace. Otherwise the Hub merges the two here and the mirror moves to the merge,
+     * conflicts and their markers included: the agent resolves them as ordinary work.
+     */
+    startTurn: async (projectId: string, conversationId: string, main: string): Promise<TurnStart> => {
+      if (!OID.test(main)) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+      const ref = mirrorRef(conversationId)
+      const mirror = await readRef(projectId, ref)
+      const isAncestor = (ancestor: string, descendant: string): Promise<boolean> => succeeds(git(projectId, ['merge-base', '--is-ancestor', ancestor, descendant]))
+      if (!mirror || await isAncestor(mirror, main)) return { conversationId, main, start: main, mirror, conflicted: [] }
+      if (await isAncestor(main, mirror)) return { conversationId, main, start: mirror, mirror, conflicted: [] }
+      const [tree = '', ...conflicted] = (await git(projectId, ['merge-tree', '--write-tree', '--name-only', '-z', '--no-messages', mirror, main], { answers: [1] }))
+        .toString('utf8').split('\0').filter(Boolean)
+      const merge = requireOid(await text(git(projectId, [
+        '-c', `user.name=${BUILDER_IDENTITY.name}`, '-c', `user.email=${BUILDER_IDENTITY.email}`,
+        'commit-tree', requireOid(tree, 'CONEXUS_GIT_MERGE_REFUSED'), '-p', mirror, '-p', main, '-m', 'Bring main into the conversation',
+      ])), 'CONEXUS_GIT_MERGE_REFUSED')
+      await moveRef(projectId, ref, merge, mirror)
+      return { conversationId, main, start: merge, mirror: merge, conflicted }
+    },
+
+    /**
+     * A bundle of `main` at the turn's `main` and, when the turn starts elsewhere, of the
+     * conversation's mirror at its start, for a run to fetch into its sandbox. It carries no other ref.
+     */
+    seedBundle: async (projectId: string, { conversationId, main, start }: TurnStart): Promise<Buffer> => {
+      const refs = start === main ? [`${main} ${MAIN}`] : [`${main} ${MAIN}`, `${start} ${mirrorRef(conversationId)}`]
+      const bundle = await git(projectId, ['bundle', 'create', '--quiet', '-', ...refs.map((line) => line.slice(41))])
       const header = bundle.subarray(0, bundle.indexOf('\n\n')).toString('utf8').split('\n')
-      const refs = header.filter((line) => /^[0-9a-f]{40} /.test(line))
-      if (refs.length !== 1 || refs[0] !== `${base} ${MAIN}`) throw new Error('BUILDER_SOURCE_BASE_MOVED')
+      const carried = header.filter((line) => /^[0-9a-f]{40} /.test(line)).sort()
+      if (carried.join('\n') !== [...refs].sort().join('\n')) throw new Error('BUILDER_SOURCE_BASE_MOVED')
       return bundle
     },
 
@@ -309,27 +347,29 @@ const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 const evidence = (value: string): string => value.slice(-2_000)
 
 /**
- * Puts the run's base in the sandbox's checkout: the Hub bundles `main`, the sandbox fetches that
- * bundle, and the checkout is reset to exactly the base, discarding whatever an earlier run left.
+ * Puts the turn's start in the sandbox's checkout: the Hub bundles `main` and, when the turn starts
+ * from the conversation's mirror, the mirror too; the sandbox fetches that bundle, and the checkout
+ * is reset to exactly the start.
  */
-export const seedSandbox = async ({ git, projectId, base, sandbox, checkout, seedFile }: Readonly<{
+export const seedSandbox = async ({ git, projectId, turn, sandbox, checkout, seedFile }: Readonly<{
   git: Pick<ConexusGit, 'seedBundle'>
   projectId: string
-  base: string
+  turn: TurnStart
   sandbox: RunSourceSandbox
   checkout: string
   seedFile: string
 }>): Promise<void> => {
-  await sandbox.writeRootFile(seedFile, await git.seedBundle(projectId, base))
+  await sandbox.writeRootFile(seedFile, await git.seedBundle(projectId, turn))
+  const fetched = [`'+${MAIN}:refs/conexus/base'`, ...(turn.start === turn.main ? [] : [quoted(`+${mirrorRef(turn.conversationId)}:refs/conexus/start`)])]
   const seeded = await sandbox.direct('sh', ['-c', [
     'set -e',
     `mkdir -p ${quoted(checkout)}`,
     `cd ${quoted(checkout)}`,
     'test -d .git || git init --quiet',
-    `git fetch --quiet --no-tags ${quoted(seedFile)} '+${MAIN}:refs/conexus/base'`,
-    `git checkout --quiet --force -B main ${quoted(base)}`,
+    `git fetch --quiet --no-tags ${quoted(seedFile)} ${fetched.join(' ')}`,
+    `git checkout --quiet --force -B main ${quoted(turn.start)}`,
     'git clean -fdq',
-    `test "$(git rev-parse HEAD)" = ${quoted(base)}`,
+    `test "$(git rev-parse HEAD)" = ${quoted(turn.start)}`,
   ].join('\n')])
   if (seeded.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { exitCode: seeded.exitCode, stderr: evidence(seeded.stderr) } })
 }
