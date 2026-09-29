@@ -742,14 +742,14 @@ test('a generated file the agent wrote never reaches Git, and a file beside it d
   ])
 })
 
-test('a boot problem that leaves the page rendered keeps the Preview and reaches the Hub log', async (t) => {
-  const problems = [{ code: 'BOOT_CSP_VIOLATION', message: "Loading the stylesheet 'https://fonts.googleapis.com/css2' violates the following Content Security Policy directive: \"style-src 'self'\"." }]
+test('a boot problem that leaves the page rendered keeps the Preview, reaches the Hub log and tells the next turn', async (t) => {
+  const problems = [{ code: 'BOOT_CONSOLE_ERROR', message: 'console.error: Failed to load notes' }]
   const run = await harness(t, { buildReport: failedReport('boot', problems) })
   await run.start()
   await run.service.close()
   const result = run.result()
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', result], ['settleBuild', result, null]])
-  assert.deepEqual(run.diagnostics, [])
+  assert.deepEqual(run.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', `boot failed:\nBOOT_CONSOLE_ERROR console.error: Failed to load notes`]])
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK_BOOT_PROBLEMS:')), [`BUILDER_CHECK_BOOT_PROBLEMS:${runId}:${JSON.stringify(problems)}`])
 })
 

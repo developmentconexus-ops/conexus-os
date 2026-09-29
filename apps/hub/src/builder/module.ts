@@ -123,6 +123,8 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
   CANDIDATE_REFUSED: ({ builderRunId, code, detail, sourceRevision }) =>
     `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
+  BOOT_PROBLEMS: ({ builderRunId, detail }) =>
+    `A execução ${builderRunId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas.${detail ? ` Detalhe: ${detail}` : ''} Corrija isso na próxima execução.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })

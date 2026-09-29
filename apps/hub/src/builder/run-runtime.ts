@@ -301,13 +301,14 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         const refused = refusingStep(built.report)
         const notBooting = unrenderedBootStep(built.report)
         const bootProblems = failedBootStep(built.report)
-        if (bootProblems && !notBooting) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(bootProblems.problems).slice(0, 2_000)}`)
+        const renderedWithProblems = bootProblems && !notBooting ? bootProblems : null
+        if (renderedWithProblems) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(renderedWithProblems.problems).slice(0, 2_000)}`)
         if (refused) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_COMPILATION_FAILED', detail: failedStepEvidence(refused) }
         else if (notBooting) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_FAILED', detail: failedStepEvidence(notBooting) }
         else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
-        } }
+        }, ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
         else throw new Error('APPLICATION_CHECK_UNREADABLE')
       } catch (error) {
         const code = error instanceof Error ? error.message : ''
