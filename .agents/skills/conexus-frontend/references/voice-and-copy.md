@@ -46,7 +46,8 @@ Cada ferramenta vira uma frase simples, com uma forma enquanto roda e outra quan
 
 - "Lendo um arquivo" → "Leu um arquivo"
 - "Executando um comando" → "Executou um comando"
-- As chamadas se agrupam como "4 ações concluídas". Um passo que falhou mantém o ponto redondo e a palavra "falhou".
+- Três ou mais chamadas seguidas viram uma linha. Rodando, ela nomeia a chamada atual e mostra "2/5". Terminada, diz o que foi feito: "Editou 4 arquivos, executou 1 comando". Uma ou duas chamadas são linhas próprias. Uma chamada que falhou entra na linha como "1 falhou".
+- O raciocínio do modelo aparece só como "Pensando…" enquanto chega, e some depois: o resumo vem no idioma do provedor.
 - Pedido de permissão: "O agente quer executar um comando: `npm install date-fns`. Permitir?" A aprovação oferece só **Permitir** e **Recusar**. Nada que amplie a política.
 
 Ao ligar uma ferramenta nova, adicione a frase dela em `tool-sentences.ts`. Não mostre o nome técnico da ferramenta no lugar da frase.

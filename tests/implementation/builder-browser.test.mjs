@@ -1078,9 +1078,9 @@ test('a reply the controller finalizes under a different id than its live stream
 
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
     'the persisted reply renders once, not once per message id it happened to carry')
-  assert.equal(await page.locator('.cx-tool-group summary').count(), 1,
+  assert.equal(await page.locator('.cx-tool-trigger').count(), 1,
     'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
-  await page.locator('.cx-tool-group summary').getByText('6 ações concluídas', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Leu 2 arquivos, editou 2 arquivos, executou 2 comandos', exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
@@ -1144,7 +1144,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   // the in-progress task by its activeForm.
   await page.getByText('Tarefas · 1 de 3', { exact: true }).waitFor()
   await page.getByTestId('task-list').getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
-  assert.equal(await page.locator('.cx-tool-group').count(), 0, 'task_write drives the checklist, not a conversation row')
+  assert.equal(await page.locator('.cx-tool-trigger').count(), 0, 'task_write drives the checklist, not a conversation row')
 
   // AskUser renders the agent's own options as radio controls (single_select), not the old
   // hand-made free-text textarea (that one lived in .cx-pending, gone with the swap; the
@@ -1218,18 +1218,82 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
-test('a reasoning summary reads as running text under a small header, outside any tool disclosure', async (t) => {
-  const reasoning = { type: 'reasoning', reasoning: 'Vou ler o arquivo antes de mudar.', details: [{ type: 'text', text: 'Vou ler o arquivo antes de mudar.' }] }
+const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
+
+test('a reasoning part still streaming is one "Pensando…" line and never the provider\'s own summary', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-1', 'Certo.') },
-    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoning } },
-    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 2, part: { type: 'text', text: 'Pronto.' } } },
+    { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoningPart } },
   ])
-  const block = page.locator('.cx-messages .cx-reasoning')
-  await block.waitFor()
-  assert.equal(await block.locator('.cx-reasoning-head').textContent(), 'Raciocínio')
-  assert.equal(await block.getByText('Vou ler o arquivo antes de mudar.', { exact: true }).isVisible(), true, 'the text is on screen without opening anything')
-  assert.equal(await block.evaluate((node) => node.closest('details, [data-state]') === null && node.querySelector('button') === null), true, 'it is not wrapped in a disclosure')
+  await page.getByText('Pensando…', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'the English summary is not on screen')
+})
+
+test('a reasoning part that settled leaves nothing in the thread', async (t) => {
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('live-reasoning-2', 'Certo.') },
+    { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 1, part: reasoningPart } },
+    { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 2, part: { type: 'text', text: 'Pronto.' } } },
+  ])
+  await page.locator('.cx-messages').getByText('Pronto.', { exact: true }).waitFor()
+  assert.equal(await page.getByText('Pensando…').count(), 0)
+  assert.equal(await page.getByText('Planning schema validation').count(), 0)
+})
+
+const toolPart = (id, toolName, args, state = 'result', result = 'ok') => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state, args, result } })
+const streamParts = (id, parts) => [
+  { type: 'message_start', message: assistantMessage(id, 'Vou trabalhar.') },
+  ...parts.map((part, index) => ({ type: 'message_update', id, event: { type: 'part', index: index + 1, part } })),
+]
+
+test('one or two tool calls are plain rows and three or more fold into one line that says what they did', async (t) => {
+  const two = await openLiveTurn(t, streamParts('rows-two', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('b', 'read_file', { path: 'app/src/b.ts' }),
+  ]))
+  await two.getByRole('button', { name: 'Editou um arquivo app/src/a.ts' }).waitFor()
+  await two.getByRole('button', { name: 'Leu um arquivo app/src/b.ts' }).waitFor()
+
+  const four = await openLiveTurn(t, streamParts('rows-four', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('b', 'edit_file', { path: 'app/src/b.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('c', 'edit_file', { path: 'app/src/c.ts', old_str: 'x', new_str: 'y' }),
+    toolPart('d', 'execute_command', { command: 'npm test' }),
+  ]))
+  await four.getByRole('button', { name: 'Editou 3 arquivos, executou 1 comando', exact: true }).waitFor()
+  assert.equal(await four.locator('.cx-tool-trigger').count(), 1, 'the four calls are one line until it is opened')
+})
+
+test('a running group names the call in progress and how many are done', async (t) => {
+  const page = await openLiveTurn(t, streamParts('rows-running', [
+    toolPart('a', 'read_file', { path: 'app/src/a.ts' }),
+    toolPart('b', 'read_file', { path: 'app/src/b.ts' }),
+    toolPart('c', 'read_file', { path: 'app/src/c.ts' }),
+    toolPart('d', 'edit_file', { path: 'app/src/lib/format.ts', old_str: 'x', new_str: 'y' }, 'call'),
+  ]))
+  const header = page.getByRole('button', { name: /Editando um arquivo/ })
+  await header.waitFor()
+  assert.equal((await header.textContent()).replace(/\s+/g, ' ').trim(), 'Editando um arquivoapp/src/lib/format.ts3/4')
+})
+
+// Mastra's ToolCall trigger takes its border and padding from Tailwind's reset. styles.css puts a
+// default on every bare <button> in the same cascade layer, after it, so it landed on the row and made
+// it a bordered card about 50 px tall.
+test('an opened tool row is a borderless line, and its body is the diff or the command with a short output', async (t) => {
+  const longOutput = 'linha '.repeat(400)
+  const page = await openLiveTurn(t, streamParts('rows-open', [
+    toolPart('a', 'edit_file', { path: 'app/src/a.ts', old_str: 'antigo', new_str: 'novo' }, 'result', 'Editado com sucesso e o arquivo inteiro de volta'),
+    toolPart('b', 'execute_command', { command: 'npm test' }, 'result', longOutput),
+  ]))
+  const edit = page.getByRole('button', { name: 'Editou um arquivo app/src/a.ts' })
+  await edit.click()
+  const box = await edit.evaluate((node) => ({ height: node.getBoundingClientRect().height, border: getComputedStyle(node).borderTopWidth, padding: getComputedStyle(node).paddingTop }))
+  assert.deepEqual(box, { height: 26, border: '0px', padding: '0px' })
+  assert.equal(await page.getByText('Editado com sucesso').count(), 0, 'an edit shows its diff, not the result echoed back')
+
+  await page.getByRole('button', { name: 'Executou um comando npm test' }).click()
+  const output = await page.locator('pre').filter({ hasText: 'linha linha' }).textContent()
+  assert.equal(output.length, 801, 'a command shows 800 characters of its output and an ellipsis')
 })
 
 // @mastra/core 1.71 announces a text span that opens after a tool call as its own empty part before
@@ -1244,7 +1308,7 @@ test('text streamed after a tool call renders after it, not appended to the text
   ])
   const body = page.locator('.cx-messages .builder-turn-assistant .builder-turn-body')
   await body.getByText('Depois', { exact: true }).waitFor()
-  assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-group') ? 'tool' : child.textContent.trim())),
+  assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-rows') ? 'tool' : child.textContent.trim())),
     ['Antes', 'tool', 'Depois'])
 })
 
