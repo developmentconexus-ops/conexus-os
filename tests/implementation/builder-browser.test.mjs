@@ -1078,7 +1078,7 @@ test('a reply the controller finalizes under a different id than its live stream
 
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
     'the persisted reply renders once, not once per message id it happened to carry')
-  assert.equal(await page.locator('.cx-tool-trigger').count(), 1,
+  assert.equal(await page.locator('.builder-turn-body button').count(), 1,
     'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
   await page.getByRole('button', { name: 'Leu 2 arquivos, editou 2 arquivos, executou 2 comandos', exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
@@ -1144,7 +1144,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   // the in-progress task by its activeForm.
   await page.getByText('Tarefas · 1 de 3', { exact: true }).waitFor()
   await page.getByTestId('task-list').getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
-  assert.equal(await page.locator('.cx-tool-trigger').count(), 0, 'task_write drives the checklist, not a conversation row')
+  assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'task_write drives the checklist, not a conversation row')
 
   // AskUser renders the agent's own options as radio controls (single_select), not the old
   // hand-made free-text textarea (that one lived in .cx-pending, gone with the swap; the
@@ -1261,7 +1261,7 @@ test('one or two tool calls are plain rows and three or more fold into one line 
     toolPart('d', 'execute_command', { command: 'npm test' }),
   ]))
   await four.getByRole('button', { name: 'Editou 3 arquivos, executou 1 comando', exact: true }).waitFor()
-  assert.equal(await four.locator('.cx-tool-trigger').count(), 1, 'the four calls are one line until it is opened')
+  assert.equal(await four.locator('.builder-turn-body button').count(), 1, 'the four calls are one line until it is opened')
 })
 
 test('a running group names the call in progress and how many are done', async (t) => {
@@ -1279,6 +1279,28 @@ test('a running group names the call in progress and how many are done', async (
 // Mastra's ToolCall trigger takes its border and padding from Tailwind's reset. styles.css puts a
 // default on every bare <button> in the same cascade layer, after it, so it landed on the row and made
 // it a bordered card about 50 px tall.
+// The plain-button look (border, padding, fill) is the default of a <button> with no class. A part of
+// Mastra's carries classes, so it takes its look from the library, with no override of ours.
+test('a Mastra tool row takes no border or padding from the app, and only a classless button gets the plain look', async (t) => {
+  const page = await openLiveTurn(t, streamParts('rows-default', [toolPart('a', 'read_file', { path: 'app/src/a.ts' })]))
+  const row = page.getByRole('button', { name: 'Leu um arquivo app/src/a.ts' })
+  await row.waitFor()
+  const looks = await page.evaluate(() => {
+    const look = (node) => { const cs = getComputedStyle(node); return { border: cs.borderTopWidth, padding: cs.paddingTop, radius: cs.borderTopLeftRadius, fill: cs.backgroundColor } }
+    const row = document.querySelector('.builder-turn-body button')
+    const plain = document.body.appendChild(document.createElement('button'))
+    const classed = document.body.appendChild(document.createElement('button'))
+    classed.className = 'anything'
+    return { row: look(row), rowClasses: [...row.classList].filter((name) => name.startsWith('cx-')), plain: look(plain), classed: look(classed) }
+  })
+  assert.deepEqual(looks, {
+    row: { border: '0px', padding: '0px', radius: '6px', fill: 'rgba(0, 0, 0, 0)' },
+    rowClasses: [],
+    plain: { border: '1px', padding: '11.2px', radius: '8.8px', fill: 'rgb(255, 255, 255)' },
+    classed: { border: '0px', padding: '0px', radius: '0px', fill: 'rgba(0, 0, 0, 0)' },
+  })
+})
+
 test('an opened tool row is a borderless line, and its body is the diff or the command with a short output', async (t) => {
   const longOutput = 'linha '.repeat(400)
   const page = await openLiveTurn(t, streamParts('rows-open', [

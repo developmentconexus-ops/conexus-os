@@ -55,7 +55,7 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
   const resultText = result === undefined ? '' : stringifyToolValue(result)
   const output = presentation.command ? (state === 'running' ? live?.shellOutput ?? live?.partialResult ?? '' : resultText) : state === 'failed' ? resultText : ''
   return <ToolCall status={state === 'done' ? 'idle' : state === 'failed' ? 'error' : 'running'}>
-    <ToolCallTrigger className="cx-tool-trigger">
+    <ToolCallTrigger>
       <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, state === 'running')} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
     </ToolCallTrigger>
     <ToolCallContent>
@@ -108,7 +108,7 @@ function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPa
   const presentation = current && presentTool(current.toolInvocation.toolName, current.toolInvocation.args)
   const failed = states.filter((state) => state === 'failed').length
   return <ToolCall status={current ? 'running' : 'idle'}>
-    <ToolCallTrigger className="cx-tool-trigger">
+    <ToolCallTrigger>
       <ToolCallHeader>
         <ToolCallIcon>{presentation ? <presentation.icon size={14} strokeWidth={1.75} className="text-icon2" aria-hidden="true" /> : <Check size={14} className="cx-tool-group-check" aria-hidden="true" />}</ToolCallIcon>
         <ToolCallLabel className="max-w-full">{current ? toolSentence(current.toolInvocation.toolName, true) : groupSummary(parts.map((part) => part.toolInvocation.toolName), failed)}</ToolCallLabel>
