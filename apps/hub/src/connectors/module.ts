@@ -16,11 +16,12 @@ import type { ToolPayloadProjection } from './fetch-projection.js'
 import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
+import type { Destination } from './model.js'
 import { createConnectorObservability } from './record.js'
 import type { CheckConnection, CheckConnectionOutcome } from './routes.js'
 import { registerConnectorRoutes } from './routes.js'
 import { sankhyaDefinition } from './sankhya/definition.js'
-import { createSankhyaGateway, pinnedGatewayOrigin } from './sankhya/gateway.js'
+import { SANKHYA_DESTINATION_ORIGINS, createSankhyaGateway } from './sankhya/gateway.js'
 import { scopeFromArtifactSource } from './scope.js'
 import { createBrokerStore, createConnectorStore } from './store.js'
 
@@ -61,7 +62,7 @@ export const createConnectorModule = ({
   origin,
   resolveCurrentSession,
   isInstallationAdministrator,
-  gatewayOrigin,
+  sankhyaDestinations,
   socketDirectory,
   log = (line) => { process.stderr.write(line) },
 }: Readonly<{
@@ -72,15 +73,18 @@ export const createConnectorModule = ({
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
-  /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
-  gatewayOrigin?: string | undefined
+  /** The Sankhya destinations this installation enables; a Connection of another answers CONNECTOR_UNCONFIGURED with no network. */
+  sankhyaDestinations: readonly Destination[]
   socketDirectory?: string | undefined
   log?: (line: string) => void
 }>): ConnectorModule => {
   const store = createConnectorStore({ pool, envelope })
   const brokerStore = createBrokerStore(pool)
   const registeredConnectors: readonly RegisteredConnector[] = [
-    { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
+    {
+      definition: sankhyaDefinition,
+      adapters: Object.fromEntries(sankhyaDestinations.map((destination) => [destination, createSankhyaGateway({ origin: SANKHYA_DESTINATION_ORIGINS[destination] })])),
+    },
   ]
   const observability = createConnectorObservability({
     store: new MastraStorageExporter(),
@@ -95,8 +99,7 @@ export const createConnectorModule = ({
     const connection = (await store.listConnections({ actor, workspaceId }))
       .find((candidate) => candidate.connectionId === connectionId && candidate.disabledAt === null)
     if (!connection) return 'NOT_FOUND'
-    if (!gatewayOrigin) return 'CONNECTOR_UNCONFIGURED'
-    const result = await broker.checkCredential(connection.connectorId, connection.connectionId)
+    const result = await broker.checkCredential(connection.connectorId, connection.connectionId, connection.destination)
     return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
   }
 

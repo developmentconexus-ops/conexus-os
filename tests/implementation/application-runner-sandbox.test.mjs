@@ -440,10 +440,10 @@ const connectorSetup = async (t, sandbox) => {
   const envelope = createSecretEnvelope('fe'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
+    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya', destination: 'production' }] : []),
     readConnectionCredential: async () => sealed,
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }], store, envelope, observability: connectorRecord().observability })
   const ports = createHandlerPorts({ directory: socketDir, broker })
   await ports.sweep()
   const open = async (projectId) => {

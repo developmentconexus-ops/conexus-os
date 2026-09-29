@@ -669,13 +669,13 @@ const connectorRuns = async (store, record = connectorRecord()) => {
   const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const { openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
   const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-  const brief = createConnectorBrief({ connectors: [{ definition: sankhyaDefinition, adapter: null }], store, observability: record.observability })
+  const brief = createConnectorBrief({ connectors: [{ definition: sankhyaDefinition, adapters: {} }], store, observability: record.observability })
   return (input) => openBuilderRun({ brief, ...input })
 }
 
 test("a Project with no binding is told the external-data rule and nothing about another Project's Connection", async (t) => {
   const otherProjectId = '55555555-5555-4555-8555-555555555555'
-  const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
+  const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya', destination: 'production' }
   const openRun = await connectorRuns({ listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) })
   const other = await openRun({ projectId: otherProjectId, builderRunId: runId })
   assert.ok(other.brief.includes('`other-project-binding` (integrator sankhya)'), 'the other Project is told its own binding')
@@ -693,7 +693,7 @@ test("a Project with no binding is told the external-data rule and nothing about
 
 test('a Project bound to Sankhya gets the same provenance rule and its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
   const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
-  const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
+  const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya', destination: 'production' }
   const run = await harness(t, { openConnectorRun: await connectorRuns({ listBindings: async () => [binding] }) })
   await run.start()
   await run.service.close()

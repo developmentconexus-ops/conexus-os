@@ -35,7 +35,7 @@ const origin = 'https://conexus.test'
 
 const envelope = createSecretEnvelope('ef'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
-const binding = Object.freeze({ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' })
+const binding = Object.freeze({ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya', destination: 'production' })
 const store = Object.freeze({
   listBindings: async ({ projectId, environment }) => (projectId === PROJECT && environment === 'preview' ? [binding] : []),
   readConnectionCredential: async (connectionId) => (connectionId === CONNECTION ? sealed : null),
@@ -45,7 +45,7 @@ const connectorsOf = async (t, { now } = {}) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const record = connectorRecord()
-  const connectors = [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]
+  const connectors = [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }]
   const broker = createBroker({ connectors, store, envelope, observability: record.observability, ...(now ? { now } : {}) })
   const brief = createConnectorBrief({ connectors, store, observability: record.observability })
   return {

@@ -26,7 +26,7 @@ const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const consumer = Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }) })
 
 const OTHER_CONNECTION = '55555555-5555-4555-8555-555555555555'
-const binding = (name, connectionId = CONNECTION, connectorId = 'sankhya') => ({ bindingId: `binding-${name}`, name, connectionId, connectorId })
+const binding = (name, connectionId = CONNECTION, connectorId = 'sankhya', destination = 'production') => ({ bindingId: `binding-${name}`, name, connectionId, connectorId, destination })
 
 const memoryStore = ({ bound = [binding('erp')], credential = sealed } = {}) => {
   const bindings = [...bound]
@@ -48,7 +48,7 @@ const setup = async (t, { extra = [], store = memoryStore(), deadlineMs, tokens,
   const record = connectorRecord()
   const gateway = createSankhyaGateway({ origin: fake.origin })
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: adapter ? gateway : null }, ...extra.map((definition) => ({ definition, adapter: gateway }))],
+    connectors: [{ definition: sankhyaDefinition, adapters: adapter ? { production: gateway } : {} }, ...extra.map((definition) => ({ definition, adapters: { production: gateway } }))],
     store, envelope, observability: record.observability,
     ...(deadlineMs ? { deadlineMs } : {}), ...(tokens ? { tokens } : {}),
   })
@@ -144,7 +144,7 @@ test('a request whose deadline passes while it waits on its token is never sent,
   const tokens = createTokenCache()
   const { fake, broker, gateway } = await setup(t, { tokens, deadlineMs: 1000 })
   const short = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: gateway } }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     tokens, deadlineMs: 300,
   })
@@ -165,7 +165,7 @@ test('a request stalled on one token does not hold back a request on another tok
   const { fake, broker, gateway } = await setup(t, { deadlineMs: 1000 })
   assert.equal((await broker.call(consumer, READ, { documentNumber: 22790 })).ok, true)
   const other = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: gateway } }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     deadlineMs: 300,
   })
@@ -299,7 +299,7 @@ test('P9 and P2: each gateway failure maps to its literal code and its span, and
   }
 
   const unreachable = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) } }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await unreachable.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
@@ -415,7 +415,7 @@ test('no credential, token, input, output or provider text reaches a tracing eve
     const { fake, broker, settled, exporter, lines } = await setup(t, { deadlineMs: 300 })
     Object.assign(fake.mode, mode)
     await broker.call(consumer, READ, { documentNumber: 22790 })
-    await broker.checkCredential('sankhya', CONNECTION)
+    await broker.checkCredential('sankhya', CONNECTION, 'production')
     await settled()
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
     const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
@@ -463,7 +463,7 @@ test('the Hub\'s Mastra keeps the Connector record in its own storage, and the B
   const observability = createBuilderObservability('conexus-builder-factory', record.observability)
   const mastra = new Mastra({ storage: new InMemoryStore(), observability, logger: false })
   t.after(() => observability.shutdown())
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store: memoryStore(), envelope, observability: record.observability })
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }], store: memoryStore(), envelope, observability: record.observability })
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
   await observability.flush()
   const { traceId } = record.lines.map((line) => JSON.parse(line)).find((line) => line.span === 'connector.call')
@@ -481,18 +481,18 @@ test('the Hub\'s Mastra keeps the Connector record in its own storage, and the B
 test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, for a call and for a credential check', async (t) => {
   const { fake, broker, store } = await setup(t, { adapter: false })
   assert.deepEqual(await broker.call(consumer, READ, { documentNumber: 22790 }), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
-  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION, 'production'), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(store.calls.map(([name]) => name), ['listBindings'])
 })
 
 test('a credential check runs the allow-listed authentication alone and caches nothing', async (t) => {
   const { fake, broker, facts } = await setup(t)
-  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: true, value: null })
+  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION, 'production'), { ok: true, value: null })
   fake.mode.authenticate = 401
-  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CREDENTIAL_REFUSED' })
+  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION, 'production'), { ok: false, code: 'CREDENTIAL_REFUSED' })
   assert.deepEqual(fake.requests.map((request) => request.path), ['/authenticate', '/authenticate'])
-  assert.deepEqual(await broker.checkCredential('sankhya', '44444444-4444-4444-8444-444444444444'), { ok: false, code: 'NOT_GRANTED' })
+  assert.deepEqual(await broker.checkCredential('sankhya', '44444444-4444-4444-8444-444444444444', 'production'), { ok: false, code: 'NOT_GRANTED' })
   const check = { name: 'connector.check', root: true, connector: 'sankhya' }
   const auth = { name: 'authenticate', root: false, connector: 'sankhya', step: 1, attempt: 1 }
   assert.deepEqual(await facts(), [
@@ -514,7 +514,7 @@ test('connector spans record consumer kind only when in the closed set, and conn
   await broker.call(invalidConsumer, READ, { documentNumber: 22790 })
 
   // Connector id validation: unregistered connector id becomes 'unknown' in the span
-  await broker.checkCredential(rawConnector, CONNECTION)
+  await broker.checkCredential(rawConnector, CONNECTION, 'production')
   await settled()
 
   const recorded = await facts()
@@ -552,16 +552,9 @@ test('connector spans record consumer kind only when in the closed set, and conn
   assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
 })
 
-test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {
-  const { SANKHYA_GATEWAY_ORIGINS, pinnedGatewayOrigin } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
-  assert.equal(SANKHYA_GATEWAY_ORIGINS.length, 2)
-  for (const origin of SANKHYA_GATEWAY_ORIGINS) {
-    assert.equal(origin.startsWith('https://'), true)
-    assert.equal(pinnedGatewayOrigin(origin), origin)
-  }
-  for (const refusedOrigin of [`${SANKHYA_GATEWAY_ORIGINS[0]}/`, `${SANKHYA_GATEWAY_ORIGINS[0]}.example.test`, SANKHYA_GATEWAY_ORIGINS[0].replace('https:', 'http:'), 'http://127.0.0.1:8080', '']) {
-    assert.throws(() => pinnedGatewayOrigin(refusedOrigin), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' }, refusedOrigin)
-  }
+test('each destination pins its published gateway origin, and the installation enables destinations by name only', async () => {
+  const { SANKHYA_DESTINATION_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+  assert.deepEqual(SANKHYA_DESTINATION_ORIGINS, { production: 'https://api.sankhya.com.br', sandbox: 'https://api.sandbox.sankhya.com.br' })
 
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const base = {
@@ -569,11 +562,18 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
     CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
     CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret', CONEXUS_FACTORY_SECRET_KEY_FILE: '/run/secret-key',
   }
-  assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })
-  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' })
-  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: SANKHYA_GATEWAY_ORIGINS[0] }), { message: 'CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED' }, 'no gateway without the Mastra storage that records its calls')
+  assert.deepEqual(readHubConfig(base).connectors, { sankhyaDestinations: [], socketDirectory: undefined })
+  for (const refused of ['staging', 'https://api.sankhya.com.br', 'production,production', 'production,', '']) {
+    assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_DESTINATIONS: refused }), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_DESTINATIONS' }, refused)
+  }
+  for (const origin of Object.values(SANKHYA_DESTINATION_ORIGINS)) {
+    assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: origin }), { message: 'RETIRED_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' }, origin)
+  }
+  for (const destinations of ['sandbox', 'production', 'production,sandbox']) {
+    assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_DESTINATIONS: destinations }), { message: 'CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED' }, `no gateway without the Mastra storage that records its calls: ${destinations}`)
+  }
   assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), { message: 'INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR' })
-  assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { gatewayOrigin: undefined, socketDirectory: '/run/conexus-connectors' })
+  assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { sankhyaDestinations: [], socketDirectory: '/run/conexus-connectors' })
 })
 
 test('every document number the input admits reads back, up to 2,147,483,647; a larger one in the response is refused', async () => {

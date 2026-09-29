@@ -24,7 +24,7 @@ const envelope = createSecretEnvelope('ef'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const sealedRest = async (account) => envelope.seal(JSON.stringify({ clientId: REST_ACCOUNTS[account].clientId, clientSecret: REST_ACCOUNTS[account].clientSecret }))
 
-const bound = (name, connectionId, connectorId = 'sankhya') => Object.freeze({ bindingId: `binding-${name}`, name, connectionId, connectorId })
+const bound = (name, connectionId, connectorId = 'sankhya', destination = 'production') => Object.freeze({ bindingId: `binding-${name}`, name, connectionId, connectorId, destination })
 
 // The broker's reads, in memory. `bindings` is keyed by Project, as connector.list_bound_connections answers them.
 const memoryStore = ({ bindings = { [PROJECT]: [bound('erp', CONNECTION)] }, credentials = { [CONNECTION]: sealed } } = {}) => {
@@ -49,7 +49,7 @@ const setup = async (t, { store = memoryStore(), nativeLimits, now, tokenPrefix,
   t.after(() => Promise.all([fake.close(), other.close()]))
   const record = connectorRecord()
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }, ...extra],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }, ...extra],
     store, envelope, observability: record.observability,
     ...(nativeLimits ? { nativeLimits } : {}), ...(now ? { now } : {}),
   })
@@ -179,15 +179,45 @@ test('a binding to an unregistered integrator, or to one with no pinned destinat
   const store = memoryStore({ bindings: { [PROJECT]: [bound('erp', CONNECTION), bound('legacy', CONNECTION_A, 'unknown-erp')] } })
   const { fake, broker } = await setup(t, { store })
   assert.deepEqual(await broker.fetch(handler(), read({ connection: 'legacy' })), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
-  const unpinned = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: null }], store, envelope, observability: connectorRecord().observability })
+  const unpinned = createBroker({ connectors: [{ definition: sankhyaDefinition, adapters: {} }], store, envelope, observability: connectorRecord().observability })
   assert.deepEqual(await unpinned.fetch(handler(), read()), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   const failing = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }],
     store: { ...store, listBindings: async () => { throw new Error('connection refused') } }, envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await failing.fetch(handler(), read()), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(await broker.fetch(handler(), read()), ORDER_READ)
+})
+
+test('the origin follows the bound Connection\'s destination: two Connections of one integrator reach two fake gateways, and no bearer crosses', async (t) => {
+  const production = await startFakeGateway({ tokenPrefix: 'prod-' })
+  const sandbox = await startFakeGateway({ tokenPrefix: 'sbx-' })
+  t.after(() => Promise.all([production.close(), sandbox.close()]))
+  const store = memoryStore({
+    bindings: { [PROJECT]: [bound('erp', CONNECTION, 'sankhya', 'production'), bound('erp-teste', CONNECTION_B, 'sankhya', 'sandbox')] },
+    credentials: { [CONNECTION]: sealed, [CONNECTION_B]: sealed },
+  })
+  const registry = (adapters) => createBroker({ connectors: [{ definition: sankhyaDefinition, adapters }], store, envelope, observability: connectorRecord().observability })
+  const broker = registry({ production: createSankhyaGateway({ origin: production.origin }), sandbox: createSankhyaGateway({ origin: sandbox.origin }) })
+  const counts = () => [production.requests.length, sandbox.requests.length]
+
+  assert.deepEqual(await broker.fetch(handler(), read({ connection: 'erp' })), ORDER_READ)
+  assert.deepEqual(counts(), [2, 0])
+  assert.deepEqual(await broker.fetch(handler(), read({ connection: 'erp-teste' })), ORDER_READ)
+  assert.deepEqual(counts(), [2, 2])
+  assert.deepEqual(production.requests.map(({ path, origin }) => [path, origin]), [['/authenticate', production.origin], [ROUTE, production.origin]])
+  assert.deepEqual(sandbox.requests.map(({ path, origin }) => [path, origin]), [['/authenticate', sandbox.origin], [ROUTE, sandbox.origin]])
+  assert.deepEqual([production.requests[1].authorization, sandbox.requests[1].authorization], ['Bearer prod-1', 'Bearer sbx-1'])
+
+  assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION_B, 'sandbox'), { ok: true, value: null })
+  assert.deepEqual([production.requests.length, sandbox.requests.at(-1).path], [2, '/authenticate'])
+  assert.equal(sandbox.requests.length, 3)
+
+  const productionOnly = registry({ production: createSankhyaGateway({ origin: production.origin }) })
+  assert.deepEqual(await productionOnly.fetch(handler(), read({ connection: 'erp-teste' })), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+  assert.deepEqual(await productionOnly.checkCredential('sankhya', CONNECTION_B, 'sandbox'), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+  assert.deepEqual(counts(), [2, 3], 'a destination the installation does not enable sends nothing')
 })
 
 test('P5: an expired or revoked run scope is NOT_GRANTED, and a spent budget is CALL_LIMIT, each before the network', async (t) => {
@@ -267,7 +297,7 @@ test('P9: a bearer the vendor echoes is redacted from a parsed body in any JSON 
   const beforeUnicode = `{"serviceName":"${LOAD}","status":"1","echo":"fake/token/2","escaped":"fake\\/token\\/2","unicode":"`
   const cutInsideUnicode = beforeUnicode.length + '\\u0066\\u0061\\u006b\\u0065'.length
   const cutBroker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     nativeLimits: { deadlineMs: 2000, responseBytes: cutInsideUnicode, requestBytes: 64 * 1024 },
   })
@@ -306,7 +336,7 @@ test('P9: a 5xx or 429 is PROVIDER_UNAVAILABLE, another 4xx is PROVIDER_ERROR, e
     assert.equal(JSON.stringify(result).includes(SECRET_MARKER), false)
   }
   const unreachable = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) }],
+    connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) } }],
     store: memoryStore(), envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await unreachable.fetch(handler(), read()), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
@@ -367,7 +397,7 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
     },
     credentials: { [CONNECTION_A]: await sealedRest('account-a'), [CONNECTION_B]: await sealedRest('account-b') },
   })
-  const { fake, broker } = await setup(t, { store, extra: [{ definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) }] })
+  const { fake, broker } = await setup(t, { store, extra: [{ definition: restDefinition, adapters: { production: createRestAdapter({ origin: rest.origin }) } }] })
   const records = (connection) => ({ connection, method: 'GET', path: '/v1/records' })
 
   assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-b')), { ok: false, code: 'NOT_GRANTED' })

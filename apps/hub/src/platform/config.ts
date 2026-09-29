@@ -1,3 +1,5 @@
+import { isDestination } from '../connectors/model.js'
+import type { Destination } from '../connectors/model.js'
 import { parseApplicationSlug } from './application-slug.js'
 
 export type ProjectRuntimeConfig = Readonly<{
@@ -40,9 +42,9 @@ export type HubConfig = Readonly<{
   googleAiPro: GoogleAiProRuntimeConfig | undefined
   // The application runner's socket; without it a Preview has no application API.
   appRunner: Readonly<{ socketPath: string }> | undefined
-  // The Connector broker's pinned gateway destination and the directory of its per-invocation
+  // The Sankhya destinations this installation enables and the directory of its per-invocation
   // handler sockets. Each absent leaves every connector call answering CONNECTOR_UNCONFIGURED.
-  connectors: Readonly<{ gatewayOrigin: string | undefined; socketDirectory: string | undefined }>
+  connectors: Readonly<{ sankhyaDestinations: readonly Destination[]; socketDirectory: string | undefined }>
   oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
 }>
 
@@ -255,13 +257,17 @@ const appRunnerRuntime = (environment: NodeJS.ProcessEnv): HubConfig['appRunner'
 }
 
 const connectorRuntime = (environment: NodeJS.ProcessEnv): HubConfig['connectors'] => {
-  const gatewayOrigin = environment.CONEXUS_SANKHYA_GATEWAY_ORIGIN
+  if (environment.CONEXUS_SANKHYA_GATEWAY_ORIGIN !== undefined) throw new Error('RETIRED_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN')
+  const destinations = environment.CONEXUS_SANKHYA_DESTINATIONS
   const socketDirectory = environment.CONEXUS_CONNECTOR_SOCKET_DIR
   if (socketDirectory !== undefined && !/^\/[^\0]*$/.test(socketDirectory)) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
-  // The exact published origins live with the adapter (connectors/sankhya/gateway.ts), which refuses
-  // any other value when the Hub composes it at startup; here only the shape is checked.
-  if (gatewayOrigin !== undefined && !/^https:\/\/[a-z0-9.-]+$/.test(gatewayOrigin)) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN')
-  return { gatewayOrigin, socketDirectory }
+  // The origins live with the adapter (connectors/sankhya/gateway.ts); the installation only names which destinations it enables.
+  const sankhyaDestinations = destinations === undefined ? [] : destinations.split(',').map((entry): Destination => {
+    if (!isDestination(entry)) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_DESTINATIONS')
+    return entry
+  })
+  if (new Set(sankhyaDestinations).size !== sankhyaDestinations.length) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_DESTINATIONS')
+  return { sankhyaDestinations, socketDirectory }
 }
 
 const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPort: number): HubConfig['preview'] => {
@@ -346,6 +352,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
   // Every Connector call to a provider is recorded in the Factory's Mastra storage (C-029); without the
   // Factory there is no native record, so no gateway either.
-  if (config.connectors.gatewayOrigin && !config.factory) throw new Error('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
+  if (config.connectors.sankhyaDestinations.length > 0 && !config.factory) throw new Error('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
   return config
 }

@@ -6,7 +6,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { CONNECTOR_BRIEF_UNAVAILABLE, CONNECTOR_BRIEF_UNBOUND, createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { SANKHYA_GATEWAY_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+const { SANKHYA_DESTINATION_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -14,15 +14,15 @@ const READ = 'sankhya.purchase-order.read'
 const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
 
 const bound = (name, connectorId = 'sankhya', connectionId = '33333333-3333-4333-8333-333333333333') =>
-  ({ bindingId: '44444444-4444-4444-8444-444444444444', name, connectionId, connectorId })
+  ({ bindingId: '44444444-4444-4444-8444-444444444444', name, connectionId, connectorId, destination: 'production' })
 const storeOf = (bindings) => ({ listBindings: async () => bindings })
 
-const connectors = Object.freeze([{ definition: sankhyaDefinition, adapter: null }])
+const connectors = Object.freeze([{ definition: sankhyaDefinition, adapters: {} }])
 const briefOf = (store, record = connectorRecord()) => createConnectorBrief({ connectors, store, observability: record.observability })
 
 // What P11 keeps from the Builder: credential material and the pinned gateway origins. Service,
 // entity and field names are the native request format the integrator's Skill teaches (C-030).
-const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-token', 'Bearer', ...SANKHYA_GATEWAY_ORIGINS]
+const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-token', 'Bearer', ...Object.values(SANKHYA_DESTINATION_ORIGINS)]
 
 const BINDING_LINE = (names) => `Connections bound to this Project, each named by the Project-local name a request passes as \`connection\`: ${names}.`
 
@@ -110,6 +110,7 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
     origin: 'https://conexus.test',
     resolveCurrentSession: async () => null,
     isInstallationAdministrator: async () => false,
+    sankhyaDestinations: [],
     log: () => {},
   })
   await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), /^Error: CONNECTOR_SCOPE_REFUSED$/)

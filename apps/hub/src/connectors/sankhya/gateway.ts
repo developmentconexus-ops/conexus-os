@@ -1,16 +1,20 @@
 import { z } from 'zod'
 import { AdapterFailure, transportFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
+import type { Destination } from '../model.js'
 import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../operation.js'
 import { AccessToken, inLane } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 
 /**
- * The gateway origins the Sankhya documentation publishes: production and sandbox.
+ * The gateway origins the Sankhya documentation publishes, by the Connection's destination.
  * @public Tests import this at runtime from the built module.
  */
-export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
+export const SANKHYA_DESTINATION_ORIGINS = Object.freeze({
+  production: 'https://api.sankhya.com.br',
+  sandbox: 'https://api.sandbox.sankhya.com.br',
+}) satisfies Readonly<Record<Destination, string>>
 
 /** The allow-list: read services only. Any other name is refused before a request is built. */
 const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
@@ -42,12 +46,6 @@ export type SankhyaSession = Readonly<{
 const RESPONSE_CAP_BYTES = 256 * 1024
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
 const RECORDED_ENVELOPE_STATUSES: ReadonlySet<string> = new Set(['0', '1', '2', '3', '4'])
-
-/** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
-export const pinnedGatewayOrigin = (value: string): string => {
-  if (!SANKHYA_GATEWAY_ORIGINS.includes(value)) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN')
-  return value
-}
 
 // Sankhya's return-code table answers an invalid or expired bearer with 403 GTW3403.
 const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): AdapterFailureReason | null => {

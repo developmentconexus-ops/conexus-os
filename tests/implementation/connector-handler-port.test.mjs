@@ -112,11 +112,11 @@ test('P6: another Project in the input or in extra body keys never changes the r
   const store = {
     listBindings: async (input) => {
       resolved.push(input.projectId)
-      return input.projectId === PROJECT ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []
+      return input.projectId === PROJECT ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya', destination: 'production' }] : []
     },
     readConnectionCredential: async () => sealed,
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
+  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapters: { production: createSankhyaGateway({ origin: fake.origin }) } }], store, envelope, observability: connectorRecord().observability })
   const port = await createHandlerPorts({ directory: socketDirectory(t), broker }).open(scope)
   t.after(() => port.close())
 

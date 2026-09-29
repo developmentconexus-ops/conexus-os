@@ -3,7 +3,7 @@ import type { AnySpan, ObservabilityInstance } from '@mastra/core/observability'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, inputIssues, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
-import type { BoundConnection, ConnectionId, ConnectorId } from './model.js'
+import type { BoundConnection, ConnectionId, ConnectorId, Destination } from './model.js'
 import { DEFAULT_NATIVE_LIMITS, parseNativeRequest, pinnedUrl, sendNative } from './native.js'
 import type { FetchResult, NativeLimits, ParsedNativeRequest } from './native.js'
 import type { Adapter, ConnectorDefinition, Consumer, Operation, ProviderAnswer, RequestTrace } from './operation.js'
@@ -22,8 +22,8 @@ type AnyAdapter = Adapter<any, any>
 // biome-ignore lint/suspicious/noExplicitAny: each operation keeps its own input and output types
 type AnyOperation = Operation<any, any, any>
 
-/** A Definition and its adapter; `adapter` is null when server configuration pins no destination. */
-export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter: AnyAdapter | null }>
+/** A Definition and one adapter per destination the installation enables; a destination without an adapter answers CONNECTOR_UNCONFIGURED. */
+export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapters: Readonly<Partial<Record<Destination, AnyAdapter>>> }>
 
 type Entry = Readonly<{ operation: AnyOperation; connector: RegisteredConnector }>
 
@@ -50,7 +50,7 @@ export type Broker = Readonly<{
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
   /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
-  checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>>
+  checkCredential(connectorId: ConnectorId, connectionId: ConnectionId, destination: Destination): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
 }>
 
@@ -164,7 +164,7 @@ export const createBroker = ({
     }
     const binding = operationBinding(bindings, connector.definition.id)
     if (!binding) return refused('NOT_GRANTED')
-    const { adapter } = connector
+    const adapter = connector.adapters[binding.destination]
     if (!adapter) return refused('CONNECTOR_UNCONFIGURED')
     const connectionId = binding.connectionId
     const signal = AbortSignal.timeout(deadlineMs)
@@ -259,7 +259,7 @@ export const createBroker = ({
     const binding = bindings.find((candidate) => candidate.name === connection)
     if (!binding) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
     const connector = connectors.find((candidate) => candidate.definition.id === binding.connectorId) ?? null
-    const adapter = connector?.adapter
+    const adapter = connector?.adapters[binding.destination]
     if (!connector || !adapter) return { ok: false, refusal: refused('CONNECTOR_UNCONFIGURED'), binding, connector }
     const url = pinnedUrl(path, query, adapter.origin)
     if (!url) return { ok: false, refusal: refused('INPUT_REFUSED', ['/path']), binding, connector }
@@ -322,9 +322,9 @@ export const createBroker = ({
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
-    async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
+    async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId, destination: Destination): Promise<BrokerResult<null>> {
       const connector = adapterOf(connectorId)
-      const adapter = connector?.adapter
+      const adapter = connector?.adapters[destination]
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {
         connector: connector ? connectorId : 'unknown',
       } })

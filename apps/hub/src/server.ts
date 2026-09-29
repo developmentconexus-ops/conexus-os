@@ -56,7 +56,7 @@ const connectors = createConnectorModule({
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
-  gatewayOrigin: config.connectors.gatewayOrigin,
+  sankhyaDestinations: config.connectors.sankhyaDestinations,
   socketDirectory: config.connectors.socketDirectory,
 })
 // A restarted Hub leaves no orphan handler socket still answering.
