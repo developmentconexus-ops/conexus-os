@@ -134,6 +134,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     skills: [deps.skillsPath ?? defaultBuilderSkillsRoot()],
     ...(deps.memory ? { memory: deps.memory } : {}),
     workspace: undefined,
+    // Mastra's fallback when errorProcessors are set, made explicit so the cap is ours to read.
+    maxProcessorRetries: 3,
   })
 
   return new AgentController({

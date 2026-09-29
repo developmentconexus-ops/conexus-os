@@ -109,7 +109,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview, onRe
       <ol className="cx-run-timeline">
         {runs.map((run) => {
           const failed = timelineTone(run) === 'fail'
-          const reason = failed ? failureReason(run.failureCategory) : null
+          const reason = failed ? failureReason(run) : null
           const requestText = run.requestText
           return <li key={run.builderRunId} data-selected={run.builderRunId === selected.builderRunId || undefined}>
             <button type="button" className="cx-run-entry" aria-pressed={run.builderRunId === selected.builderRunId} onClick={() => onSelect(run.builderRunId)}>

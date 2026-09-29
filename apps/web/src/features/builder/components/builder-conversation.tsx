@@ -194,12 +194,12 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
   return out
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory, model }: Readonly<{
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failure, model }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
   persistedRequests: readonly PersistedRequest[]
-  failureCategory: BuilderFailureCategory | null
+  failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
   model: BuilderModel | null
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
@@ -222,7 +222,7 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     ...settled.map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
     ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
   ].sort((left, right) => left.at - right.at)
-  const reason = failureReason(failureCategory)
+  const reason = failureReason(failure)
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
 
   const pieces: Piece[] = []

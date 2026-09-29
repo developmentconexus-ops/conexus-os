@@ -108,7 +108,7 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
 function FailureNote({ run }: Readonly<{ run: BuilderRun }>) {
   const sentence = run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED'
     ? 'A última alteração não compilou. A prévia continua na versão anterior.'
-    : failureReason(run.failureCategory)
+    : failureReason(run)
   return <div className="cx-note" data-tone="warning" role="alert">
     <p>{sentence}</p>
     {run.failureCode && <details>
