@@ -3,7 +3,9 @@
 @import "./mastra-theme.css";
 
 /* Element defaults sit in the base layer so the component library's utilities still win on its own
-   controls; the class rules below stay unlayered and win over both. */
+   controls; the class rules below stay unlayered and win over both. The plain-button look is only for
+   a <button> with no class: every button of the library's and of ours carries one, so none inherits
+   a border and padding its own styles never asked for. */
 @layer base {
   :root { font-family: var(--cx-font-body); color: var(--cx-text); background: var(--cx-canvas); scrollbar-color: var(--cx-line-strong) transparent; accent-color: var(--cx-accent); }
   html, body, #root { height: 100%; }
@@ -18,8 +20,8 @@
   a { color: var(--cx-text); text-underline-offset: 3px; text-decoration-color: var(--cx-accent); }
   button, input, select, textarea, a { font: inherit; }
   input, select, textarea { background: var(--cx-surface); color: var(--cx-text); }
-  button { border: 1px solid var(--cx-line); border-radius: .55rem; padding: .7rem 1rem; background: var(--cx-surface); color: var(--cx-text); cursor: pointer; }
-  button:hover:not(:disabled) { background: var(--cx-surface-4); }
+  button:not([class]) { border: 1px solid var(--cx-line); border-radius: .55rem; padding: .7rem 1rem; background: var(--cx-surface); color: var(--cx-text); cursor: pointer; }
+  button:not([class]):hover:not(:disabled) { background: var(--cx-surface-4); }
   :focus-visible { outline: 2px solid var(--cx-accent); outline-offset: 2px; }
 }
 .primary { display: inline-block; border: 1px solid var(--cx-ink); border-radius: .55rem; padding: .7rem 1rem; background: var(--cx-ink); color: var(--cx-on-ink); text-decoration: none; cursor: pointer; }

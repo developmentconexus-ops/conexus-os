@@ -139,12 +139,10 @@
 .cx-elapsed { font-variant-numeric: tabular-nums; }
 .cx-working-stop { flex: none; }
 
-/* Tool rows and groups. The rows are Mastra's own ToolCall; the app's bare-button default (border,
-   padding and a surface fill, in styles.css) would otherwise land on its trigger, which relies on
-   Tailwind's reset for a borderless line. */
-.cx-tool-trigger { border: 0; padding: 0; background: transparent; }
-.cx-tool-trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--cx-text) 5%, transparent); }
+/* Tool rows and groups: Mastra's own ToolCall parts, sized by the library. */
 .cx-tool-rows { display: grid; }
+.cx-asked { display: grid; gap: .15rem; margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-asked strong { color: var(--cx-text); font-weight: 600; }
 .cx-tool-group-check { flex: none; color: var(--cx-success); }
 .cx-tool-group-count { color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
 .cx-thinking { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
