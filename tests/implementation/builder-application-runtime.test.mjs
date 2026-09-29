@@ -45,9 +45,9 @@ const fakeSandbox = (output, { report = PASSING_REPORT, stdout, exitCode = 0 } =
 const root = '/var/lib/conexus-build/run-1'
 const out = `${root}/dist`
 
-test('the template identity stays the V1 pin', () => {
-  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440')
-  assert.equal(RECIPE_SHA256, 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4')
+test('the template identity is the current V2 pin', () => {
+  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755')
+  assert.equal(RECIPE_SHA256, '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434')
 })
 
 test('the check runs the Hub script as root with the agent identity named, then reads the build as root', async () => {

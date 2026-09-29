@@ -3,13 +3,14 @@ import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
 import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, parseCheckReport, redactEvidence } from './application-check.js'
 import type { CheckReport } from './application-check.js'
+import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import type { SANDBOX_AGENT_USER } from './sandbox.js'
 
 /** Who runs the check's command: root for the Hub's own runs, the agent's user for the Builder's tool. */
 type CheckUser = 'root' | typeof SANDBOX_AGENT_USER
 
-export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
-export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
+export const TEMPLATE_REF = CURRENT_TEMPLATE_PIN.templateRef
+export const RECIPE_SHA256 = CURRENT_TEMPLATE_PIN.recipeSha256
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const MAX_LIST_ENTRIES = MAX_FILES * 8

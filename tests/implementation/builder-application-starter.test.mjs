@@ -13,10 +13,12 @@ const {
   APPLICATION_CHECK_EXCLUDED,
   APPLICATION_SHAPE_FILES,
   materializeApplicationShape,
-  FIXED_APPLICATION_STARTER_FILES,
+  fixedApplicationStarterFiles,
   materializeFixedApplicationStarter,
   removeStaleServerSkill,
 } = await import(hubModuleUrl('builder/application-starter.js'))
+
+const FIXED_APPLICATION_STARTER_FILES = fixedApplicationStarterFiles(repositoryRoot)
 
 const commandResult = (result) => ({
   success: result.status === 0,
@@ -49,8 +51,43 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     assert.equal(result, 'MATERIALIZED')
     assert.deepEqual(FIXED_APPLICATION_STARTER_FILES.map((file) => file.path), [
       'app/index.html',
+      'app/src/components/ui/LICENSE-shadcn-ui.txt',
+      'app/src/components/ui/alert-dialog.tsx',
+      'app/src/components/ui/alert.tsx',
+      'app/src/components/ui/badge.tsx',
+      'app/src/components/ui/breadcrumb.tsx',
+      'app/src/components/ui/button.tsx',
+      'app/src/components/ui/calendar.tsx',
+      'app/src/components/ui/card.tsx',
+      'app/src/components/ui/chart.tsx',
+      'app/src/components/ui/checkbox.tsx',
+      'app/src/components/ui/dialog.tsx',
+      'app/src/components/ui/dropdown-menu.tsx',
+      'app/src/components/ui/empty.tsx',
+      'app/src/components/ui/field.tsx',
+      'app/src/components/ui/input.tsx',
+      'app/src/components/ui/label.tsx',
+      'app/src/components/ui/pagination.tsx',
+      'app/src/components/ui/popover.tsx',
+      'app/src/components/ui/radio-group.tsx',
+      'app/src/components/ui/select.tsx',
+      'app/src/components/ui/separator.tsx',
+      'app/src/components/ui/sheet.tsx',
+      'app/src/components/ui/sidebar.tsx',
+      'app/src/components/ui/skeleton.tsx',
+      'app/src/components/ui/spinner.tsx',
+      'app/src/components/ui/switch.tsx',
+      'app/src/components/ui/table.tsx',
+      'app/src/components/ui/tabs.tsx',
+      'app/src/components/ui/textarea.tsx',
+      'app/src/components/ui/toast.tsx',
+      'app/src/components/ui/tooltip.tsx',
+      'app/src/hooks/use-mobile.ts',
+      'app/src/lib/utils.ts',
       'app/src/main.tsx',
-      'app/src/style.css',
+      'app/src/router.tsx',
+      'app/src/routes/home.tsx',
+      'app/src/styles.css',
     ])
     assert.deepEqual(writes, FIXED_APPLICATION_STARTER_FILES.map((file) => join(root, file.path)))
     for (const file of FIXED_APPLICATION_STARTER_FILES) {
@@ -58,10 +95,12 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     }
     assert.match(readFileSync(join(root, 'app/index.html'), 'utf8'), /<div id="root"><\/div>/)
     assert.match(readFileSync(join(root, 'app/index.html'), 'utf8'), /src="\/src\/main\.tsx"/)
-    assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /createRoot/)
-    assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /\.\/style\.css/)
-    assert.doesNotMatch(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /counter|business|seed/i)
-    assert.match(readFileSync(join(root, 'app/src/style.css'), 'utf8'), /body \{[\s\S]*margin: 0;/)
+    const main = readFileSync(join(root, 'app/src/main.tsx'), 'utf8')
+    for (const part of ['<CSPProvider disableStyleElements>', '<QueryClientProvider client={queryClient}>', '<RouterProvider router={router} />', '<Toaster>', "import './styles.css'"]) {
+      assert.equal(main.includes(part), true, `main.tsx lacks ${part}`)
+    }
+    assert.doesNotMatch(main, /counter|business|seed/i)
+    assert.match(readFileSync(join(root, 'app/src/styles.css'), 'utf8'), /@theme inline \{/)
 
     const beforeSecondRequest = new Map(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, readFileSync(join(root, file.path), 'utf8')]))
     assert.equal(await materializeFixedApplicationStarter({
@@ -104,12 +143,17 @@ test('preserves every existing app entry, including a different source filename'
 
 test('the starter carries a shape file and no check script or check field', () => {
   assert.deepEqual(APPLICATION_SHAPE_FILES.map((file) => file.path), ['conexus.json'])
-  assert.deepEqual(JSON.parse(APPLICATION_SHAPE_FILES[0].content), { shape: 'REACT_VITE_V1' })
-  assert.deepEqual(FIXED_APPLICATION_STARTER_FILES.map((file) => file.path).filter((path) => path.includes('check')), [])
+  assert.deepEqual(JSON.parse(APPLICATION_SHAPE_FILES[0].content), { shape: 'REACT_VITE_V2' })
+  assert.deepEqual(fixedApplicationStarterFiles().map((file) => file.path).filter((path) => path.includes('check')), [])
 })
 
 test('the candidate pull leaves out the compiler link and every generated file', () => {
   assert.deepEqual(APPLICATION_CHECK_EXCLUDED, ['app/node_modules', '*.gen.ts'])
+})
+
+test('the Project knowledge names the app stack', () => {
+  const knowledge = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/starter/AGENTS.md'), 'utf8')
+  assert.match(knowledge, /React 19 with TanStack Router and Query, shadcn components on Base UI in `@\/components\/ui`/)
 })
 
 test('the global conexus-server skill matches the check it documents', () => {
@@ -133,9 +177,11 @@ test('writes only the shape file a checkout lacks, and never over a symlink', as
     const writes = []
     await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.deepEqual(writes, [join(root, 'conexus.json')])
+    writeFileSync(join(root, 'conexus.json'), '{ "shape": "edited by the agent" }\n')
 
     await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.equal(writes.length, 1)
+    assert.equal(readFileSync(join(root, 'conexus.json'), 'utf8'), '{ "shape": "edited by the agent" }\n')
 
     rmSync(join(root, 'conexus.json'))
     symlinkSync('/etc/hostname', join(root, 'conexus.json'))
@@ -184,7 +230,7 @@ test('a successful inspection that also wrote to stderr still decides the entry'
     ...scriptedWorkspace({ success: true, exitCode: 0, stdout: 'ABSENT', stderr: 'sh: warning: setlocale: LC_ALL: cannot change locale\n' }, writes),
   })
   assert.equal(result, 'MATERIALIZED')
-  assert.deepEqual(writes, ['/workspace/app/app/index.html', '/workspace/app/app/src/main.tsx', '/workspace/app/app/src/style.css'])
+  assert.deepEqual(writes, FIXED_APPLICATION_STARTER_FILES.map((file) => join('/workspace/app', file.path)))
 })
 
 test('a failed inspection keeps its exit code and a bounded, redacted stderr as the cause', async () => {
