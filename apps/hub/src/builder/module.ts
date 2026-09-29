@@ -40,6 +40,8 @@ import { startModelRouter } from './google-ai-pro/router.js'
 import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
 import { GOOGLE_AI_PRO_PROVIDER, parseKey } from './google-ai-pro/credential.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
+import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
+import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
 import { createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
 import { createCodexHolds, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens } from './openai-codex/credential.js'
@@ -319,6 +321,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, bearer) }
       },
     },
+    // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
+    [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
   })
   const runContexts = new Map<string, RunContextBinder>()
   const runWorkspaces = new Map<string, Workspace>()

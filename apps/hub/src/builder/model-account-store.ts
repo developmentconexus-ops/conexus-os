@@ -1,7 +1,7 @@
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { PostgresPool } from '../platform/postgres.js'
 
-type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
+export type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
 
 /** A row the Hub reads to call a model: its id (what a run records as the account that paid) and its opened secret. */
 export type HeldModelAccount = Readonly<{ modelAccountId: string; kind: ModelAccountKind; secret: string }>
@@ -9,8 +9,8 @@ export type HeldModelAccount = Readonly<{ modelAccountId: string; kind: ModelAcc
 export type ModelAccountStore = Readonly<{
   /** The caller's own account for the provider, else the one shared with everyone; null when neither exists. */
   usable(accountId: string, provider: string): Promise<HeldModelAccount | null>
-  /** Whether the caller has their own account for the provider, and whether one is shared. */
-  connection(accountId: string, provider: string): Promise<Readonly<{ mine: boolean; shared: boolean }>>
+  /** The kind of the caller's own account for the provider (null without one), and whether one is shared. */
+  connection(accountId: string, provider: string): Promise<Readonly<{ mine: ModelAccountKind | null; shared: boolean }>>
   /** Whether the installation shares an account for the provider, with no caller in mind. */
   hasShared(provider: string): Promise<boolean>
   /** Writes the caller's own row, sealed. A new row is `just_me`; an update keeps the row's sharing. */
@@ -43,7 +43,7 @@ export const createModelAccountStore = ({ pool, envelope }: Readonly<{ pool: Pic
     },
     connection: async (accountId, provider) => {
       const [own, shared] = await Promise.all([readOwn(accountId, provider), readShared(provider)])
-      return Object.freeze({ mine: own !== null, shared: shared !== null })
+      return Object.freeze({ mine: own?.kind ?? null, shared: shared !== null })
     },
     hasShared: async (provider) => (await readShared(provider)) !== null,
     write: async (accountId, provider, kind, secret) => {

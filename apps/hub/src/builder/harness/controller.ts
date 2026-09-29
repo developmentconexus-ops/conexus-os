@@ -52,16 +52,18 @@ const resolveModelProviderId = (model: MastraModelConfig): string | undefined =>
 }
 
 /**
- * The provider id a ChatGPT subscription model reports (`openaiCodexModel`). `webSearchTool` cannot
- * map it (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix), so this
- * family gets OpenAI's own Responses `web_search` tool directly, as Mastra Code does for every
- * `openai/*` model (`mastracode/sdk/src/agents/tools.ts`: `openai.tools.webSearch()`, the same tool id). Whether the
- * ChatGPT Codex backend accepts that tool is proven only by a live run.
+ * The provider ids a subscription model reports: `openaiCodexModel` (ChatGPT) and Mastra Code's
+ * Claude provider (`anthropic.messages`). `webSearchTool` cannot map them
+ * (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix), so each gets the
+ * provider-defined tool `webSearchTool` itself resolves to for its family
+ * (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the model executes
+ * server-side, as Mastra Code does (`mastracode/sdk/src/agents/tools.ts`). Whether each
+ * subscription backend accepts its tool is proven only by a live run.
  */
-const OPENAI_RESPONSES_PROVIDER = 'openai.responses'
-
-/** The provider-defined tool `webSearchTool` itself resolves to for `openai` (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the Responses model executes server-side. */
-const OPENAI_RESPONSES_WEB_SEARCH = { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} } as const
+const SUBSCRIPTION_WEB_SEARCH: Readonly<Record<string, ToolsInput[string]>> = Object.freeze({
+  'openai.responses': { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} },
+  'anthropic.messages': { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} },
+})
 
 /** The run's `web_search` tool, or none when its model has no provider-native search in Mastra (spec 0002 AC-11, Tool contract). */
 const webSearchFor = async (
@@ -70,7 +72,8 @@ const webSearchFor = async (
 ): Promise<ToolsInput> => {
   const resolved = typeof model === 'function' ? await model(ctx) : model
   const providerId = resolveModelProviderId(resolved)
-  if (providerId === OPENAI_RESPONSES_PROVIDER) return { web_search: OPENAI_RESPONSES_WEB_SEARCH }
+  const subscriptionSearch = providerId !== undefined && Object.hasOwn(SUBSCRIPTION_WEB_SEARCH, providerId) ? SUBSCRIPTION_WEB_SEARCH[providerId] : undefined
+  if (subscriptionSearch) return { web_search: subscriptionSearch }
   if (providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)) return { web_search: webSearchTool }
   return {}
 }

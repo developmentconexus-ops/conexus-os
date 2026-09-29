@@ -297,7 +297,7 @@ const fakeModelAccounts = () => {
   const store = {
     hasShared: async (provider) => google(provider) && sharedAccountId !== null,
     usable: async (accountId, provider) => google(provider) ? held(accountId) ?? (sharedAccountId !== null ? held(sharedAccountId) : null) : null,
-    connection: async (accountId, provider) => ({ mine: google(provider) && own.has(accountId), shared: google(provider) && sharedAccountId !== null }),
+    connection: async (accountId, provider) => ({ mine: google(provider) && own.has(accountId) ? 'google_ai_pro' : null, shared: google(provider) && sharedAccountId !== null }),
     write: async (accountId, _provider, _kind, key) => { own.set(accountId, key); writes.push({ accountId, key }) },
   }
   return { store, writes, share: (accountId) => { sharedAccountId = accountId } }

@@ -27,7 +27,7 @@ const fakeStore = () => {
   const held = (row) => row && { modelAccountId: row.id, kind: row.kind, secret: row.secret }
   const store = {
     usable: async (owner, provider) => held(rows.get(key(owner, provider)) ?? shared(provider)),
-    connection: async (owner, provider) => ({ mine: rows.has(key(owner, provider)), shared: shared(provider) !== null }),
+    connection: async (owner, provider) => ({ mine: rows.get(key(owner, provider))?.kind ?? null, shared: shared(provider) !== null }),
     hasShared: async (provider) => shared(provider) !== null,
     write: async (owner, provider, kind, secret) => {
       const existing = rows.get(key(owner, provider))
@@ -108,7 +108,10 @@ test('signing in with ChatGPT hands the person a device code, and the sign-in st
   assert.deepEqual(parseCodexTokens([...rows.values()][0].secret), tokens('signed-in', parseCodexTokens([...rows.values()][0].secret).expires))
 
   const accounts = await app.inject({ method: 'GET', url: '/api/control/model-accounts', ...authentic })
-  assert.deepEqual(accounts.json(), { administrator: false, accounts: [{ provider: 'openai-codex', mine: true, shared: false }] })
+  assert.deepEqual(accounts.json(), { administrator: false, accounts: [
+    { provider: 'openai-codex', mine: true, kind: 'oauth', shared: false },
+    { provider: 'anthropic', mine: false, kind: null, shared: false },
+  ] })
   for (const body of [started.body, accounts.body]) assert.doesNotMatch(body, /access-|refresh-/, 'no token ever reaches the browser')
 })
 

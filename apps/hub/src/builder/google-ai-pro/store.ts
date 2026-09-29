@@ -13,6 +13,9 @@ export type GoogleAiProAccounts = Readonly<{
  * model), for the Settings card and its sign-in. A run reads it like any other model account.
  */
 export const createGoogleAiProAccounts = (store: ModelAccountStore): GoogleAiProAccounts => Object.freeze({
-  connection: (accountId) => store.connection(accountId, GOOGLE_AI_PRO_PROVIDER),
+  connection: async (accountId) => {
+    const { mine, shared } = await store.connection(accountId, GOOGLE_AI_PRO_PROVIDER)
+    return Object.freeze({ mine: mine !== null, shared })
+  },
   write: (accountId, key) => store.write(accountId, GOOGLE_AI_PRO_PROVIDER, 'google_ai_pro', key),
 })

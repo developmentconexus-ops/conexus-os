@@ -1,12 +1,14 @@
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
+import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_MODELS, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
+import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_NAME, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
-import type { ModelAccountStore } from './model-account-store.js'
+import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
 import { OPENAI_CODEX_NAME, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { isExactOrigin } from '../platform/origin.js'
@@ -22,9 +24,10 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
 
 type Caller = Readonly<{ accountId: AccountId }>
 type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
+type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
 
 /** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
-const GOOGLE_AI_PRO_OFFER: readonly Omit<OfferedModel, 'hasApiKey'>[] = Object.freeze(GOOGLE_AI_PRO_MODELS.map((model) => Object.freeze({
+const GOOGLE_AI_PRO_OFFER: Offer = Object.freeze(GOOGLE_AI_PRO_MODELS.map((model) => Object.freeze({
   id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: `${GOOGLE_AI_PRO_NAME} ${model}`,
 })))
 
@@ -35,22 +38,35 @@ const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|tran
 const openaiCatalog = getProviderConfig(OPENAI_MODEL_PROVIDER)
 const retired = new Set(openaiCatalog?.deprecatedModels ?? [])
 /** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
-const OPENAI_CODEX_OFFER: readonly Omit<OfferedModel, 'hasApiKey'>[] = Object.freeze((openaiCatalog?.models ?? [])
+const OPENAI_CODEX_OFFER: Offer = Object.freeze((openaiCatalog?.models ?? [])
   .filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
   .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: `${OPENAI_CODEX_NAME} ${model}` })))
 
+const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map(({ model, name }) =>
+  Object.freeze({ id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: name })))
+
+/** The providers a person connects by pasting a key, and the shape each key must have. */
+const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })
+
+/** The accounts the Settings screen lists, by `model.model_account` provider. */
+const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
+
+type Connection = Readonly<{ provider: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
+
 /**
- * Model accounts on the Builder's own tables (spec 0002): the Google AI Pro account and the ChatGPT
- * subscription a run uses. API keys, the Claude subscription, sharing and the defaults screen are
- * the rest of slice 5.
+ * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
+ * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
+ * slice 5.
  */
-export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, googleAiPro, googleAiProAccounts }: Readonly<{
+export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   modelAccounts: ModelAccountStore
   // OpenAI's device-code endpoints; only tests replace them.
   openaiCodexDevice?: CodexDevice
+  // Anthropic's authorization endpoints; only tests replace them.
+  claudeAuthorization?: ClaudeAuthorization
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
   // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
@@ -80,23 +96,68 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     if (!caller) return reply
     const usable = async (provider: string): Promise<boolean> => request.query.scope === 'installation'
       ? modelAccounts.hasShared(provider)
-      : modelAccounts.connection(caller.accountId, provider).then(({ mine, shared }) => mine || shared)
-    const offers = [
-      ...(googleAiProAccounts && await usable(GOOGLE_AI_PRO_PROVIDER) ? GOOGLE_AI_PRO_OFFER : []),
-      ...(await usable(OPENAI_CODEX_PROVIDER) ? OPENAI_CODEX_OFFER : []),
+      : modelAccounts.connection(caller.accountId, provider).then(({ mine, shared }) => mine !== null || shared)
+    const offers: readonly (readonly [string, Offer])[] = [
+      ...(googleAiProAccounts ? [[GOOGLE_AI_PRO_PROVIDER, GOOGLE_AI_PRO_OFFER] as const] : []),
+      [OPENAI_CODEX_PROVIDER, OPENAI_CODEX_OFFER],
+      [ANTHROPIC_PROVIDER, ANTHROPIC_OFFER],
     ]
-    return { models: offers.map((model) => ({ ...model, hasApiKey: true })) }
+    const usableOffers = await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? offer : []))
+    return { models: usableOffers.flat().map((model) => ({ ...model, hasApiKey: true })) }
   })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
   app.get('/api/control/model-accounts', async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
-    const [administrator, codex] = await Promise.all([
+    const [administrator, accounts] = await Promise.all([
       isInstallationAdministrator(caller.accountId),
-      modelAccounts.connection(caller.accountId, OPENAI_CODEX_PROVIDER),
+      Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
+        const { mine, shared } = await modelAccounts.connection(caller.accountId, provider)
+        return { provider, mine: mine !== null, kind: mine, shared }
+      })),
     ])
-    return { administrator, accounts: [{ provider: OPENAI_CODEX_PROVIDER, ...codex }] }
+    return { administrator, accounts }
+  })
+
+  // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
+  app.put<{ Params: { provider: string }; Body: { key: string } }>('/api/control/model-accounts/:provider/api-key', {
+    schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } },
+  }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const shape = Object.hasOwn(API_KEY_SHAPES, request.params.provider) ? API_KEY_SHAPES[request.params.provider] : undefined
+    if (!shape) return sendProblem(reply, 404, 'model-account-provider-unknown', 'No API key accounts for this provider')
+    const key = request.body.key.trim()
+    if (!shape.test(key)) return sendProblem(reply, 400, 'model-account-key-refused', 'This is not an API key for this provider')
+    await modelAccounts.write(caller.accountId, request.params.provider, 'api_key', key)
+    return reply.code(204).send()
+  })
+
+  const claudeLogin = createClaudeLogin<Caller>({
+    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, ANTHROPIC_PROVIDER, 'oauth', serializeClaudeTokens(tokens)),
+    ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
+  })
+  const claudeBase = `/api/control/model-accounts/${ANTHROPIC_PROVIDER}/oauth`
+  app.post(`${claudeBase}/start`, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return claudeLogin.start(caller).then(
+      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
+      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+    )
+  })
+  app.post<{ Body: { loginId: string; code: string } }>(`${claudeBase}/complete`, {
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false, required: ['loginId', 'code'],
+        properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, code: { type: 'string', minLength: 1, maxLength: 4096 } },
+      },
+    },
+  }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return { state: await claudeLogin.complete(caller, request.body.loginId, request.body.code) }
   })
 
   const codexLogin = createCodexLogin<Caller>({
