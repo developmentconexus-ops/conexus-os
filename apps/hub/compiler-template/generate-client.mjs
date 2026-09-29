@@ -20,6 +20,7 @@ const boundsInOrder = (schema, where) => {
 const zodOf = (schema, where) => {
   switch (schema.type) {
     case 'string':
+      if (schema.enum !== undefined) return `z.enum([${schema.enum.map((value) => JSON.stringify(value)).join(', ')}])`
       boundsInOrder(schema, where)
       return `z.string()${schema.minLength === undefined ? '' : `.min(${schema.minLength})`}${schema.maxLength === undefined ? '' : `.max(${schema.maxLength})`}`
     case 'integer':
@@ -43,7 +44,7 @@ const zodOf = (schema, where) => {
 const typeOf = (schema) => {
   switch (schema.type) {
     case 'string':
-      return 'string'
+      return schema.enum === undefined ? 'string' : schema.enum.map((value) => JSON.stringify(value)).join(' | ')
     case 'integer':
     case 'number':
       return 'number'
@@ -55,7 +56,7 @@ const typeOf = (schema) => {
       return fields.length === 0 ? '{}' : `{ ${fields.join('; ')} }`
     }
     case 'array':
-      return `readonly ${typeOf(schema.items)}[]`
+      return `readonly ${schema.items.enum === undefined ? typeOf(schema.items) : `(${typeOf(schema.items)})`}[]`
     default:
       return refuse('schema', `unknown type "${schema.type}"`)
   }

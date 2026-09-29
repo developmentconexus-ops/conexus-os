@@ -30,10 +30,28 @@ Everything server-side lives under `conexus/`:
 }
 ```
 
-A schema uses only these types: `string` (`minLength`, `maxLength`), `integer` and `number`
-(`minimum`, `maximum`), `boolean`, `object` (`properties`, `required`, and `"additionalProperties": false`,
-which is mandatory) and `array` (`items`, `maxItems`). Input is always an object. A value that does
-not match its schema exactly, including an undeclared field, is refused.
+A schema uses only the types and keys below. Any other key, such as `pattern`, `format`, `const`,
+`description` or `default`, is refused at generate with `unknown key`. Input is always an object. A
+value that does not match its schema exactly, including an undeclared field, is refused.
+
+<!-- manifest-schema-keys -->
+| type | keys |
+| --- | --- |
+| `string` | `enum`, `minLength`, `maxLength` |
+| `integer` | `minimum`, `maximum` |
+| `number` | `minimum`, `maximum` |
+| `boolean` | none |
+| `object` | `properties`, `required`, `additionalProperties` |
+| `array` | `items`, `maxItems` |
+<!-- /manifest-schema-keys -->
+
+Every schema also carries `type`. `additionalProperties` on an object is mandatory and must be `false`.
+
+For a field with fixed values, such as a status, declare `"enum"` on a `string`: 1 to 64 distinct
+strings of at most 200 characters, and not together with `minLength` or `maxLength`. The typed client
+then types the field as a union (`"open" | "closed"`) in the screen and in the handler. Validate again
+in the handler only when the rule is more than the list, for example a status that may change only to
+the next one. Use a plain `string` and a zod check in the handler for anything a pattern would describe.
 
 ## Handlers
 

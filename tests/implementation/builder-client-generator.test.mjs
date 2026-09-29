@@ -103,6 +103,14 @@ test('every schema construct maps to its zod and TypeScript form, with operation
   assert.equal(typesGen, EXPECTED_TYPES)
 })
 
+test('a string enum generates a zod enum and a TypeScript union, also inside an array', () => {
+  const status = { type: 'string', enum: ['open', 'closed'] }
+  const manifest = { operations: { setStatus: { handler: 'handlers/a.ts', export: 'setStatus', input: { type: 'object', properties: { status, all: { type: 'array', items: status } }, required: ['status'], additionalProperties: false }, output: status } } }
+  const { apiGen, typesGen } = generateClient(manifest)
+  assert.match(apiGen, /^ {4}input: z\.strictObject\(\{ status: z\.enum\(\["open", "closed"\]\), all: z\.array\(z\.enum\(\["open", "closed"\]\)\)\.optional\(\) \}\),\n {4}output: z\.enum\(\["open", "closed"\]\),$/m)
+  assert.match(typesGen, /^ {2}setStatus: \{ input: \{ status: "open" \| "closed"; all\?: readonly \("open" \| "closed"\)\[\] \}; output: "open" \| "closed" \}$/m)
+})
+
 test('an unsatisfiable bound is refused with the place it is in', () => {
   const bad = (schema) => () => generateClient({ operations: { find: { handler: 'handlers/a.ts', export: 'find', input: { type: 'object', properties: { q: schema }, additionalProperties: false }, output: { type: 'boolean' } } } })
   assert.throws(bad({ type: 'string', minLength: 5, maxLength: 2 }), { message: 'MANIFEST_REFUSED: operations.find.input.properties.q: "minLength" is above "maxLength"' })

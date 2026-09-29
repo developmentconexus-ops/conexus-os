@@ -146,6 +146,15 @@ test('generate refuses a bad manifest with the runner message, and an unsatisfia
   assert.deepEqual(failedStep(bounds.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.countNotes.output.properties.total: "minimum" is above "maximum"' }])
 })
 
+test('generate admits a string enum and refuses pattern, naming the key', (t) => {
+  const withString = (string) => ({ operations: { countNotes: { ...MANIFEST.operations.countNotes, input: { type: 'object', properties: { status: string }, required: ['status'], additionalProperties: false } } } })
+  const admitted = check(t, { ...STARTER, 'conexus/manifest.json': withString({ type: 'string', enum: ['open', 'closed'] }), 'conexus/handlers/notes.ts': HANDLER })
+  assert.equal(stepsOf(admitted.report)[0].join(), 'generate,passed', JSON.stringify(admitted.report.steps))
+  assert.match(readFileSync(join(admitted.root, 'conexus/types.gen.ts'), 'utf8'), /input: \{ status: "open" \| "closed" \}/)
+  const pattern = check(t, { ...STARTER, 'conexus/manifest.json': withString({ type: 'string', pattern: '^a+$' }), 'conexus/handlers/notes.ts': HANDLER })
+  assert.deepEqual(failedStep(pattern.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.countNotes.input.properties.status: unknown key "pattern"' }])
+})
+
 test('generate never writes through a symlink the candidate planted at a generated path', (t) => {
   const victim = join(tmpdir(), `conexus-victim-${process.pid}-${Date.now()}`)
   t.after(() => rmSync(victim, { force: true }))
