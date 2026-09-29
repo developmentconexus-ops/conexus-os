@@ -102,8 +102,8 @@ const rootCheck = async (sandbox, extra = '') => {
 }
 
 const starterFiles = async () => {
-  const { FIXED_APPLICATION_STARTER_FILES } = await (await loadHub())('builder/application-starter.js')
-  return Object.fromEntries(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, file.content]))
+  const { fixedApplicationStarterFiles } = await (await loadHub())('builder/application-starter.js')
+  return Object.fromEntries(fixedApplicationStarterFiles().map((file) => [file.path, file.content]))
 }
 
 test('the Hub check runs the starter in the real template as root with every step as the agent user, and as the agent user itself', { skip, timeout: 5 * 60_000 }, async (t) => {

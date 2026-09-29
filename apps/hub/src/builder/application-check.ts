@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { appPathClassifierSource } from '../mar/app-path.js'
+import { admitManifest } from '../app-runner/server-manifest.js'
 
 /**
  * The Conexus check: one Hub owned script, `/opt/conexus/check.mjs`, that the Builder's tool, source
@@ -146,6 +147,7 @@ import { chownSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 const LIMIT_MS = ${JSON.stringify(CHECK_LIMITS.stepMs)}
@@ -154,6 +156,7 @@ const MAX_MESSAGE = ${CHECK_LIMITS.messageChars}
 const BOOT_CSP = ${JSON.stringify(BOOT_CONTENT_SECURITY_POLICY)}
 const BLOCKING = new Set(${JSON.stringify([...BLOCKING_STEPS])})
 const redact = ${redactEvidence.toString()}
+const admitManifest = ${admitManifest.toString()}
 ${appPathClassifierSource}
 
 const flags = {}
@@ -242,37 +245,95 @@ const outputProblem = (result, cleaned) => {
   return { ...locate(text), message: text }
 }
 
-const runGenerate = async () => ({ problems: [] })
+const MANIFEST_PATH = 'conexus/manifest.json'
+const manifestProblem = (message) => ({ problems: [{ file: MANIFEST_PATH, code: 'MANIFEST_REFUSED', message: message.replace(/^MANIFEST_REFUSED: /, '') }] })
 
-const TYPESCRIPT_OPTIONS = {
-  strict: true, target: 'ES2022', lib: ['ES2022', 'DOM', 'DOM.Iterable'], module: 'ESNext', moduleResolution: 'bundler',
-  jsx: 'react-jsx', types: ['vite/client'], noEmit: true, skipLibCheck: true, isolatedModules: true, resolveJsonModule: true,
-  forceConsistentCasingInFileNames: true,
+// The generated files are written by the check, which may run as root, into a tree the candidate
+// laid out. Each folder on the way must be a real folder and the target is replaced, never followed.
+const writeGenerated = (relativePath, content) => {
+  let current = root
+  for (const part of relativePath.split('/').slice(0, -1)) {
+    current = join(current, part)
+    let entry = null
+    try { entry = lstatSync(current) } catch {}
+    if (entry === null) {
+      mkdirSync(current)
+      if (runsAsRoot) chownSync(current, dropTo.uid, dropTo.gid)
+    } else if (!entry.isDirectory()) throw new Error(part + ' in ' + relativePath + ' is not a folder')
+  }
+  const target = join(root, relativePath)
+  rmSync(target, { force: true })
+  writeFileSync(target, content, { flag: 'wx', mode: 0o644 })
+  if (runsAsRoot) chownSync(target, dropTo.uid, dropTo.gid)
 }
+
+// Admits the manifest with the runner's own function, then writes the typed client the screens and
+// handlers import. A source with no manifest has no server half and nothing to generate.
+const runGenerate = async () => {
+  const manifestPath = join(root, MANIFEST_PATH)
+  let entry
+  try { entry = lstatSync(manifestPath) } catch { return { problems: [] } }
+  let real
+  try { real = realpathSync(manifestPath) } catch { return manifestProblem('cannot be read') }
+  if (!entry.isFile() || !real.startsWith(realpathSync(root) + sep) || entry.size > 1_048_576) return manifestProblem('must be a regular file inside the project, under 1 MiB')
+  let manifest
+  try {
+    manifest = admitManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), 'source')
+  } catch (error) {
+    return manifestProblem(error instanceof SyntaxError ? 'is not valid JSON: ' + error.message : String(error.message))
+  }
+  let client
+  try {
+    client = (await import(pathToFileURL(join(compiler, 'generate-client.mjs')).href)).generateClient(manifest)
+  } catch (error) {
+    return manifestProblem(String(error.message))
+  }
+  try {
+    writeGenerated('app/src/conexus/api.gen.ts', client.apiGen)
+    writeGenerated('conexus/types.gen.ts', client.typesGen)
+  } catch (error) {
+    return { problems: [{ code: 'GENERATE_WRITE_REFUSED', message: String(error.message) }] }
+  }
+  return { problems: [] }
+}
+
+const hasTypeScript = (directory) => {
+  try { return readdirSync(directory, { recursive: true }).some((name) => /\.(?:ts|tsx|mts)$/.test(String(name))) } catch { return false }
+}
+const tscProblems = (result) => {
+  const problems = []
+  for (const raw of (result.stdout + '\n' + result.stderr).split('\n')) {
+    const line = raw.replace(/\r$/, '')
+    const located = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/.exec(line)
+    const global = /^error (TS\d+): (.*)$/.exec(line)
+    if (located) problems.push({ file: located[1], line: Number(located[2]), column: Number(located[3]), code: located[4], message: located[5] })
+    else if (global) problems.push({ code: global[1], message: global[2] })
+    else if (/^\s+\S/.test(line) && problems.length > 0) problems[problems.length - 1].message += '\n' + line.trim()
+  }
+  return problems.length > 0 ? problems : [outputProblem(result, result.stdout + '\n' + result.stderr)]
+}
+
+// Two programs, because one cannot give node: to handlers and refuse it to screens: the app project
+// (screens) and the server project (handlers, only when conexus/ holds TypeScript). Both share the
+// one typecheck budget, so the step never runs past its limit.
 const runTypecheck = async () => {
+  const { typescriptProjects } = await import(pathToFileURL(join(compiler, 'tsconfig.mjs')).href)
+  const projects = typescriptProjects({ compilerRoot: compiler, root })
   const directory = mkdtempSync(join(tmpdir(), 'conexus-typecheck-'))
   try {
     chmodSync(directory, 0o755)
-    const include = ['app', 'conexus'].map((name) => join(root, name)).filter((path) => { try { return lstatSync(path).isDirectory() } catch { return false } })
-    writeFileSync(join(directory, 'tsconfig.json'), JSON.stringify({
-      compilerOptions: { ...TYPESCRIPT_OPTIONS, typeRoots: [join(compiler, 'node_modules'), join(compiler, 'node_modules', '@types')] },
-      include,
-    }), { mode: 0o644 })
-    const result = await runTool(nodePath, [join(compiler, 'node_modules/typescript/bin/tsc'), '-p', join(directory, 'tsconfig.json'), '--pretty', 'false'], {
-      cwd: root, env: stepEnvironment(), limitMs: LIMIT_MS.typecheck,
-    })
-    if (result.timedOut) return { problems: [timeoutProblem('typecheck')] }
-    if (result.code === 0) return { problems: [] }
+    const deadline = now() + LIMIT_MS.typecheck
     const problems = []
-    for (const raw of (result.stdout + '\n' + result.stderr).split('\n')) {
-      const line = raw.replace(/\r$/, '')
-      const located = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/.exec(line)
-      const global = /^error (TS\d+): (.*)$/.exec(line)
-      if (located) problems.push({ file: located[1], line: Number(located[2]), column: Number(located[3]), code: located[4], message: located[5] })
-      else if (global) problems.push({ code: global[1], message: global[2] })
-      else if (/^\s+\S/.test(line) && problems.length > 0) problems[problems.length - 1].message += '\n' + line.trim()
+    for (const name of hasTypeScript(join(root, 'conexus')) ? ['app', 'server'] : ['app']) {
+      const config = join(directory, 'tsconfig.' + name + '.json')
+      writeFileSync(config, JSON.stringify(projects[name]), { mode: 0o644 })
+      const result = await runTool(nodePath, [join(compiler, 'node_modules/typescript/bin/tsc'), '-p', config, '--pretty', 'false'], {
+        cwd: root, env: stepEnvironment(), limitMs: Math.max(1, deadline - now()),
+      })
+      if (result.timedOut) return { problems: [...problems, timeoutProblem('typecheck')] }
+      if (result.code !== 0) problems.push(...tscProblems(result))
     }
-    return { problems: problems.length > 0 ? problems : [outputProblem(result, result.stdout + '\n' + result.stderr)] }
+    return { problems }
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

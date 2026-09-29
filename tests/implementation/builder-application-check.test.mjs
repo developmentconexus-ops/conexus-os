@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
+import { ensureCompilerRoot } from './compiler-root.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { checkScriptSource, parseCheckReport, failedStepEvidence } = await import(hubModuleUrl('builder/application-check.js'))
 const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
+const { fixedApplicationStarterFiles } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const templateConfig = readFileSync(resolve(repositoryRoot, 'apps/hub/compiler-template/vite.config.mjs'), 'utf8')
+const compilerRoot = await ensureCompilerRoot()
+const templateConfig = readFileSync(resolve(compilerRoot, 'vite.config.mjs'), 'utf8')
 
 const STARTER = {
   'app/index.html': '<!doctype html><html><head><meta charset="UTF-8" /><title>t</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>\n',
@@ -43,9 +46,10 @@ const HANDLER = `export async function countNotes(): Promise<{ total: number }> 
 
 const withMain = (main) => ({ ...STARTER, 'app/src/main.tsx': main })
 
-// Runs the real script against this repository's own vite and typescript (the versions the template
-// pins) and the Playwright Chromium, in a folder laid out like the sandbox: /opt/conexus is `tools`.
-const check = (t, files, { limits = [], compilerFiles = {} } = {}) => {
+// Runs the real script against a real install of the template's compiler (its lockfile, its allowlist
+// view of node_modules) and the Playwright Chromium, in a folder laid out like the sandbox:
+// /opt/conexus is `tools`.
+const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const root = join(scratch, 'repo')
@@ -56,13 +60,15 @@ const check = (t, files, { limits = [], compilerFiles = {} } = {}) => {
     writeFileSync(join(root, path), typeof content === 'string' ? content : JSON.stringify(content))
   }
   mkdirSync(join(tools, 'compiler'), { recursive: true })
-  symlinkSync(join(repositoryRoot, 'node_modules'), join(tools, 'compiler/node_modules'))
+  for (const name of ['node_modules', 'full']) symlinkSync(join(compilerRoot, name), join(tools, 'compiler', name))
+  for (const name of ['allowlist.mjs', 'generate-client.mjs', 'tsconfig.mjs', 'package.json']) copyFileSync(join(compilerRoot, name), join(tools, 'compiler', name))
   writeFileSync(join(tools, 'compiler/vite.config.mjs'), templateConfig.replace("'/workspace/.vite'", JSON.stringify(join(scratch, 'vite-cache'))))
   writeFileSync(join(tools, 'server-build.mjs'), serverBuildScriptSource().replaceAll('/opt/conexus/compiler', join(tools, 'compiler')))
   for (const [path, content] of Object.entries(compilerFiles)) {
     mkdirSync(dirname(join(tools, path)), { recursive: true })
     writeFileSync(join(tools, path), content)
   }
+  before?.(root)
   const script = join(scratch, 'check.mjs')
   writeFileSync(script, checkScriptSource())
   const ran = spawnSync(process.execPath, [
@@ -82,6 +88,71 @@ test('a starter with no server half passes all five steps and reports what it bu
   assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'passed'], ['boot', 'passed']])
   assert.deepEqual({ operations: report.facts.operations, migrations: report.facts.migrations }, { operations: 0, migrations: 0 })
   assert.ok(report.facts.jsGzipBytes > 10_000, `gzip size ${report.facts.jsGzipBytes}`)
+})
+
+const V2_STARTER = Object.fromEntries(fixedApplicationStarterFiles(repositoryRoot).map((file) => [file.path, file.content]))
+
+test('the v2 starter itself passes all five steps, with its real components and no CSP violation at boot', (t) => {
+  const { report } = check(t, V2_STARTER)
+  assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'passed'], ['boot', 'passed']], JSON.stringify(report.steps))
+  assert.equal(report.ok, true)
+})
+
+test('a screen that imports node:fs is a blocking typecheck problem', (t) => {
+  const { report } = check(t, { ...V2_STARTER, 'app/src/lib/extra.ts': "import { readFileSync } from 'node:fs'\nexport const extra = readFileSync\n" })
+  assert.equal(report.ok, false)
+  assert.deepEqual(stepsOf(report).slice(0, 3), [['generate', 'passed'], ['typecheck', 'failed'], ['build', 'skipped']])
+  assert.deepEqual(failedStep(report, 'typecheck').problems.map(({ file, line, code }) => [file, line, code]), [['app/src/lib/extra.ts', 1, 'TS2591']])
+})
+
+test('a screen that imports a package outside the allowlist is a blocking typecheck problem that names it', (t) => {
+  const { report } = check(t, { ...V2_STARTER, 'app/src/lib/extra.ts': "import { produce } from 'immer'\nexport const extra = produce\n" })
+  assert.equal(report.ok, false)
+  const problems = failedStep(report, 'typecheck').problems
+  assert.deepEqual(problems.map(({ file, code }) => [file, code]), [['app/src/lib/extra.ts', 'TS2307']])
+  assert.match(problems[0].message, /'immer'/)
+})
+
+test('typecheck covers the handlers too: a handler type error is a typecheck problem in conexus/', (t) => {
+  const { report } = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER.replace('return { total: 3 }', "return { total: 'three' }") })
+  assert.equal(report.ok, false)
+  assert.deepEqual(failedStep(report, 'typecheck').problems.map(({ file, line, code }) => [file, line, code]), [['conexus/handlers/notes.ts', 2, 'TS2322']])
+})
+
+test('typecheck lets a handler import node: and refuses a package import', (t) => {
+  const node = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': `import { createHash } from 'node:crypto'\n${HANDLER.replace('return { total: 3 }', "return { total: createHash('sha256').digest().length - 29 }")}` })
+  assert.deepEqual(stepsOf(node.report)[1], ['typecheck', 'passed'], JSON.stringify(node.report.steps))
+  const pkg = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': `import { z } from 'zod'\n${HANDLER}export { z }\n` })
+  assert.deepEqual(failedStep(pkg.report, 'typecheck').problems.map(({ file, code }) => [file, code]), [['conexus/handlers/notes.ts', 'TS2307']])
+})
+
+test('generate writes the typed client from the manifest and a screen that calls api.countNotes typechecks against it', (t) => {
+  const { report, root } = check(t, {
+    ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER,
+    'app/src/main.tsx': `import { api } from '@/conexus/api.gen'\nconst total: Promise<{ total: number }> = api.countNotes({})\nexport { total }\ndocument.getElementById('root')!.append(document.createElement('p'))\n`,
+  })
+  assert.equal(report.ok, true, JSON.stringify(report.steps))
+  assert.match(readFileSync(join(root, 'app/src/conexus/api.gen.ts'), 'utf8'), /countNotes: \{\n {4}input: z\.strictObject\(\{ {2}\}\),\n {4}output: z\.strictObject\(\{ total: z\.number\(\)\.int\(\)\.min\(3\) \}\),/)
+  assert.match(readFileSync(join(root, 'conexus/types.gen.ts'), 'utf8'), /countNotes: \{ input: \{\}; output: \{ total: number \} \}/)
+})
+
+test('generate refuses a bad manifest with the runner message, and an unsatisfiable bound, as generate problems', (t) => {
+  const bad = check(t, { ...STARTER, 'conexus/manifest.json': { operations: { ...MANIFEST.operations, Bad: MANIFEST.operations.countNotes } } })
+  assert.equal(bad.report.ok, false)
+  assert.deepEqual(stepsOf(bad.report), [['generate', 'failed'], ['typecheck', 'skipped'], ['build', 'skipped'], ['server', 'skipped'], ['boot', 'skipped']])
+  assert.deepEqual(failedStep(bad.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.Bad: an operation id is camelCase letters and digits, starting lowercase' }])
+  const inverted = { operations: { countNotes: { ...MANIFEST.operations.countNotes, output: { type: 'object', properties: { total: { type: 'integer', minimum: 5, maximum: 2 } }, required: ['total'], additionalProperties: false } } } }
+  const bounds = check(t, { ...STARTER, 'conexus/manifest.json': inverted, 'conexus/handlers/notes.ts': HANDLER })
+  assert.deepEqual(failedStep(bounds.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.countNotes.output.properties.total: "minimum" is above "maximum"' }])
+})
+
+test('generate never writes through a symlink the candidate planted at a generated path', (t) => {
+  const victim = join(tmpdir(), `conexus-victim-${process.pid}-${Date.now()}`)
+  t.after(() => rmSync(victim, { force: true }))
+  writeFileSync(victim, 'untouched')
+  const { report } = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER, 'conexus/types.gen.ts': 'placeholder' }, { before: (root) => { rmSync(join(root, 'conexus/types.gen.ts')); symlinkSync(victim, join(root, 'conexus/types.gen.ts')) } })
+  assert.equal(report.ok, true, JSON.stringify(report.steps))
+  assert.equal(readFileSync(victim, 'utf8'), 'untouched')
 })
 
 test('the facts count operations and migrations from the source', (t) => {

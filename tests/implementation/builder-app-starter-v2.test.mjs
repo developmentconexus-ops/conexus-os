@@ -14,7 +14,7 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 const compilerRoot = await ensureCompilerRoot()
 const { typescriptProjects } = await import(join(compilerRoot, 'tsconfig.mjs'))
 const { fixedApplicationStarterFiles, APPLICATION_CHECK_FILES } = await import(hubModuleUrl('builder/application-starter.js'))
-const { previewContentSecurityPolicy } = await import(hubModuleUrl('mar/preview-routes.js'))
+const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
 
 const DEMO_ROUTE = `import { useState } from 'react'
 import { Bar, BarChart, XAxis } from 'recharts'
