@@ -71,6 +71,12 @@ Run each command in its own terminal, from a checkout of this repository.
 3. Read the summary. The command prints one line per experiment and exits with 0 only when every
    experiment finalized.
 
+To run one case through the product UI on a Hub other than the pilot, set `CONEXUS_STATE` to a
+storage state for that Hub and pass `--base-url`; `run.mjs` refuses to start without the state, so it
+never falls back to the pilot session. While a run waits for a person, the driver approves the plan
+card and answers a question card with the first option, and it records the last `conexus_check`
+report. Add `--mask-values` for a case that reads real business data. See `scripts/builder-eval/README.md`.
+
 If a run fails for a platform reason (the model quota, the runner, a Hub restart), the result is
 stored as an error and the experiment stays open. Run the same command again. It runs only the
 missing and failed items, then finalizes. If you change an arm file, start a new comparison id. The
