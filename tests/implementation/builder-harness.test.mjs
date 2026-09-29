@@ -549,8 +549,9 @@ test('a model switched while the plan card waits is the model the build runs on'
   const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   await conversation.model.switch({ modelId: 'openai/gpt-5.6-sol', scope: 'thread' })
 
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
     projectId, conversationId, builderRunId, workspace,
+    runCheck: async () => PASSING,
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
   })
   const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${builderRunId}`)
