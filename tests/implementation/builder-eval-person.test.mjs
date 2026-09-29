@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { MockLanguageModelV3 } from 'ai/test'
 import {
-  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, silentOption, slicesRemaining,
+  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, personModel, silentOption, slicesRemaining,
 } from '../../scripts/builder-eval/person.mjs'
+import { completeLogin, startLogin } from '../../scripts/builder-eval/login.mjs'
 
 const caseFile = (id) => JSON.parse(readFileSync(new URL(`../../scripts/builder-eval/cases/bakeoff/${id}.json`, import.meta.url), 'utf8'))
 const h1 = parseSheet(caseFile('h1').person)
@@ -124,4 +125,72 @@ test('the plan says slices are left through its last "Fatias restantes" line', (
   assert.equal(slicesRemaining('Plano\nFatias restantes: 2'), true)
   assert.equal(slicesRemaining('Fatias restantes: 2', 'Feito.\nFatias restantes: 0'), false)
   assert.equal(slicesRemaining('sem linha', undefined), false)
+})
+
+const withAppData = async (run) => {
+  const dir = mkdtempSync(join(tmpdir(), 'person-auth-'))
+  const saved = { data: process.env.MASTRA_APP_DATA_DIR, key: process.env.ANTHROPIC_API_KEY, model: process.env.CONEXUS_EVAL_PERSON_MODEL, fetch: globalThis.fetch }
+  process.env.MASTRA_APP_DATA_DIR = dir
+  delete process.env.ANTHROPIC_API_KEY
+  delete process.env.CONEXUS_EVAL_PERSON_MODEL
+  try {
+    await run(dir)
+  } finally {
+    for (const [name, value] of [['MASTRA_APP_DATA_DIR', saved.data], ['ANTHROPIC_API_KEY', saved.key], ['CONEXUS_EVAL_PERSON_MODEL', saved.model]]) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+    globalThis.fetch = saved.fetch
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+const prompt = [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }]
+
+test('without an API key the person calls Claude Opus 5.5 with the subscription signed in to Mastra Code', async () => {
+  await withAppData(async (dir) => {
+    writeFileSync(join(dir, 'auth.json'), JSON.stringify({ anthropic: { type: 'oauth', access: 'fake-access', refresh: 'fake-refresh', expires: Date.now() + 3_600_000 } }))
+    const calls = []
+    globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init)
+      calls.push({ url: request.url, authorization: request.headers.get('authorization'), apiKey: request.headers.get('x-api-key'), body: await request.json() })
+      return Response.json({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } })
+    }
+    const result = await personModel().doGenerate({ prompt })
+    assert.equal(result.content[0].text, 'ok')
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages')
+    assert.equal(calls[0].authorization, 'Bearer fake-access')
+    assert.equal(calls[0].apiKey, null)
+    assert.equal(calls[0].body.model, 'claude-opus-5-5')
+  })
+})
+
+test('CONEXUS_EVAL_PERSON_MODEL still overrides the subscription', async () => {
+  await withAppData(async () => {
+    assert.equal(personModel({ CONEXUS_EVAL_PERSON_MODEL: 'openai/gpt-6-sol' }), 'openai/gpt-6-sol')
+    process.env.CONEXUS_EVAL_PERSON_MODEL = 'anthropic/claude-sonnet-5'
+    assert.equal(personModel(), 'anthropic/claude-sonnet-5')
+  })
+})
+
+test('login start keeps the verifier private and prints only the address; complete stores the account and drops the verifier', async () => {
+  await withAppData(async (dir) => {
+    const verifierFile = join(dir, 'verifier.json')
+    const authorization = {
+      start: async () => ({ url: 'https://claude.example/authorize?state=abc', verifier: 'fake-verifier' }),
+      complete: async (code, verifier) => {
+        assert.deepEqual([code, verifier], ['pasted-code', 'fake-verifier'])
+        return { access: 'fake-access', refresh: 'fake-refresh', expires: Date.now() + 3_600_000 }
+      },
+    }
+    assert.equal(await startLogin({ authorization, verifierFile }), 'https://claude.example/authorize?state=abc')
+    assert.equal(statSync(verifierFile).mode & 0o777, 0o600)
+    const { AuthStorage } = await import('@mastra/code-sdk/auth/storage')
+    const storage = new AuthStorage(join(dir, 'auth.json'))
+    await completeLogin('pasted-code', { authorization, verifierFile, storage })
+    assert.equal(existsSync(verifierFile), false)
+    assert.equal(new AuthStorage(join(dir, 'auth.json')).get('anthropic')?.type, 'oauth')
+    await assert.rejects(completeLogin('again', { authorization, verifierFile, storage }), /run "login.mjs start" first/)
+  })
 })
