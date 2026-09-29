@@ -452,10 +452,11 @@ test('a Google AI Pro model lists its tools without throwing and has no web_sear
 })
 
 test('a ChatGPT subscription model lists its tools without throwing and gets OpenAI\'s Responses web_search: it reports provider openai.responses, which Mastra\'s webSearchTool cannot map', async () => {
-  const { openaiCodexModel } = await import(hubModuleUrl('builder/openai-codex/model.js'))
+  const { codexModel } = await import('./codex-model.mjs')
   const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  const unused = { access: 'unused', refresh: 'unused', expires: Date.now() + 3_600_000, accountId: 'unused' }
   // The model module.ts's resolver returns for an `openai/*` selection on a ChatGPT subscription.
-  const model = async () => openaiCodexModel('gpt-5.6-sol', async () => ({ accessToken: 'unused', accountId: 'unused' }))
+  const model = () => codexModel('gpt-5.6-sol', unused)
   const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
   const session = await controller.createSession({ resourceId: 'project:probe-chatgpt', scope: 'probe-chatgpt' })
   const tools = await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() })

@@ -3,12 +3,12 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { hubModuleUrl } from './hub-build.mjs'
+import { codexModel as codexRouteModel } from './codex-model.mjs'
 
-const { openaiCodexModel } = await import(hubModuleUrl('builder/openai-codex/model.js'))
 
 const ACCESS_TOKEN = 'access-token-never-recorded'
-const bearer = async () => ({ accessToken: ACCESS_TOKEN, accountId: 'chatgpt-account-1' })
+const live = { access: ACCESS_TOKEN, refresh: 'refresh-live', expires: Date.now() + 3_600_000, accountId: 'chatgpt-account-1' }
+const codexModel = (name, streamRecordDir) => codexRouteModel(name, live, { streamRecordDir })
 const planHead = `# Plano\n${'a'.repeat(3000)}`
 const planTail = `${'z'.repeat(3000)}\nFIM`
 
@@ -60,7 +60,7 @@ test('a recorded Codex call leaves one JSONL file with the type totals, the tool
   serveScriptedStream(t)
   const directory = recordDirectory(t)
 
-  const parts = await drain(openaiCodexModel('gpt-6-luna', bearer, directory), callOptions())
+  const parts = await drain(await codexModel('gpt-6-luna', directory), callOptions())
 
   assert.equal(parts.filter((part) => part.type === 'raw').length, 0, 'the caller asked for no raw chunks and gets none')
   assert.equal(parts.find((part) => part.type === 'tool-call')?.toolName, 'mastra_workspace_write_file')
@@ -103,7 +103,7 @@ test('a caller that asks for raw chunks still gets them while the call is record
   serveScriptedStream(t)
   const directory = recordDirectory(t)
 
-  const parts = await drain(openaiCodexModel('gpt-6-luna', bearer, directory), callOptions(true))
+  const parts = await drain(await codexModel('gpt-6-luna', directory), callOptions(true))
 
   assert.equal(parts.filter((part) => part.type === 'raw').length, scriptedEvents().length)
   assert.equal(readdirSync(directory).length, 1)
@@ -112,10 +112,10 @@ test('a caller that asks for raw chunks still gets them while the call is record
 test('without a record directory the Codex call streams the same parts and writes no file', async (t) => {
   serveScriptedStream(t)
   const directory = recordDirectory(t)
-  const recorded = await drain(openaiCodexModel('gpt-6-luna', bearer, directory), callOptions())
+  const recorded = await drain(await codexModel('gpt-6-luna', directory), callOptions())
   const recordedFiles = readdirSync(directory).length
 
-  const plain = await drain(openaiCodexModel('gpt-6-luna', bearer), callOptions())
+  const plain = await drain(await codexModel('gpt-6-luna'), callOptions())
 
   assert.equal(recordedFiles, 1)
   assert.deepEqual(plain.map((part) => part.type), recorded.map((part) => part.type))
@@ -140,7 +140,7 @@ test('a call stopped mid-stream, as the runaway was, still ends its record with 
   }
   const directory = recordDirectory(t)
 
-  const { stream } = await openaiCodexModel('gpt-6-luna', bearer, directory).doStream(callOptions())
+  const { stream } = await (await codexModel('gpt-6-luna', directory)).doStream(callOptions())
   const reader = stream.getReader()
   let deltas = 0
   while (deltas < 20) if ((await reader.read()).value?.type === 'tool-input-delta') deltas += 1

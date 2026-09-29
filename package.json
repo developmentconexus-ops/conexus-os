@@ -77,7 +77,6 @@
     "verify": "npm run conexus:verify -- --scope candidate"
   },
   "dependencies": {
-    "@ai-sdk/openai": "3.0.114",
     "@codemirror/language": "6.12.4",
     "@codemirror/language-data": "6.5.2",
     "@codemirror/state": "6.7.5",

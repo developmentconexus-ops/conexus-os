@@ -141,7 +141,7 @@ export const buildModelInput = async ({ project, thread, mode, model, revision =
     firstUser ? textOf(firstUser.content) : '(none)',
     '',
     '=== NOT SHOWN HERE ===',
-    'The wire request of an openai model on a ChatGPT subscription also carries the Codex `instructions` and reasoning options that the model wrapper in apps/hub/src/builder/openai-codex/model.ts adds after Mastra hands over the input. The tools\' input schemas are not printed.',
+    'The wire request of an openai model on a ChatGPT subscription also carries the Codex `instructions` and reasoning options that the model wrapper in apps/hub/src/builder/openai-codex/route.ts and the Codex provider of @mastra/code-sdk add after Mastra hands over the input. The tools\' input schemas are not printed.',
     '',
   ].join('\n')
 }

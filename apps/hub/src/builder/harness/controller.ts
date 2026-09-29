@@ -97,7 +97,7 @@ const TOOL_CALL_CONCURRENCY = { limit: 4, strategy: 'called' } as const
  * agent). A step that streams a tool call without end otherwise holds the run for as long as the
  * provider keeps sending: one did for 12 minutes. The token cap ends it for providers that honor
  * it; the time budget covers those that do not (the ChatGPT Codex backend takes no output cap, see
- * `openai-codex/model.ts`) and a stream that stalls. A step that writes a whole large file needs
+ * `openai-codex/route.ts`) and a stream that stalls. A step that writes a whole large file needs
  * well under both.
  */
 const BUILDER_MAX_OUTPUT_TOKENS = 32_000

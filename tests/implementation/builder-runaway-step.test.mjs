@@ -93,15 +93,16 @@ test('the web tells the person the model ran too long on one answer and nothing 
 })
 
 test('the ChatGPT Codex request carries no max_output_tokens even when the call asks for a cap', async (t) => {
-  const { openaiCodexModel } = await import(hubModuleUrl('builder/openai-codex/model.js'))
+  const { codexModel } = await import('./codex-model.mjs')
   const realFetch = globalThis.fetch
+  const live = { access: 'test-bearer', refresh: 'test-refresh', expires: Date.now() + 3_600_000, accountId: 'test-account' }
   let body
   globalThis.fetch = async (request) => {
     body = JSON.parse(await request.text())
     return new Response('data: [DONE]\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } })
   }
   t.after(() => { globalThis.fetch = realFetch })
-  const model = openaiCodexModel('gpt-6-luna', async () => ({ accessToken: 'test-bearer', accountId: 'test-account' }))
+  const model = await codexModel('gpt-6-luna', live)
   await model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }], maxOutputTokens: 32_000 })
   assert.equal(body.model, 'gpt-6-luna')
   assert.equal('max_output_tokens' in body, false)
