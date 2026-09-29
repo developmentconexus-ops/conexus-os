@@ -121,3 +121,19 @@ test('a page that disconnects while its call waits aborts that call\'s signal', 
   const outcome = await Promise.race([once(signal, 'abort').then(() => 'aborted'), delay(2000, 'still waiting', { ref: false })])
   assert.equal(outcome, 'aborted')
 })
+
+test('the Preview answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
+  const { app } = await preview(t, async () => ({ status: 200, body: {} }))
+  const headers = { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' }
+  const index = await app.inject({ method: 'GET', url: '/index.html', headers })
+  for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
+    const answer = await app.inject({ method, url, headers })
+    assert.equal(answer.statusCode, 200, `${method} ${url}`)
+    assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8', `${method} ${url}`)
+    assert.equal(answer.headers['content-security-policy'], index.headers['content-security-policy'], `${method} ${url}`)
+    assert.match(answer.headers['content-security-policy'], /^default-src 'none'/, `${method} ${url}`)
+  }
+  for (const url of ['/x.js', '/x.js/', '/conexus-server/nope', '/conexus-server', '/__conexus/other']) {
+    assert.equal((await app.inject({ method: 'GET', url, headers })).statusCode, 404, url)
+  }
+})
