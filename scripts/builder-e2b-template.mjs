@@ -17,6 +17,7 @@ export const BUILDER_TEMPLATE_COMPILER_FILES = Object.freeze([
   'package-lock.json',
   'vite.config.mjs',
   'allowlist.mjs',
+  'generate-client.mjs',
   'tsconfig.mjs',
   'tsconfig.json',
   'tsconfig.server.json',
