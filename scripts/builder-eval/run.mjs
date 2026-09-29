@@ -30,7 +30,7 @@ const usage = [
   '  --project <id>         Reuse an existing Project (new conversation); default: create one',
   '  --grade-only           With --project: send nothing, grade the Project\'s current Preview',
   '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the first usable one',
-  '  --prompt-variant <id>  The Builder prompt variant every run of this case uses (v1, v2); default: the Hub\'s',
+  '  --prompt-variant <id>  The Builder prompt variant every run of this case uses (such as v2); default: the Hub\'s',
   '  --project-name <name>  Name for a newly created Project; default: eval-<UTC date>-<time>',
   '  --max-repairs <n>      Repair messages to send after a failed build; default: 2',
   '  --base-url <url>       Hub origin; default: https://hub.conexus.localhost:3443',

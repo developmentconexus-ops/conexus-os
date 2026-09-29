@@ -73,7 +73,7 @@ const renderPrompt = ({ modeId, variant }) => {
 }
 
 test('a run that names no prompt variant gets v2, the same text as naming v2', () => {
-  assert.deepEqual(PROMPT_VARIANTS, ['v1', 'v2'])
+  assert.deepEqual(PROMPT_VARIANTS, ['v2'])
   assert.equal(DEFAULT_PROMPT_VARIANT, 'v2')
   for (const modeId of ['plan', 'build']) {
     const text = renderPrompt({ modeId })
@@ -82,15 +82,8 @@ test('a run that names no prompt variant gets v2, the same text as naming v2', (
   }
 })
 
-test('v1, the first draft, still loads for the eval to compare', () => {
-  const plan = renderPrompt({ modeId: 'plan', variant: 'v1' })
-  assert.equal(plan.startsWith('# Conexus Builder\n\nYou are the Conexus Builder. You work for a person at a company'), true)
-  assert.equal(plan.includes('## Mode: Planejar'), true)
-  assert.equal(plan.includes('## Data comes only from real sources'), false)
-  assert.equal(renderPrompt({ modeId: 'build', variant: 'v1' }).includes('run `sh conexus/check.sh` at the repository root'), true)
-})
-
-test('a prompt variant the Hub does not ship fails the turn instead of falling back', () => {
+test('a prompt variant the Hub does not ship fails the turn instead of falling back, the removed v1 included', () => {
+  assert.throws(() => renderPrompt({ modeId: 'plan', variant: 'v1' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
   assert.throws(() => renderPrompt({ modeId: 'plan', variant: 'v9' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
   assert.throws(() => renderPrompt({ modeId: 'build', variant: '../v2' }), { message: 'BUILDER_PROMPT_VARIANT_UNKNOWN' })
 })

@@ -6,11 +6,12 @@ import { readConnectorBrief, readModeId, readProjectKnowledge, readPromptVariant
 
 /**
  * The prompt variants the Hub ships, each a folder `prompt/<id>/` holding `conexus.md` and one file
- * per mode. `v1` is the first draft, kept so the eval can compare it with `v2` (spec 0002,
- * Follow-up on prompt variants). A run names its variant; a run that names none gets the default.
+ * per mode. A run names its variant; a run that names none gets the default. One variant ships
+ * today; a candidate is added beside it to compare them on the eval (spec 0002, Follow-up on
+ * prompt variants).
  * @public Tests import this at runtime from the built module.
  */
-export const PROMPT_VARIANTS = Object.freeze(['v1', 'v2'] as const)
+export const PROMPT_VARIANTS = Object.freeze(['v2'] as const)
 export type PromptVariantId = (typeof PROMPT_VARIANTS)[number]
 /** @public Tests import this at runtime from the built module. */
 export const DEFAULT_PROMPT_VARIANT: PromptVariantId = 'v2'

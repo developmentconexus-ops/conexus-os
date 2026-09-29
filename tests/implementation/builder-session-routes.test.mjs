@@ -344,8 +344,9 @@ test('a message may name a prompt variant the Hub ships; an unknown one is refus
   })
   const url = `/api/control/projects/${projectA}/builder-session/messages`
   const send = (payload) => app.inject({ method: 'POST', url, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload })
-  const named = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v1' })
+  const named = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v2' })
+  const removed = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v1' })
   const unknown = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v9' })
-  assert.deepEqual([named.statusCode, unknown.statusCode], [404, 400])
-  assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere', promptVariant: 'v1' }])
+  assert.deepEqual([named.statusCode, removed.statusCode, unknown.statusCode], [404, 400, 400])
+  assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere', promptVariant: 'v2' }])
 })

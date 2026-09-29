@@ -23,7 +23,7 @@ Options (`--help` prints the same list):
 - `--model <id>`: a model id from `GET /api/control/model-accounts/models`; default is the first
   model the signed-in account can actually use.
 - `--prompt-variant <id>`: the Builder prompt variant (a folder of
-  `apps/hub/src/builder/harness/prompt/`, such as `v1` or `v2`) every run of this case uses; the
+  `apps/hub/src/builder/harness/prompt/`, such as `v2`) every run of this case uses; the
   eval adds it to each message the UI sends. Default: the Hub's own default. The run's trace
   records the variant the Hub used, as `conexusPromptVariant` beside `conexusBuilderRunId`.
 - `--grade-only` (needs `--project`): send no request; grade the Project's current Preview with the

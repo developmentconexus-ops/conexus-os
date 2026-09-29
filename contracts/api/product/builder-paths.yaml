@@ -346,7 +346,7 @@ components:
         promptVariant:
           description: The Builder prompt variant this run uses; absent means the default (v2). The eval names one to compare variants.
           type: string
-          enum: [v1, v2]
+          enum: [v2]
     BuilderMessageAccepted:
       type: object
       additionalProperties: false
