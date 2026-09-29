@@ -17,18 +17,29 @@ authentication: model credentials, the ChatGPT device-code sign-in and the secre
 
 ## Sources
 
-Spec 0002 (the Builder on its own harness) and spec 0003 (the app stack v2) are in the operator's
-study notes, outside this repository. This task carries their acceptance criteria and cites their
-rationale without copying it. Citations use these short forms, with line numbers as of 2026-09-29:
+Spec 0002 (the Builder on its own harness) and spec 0003 (the app stack v2) live beside this task,
+in [`specs/`](specs/). The studies behind them live in the [Builder research](../research/builder/index.md).
+This task carries the specs' acceptance criteria and cites their rationale without copying it.
+Citations use these short forms. Line numbers hold as of 2026-09-29. An amendment is appended at the
+end of a file, so earlier line numbers do not move.
 
 | Short form | File |
 | --- | --- |
-| `0002:N` | spec 0002, `specs/0002-builder-own-harness/index.md` |
-| `0002-R:N` | spec 0002 rationale, `specs/0002-builder-own-harness/rationale.md` |
-| `0003:N` | spec 0003, `specs/0003-app-stack-v2/index.md` |
-| `0003-R:N` | spec 0003 rationale, `specs/0003-app-stack-v2/rationale.md` |
-| `S17:N` | study 17, the app stack decision and its probe app |
-| `S21:N` | study 21, the census of the open work at `40d9671d` |
+| `0002:N` | spec 0002, [`specs/0002-builder-own-harness/index.md`](specs/0002-builder-own-harness/index.md) |
+| `0002-R:N` | spec 0002 rationale, [`specs/0002-builder-own-harness/rationale.md`](specs/0002-builder-own-harness/rationale.md) |
+| `0003:N` | spec 0003, [`specs/0003-app-stack-v2/index.md`](specs/0003-app-stack-v2/index.md) |
+| `0003-R:N` | spec 0003 rationale, [`specs/0003-app-stack-v2/rationale.md`](specs/0003-app-stack-v2/rationale.md) |
+| `S17:N` | study 17, the app stack decision and its probe app ([file](../research/builder/17-app-stack-decision.md)) |
+| `S20:N` | study 20, the eval plan for the AC-27 cases ([file](../research/builder/20-slice7-eval-plan.md)) |
+| `S21:N` | study 21, the census of the open work at `40d9671d` ([file](../research/builder/21-remaining-work-census.md)) |
+| `S22:N` | study 22, the handler `connectors.fetch` and the Connection destination ([file](../research/builder/22-q6-handler-connectors-fetch.md)) |
+| `S23:N` | study 23, durability and the sandbox per conversation ([file](../research/builder/23-durable-agent-and-sandbox-reuse.md)) |
+| `S24:N` | study 24, the stop button and the sandbox lifecycle ([file](../research/builder/24-stop-button-and-sandbox-lifecycle.md)) |
+| `S25:N` | study 25, the flow and performance baseline ([file](../research/builder/25-builder-flow-and-performance-baseline.md)) |
+| `S26:N` | study 26, the compact chat ([file](../research/builder/26-builder-chat-compact-ui.md)) |
+| `S27:N` | study 27, the root cause of the weak quote app ([file](../research/builder/27-builder-root-cause-quote-app.md)) |
+| `S28:N` | study 28, the audit of the Builder's context ([file](../research/builder/28-builder-context-audit.md)) |
+| `S29:N` | study 29, the improvement plan in two waves ([file](../research/builder/29-builder-improvement-plan.md)) |
 | `name:N` | the test titled at line N of `tests/implementation/name.test.mjs` |
 
 ## 1. Authority route
