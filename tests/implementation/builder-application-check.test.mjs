@@ -136,6 +136,35 @@ test('generate writes the typed client from the manifest and a screen that calls
   assert.match(readFileSync(join(root, 'conexus/types.gen.ts'), 'utf8'), /countNotes: \{ input: \{\}; output: \{ total: number \} \}/)
 })
 
+const ORDER_LINES_MANIFEST = {
+  operations: {
+    orderLines: {
+      handler: 'handlers/lines.ts', export: 'orderLines',
+      input: { type: 'object', properties: { order: { type: 'integer' } }, required: ['order'], additionalProperties: false },
+      output: { type: 'object', properties: { codes: { type: 'array', items: { type: 'string' } }, complete: { type: 'boolean' }, failure: { type: 'string', maxLength: 40 } }, required: ['codes', 'complete'], additionalProperties: false },
+    },
+  },
+}
+// The handler types its context the way the server guide shows, and hands it to the reader.
+const ORDER_LINES_HANDLER = `import type { Input, Output } from '../types.gen.ts'
+import { loadAllRecords } from '../sankhya.gen.ts'
+
+type Connectors = { fetch(request: { connection: string; method: string; path: string; query?: Record<string, string>; body?: unknown }): Promise<{ ok: true; status: number; bytes: number; body: any } | { ok: false; code: string; issues?: string[]; status?: number; vendorStatus?: string }> }
+
+export async function orderLines(input: Input<'orderLines'>, { connectors }: { connectors: Connectors }): Promise<Output<'orderLines'>> {
+  const read = await loadAllRecords(connectors, 'erp', { rootEntity: 'ItemNota', criteria: { expression: { $: 'this.NUNOTA = ?' }, parameter: [{ $: String(input.order), type: 'I' }] } })
+  if (!read.ok) return { codes: [], complete: false, failure: read.code }
+  return { codes: read.rows.map((row) => row.CODPROD ?? ''), complete: read.complete }
+}
+`
+
+test('generate writes the Sankhya reader, and a handler typed as the guide shows imports it, typechecks and bundles', (t) => {
+  const { report, root, out } = check(t, { ...STARTER, 'conexus/manifest.json': ORDER_LINES_MANIFEST, 'conexus/handlers/lines.ts': ORDER_LINES_HANDLER })
+  assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'passed'], ['boot', 'passed']], JSON.stringify(report.steps))
+  assert.equal(readFileSync(join(root, 'conexus/sankhya.gen.ts'), 'utf8'), readFileSync(join(repositoryRoot, 'apps/hub/src/builder/handler-kit/sankhya.ts'), 'utf8'))
+  assert.match(readFileSync(join(out, 'conexus-server/handlers/lines.mjs'), 'utf8'), /CRUDServiceProvider\.loadRecords/)
+})
+
 test('generate refuses a bad manifest with the runner message, and an unsatisfiable bound, as generate problems', (t) => {
   const bad = check(t, { ...STARTER, 'conexus/manifest.json': { operations: { ...MANIFEST.operations, Bad: MANIFEST.operations.countNotes } } })
   assert.equal(bad.report.ok, false)
