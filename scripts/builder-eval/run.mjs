@@ -7,14 +7,19 @@
 import { chromium } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { homedir, loadavg } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
-import { gradeRefusal } from './scorers.mjs'
+import { compareToOracle, loadOracle } from './oracle.mjs'
+import { correctionMessage, createPerson, fillSheet, fillValues, loadValues, parseSheet, slicesRemaining } from './person.mjs'
+import { createEvalMastra, evalStorage, findTraceIds, gradeRefusal } from './scorers.mjs'
+import { hubTimingFromLog, timingBlock } from './timing.mjs'
 
 export const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
 export const DEFAULT_MAX_REPAIRS = 2
+export const DEFAULT_MAX_SLICES = 6
+const ARMS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'arms')
 const PREVIEW_IFRAME_TITLE = 'Prévia do aplicativo'
 const REPAIR_MESSAGE = 'o build falhou, corrija'
 // Pilot runs take 3 to 12 minutes; 10 minutes clipped valid runs.
@@ -32,7 +37,12 @@ const usage = [
   '  --grade-only           With --project: send nothing, grade the Project\'s current Preview',
   '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the first usable one',
   '  --prompt-variant <id>  The Builder prompt variant every run of this case uses (such as v2); default: the Hub\'s',
-  '  --project-name <name>  Name for a newly created Project; default: eval-<UTC date>-<time>',
+  '  --arm <id>             The methodology arm: arms/<id>.json when it exists (model, promptVariant), else the prompt variant <id>; sent only in the request context',
+  '  --repetition <n>       Repetition number of this case on this arm, recorded in the timing identity; default: 1',
+  '  --max-slices <n>       Messages sent to carry a plan on after a version while it lists slices left; default: 6',
+  '  --no-correction        Skip the one correction message the scripted person sends from the oracle diff',
+  '  --hub-version <sha>    The running Hub\'s commit, recorded in the timing identity',
+  '  --project-name <name>  Name for a newly created Project; default: the case\'s person.projectName, else eval-<UTC date>-<time>',
   '  --max-repairs <n>      Repair messages to send after a failed build; default: 2',
   '  --base-url <url>       Hub origin; default: https://hub.conexus.localhost:3443 (any other origin needs CONEXUS_STATE)',
   '  --mask-values          Hide business values in the saved evidence: mask table cells in screenshots and replace digits in previewText',
@@ -51,7 +61,7 @@ const valueFor = (argv, index, flag) => {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, promptVariant: undefined, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
+  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, promptVariant: undefined, arm: undefined, repetition: 1, maxSlices: DEFAULT_MAX_SLICES, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index]
     switch (flag) {
@@ -61,6 +71,21 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case '--grade-only': options.gradeOnly = true; break
       case '--model': options.model = valueFor(argv, index++, flag); break
       case '--prompt-variant': options.promptVariant = valueFor(argv, index++, flag); break
+      case '--arm': options.arm = valueFor(argv, index++, flag); break
+      case '--repetition': {
+        const value = valueFor(argv, index++, flag)
+        if (!/^[1-9]\d*$/.test(value)) fail('--repetition must be a positive integer')
+        options.repetition = Number(value)
+        break
+      }
+      case '--max-slices': {
+        const value = valueFor(argv, index++, flag)
+        if (!/^\d+$/.test(value)) fail('--max-slices must be a non-negative integer')
+        options.maxSlices = Number(value)
+        break
+      }
+      case '--no-correction': options.noCorrection = true; break
+      case '--hub-version': options.hubVersion = valueFor(argv, index++, flag); break
       case '--project-name': options.projectName = valueFor(argv, index++, flag); break
       case '--max-repairs': {
         const value = valueFor(argv, index++, flag)
@@ -80,6 +105,14 @@ export function parseArgs(argv = process.argv.slice(2)) {
   if (!options.out) fail('--out <dir> is required')
   if (options.gradeOnly && !options.project) fail('--grade-only requires --project <id>')
   return options
+}
+
+/** An arm names the methodology under test. `arms/<id>.json` may set its model and prompt variant; an id with no file is itself the prompt variant, which reaches the Hub only through the request's promptVariant field. */
+export function resolveArm(armId, armsDir = ARMS_DIR) {
+  if (!/^[a-z0-9][a-z0-9-]{0,30}$/.test(armId)) fail(`--arm ${armId} is not a valid arm id`)
+  const file = join(armsDir, `${armId}.json`)
+  const arm = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+  return { promptVariant: arm.promptVariant ?? armId, model: arm.model }
 }
 
 const defaultProjectName = () => `eval-${new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)}`
@@ -130,12 +163,14 @@ const readDiff = (page, projectId, baseSourceRevision, resultSourceRevision) => 
 }, { id: projectId, base: baseSourceRevision, result: resultSourceRevision })
 
 /** Waits for a BuilderRun other than `excludeRunId` to leave QUEUED/RUNNING, polling the same API the product polls. */
-async function pollForSettledRun(page, projectId, excludeRunId, answers) {
+async function pollForSettledRun(page, projectId, excludeRunId, answers, person = null) {
   const deadline = Date.now() + RUN_SETTLE_TIMEOUT_MS
   let session = null
   let answering = null
   while (Date.now() < deadline) {
-    answering = await answerPendingCard(page, answers, answering)
+    const answered = answers.length
+    answering = await answerPendingCard(page, answers, answering, person)
+    if (answers.length > answered) answers.at(-1).answeredAt = new Date().toISOString()
     session = await readSession(page, projectId)
     const run = session.latestBuilderRun
     if (run && run.builderRunId !== excludeRunId && run.state !== 'QUEUED' && run.state !== 'RUNNING') return { session, run }
@@ -148,19 +183,49 @@ const PLAN_CARD = 'section[aria-label="Plano para aprovar"]'
 const QUESTION_CARD = '[aria-label="Pergunta do agente"]'
 const FALLBACK_ANSWER = 'Pode seguir com o que achar mais simples.'
 
+/** The options of a question card as the person reads them: the first line of each is its label. */
+async function readOptions(question) {
+  const inputs = question.locator('input[type=radio], input[type=checkbox]')
+  const options = []
+  for (let index = 0; index < await inputs.count(); index += 1) {
+    const [label = '', ...description] = (await inputs.nth(index).locator('xpath=ancestor::label[1]').innerText()).split('\n').map((line) => line.trim()).filter(Boolean)
+    options.push({ label, description: description.join(' ') })
+  }
+  return { options, multi: options.length > 0 && (await inputs.first().getAttribute('type')) === 'checkbox' }
+}
+
+/** The whole plan, from the reader the card's "Ler plano completo" opens; null when the card has none. */
+async function readFullPlan(page, plan) {
+  const open = plan.getByRole('button', { name: 'Ler plano completo' })
+  if (await open.count() === 0) return null
+  try {
+    await open.click()
+    const reader = page.locator('.cx-plan-reader-body')
+    await reader.waitFor({ state: 'visible', timeout: 5_000 })
+    const text = await reader.innerText()
+    await page.getByRole('button', { name: 'Fechar' }).click()
+    return text
+  } catch {
+    await page.keyboard.press('Escape').catch(() => {})
+    return null
+  }
+}
+
 /** Answers the pending card Construir shows while a run waits for the person, the same click a
- * person makes: the plan card is approved, a question gets its first (recommended) option or,
- * with no options, a fixed "do the simplest" reply. The web sends Mastra's own
- * respondToToolSuspension; the driver never calls a Hub route of its own. `answering` is the card
- * already answered on an earlier tick, so a card still on screen while its answer travels is not
- * answered twice. Returns the card now on screen (null when none). */
-export async function answerPendingCard(page, answers, answering = null) {
+ * person makes: the plan card is approved (every gate, in the order they come), and a question is
+ * answered by `person` (the scripted person of a bakeoff case) or, with none, gets its first
+ * (recommended) option or, with no options, a fixed "do the simplest" reply. The web sends
+ * Mastra's own respondToToolSuspension; the driver never calls a Hub route of its own. `answering`
+ * is the card already answered on an earlier tick, so a card still on screen while its answer
+ * travels is not answered twice. Returns the card now on screen (null when none). */
+export async function answerPendingCard(page, answers, answering = null, person = null) {
   const plan = page.locator(PLAN_CARD)
   if (await plan.count() > 0) {
     const title = await plan.locator('strong').first().innerText().catch(() => '')
-    const text = await plan.locator('pre').first().innerText().catch(() => '')
-    const signature = `plan:${title}:${text}`
+    const shown = await plan.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
+    const signature = `plan:${title}:${shown}`
     if (signature === answering) return signature
+    const text = await readFullPlan(page, plan) ?? shown
     await plan.getByRole('button', { name: 'Aprovar e construir' }).click()
     answers.push({ kind: 'PLAN', title, text, answer: 'Aprovar e construir' })
     return signature
@@ -170,20 +235,24 @@ export async function answerPendingCard(page, answers, answering = null) {
     const text = (await question.first().innerText()).split('\n')[0].trim()
     const signature = `question:${text}`
     if (signature === answering) return signature
-    const option = question.locator('input[type=radio], input[type=checkbox]').first()
+    const { options, multi } = await readOptions(question)
+    const decision = person ? await person.answer({ question: text, options, multi }) : null
     let answer
-    if (await option.count() > 0) {
-      answer = (await option.locator('xpath=ancestor::label[1]').innerText()).split('\n')[0].trim()
-      const multi = (await option.getAttribute('type')) === 'checkbox'
-      await option.click({ force: true })
+    if (options.length > 0) {
+      const labels = decision ? [decision.answer].flat() : [options[0].label]
+      for (const label of labels) {
+        const index = options.findIndex((option) => option.label === label)
+        await question.locator('input[type=radio], input[type=checkbox]').nth(index).click({ force: true })
+      }
       if (multi) await question.locator('button').last().click()
+      answer = labels.join(', ')
     } else {
-      answer = FALLBACK_ANSWER
+      answer = decision ? decision.answer : FALLBACK_ANSWER
       const input = question.locator('input, textarea').first()
       await input.fill(answer)
       await input.press('Enter')
     }
-    answers.push({ kind: 'QUESTION', title: text, text, answer })
+    answers.push({ kind: 'QUESTION', title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
     return signature
   }
   return null
@@ -238,7 +307,7 @@ async function pollForPreviewOf(page, projectId, sourceRevision) {
 const needsRepair = (run) => run.failureCategory === 'APPLICATION_BUILD_FAILED'
 
 const recordOf = (run, isRepair) => ({
-  builderRunId: run.builderRunId, isRepair, state: run.state, resultKind: run.resultKind,
+  builderRunId: run.builderRunId, isRepair, createdAt: run.createdAt, settledAt: new Date().toISOString(), state: run.state, resultKind: run.resultKind,
   failureCode: run.failureCode, failureCategory: run.failureCategory,
   baseSourceRevision: run.baseSourceRevision, resultSourceRevision: run.resultSourceRevision,
   requestText: run.requestText,
@@ -298,9 +367,10 @@ async function openConversationAndSend(page, { baseUrl, projectId, request, mode
   return { projectId, conversationId, requestSentAt }
 }
 
-async function sendRepairMessage(page) {
+async function sendMessage(page, message) {
   const composer = page.getByLabel('Mensagem para o agente')
-  await composer.fill(REPAIR_MESSAGE)
+  await composer.fill(message)
+  await waitForComposerReady(page)
   await page.getByRole('button', { name: 'Enviar' }).click()
 }
 
@@ -316,7 +386,7 @@ async function openProject(page, baseUrl, projectId) {
 }
 
 /** Runs the case's checks against the Preview on screen, then, when the case asks, reloads the
- * Preview and reruns its expectText checks. Returns when the Preview's veil lifted. */
+ * Preview and reruns its expectText checks. Returns when the Preview's veil lifted and the Preview's text as read. */
 async function gradePreview(page, { out, caseFile, result, maskValues }) {
   const usablePreviewAt = await waitForUsablePreview(page)
   result.previewUrl = await readPreviewUrl(page, result.projectId).catch(() => null)
@@ -330,6 +400,7 @@ async function gradePreview(page, { out, caseFile, result, maskValues }) {
   result.checks.initial = await runChecks(frame, caseFile.checks)
   const previewText = await frame.locator('body').innerText({ timeout: 15_000 }).catch(() => null)
   result.previewText = maskValues ? digitsMasked(previewText) : previewText
+  const rawPreviewText = previewText
   if (caseFile.reload && checksPassed(result.checks.initial)) {
     // The Preview is cross-origin, so its window cannot be reloaded from the Hub page; the
     // frame is navigated to its own URL instead, which reuses the Preview cookie. Its browser
@@ -346,7 +417,7 @@ async function gradePreview(page, { out, caseFile, result, maskValues }) {
     result.checks.afterReload = await runChecks(frameAfterReload, caseFile.checks.filter((step) => step.action === 'expectText' || step.action === 'expectNoText'))
     await iframe.screenshot({ path: join(out, 'preview-after-reload.png'), mask }).catch(() => {})
   }
-  return usablePreviewAt
+  return { usablePreviewAt, rawPreviewText }
 }
 
 /** Sends the case's request (and repairs) through the product UI and waits for the final run to
@@ -376,59 +447,186 @@ async function sendAndSettle(page, options, caseFile, result) {
   result.projectId = started.projectId
   result.conversationId = started.conversationId
 
-  let settled = await pollForSettledRun(page, result.projectId, previousRunId, result.answers)
+  const person = options.person ?? null
+  let settled = await pollForSettledRun(page, result.projectId, previousRunId, result.answers, person)
   result.runs.push(recordOf(settled.run, false))
   result.sourceRevisionBefore = settled.run.baseSourceRevision
-  while (needsRepair(settled.run) && result.repairIterations < options.maxRepairs) {
-    result.repairIterations += 1
-    await sendRepairMessage(page)
-    const previousRunId = settled.run.builderRunId
-    settled = await pollForSettledRun(page, result.projectId, previousRunId, result.answers)
-    result.runs.push(recordOf(settled.run, true))
+  settled = await repairUntilBuilt(page, options, result, settled, person)
+
+  // A plan that lists slices carries on after each version: the person sends one short message
+  // until the plan says none is left, up to the cap.
+  while (person && settled.run.state === 'SUCCEEDED' && result.slicesContinued < options.maxSlices) {
+    const messages = await readThreadMessages(page, result.projectId, result.conversationId).catch(() => [])
+    const lastPlan = result.answers.findLast((answer) => answer.kind === 'PLAN')
+    if (!slicesRemaining(lastPlan?.text, lastAssistantText(messages))) break
+    result.slicesContinued += 1
+    await sendMessage(page, person.sheet.continueText)
+    settled = await pollForSettledRun(page, result.projectId, settled.run.builderRunId, result.answers, person)
+    result.runs.push(recordOf(settled.run, false))
+    settled = await repairUntilBuilt(page, options, result, settled, person)
   }
 
-  const finalRun = settled.run
-  result.sourceRevisionAfter = finalRun.resultSourceRevision ?? finalRun.baseSourceRevision
-  if (result.sourceRevisionAfter && result.sourceRevisionAfter !== result.sourceRevisionBefore) {
-    result.filesChanged = await readDiff(page, result.projectId, result.sourceRevisionBefore, result.sourceRevisionAfter)
+  await judgeFinalRun(page, result.projectId, result, result.runs, result.slicesContinued > 0)
+  return started.requestSentAt
+}
+
+/** Sends "o build falhou, corrija" while the last run's build failed on the source, up to the cap. */
+async function repairUntilBuilt(page, options, result, settled, person) {
+  let current = settled
+  while (needsRepair(current.run) && result.repairIterations < options.maxRepairs) {
+    result.repairIterations += 1
+    await sendMessage(page, REPAIR_MESSAGE)
+    current = await pollForSettledRun(page, result.projectId, current.run.builderRunId, result.answers, person)
+    result.runs.push(recordOf(current.run, true))
+  }
+  return current
+}
+
+/** Fills `target` (sourceRevisionAfter, filesChanged, failure) from the final run and waits for the
+ * Preview to name its revision. When slices went on, a last reply that changed nothing does not
+ * fail the case: the Preview to grade is the newest source the person's messages produced. */
+async function judgeFinalRun(page, projectId, target, runs, afterSlices) {
+  const finalRun = runs.at(-1)
+  const producing = afterSlices && finalRun.resultKind === 'RESPONSE_ONLY'
+    ? runs.findLast((run) => run.resultKind === 'SOURCE_CHANGED' || run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') ?? finalRun
+    : finalRun
+  target.sourceRevisionAfter = producing.resultSourceRevision ?? producing.baseSourceRevision
+  const before = runs[0].baseSourceRevision
+  if (target.sourceRevisionAfter && target.sourceRevisionAfter !== before) {
+    target.filesChanged = await readDiff(page, projectId, before, target.sourceRevisionAfter)
   }
 
   // The Hub may still offer an older build's Preview after the final run failed; checking that
   // one would grade a result the request did not produce.
-  if (finalRun.state !== 'SUCCEEDED' || finalRun.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') {
-    result.failure = 'FINAL_RUN_NOT_BUILT'
-  } else if (finalRun.resultKind === 'RESPONSE_ONLY') {
-    result.failure = 'NO_SOURCE_CHANGE'
-  } else if (!(await pollForPreviewOf(page, result.projectId, result.sourceRevisionAfter))) {
-    result.failure = 'PREVIEW_NOT_FROM_FINAL_RUN'
+  if (producing.state !== 'SUCCEEDED' || producing.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') {
+    target.failure = 'FINAL_RUN_NOT_BUILT'
+  } else if (producing.resultKind === 'RESPONSE_ONLY') {
+    target.failure = 'NO_SOURCE_CHANGE'
+  } else if (!(await pollForPreviewOf(page, projectId, target.sourceRevisionAfter))) {
+    target.failure = 'PREVIEW_NOT_FROM_FINAL_RUN'
   }
-  return started.requestSentAt
+}
+
+/** The one correction message: the person sends it once after the first Preview, built from the oracle's diff, and the Preview it produces is compared again. */
+async function sendCorrection(page, options, result, { oracle, person, planText, rawFirst }) {
+  const comparison = compareToOracle(oracle, { previewText: rawFirst, planText })
+  result.oracle = { afterFirstPreview: comparison, afterCorrection: null }
+  const message = correctionMessage(comparison.defects)
+  if (!message || options.noCorrection || !result.projectId) return
+  const firstRun = result.runs.length
+  const correction = { message: options.maskValues ? digitsMasked(message) : message, sourceRevisionAfter: null, filesChanged: [], failure: null, wallTimeToUsablePreviewMs: null }
+  result.correction = correction
+  const sentAt = Date.now()
+  await sendMessage(page, message)
+  let settled = await pollForSettledRun(page, result.projectId, result.runs.at(-1).builderRunId, result.answers, person)
+  result.runs.push(recordOf(settled.run, false))
+  settled = await repairUntilBuilt(page, options, result, settled, person)
+  await judgeFinalRun(page, result.projectId, correction, result.runs.slice(firstRun), false)
+  if (correction.failure) return
+  const { usablePreviewAt, rawPreviewText } = await readPreview(page, join(options.out, 'preview-after-correction.png'), options.maskValues)
+  correction.wallTimeToUsablePreviewMs = usablePreviewAt - sentAt
+  result.oracle.afterCorrection = compareToOracle(oracle, { previewText: rawPreviewText, planText })
+}
+
+/** The Preview on screen once its veil lifts: its screenshot and its text. */
+async function readPreview(page, screenshotPath, maskValues) {
+  const usablePreviewAt = await waitForUsablePreview(page)
+  const iframe = page.locator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
+  const frame = page.frameLocator(`iframe[title="${PREVIEW_IFRAME_TITLE}"]`)
+  await iframe.screenshot({ path: screenshotPath, mask: maskValues ? [frame.locator('td, [role=cell]')] : [] }).catch(() => {})
+  return { usablePreviewAt, rawPreviewText: await frame.locator('body').innerText({ timeout: 15_000 }).catch(() => '') }
+}
+
+const tscProcesses = () => {
+  try {
+    return Number(execFileSync('pgrep', ['-c', '-x', 'tsc'], { encoding: 'utf8' }).trim())
+  } catch {
+    return 0
+  }
+}
+
+/** Counts of what the person had to do, from the driver's own record. */
+export const personCounts = (result) => ({
+  approvals: result.answers.filter((answer) => answer.kind === 'PLAN').length,
+  answers: result.answers.filter((answer) => answer.kind === 'QUESTION').length,
+  silentAnswers: result.answers.filter((answer) => answer.via === 'silent').length,
+  repairs: result.repairIterations,
+  slicesContinued: result.slicesContinued,
+  corrections: result.correction ? 1 : 0,
+})
+
+/** The timing block of every Builder run of this case. The spans come from the Hub database when CONEXUS_EVAL_DATABASE_URL names it, the Hub's stage times from the log CONEXUS_HUB_LOG names; either one missing leaves that part null and says why. */
+async function collectTimings(result, options, env = process.env) {
+  const identity = {
+    case: options.case, arm: options.arm ?? null, repetition: options.repetition, modelId: result.modelId, promptVariant: result.promptVariant,
+    hubVersion: options.hubVersion, machine: { tscProcesses: tscProcesses(), loadAverage1m: loadavg()[0] },
+  }
+  const timings = { identity, person: personCounts(result), runs: [] }
+  const databaseUrl = env.CONEXUS_EVAL_DATABASE_URL
+  const logText = env.CONEXUS_HUB_LOG && existsSync(env.CONEXUS_HUB_LOG) ? readFileSync(env.CONEXUS_HUB_LOG, 'utf8') : null
+  let storage = null
+  let traceIds = []
+  let reason = databaseUrl ? null : 'CONEXUS_EVAL_DATABASE_URL is not set'
+  if (databaseUrl && result.projectId) {
+    try {
+      storage = evalStorage(databaseUrl)
+      traceIds = await findTraceIds(createEvalMastra({ storage }), { projectId: result.projectId, builderRunIds: result.runs.map((run) => run.builderRunId) })
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error)
+    }
+  }
+  for (const [index, run] of result.runs.entries()) {
+    const entry = { builderRunId: run.builderRunId, block: null, reason }
+    if (storage && traceIds[index]) {
+      try {
+        const { spans } = await (await storage.getStore('observability')).getTrace({ traceId: traceIds[index] })
+        entry.block = timingBlock({ spans, run: { createdAt: run.createdAt, finishedAt: run.settledAt }, hubStages: logText ? hubTimingFromLog(logText, run.builderRunId) : null })
+        entry.reason = null
+      } catch (error) {
+        entry.reason = error instanceof Error ? error.message : String(error)
+      }
+    } else if (storage) entry.reason = 'no finished trace for this run'
+    timings.runs.push(entry)
+  }
+  await storage?.close?.()
+  return timings
 }
 
 export async function runCase(options) {
   const rawCase = JSON.parse(readFileSync(resolve(options.case), 'utf8'))
   const caseFile = parseCase(rawCase)
   const missingSystem = typeof rawCase.missingSystem === 'string' ? rawCase.missingSystem : null
+  const values = rawCase.person ? loadValues() : {}
+  const sheet = rawCase.person ? fillSheet(parseSheet(rawCase.person), values) : null
+  const person = sheet ? createPerson({ sheet, ...(options.personModel ? { model: options.personModel } : {}) }) : null
+  const oracle = typeof rawCase.oracle === 'string' ? loadOracle(rawCase.oracle) : null
+  const arm = options.arm ? resolveArm(options.arm) : null
+  const promptVariant = options.promptVariant ?? arm?.promptVariant
+  const modelId = options.model ?? arm?.model
+  const runOptions = { ...options, person, model: modelId, promptVariant }
+  const sendRequest = sheet ? fillValues(caseFile.request, values) : caseFile.request
   const statePath = options.statePath ?? resolveStatePath(options.baseUrl)
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
   // The product UI never names a prompt variant, so the eval adds it to each message the UI sends:
-  // the first request and every repair.
-  if (options.promptVariant) {
+  // the first request, every repair, slice and correction. The Builder sees it in the request
+  // context and nowhere else: not in the Project name, the request or the person's words.
+  if (promptVariant) {
     await page.route('**/api/control/projects/*/builder-session/messages', (route) => route.continue({
-      postData: JSON.stringify({ ...JSON.parse(route.request().postData() ?? '{}'), promptVariant: options.promptVariant }),
+      postData: JSON.stringify({ ...JSON.parse(route.request().postData() ?? '{}'), promptVariant }),
     }))
   }
   const startedAt = new Date().toISOString()
   const result = {
     schema: 'conexus.builder-eval/v1', startedAt, finishedAt: null, outcome: 'ERROR', error: null,
-    case: options.case, gradeOnly: options.gradeOnly, request: caseFile.request, baseUrl: options.baseUrl,
-    workspaceId: null, projectId: options.project ?? null, projectName: options.project ? null : (options.projectName ?? defaultProjectName()),
-    conversationId: null, modelId: options.model ?? null, promptVariant: options.promptVariant ?? null,
+    case: options.case, arm: options.arm ?? null, gradeOnly: options.gradeOnly, request: caseFile.request, baseUrl: options.baseUrl,
+    workspaceId: null, projectId: options.project ?? null, projectName: options.project ? null : (options.projectName ?? sheet?.projectName ?? defaultProjectName()),
+    conversationId: null, modelId: modelId ?? null, promptVariant: promptVariant ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
-    runs: [], answers: [], lastCheckReport: null, lastCheckReportReason: null, refusal: null, repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
+    runs: [], answers: [], lastCheckReport: null, lastCheckReportReason: null, refusal: null, repairIterations: 0, slicesContinued: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
     checks: { initial: [], afterReload: null }, previewText: null, screenshotPath: null, failure: null,
+    oracle: null, correction: null, timings: null,
   }
   try {
     let requestSentAt = null
@@ -438,13 +636,17 @@ export async function runCase(options) {
       result.sourceRevisionAfter = previewOf(await readSession(page, options.project))
       if (!result.sourceRevisionAfter) result.failure = 'NO_PREVIEW'
     } else {
-      requestSentAt = await sendAndSettle(page, options, caseFile, result)
+      requestSentAt = await sendAndSettle(page, runOptions, { ...caseFile, request: sendRequest }, result)
     }
 
     mkdirSync(options.out, { recursive: true })
     if (!result.failure) {
-      const usablePreviewAt = await gradePreview(page, { out: options.out, caseFile, result, maskValues: options.maskValues })
+      const { usablePreviewAt, rawPreviewText } = await gradePreview(page, { out: options.out, caseFile, result, maskValues: options.maskValues })
       if (requestSentAt !== null) result.wallTimeToUsablePreviewMs = usablePreviewAt - requestSentAt
+      if (person && oracle) {
+        const planText = result.answers.findLast((answer) => answer.kind === 'PLAN')?.text ?? null
+        await sendCorrection(page, runOptions, result, { oracle, person, planText, rawFirst: rawPreviewText })
+      }
     }
 
     if (result.projectId && result.conversationId) {
@@ -462,11 +664,16 @@ export async function runCase(options) {
       }
     }
 
+    if (options.maskValues) for (const answer of result.answers) answer.answer = digitsMasked(answer.answer)
     const ranAnyChecks = result.checks.initial.length > 0
     const initialOk = checksPassed(result.checks.initial)
     const reloadOk = result.checks.afterReload === null || checksPassed(result.checks.afterReload)
-    const passed = missingSystem ? result.refusal?.score === 1 : ranAnyChecks && initialOk && reloadOk
-    result.outcome = passed ? 'PASS' : 'FAIL'
+    // A bakeoff case is graded by the oracle alone; without its file the run is kept but not graded.
+    const passed = missingSystem ? result.refusal?.score === 1
+      : typeof rawCase.oracle === 'string' ? (oracle ? Boolean(result.oracle?.afterFirstPreview.passed) && !result.failure : null)
+        : ranAnyChecks && initialOk && reloadOk
+    result.outcome = passed === null ? 'UNGRADED' : passed ? 'PASS' : 'FAIL'
+    result.timings = await collectTimings(result, options)
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error)
     result.outcome = 'ERROR'
@@ -488,7 +695,7 @@ export async function main(argv = process.argv.slice(2)) {
     return 0
   }
   const result = await runCase(options)
-  process.stdout.write(`${JSON.stringify({ outcome: result.outcome, projectId: result.projectId, runs: result.runs.length, repairIterations: result.repairIterations, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, error: result.error }, null, 2)}\n`)
+  process.stdout.write(`${JSON.stringify({ outcome: result.outcome, arm: result.arm, projectId: result.projectId, runs: result.runs.length, repairIterations: result.repairIterations, slicesContinued: result.slicesContinued, corrected: result.correction !== null, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, error: result.error }, null, 2)}\n`)
   return result.outcome === 'PASS' ? 0 : 1
 }
 

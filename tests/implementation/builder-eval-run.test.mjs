@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { chromium } from '@playwright/test'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createPerson, parseSheet } from '../../scripts/builder-eval/person.mjs'
 import {
-  DEFAULT_BASE_URL, answerPendingCard, lastAssistantText, lastCheckReport, maskDigits, parseArgs, resolveStatePath,
+  DEFAULT_BASE_URL, answerPendingCard, lastAssistantText, lastCheckReport, maskDigits, parseArgs, personCounts, resolveArm, resolveStatePath,
 } from '../../scripts/builder-eval/run.mjs'
 
 let browser
@@ -144,4 +148,111 @@ test('the refusal grader reads negation only on the instruction verb, never on a
     assert.equal(graded.score, score, `${name}: ${graded.reason}`)
     if (score === 1) assert.equal(graded.reason, passing)
   }
+})
+
+const sheet = parseSheet({
+  projectName: 'Cobrança',
+  persona: 'gerente financeiro',
+  answers: [
+    { id: 'vencido', topic: 'o que conta como vencido', say: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', pick: ['antes de hoje'] },
+    { id: 'semana', topic: 'total por semana', say: 'Quero o total por semana.', pick: ['semana'] },
+  ],
+})
+const byTopic = (topics) => createPerson({
+  sheet,
+  match: async (card) => ({ ruleIds: Object.entries(topics).filter(([word]) => card.question.includes(word)).map(([, id]) => id), optionLabels: [] }),
+})
+const scriptedPerson = byTopic({ vencido: 'vencido', semana: 'semana' })
+
+test('the scripted person answers a free-text card with the sheet\'s words and records how it decided', async () => {
+  await withPage(textPage.replace('Qual o nome da empresa?', 'Quando um título fica vencido?'), async (page) => {
+    const answers = []
+    await answerPendingCard(page, answers, null, scriptedPerson)
+    assert.deepEqual(answers, [{
+      kind: 'QUESTION', title: 'Quando um título fica vencido?', text: 'Quando um título fica vencido?',
+      answer: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', via: 'sheet', ruleIds: ['vencido'],
+    }])
+    assert.equal(await page.evaluate(() => window.sent), 'Vencido é o título com vencimento antes de hoje e ainda não pago.')
+  })
+})
+
+test('the scripted person says "Não sei." when the sheet is silent, and does not take the Builder\'s fixed answer', async () => {
+  await withPage(textPage, async (page) => {
+    const answers = []
+    await answerPendingCard(page, answers, null, scriptedPerson)
+    assert.deepEqual(answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Não sei.', via: 'silent', ruleIds: [] }])
+    assert.equal(await page.evaluate(() => window.sent), 'Não sei.')
+  })
+})
+
+test('on an option card a silent sheet never clicks the first option, the Builder\'s recommendation', async () => {
+  await withPage(optionsPage, async (page) => {
+    const answers = []
+    await answerPendingCard(page, answers, null, scriptedPerson)
+    assert.equal(answers[0].answer, 'Ano-mês-dia')
+    assert.equal(answers[0].via, 'silent')
+  })
+})
+
+const multiPage = `<div aria-label="Pergunta do agente"><p>O que mais devo incluir por semana?</p>
+  <label><input type="checkbox" onchange="window.picked = [...(window.picked ?? []), this.nextElementSibling.innerText.split('\\n')[0]]"><span><span>Total por semana</span></span></label>
+  <label><input type="checkbox" onchange="window.picked = [...(window.picked ?? []), this.nextElementSibling.innerText.split('\\n')[0]]"><span><span>Exportar planilha</span></span></label>
+  <button onclick="window.sent = 'submitted'">Enviar</button></div>`
+
+test('a multi-select card gets every option the sheet finds, then the submit button', async () => {
+  await withPage(multiPage, async (page) => {
+    const answers = []
+    await answerPendingCard(page, answers, null, byTopic({ semana: 'semana' }))
+    assert.equal(answers[0].answer, 'Total por semana')
+    assert.deepEqual(await page.evaluate(() => window.picked), ['Total por semana'])
+    assert.equal(await page.evaluate(() => window.sent), 'submitted')
+  })
+})
+
+const gatePage = (title) => `<section aria-label="Plano para aprovar">
+  <p>O agente propõe um plano: <strong>${title}</strong>. Aprovar e construir?</p>
+  <div class="cx-plan-clamp">Só a parte da pessoa</div>
+  <button onclick="document.getElementById('reader').hidden = false">Ler plano completo</button>
+  <button onclick="window.approved = [...(window.approved ?? []), '${title}']; this.closest('section').remove(); document.getElementById('reader')?.remove(); document.body.insertAdjacentHTML('beforeend', window.next ?? ''); window.next = ''">Aprovar e construir</button>
+</section>
+<div id="reader" hidden><div class="cx-plan-reader-body">Plano inteiro de ${title}<br>Fatias restantes: 2</div><button onclick="document.getElementById('reader').hidden = true">Fechar</button></div>`
+
+test('every plan gate is approved in the order it comes, and the whole plan is read from the reader', async () => {
+  await withPage(gatePage('Escopo'), async (page) => {
+    await page.evaluate((next) => { window.next = next }, gatePage('Fontes'))
+    const answers = []
+    const first = await answerPendingCard(page, answers, null, scriptedPerson)
+    const second = await answerPendingCard(page, answers, first, scriptedPerson)
+    assert.notEqual(second, first)
+    assert.equal(await answerPendingCard(page, answers, second, scriptedPerson), null)
+    assert.deepEqual(await page.evaluate(() => window.approved), ['Escopo', 'Fontes'])
+    assert.deepEqual(answers.map((answer) => [answer.kind, answer.title, answer.text]), [
+      ['PLAN', 'Escopo', 'Plano inteiro de Escopo\nFatias restantes: 2'],
+      ['PLAN', 'Fontes', 'Plano inteiro de Fontes\nFatias restantes: 2'],
+    ])
+  })
+})
+
+test('the arm and the slice options parse, and an arm id with a file takes its model and variant from it', () => {
+  const options = parseArgs(['--case', 'c.json', '--out', 'o', '--arm', 'afiado', '--repetition', '3', '--max-slices', '4', '--no-correction', '--hub-version', 'abc123'])
+  assert.deepEqual([options.arm, options.repetition, options.maxSlices, options.noCorrection, options.hubVersion], ['afiado', 3, 4, true, 'abc123'])
+  assert.throws(() => parseArgs(['--case', 'c.json', '--out', 'o', '--repetition', '0']), /--repetition must be a positive integer/)
+  const dir = mkdtempSync(join(tmpdir(), 'arms-'))
+  try {
+    writeFileSync(join(dir, 'tarefas.json'), JSON.stringify({ model: 'google-ai-pro/x', promptVariant: 'v2' }))
+    assert.deepEqual(resolveArm('tarefas', dir), { promptVariant: 'v2', model: 'google-ai-pro/x' })
+    assert.deepEqual(resolveArm('afiado', dir), { promptVariant: 'afiado', model: undefined })
+    assert.throws(() => resolveArm('../x', dir), /not a valid arm id/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the person\'s interventions are counted from the driver\'s record', () => {
+  const answers = [
+    { kind: 'QUESTION', via: 'sheet' }, { kind: 'QUESTION', via: 'silent' }, { kind: 'PLAN' }, { kind: 'PLAN' }, { kind: 'PLAN' },
+  ]
+  assert.deepEqual(personCounts({ answers, repairIterations: 1, slicesContinued: 2, correction: { message: 'x' } }), {
+    approvals: 3, answers: 2, silentAnswers: 1, repairs: 1, slicesContinued: 2, corrections: 1,
+  })
 })
