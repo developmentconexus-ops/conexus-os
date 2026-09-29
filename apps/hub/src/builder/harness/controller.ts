@@ -51,14 +51,28 @@ const resolveModelProviderId = (model: MastraModelConfig): string | undefined =>
   return undefined
 }
 
-/** Whether the run's model has a Mastra-native `web_search` (spec 0002 AC-11, Tool contract). */
-const hasNativeWebSearch = async (
+/**
+ * The provider id a ChatGPT subscription model reports (`openaiCodexModel`). `webSearchTool` cannot
+ * map it (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix), so this
+ * family gets OpenAI's own Responses `web_search` tool directly, as Mastra Code does for every
+ * `openai/*` model (`mastracode/sdk/src/agents/tools.ts`: `openai.tools.webSearch()`, the same tool id). Whether the
+ * ChatGPT Codex backend accepts that tool is proven only by a live run.
+ */
+const OPENAI_RESPONSES_PROVIDER = 'openai.responses'
+
+/** The provider-defined tool `webSearchTool` itself resolves to for `openai` (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the Responses model executes server-side. */
+const OPENAI_RESPONSES_WEB_SEARCH = { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} } as const
+
+/** The run's `web_search` tool, or none when its model has no provider-native search in Mastra (spec 0002 AC-11, Tool contract). */
+const webSearchFor = async (
   model: BuilderControllerDeps['model'],
   ctx: { requestContext: RequestContext },
-): Promise<boolean> => {
+): Promise<ToolsInput> => {
   const resolved = typeof model === 'function' ? await model(ctx) : model
   const providerId = resolveModelProviderId(resolved)
-  return providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)
+  if (providerId === OPENAI_RESPONSES_PROVIDER) return { web_search: OPENAI_RESPONSES_WEB_SEARCH }
+  if (providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)) return { web_search: webSearchTool }
+  return {}
 }
 
 /**
@@ -138,7 +152,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
       ...checkTools(deps.runCheck?.(ctx), modes),
-      ...(await hasNativeWebSearch(deps.model, ctx) ? { web_search: webSearchTool } : {}),
+      ...(await webSearchFor(deps.model, ctx)),
       web_fetch: webFetchTool,
     }),
     skills: [deps.skillsPath ?? defaultBuilderSkillsRoot()],
