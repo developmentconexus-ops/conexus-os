@@ -452,9 +452,16 @@ test('the real CLIProxyAPI answers the shapes the pool and the sign-in rely on',
   t.after(() => rmSync(stateDir, { recursive: true, force: true }))
   const pool = openPool(t, { binary, stateDir })
   const router = await openRouter(t, pool)
-  const answer = await fetch(`${router.url}/v1/models`, { headers: { authorization: `Bearer ${encodeKey(record('probe@example.com'))}` } })
+  // A record whose access token has not expired is available as soon as the proxy loads it; the pool waits on the management API's `unavailable` flag for that.
+  const current = record('probe@example.com', { email: 'probe@example.com', access_token: 'not-a-token', expired: new Date(Date.now() + 3_600_000).toISOString(), expires_in: 3600, timestamp: Date.now(), project_id: 'probe' })
+  const answer = await fetch(`${router.url}/v1/models`, { headers: { authorization: `Bearer ${encodeKey(current)}` } })
   assert.equal(answer.status, 200)
   assert.equal((await answer.json()).object, 'list')
+
+  // An expired token the proxy cannot refresh leaves the account unavailable, which fails the start.
+  const strict = await openRouter(t, openPool(t, { binary, stateDir: join(stateDir, 'strict'), authReadyTimeoutMs: 4_000 }))
+  const expired = record('old@example.com', { email: 'old@example.com', access_token: 'not-a-token', expired: '2020-01-01T00:00:00Z', expires_in: 3600, timestamp: 1, project_id: 'probe' })
+  assert.equal((await fetch(`${strict.url}/v1/models`, { headers: { authorization: `Bearer ${encodeKey(expired)}` } })).status, 503)
 
   const login = await pool.startLogin()
   const management = (path, body) => fetch(`${login.url}/v0/management${path}`, {
