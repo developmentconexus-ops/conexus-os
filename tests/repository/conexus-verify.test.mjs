@@ -45,13 +45,13 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
-  'builder-harness',
+  'builder-harness', 'builder-model-input',
   'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'openai-codex', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
   'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-compiler-v2', 'c020-web-typecheck', 'c020-web-build',
-  'db-catalog-snapshot', 'db-baseline-file', 'hub-postgres-pool', 'db-role-register', 'db-role-provision-postgres',
+  'db-catalog-snapshot', 'db-baseline-file', 'hub-postgres-pool', 'conexus-backup', 'db-role-register', 'db-role-provision-postgres',
   'hub-build-shared',
   'repository-check', 'repository-import-law', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
@@ -220,6 +220,17 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
   assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
     'the tripwire test runs with the run runtime suites')
+
+  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
+  assert.equal(builderBrowser.command.includes('tests/implementation/builder-live-turn.test.mjs'), true)
+  const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
+  assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
+  assert.equal(builderEval.environmentClass, 'browser')
+  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-compiler-runtime')
+  assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
+  assert.equal(appCheck.environmentClass, 'browser')
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'conexus-backup').command.includes('tests/implementation/conexus-backup.test.mjs'), true)
 
   const result = runVerification({
     processEnvironment: {},
