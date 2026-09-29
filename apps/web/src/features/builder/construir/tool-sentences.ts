@@ -26,6 +26,12 @@ const sentences: Readonly<Record<string, Sentence>> = {
   delete_file: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo' },
   mkdir: { running: 'Criando uma pasta', done: 'Criou uma pasta', ask: 'criar uma pasta' },
   conexus_check: { running: 'Verificando o app', done: 'Verificou o app', ask: 'verificar o app' },
+  skill: { running: 'Consultando a skill', done: 'Consultou a skill', ask: 'consultar a skill' },
+  skill_read: { running: 'Lendo a skill', done: 'Leu a skill', ask: 'ler a skill' },
+  skill_search: { running: 'Procurando uma skill', done: 'Procurou uma skill', ask: 'procurar uma skill' },
+  connector_fetch: { running: 'Consultando um sistema da empresa', done: 'Consultou um sistema da empresa', ask: 'consultar um sistema da empresa' },
+  web_fetch: { running: 'Abrindo uma página da internet', done: 'Abriu uma página da internet', ask: 'abrir uma página da internet' },
+  submit_plan: { running: 'Enviando o plano', done: 'Enviou o plano', ask: 'enviar o plano' },
   ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' },
   task_write: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas' },
   task_update: { running: 'Atualizando as tarefas', done: 'Atualizou as tarefas', ask: 'atualizar as tarefas' },
@@ -64,8 +70,12 @@ const heuristics: readonly Readonly<{ test: RegExp; sentence: Sentence }>[] = [
   { test: /ask_user|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você' } },
 ]
 
-const lookup = (toolName: string): Sentence | undefined =>
-  sentences[toolName] ?? sentences[aliases[toolName] ?? ''] ?? heuristics.find((entry) => entry.test.test(toolName))?.sentence
+// The Builder's workspace tools reach the conversation as `mastra_workspace_<name>`; the table above
+// keys them by the bare name.
+const lookup = (toolName: string): Sentence | undefined => {
+  const name = toolName.replace(/^mastra_workspace_/, '')
+  return sentences[name] ?? sentences[aliases[name] ?? ''] ?? heuristics.find((entry) => entry.test.test(name))?.sentence
+}
 
 /** The permission a pending call asks for, as in "O agente quer executar um comando". */
 export const toolRequest = (toolName: string): string => lookup(toolName)?.ask ?? 'usar uma ferramenta'
