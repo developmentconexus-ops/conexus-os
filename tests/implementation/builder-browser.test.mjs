@@ -1143,7 +1143,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   // task_write call above never shows as a conversation row, and the checklist counts and names
   // the in-progress task by its activeForm.
   await page.getByText('Tarefas · 1 de 3', { exact: true }).waitFor()
-  await page.getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
+  await page.getByTestId('task-list').getByText('Aplicando a cor escolhida', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-tool-group').count(), 0, 'task_write drives the checklist, not a conversation row')
 
   // AskUser renders the agent's own options as radio controls (single_select), not the old
@@ -1164,9 +1164,9 @@ test('a suspended ask_user with options renders the options and submits the chos
   // playground-ui's TaskList/AskUser hard-code their labels in English (no labels prop exists), so
   // the Construir screen composes its own pt-BR wrappers around the same primitives; this pins the
   // three task-list statuses the fixture now exercises plus the container/progress aria-labels.
-  assert.equal(await page.locator('[aria-label="Concluída"]').count(), 1, 'the completed task carries the pt-BR status icon label')
-  assert.equal(await page.locator('[aria-label="Em andamento"]').count(), 1, 'the in-progress task carries the pt-BR status icon label')
-  assert.equal(await page.locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Concluída"]').count(), 1, 'the completed task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Em andamento"]').count(), 1, 'the in-progress task carries the pt-BR status icon label')
+  assert.equal(await page.getByTestId('task-list').locator('[aria-label="Pendente"]').count(), 1, 'the pending task carries the pt-BR status icon label')
   await page.locator('[aria-label="Lista de tarefas"]').waitFor()
   await page.getByRole('progressbar', { name: 'Progresso das tarefas' }).waitFor()
 })
@@ -1419,6 +1419,23 @@ test('approving a submitted plan answers it with the approval the controller mov
   await page.getByRole('button', { name: 'Aprovar e construir' }).click()
   await answered
   assert.deepEqual(answers, [{ toolCallId: 'plan-2', resumeData: { action: 'approved' } }])
+})
+
+test('while the first version does not exist the Preview names the phase, the tasks and the time', async (t) => {
+  const tasks = [
+    { id: 'task_data', content: 'Criar armazenamento', status: 'completed', activeForm: 'Criando armazenamento' },
+    { id: 'task_ui', content: 'Montar a lista', status: 'in_progress', activeForm: 'Montando a lista' },
+    { id: 'task_check', content: 'Verificar a Prévia', status: 'pending', activeForm: 'Verificando a Prévia' },
+  ]
+  const page = await openLiveTurn(t, [
+    { type: 'message_start', message: assistantMessage('wait-1', 'Vou construir.') },
+    { type: 'display_state_changed', displayState: { activeTools: {}, tasks } },
+  ])
+  const wait = page.locator('.cx-preview-wait')
+  await wait.getByText('Construindo o app', { exact: true }).waitFor()
+  await wait.getByText('Tarefa 2 de 3: Montando a lista', { exact: true }).waitFor()
+  assert.deepEqual(await wait.locator('li').allTextContents(), ['Criar armazenamento', 'Montando a lista', 'Verificar a Prévia'])
+  assert.match(await wait.locator('.cx-preview-wait-time').textContent(), /^Há \d+ s · a prévia aparece quando a primeira versão compilar$/)
 })
 
 for (const width of [1536, 1700]) {
