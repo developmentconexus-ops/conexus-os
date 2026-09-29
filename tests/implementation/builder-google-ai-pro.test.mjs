@@ -10,7 +10,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
-const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
+const { configYaml, createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
@@ -68,6 +68,30 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
     `cxagy1.${encoded('antigravity-a.json')}`,
   ]) assert.equal(parseKey(refused), null, refused)
   assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), /^Error: GOOGLE_AI_PRO_RECORD_REFUSED$/)
+})
+
+test('the proxy config asks Gemini for its thinking summary and leaves every other key as it was', () => {
+  assert.equal(configYaml({ port: 8317, authDir: '/state/auth', proxyKey: 'key-1' }), [
+    'host: "127.0.0.1"',
+    'port: 8317',
+    'auth-dir: "/state/auth"',
+    'api-keys:',
+    '  - "key-1"',
+    'remote-management:',
+    '  allow-remote: false',
+    '  secret-key: ""',
+    '  disable-control-panel: true',
+    'usage-statistics-enabled: false',
+    'logging-to-file: false',
+    'payload:',
+    '  default:',
+    '    - models:',
+    '        - name: "gemini-*"',
+    '          protocol: "antigravity"',
+    '      params:',
+    '        "generationConfig.thinkingConfig.includeThoughts": true',
+    '',
+  ].join('\n'))
 })
 
 test('a binary whose sha256 differs from the pinned one is refused', async (t) => {
