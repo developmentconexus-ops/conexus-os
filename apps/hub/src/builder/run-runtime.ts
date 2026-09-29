@@ -15,7 +15,8 @@ import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-rou
 import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, type PromptVariantId, type RunTools } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, METHODOLOGY_VARIANTS, uncommittedPlanPaths, type PromptVariantId, type RunTools } from './harness/index.js'
+import { createRunTiming } from './run-timing.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
@@ -51,7 +52,8 @@ const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 // Where `conexus_run_operation` builds the server half, as the agent's user, before reading it back.
 const RUN_OPERATION_OUT = '/tmp/conexus-run-operation'
 
-type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
+/** How the agent's turn ended; `modeId` is the session's mode then, `plan` when it never left Planejar. */
+type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number; modeId?: string }>
 
 /** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
@@ -174,13 +176,14 @@ type TurnMirror = Readonly<{
  * two never share the checkout's mirror index; the ref moves by compare and swap from the head this
  * turn last saw. A failure is reported and never changes the run.
  */
-const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, source, debounceMs, fail }: Readonly<{
+const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, source, excluded, debounceMs, fail }: Readonly<{
   git: BuilderRunPorts['git']
   projectId: string
   conversationId: string
   turnStart: string
   head: string | null
   source: RunSourceSandbox
+  excluded: readonly string[]
   debounceMs: number
   fail(error: unknown): void
 }>): TurnMirror => {
@@ -197,7 +200,7 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
   const snapshot = async (): Promise<void> => {
     const next = await pullSnapshot({
       git, projectId, snapshot: mirrorSnapshot(conversationId, turnStart), expected, unchangedFrom: written ?? turnStart,
-      scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED,
+      scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
     })
     if (next) expected = written = next
   }
@@ -267,6 +270,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
     const base = input.baseSourceRevision
+    const timing = createRunTiming()
+    const methodology = METHODOLOGY_VARIANTS[input.promptVariant]
+    // What no commit of this run holds: generated files, and the plan folder of a methodology that keeps plans out.
+    const excluded = [...APPLICATION_CHECK_EXCLUDED, ...uncommittedPlanPaths(methodology)]
     const cancelled = (): boolean => input.signal?.aborted === true
     const keepaliveController = new AbortController()
     const runSignal = input.signal ? AbortSignal.any([input.signal, keepaliveController.signal]) : keepaliveController.signal
@@ -338,6 +345,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }).catch((error: unknown) => {
         throw new Error('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
       })
+      timing.mark('sandbox')
       // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
       // pinned checkout, so the run fails rather than acting on whatever the new one holds.
       const onIncarnation = async (work: () => Promise<CommandResult>): Promise<CommandResult> => {
@@ -368,9 +376,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const checkoutStart = await startCheckout({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: SEED_FILE })
         .catch((error: unknown) => { unusable = true; throw error })
       ports.log(`BUILDER_TURN_CHECKOUT:${input.executionId}:${checkoutStart}:${incarnation}`)
+      timing.mark('seed')
       mirror = createTurnMirror({
         git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,
-        source, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
+        source, excluded, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
       })
       mirrorAfterEdits(sandbox.workspace, mirror)
 
@@ -394,6 +403,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         directCommand: (command, args) => direct(command, [...args]),
         writeFiles: (files) => sandbox.writeFiles(files),
       })
+      timing.mark('starter')
 
       // The candidate's operations run before admission, in the Prévia's runner, on the run's own
       // connector scope; the caller is the run's account.
@@ -417,6 +427,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
         ...(runOperation ? { runOperation } : {}),
       })
+      timing.mark('session')
       await input.setPhase('AGENT')
       const turn = await session.sendTurn(input.intent, runSignal)
       if (turn.continuations > 0) ports.log(`BUILDER_AGENT_CONTINUED:${turn.continuations}:${input.executionId}`)
@@ -431,14 +442,20 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       await endSession().catch((error: unknown) => {
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
+      timing.mark('agent')
 
       // A turn that changed nothing still offers the files it started from when they are not on `main`.
-      const changed = await pullSnapshot({
+      // A turn that ends in Planejar on a methodology that commits its plans offers nothing: its plan
+      // rides the conversation's mirror and reaches `main` with the first built version (study 34,
+      // decision 2).
+      const planningTurn = methodology.planCommitted && turn.modeId === 'plan'
+      const changed = planningTurn ? null : await pullSnapshot({
         git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
-        scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED,
+        scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
       })
-      const result = changed ?? (turnStart.start === base ? null : turnStart.start)
+      const result = planningTurn ? null : changed ?? (turnStart.start === base ? null : turnStart.start)
       await endMirror(result)
+      timing.mark('pull')
       const scope = {
         runtimeId: 'conexus-builder-e2b-v1' as const,
         projectId: input.projectId,
@@ -484,6 +501,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The compare-and-swap and the moment of admission: `main` moves from exactly the run's base.
       await ports.git.fastForwardMain(input.projectId, { base, candidate: result })
+      timing.mark('admission')
 
       // Past admission a stop is too late, so the build takes no signal. A build the source broke
       // settles as a build failure; the admitted source stays and the Preview is unavailable.
@@ -525,6 +543,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
           !code.startsWith('APPLICATION_SMOKE_')) throw error
         applicationBuild = { kind: 'BUILD_FAILED', code }
       }
+      timing.mark('compile')
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
     } catch (error) {
       const failure = keepaliveFailure ?? error
@@ -553,6 +572,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
+      ports.log(timing.line(input.executionId))
     }
   },
 })
@@ -643,7 +663,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
         userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
         const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
           .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
-        return { reason, userMessageId, summary, continuations }
+        return { reason, userMessageId, summary, continuations, modeId: session.mode.get() }
       } finally {
         detach()
         signal?.removeEventListener('abort', abort)

@@ -418,8 +418,8 @@ export const startCheckout = async (input: SeedInput): Promise<CheckoutStart> =>
 }
 
 /**
- * The Hub's commit of the checkout: the whole tree (ignored files, `.conexus/plans/` and the
- * `excluded` paths left out) as one commit on the snapshot's parent, bundled in the sandbox and
+ * The Hub's commit of the checkout: the whole tree (ignored files and the `excluded` paths, such as
+ * a methodology's uncommitted plan folder, left out) as one commit on the snapshot's parent, bundled in the sandbox and
  * accepted into the Conexus Git under the snapshot's ref. Answers null when the tree equals
  * `unchangedFrom`'s. Each `scratch` has its own index and bundle file in the checkout, so a mirror
  * and a candidate never remove each other's.
@@ -444,7 +444,7 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
     `export GIT_INDEX_FILE=.git/conexus-${scratch}-index`,
     'rm -f "$GIT_INDEX_FILE"',
     `git read-tree ${quoted(parent)}`,
-    `git add --all -- . ${['.conexus/plans', ...excluded].map((path) => quoted(`:(exclude)${path}`)).join(' ')}`,
+    `git add --all -- . ${excluded.map((path) => quoted(`:(exclude)${path}`)).join(' ')}`,
     'tree=$(git write-tree)',
     `if [ "$tree" = "$(git rev-parse ${quoted(`${unchangedFrom}^{tree}`)})" ]; then echo UNCHANGED; exit 0; fi`,
     `commit=$(git -c user.name=${quoted(BUILDER_IDENTITY.name)} -c user.email=${quoted(BUILDER_IDENTITY.email)} commit-tree "$tree" -p ${quoted(parent)} -m 'Conexus Builder')`,

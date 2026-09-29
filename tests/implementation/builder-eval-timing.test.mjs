@@ -40,6 +40,7 @@ test('the timing block splits a resumed run into phases, model and tool time, an
       ],
       redUntilGreen: 1,
     },
+    planning: { stepsDoneBeforeSubmit: [] },
   })
 })
 

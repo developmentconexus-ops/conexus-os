@@ -8,9 +8,10 @@ import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { BUILDER_MODES, DEFAULT_BUILDER_MODE, PLAN_WRITE_ROOT } = await import(hubModuleUrl('builder/harness/modes.js'))
+const { BUILDER_MODES, DEFAULT_BUILDER_MODE } = await import(hubModuleUrl('builder/harness/modes.js'))
 const { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY } = await import(hubModuleUrl('builder/harness/request-context.js'))
-const { conexusInstructions, DEFAULT_PROMPT_VARIANT, PROMPT_VARIANTS } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { conexusInstructions } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { DEFAULT_PROMPT_VARIANT, METHODOLOGY_VARIANTS, PROMPT_VARIANTS, uncommittedPlanPaths } = await import(hubModuleUrl('builder/harness/methodology.js'))
 const { attachBuilderModeGuard, createBuilderModeGuard } = await import(hubModuleUrl('builder/harness/guard.js'))
 const { createSubmitPlanTool } = await import(hubModuleUrl('builder/harness/tools.js'))
 const { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -68,10 +69,19 @@ test('AC-8: the controller offers conexus_check to a turn whose run has a check,
   assert.deepEqual([await names('r1'), await names('r3'), await names('r2'), await names()], [['conexus_check', 'conexus_run_operation'], ['conexus_check'], [], []])
 })
 
-test('AC-3: plan mode may write only under .conexus/plans/', () => {
-  assert.equal(PLAN_WRITE_ROOT, '.conexus/plans/')
-  assert.equal(BUILDER_MODES.plan.writeRoot, PLAN_WRITE_ROOT)
-  assert.equal(BUILDER_MODES.build.writeRoot, null)
+test('AC-3: Planejar writes only plans; v2 keeps them under .conexus/plans/ out of every commit, and the four arms commit them under docs/planos/', () => {
+  assert.equal(BUILDER_MODES.plan.writesPlanOnly, true)
+  assert.equal(BUILDER_MODES.build.writesPlanOnly, false)
+  assert.deepEqual(PROMPT_VARIANTS.map((id) => {
+    const { planRoot, planCommitted, gates, execution, activePlanInBuild, planningChecklist } = METHODOLOGY_VARIANTS[id]
+    return [id, planRoot, planCommitted, gates.join('+'), execution, activePlanInBuild, planningChecklist, uncommittedPlanPaths(METHODOLOGY_VARIANTS[id])]
+  }), [
+    ['v2', '.conexus/plans/', false, 'plano', 'single-turn', false, false, ['.conexus/plans']],
+    ['afiado', 'docs/planos/', true, 'plano', 'single-turn', true, true, []],
+    ['escopo', 'docs/planos/', true, 'escopo+plano', 'single-turn', true, true, []],
+    ['tarefas', 'docs/planos/', true, 'plano', 'task-loop', true, true, []],
+    ['fatias', 'docs/planos/', true, 'plano+fatia', 'slices', true, true, []],
+  ])
 })
 
 test('AC-1: conexusInstructions carries the mode text and none of the banned terms, in both modes', () => {
@@ -116,7 +126,7 @@ const renderPrompt = ({ modeId, variant }) => {
 }
 
 test('a run that names no prompt variant gets v2, the same text as naming v2', () => {
-  assert.deepEqual(PROMPT_VARIANTS, ['v2'])
+  assert.deepEqual(PROMPT_VARIANTS, ['v2', 'afiado', 'escopo', 'tarefas', 'fatias'])
   assert.equal(DEFAULT_PROMPT_VARIANT, 'v2')
   for (const modeId of ['plan', 'build']) {
     const text = renderPrompt({ modeId })
@@ -153,10 +163,11 @@ test('the prompt names the compiler stack, the three skills, the check and the g
   for (const text of [plan, build]) assert.doesNotMatch(text, /check\.sh|\bV1\b|REACT_VITE_V1|`fetch\(/)
 })
 
-test('v2 carries the Conexus layer and its mode rules, and no source notice, coding-tool identity or version-control text', () => {
+test('every methodology carries the Conexus layer and its mode rules, and no source notice, coding-tool identity or version-control text', () => {
   const plan = renderPrompt({ modeId: 'plan' })
   const build = renderPrompt({ modeId: 'build' })
-  for (const text of [plan, build]) {
+  const arms = ['afiado', 'escopo', 'tarefas', 'fatias'].flatMap((variant) => ['plan', 'build'].map((modeId) => renderPrompt({ modeId, variant })))
+  for (const text of [plan, build, ...arms]) {
     for (const phrase of ['## What Conexus is', '## Data comes only from real sources', '`connector_fetch`', 'Integrações', 'Prévia', '`api.<operation>` from `@/conexus/api.gen`']) {
       assert.equal(text.includes(phrase), true, `v2 includes ${phrase}`)
     }
@@ -355,7 +366,7 @@ test('the mode guard runs before the workspace\'s own hook, and a hook that answ
 })
 
 test('submit_plan called outside Planejar is refused on its first call, whatever the request context lists', async () => {
-  const submitPlan = createSubmitPlanTool()
+  const submitPlan = createSubmitPlanTool(METHODOLOGY_VARIANTS.v2)
   assert.equal(
     await submitPlan.execute({ path: '.conexus/plans/p.md' }, { requestContext: modeContext('build') }),
     'Refused by the Conexus mode guard: submit_plan is only available in Planejar.',
@@ -375,7 +386,7 @@ test('submit_plan suspends with the plan file read through the workspace, its ti
   const workspace = new Workspace({ id: 'plan-text-ws', filesystem: new LocalFilesystem({ basePath: root }) })
   const suspended = []
   const call = async (path) => {
-    const result = await createSubmitPlanTool().execute({ path }, { requestContext: modeContext('plan'), workspace, agent: { suspend: async (payload) => { suspended.push(payload) } } })
+    const result = await createSubmitPlanTool(METHODOLOGY_VARIANTS.v2).execute({ path }, { requestContext: modeContext('plan'), workspace, agent: { suspend: async (payload) => { suspended.push(payload) } } })
     return result
   }
   assert.equal(await call('.conexus/plans/titled.md'), undefined)
@@ -386,6 +397,146 @@ test('submit_plan suspends with the plan file read through the workspace, its ti
   ])
   await call('.conexus/plans/missing.md')
   assert.deepEqual(suspended.at(-1), { toolId: 'submit_plan', path: '.conexus/plans/missing.md' }, 'an unreadable plan still suspends on its path')
+})
+
+// A run's request context on a methodology, with the session state `AgentController` hands every call.
+const armContext = (modeId, variant, state = {}) => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId, state: { get: () => ({ ...state }), set: async (updates) => { Object.assign(state, updates) } } } })
+  if (variant !== undefined) requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, variant)
+  return requestContext
+}
+const armWrite = (path, variant) => ({
+  toolName: 'mastra_workspace_write_file', workspaceToolName: 'mastra_workspace_write_file',
+  input: { path, content: 'x' }, context: { requestContext: armContext('plan', variant) },
+})
+
+test('the guard lets Planejar write under docs/planos/ only on a methodology that commits its plans', async () => {
+  const guard = createBuilderModeGuard()
+  const refusedUnder = (root) => ({ proceed: false, output: `Refused by the Conexus mode guard: Planejar may only write under ${root}` })
+  assert.deepEqual(await guard(armWrite('docs/planos/0001-painel/plano.md', 'v2')), refusedUnder('.conexus/plans/'))
+  assert.deepEqual(await guard(armWrite('docs/planos/0001-painel/plano.md')), refusedUnder('.conexus/plans/'))
+  for (const variant of ['afiado', 'escopo', 'tarefas', 'fatias']) {
+    assert.equal(await guard(armWrite('docs/planos/0001-painel/plano.md', variant)), undefined, `${variant} writes its plan`)
+    assert.deepEqual(await guard(armWrite('.conexus/plans/p.md', variant)), refusedUnder('docs/planos/'))
+    assert.deepEqual(await guard(armWrite('docs/planos/../app/x.ts', variant)), refusedUnder('docs/planos/'))
+  }
+  assert.deepEqual(await guard(armWrite('docs/planos/p.md', 'v9')), { proceed: false, output: 'Refused by the Conexus mode guard: the run names no known methodology' })
+})
+
+test('submit_plan takes the plan from the methodology\'s folder and names it in its description; v2 keeps its own text', async () => {
+  const [v2, afiado] = [METHODOLOGY_VARIANTS.v2, METHODOLOGY_VARIANTS.afiado].map((methodology) => createSubmitPlanTool(methodology))
+  assert.equal(v2.description.startsWith('Submit the plan you wrote to a Markdown file under `.conexus/plans/` for the person to review. Pass `path` to that file (for example `.conexus/plans/add-dark-mode.md`);'), true)
+  assert.equal(afiado.description.startsWith('Submit the plan you wrote to a Markdown file under `docs/planos/` for the person to review. Pass `path` to that file (for example `docs/planos/0001-painel-de-chamados/plano.md`);'), true)
+  assert.equal(
+    await afiado.execute({ path: '.conexus/plans/p.md' }, { requestContext: modeContext('plan') }),
+    'Refused by the Conexus mode guard: the plan file must be under docs/planos/.',
+  )
+})
+
+test('an arm that carries the plan records it at submission and forgets it on rejection; v2 records nothing', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-carried-plan-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(resolve(root, 'docs/planos/0001-painel'), { recursive: true })
+  writeFileSync(resolve(root, 'docs/planos/0001-painel/plano.md'), '# Painel\n\nEstado: proposto\n')
+  mkdirSync(resolve(root, '.conexus/plans'), { recursive: true })
+  writeFileSync(resolve(root, '.conexus/plans/p.md'), '# Painel\n\nEstado: proposto\n')
+  const workspace = new Workspace({ id: 'carried-plan-ws', filesystem: new LocalFilesystem({ basePath: root }) })
+  const submit = async (variant, path, state, resumeData) => createSubmitPlanTool(METHODOLOGY_VARIANTS[variant]).execute({ path }, {
+    requestContext: armContext('plan', variant, state), workspace, agent: { ...(resumeData ? { resumeData } : {}), suspend: async () => {} },
+  })
+  const afiado = {}
+  await submit('afiado', 'docs/planos/0001-painel/plano.md', afiado)
+  assert.deepEqual(afiado, { conexusSubmittedPlan: { path: 'docs/planos/0001-painel/plano.md', title: 'Painel', plan: 'Estado: proposto' } })
+  await submit('afiado', 'docs/planos/0001-painel/plano.md', afiado, { action: 'rejected', feedback: 'mude' })
+  assert.deepEqual(afiado, { conexusSubmittedPlan: null })
+  const v2 = {}
+  await submit('v2', '.conexus/plans/p.md', v2)
+  assert.deepEqual(v2, {})
+})
+
+test('each arm\'s prompt folder does what its record declares, and arm B differs from arm A1 only in Planejar', () => {
+  const text = (variant, modeId) => renderPrompt({ modeId, variant })
+  for (const variant of PROMPT_VARIANTS) {
+    const { planRoot, gates, execution } = METHODOLOGY_VARIANTS[variant]
+    const [plan, build] = [text(variant, 'plan'), text(variant, 'build')]
+    assert.equal(plan.includes(`write only under \`${planRoot}\``), true, `${variant} tells Planejar its folder`)
+    assert.equal(plan.includes('Estado: escopo'), gates.includes('escopo'), `${variant} asks for a scope approval only when its record has that gate`)
+    assert.equal(plan.includes('`tarefas.md`') && build.includes('### The task loop'), execution === 'task-loop', `${variant} works by task only when its record says so`)
+    assert.equal(build.includes('`Fatias restantes: N`'), execution === 'slices', `${variant} counts the slices left only when it builds in slices`)
+    if (variant !== 'v2') assert.equal(plan.includes('### Fontes') && plan.includes('### Requisitos'), true, `${variant} plans with the sources table and the requirements`)
+  }
+  assert.equal(text('escopo', 'build'), text('afiado', 'build'))
+})
+
+test('the four arms start Planejar with the same seven planning steps, and v2 and Construir carry none', () => {
+  const stepsOf = (text) => [...text.matchAll(/^- `(plano-\d)`: (.+)$/gm)].map(([, id, title]) => `${id} ${title}`)
+  const SEVEN = [
+    'plano-1 Entender o pedido e o objetivo',
+    'plano-2 Perguntar o que falta, incluindo o que a pessoa não sabe pedir',
+    'plano-3 Achar cada dado nas Conexões e conferir com uma amostra que vem preenchido',
+    'plano-4 Pesquisar referências, com limite',
+    'plano-5 Definir a estrutura (telas, tabelas, operações, regras)',
+    'plano-6 Definir como construir (tarefas e como cada uma é conferida)',
+    'plano-7 Revisar: tudo o que foi pedido tem fonte ou está marcado "não encontrado"',
+  ]
+  for (const variant of ['afiado', 'escopo', 'tarefas', 'fatias']) {
+    const plan = renderPrompt({ modeId: 'plan', variant })
+    assert.deepEqual(stepsOf(plan), SEVEN, `${variant} lists the seven steps in order`)
+    assert.equal(plan.includes('Call `submit_plan` only after\nall seven are completed.'), true, `${variant} submits only after the seven`)
+    assert.deepEqual(stepsOf(renderPrompt({ modeId: 'build', variant })), [], `${variant} Construir has no planning steps`)
+  }
+  assert.deepEqual(stepsOf(renderPrompt({ modeId: 'plan' })), [], 'v2 has no planning checklist')
+  assert.equal(renderPrompt({ modeId: 'plan' }).includes('plano-1'), false)
+})
+
+// One scripted turn on a methodology: submit the plan file already on disk, approve it, and answer.
+// Answers the system text each model call received.
+const approvedPlanTurn = async (t, variant, planPath) => {
+  const root = mkdtempSync(resolve(tmpdir(), `builder-harness-${variant}-`))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(resolve(root, planPath, '..'), { recursive: true })
+  writeFileSync(resolve(root, planPath), '# Painel de chamados\n\n## Para a pessoa\n\nUma lista com os chamados abertos.\n')
+  const systems = []
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream(options) {
+      const step = systems.length
+      systems.push(options.prompt.filter((message) => message.role === 'system').map((message) => message.content).join('\n'))
+      const parts = step === 0
+        ? [{ type: 'tool-call', toolCallId: 'p1', toolName: 'submit_plan', input: JSON.stringify({ path: planPath }) }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts, { type: 'finish', finishReason: step === 0 ? 'tool-calls' : 'stop', usage }]) }
+    },
+  }
+  const workspace = new Workspace({ id: `${variant}-plan-ws`, filesystem: new LocalFilesystem({ basePath: root }) })
+  const controller = createBuilderController({ workspace, model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills') })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const requestContext = new RequestContext()
+  requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, variant)
+  const session = await controller.createSession({ resourceId: `project:${variant}`, scope: variant, requestContext })
+  session.subscribe((event) => {
+    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
+    if (event.type === 'tool_suspended' && event.toolName === 'submit_plan') {
+      setTimeout(() => { void session.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: { action: 'approved' }, requestContext }) }, 10)
+    }
+  })
+  await session.sendMessage({ content: 'quero um painel', requestContext })
+  for (let waited = 0; systems.length < 2 && waited < 5000; waited += 50) await new Promise((wake) => setTimeout(wake, 50))
+  assert.equal(session.mode.get(), 'build', 'the approval switched the session to Construir')
+  return systems
+}
+
+test('the approved plan reaches Construir\'s instructions on afiado, and not on v2', async (t) => {
+  const APPROVED = '## Approved plan\n\nThe person approved this plan, written in `docs/planos/0001-painel/plano.md`:\n\n# Painel de chamados\n\n## Para a pessoa\n\nUma lista com os chamados abertos.'
+  const afiado = await approvedPlanTurn(t, 'afiado', 'docs/planos/0001-painel/plano.md')
+  assert.equal(afiado.length, 2)
+  assert.deepEqual(afiado.map((system) => [system.includes('## Mode: Planejar'), system.includes(APPROVED)]), [[true, false], [false, true]])
+  const v2 = await approvedPlanTurn(t, 'v2', '.conexus/plans/painel.md')
+  assert.equal(v2.length, 2)
+  assert.deepEqual(v2.map((system) => [system.includes('## Mode: Construir'), system.includes('## Approved plan')]), [[false, false], [true, false]])
 })
 
 test('a submit_plan refused outside Planejar never suspends, so answering it as approved changes nothing', async (t) => {

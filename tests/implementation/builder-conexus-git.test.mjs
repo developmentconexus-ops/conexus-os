@@ -289,13 +289,16 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   writeFileSync(join(checkout, 'node_modules/dep.js'), 'ignored\n')
   mkdirSync(join(checkout, '.conexus/plans'), { recursive: true })
   writeFileSync(join(checkout, '.conexus/plans/plan.md'), '# never committed\n')
+  mkdirSync(join(checkout, 'docs/planos/0001-painel'), { recursive: true })
+  writeFileSync(join(checkout, 'docs/planos/0001-painel/plano.md'), '# committed\n')
   run(checkout, ['commit', '--quiet', '--allow-empty', '-m', 'the agent committed on its own'])
 
-  const candidate = await pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout })
+  // The paths a run leaves out, as v2's methodology names them: its plan folder.
+  const candidate = await pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout, excluded: ['.conexus/plans'] })
   assert.match(candidate, /^[0-9a-f]{40}$/)
   assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', candidate), `${candidate} ${base}`)
   assert.equal(bare(root, 'log', '-1', '--format=%an <%ae>', candidate), 'Conexus Builder <builder@conexus.invalid>')
-  assert.equal(bare(root, 'ls-tree', '-r', '--name-only', candidate), '.gitignore\napp/index.html')
+  assert.equal(bare(root, 'ls-tree', '-r', '--name-only', candidate), '.gitignore\napp/index.html\ndocs/planos/0001-painel/plano.md')
   assert.equal(await git.readMain(PROJECT), base)
 
   await git.fastForwardMain(PROJECT, { base, candidate })

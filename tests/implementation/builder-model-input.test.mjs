@@ -7,7 +7,7 @@ import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const script = resolve(repositoryRoot, 'scripts/builder-model-input.mjs')
-const promptDir = resolve(repositoryRoot, 'apps/hub/src/builder/harness/prompt/v2')
+const promptDir = resolve(repositoryRoot, 'apps/hub/src/builder/harness/prompt')
 
 // The same forbidden terms as the harness test (AC-1); 'gh' is a whole word.
 const FORBIDDEN_PHRASES = ['Mastra Code', 'pull request', 'npm install']
@@ -46,8 +46,8 @@ test('AC-1: the printed input holds the Conexus layer, the mode file and the AGE
 
     for (const [output, modeFile, other] of [[plan, 'plan.md', 'build.md'], [build, 'build.md', 'plan.md']]) {
       assert.ok(output.includes(promptText('conexus.md')), 'the Conexus layer is printed whole')
-      assert.ok(output.includes(promptText(modeFile)), 'the mode file is printed whole')
-      assert.equal(output.includes(promptText(other)), false, 'the other mode file is not printed')
+      assert.ok(output.includes(promptText(`v2/${modeFile}`)), 'the mode file is printed whole')
+      assert.equal(output.includes(promptText(`v2/${other}`)), false, 'the other mode file is not printed')
       assert.ok(output.includes(`## Project knowledge\n\n${AGENTS_BLOCK}`), 'the AGENTS.md block sits under the project knowledge heading')
       assert.equal(containsForbiddenText(systemMessagesOf(output)[0]), false, 'no banned term in the text Conexus authors (Mastra\'s own tool descriptions are outside AC-1)')
     }

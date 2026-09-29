@@ -12,6 +12,7 @@ import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
 import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
+import { readMethodology } from './methodology.js'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
 import { CHECK_TOOL, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL } from './tools.js'
@@ -226,7 +227,12 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     ...(deps.storage ? { storage: deps.storage } : {}),
     ...(deps.memory ? { memory: deps.memory } : {}),
     disableBuiltinTools: ['submit_plan'],
-    tools: () => ({ submit_plan: createSubmitPlanTool(modes, repositoryRoot) }),
+    // Built per request from the run's methodology, whose plan folder the tool takes its file from.
+    // A run naming an unknown one gets no tool; its instructions already fail the turn.
+    tools: ({ requestContext }) => {
+      const methodology = readMethodology(requestContext)
+      return methodology ? { submit_plan: createSubmitPlanTool(methodology, modes, repositoryRoot) } : {}
+    },
     modes: [
       {
         id: modes.plan.id,

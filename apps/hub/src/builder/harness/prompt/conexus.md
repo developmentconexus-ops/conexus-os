@@ -1,6 +1,6 @@
 <!--
-Conexus Builder prompt, variant v2: the part every mode shares. The Hub strips this comment before
-the text reaches the model.
+Conexus Builder prompt: the part every mode and every methodology shares. The Hub strips this
+comment before the text reaches the model.
 
 Passages adapted from sources licensed under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0):

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
-import { createEvalMastra, findTraceIds, scoreRun, traceMetrics } from '../../scripts/builder-eval/scorers.mjs'
+import { readFileSync } from 'node:fs'
+import { createEvalMastra, findTraceIds, PLANNING_STEP_IDS, planningStepsDoneBeforeSubmit, scoreRun, traceMetrics } from '../../scripts/builder-eval/scorers.mjs'
 import { builderTrace, resumedBuilderTrace, SALES_PREVIEW_TEXT, SALES_SCREEN, seedSpans } from './builder-eval-fixtures.mjs'
 
 const groundTruth = { fixture: 'sales-v1', screen: SALES_SCREEN, figures: {} }
@@ -31,15 +32,36 @@ const evalMastra = () => {
 test('traceMetrics counts the main agent of one Builder trace and leaves the memory observer out', () => {
   assert.deepEqual(traceMetrics(builderTrace({ traceId: 'tr-1', builderRunId: 'run-1', projectId: 'p-1' })), {
     traces: 1, toolCalls: 10, stepsWithToolCalls: 3, toolErrors: 1, repeatedReads: 2, skillReloads: 1,
-    simulatorRefusals: 1, operationRuns: 0, checkRuns: 0, wallMs: 300_000, inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50,
+    simulatorRefusals: 1, operationRuns: 0, checkRuns: 0, planningStepsDone: 0, wallMs: 300_000, inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50,
   })
 })
 
 test('traceMetrics counts the run resumed after a question, with the current tool names and conexus_run_operation', () => {
   assert.deepEqual(traceMetrics(resumedBuilderTrace()), {
     traces: 1, toolCalls: 8, stepsWithToolCalls: 5, toolErrors: 0, repeatedReads: 1, skillReloads: 0,
-    simulatorRefusals: 0, operationRuns: 2, checkRuns: 2, wallMs: 295_000, inputTokens: 6200, cachedInputTokens: 2000, outputTokens: 1020,
+    simulatorRefusals: 0, operationRuns: 2, checkRuns: 2, planningStepsDone: 0, wallMs: 295_000, inputTokens: 6200, cachedInputTokens: 2000, outputTokens: 1020,
   })
+})
+
+const call = (entityName, input) => ({ entityName, input })
+
+test('the planning steps counted are those marked completed before the first submit_plan, in checklist order', () => {
+  const calls = [
+    call('task_write', { tasks: PLANNING_STEP_IDS.map((id) => ({ id, content: id, status: id === 'plano-1' ? 'completed' : 'pending', activeForm: id })) }),
+    call('task_update', { id: 'plano-3', status: 'completed' }),
+    call('task_update', { id: 'plano-2', status: 'in_progress' }),
+    call('task_complete', { id: 'plano-2' }),
+    call('task_update', { id: 'plano-escopo', status: 'completed' }),
+    call('submit_plan', { path: 'docs/planos/0001-painel/plano.md' }),
+    call('task_update', { id: 'plano-7', status: 'completed' }),
+  ]
+  assert.deepEqual(planningStepsDoneBeforeSubmit(calls), ['plano-1', 'plano-2', 'plano-3'])
+  assert.deepEqual(planningStepsDoneBeforeSubmit(calls.filter((entry) => entry.entityName !== 'submit_plan')), [], 'a trace with no plan submitted counts none')
+})
+
+test('the eval counts the same seven step ids the planning checklist tells the model to write', () => {
+  const checklist = readFileSync(new URL('../../apps/hub/src/builder/harness/prompt/plan-checklist.md', import.meta.url), 'utf8')
+  assert.deepEqual([...checklist.matchAll(/^- `(plano-\d)`: /gm)].map(([, id]) => id), [...PLANNING_STEP_IDS])
 })
 
 test('traceMetrics refuses a trace whose root has not ended', () => {
@@ -57,7 +79,7 @@ test('scoreRun sums the trace metrics of a request and its repair and grades the
 
   assert.deepEqual(scores.map(({ scorerId, score }) => [scorerId, score]), [
     ['app-correct', 1], ['tool-calls', 20], ['tool-errors', 2], ['calls-per-step', 3.3333333333333335],
-    ['repeated-reads', 4], ['skill-reloads', 2], ['wall-minutes', 10], ['input-tokens', 2000],
+    ['repeated-reads', 4], ['planning-steps', 0], ['skill-reloads', 2], ['wall-minutes', 10], ['input-tokens', 2000],
     ['output-tokens', 100], ['sim-refusals', 2],
   ])
   assert.deepEqual(unscored, [])
@@ -70,7 +92,7 @@ test('scoreRun leaves every trace scorer out when a run has no trace, instead of
   const { scores, unscored } = await scoreRun(mastra, { output, groundTruth })
 
   assert.deepEqual(scores.map(({ scorerId, score }) => [scorerId, score]), [['app-correct', 1]])
-  assert.deepEqual(unscored, ['tool-calls', 'tool-errors', 'calls-per-step', 'repeated-reads', 'skill-reloads', 'wall-minutes', 'input-tokens', 'output-tokens', 'sim-refusals']
+  assert.deepEqual(unscored, ['tool-calls', 'tool-errors', 'calls-per-step', 'repeated-reads', 'planning-steps', 'skill-reloads', 'wall-minutes', 'input-tokens', 'output-tokens', 'sim-refusals']
     .map((scorerId) => ({ scorerId, message: 'trace ausente' })))
 })
 

@@ -3,12 +3,9 @@ import { WORKSPACE_TOOLS } from '@mastra/core/workspace'
 /**
  * The Builder's two modes. The mode lives only in the Mastra thread setting (AC-2); this table is
  * the single source for everything else a mode decides: its prompt file, which workspace tools its
- * guard allows, where it may write, and what approving `submit_plan` transitions it to.
+ * guard allows, whether it may write only plans, and what approving `submit_plan` transitions it to.
  */
 export type BuilderModeId = 'plan' | 'build'
-
-/** Plan mode may write only under this prefix; nothing under it is ever committed. */
-export const PLAN_WRITE_ROOT = '.conexus/plans/'
 
 export type BuilderModeDefinition = Readonly<{
   id: BuilderModeId
@@ -18,10 +15,14 @@ export type BuilderModeDefinition = Readonly<{
   promptFile: string
   /** Exposed workspace tool names (`mastra_workspace_*`) the mode guard allows for this mode. */
   allowedWorkspaceTools: ReadonlySet<string>
-  /** When set, a write/edit/mkdir call in this mode is refused unless its path starts with this prefix. */
-  writeRoot: string | null
+  /** When true, a write/edit/mkdir call in this mode is refused unless its path lies under the run's methodology `planRoot`. */
+  writesPlanOnly: boolean
   /** Whether `submit_plan` may run in this mode. Only `plan` allows it (Tool contract). */
   allowsSubmitPlan: boolean
+  /** Whether this mode's instructions carry the approved plan, for a methodology that sets `activePlanInBuild`. */
+  readsApprovedPlan: boolean
+  /** Whether this mode's instructions carry the planning checklist, for a methodology that sets `planningChecklist`. */
+  readsPlanningChecklist: boolean
   /**
    * The exact tool names this mode exposes to the model (Tool contract), set as the
    * `AgentController` mode's own `availableTools`. This trims what the model is shown; it is not the
@@ -60,7 +61,7 @@ const COMMAND_TOOLS = Object.freeze([
   WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS,
 ])
 
-/** Workspace write tools whose input carries a `path` the mode guard checks against `writeRoot`. */
+/** Workspace write tools whose input carries a `path` the mode guard checks against the methodology's `planRoot`. */
 export const PATH_CHECKED_WORKSPACE_TOOLS: ReadonlySet<string> = new Set(WRITE_TOOLS)
 
 export const BUILDER_MODES: Readonly<Record<BuilderModeId, BuilderModeDefinition>> = Object.freeze({
@@ -69,8 +70,10 @@ export const BUILDER_MODES: Readonly<Record<BuilderModeId, BuilderModeDefinition
     displayName: 'Planejar',
     promptFile: 'plan.md',
     allowedWorkspaceTools: new Set([...READ_TOOLS, ...WRITE_TOOLS]),
-    writeRoot: PLAN_WRITE_ROOT,
+    writesPlanOnly: true,
     allowsSubmitPlan: true,
+    readsApprovedPlan: false,
+    readsPlanningChecklist: true,
     availableTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...SHARED_TOOLS, 'submit_plan']),
     transitionsTo: 'build',
   }),
@@ -79,8 +82,10 @@ export const BUILDER_MODES: Readonly<Record<BuilderModeId, BuilderModeDefinition
     displayName: 'Construir',
     promptFile: 'build.md',
     allowedWorkspaceTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...COMMAND_TOOLS]),
-    writeRoot: null,
+    writesPlanOnly: false,
     allowsSubmitPlan: false,
+    readsApprovedPlan: true,
+    readsPlanningChecklist: false,
     availableTools: new Set([...READ_TOOLS, ...WRITE_TOOLS, ...COMMAND_TOOLS, ...SHARED_TOOLS, 'conexus_check', 'conexus_run_operation']),
   }),
 })

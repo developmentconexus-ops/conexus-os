@@ -10,5 +10,5 @@ export {
   CONEXUS_TURN_CONFLICTS_KEY,
   readModeId,
 } from './request-context.js'
-export { DEFAULT_PROMPT_VARIANT, PROMPT_VARIANTS, type PromptVariantId } from './prompt.js'
+export { DEFAULT_PROMPT_VARIANT, METHODOLOGY_VARIANTS, PROMPT_VARIANTS, uncommittedPlanPaths, type PromptVariantId } from './methodology.js'
 export { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot, type RunTools } from './controller.js'

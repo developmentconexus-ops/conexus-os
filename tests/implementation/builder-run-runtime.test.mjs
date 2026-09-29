@@ -53,7 +53,7 @@ const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings, mirrorDebounceMs = 0 } = {}) => {
+const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings, mirrorDebounceMs = 0, promptVariant } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -84,6 +84,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const calls = []
   const diagnostics = []
   const logs = []
+  // The run's BUILDER_RUN_TIMING lines, kept apart from the lines that say what happened.
+  const timings = []
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
@@ -182,7 +184,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
     ...(memorySettings ? { readMemorySettings: async (payer) => { events.push(['memory-settings', payer]); return memorySettings } } : {}),
-    log: (line) => { logs.push(line) },
+    log: (line) => { (line.startsWith('BUILDER_RUN_TIMING:') ? timings : logs).push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   // The one run's row as the database holds it.
@@ -243,7 +245,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       reconcileEveryMs: 5,
     },
   })
-  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
+  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', ...(promptVariant ? { promptVariant } : {}) })
   // The same run row started once more on the same sandbox, as the next run of the conversation would.
   const again = async () => {
     await new Promise((wake) => { setTimeout(wake, 20) })
@@ -267,7 +269,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
+  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -743,6 +745,61 @@ test('a Planejar run that only wrote its plan settles as a response and leaves m
   assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
   assert.equal(await run.main(), run.base)
   assert.equal(run.result(), null)
+})
+
+// A turn that writes its methodology's plan file and an app change, ending in the given mode.
+const planAndBuild = (planPath, modeId = 'build') => ({ checkout }) => {
+  mkdirSync(dirname(join(checkout, planPath)), { recursive: true })
+  writeFileSync(join(checkout, planPath), '# Painel\n\nEstado: entregue\n')
+  if (modeId === 'build') writeFileSync(join(checkout, 'app/index.html'), '<h1>painel</h1>\n')
+  return { ...completed('Pronto.'), modeId }
+}
+
+test('a run on afiado commits its plan under docs/planos/ with the version, and a run on v2 leaves .conexus/plans/ out', async (t) => {
+  const afiado = await harness(t, { mode: 'PLAN', promptVariant: 'afiado', turn: planAndBuild('docs/planos/0001-painel/plano.md') })
+  await afiado.start()
+  await afiado.service.close()
+  assert.equal(afiado.sessionContext.get('conexusPromptVariant'), 'afiado')
+  assert.equal(await afiado.main(), afiado.result())
+  assert.deepEqual(afiado.inBare('ls-tree', '-r', '--name-only', afiado.result()).split('\n'), ['AGENTS.md', 'app/index.html', 'docs/planos/0001-painel/plano.md'])
+
+  const v2 = await harness(t, { mode: 'PLAN', turn: planAndBuild('.conexus/plans/painel.md') })
+  await v2.start()
+  await v2.service.close()
+  assert.equal(await v2.main(), v2.result())
+  assert.deepEqual(v2.inBare('ls-tree', '-r', '--name-only', v2.result()).split('\n'), ['AGENTS.md', 'app/index.html'])
+})
+
+test('a turn on afiado that ends in Planejar is no version: its plan rides the conversation mirror and main stays at the base', async (t) => {
+  const run = await harness(t, { mode: 'PLAN', promptVariant: 'afiado', turn: planAndBuild('docs/planos/0001-painel/plano.md', 'plan') })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
+  assert.equal(await run.main(), run.base)
+  assert.equal(run.result(), null)
+  assert.deepEqual(run.mirrorFiles(), ['AGENTS.md', 'app/index.html', 'docs/planos/0001-painel/plano.md'])
+})
+
+const timingStages = (run) => {
+  const lines = run.timings
+  assert.deepEqual(lines.map((line) => line.split(':').slice(0, 2).join(':')), [`BUILDER_RUN_TIMING:${runId}`], 'one timing line per run')
+  return lines[0].split(':').slice(2).map((pair) => {
+    const [stage, value] = pair.split('=')
+    assert.match(value, /^\d+$/, `${stage} is whole milliseconds`)
+    return stage
+  })
+}
+
+test('each run logs one BUILDER_RUN_TIMING line with the stages it reached, in run order', async (t) => {
+  const built = await harness(t)
+  await built.start()
+  await built.service.close()
+  assert.deepEqual(timingStages(built), ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile'])
+
+  const answered = await harness(t, { turn: () => completed('Explicado.') })
+  await answered.start()
+  await answered.service.close()
+  assert.deepEqual(timingStages(answered), ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull'])
 })
 
 test('every agent-user command states an empty environment, and root commands get none', async (t) => {

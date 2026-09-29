@@ -139,6 +139,30 @@ const OPERATION_TOOL = 'conexus_run_operation'
 const CHECK_TOOL = 'conexus_check'
 const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
 
+/** The task ids of the planning checklist (apps/hub/src/builder/harness/prompt/plan-checklist.md), in order. */
+export const PLANNING_STEP_IDS = Object.freeze(['plano-1', 'plano-2', 'plano-3', 'plano-4', 'plano-5', 'plano-6', 'plano-7'])
+
+/**
+ * Pure. The planning checklist steps the model marked completed before its first `submit_plan`, in
+ * checklist order, read from its task tool calls: a `task_update` or `task_write` entry with status
+ * `completed`, or a `task_complete`. Empty when the trace has no `submit_plan`.
+ * @param {readonly object[]} calls tool_call spans in start order
+ * @returns {string[]}
+ */
+export function planningStepsDoneBeforeSubmit(calls) {
+  const submit = calls.findIndex((call) => call.entityName === 'submit_plan')
+  const done = new Set()
+  for (const call of submit === -1 ? [] : calls.slice(0, submit)) {
+    const input = call.input ?? {}
+    const entries = call.entityName === 'task_write' ? (input.tasks ?? [])
+      : call.entityName === 'task_update' ? [input]
+        : call.entityName === 'task_complete' ? [{ ...input, status: 'completed' }]
+          : []
+    for (const entry of entries) if (entry?.status === 'completed' && PLANNING_STEP_IDS.includes(entry.id)) done.add(entry.id)
+  }
+  return PLANNING_STEP_IDS.filter((id) => done.has(id))
+}
+
 /**
  * Pure. Counts over one Builder trace's main agent, resumed runs included. A nested agent_run of
  * another agent (the observational-memory observer under memory_operation) and its tools and tokens
@@ -215,6 +239,7 @@ export function traceMetrics(spans) {
     simulatorRefusals,
     operationRuns,
     checkRuns,
+    planningStepsDone: planningStepsDoneBeforeSubmit(calls).length,
     wallMs: runs.reduce((sum, run) => sum + (run.endedAt ? timeOf(run.endedAt) - timeOf(run.startedAt) : 0), 0),
     inputTokens: total((usage) => usage.inputTokens),
     cachedInputTokens: total((usage) => usage.inputDetails?.cacheRead),
@@ -231,6 +256,7 @@ const TRACE_METRIC_SCORERS = Object.freeze([
   { id: 'tool-errors', description: 'Chamadas de ferramenta que falharam', direction: 'lower-is-better', value: (m) => m.toolErrors },
   { id: 'calls-per-step', description: 'Chamadas por passo com chamada', direction: 'higher-is-better', value: (m) => (m.stepsWithToolCalls === 0 ? 0 : m.toolCalls / m.stepsWithToolCalls) },
   { id: 'repeated-reads', description: 'Leituras idênticas repetidas (arquivo ou conexus_run_operation sem escrita no meio, ou connector_fetch igual)', direction: 'lower-is-better', value: (m) => m.repeatedReads },
+  { id: 'planning-steps', description: 'Passos do checklist de planejamento concluídos antes de enviar o plano (de 7)', direction: 'higher-is-better', value: (m) => m.planningStepsDone },
   { id: 'skill-reloads', description: 'Skills carregadas de novo', direction: 'lower-is-better', value: (m) => m.skillReloads },
   { id: 'wall-minutes', description: 'Duração do agente, somando reparos', direction: 'lower-is-better', value: (m) => m.wallMs / 60_000 },
   { id: 'input-tokens', description: 'Tokens de entrada do modelo principal', direction: 'lower-is-better', value: (m) => m.inputTokens },

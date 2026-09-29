@@ -1,6 +1,7 @@
 import { posix } from 'node:path'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { Workspace, WorkspaceToolBeforeHookResult, WorkspaceToolHookContext, WorkspaceToolHooks } from '@mastra/core/workspace'
+import { readMethodology } from './methodology.js'
 import { BUILDER_MODES, PATH_CHECKED_WORKSPACE_TOOLS, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
 import { readModeId } from './request-context.js'
 
@@ -40,8 +41,8 @@ export const isUnderWriteRoot = (path: string, writeRoot: string, repositoryRoot
  * (`Workspace`'s own `beforeToolCall` hook, evaluated at execution time, not a listing snapshot), so
  * it stays correct across a suspend/resume where a mode's `availableTools` narrowing does not (blast
  * radius of slices 0 and 1). It refuses a tool the current mode's table does not allow, and refuses a
- * write, edit, or `mkdir` in a mode with a `writeRoot` unless the path, normalized against the
- * repository root, lies under it.
+ * write, edit, or `mkdir` in a mode that writes only plans unless the path, normalized against the
+ * repository root, lies under the run's methodology `planRoot`.
  */
 export const createBuilderModeGuard = (
   modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>> = BUILDER_MODES,
@@ -51,11 +52,13 @@ export const createBuilderModeGuard = (
   const modeId = readModeId(requestContext)
   const mode = modeId ? modes[modeId] : undefined
   if (!mode) return refuse('the session has no known Conexus mode')
+  const methodology = readMethodology(requestContext)
+  if (!methodology) return refuse('the run names no known methodology')
   if (!mode.allowedWorkspaceTools.has(hookContext.workspaceToolName)) {
     return refuse(`${hookContext.workspaceToolName} is not available in ${mode.displayName}`)
   }
-  if (mode.writeRoot && PATH_CHECKED_WORKSPACE_TOOLS.has(hookContext.workspaceToolName)) {
-    if (!isUnderWriteRoot(pathOf(hookContext.input), mode.writeRoot, repositoryRoot)) return refuse(`${mode.displayName} may only write under ${mode.writeRoot}`)
+  if (mode.writesPlanOnly && PATH_CHECKED_WORKSPACE_TOOLS.has(hookContext.workspaceToolName)) {
+    if (!isUnderWriteRoot(pathOf(hookContext.input), methodology.planRoot, repositoryRoot)) return refuse(`${mode.displayName} may only write under ${methodology.planRoot}`)
   }
   return undefined
 }
