@@ -245,7 +245,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string
+    e2bTemplateId: string; gitRoot: string; modelStreamRecordDir?: string | undefined
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -318,7 +318,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       accountProvider: OPENAI_CODEX_PROVIDER,
       take: (account) => {
         const bearer = codexHolds.hold(account.modelAccountId, parseCodexTokens(account.secret))
-        return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, bearer) }
+        return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, bearer, builder.modelStreamRecordDir) }
       },
     },
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.

@@ -155,6 +155,13 @@ test("a Builder without its Mastra storage role is refused, and with it the role
   assert.deepEqual(readHubConfig({ ...baseEnvironment, ...storageEnvironment }).factory, { databasePasswordFile: '/secrets/factory-db' })
 })
 
+test('the model stream recorder is off unless CONEXUS_BUILDER_STREAM_RECORD_DIR names an absolute directory', () => {
+  const complete = { ...baseEnvironment, ...storageEnvironment }
+  assert.equal(readHubConfig(complete).builder.modelStreamRecordDir, undefined)
+  assert.equal(readHubConfig({ ...complete, CONEXUS_BUILDER_STREAM_RECORD_DIR: '/var/tmp/stream-record' }).builder.modelStreamRecordDir, '/var/tmp/stream-record')
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_BUILDER_STREAM_RECORD_DIR: 'stream-record' }), /^Error: INVALID_CONFIG_CONEXUS_BUILDER_STREAM_RECORD_DIR$/)
+})
+
 test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the storage role', () => {
   const sha256 = 'ab'.repeat(32)
   const complete = { ...baseEnvironment, ...storageEnvironment }

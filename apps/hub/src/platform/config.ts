@@ -33,6 +33,11 @@ export type HubConfig = Readonly<{
     e2bTemplateId: string
     /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
     gitRoot: string
+    /**
+     * CONEXUS_BUILDER_STREAM_RECORD_DIR: a diagnostic, off when unset. Every ChatGPT-account model
+     * call's stream is recorded there as one JSONL file (`createModelStreamRecorder`).
+     */
+    modelStreamRecordDir: string | undefined
   }> | undefined
   /**
    * The installation's AES-256 credential key and the keys a rotation retired (decrypt-only). It seals every
@@ -206,6 +211,13 @@ const gitRoot = (environment: NodeJS.ProcessEnv): string => {
   return value.replace(/\/+$/, '') || '/'
 }
 
+const modelStreamRecordDir = (environment: NodeJS.ProcessEnv): string | undefined => {
+  const value = environment.CONEXUS_BUILDER_STREAM_RECORD_DIR
+  if (!value) return undefined
+  if (!value.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_BUILDER_STREAM_RECORD_DIR')
+  return value
+}
+
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
   const values = {
     ingressPasswordFile: environment.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
@@ -221,6 +233,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
+    modelStreamRecordDir: modelStreamRecordDir(environment),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
