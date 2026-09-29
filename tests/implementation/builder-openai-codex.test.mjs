@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -6,7 +9,8 @@ const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createCodexHolds, parseCodexTokens, serializeCodexTokens } = await import(built('builder/openai-codex/credential.js'))
-const { openaiCodexModel } = await import(built('builder/openai-codex/model.js'))
+const { createOpenAICodexRoute } = await import(built('builder/openai-codex/route.js'))
+const { codexModel } = await import('./codex-model.mjs')
 
 const origin = 'https://conexus.test'
 const ana = '22222222-2222-4222-8222-222222222222'
@@ -202,41 +206,140 @@ test('an expired token is refreshed once for every run holding the row, and writ
   const calls = Promise.all([runA(), runB()])
   await new Promise((resolve) => setImmediate(resolve))
   release()
-  assert.deepEqual(await calls, [{ accessToken: 'access-new', accountId: 'chatgpt-account-1' }, { accessToken: 'access-new', accountId: 'chatgpt-account-1' }])
+  assert.deepEqual(await calls, [tokens('new', 10_000), tokens('new', 10_000)])
   assert.deepEqual(refreshes, [{ refreshToken: 'refresh-old', accountId: 'chatgpt-account-1', email: 'ana@example.com' }], 'one refresh for both runs')
   assert.deepEqual(parseCodexTokens(rows.get(`${ana}:openai-codex`).secret), tokens('new', 10_000), 'the row holds the refreshed tokens')
 
   // A run that took the row before the refresh adopts the stored tokens instead of spending the used refresh token.
   const runC = holds.hold(rowId, tokens('old', 1_000))
-  assert.deepEqual(await runC(), { accessToken: 'access-new', accountId: 'chatgpt-account-1' })
+  assert.deepEqual(await runC(), tokens('new', 10_000))
   assert.equal(refreshes.length, 1)
 
   clock = 5_000
-  assert.deepEqual(await runA(), { accessToken: 'access-new', accountId: 'chatgpt-account-1' }, 'a live token is used as it is')
+  assert.deepEqual(await runA(), tokens('new', 10_000), 'a live token is used as it is')
 
   await store.rewrite(rowId, serializeCodexTokens(tokens('new', 1_000)))
   rows.clear()
   await assert.rejects(holds.hold(rowId, tokens('new', 1_000))(), /BUILDER_MODEL_NOT_SELECTED/, 'a disconnected account ends the run the way a missing one does')
 })
 
-test('a ChatGPT model calls the Codex endpoint with the held bearer, the account header and the Codex options', async (t) => {
+const unsigned = (claims) => `${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.sig`
+
+// OpenAI as a fake: the device and token endpoints for sign in and refresh, the Codex endpoint for calls.
+const fakeOpenAI = (t, { onCodex } = {}) => {
   const seen = []
   const original = globalThis.fetch
-  globalThis.fetch = async (request) => {
-    seen.push({ url: request.url, authorization: request.headers.get('authorization'), account: request.headers.get('chatgpt-account-id'), originator: request.headers.get('originator'), body: JSON.parse(await request.text()) })
-    return new Response('upstream refused', { status: 418 })
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    const body = request.method === 'GET' ? '' : await request.text()
+    const url = request.url
+    seen.push({ url, method: request.method, authorization: request.headers.get('authorization'), account: request.headers.get('chatgpt-account-id'), originator: request.headers.get('originator'), body })
+    if (url === 'https://auth.openai.com/api/accounts/deviceauth/usercode') return Response.json({ device_auth_id: 'device-9', user_code: 'ABCD-1234', interval: 1 })
+    if (url === 'https://auth.openai.com/api/accounts/deviceauth/token') {
+      const answered = seen.filter((call) => call.url === url).length > 1
+      return answered ? Response.json({ authorization_code: 'auth-code', code_verifier: 'verifier' }) : new Response('', { status: 403 })
+    }
+    if (url === 'https://auth.openai.com/oauth/token') {
+      const grant = new URLSearchParams(body).get('grant_type')
+      return Response.json({
+        access_token: grant === 'refresh_token' ? 'access-refreshed' : 'access-signed-in',
+        refresh_token: grant === 'refresh_token' ? 'refresh-refreshed' : 'refresh-signed-in',
+        expires_in: 3600,
+        id_token: unsigned({ email: 'ana@example.com', 'https://api.openai.com/auth': { chatgpt_account_id: 'chatgpt-account-1' } }),
+      })
+    }
+    if (url === 'https://chatgpt.com/backend-api/codex/responses') return onCodex ? onCodex(request, body) : new Response('upstream refused', { status: 418 })
+    throw new Error(`unexpected fetch ${url}`)
   }
   t.after(() => { globalThis.fetch = original })
-  const model = openaiCodexModel('gpt-5.1', async () => ({ accessToken: 'access-live', accountId: 'chatgpt-account-1' }))
+  return seen
+}
+
+const sse = (events) => events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join('')
+const codexStream = () => new Response(sse([
+  { type: 'response.created', response: { id: 'resp-1', model: 'gpt-5.1-codex', created_at: 1 } },
+  { type: 'response.output_item.added', output_index: 0, item: { type: 'reasoning', id: 'rs-1' } },
+  { type: 'response.reasoning_summary_part.added', item_id: 'rs-1', summary_index: 0 },
+  { type: 'response.reasoning_summary_text.delta', item_id: 'rs-1', summary_index: 0, delta: 'pensando' },
+  { type: 'response.output_item.done', output_index: 0, item: { type: 'reasoning', id: 'rs-1', summary: [{ type: 'summary_text', text: 'pensando' }] } },
+  { type: 'response.output_item.added', output_index: 1, item: { type: 'message', id: 'msg-1' } },
+  { type: 'response.output_text.delta', item_id: 'msg-1', output_index: 1, content_index: 0, delta: 'oi' },
+  { type: 'response.output_item.done', output_index: 1, item: { type: 'message', id: 'msg-1', content: [{ type: 'output_text', text: 'oi' }] } },
+  { type: 'response.completed', response: { id: 'resp-1', usage: { input_tokens: 1, output_tokens: 2 } } },
+]), { status: 200, headers: { 'content-type': 'text/event-stream' } })
+
+const prompt = [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }]
+const drain = async (stream) => { const types = []; for await (const part of stream) types.push(part.type); return types }
+
+test("signing in with ChatGPT runs Mastra's device flow against OpenAI and stores the tokens and account id it returns", async (t) => {
+  const seen = fakeOpenAI(t)
+  const { store, rows } = fakeStore()
+  const { createCodexLogin } = await import(built('builder/openai-codex/login.js'))
+  const login = createCodexLogin({ writeCredential: ({ accountId }, credentials) => store.write(accountId, 'openai-codex', 'oauth', serializeCodexTokens(credentials)) })
+  const handoff = await login.start({ accountId: ana })
+  assert.deepEqual({ url: handoff.url, userCode: handoff.userCode, intervalMs: handoff.intervalMs }, { url: 'https://auth.openai.com/codex/device', userCode: 'ABCD-1234', intervalMs: 1000 })
+  assert.equal(await login.poll({ accountId: ana }, handoff.loginId), 'waiting', 'OpenAI answers 403 until the person types the code')
+  assert.equal(await login.poll({ accountId: ana }, handoff.loginId), 'succeeded')
+  const { expires, ...stored } = parseCodexTokens(rows.get(`${ana}:openai-codex`).secret)
+  assert.deepEqual(stored, { access: 'access-signed-in', refresh: 'refresh-signed-in', accountId: 'chatgpt-account-1', email: 'ana@example.com' })
+  assert.equal(expires > Date.now() + 3_000_000, true)
+  assert.deepEqual(seen.map(({ url }) => url), [
+    'https://auth.openai.com/api/accounts/deviceauth/usercode',
+    'https://auth.openai.com/api/accounts/deviceauth/token',
+    'https://auth.openai.com/api/accounts/deviceauth/token',
+    'https://auth.openai.com/oauth/token',
+  ])
+})
+
+test('a ChatGPT model calls the Codex endpoint with the person\'s bearer and account id, asks for the reasoning summary, and never sends max_output_tokens', async (t) => {
+  const seen = fakeOpenAI(t, { onCodex: codexStream })
+  const recordDir = mkdtempSync(join(tmpdir(), 'codex-record-'))
+  const live = tokens('live', Date.now() + 3_600_000)
+  const model = await codexModel('gpt-5.1', live, { streamRecordDir: recordDir })
   assert.equal(model.provider, 'openai.responses')
-  await assert.rejects(model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }] }))
+  const { stream } = await model.doStream({ prompt, maxOutputTokens: 1234 })
+  assert.deepEqual(await drain(stream), ['stream-start', 'response-metadata', 'reasoning-start', 'reasoning-delta', 'reasoning-end', 'text-start', 'text-delta', 'text-end', 'finish'])
   assert.equal(seen.length, 1)
-  const [{ url, authorization, account, originator, body }] = seen
+  const { url, authorization, account, originator, body } = seen[0]
   assert.deepEqual({ url, authorization, account, originator }, {
     url: 'https://chatgpt.com/backend-api/codex/responses', authorization: 'Bearer access-live', account: 'chatgpt-account-1', originator: 'mastracode',
   })
-  assert.deepEqual({ model: body.model, store: body.store, reasoning: body.reasoning, stream: body.stream }, { model: 'gpt-5.1-codex', store: false, reasoning: { effort: 'medium', summary: 'auto' }, stream: true })
-  assert.match(body.instructions, /^You are an interactive CLI tool/)
+  const sent = JSON.parse(body)
+  assert.deepEqual({ model: sent.model, store: sent.store, reasoning: sent.reasoning, stream: sent.stream, maxOutputTokens: sent.max_output_tokens }, {
+    model: 'gpt-5.1-codex', store: false, reasoning: { effort: 'medium', summary: 'auto' }, stream: true, maxOutputTokens: undefined,
+  })
+  assert.match(sent.instructions, /^You are an interactive CLI tool/)
+
+  const [file] = readdirSync(recordDir)
+  const lines = readFileSync(join(recordDir, file), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+  assert.deepEqual(lines.filter((line) => line.kind === 'chunk' && line.source === 'raw').map((line) => line.type).slice(0, 3), ['response.created', 'response.output_item.added', 'response.reasoning_summary_part.added'])
+  assert.doesNotMatch(lines.map((line) => JSON.stringify(line)).join('\n'), /access-live|Bearer/, 'the record never holds the credential')
+})
+
+test("the ChatGPT route serves each person's own row: an expired token is refreshed through Mastra, written back, and the call carries the new bearer", async (t) => {
+  const seen = fakeOpenAI(t, { onCodex: codexStream })
+  const { store, rows } = fakeStore()
+  await store.write(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  await store.write(bia, 'openai-codex', 'oauth', serializeCodexTokens({ ...tokens('bia', Date.now() + 3_600_000), accountId: 'chatgpt-account-bia' }))
+  const route = createOpenAICodexRoute(createCodexHolds({ store }))
+  assert.equal(route.accountProvider, 'openai-codex')
+  const anaRow = await store.usable(ana, 'openai-codex')
+  const biaRow = await store.usable(bia, 'openai-codex')
+  const anaTaken = route.take(anaRow)
+  assert.equal(anaTaken.modelProvider, 'openai')
+  await drain((await (await anaTaken.model('gpt-5.6-sol')).doStream({ prompt })).stream)
+  await drain((await (await route.take(biaRow).model('gpt-5.6-sol')).doStream({ prompt })).stream)
+
+  const refresh = seen.find(({ url }) => url === 'https://auth.openai.com/oauth/token')
+  assert.equal(new URLSearchParams(refresh.body).get('refresh_token'), 'refresh-old')
+  const calls = seen.filter(({ url }) => url === 'https://chatgpt.com/backend-api/codex/responses')
+  assert.deepEqual(calls.map(({ authorization, account }) => ({ authorization, account })), [
+    { authorization: 'Bearer access-refreshed', account: 'chatgpt-account-1' },
+    { authorization: 'Bearer access-bia', account: 'chatgpt-account-bia' },
+  ])
+  assert.equal(JSON.parse(calls[0].body).model, 'gpt-5.6-sol', 'a model with no Codex remap keeps its id')
+  const written = parseCodexTokens(rows.get(`${ana}:openai-codex`).secret)
+  assert.deepEqual({ access: written.access, refresh: written.refresh, accountId: written.accountId, email: written.email }, { access: 'access-refreshed', refresh: 'refresh-refreshed', accountId: 'chatgpt-account-1', email: 'ana@example.com' })
 })
 
 const routesOver = (holds = null) => ({
@@ -244,7 +347,7 @@ const routesOver = (holds = null) => ({
     accountProvider: 'openai-codex',
     take: (account) => {
       const bearer = holds?.hold(account.modelAccountId, parseCodexTokens(account.secret))
-      return { modelProvider: 'openai', model: async (name) => ({ called: name, with: bearer ? (await bearer()).accessToken : account.secret }) }
+      return { modelProvider: 'openai', model: async (name) => ({ called: name, with: bearer ? (await bearer()).access : account.secret }) }
     },
   },
   'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },

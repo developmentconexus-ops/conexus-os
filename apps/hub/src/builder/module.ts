@@ -43,8 +43,8 @@ import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
 import { createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
 import { BuilderMemorySettings, createBuilderMemory } from './memory.js'
-import { createCodexHolds, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens } from './openai-codex/credential.js'
-import { openaiCodexModel } from './openai-codex/model.js'
+import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
+import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies, RunNote } from './service.js'
 
@@ -296,7 +296,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // Each person's observational-memory settings, a collection beside the threads in the same store.
   const memorySettings = new PgFactoryStorage({ store: storage }).registerDomain(new BuilderMemorySettings())
 
-  const codexHolds = createCodexHolds({ store: modelAccounts })
   const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
     // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
     [GOOGLE_AI_PRO_PROVIDER]: {
@@ -315,14 +314,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         }
       },
     },
-    // Called from the Hub on the ChatGPT subscription's Codex endpoint; the token never leaves the Hub.
-    [OPENAI_MODEL_PROVIDER]: {
-      accountProvider: OPENAI_CODEX_PROVIDER,
-      take: (account) => {
-        const bearer = codexHolds.hold(account.modelAccountId, parseCodexTokens(account.secret))
-        return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, bearer, builder.modelStreamRecordDir) }
-      },
-    },
+    [OPENAI_MODEL_PROVIDER]: createOpenAICodexRoute(createCodexHolds({ store: modelAccounts }), builder.modelStreamRecordDir),
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
     [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
   })

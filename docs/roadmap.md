@@ -150,7 +150,7 @@ The Hub itself gains two direct dependencies for the ChatGPT subscription path:
 
 | Packages and exact versions | Consumer | Named limitation | Probe | Alternative, and why not |
 | --- | --- | --- | --- | --- |
-| `ai` 6.0.286, `@ai-sdk/openai` 3.0.114 | `apps/hub/src/builder/openai-codex/model.ts:12-13`, which calls an `openai/*` model on the Codex endpoint with the person's ChatGPT bearer | `@mastra/code-sdk` 1.8.3 resolved these versions, and C-032 removes it. `@mastra/core` 1.71.0 declares neither | `builder-openai-codex.test.mjs:219` | Keep `@mastra/code-sdk`, which keeps the Factory's model stack that C-032 removes |
+| `ai` 6.0.286, `@ai-sdk/openai` 3.0.114 | `apps/hub/src/builder/openai-codex/route.ts`, which wraps Mastra Code's Codex provider (`@ai-sdk/openai` through `@mastra/code-sdk`) for an `openai/*` model with the person's ChatGPT bearer | `@mastra/code-sdk` 1.8.3 resolved these versions, and C-032 removes it. `@mastra/core` 1.71.0 declares neither | `builder-openai-codex.test.mjs` | Keep `@mastra/code-sdk`, which keeps the Factory's model stack that C-032 removes |
 
 Every application-architecture gate follows the
 [Builder proof rule](development/delivery.md#builder-proof-rule).
