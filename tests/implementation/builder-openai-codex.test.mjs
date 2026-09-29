@@ -232,7 +232,7 @@ test('a ChatGPT model calls the Codex endpoint with the held bearer, the account
   assert.deepEqual({ url, authorization, account, originator }, {
     url: 'https://chatgpt.com/backend-api/codex/responses', authorization: 'Bearer access-live', account: 'chatgpt-account-1', originator: 'mastracode',
   })
-  assert.deepEqual({ model: body.model, store: body.store, reasoning: body.reasoning, stream: body.stream }, { model: 'gpt-5.1-codex', store: false, reasoning: { effort: 'medium' }, stream: true })
+  assert.deepEqual({ model: body.model, store: body.store, reasoning: body.reasoning, stream: body.stream }, { model: 'gpt-5.1-codex', store: false, reasoning: { effort: 'medium', summary: 'auto' }, stream: true })
   assert.match(body.instructions, /^You are an interactive CLI tool/)
 })
 
