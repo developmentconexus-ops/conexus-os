@@ -6,6 +6,7 @@ import type { ApplicationCheckRun } from './application-artifact-runtime.js'
 import { CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
+import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
 import { pullCandidate, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
@@ -54,11 +55,10 @@ export type BuilderRunPorts = Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
   }>): Promise<RunSession>
   /**
-   * Chooses and holds the model accounts the run's calls use, one for the provider of the model its
-   * conversation runs in each mode the run can reach; refuses when the person has none. Returns
-   * the start mode's account, which the run records.
+   * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
+   * checks that one model only: the account for each later call is looked up when the call is made.
    */
-  holdModelAccount(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<Readonly<{ modelAccountId: string; release(): void }>>
+  checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<void>
   git: Pick<ConexusGit, 'seedBundle' | 'acceptCandidate' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
@@ -75,7 +75,6 @@ type BuilderRunInput = Readonly<{
   mode: 'BUILD' | 'PLAN'
   baseSourceRevision: string
   bindPhysicalSandbox(sandboxId: string): Promise<void>
-  bindModelAccount(modelAccountId: string): Promise<void>
   bindMessage(messageId: string): Promise<void>
   setPhase(phase: BuilderRunningPhase): Promise<void>
   recordCandidate(sourceRevision: string): Promise<void>
@@ -115,34 +114,29 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     const base = input.baseSourceRevision
     const cancelled = (): boolean => input.signal?.aborted === true
 
-    // The person's own account, else the installation's shared one; none refuses the run before a
-    // sandbox exists, with the same "connect a model" answer as before.
-    const modelAccount = await ports.holdModelAccount({
+    // The start model's account is the person's own, else the installation's shared one; none
+    // refuses the run before a sandbox exists, with the "connect a model" answer.
+    await ports.checkModel({
       builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId, mode: input.mode,
     })
-    const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }).catch((error: unknown) => {
-      modelAccount.release()
-      throw error
-    }) : null
+    const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
     const sandbox = ports.createSandbox(input.executionId)
     let session: RunSession | undefined
     let release: (() => void) | undefined
-    // The agent's turn is the only reader of the run's connector scope and model account, so both
-    // end with the session.
+    // The agent's turn is the only reader of the run's connector scope, so it ends with the session.
     const closeSession = async (): Promise<void> => {
       connectorRun?.end()
-      modelAccount.release()
       const open = session
       session = undefined
       await open?.close()
     }
     try {
-      await input.bindModelAccount(modelAccount.modelAccountId)
       // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
       const knowledge = readProjectKnowledge(await ports.git.readBlob(input.projectId, base, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
       const bindContext: RunContextBinder = (requestContext) => {
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
-        requestContext.setRaw('conexusBuilderRunId', input.executionId)
+        requestContext.setRaw(RUN_ID_KEY, input.executionId)
+        requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)
         requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
         connectorRun?.bind(requestContext)

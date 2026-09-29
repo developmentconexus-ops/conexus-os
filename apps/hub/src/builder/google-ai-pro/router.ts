@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, request as forward, type ServerResponse } from 'node:http'
-import { parseKey } from './credential.js'
-import type { CliproxyPool, Lease } from './pool.js'
+import { type GoogleAiProKey, parseKey } from './credential.js'
+import type { CliproxyPool, Lease, PersistGoogleAiProRefresh } from './pool.js'
 
 const refuse = (response: ServerResponse, status: number, message: string): void => {
   response.writeHead(status, { 'content-type': 'application/json' })
@@ -12,14 +12,14 @@ const BEARER = /^Bearer\s+(\S+)$/i
 // A run's model calls reach this with the person's credential as the bearer. The router swaps it
 // for the person's proxy key and streams the call through. It never logs a header: the bearer is the
 // person's Google sign-in.
-const route = (pool: Pick<CliproxyPool, 'acquire'>) => async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
   const bearer = BEARER.exec(request.headers.authorization ?? '')?.[1]
   const key = bearer ? parseKey(bearer) : null
   if (!key) return refuse(response, 401, 'Conecte o Google AI Pro nas Configurações.')
   if (!request.url?.startsWith('/v1/')) return refuse(response, 404, 'Not found')
   let lease: Lease
   try {
-    lease = await pool.acquire(key)
+    lease = await pool.acquire(key, persistFor(key))
   } catch {
     return refuse(response, 503, 'O Google AI Pro não iniciou. Tente novamente.')
   }
@@ -48,9 +48,12 @@ const route = (pool: Pick<CliproxyPool, 'acquire'>) => async (request: IncomingM
   request.pipe(outgoing)
 }
 
-export const startModelRouter = (pool: Pick<CliproxyPool, 'acquire'>): Promise<Readonly<{ url: string; close(): Promise<void> }>> =>
+/** The write-back for a key's refreshed record, when the key's row is known (write-back.ts). */
+type PersistFor = (key: GoogleAiProKey) => PersistGoogleAiProRefresh | undefined
+
+export const startModelRouter = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor): Promise<Readonly<{ url: string; close(): Promise<void> }>> =>
   new Promise((resolve, reject) => {
-    const handle = route(pool)
+    const handle = route(pool, persistFor)
     const server = createServer((request, response) => { void handle(request, response) })
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {

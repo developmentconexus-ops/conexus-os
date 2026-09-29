@@ -69,7 +69,7 @@ const routeBuilder = async (page, state) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: state.modeId, threadId: conversationOf(route.request().url()) }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
     state.modelId = route.request().postDataJSON().modelId
-    state.modelSwitches.push(state.modelId)
+    state.modelSwitches.push([state.modelId, route.request().postDataJSON().modeId])
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   // A glob ending in mode* would also take the model route.
@@ -431,7 +431,7 @@ test('a Project holds several conversations, and switching between them leaves t
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
   // composer's placeholder leaving its "no model" wording, not by the button alone.
   await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
-  assert.deepEqual(state.modelSwitches, [SELECTED_MODEL])
+  assert.deepEqual(state.modelSwitches, [[SELECTED_MODEL, 'plan'], [SELECTED_MODEL, 'build']], 'the picker sets the conversation\'s model for both modes')
 
   assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
@@ -982,7 +982,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
   // composer's placeholder leaving its "no model" wording, not by the button alone.
   await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
-  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]])
+  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL], [counterId, SELECTED_MODEL]], 'one write for each mode')
 
   const createConversation = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/builder/agent-controller/conexus-builder/sessions' && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Nova conversa' }).click()
@@ -993,7 +993,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   assert.match(threadId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   assert.equal(sessionScope, `conversation:${threadId}`, 'a conversation is opened as its own session on the thread of the same id')
   assert.equal((await readConversationTitles(page, 3)).length, 3)
-  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
+  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL], [counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
 
   await switchConversationTo(page, 'Contador')
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()

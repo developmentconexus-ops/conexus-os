@@ -32,6 +32,15 @@ const conversationSession = (projectId: string, conversationId: string) =>
 const runSession = (projectId: string, builderRunId: string) =>
   builderController.session(projectResource(projectId), `builder:${builderRunId}`)
 
+type SessionHandle = ReturnType<typeof conversationSession>
+
+// A conversation has one current model, so the picker sets it for both modes: Mastra keeps a model
+// per mode on the thread, and a person who picks "Gemini" means it for the plan and for the build.
+// Naming each mode also sets the session's live model when the mode is the active one.
+const switchConversationModel = async (session: SessionHandle, modelId: string): Promise<void> => {
+  for (const modeId of builderModes) await session.switchModel(modelId, { scope: 'thread', modeId })
+}
+
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
 export type Conversation = Readonly<{ id: string; title?: string | null | undefined }>
@@ -102,11 +111,11 @@ export const applyThreadSettings = async (projectId: string, conversationId: str
 }>): Promise<void> => {
   const session = conversationSession(projectId, conversationId)
   await session.switchMode(settings.mode)
-  if (settings.modelId) await session.switchModel(settings.modelId, { scope: 'thread' })
+  if (settings.modelId) await switchConversationModel(session, settings.modelId)
   if (settings.reasoning) await session.setState({ thinkingLevel: settings.reasoning })
 }
 
-export const useSessionModel = (projectId: string, conversationId: string | null) => {
+export const useSessionModel = (projectId: string, conversationId: string | null, builderRunId: string | null = null) => {
   const queryClient = useQueryClient()
   // A session arrives with no model selected, and an empty id is how the controller says so. An
   // absent thinking level means the controller's configured default applies.
@@ -128,11 +137,20 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
   // Thread scope is the only one the controller persists, and it is the right one: the choice is
-  // saved on the conversation, which is what a run opened from it will read.
+  // saved on the conversation, which is what a run opened from it will read. While a run is active
+  // the switch goes to the session that runs, so the model it calls next, after a plan approval or
+  // an answer, is the new one. A run that has no session yet reads the thread when it opens one.
   const choose = useMutation({
-    mutationFn: (modelId: string) => {
+    mutationFn: async (modelId: string) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return conversationSession(projectId, conversationId).switchModel(modelId, { scope: 'thread' })
+      if (builderRunId) {
+        try {
+          return await switchConversationModel(runSession(projectId, builderRunId), modelId)
+        } catch {
+          // Not open yet (the run is still preparing): the thread carries the choice to it.
+        }
+      }
+      return switchConversationModel(conversationSession(projectId, conversationId), modelId)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })

@@ -43,8 +43,8 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_SOURCE_BASE_PIN_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
 
   BUILDER_MODEL_AUTH_FAILED: 'MODEL_CREDENTIAL_REFUSED',
-  // A person with no model account of their own and no shared one is refused before a sandbox
-  // exists, and reads as a credential the run does not have.
+  // No usable account for the model being called (the run's start model, or one chosen mid-run)
+  // reads as a credential the run does not have.
   BUILDER_MODEL_NOT_SELECTED: 'MODEL_CREDENTIAL_REFUSED',
 
   BUILDER_MODEL_RATE_LIMITED: 'MODEL_RATE_LIMITED',

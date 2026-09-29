@@ -136,10 +136,9 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   }
   const runtime = createBuilderRunRuntime({
     createSandbox: (builderRunId) => { events.push(['sandbox', builderRunId]); return sandbox },
-    holdModelAccount: async ({ builderRunId, accountId: payer }) => {
-      events.push(['model-account', builderRunId, payer])
+    checkModel: async ({ builderRunId, accountId: payer }) => {
+      events.push(['model-check', builderRunId, payer])
       if (!modelAccount) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-      return { modelAccountId: modelAccount, release: () => { events.push('model-account-released') } }
     },
     openSession: async (input) => {
       events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
@@ -174,7 +173,6 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
     bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
-    bindBuilderRunModelAccount: async (_id, modelAccountId) => { calls.push(['model-account', modelAccountId]) },
     settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
     advanceBuilderRunSource: async (_id, revision) => {
       if (lostAdvances-- > 0) {
@@ -774,7 +772,7 @@ test('a person with no model account is refused before a sandbox exists', async 
   assert.equal(run.events.some((event) => Array.isArray(event) && event[0] === 'sandbox'), false)
 })
 
-test('a run records the model account it used, and destroys its own sandbox and releases the account however it ends', async (t) => {
+test("a run checks its start model once, names its payer in every turn's context, and destroys its own sandbox however it ends", async (t) => {
   const ok = await harness(t)
   await ok.start()
   await ok.service.close()
@@ -782,9 +780,9 @@ test('a run records the model account it used, and destroys its own sandbox and 
   await failed.start()
   await failed.service.close()
   for (const run of [ok, failed]) {
-    assert.deepEqual(run.calls.filter(([kind]) => kind === 'model-account'), [['model-account', MODEL_ACCOUNT]])
+    assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'model-check'), [['model-check', runId, accountId]])
+    assert.equal(run.sessionContext.get('conexusBuilderAccountId'), accountId)
     assert.deepEqual(run.destroyed, ['sbx-1'])
-    assert.equal(run.events.filter((event) => event === 'model-account-released').length >= 1, true)
     assert.equal(run.events.at(-1), 'destroy')
   }
 })

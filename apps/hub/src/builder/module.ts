@@ -36,6 +36,7 @@ import { starterProjectKnowledge } from './project-knowledge.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
+import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
 import { GOOGLE_AI_PRO_PROVIDER, parseKey } from './google-ai-pro/credential.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { createModelAccountStore } from './model-account-store.js'
@@ -209,11 +210,11 @@ export const scheduleRetentionPrune = (
 }
 
 // Kills what a crashed Hub left running before the router takes calls.
-const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) => {
+const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig, persistFor: Parameters<typeof startModelRouter>[1]) => {
   await verifyCliproxyBinary(binary, sha256)
   const pool = createCliproxyPool({ binary, stateDir: defaultCliproxyStateDir() })
   await pool.sweepOrphans()
-  const router = await startModelRouter(pool)
+  const router = await startModelRouter(pool, persistFor)
   return Object.freeze({
     pool,
     url: router.url,
@@ -282,7 +283,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
-  const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro) : Promise.resolve(undefined)
+  const googleWriteBack = createRefreshWriteBack(modelAccounts)
+  const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
   googleAiProReady.catch(() => undefined)
 
   const codexHolds = createCodexHolds({ store: modelAccounts })
@@ -293,6 +295,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       take: (account) => {
         const key = parseKey(account.secret)
         if (!key) throw new Error('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
+        googleWriteBack.track(key, account.modelAccountId)
         return {
           modelProvider: GOOGLE_AI_PRO_PROVIDER,
           model: async (modelName) => {
@@ -320,6 +323,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // Read when a run starts, long after the conversations below exist.
     modelOf: (projectId, conversationId, mode) => conversations.modelOf(projectId, conversationId, mode),
     readDefault,
+    record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
   })
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
@@ -353,7 +357,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       await ready
       return openSession(input)
     },
-    holdModelAccount: modelRouting.hold,
+    checkModel: modelRouting.check,
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
     log,
