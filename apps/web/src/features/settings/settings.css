@@ -94,3 +94,9 @@
   .cxs-row-actions { margin-left: 0; width: 100%; }
   .cxs-list > li { padding: .8rem .9rem; }
 }
+
+/* Memória do Builder: two groups of fields, each with its label and what it does. */
+.cxs-memory-form { display: grid; gap: 2rem; }
+.cxs-memory-form > section { display: grid; gap: 1.1rem; }
+.cxs-field > label { font-weight: 600; font-size: .9rem; }
+.cxs-field-control { width: min(22rem, 100%); }

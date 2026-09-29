@@ -49,7 +49,7 @@ test('an administrator sees Administradores as the one installation item in the 
   await page.goto(`${origin}/settings/account`)
   await page.getByRole('link', { name: 'Administradores' }).waitFor()
   for (const label of ['GitHub', 'Modelos da empresa', 'Memória']) {
-    assert.equal(await page.getByRole('link', { name: label }).count(), 0, `${label} is not a settings item`)
+    assert.equal(await page.getByRole('link', { name: label, exact: true }).count(), 0, `${label} is not a settings item`)
   }
 })
 
@@ -291,4 +291,41 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
     ['POST', '/oauth/complete', true, { loginId, code: 'good#verifier-1' }],
   ])
   assert.equal(await page.evaluate(() => document.body.innerText.includes('sk-ant-')), false)
+})
+
+test('Memória do Builder reads the person\'s settings and saves the models and limits they choose, refusing a limit out of range', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Ana', email: 'ana@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [
+    { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
+    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', hasApiKey: true },
+  ] }) }))
+  const writes = []
+  let stored = { observerModelId: null, reflectorModelId: null, observationThreshold: 30_000, reflectionThreshold: 40_000 }
+  await page.route('**/api/control/model-accounts/memory', (route) => {
+    if (route.request().method() === 'PUT') {
+      writes.push({ body: route.request().postDataJSON(), csrf: route.request().headers()['x-conexus-csrf'] !== undefined })
+      stored = route.request().postDataJSON()
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings: stored }) })
+  })
+
+  await page.goto(`${origin}/settings/account`)
+  await page.getByRole('link', { name: 'Memória do Builder' }).click()
+  await page.getByRole('heading', { name: 'Memória do Builder', level: 1 }).waitFor()
+  const observer = page.getByRole('combobox', { name: 'Quem observa' })
+  assert.equal(await observer.textContent(), 'O modelo da conversa')
+  assert.equal(await page.getByLabel('Mensagens antes de observar').inputValue(), '30000')
+
+  await observer.click()
+  await page.getByRole('option', { name: 'Claude Haiku 4.5' }).click()
+  const observation = page.getByLabel('Mensagens antes de observar')
+  await observation.fill('500')
+  await page.getByText('Use um número inteiro entre 1.000 e 1.000.000.', { exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Salvar' }).isDisabled(), true)
+  await observation.fill('50000')
+  await page.getByRole('button', { name: 'Salvar' }).click()
+  await page.getByText('Salvo. Vale a partir da próxima vez que o Builder trabalhar.', { exact: true }).waitFor()
+  assert.deepEqual(writes, [{ body: { observerModelId: 'anthropic/claude-haiku-4-5', reflectorModelId: null, observationThreshold: 50_000, reflectionThreshold: 40_000 }, csrf: true }])
 })
