@@ -29,7 +29,7 @@ const killEverySandboxSeen = async (apiKey, sandboxIds) => {
 test('on a real E2B VM the checkout is seeded from a bundle only root can change, and the Hub takes the run back as one commit on the base', { skip, timeout: 5 * 60_000 }, async (t) => {
   const hub = await loadHub()
   const { ConexusRunSandbox, SANDBOX_CHECKOUT } = await hub('builder/sandbox.js')
-  const { createConexusGit, pullCandidate, seedSandbox } = await hub('builder/conexus-git.js')
+  const { candidateSnapshot, createConexusGit, pullSnapshot, seedSandbox } = await hub('builder/conexus-git.js')
   const { templateId, apiKey } = liveConfig()
   const gitRoot = mkdtempSync(join(tmpdir(), 'conexus-live-git-'))
   t.after(() => rmSync(gitRoot, { recursive: true, force: true }))
@@ -53,7 +53,7 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
     assert.equal((await agent('git rev-parse HEAD', SANDBOX_CHECKOUT)).stdout.trim(), base)
     assert.notEqual((await agent(`: > '${seedFile}'`)).exitCode, 0, 'the agent user cannot replace the seed')
     assert.equal((await agent('echo changed > app/index.html && mkdir -p .conexus/plans && echo plan > .conexus/plans/p.md', SANDBOX_CHECKOUT)).exitCode, 0)
-    const candidate = await pullCandidate({ git, projectId, runId, base, sandbox: source, checkout: SANDBOX_CHECKOUT })
+    const candidate = await pullSnapshot({ git, projectId, snapshot: candidateSnapshot(runId, base), scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT })
     await git.fastForwardMain(projectId, { base, candidate })
     assert.deepEqual((await git.listTree(projectId, candidate)).map((entry) => entry.path), ['app', 'app/index.html'])
     assert.equal((await git.readBlob(projectId, candidate, 'app/index.html', 1024)).bytes.toString('utf8'), 'changed\n')

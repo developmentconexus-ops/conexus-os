@@ -8,6 +8,8 @@ import { isBuilderModeId, type BuilderModeId } from './modes.js'
  */
 export const CONEXUS_PROJECT_KNOWLEDGE_KEY = 'conexusProjectKnowledge'
 export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'
+/** The paths the turn's start left with conflict markers when it brought `main` in, newline separated. */
+export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 /**
  * Which prompt variant the run's instructions load (`prompt/<variant>/`); absent means the default.
  * @public Tests import this at runtime from the built module.
@@ -40,6 +42,10 @@ export const readProjectKnowledge = (requestContext: RequestContext | undefined)
 /** Q-5's connector brief for this run, set by the caller for this turn. */
 export const readConnectorBrief = (requestContext: RequestContext | undefined): string =>
   readRawString(requestContext, CONEXUS_CONNECTOR_BRIEF_KEY)
+
+/** The paths holding conflict markers at this turn's start, set by the caller; empty on a clean start. */
+export const readTurnConflicts = (requestContext: RequestContext | undefined): readonly string[] =>
+  readRawString(requestContext, CONEXUS_TURN_CONFLICTS_KEY).split('\n').filter(Boolean)
 
 /** The run's prompt variant as the caller set it, unchecked; `conexusInstructions` refuses one it does not know. */
 export const readPromptVariant = (requestContext: RequestContext | undefined): string | undefined => {

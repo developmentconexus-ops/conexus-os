@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createConexusGit, pullCandidate, seedSandbox } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, seedSandbox } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(hubModuleUrl('builder/source.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -143,7 +143,7 @@ test('main fast forwards only from the run base to a descendant, and a retry con
   assert.equal(await git.readMain(PROJECT), candidate)
 })
 
-test('a candidate is taken only from the run ref, as one commit on the base', async (t) => {
+test('a snapshot is taken only from its own ref, as one commit on its parent', async (t) => {
   const directory = scratch(t)
   const root = join(directory, 'git')
   const git = createConexusGit({ root, starter: STARTER })
@@ -155,20 +155,117 @@ test('a candidate is taken only from the run ref, as one commit on the base', as
   run(work, ['update-ref', 'refs/heads/main', candidate])
 
   const otherOnly = bundleOf(work, directory, [`refs/conexus/runs/${OTHER_RUN}`, `^${base}`])
-  await assert.rejects(git.acceptCandidate(PROJECT, { runId: RUN, base, bundle: otherOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: otherOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
   const mainOnly = bundleOf(work, directory, ['refs/heads/main', `^${base}`])
-  await assert.rejects(git.acceptCandidate(PROJECT, { runId: RUN, base, bundle: mainOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
-  await assert.rejects(git.acceptCandidate(PROJECT, { runId: RUN, base, bundle: Buffer.from('not a bundle') }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: mainOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: Buffer.from('not a bundle') }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
 
   const both = bundleOf(work, directory, [`refs/conexus/runs/${RUN}`, 'refs/heads/main', `refs/conexus/runs/${OTHER_RUN}`, `^${base}`])
-  assert.equal(await git.acceptCandidate(PROJECT, { runId: RUN, base, bundle: both }), candidate)
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: both }), candidate)
   assert.equal(bare(root, 'for-each-ref', '--format=%(refname) %(objectname)'), `refs/conexus/runs/${RUN} ${candidate}\nrefs/heads/main ${base}`)
 
   const twoCommits = commitIn(work, { 'app/b.txt': 'b\n' })
   run(work, ['update-ref', `refs/conexus/runs/${OTHER_RUN}`, twoCommits])
   const deep = bundleOf(work, directory, [`refs/conexus/runs/${OTHER_RUN}`, `^${base}`])
-  await assert.rejects(git.acceptCandidate(PROJECT, { runId: OTHER_RUN, base, bundle: deep }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(OTHER_RUN, base), bundle: deep }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
   assert.equal(bare(root, 'for-each-ref', '--format=%(refname)', 'refs/conexus/runs'), `refs/conexus/runs/${RUN}`)
+})
+
+const CONVERSATION = '44444444-4444-4444-8444-444444444444'
+const fromMain = (main) => ({ conversationId: CONVERSATION, main, start: main, mirror: null, conflicted: [] })
+const MIRROR = `refs/conexus/conversations/${CONVERSATION}`
+
+test('a mirror snapshot is one commit on the turn start, moved only from the head it replaces, and a turn starting from main never carries it', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const work = cloneOf(root, directory)
+  const first = commitIn(work, { 'app/a.txt': 'a\n' })
+  run(work, ['update-ref', MIRROR, first])
+  const firstBundle = bundleOf(work, directory, [MIRROR, `^${base}`])
+
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...mirrorSnapshot(CONVERSATION, first), bundle: firstBundle, expected: null }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' }, 'the wrong parent')
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...mirrorSnapshot(CONVERSATION, base), bundle: firstBundle, expected: null }), first)
+  assert.equal(await git.readMirror(PROJECT, CONVERSATION), first)
+
+  run(work, ['checkout', '--quiet', '--detach', base])
+  const sibling = commitIn(work, { 'app/b.txt': 'b\n' })
+  run(work, ['update-ref', MIRROR, sibling])
+  const siblingBundle = bundleOf(work, directory, [MIRROR, `^${base}`])
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...mirrorSnapshot(CONVERSATION, base), bundle: siblingBundle, expected: null }), { message: 'CONEXUS_GIT_REF_MOVED' }, 'a stale head')
+  assert.equal(await git.readMirror(PROJECT, CONVERSATION), first)
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...mirrorSnapshot(CONVERSATION, base), bundle: siblingBundle, expected: first }), sibling, 'a sibling on the same start replaces it')
+
+  const merge = run(work, ['commit-tree', `${sibling}^{tree}`, '-p', sibling, '-p', first, '-m', 'two parents'])
+  run(work, ['update-ref', MIRROR, merge])
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...mirrorSnapshot(CONVERSATION, sibling), bundle: bundleOf(work, directory, [MIRROR, `^${sibling}`, `^${first}`]), expected: sibling }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' }, 'two parents')
+  assert.equal(bare(root, 'for-each-ref', '--format=%(refname) %(objectname)'), `${MIRROR} ${sibling}\nrefs/heads/main ${base}`)
+
+  await assert.rejects(git.moveMirror(PROJECT, CONVERSATION, { expected: first, next: base }), { message: 'CONEXUS_GIT_REF_MOVED' })
+  const seed = await git.seedBundle(PROJECT, { conversationId: CONVERSATION, main: base, start: base, mirror: sibling, conflicted: [] })
+  const header = seed.subarray(0, seed.indexOf('\n\n')).toString('utf8').split('\n').filter((line) => /^[0-9a-f]{40} /.test(line))
+  assert.deepEqual(header, [`${base} refs/heads/main`])
+  assert.throws(() => mirrorSnapshot('conexus-builder:legacy', base), { message: 'CONEXUS_GIT_REF_REFUSED' })
+})
+
+test('a turn starts from main, from the mirror that holds it, or from a Hub merge of both that keeps conflicts for the agent', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const work = cloneOf(root, directory)
+  const push = (commit, ref) => run(work, ['push', '--quiet', '--force', 'origin', `${commit}:${ref}`])
+  const files = (revision) => bare(root, 'ls-tree', '-r', '--name-only', revision).split('\n')
+  const checkout = join(directory, 'sandbox', 'repo')
+  const seedFile = join(directory, 'sandbox', 'seed.bundle')
+  const sandbox = localSandbox()
+
+  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, base), fromMain(base))
+
+  const kept = commitIn(work, { 'app/kept.ts': 'kept\n' })
+  push(kept, MIRROR)
+  const fromMirror = await git.startTurn(PROJECT, CONVERSATION, base)
+  assert.deepEqual(fromMirror, { conversationId: CONVERSATION, main: base, start: kept, mirror: kept, conflicted: [] })
+  const seed = await git.seedBundle(PROJECT, fromMirror)
+  const header = seed.subarray(0, seed.indexOf('\n\n')).toString('utf8').split('\n').filter((line) => /^[0-9a-f]{40} /.test(line))
+  assert.deepEqual(header, [`${base} refs/heads/main`, `${kept} ${MIRROR}`])
+  await seedSandbox({ git, projectId: PROJECT, turn: fromMirror, sandbox, checkout, seedFile })
+  assert.equal(run(checkout, ['rev-parse', 'HEAD']), kept)
+  assert.equal(readFileSync(join(checkout, 'app/kept.ts'), 'utf8'), 'kept\n')
+
+  run(work, ['checkout', '--quiet', '--detach', base])
+  const other = commitIn(work, { 'app/other.ts': 'other\n' })
+  push(other, 'refs/heads/main')
+  const merged = await git.startTurn(PROJECT, CONVERSATION, other)
+  assert.deepEqual({ ...merged, start: 'merge', mirror: 'merge' }, { conversationId: CONVERSATION, main: other, start: 'merge', mirror: 'merge', conflicted: [] })
+  assert.equal(merged.start, merged.mirror)
+  assert.equal(await git.readMirror(PROJECT, CONVERSATION), merged.start)
+  assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', merged.start), `${merged.start} ${kept} ${other}`)
+  assert.deepEqual(files(merged.start), ['app/index.html', 'app/kept.ts', 'app/other.ts', 'conexus/check.sh'])
+  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, other), merged, 'the next turn on the same main starts from the merge')
+  await seedSandbox({ git, projectId: PROJECT, turn: merged, sandbox, checkout, seedFile })
+  assert.equal(run(checkout, ['rev-parse', 'HEAD']), merged.start)
+
+  run(work, ['fetch', '--quiet', 'origin', MIRROR])
+  run(work, ['checkout', '--quiet', '--detach', merged.start])
+  const mine = commitIn(work, { 'app/index.html': '<h1>mine</h1>\n' })
+  push(mine, MIRROR)
+  run(work, ['checkout', '--quiet', '--detach', other])
+  const theirs = commitIn(work, { 'app/index.html': '<h1>theirs</h1>\n' })
+  push(theirs, 'refs/heads/main')
+  const conflict = await git.startTurn(PROJECT, CONVERSATION, theirs)
+  assert.deepEqual(conflict.conflicted, ['app/index.html'])
+  assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', conflict.start), `${conflict.start} ${mine} ${theirs}`)
+  await seedSandbox({ git, projectId: PROJECT, turn: conflict, sandbox, checkout, seedFile })
+  assert.match(readFileSync(join(checkout, 'app/index.html'), 'utf8'), /^<<<<<<< [0-9a-f]{40}\n<h1>mine<\/h1>\n=======\n<h1>theirs<\/h1>\n>>>>>>> [0-9a-f]{40}\n$/)
+
+  const admitted = commitIn(work, { 'app/index.html': '<h1>resolved</h1>\n' })
+  push(admitted, MIRROR)
+  push(admitted, 'refs/heads/main')
+  const later = commitIn(work, { 'app/later.ts': 'later\n' })
+  push(later, 'refs/heads/main')
+  assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, later), { conversationId: CONVERSATION, main: later, start: later, mirror: admitted, conflicted: [] }, 'a mirror main already holds is left in place')
 })
 
 test('a run seeds its sandbox from main and hands back everything it changed as one commit', async (t) => {
@@ -180,10 +277,10 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   const seedFile = join(directory, 'sandbox', 'seed', `${RUN}.bundle`)
   const sandbox = localSandbox()
 
-  await seedSandbox({ git, projectId: PROJECT, base, sandbox, checkout, seedFile })
+  await seedSandbox({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile })
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), base)
   assert.equal(readFileSync(join(checkout, 'app/index.html'), 'utf8'), '<div id="root"></div>\n')
-  assert.equal(await pullCandidate({ git, projectId: PROJECT, runId: RUN, base, sandbox, checkout }), null)
+  assert.equal(await pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout }), null)
 
   writeFileSync(join(checkout, 'app/index.html'), '<main>ok</main>\n')
   rmSync(join(checkout, 'conexus/check.sh'))
@@ -194,7 +291,7 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   writeFileSync(join(checkout, '.conexus/plans/plan.md'), '# never committed\n')
   run(checkout, ['commit', '--quiet', '--allow-empty', '-m', 'the agent committed on its own'])
 
-  const candidate = await pullCandidate({ git, projectId: PROJECT, runId: RUN, base, sandbox, checkout })
+  const candidate = await pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout })
   assert.match(candidate, /^[0-9a-f]{40}$/)
   assert.equal(bare(root, 'rev-list', '--parents', '-n', '1', candidate), `${candidate} ${base}`)
   assert.equal(bare(root, 'log', '-1', '--format=%an <%ae>', candidate), 'Conexus Builder <builder@conexus.invalid>')
@@ -202,11 +299,11 @@ test('a run seeds its sandbox from main and hands back everything it changed as 
   assert.equal(await git.readMain(PROJECT), base)
 
   await git.fastForwardMain(PROJECT, { base, candidate })
-  await seedSandbox({ git, projectId: PROJECT, base: candidate, sandbox, checkout, seedFile })
+  await seedSandbox({ git, projectId: PROJECT, turn: fromMain(candidate), sandbox, checkout, seedFile })
   assert.equal(run(checkout, ['rev-parse', 'HEAD']), candidate)
   assert.equal(run(checkout, ['status', '--porcelain']), '')
   assert.equal(readFileSync(join(checkout, 'node_modules/dep.js'), 'utf8'), 'ignored\n')
-  await assert.rejects(seedSandbox({ git, projectId: PROJECT, base, sandbox, checkout, seedFile }), { message: 'BUILDER_SOURCE_BASE_MOVED' })
+  await assert.rejects(seedSandbox({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile }), { message: 'BUILDER_SOURCE_BASE_MOVED' })
 })
 
 test('the source view reads tree, file and diff from the Conexus Git in its own shapes', async (t) => {

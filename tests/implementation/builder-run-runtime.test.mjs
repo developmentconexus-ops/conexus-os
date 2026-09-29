@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, wr
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { test } from 'node:test'
+import { createWorkspaceTools, LocalFilesystem, Workspace } from '@mastra/core/workspace'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -12,6 +13,8 @@ const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
+const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
+const { RequestContext } = await import('@mastra/core/request-context')
 
 const runId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
@@ -49,7 +52,7 @@ const failedReport = (step, problems) => {
 // A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run.
-const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings } = {}) => {
+const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings, mirrorDebounceMs = 0 } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -88,12 +91,14 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const destroyed = []
   // What the run put in its session's request context.
   const sessionContext = new Map()
+  // What the service recorded of the conversation's session.
+  const sessions = []
   let buildStarted
   const buildRunning = new Promise((started) => { buildStarted = started })
   const checkout = join(vm, 'workspace/repo')
   const sandbox = {
     sandboxId: 'sbx-1',
-    workspace: { id: 'run-workspace' },
+    workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
     destroy: async () => { events.push('destroy'); destroyed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
@@ -139,6 +144,12 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       return { report: PASSING_REPORT, files }
     },
   }
+  // A write the way the agent makes one: the workspace's write tool, with whatever hooks the run set on it.
+  const writeThroughTool = async (path, content) => {
+    const tools = await createWorkspaceTools(sandbox.workspace)
+    const written = await tools.mastra_workspace_write_file.execute({ path, content, overwrite: true }, {})
+    assert.match(String(written), /^Wrote /, `the write tool wrote ${path}`)
+  }
   const runtime = createBuilderRunRuntime({
     createSandbox: (builderRunId) => { events.push(['sandbox', builderRunId]); return sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
@@ -152,7 +163,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       return {
         sendTurn: async (_content, signal) => {
           events.push('turn')
-          if (turn) return turn({ signal, sandbox, checkout, runCheck: input.runCheck })
+          if (turn) return turn({ signal, sandbox, checkout, runCheck: input.runCheck, write: writeThroughTool, bare: inBare, mirror })
           writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
           return completed()
         },
@@ -160,6 +171,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       }
     },
     git,
+    mirrorDebounceMs,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
     ...(memorySettings ? { readMemorySettings: async (payer) => { events.push(['memory-settings', payer]); return memorySettings } } : {}),
@@ -171,7 +183,8 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
   const store = {
     createBuilderRun: async (input) => {
       calls.push(['create'])
-      return { ...claimed, baseSourceRevision: await input.readBase(), state: 'QUEUED', phase: null }
+      claimed.baseSourceRevision = await input.readBase()
+      return { ...claimed, state: 'QUEUED', phase: null }
     },
     admitSourceRevision: async () => true,
     claimBuilderRun: async () => claimed,
@@ -192,6 +205,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
+    recordConversationSession: async (input) => { sessions.push(input) },
     listAdmissionRuns: async () => row.running && row.candidate
       ? [{ builderRunId: runId, projectId, conversationId, baseSourceRevision: base, candidateRevision: row.candidate, resultSourceRevision: row.result }]
       : [],
@@ -228,6 +242,10 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     return start()
   }
   const main = () => conexusGit.readMain(projectId)
+  const MIRROR = `refs/conexus/conversations/${conversationId}`
+  // The conversation's mirror head, and the files it holds, as the Conexus Git has them.
+  const mirror = () => inBare('rev-parse', '--verify', '--quiet', MIRROR) || null
+  const mirrorFiles = () => inBare('ls-tree', '-r', '--name-only', MIRROR).split('\n').filter(Boolean)
   // The candidate the run offered, as the Conexus Git holds it under the run's own ref.
   const result = () => inBare('rev-parse', '--verify', '--quiet', `refs/conexus/runs/${runId}`) || null
   const commands = () => events.filter((event) => typeof event === 'string')
@@ -235,7 +253,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
+  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, destroyed, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -505,11 +523,16 @@ test('the checkout is seeded from a bundle of the base that root wrote, and hold
   assert.equal(run.commands().some((line) => /https?:\/\/|remote add|credential/.test(line)), false, 'the checkout reaches no remote')
 })
 
-test('the next run discards what a failed run left in the checkout', async (t) => {
+test("a failed turn's files are there at the next turn, and the next turn admits them with its own", async (t) => {
   const seen = []
+  let turns = 0
   const run = await harness(t, {
     turn: ({ checkout }) => {
       seen.push({ index: readFileSync(join(checkout, 'app/index.html'), 'utf8'), files: listFiles(checkout).filter((path) => !path.startsWith('.git/')) })
+      if (turns++ > 0) {
+        writeFileSync(join(checkout, 'app/second.ts'), 'second\n')
+        return completed()
+      }
       writeFileSync(join(checkout, 'stray.txt'), 'left behind\n')
       writeFileSync(join(checkout, 'app/index.html'), '<h1>edited</h1>\n')
       return { reason: 'error', userMessageId: 'user-message', summary: '' }
@@ -517,12 +540,126 @@ test('the next run discards what a failed run left in the checkout', async (t) =
   })
   await run.start()
   assert.equal(await run.settled(), true)
+  const kept = run.mirror()
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  const base = { index: '<h1>base</h1>\n', files: BASE_FILES }
-  assert.deepEqual(seen, [base, base])
-  assert.equal(await run.main(), run.base)
+  assert.deepEqual(seen, [
+    { index: '<h1>base</h1>\n', files: BASE_FILES },
+    { index: '<h1>edited</h1>\n', files: ['AGENTS.md', 'app/index.html', 'stray.txt'] },
+  ])
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.equal(run.inBare('rev-list', '--parents', '-n', '1', result), `${result} ${kept}`)
+  assert.deepEqual(run.inBare('ls-tree', '-r', '--name-only', result).split('\n'), ['AGENTS.md', 'app/index.html', 'app/second.ts', 'stray.txt'])
+})
+
+test("a stopped turn's files are there at the next turn, and a turn that only answers makes them the version", async (t) => {
+  const context = {}
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: async ({ checkout }) => {
+      seen.push(listFiles(checkout).filter((path) => !path.startsWith('.git/')))
+      if (turns++ > 0) return completed('Só uma resposta.')
+      writeFileSync(join(checkout, 'app/stopped.ts'), 'export const stopped = true\n')
+      await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+      return { reason: 'aborted', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  context.run = run
+  await run.start()
+  assert.equal(await run.settled(), true)
+  const kept = run.mirror()
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [BASE_FILES, ['AGENTS.md', 'app/index.html', 'app/stopped.ts']])
+  assert.deepEqual(admissionCalls(run), [['interrupt', 'USER_CANCELLED'], ['candidate', kept], ['advance', kept], ['settleBuild', kept, null]])
+  assert.equal(await run.main(), kept)
+})
+
+// The instructions the agent's last turn received, built from what the run put in its session context.
+const agentInstructions = (run) => {
+  const requestContext = new RequestContext()
+  requestContext.set('controller', { session: { modeId: 'build' } })
+  for (const [key, value] of run.sessionContext) requestContext.setRaw(key, value)
+  return conexusInstructions()({ requestContext })
+}
+
+// A commit another conversation put on `main`, made the way any writer of the Conexus Git would.
+const commitOnMain = (run, files) => {
+  const work = mkdtempSync(join(tmpdir(), 'conexus-other-conversation-'))
+  try {
+    const git = (...args) => spawnSync('git', args, { cwd: work, encoding: 'utf8', env: GIT_ENV })
+    git('clone', '--quiet', run.bare, '.')
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(work, path)), { recursive: true })
+      writeFileSync(join(work, path), content)
+    }
+    git('add', '--all')
+    git('commit', '--quiet', '-m', 'another conversation')
+    git('push', '--quiet', 'origin', 'HEAD:refs/heads/main')
+    return git('rev-parse', 'HEAD').stdout.trim()
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
+}
+
+test("main that moved meanwhile merges clean into the conversation's files at the next turn", async (t) => {
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      seen.push(listFiles(checkout).filter((path) => !path.startsWith('.git/')))
+      if (turns++ > 0) return completed()
+      writeFileSync(join(checkout, 'app/kept.ts'), 'kept\n')
+      return { reason: 'error', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  const kept = run.mirror()
+  const other = commitOnMain(run, { 'app/other.ts': 'other\n' })
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen, [BASE_FILES, ['AGENTS.md', 'app/index.html', 'app/kept.ts', 'app/other.ts']])
+  const merge = await run.main()
+  assert.equal(run.inBare('rev-list', '--parents', '-n', '1', merge), `${merge} ${kept} ${other}`)
+  assert.equal(run.mirror(), merge)
+  assert.deepEqual(run.sessions.at(-1), { projectId, conversationId, mirrorHead: merge, syncedMain: other, turnEnded: true })
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [])
+  assert.equal(run.sessionContext.get('conexusTurnConflicts'), '')
+  assert.equal(agentInstructions(run).includes('Merge conflicts'), false)
+})
+
+test('a conflict with main is left in the checkout with its markers, and the turn resolves it and proceeds', async (t) => {
+  const seen = []
+  let turns = 0
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      seen.push(readFileSync(join(checkout, 'app/index.html'), 'utf8'))
+      if (turns++ > 0) {
+        writeFileSync(join(checkout, 'app/index.html'), '<h1>resolved</h1>\n')
+        return completed()
+      }
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>mine</h1>\n')
+      return { reason: 'error', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  commitOnMain(run, { 'app/index.html': '<h1>theirs</h1>\n' })
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(seen[0], '<h1>base</h1>\n')
+  assert.match(seen[1], /^<<<<<<< [0-9a-f]{40}\n<h1>mine<\/h1>\n=======\n<h1>theirs<\/h1>\n>>>>>>> [0-9a-f]{40}\n$/)
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [`BUILDER_TURN_START_CONFLICT:${runId}:app/index.html`])
+  assert.equal(agentInstructions(run).includes("## Merge conflicts\n\nBringing the Project's current main into these files left conflict markers; resolve them before any other change: `app/index.html`."), true)
+  assert.equal(await run.main(), run.result())
+  assert.equal(run.inBare('show', `${run.result()}:app/index.html`), '<h1>resolved</h1>')
 })
 
 test('an admission that finds main already at the candidate counts it admitted', async (t) => {
@@ -614,7 +751,7 @@ test('an agent that aborts with no stop from the person fails with a named reaso
   assert.equal(await run.main(), run.base)
 })
 
-test('a run that reached the agent and admitted nothing leaves one note that its edits were discarded at the base', async (t) => {
+test('a run that reached the agent and admitted nothing leaves one note that its files are kept, with main still at the base', async (t) => {
   const run = await harness(t, { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: 'Concluído.' }) })
   await run.start()
   await run.service.close()
@@ -624,7 +761,7 @@ test('a run that reached the agent and admitted nothing leaves one note that its
   }])
 })
 
-test('a run the person stopped during the agent turn also leaves the discarded note', async (t) => {
+test('a run the person stopped during the agent turn also leaves the note that its files are kept', async (t) => {
   const context = {}
   const run = await harness(t, {
     turn: async () => {
@@ -1009,4 +1146,121 @@ test('a run whose session cannot open still revokes the scope it minted', async 
   await run.settled()
   await run.service.close()
   assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'BUILDER_SESSION_OPEN_FAILED'], [false]])
+})
+
+const until = async (predicate, what) => {
+  for (let attempt = 0; attempt < 400; attempt++) {
+    if (predicate()) return
+    await new Promise((wake) => { setTimeout(wake, 5) })
+  }
+  assert.fail(`timed out waiting for ${what}`)
+}
+const MIRRORED_THREE = ['AGENTS.md', 'app/a.ts', 'app/b.ts', 'app/c.ts', 'app/index.html']
+
+test('a sandbox that dies mid-turn leaves every file the write tool wrote in the conversation mirror, and main at the base', async (t) => {
+  const run = await harness(t, {
+    turn: async ({ sandbox, write, mirror }) => {
+      for (const name of ['a', 'b', 'c']) await write(`app/${name}.ts`, `export const ${name} = 1\n`)
+      await until(() => mirror() !== null && run.mirrorFiles().length === 5, 'the edit-time mirror')
+      sandbox.sandboxId = 'sbx-2'
+      return completed()
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
+  assert.deepEqual(run.mirrorFiles(), MIRRORED_THREE)
+  assert.equal(run.inBare('rev-list', '--parents', '-n', '1', run.MIRROR), `${run.mirror()} ${run.base}`)
+  assert.equal(await run.main(), run.base)
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [])
+})
+
+test('a turn the person stops keeps its file in the mirror, written at the turn end', async (t) => {
+  const context = {}
+  const run = await harness(t, {
+    mirrorDebounceMs: 60_000,
+    turn: async ({ write }) => {
+      await write('app/stopped.ts', 'export const stopped = true\n')
+      await context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+      return { reason: 'aborted', userMessageId: 'user-message', summary: '' }
+    },
+  })
+  context.run = run
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.deepEqual(run.mirrorFiles(), ['AGENTS.md', 'app/index.html', 'app/stopped.ts'])
+  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: run.mirror(), syncedMain: run.base, turnEnded: true }])
+  assert.equal(await run.main(), run.base)
+})
+
+test('a candidate the check refuses stays in the mirror, and main stays at the base', async (t) => {
+  const run = await harness(t, { admissionReport: failedReport('typecheck', [{ file: 'app/src/main.tsx', message: 'broken' }]) })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.calls.at(-1)[0], 'fail')
+  assert.equal(run.mirror(), run.result())
+  assert.equal(run.inBare('show', `${run.MIRROR}:app/index.html`), '<h1>UNIT1</h1>')
+  assert.equal(await run.main(), run.base)
+})
+
+test('an admitted turn moves the mirror to its candidate without a second bundle', async (t) => {
+  const run = await harness(t)
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.equal(run.mirror(), result)
+  assert.equal(run.commands().some((line) => line.includes('conexus-mirror')), false)
+  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: result, syncedMain: run.base, turnEnded: true }])
+})
+
+test('a turn that changed nothing leaves the conversation without a mirror', async (t) => {
+  const run = await harness(t, { turn: () => completed('Só uma resposta.') })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.mirror(), null)
+  assert.deepEqual(run.sessions, [])
+})
+
+test('an edit mirror that runs during the turn-end pull corrupts neither the candidate nor the mirror', async (t) => {
+  let pulling = false
+  const context = {}
+  const run = await harness(t, {
+    onCommand: (_sandbox, line) => {
+      if (pulling || !line.includes('conexus-candidate-index')) return
+      pulling = true
+      void context.write('app/index.html', '<h1>UNIT1</h1>\n')
+    },
+    turn: ({ checkout, write }) => {
+      context.write = write
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      return completed()
+    },
+  })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.equal(run.mirror(), result)
+  assert.equal(run.inBare('rev-parse', `${result}^{tree}`), run.inBare('rev-parse', `${run.MIRROR}^{tree}`))
+  assert.equal(run.inBare('show', `${result}:app/index.html`), '<h1>UNIT1</h1>')
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [])
+})
+
+test('a mirror moved by someone else after the turn started fails the write with a log line, and the run settles as it would have', async (t) => {
+  const run = await harness(t, {
+    turn: ({ checkout, bare }) => {
+      bare('update-ref', `refs/conexus/conversations/${conversationId}`, bare('rev-parse', 'refs/heads/main'))
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      return completed()
+    },
+  })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.equal(await run.main(), result)
+  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
+  assert.equal(run.mirror(), run.base)
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [`BUILDER_MIRROR_FAILED:${runId}:CONEXUS_GIT_REF_MOVED`])
 })

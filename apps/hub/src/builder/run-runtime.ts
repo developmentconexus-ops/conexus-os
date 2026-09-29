@@ -1,5 +1,6 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
+import { WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
@@ -9,10 +10,10 @@ import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShap
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
 import { MEMORY_SETTINGS_KEY, type MemorySettings } from './memory.js'
 import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
-import { pullCandidate, seedSandbox } from './conexus-git.js'
+import { candidateSnapshot, mirrorSnapshot, pullSnapshot, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, type PromptVariantId } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
@@ -66,7 +67,9 @@ export type BuilderRunPorts = Readonly<{
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
   checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<void>
-  git: Pick<ConexusGit, 'seedBundle' | 'acceptCandidate' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
+  git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
+  /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
+  mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
@@ -89,6 +92,8 @@ type BuilderRunInput = Readonly<{
   bindMessage(messageId: string): Promise<void>
   setPhase(phase: BuilderRunningPhase): Promise<void>
   recordCandidate(sourceRevision: string): Promise<void>
+  /** Records the conversation's mirror head as the turn ends; the Git ref stays the truth. */
+  recordMirror(head: string): Promise<void>
   signal?: AbortSignal
 }>
 
@@ -118,6 +123,107 @@ const BUILD_ROOT = '/var/lib/conexus-build'
 
 const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 
+// Every workspace tool that can change the checkout, the shell included.
+const CHECKOUT_WRITERS: ReadonlySet<string> = new Set([
+  WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE, WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE, WORKSPACE_TOOLS.FILESYSTEM.DELETE,
+  WORKSPACE_TOOLS.FILESYSTEM.MKDIR, WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT, WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND,
+])
+const MIRROR_DEBOUNCE_MS = 5_000
+// A turn-end mirror after a failure waits no longer than this before the sandbox is destroyed.
+const FAILED_TURN_MIRROR_MS = 30_000
+
+type TurnMirror = Readonly<{
+  schedule(): void
+  /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout. Answers the mirror's head. */
+  end(candidate: string | null): Promise<string | null>
+  /** Ends the turn's mirror without writing, for a sandbox that is gone. */
+  abandon(): void
+}>
+
+/**
+ * The conversation's mirror during one turn (spec 0002 amendment, B1): the checkout as one commit on
+ * the turn's start under `refs/conexus/conversations/<conversationId>`. Edits schedule a trailing,
+ * debounced snapshot and the turn end writes the last one. One promise chain runs every write, so
+ * two never share the checkout's mirror index; the ref moves by compare and swap from the head this
+ * turn last saw. A failure is reported and never changes the run.
+ */
+const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, source, debounceMs, fail }: Readonly<{
+  git: BuilderRunPorts['git']
+  projectId: string
+  conversationId: string
+  turnStart: string
+  head: string | null
+  source: RunSourceSandbox
+  debounceMs: number
+  fail(error: unknown): void
+}>): TurnMirror => {
+  let expected = head
+  let written: string | null = null
+  let chain: Promise<void> = Promise.resolve()
+  let queued = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let ended: Promise<string | null> | undefined
+  const serial = (work: () => Promise<void>): Promise<void> => {
+    chain = chain.then(work).catch(fail)
+    return chain
+  }
+  const snapshot = async (): Promise<void> => {
+    const next = await pullSnapshot({
+      git, projectId, snapshot: mirrorSnapshot(conversationId, turnStart), expected, unchangedFrom: written ?? turnStart,
+      scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED,
+    })
+    if (next) expected = written = next
+  }
+  const stop = (): void => {
+    clearTimeout(timer)
+    timer = undefined
+  }
+  return Object.freeze({
+    schedule: () => {
+      if (ended) return
+      stop()
+      timer = setTimeout(() => {
+        timer = undefined
+        if (queued) return
+        queued = true
+        void serial(async () => {
+          queued = false
+          await snapshot()
+        })
+      }, debounceMs)
+    },
+    end: (candidate) => {
+      stop()
+      ended ??= serial(async () => {
+        if (!candidate) return snapshot()
+        await git.moveMirror(projectId, conversationId, { expected, next: candidate })
+        expected = candidate
+      }).then(() => expected)
+      return ended
+    },
+    abandon: () => {
+      stop()
+      ended ??= Promise.resolve(expected)
+    },
+  })
+}
+
+/** Makes every checkout-changing workspace tool schedule the mirror, keeping the hooks the workspace already has. */
+const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
+  const existing = workspace.getToolsConfig() ?? {}
+  const priorAfterToolCall = existing.hooks?.afterToolCall
+  workspace.setToolsConfig({
+    ...existing,
+    hooks: {
+      ...existing.hooks,
+      afterToolCall: async (hookContext) => {
+        if (CHECKOUT_WRITERS.has(hookContext.workspaceToolName)) mirror.schedule()
+        await priorAfterToolCall?.(hookContext)
+      },
+    },
+  })
+}
+
 export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => Object.freeze({
   execute: async (input) => {
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
@@ -137,6 +243,20 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     const sandbox = ports.createSandbox(input.executionId)
     let session: RunSession | undefined
     let release: (() => void) | undefined
+    // Set once the checkout holds the turn's start; the turn end mirrors it however the run ends.
+    let mirror: TurnMirror | undefined
+    let incarnation: string | undefined
+    const mirrorFailed = (error: unknown): void => {
+      ports.log(`BUILDER_MIRROR_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+    }
+    let mirrorEnded: Promise<void> | undefined
+    const endMirror = (candidate: string | null): Promise<void> => {
+      mirrorEnded ??= (async () => {
+        const head = await mirror?.end(candidate)
+        if (head) await input.recordMirror(head).catch(mirrorFailed)
+      })()
+      return mirrorEnded
+    }
     // The agent's turn is the only reader of the run's connector scope, so it ends with the session.
     const closeSession = async (): Promise<void> => {
       connectorRun?.end()
@@ -148,6 +268,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
       const knowledge = readProjectKnowledge(await ports.git.readBlob(input.projectId, base, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
       const memorySettings = await ports.readMemorySettings?.(input.accountId)
+      // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
+      let conflicted: readonly string[] = []
       const bindContext: RunContextBinder = (requestContext) => {
         if (memorySettings) requestContext.setRaw(MEMORY_SETTINGS_KEY, memorySettings)
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
@@ -156,6 +278,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
         requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, input.promptVariant)
+        requestContext.setRaw(CONEXUS_TURN_CONFLICTS_KEY, conflicted.join('\n'))
         connectorRun?.bind(requestContext)
       }
 
@@ -163,7 +286,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // The first command replaces a VM E2B already reaped, so the run records the incarnation
       // that will actually run it.
       await sandbox.executeCommand('true', [], { env: {}, cwd: '/' })
-      const incarnation = sandbox.sandboxId
+      incarnation = sandbox.sandboxId
       if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
       await input.bindPhysicalSandbox(incarnation)
       release = await sandbox.holdOpen((error: unknown) => {
@@ -196,7 +319,16 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
 
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      await seedSandbox({ git: ports.git, projectId: input.projectId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
+      // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
+      const turnStart = await ports.git.startTurn(input.projectId, input.conversationId, base)
+      conflicted = turnStart.conflicted
+      if (conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
+      await seedSandbox({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: `${SEED_ROOT}/${input.executionId}.bundle` })
+      mirror = createTurnMirror({
+        git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,
+        source, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
+      })
+      mirrorAfterEdits(sandbox.workspace, mirror)
 
       // The Hub's check and its server build run from paths only root can write, so the agent and
       // the admission below see exactly the refusal the Conexus build would give, and neither can
@@ -239,7 +371,13 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
 
-      const result = await pullCandidate({ git: ports.git, projectId: input.projectId, runId: input.executionId, base, sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED })
+      // A turn that changed nothing still offers the files it started from when they are not on `main`.
+      const changed = await pullSnapshot({
+        git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
+        scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded: APPLICATION_CHECK_EXCLUDED,
+      })
+      const result = changed ?? (turnStart.start === base ? null : turnStart.start)
+      await endMirror(result)
       const scope = {
         runtimeId: 'conexus-builder-e2b-v1' as const,
         projectId: input.projectId,
@@ -335,6 +473,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     } finally {
       release?.()
       await closeSession().catch(() => undefined)
+      // A lapsed keepalive or a replaced VM has no checkout left to mirror; the edit-time mirrors hold
+      // what reached it. Otherwise the turn's files are mirrored before the sandbox goes.
+      if (keepaliveFailure || sandbox.sandboxId !== incarnation) mirror?.abandon()
+      else await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       await sandbox.destroy().catch((error: unknown) => {
         ports.log(`BUILDER_SANDBOX_DESTROY_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
