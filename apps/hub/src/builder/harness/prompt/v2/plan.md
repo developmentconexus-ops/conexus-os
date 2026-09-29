@@ -56,7 +56,7 @@ For Construir, short and complete enough that Construir makes no new decisions:
 
 - Screens and routes.
 - Server operations with their input and output, and the tables and migrations they need.
-- Which Conexão operations and fields each screen uses.
+- Which Conexão reads (connection name and request) and fields each screen uses.
 - Acceptance checks, each phrased so the code can show it is met.
 
 No code and no company values in the plan.

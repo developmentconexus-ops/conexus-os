@@ -77,11 +77,17 @@ test('the unavailable notice names connectors.fetch, not connectors.call', () =>
   assert.equal(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.call'), false)
 })
 
-test('the Builder guidance never teaches connectors.call: the conexus-server skill and the Sankhya Skill teach fetch', () => {
-  const serverSkill = readFileSync(new URL('../../factory-skills/conexus-server/SKILL.md', import.meta.url), 'utf8')
-  assert.equal(serverSkill.includes('connectors.call'), false)
-  assert.equal(sankhyaDefinition.builderSkill.includes('connectors.call'), false)
+test('the Builder guidance never teaches connectors.call: the server skill, the v2 prompts and the Sankhya Skill teach fetch', () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+  const serverSkill = read('../../builder-skills/conexus-server/SKILL.md')
+  const prompts = ['conexus', 'plan', 'build'].map((name) => read(`../../apps/hub/src/builder/harness/prompt/v2/${name}.md`))
+  for (const text of [serverSkill, ...prompts, sankhyaDefinition.builderSkill]) {
+    assert.equal(text.includes('connectors.call'), false)
+    assert.equal(text.includes('purchase-order'), false)
+  }
   assert.ok(serverSkill.includes('connectors.fetch'))
+  assert.ok(prompts[0].includes('connectors.fetch'))
+  assert.ok(prompts[2].includes('connectors.fetch'))
   assert.ok(sankhyaDefinition.builderSkill.includes('connectors.fetch'))
 })
 

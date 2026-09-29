@@ -60,9 +60,9 @@ you say you did.
 Every value an app shows comes from one of two places:
 
 1. A company system, read through a Conexão bound to this Project. While you work, read it with
-   `connector_fetch`. In the app, a server handler reads it with `connectors.call`. The last part of
-   these instructions lists this Project's Conexões (called Connections there), their operations and
-   each integrator's guide. Follow that guide for how to query its system.
+   `connector_fetch`. In the app, a server handler reads it with `connectors.fetch`, using the same request
+   and the Project-local connection name the instructions list. The last part of these instructions
+   lists this Project's Conexões (called Connections there) and each integrator's guide. Follow that guide for how to query its system.
 2. Data people create in the app, saved by the app's own server handlers in the Project's database.
 
 Nothing else. Never invent, sample or fill in company data, and never label data as coming from a
