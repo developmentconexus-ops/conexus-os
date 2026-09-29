@@ -74,6 +74,24 @@ Declare each in the task before it runs.
 | AC-30 | The operator reads the model input for both modes, and his yes is recorded in the pull request | not declared |
 | AC-31 | A backup of the Conexus Git folder with the database dump, and one tested restore, before the switch | not declared |
 
+## Sankhya read-only SQL consult
+
+On 2026-09-29 the operator, who administers the company's Sankhya, asked to free SQL reads for a
+manager app and confirmed that the integration user has no insert, update or delete permission.
+
+- **What is freed.** `connector_fetch` and a handler's `connectors.fetch` may send
+  `DbExplorerSP.executeQuery` with a body of exactly `{ sql }`. The Sankhya Skill teaches one
+  consult on the generic tables `TGFCAB`, `TGFITE` and `TGFPRO`.
+- **Why it is safe.** The read-only integration user is the guard. The Hub adds a tripwire in
+  `apps/hub/src/connectors/sankhya/read-only-sql.ts`. With comments and quoted text removed, the SQL
+  must be one statement that starts with `SELECT` or `WITH`, and it must carry no write, DDL or
+  exec word. A refusal is `INPUT_REFUSED` at `/body/requestBody/sql` before the credential is read,
+  so no request reaches Sankhya. `tests/implementation/connector-fetch.test.mjs` proves both
+  directions against the fake gateway.
+- **What is unproven.** No live Sankhya call has run. The answer shape (`responseBody.fieldsMetadata`
+  and positional `rows`) comes from `docs/research/mitra`, not from this installation. Whether values
+  arrive as text or as numbers is also unconfirmed, and so is the SQL dialect (Oracle or SQL Server).
+
 ## Failures and repairs
 
 The Builder proof rule asks for every repair iteration and failure. One row each: head, run, what
