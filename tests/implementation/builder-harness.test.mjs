@@ -462,6 +462,24 @@ test('a ChatGPT subscription model lists its tools without throwing and gets Ope
   assert.deepEqual(tools.web_search, { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} })
 })
 
+test('both kinds of Anthropic account get web search: Anthropic\'s own web_search tool', async () => {
+  const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
+  const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
+  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  const route = createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } }))
+  const toolsOf = async (account) => {
+    const model = () => route.take(account).model('claude-sonnet-5')
+    const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
+    const session = await controller.createSession({ resourceId: `project:probe-${account.kind}`, scope: `probe-${account.kind}` })
+    return { tools: await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() }), resolved: await model() }
+  }
+  const key = await toolsOf({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` })
+  const subscription = await toolsOf({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) })
+  const anthropicSearch = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} }
+  assert.deepEqual([key.resolved.id, key.tools.web_search], ['anthropic/claude-sonnet-5', anthropicSearch], 'Mastra maps webSearchTool for a router model id')
+  assert.deepEqual([subscription.resolved.provider, subscription.tools.web_search], ['anthropic.messages', anthropicSearch])
+})
+
 test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {
   const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
   const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }

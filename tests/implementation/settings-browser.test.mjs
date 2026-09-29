@@ -232,3 +232,63 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   assert.deepEqual(calls.filter(([method]) => method === 'POST'), [['POST', '/start', true]])
   assert.equal(await page.evaluate(() => document.body.innerText.includes('access')), false)
 })
+
+test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude subscription by pasted code, and the page never shows the key again', async (t) => {
+  const { page, origin } = await withServer(t)
+  const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000003'
+  const authorizeUrl = 'https://claude.ai/oauth/authorize?attempt=1'
+  let kind = null
+  const calls = []
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [
+      { provider: 'openai-codex', mine: false, kind: null, shared: false },
+      { provider: 'anthropic', mine: kind !== null, kind, shared: false },
+    ] }),
+  }))
+  await page.route('**/api/control/model-accounts/anthropic/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/anthropic', '')
+    const body = request.postDataJSON()
+    calls.push([request.method(), path, 'x-conexus-csrf' in request.headers(), body])
+    const json = (value) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
+    if (path === '/api-key') { kind = 'api_key'; return route.fulfill({ status: 204 }) }
+    if (path === '/oauth/start') return json({ loginId, url: authorizeUrl, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() })
+    if (path === '/oauth/complete') {
+      if (body.code !== 'good#verifier-1') return json({ state: 'failed' })
+      kind = 'oauth'
+      return json({ state: 'succeeded' })
+    }
+    return route.fulfill({ status: 404 })
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Chave de API da Anthropic (Claude)' }).waitFor()
+  await page.getByLabel('Chave de API', { exact: true }).fill(fakeKey)
+  await page.getByRole('button', { name: 'Salvar a chave' }).click()
+  await page.getByText('Chave salva.', { exact: false }).waitFor()
+  await page.getByText('Conectado com a sua chave.').waitFor()
+  assert.equal(await page.getByLabel('Chave de API', { exact: true }).inputValue(), '', 'the field is cleared once the key is saved')
+
+  await page.getByRole('heading', { name: 'Assinatura Claude' }).waitFor()
+  await page.getByText('Entrar com a assinatura substitui a chave de API da Anthropic que você salvou.').waitFor()
+  await page.getByRole('button', { name: 'Entrar com a assinatura Claude' }).click()
+  assert.equal(await page.getByRole('link', { name: 'Abrir a página da Claude' }).getAttribute('href'), authorizeUrl)
+  await page.getByLabel('Código da Claude').fill('typo#verifier-1')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('A Anthropic recusou esse código.', { exact: false }).waitFor()
+  await page.getByLabel('Código da Claude').fill('good#verifier-1')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Assinatura Claude conectada.').waitFor()
+  await page.getByText('Conectado com a sua assinatura Claude.').waitFor()
+
+  assert.deepEqual(calls, [
+    ['PUT', '/api-key', true, { key: fakeKey }],
+    ['POST', '/oauth/start', true, {}],
+    ['POST', '/oauth/complete', true, { loginId, code: 'typo#verifier-1' }],
+    ['POST', '/oauth/complete', true, { loginId, code: 'good#verifier-1' }],
+  ])
+  assert.equal(await page.evaluate(() => document.body.innerText.includes('sk-ant-')), false)
+})

@@ -1,4 +1,5 @@
 import type { ModelAccountStore } from '../model-account-store.js'
+import { createTokenHolds } from '../oauth-holds.js'
 import type { CodexBearer } from './model.js'
 import { refreshOpenAICodexToken, type CodexTokens } from './oauth.js'
 
@@ -30,42 +31,22 @@ export type CodexHolds = Readonly<{
   hold(modelAccountId: string, tokens: CodexTokens): CodexBearer
 }>
 
-/**
- * Refreshes happen in the Hub, one at a time per row. A ChatGPT refresh token is spent by its use,
- * so two runs holding one shared row must not both refresh it: the second finds the row already
- * refreshed and adopts it. A refreshed token is written back to the row before any call uses it,
- * so a run that ends, or a Hub that stops, never takes the only copy with it (AC-22).
- */
+/** A ChatGPT row held by runs; refreshed and written back as `createTokenHolds` says. */
 export const createCodexHolds = ({ store, refresh = refreshOpenAICodexToken, now = Date.now }: Readonly<{
   store: Pick<ModelAccountStore, 'readById' | 'rewrite'>
   refresh?: (refreshToken: string, accountId: string, email?: string) => Promise<CodexTokens>
   now?: () => number
 }>): CodexHolds => {
-  const refreshing = new Map<string, Promise<CodexTokens>>()
-
-  const renew = async (modelAccountId: string): Promise<CodexTokens> => {
-    const row = await store.readById(modelAccountId)
-    if (!row) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-    const stored = parseCodexTokens(row.secret)
-    if (now() < stored.expires) return stored
-    const refreshed = await refresh(stored.refresh, stored.accountId, stored.email)
-    if (!await store.rewrite(modelAccountId, serializeCodexTokens(refreshed))) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-    return refreshed
-  }
-
+  const holds = createTokenHolds({
+    store, now, parse: parseCodexTokens, serialize: serializeCodexTokens,
+    refresh: (stored) => refresh(stored.refresh, stored.accountId, stored.email),
+  })
   return Object.freeze({
     hold: (modelAccountId, tokens) => {
-      let current = tokens
+      const current = holds.hold(modelAccountId, tokens)
       return async () => {
-        if (now() >= current.expires) {
-          let pending = refreshing.get(modelAccountId)
-          if (!pending) {
-            pending = renew(modelAccountId).finally(() => refreshing.delete(modelAccountId))
-            refreshing.set(modelAccountId, pending)
-          }
-          current = await pending
-        }
-        return Object.freeze({ accessToken: current.access, accountId: current.accountId })
+        const { access, accountId } = await current()
+        return Object.freeze({ accessToken: access, accountId })
       }
     },
   })

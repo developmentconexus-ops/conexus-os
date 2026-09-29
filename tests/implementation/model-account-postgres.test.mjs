@@ -195,7 +195,7 @@ test('a ChatGPT subscription row: own before shared, sealed, and a refresh rewri
 
   await query(connectionString, "UPDATE model.model_account SET sharing = 'everyone' WHERE model_account_id = $1", [aliceRow.model_account_id])
   assert.deepEqual(await store.usable(bob, 'openai-codex'), { modelAccountId: aliceRow.model_account_id, kind: 'oauth', secret: '{"access":"alice-access-1"}' }, 'the shared row when the caller has none')
-  assert.deepEqual(await store.connection(bob, 'openai-codex'), { mine: false, shared: true })
+  assert.deepEqual(await store.connection(bob, 'openai-codex'), { mine: null, shared: true })
 
   // Bob's run holds Alice's shared row; its refresh goes back to that row, not to a new one of Bob's.
   assert.equal(await store.rewrite(aliceRow.model_account_id, '{"access":"alice-access-2"}'), true)
@@ -208,4 +208,30 @@ test('a ChatGPT subscription row: own before shared, sealed, and a refresh rewri
 
   const gone = '00000000-0000-4000-8000-000000000000'
   assert.deepEqual([await store.readById(gone), await store.rewrite(gone, 'x')], [null, false])
+})
+
+test('an Anthropic row holds a key or a Claude subscription: signing in replaces the key in the same row, sealed, and the connection names the kind', async (t) => {
+  const { connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_model_account_anthropic')
+  const alice = await account(connectionString, 'alice')
+  const pool = new pg.Client({ connectionString })
+  await pool.connect()
+  await pool.query('SET ROLE hub_model_account')
+  onCleanup(() => pool.end())
+  const store = createModelAccountStore({ pool, envelope: createSecretEnvelope('ef'.repeat(32)) })
+  const rowOf = async () => (await query(connectionString, "SELECT model_account_id, kind, secret FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [alice])).rows
+
+  const key = `sk-ant-api03-${'x'.repeat(40)}`
+  assert.deepEqual(await store.connection(alice, 'anthropic'), { mine: null, shared: false })
+  await store.write(alice, 'anthropic', 'api_key', key)
+  const [keyRow] = await rowOf()
+  assert.equal(keyRow.kind, 'api_key')
+  assert.doesNotMatch(keyRow.secret, /sk-ant-/, 'the key is sealed in the table')
+  assert.deepEqual(await store.connection(alice, 'anthropic'), { mine: 'api_key', shared: false })
+  assert.deepEqual(await store.usable(alice, 'anthropic'), { modelAccountId: keyRow.model_account_id, kind: 'api_key', secret: key })
+
+  await store.write(alice, 'anthropic', 'oauth', '{"type":"oauth","access":"alice-access-1","refresh":"alice-refresh-1","expires":1}')
+  const rows = await rowOf()
+  assert.deepEqual(rows.map(({ model_account_id, kind }) => ({ model_account_id, kind })), [{ model_account_id: keyRow.model_account_id, kind: 'oauth' }], 'one row per person per provider')
+  assert.doesNotMatch(rows[0].secret, /alice-access-1/)
+  assert.deepEqual(await store.connection(alice, 'anthropic'), { mine: 'oauth', shared: false })
 })

@@ -2,34 +2,19 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
+import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
-type Account = Readonly<{ provider: string; mine: boolean; shared: boolean }>
-type Accounts = Readonly<{ administrator: boolean; accounts: readonly Account[] }>
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 type Login = Readonly<{ loginId: string; url: string; userCode: string; intervalMs: number; expiresAt: string }>
 
 const PROVIDER = 'openai-codex'
 const base = `/api/control/model-accounts/${PROVIDER}/oauth`
-const accountsQueryKey = ['model-accounts'] as const
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'ChatGPT conectado.',
   failed: 'A OpenAI recusou a entrada. Tente de novo.',
   expired: 'O código expirou. Gere outro para tentar de novo.',
-}
-
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
-
-const call = async <T,>(method: 'GET' | 'POST', url: string): Promise<T> => {
-  const response = await fetch(url, {
-    method,
-    credentials: 'same-origin',
-    headers: method === 'GET' ? {} : { 'content-type': 'application/json', 'x-conexus-csrf': csrf() },
-    ...(method === 'GET' ? {} : { body: '{}' }),
-  })
-  if (!response.ok) throw new Error(`Model accounts request failed with ${response.status}`)
-  return await response.json() as T
 }
 
 // A live "M:SS" until the code expires. A reading aid only: the Hub still answers `expired`.
@@ -77,7 +62,7 @@ function DeviceCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone
 export function ChatGptAccount() {
   const queryClient = useQueryClient()
   const titleId = useId()
-  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => call<Accounts>('GET', '/api/control/model-accounts'), retry: false })
+  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => call<Accounts>('GET', accountsUrl), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   // Connecting changes which models this person's pickers offer.
