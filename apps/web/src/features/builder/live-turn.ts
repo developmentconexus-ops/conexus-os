@@ -40,6 +40,12 @@ export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: st
 
 export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, error: null }
 
+const parked = (state: DisplayState): LiveTurn['waiting'] => ({
+  ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
+    [call.toolCallId, { kind: call.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
+  ...(state.pendingApproval ? { [state.pendingApproval.toolCallId]: { kind: 'APPROVAL' as const, toolCallId: state.pendingApproval.toolCallId, toolName: state.pendingApproval.toolName, args: state.pendingApproval.args, prompt: null } } : {}),
+})
+
 const without = (waiting: LiveTurn['waiting'], toolCallId: string): LiveTurn['waiting'] =>
   Object.fromEntries(Object.entries(waiting).filter(([id]) => id !== toolCallId))
 
@@ -91,7 +97,9 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
       return message ? { ...turn, messages: upsertMessage(turn.messages, applyUpdate(message, event.event)) } : turn
     }
     case 'display_state_changed':
-      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, tasks: event.displayState.tasks }
+      // A page opened while the run is parked on the person never saw the tool_suspended event, so the
+      // snapshot the subscription starts with is what brings the question card back.
+      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, waiting: { ...turn.waiting, ...parked(event.displayState) }, tasks: event.displayState.tasks }
     case 'mode_changed':
       return { ...turn, mode: asBuilderMode(event.modeId) }
     case 'model_changed':

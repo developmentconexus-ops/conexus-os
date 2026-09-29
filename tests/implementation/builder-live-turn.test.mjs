@@ -18,3 +18,14 @@ test('another run starts from a turn with no mode or model of its own', () => {
   const second = reduceTurn(first, event('run-2', { type: 'agent_end', reason: 'complete' }))
   assert.deepEqual({ runId: second.runId, mode: second.mode, modelId: second.modelId, status: second.status }, { runId: 'run-2', mode: null, modelId: null, status: 'ENDED' })
 })
+
+test('a page that subscribes while the run waits on the person gets the question card from the display state snapshot', () => {
+  const snapshot = { type: 'display_state_changed', displayState: {
+    activeTools: {}, tasks: [], pendingApproval: null,
+    pendingSuspensions: { call1: { toolCallId: 'call1', toolName: 'ask_user', args: { question: 'Quais status?' }, suspendPayload: { question: 'Quais status?', options: [{ label: 'A' }] } } },
+  } }
+  const turn = reduceTurn(idleTurn, event('run-1', snapshot))
+  assert.deepEqual(Object.values(turn.waiting).map((call) => [call.kind, call.toolCallId, call.toolName, call.prompt.question]), [['QUESTION', 'call1', 'ask_user', 'Quais status?']])
+  const answered = reduceTurn(turn, event('run-1', { type: 'tool_end', toolCallId: 'call1', result: 'A', isError: false }))
+  assert.deepEqual(answered.waiting, {})
+})
