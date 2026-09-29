@@ -17,7 +17,7 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createGoogleAiProAccounts } = await import(built('builder/google-ai-pro/store.js'))
 
-const record = (account) => ({ fileName: `antigravity-${account}.json`, bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: `refresh-${account}` })) })
+const record = (account, extra = {}) => ({ fileName: `antigravity-${account}.json`, bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: `refresh-${account}`, ...extra })) })
 
 const scratch = (t) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-google-ai-pro-'))
@@ -158,6 +158,29 @@ test('a streamed answer reaches the caller before the proxy finishes it', async 
   let rest = ''
   for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) rest += new TextDecoder().decode(chunk.value)
   assert.equal(rest, 'data: [DONE]\n\n')
+})
+
+test('a call waits for the proxy to accept the stored sign-in, which it refreshes after it is listening', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const router = await openRouter(t, openPool(t, { binary, stateDir }))
+  const key = encodeKey(record('ana@example.com', { unavailableForMs: 800 }))
+  const answer = await fetch(`${router.url}/v1/chat/completions`, {
+    method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'gemini-3.1-pro-low', stream: true }),
+  })
+  assert.equal(answer.status, 200)
+  assert.equal((await answer.text()).endsWith('data: [DONE]\n\n'), true)
+})
+
+test('a proxy that never accepts the stored sign-in fails the start and is not kept', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const pool = openPool(t, { binary, stateDir, authReadyTimeoutMs: 600 })
+  const router = await openRouter(t, pool)
+  const answer = await fetch(`${router.url}/v1/chat/completions`, {
+    method: 'POST', headers: { authorization: `Bearer ${encodeKey(record('ana@example.com', { unavailableForMs: -1 }))}` }, body: JSON.stringify({ model: 'gemini-3.1-pro-low' }),
+  })
+  assert.equal(answer.status, 503)
+  assert.deepEqual(await answer.json(), { error: { message: 'O Google AI Pro não iniciou. Tente novamente.', type: 'invalid_request_error' } })
+  assert.deepEqual(readdirSync(stateDir), [])
 })
 
 test('a proxy 401 becomes a reconnect message', async (t) => {
