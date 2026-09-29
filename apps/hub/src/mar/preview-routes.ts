@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
+import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { isExactOrigin } from '../platform/origin.js'
 
 const PREVIEW_COOKIE = '__Host-conexus_preview'
@@ -49,21 +50,6 @@ export type PreviewRouteDependencies = Readonly<{
 }>
 
 
-// What an application's page may load, on a Preview host and on its own host alike. form-action
-// 'none' refuses any submission that would navigate or post somewhere; connect-src 'self' admits only
-// the app's own same-origin API under /__conexus/api/.
-const APPLICATION_SOURCES = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'none'; form-action 'none'; base-uri 'none'"
-
-// A Preview is framed by the Hub, and its sandbox keeps the frame from the Hub's own capabilities.
-// allow-forms lets a submit event reach the app's own handler.
-/** @public Tests import this at runtime from the built module. */
-export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
-  `${APPLICATION_SOURCES}; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
-
-// An application host is a top-level site: never framed, and without the Preview's sandbox, so its
-// page opens popups and downloads like any other site.
-export const applicationHostContentSecurityPolicy = `${APPLICATION_SOURCES}; frame-ancestors 'none'`
-
 const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
   reply.header('referrer-policy', 'no-referrer')
   reply.header('cache-control', 'no-store')
@@ -76,6 +62,8 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
 
+/** @public Tests import this at runtime from the built module. */
+export { previewContentSecurityPolicy }
 export const SERVER_ROOT = 'conexus-server/'
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
