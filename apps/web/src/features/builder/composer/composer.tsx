@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/c
 import { ArrowUp, ChevronDown, Hammer, Lock, Map as MapIcon, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderMode, type BuilderModel, type MemoryGauge, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { type BuilderMode, type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, reasoningLevels } from '../mastra-session'
 import { builderModes } from '../live-turn'
 import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
@@ -86,7 +86,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  agentMode, onAgentModeChange, memory = null, placeholder = 'O que vamos construir ou melhorar?',
+  agentMode, onAgentModeChange, memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?',
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -106,6 +106,8 @@ export function BuilderComposer({
   onAgentModeChange: (mode: BuilderMode) => void
   // The conversation's observational memory; absent before a conversation exists.
   memory?: MemoryGauge | null
+  // What the memory last failed at, until it succeeds at it again.
+  memoryFailed?: MemoryOperation | null
   placeholder?: string
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -228,7 +230,7 @@ export function BuilderComposer({
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
     {modeNote && <p className="cx-composer-note" role="status">{modeNote}</p>}
     <div className="cx-composer-foot">
-      {memory && <MemoryStatus memory={memory} />}
+      {memory && <MemoryStatus memory={memory} failed={memoryFailed} />}
       <p className="cx-composer-hint">Enter envia · Shift+Tab muda o modo · / comandos</p>
     </div>
   </Composer>

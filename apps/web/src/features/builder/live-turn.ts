@@ -22,6 +22,10 @@ export type MemoryGauge = Readonly<{
   bufferingObservations: boolean
 }>
 
+// The two things observational memory does to a conversation. A failed one stays marked until the
+// same one succeeds, so a person who sees the ring warn knows the conversation is not being remembered.
+export type MemoryOperation = 'observation' | 'reflection'
+
 export type LiveTurn = Readonly<{
   runId: string | null
   status: 'CONNECTING' | 'LIVE' | 'ENDED' | 'LOST'
@@ -38,6 +42,8 @@ export type LiveTurn = Readonly<{
   modelId: string | null
   // The run's memory from its latest display state; null until one arrives.
   memory: MemoryGauge | null
+  // Set by the controller's om_*_failed events, which carry Mastra's data-om-*-failed parts.
+  memoryFailed: MemoryOperation | null
   error: string | null
 }>
 
@@ -48,7 +54,7 @@ export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; t
 type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
 export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
 
-export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, error: null }
+export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, memoryFailed: null, error: null }
 
 const parked = (state: DisplayState): LiveTurn['waiting'] => ({
   ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
@@ -117,6 +123,18 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
       return { ...turn, mode: asBuilderMode(event.modeId) }
     case 'model_changed':
       return { ...turn, modelId: event.modelId }
+    case 'om_observation_failed':
+      return { ...turn, memoryFailed: 'observation' }
+    case 'om_reflection_failed':
+      return { ...turn, memoryFailed: 'reflection' }
+    case 'om_buffering_failed':
+      return { ...turn, memoryFailed: event.operationType }
+    case 'om_observation_end':
+      return turn.memoryFailed === 'observation' ? { ...turn, memoryFailed: null } : turn
+    case 'om_reflection_end':
+      return turn.memoryFailed === 'reflection' ? { ...turn, memoryFailed: null } : turn
+    case 'om_buffering_end':
+      return turn.memoryFailed === event.operationType ? { ...turn, memoryFailed: null } : turn
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
