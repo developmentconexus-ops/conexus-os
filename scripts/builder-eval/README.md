@@ -150,7 +150,6 @@ The methodology bakeoff (study 34) runs the cases in `cases/bakeoff/` on one arm
 case has a `person` block (the answer sheet) and an `oracle` id, and no `checks`: the oracle grades it.
 
 ```bash
-export ANTHROPIC_API_KEY=...                     # the scripted person's model; not the Hub's
 export CONEXUS_EVAL_VALUES_FILE=~/eval-private/values.json   # {"quoteTop": "...", "quoteNumber": "..."}, outside the repo
 export CONEXUS_EVAL_ORACLE_DIR=~/eval-private/oracle         # <case>.json per case, outside every workspace
 export CONEXUS_EVAL_DATABASE_URL=...             # optional: spans for the timing block
@@ -163,8 +162,14 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   rule of the sheet it touches (and, on an option card, which option says what the sheet says). The words
   come from the sheet. A question the sheet does not cover gets "Não sei." in text, or on an option card
   the option that says "não sei" or "tanto faz", else the last option that is neither the first nor
-  marked "recomendado". Every plan card is approved, in order. The model is `CONEXUS_EVAL_PERSON_MODEL`,
-  default `anthropic/claude-sonnet-5`. It sees the card and nothing else, never the arm.
+  marked "recomendado". Every plan card is approved, in order. It sees the card and nothing else, never the arm.
+  The person runs on Claude Opus 5.5 through the Claude subscription, with no API key: Mastra's claude-max
+  provider (`@mastra/code-sdk`) reads Mastra Code's own credential store (`auth.json` under
+  `MASTRA_APP_DATA_DIR`, else the default app data dir), so the Hub and its accounts are not involved. Sign the
+  subscription in once with `node scripts/builder-eval/login.mjs start`, which prints an address to open in a
+  browser, then `node scripts/builder-eval/login.mjs complete <code>` with the code the page shows. The verifier
+  waits in a mode 600 file in the system temp dir, and no token is ever printed. `CONEXUS_EVAL_PERSON_MODEL`
+  (a Mastra model id, which needs its own provider key) overrides the model.
 - **Sheets.** Words and rules only. A private value is a `{{value:name}}` placeholder filled from the
   file named by `CONEXUS_EVAL_VALUES_FILE`; a missing one stops the run before it starts. The matcher
   model reads the text with the placeholder, never the value. A rule with `"hidden": true` is a

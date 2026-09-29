@@ -6,14 +6,15 @@
 // sheet, never from the model, so a run cannot drift from its answer sheet, and a silent sheet gives
 // the same answer in every arm. The person never sees the arm: it gets the card and nothing else.
 import { readFileSync } from 'node:fs'
+import { opencodeClaudeMaxProvider } from '@mastra/code-sdk/providers/claude-max'
 import { Agent } from '@mastra/core/agent'
 import { z } from 'zod'
 
 const PERSON_MODEL_ENV = 'CONEXUS_EVAL_PERSON_MODEL'
 const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
-// A Sonnet-class model through Mastra's router, listed by the provider registry when this was
-// written. It needs ANTHROPIC_API_KEY in the environment; the Hub is not involved.
-const DEFAULT_PERSON_MODEL = 'anthropic/claude-sonnet-5'
+// A model of the Anthropic catalog the Hub offers (`ANTHROPIC_MODELS`), through the Claude subscription
+// signed in to Mastra Code's own store by `login.mjs`.
+const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'
 const DEFAULT_CONTINUE_TEXT = 'Pode seguir com a próxima fatia.'
 
@@ -144,11 +145,19 @@ const questionPrompt = (card) => [
 ].join('\n')
 
 /**
+ * The person's model: `CONEXUS_EVAL_PERSON_MODEL` (a Mastra model id) when set, else the Claude
+ * subscription through Mastra Code's own claude-max provider, which reads Mastra Code's credential
+ * store (`auth.json` under `MASTRA_APP_DATA_DIR` or the default app data dir) and refreshes the
+ * sign-in. No token reaches this file.
+ */
+export const personModel = (env = process.env) => env[PERSON_MODEL_ENV] || opencodeClaudeMaxProvider(SUBSCRIPTION_PERSON_MODEL)
+
+/**
  * The matcher is the only model call. `model` is a Mastra model id (or a model object, for a test);
  * `match` replaces the agent outright.
  * @param {Readonly<{ sheet: Sheet, model?: unknown, match?: (card: QuestionCard) => Promise<Readonly<{ ruleIds: readonly string[], optionLabels: readonly string[] }>> }>} input
  */
-export function createPerson({ sheet, model = process.env[PERSON_MODEL_ENV] || DEFAULT_PERSON_MODEL, match }) {
+export function createPerson({ sheet, model = personModel(), match }) {
   const known = new Set(sheet.rules.map((rule) => rule.id))
   const agent = match ? null : new Agent({ id: 'scripted-person', name: 'Pessoa roteirizada', instructions: matcherInstructions(sheet), model })
   const matchRules = match ?? (async (card) => (await agent.generate(questionPrompt(card), { structuredOutput: { schema: matchSchema } })).object)
