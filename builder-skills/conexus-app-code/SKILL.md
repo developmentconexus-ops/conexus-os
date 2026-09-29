@@ -11,12 +11,12 @@ The packages are fixed and the platform generates the client for the server oper
 
 ```
 app/src/
-  main.tsx            providers. Leave it.
+  main.tsx            providers, and lib/zod.ts loaded first. Leave both.
   router.tsx          every route of the app
   routes/             one file per screen
   components/ui/      the kit. Do not edit.
   components/         your components shared by two or more screens
-  lib/                utils.ts, format.ts, errors.ts
+  lib/                utils.ts, zod.ts (zod without eval, leave it), format.ts, errors.ts
   conexus/api.gen.ts  generated on every check. Never edit or write it.
   styles.css          the design tokens
 ```

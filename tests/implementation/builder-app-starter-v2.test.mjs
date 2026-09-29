@@ -202,6 +202,38 @@ test('a dialog, sheet, select, toast, chart and calendar built from the starter 
   }
 })
 
+const ZOD_ROUTE = `import { z } from 'zod'
+
+const lancamento = z.object({ produto: z.string().min(1), quantidade: z.number().int().positive() })
+
+export function Demo() {
+  const parsed = lancamento.safeParse({ produto: 'Parafuso', quantidade: 3 })
+  return <p>{parsed.success ? 'Lancamento valido' : 'Lancamento invalido'}</p>
+}
+`
+
+test('an app that builds a zod schema raises no CSP violation under the Previa policy', async () => {
+  const root = materialize({ 'app/src/routes/demo.tsx': ZOD_ROUTE, 'app/src/router.tsx': DEMO_ROUTER })
+  try {
+    assert.deepEqual(typecheck(root), { status: 0, output: '' })
+    const built = build(root)
+    assert.equal(built.status, 0, built.output)
+    const previa = await servePrevia(join(root, 'dist'))
+    const browser = await chromium.launch()
+    try {
+      const { page, problems, violations } = await openPage(browser, previa.origin, '/demo')
+      await page.getByText('Lancamento valido').waitFor()
+      assert.deepEqual(problems, [])
+      assert.deepEqual(await violations(), [])
+    } finally {
+      await browser.close()
+      previa.close()
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('the harness reports an inline style element, so a clean run above means something', async () => {
   const leak = `import { Home } from '@/routes/home'
 export function Demo() {
