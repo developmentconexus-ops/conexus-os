@@ -1279,6 +1279,45 @@ test('a running group names the call in progress and how many are done', async (
 // Mastra's ToolCall trigger takes its border and padding from Tailwind's reset. styles.css puts a
 // default on every bare <button> in the same cascade layer, after it, so it landed on the row and made
 // it a bordered card about 50 px tall.
+// The message shapes a real run produced: the suspended ask_user call as a part still open, the controller
+// marking it "error" once the run ended as suspended, and the resolved call appended later as a second
+// part with no arguments and the answer as its result.
+const ASK_ARGS = { options: null, question: 'Qual número de orçamento podemos usar?', selectionMode: null }
+const askParts = (answered) => [
+  { type: 'text', text: 'Preciso de um número.' },
+  { type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ask', toolName: 'ask_user', state: 'call', args: ASK_ARGS } },
+  ...(answered ? [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ask', toolName: 'ask_user', state: 'result', args: {}, result: { content: 'User answered: 144118. O markup é 1.45 × custo.', isError: false } } }] : []),
+]
+const askEvents = (answered) => [
+  { type: 'message_start', message: { ...assistantMessage('ask-live', ''), content: { format: 2, parts: askParts(false) } } },
+  { type: 'tool_suspended', toolCallId: 'call_ask', toolName: 'ask_user', args: ASK_ARGS, suspendPayload: { question: ASK_ARGS.question } },
+  { type: 'display_state_changed', displayState: { activeTools: { call_ask: { name: 'ask_user', args: ASK_ARGS, status: 'error' } }, tasks: [] } },
+  ...(answered ? [
+    { type: 'message_update', id: 'ask-live', event: { type: 'part', index: 2, part: askParts(true)[2] } },
+    { type: 'tool_end', toolCallId: 'call_ask', result: { content: 'User answered: 144118. O markup é 1.45 × custo.', isError: false }, isError: false },
+  ] : []),
+]
+
+test('a question waiting for the person is a card, not a failed tool row', async (t) => {
+  const page = await openLiveTurn(t, askEvents(false))
+  await page.getByText(ASK_ARGS.question, { exact: true }).waitFor()
+  assert.equal(await page.getByText(ASK_ARGS.question, { exact: true }).count(), 1, 'one card for the question')
+  assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'no tool row for a call that has not been answered')
+  assert.equal(await page.getByText('Tool call failed').count(), 0)
+})
+
+test('an answered question is one row that shows the question and the answer, and never a failure', async (t) => {
+  const page = await openLiveTurn(t, askEvents(true))
+  const row = page.getByRole('button', { name: 'Perguntou a você' })
+  await row.waitFor()
+  assert.equal(await page.locator('.builder-turn-body button').count(), 1, 'one row for the question, not one per snapshot of the call')
+  assert.equal(await page.getByText('Tool call failed').count(), 0)
+  assert.equal(await page.locator('[data-status="error"]').count(), 0)
+  await row.click()
+  const asked = page.locator('.cx-asked')
+  assert.equal((await asked.textContent()).trim(), `${ASK_ARGS.question}144118. O markup é 1.45 × custo.`)
+})
+
 // The plain-button look (border, padding, fill) is the default of a <button> with no class. A part of
 // Mastra's carries classes, so it takes its look from the library, with no override of ours.
 test('a Mastra tool row takes no border or padding from the app, and only a classless button gets the plain look', async (t) => {

@@ -31,9 +31,43 @@ const isUserAuthored = (message: MastraDBMessage): boolean => {
 
 type CallState = 'running' | 'failed' | 'done'
 
+// The result the thread records is the truth about a call that has one: a call parked for the person
+// and stopped with the run reads "error" in the controller's display state (agent_end marks every
+// tool still running that way), yet the person's answer is the call's ordinary result.
+const isErrorResult = (result: unknown): boolean =>
+  typeof result === 'object' && result !== null && 'isError' in result && result.isError === true
+
 const callState = (part: ToolInvocationPart, live: ActiveTool | undefined): CallState => {
+  const { state, result } = part.toolInvocation
+  if (state === 'result') return isErrorResult(result) || live?.isError === true ? 'failed' : 'done'
   if (live?.isError === true || live?.status === 'error') return 'failed'
-  return part.toolInvocation.state !== 'result' && live?.status !== 'completed' ? 'running' : 'done'
+  return live?.status === 'completed' ? 'done' : 'running'
+}
+
+const emptyArgs = (args: unknown): boolean =>
+  args === null || args === undefined || (typeof args === 'object' && Object.keys(args).length === 0)
+
+// A call is one thing however many snapshots of it the message carries: the controller can append the
+// resolved result of a parked call as a new part, with no arguments, after the part that asked. The
+// call keeps the place and the arguments of its first snapshot and takes the state of its last.
+const mergeCalls = (parts: readonly MessagePart[]): readonly MessagePart[] => {
+  const merged: MessagePart[] = []
+  const at = new Map<string, number>()
+  for (const part of parts) {
+    if (part.type !== 'tool-invocation') { merged.push(part); continue }
+    const first = at.get(part.toolInvocation.toolCallId)
+    const earlier = first === undefined ? undefined : merged[first]
+    if (first === undefined || earlier?.type !== 'tool-invocation') { at.set(part.toolInvocation.toolCallId, merged.push(part) - 1); continue }
+    merged[first] = { ...part, toolInvocation: { ...part.toolInvocation, args: emptyArgs(part.toolInvocation.args) ? earlier.toolInvocation.args : part.toolInvocation.args } }
+  }
+  return merged
+}
+
+// What the person asked and was answered: the controller words the answer in English.
+const askedAndAnswered = (args: unknown, result: unknown): Readonly<{ question: string; answer: string }> => {
+  const question = typeof args === 'object' && args !== null && 'question' in args && typeof args.question === 'string' ? args.question : ''
+  const content = typeof result === 'object' && result !== null && 'content' in result && typeof result.content === 'string' ? result.content : ''
+  return { question, answer: content.replace(/^User answered:\s*/, '') }
 }
 
 // A call's output is a preview, not the full text: the whole result stays in the run's record.
@@ -41,6 +75,10 @@ const OUTPUT_LIMIT = 800
 const preview = (text: string): string => {
   const plain = stripAnsi(text)
   return plain.length > OUTPUT_LIMIT ? `${plain.slice(0, OUTPUT_LIMIT)}…` : plain
+}
+
+function AskedAndAnswered({ question, answer }: Readonly<{ question: string; answer: string }>) {
+  return <p className="cx-asked">{question}{answer && <strong>{answer}</strong>}</p>
 }
 
 // A row is one line, opened on click. An edit opens to its diff and a command to the command with
@@ -60,7 +98,8 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
-      {edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
+      {toolName === 'ask_user' ? <AskedAndAnswered {...askedAndAnswered(args, result)} />
+        : edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
       {output && <ToolCallMono copyText={stripAnsi(output)}>{preview(output)}</ToolCallMono>}
     </ToolCallContent>
   </ToolCall>
@@ -156,13 +195,13 @@ type Piece =
   | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'error'; key: string; text: string }>
 
-const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string): readonly Piece[] => {
+const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
   if (isUserAuthored(message)) {
     const text = userText(message)
     return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
   }
   if (message.role !== 'assistant') return []
-  const parts = message.content.parts
+  const parts = mergeCalls(message.content.parts)
   const streaming = message.id === streamingId
   return parts.flatMap((part, index): Piece[] => {
     const key = `${message.id}-${index}`
@@ -170,7 +209,8 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
     // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
     // display state), not a conversation row: rendering it here too would repeat what the
     // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
-    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) ? [] : [{ kind: 'tool', key, part }]
+    // A call parked for the person is answered on its card below the thread, so it has no row yet.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
     // Only the part still streaming shows: a settled reasoning summary is the provider's own words.
     if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key }] : []
@@ -243,15 +283,16 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
   ].sort((left, right) => left.at - right.at)
   const reason = failureReason(failure)
+  const parked = new Set(Object.keys(turn.waiting))
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
 
   const pieces: Piece[] = []
   for (const item of timeline) {
     if (item.entry) pieces.push({ kind: 'request', key: item.key, entry: item.entry })
-    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason))
+    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason, parked))
   }
   if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
-  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason))
+  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason, parked))
 
   const rendered = renderPieces(pieces, turn.tools, model)
   return <>

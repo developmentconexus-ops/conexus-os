@@ -141,6 +141,8 @@
 
 /* Tool rows and groups: Mastra's own ToolCall parts, sized by the library. */
 .cx-tool-rows { display: grid; }
+.cx-asked { display: grid; gap: .15rem; margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-asked strong { color: var(--cx-text); font-weight: 600; }
 .cx-tool-group-check { flex: none; color: var(--cx-success); }
 .cx-tool-group-count { color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
 .cx-thinking { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
