@@ -89,15 +89,17 @@ test('holdOpen extends the deadline now and every third of the budget until rele
   await sandbox.start()
   const release = await sandbox.holdOpen(() => {})
   assert.deepEqual(setTimeoutCalls, [600_000])
-  t.mock.timers.tick(200_000)
-  t.mock.timers.tick(200_000)
+  for (let extension = 0; extension < 2; extension += 1) {
+    t.mock.timers.tick(200_000)
+    await new Promise((resolve) => setImmediate(resolve))
+  }
   assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
   release()
   t.mock.timers.tick(600_000)
   assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
 })
 
-test('holdOpen reports a failed extension to onLapse, and refuses when the first extension fails', async (t) => {
+test('holdOpen retries transient extension failures three times, reports once, and refuses when the first extension fails', async (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] })
   const vm = fakeVm('vm-fresh')
   let calls = 0
@@ -106,9 +108,11 @@ test('holdOpen reports a failed extension to onLapse, and refuses when the first
   await sandbox.start()
   const lapses = []
   await sandbox.holdOpen((error) => { lapses.push(error) })
-  t.mock.timers.tick(200_000)
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.deepEqual(lapses.map((error) => error.message), ['E2B_TIMEOUT_REFUSED'])
+  for (let retry = 0; retry < 3; retry += 1) {
+    t.mock.timers.tick(200_000)
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  assert.deepEqual({ calls, lapses: lapses.map((error) => error.message) }, { calls: 4, lapses: ['E2B_TIMEOUT_REFUSED'] })
 
   const firstVm = fakeVm('vm-fresh-2')
   firstVm.setTimeout = async () => { throw new Error('E2B_TIMEOUT_REFUSED') }

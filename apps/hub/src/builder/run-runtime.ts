@@ -121,6 +121,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
     const base = input.baseSourceRevision
     const cancelled = (): boolean => input.signal?.aborted === true
+    const keepaliveController = new AbortController()
+    const runSignal = input.signal ? AbortSignal.any([input.signal, keepaliveController.signal]) : keepaliveController.signal
+    let keepaliveFailure: Error | undefined
 
     // The start model's account is the person's own, else the installation's shared one; none
     // refuses the run before a sandbox exists, with the "connect a model" answer.
@@ -158,9 +161,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const incarnation = sandbox.sandboxId
       if (!incarnation) throw new Error('BUILDER_SANDBOX_FRESH_CREATE_REQUIRED')
       await input.bindPhysicalSandbox(incarnation)
-      release = await sandbox.holdOpen((error: unknown) =>
-        ports.log(`BUILDER_SANDBOX_KEEPALIVE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`),
-      ).catch((error: unknown) => {
+      release = await sandbox.holdOpen((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        ports.log(`BUILDER_SANDBOX_KEEPALIVE_FAILED:${input.executionId}:${message}`)
+        keepaliveFailure ??= new Error('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message } })
+        keepaliveController.abort()
+      }).catch((error: unknown) => {
         throw new Error('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
       })
       // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
@@ -214,7 +220,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
       })
       await input.setPhase('AGENT')
-      const turn = await session.sendTurn(input.intent, input.signal)
+      const turn = await session.sendTurn(input.intent, runSignal)
+      if (keepaliveFailure) throw keepaliveFailure
       if (turn.reason === 'aborted') ports.log(`BUILDER_AGENT_END:aborted:${input.executionId}`)
       if (!turn.userMessageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
       await input.bindMessage(turn.userMessageId)
@@ -315,9 +322,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
     } catch (error) {
+      const failure = keepaliveFailure ?? error
       // The run records only its failure code; a failure that carries command evidence says why.
-      if (error instanceof Error && error.cause !== undefined) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${error.message} ${JSON.stringify(error.cause)}`)
-      throw error
+      if (failure instanceof Error && failure.cause !== undefined) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${failure.message} ${JSON.stringify(failure.cause)}`)
+      throw failure
     } finally {
       release?.()
       await closeSession().catch(() => undefined)

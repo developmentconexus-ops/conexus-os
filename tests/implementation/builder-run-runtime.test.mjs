@@ -424,27 +424,30 @@ test('a sandbox that cannot be held open refuses the run before the agent', asyn
   assert.equal(run.events.includes('turn'), false, 'the run never reaches the agent on a sandbox about to die')
 })
 
-test('a run releases its sandbox after the turn, and logs a lapse without failing', async (t) => {
-  const run = await harness(t, {
-    onHoldOpen: (onLapse) => { onLapse(new Error('E2B_TIMEOUT_REFUSED')) },
-  })
+test('a run releases its sandbox after the turn and completes normally', async (t) => {
+  const run = await harness(t)
   await run.start()
   await run.service.close()
   const turnIndex = run.events.indexOf('turn')
   const releaseIndex = run.events.indexOf('release')
   assert.ok(turnIndex >= 0 && releaseIndex >= 0, 'the run both turns and releases')
   assert.ok(turnIndex < releaseIndex, `release (${releaseIndex}) must run after the turn (${turnIndex})`)
+  assert.equal(run.logs.some((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:')), false)
   const plain = await harness(t)
   await plain.start()
   await plain.service.close()
   const settledAs = (call) => call.filter((_, index) => index !== 1)
-  assert.deepEqual(settledAs(run.calls.at(-1)), settledAs(plain.calls.at(-1)), 'the lapse never changes how the run settles')
-  assert.ok(run.logs.some((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:') && line.endsWith(':E2B_TIMEOUT_REFUSED')), JSON.stringify(run.logs))
+  assert.deepEqual(settledAs(run.calls.at(-1)), settledAs(plain.calls.at(-1)))
 })
 
 test('a terminal keepalive lapse aborts the turn and fails the run for recovery from main', async (t) => {
   const run = await harness(t, {
     onHoldOpen: (onLapse) => onLapse(new Error('Sandbox sbx-1 not found')),
+    turn: ({ signal, checkout }) => {
+      if (signal.aborted) return { reason: 'aborted', userMessageId: 'user-message', summary: '' }
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      return completed()
+    },
   })
   await run.start()
   await run.service.close()

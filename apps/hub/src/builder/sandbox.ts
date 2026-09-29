@@ -8,6 +8,7 @@ const SANDBOX_HOME = '/workspace'
 export const SANDBOX_CHECKOUT = `${SANDBOX_HOME}/repo`
 // The template's unprivileged user: every agent command and file write runs as it.
 export const SANDBOX_AGENT_USER = 'conexus-agent'
+const MAX_CONSECUTIVE_KEEPALIVE_FAILURES = 3
 
 type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]>
 
@@ -36,9 +37,29 @@ export class ConexusRunSandbox extends E2BSandbox {
   // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
   async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
     await this.#extend()
-    const heartbeat = setInterval(() => { this.#extend().catch(onLapse) }, Math.floor(this.#timeoutMs / 3))
-    heartbeat.unref()
-    return () => clearInterval(heartbeat)
+    let failures = 0
+    let extending = false
+    let active = true
+    const interval = setInterval(() => {
+      if (!active || extending) return
+      extending = true
+      this.#extend().then(() => {
+        failures = 0
+      }, (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        const sandboxGone = /\b(?:paused\s+)?sandbox(?:\s+\S+)?\s+(?:was\s+)?not found\b/i.test(message) ||
+          message.includes('Sandbox is probably not running') || message.includes('sandbox has been killed')
+        if (!sandboxGone && ++failures < MAX_CONSECUTIVE_KEEPALIVE_FAILURES) return
+        active = false
+        clearInterval(interval)
+        onLapse(error)
+      }).finally(() => { extending = false })
+    }, Math.floor(this.#timeoutMs / 3))
+    interval.unref()
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
   }
 
   async runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult> {
