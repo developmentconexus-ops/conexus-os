@@ -309,7 +309,8 @@ Open defects. Each one needs a fix and a test before the pilot runs on this Buil
 
 | Defect | What the person or the operator sees | Evidence |
 | --- | --- | --- |
-| A first read can hang or time out | The first Sankhya read after a cold login hit the 5 s handler limit in 2 of 11 calls. The cause is not isolated | `S25:274-277`, `S25:312-316`, `S25:329` |
+| A storage fault on a message's first read hangs the turn | If the agent storage fails on the first `getWorkflowRunById` read of a message, before the loop step, the controller emits no error and `sendMessage` never settles. The run stays active with no timeout. B0 covers only the loop step's read | B0 worker probe on `9a9455d3`, `apps/hub/src/builder/run-runtime.ts` (no turn timeout) |
+| A first Sankhya read after a cold login can time out | The first read hit the 5 s handler limit in 2 of 11 calls. The cause is not isolated | `S25:274-277`, `S25:312-316`, `S25:329` |
 | The Hub does not recover its database pools after a database restart | The Hub answers 503 until someone restarts it | #339 |
 | The runner log drops a handler refusal's detail | `HANDLER_OUTPUT_REFUSED` is logged without the field that broke the output schema, so the cause needs a code read | `apps/hub/src/app-runner/supervisor.ts:280`, `S25:281-288` |
 | Nothing stops the Hub, the runner and the sandbox template drifting apart | An app runs older runner code than the Builder that wrote it, or a check fails on an older template | `S25:323` |
