@@ -668,6 +668,14 @@ test("a candidate the Hub's check refuses is refused with the failed step's prob
   assert.ok(run.admissionChecks[0].files.includes('conexus/check.sh'), 'the candidate file is only data in the tree the Hub checks')
 })
 
+test('each check the run makes leaves one line in the Hub log with its steps', async (t) => {
+  const run = await harness(t)
+  await run.start()
+  await run.service.close()
+  const steps = 'generate=passed:1ms typecheck=passed:1ms build=passed:1ms server=passed:1ms boot=passed:1ms'
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:admission:${runId}:${steps}`, `BUILDER_CHECK:preview:${runId}:${steps}`])
+})
+
 test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
   const { checkScriptSource } = await import(built('builder/application-check.js'))
   const run = await harness(t)
@@ -718,6 +726,17 @@ test('a generated file the agent wrote never reaches Git, and a file beside it d
     { path: 'app/index.html', status: 'MODIFIED', previousPath: null },
     { path: 'app/src/keep.ts', status: 'ADDED', previousPath: null },
   ])
+})
+
+test('a boot problem that leaves the page rendered keeps the Preview and reaches the Hub log', async (t) => {
+  const problems = [{ code: 'BOOT_CSP_VIOLATION', message: "Loading the stylesheet 'https://fonts.googleapis.com/css2' violates the following Content Security Policy directive: \"style-src 'self'\"." }]
+  const run = await harness(t, { buildReport: failedReport('boot', problems) })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', result], ['settleBuild', result, null]])
+  assert.deepEqual(run.diagnostics, [])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK_BOOT_PROBLEMS:')), [`BUILDER_CHECK_BOOT_PROBLEMS:${runId}:${JSON.stringify(problems)}`])
 })
 
 test('a page that does not boot leaves the admitted source without a Preview and tells the next turn why, whole', async (t) => {

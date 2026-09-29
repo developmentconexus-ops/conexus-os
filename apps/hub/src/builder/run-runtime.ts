@@ -3,7 +3,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
-import { CHECK_SCRIPT_PATH, checkScriptSource, failedBootStep, failedStepEvidence, refusingStep } from './application-check.js'
+import { CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
 import { pullCandidate, seedSandbox } from './conexus-git.js'
@@ -257,6 +257,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       ].join(' && '))
       if (unpackedCandidate.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
       const admission = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: false })
+      ports.log(`BUILDER_CHECK:admission:${input.executionId}:${checkSummary(admission.report)}`)
       const refusedStep = refusingStep(admission.report)
       if (refusedStep) throw new CandidateRefused('BUILDER_CHECK_FAILED', failedStepEvidence(refusedStep))
 
@@ -287,10 +288,13 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         const unpacked = await asRoot(`tar -x -C '${buildRoot}' -f '${tree}' && rm -f '${tree}'`)
         if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         // The Preview is built by the steps the model saw. A source the check refuses, or a page
-        // that does not boot, leaves the admitted source in place without a Preview.
+        // that threw or drew nothing, leaves the admitted source in place without a Preview.
         const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true })
+        ports.log(`BUILDER_CHECK:preview:${input.executionId}:${checkSummary(built.report)}`)
         const refused = refusingStep(built.report)
-        const notBooting = failedBootStep(built.report)
+        const notBooting = unrenderedBootStep(built.report)
+        const bootProblems = failedBootStep(built.report)
+        if (bootProblems && !notBooting) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(bootProblems.problems).slice(0, 2_000)}`)
         if (refused) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_COMPILATION_FAILED', detail: failedStepEvidence(refused) }
         else if (notBooting) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_FAILED', detail: failedStepEvidence(notBooting) }
         else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {

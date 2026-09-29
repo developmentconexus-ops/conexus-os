@@ -102,13 +102,27 @@ const problemLine = ({ file, line, column, code, message }: Problem): string => 
 export const failedStepEvidence = (step: Extract<CheckStep, { status: 'failed' }>): string =>
   [`${step.step} failed:`, ...step.problems.map(problemLine), ...(step.dropped ? [`(${step.dropped} more problems not shown)`] : [])].join('\n')
 
+/** One line for the Hub log: each step, how it ended and how long it took. */
+export const checkSummary = (report: CheckReport): string =>
+  report.steps.map((step) => `${step.step}=${step.status === 'skipped' ? `skipped(${step.reason})` : `${step.status}:${step.durationMs}ms`}`).join(' ')
+
 /** The step that refused the source, or null when every blocking step passed. */
 export const refusingStep = (report: CheckReport): Extract<CheckStep, { status: 'failed' }> | null =>
   report.steps.find((step): step is Extract<CheckStep, { status: 'failed' }> => step.status === 'failed' && BLOCKING_STEPS.has(step.step)) ?? null
 
-/** The `boot` step when it found problems; it never refuses the source, but the next turn should hear of it. */
+/** The `boot` step when it found problems, whatever they were. */
 export const failedBootStep = (report: CheckReport): Extract<CheckStep, { status: 'failed' }> | null =>
   report.steps.find((step): step is Extract<CheckStep, { status: 'failed' }> => step.step === 'boot' && step.status === 'failed') ?? null
+
+// A page that threw or drew nothing has no Preview worth opening. The other boot problems (a blocked
+// font, a console error, a failed request) are reported and leave the Preview standing.
+const UNRENDERED_BOOT_CODES: ReadonlySet<string> = new Set(['BOOT_UNCAUGHT_ERROR', 'BOOT_NO_ROOT_CHILD', 'STEP_TIMEOUT'])
+
+/** The `boot` step when the page did not render, which is the only boot result that withholds the Preview. */
+export const unrenderedBootStep = (report: CheckReport): Extract<CheckStep, { status: 'failed' }> | null => {
+  const step = failedBootStep(report)
+  return step?.problems.some((problem) => problem.code !== undefined && UNRENDERED_BOOT_CODES.has(problem.code)) ? step : null
+}
 
 // The boot page is served with the Preview's own policy, so a violation there is a violation in the
 // Preview. The frame-ancestors origin only has to be well formed: the page is the top level document.
