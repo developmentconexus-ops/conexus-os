@@ -6,7 +6,7 @@ import { serverBuildScriptSource } from './application-server-build.js'
 export const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
 export const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
 const DEFAULT_WORK_ROOT = '/workspace'
-export const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
+const BUILD_COMMAND ='node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native'
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const MAX_LIST_ENTRIES = MAX_FILES * 8

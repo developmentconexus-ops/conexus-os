@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
@@ -64,12 +64,15 @@ test('the node the compiler installs for is the node the agent template pins', (
 })
 
 test('the application the starter writes only needs what the manifest installs', () => {
-  const starter = read('../src/builder/application-starter.ts')
-  // Everything from this declaration on is the application's own source, not the module's imports.
-  const appSource = starter.slice(starter.indexOf('FIXED_APPLICATION_STARTER_FILES'))
-  const imported = [...appSource.matchAll(/^import .*? from '([^'.][^']*)'$/gm)].map(([, name]) => name)
-  assert.equal(imported.length > 0, true)
-  for (const name of imported) {
+  const files = resolve(recipe, '../starter-template/files')
+  const sources = readdirSync(files, { recursive: true, encoding: 'utf8' }).filter((path) => /\.tsx?$/.test(path))
+  const imported = new Set()
+  for (const path of sources) {
+    for (const [, name] of readFileSync(resolve(files, path), 'utf8').matchAll(/(?:^|\n)\s*(?:import|export)[^'"]*?from\s+['"]([^'"]+)['"]|(?:^|\n)import\s+['"]([^'"]+)['"]/g)) if (name) imported.add(name)
+  }
+  const bare = [...imported].filter((name) => !name.startsWith('.') && !name.startsWith('@/'))
+  assert.equal(bare.includes('react'), true)
+  for (const name of bare) {
     const owner = name.startsWith('@') ? name.split('/').slice(0, 2).join('/') : name.split('/')[0]
     assert.equal(Object.hasOwn(manifest.dependencies, owner), true, `the starter imports ${owner}, which the compiler manifest does not install`)
   }
