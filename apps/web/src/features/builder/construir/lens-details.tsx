@@ -1,5 +1,6 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { useQuery } from '@tanstack/react-query'
 import { Check, Copy, RotateCw } from 'lucide-react'
 import { useState } from 'react'
@@ -16,7 +17,7 @@ function Hash({ label, value }: Readonly<{ label: string; value: string }>) {
   return <tr>
     <td>{label}</td>
     <td className="cx-hash">
-      <code title={value}>{value.slice(0, 7)}</code>
+      <Tooltip><TooltipTrigger render={<code />}>{value.slice(0, 7)}</TooltipTrigger><TooltipContent>{value}</TooltipContent></Tooltip>
       <button
         type="button"
         className="cx-icon-button"

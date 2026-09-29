@@ -111,3 +111,27 @@ test('a class defined in CSS with no .tsx use warns but does not fail', context 
   assert.match(result.stderr, /^1 Conexus class\(es\) defined in CSS with no apps\/web\/src\/\*\*\/\*\.tsx use:\napps\/web\/src\/screen\.css:2: class "cx-panel-unused" is defined in CSS but no apps\/web\/src\/\*\*\/\*\.tsx uses it\n$/)
   assert.match(result.stdout, /^Web style check passed \(files=\d+\)\.\n$/)
 })
+
+test('a native title hint fails on an element and on a dotted component, and names the Tooltip to use', context => {
+  const result = check(tree(context, {
+    'apps/web/src/chip.tsx': [
+      'export const Chip = () => <button type="button" aria-label="Modo" title="Modo: Planejar" />',
+      'export const Menu = () => <DropdownMenu.Trigger title="Modo" aria-label="Modo" />',
+      '',
+    ].join('\n'),
+  }))
+  const hint = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `apps/web/src/chip.tsx:1: <button title=...>: ${hint}\napps/web/src/chip.tsx:2: <DropdownMenu.Trigger title=...>: ${hint}\n`)
+})
+
+test('a title prop that renders a heading, and an iframe title, pass', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': [
+      'export const Screen = () => <PageHeader title="Minha conta" />',
+      'export const Frame = () => <iframe title="Prévia do aplicativo" src="about:blank" />',
+      '',
+    ].join('\n'),
+  }))
+  assert.equal(result.status, 0, result.stderr)
+})

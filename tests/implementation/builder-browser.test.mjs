@@ -539,9 +539,11 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
 
   await page.getByRole('tab', { name: 'Sobre' }).click()
   await page.getByText('Detalhes técnicos', { exact: true }).click()
-  await page.locator('.cx-hash-table').getByTitle(latestRunId).waitFor()
+  await page.locator('.cx-hash-table code').filter({ hasText: latestRunId.slice(0, 7) }).first().hover()
+  await page.getByRole('tooltip').filter({ hasText: latestRunId }).waitFor()
   await page.locator('.cx-run-entry').nth(1).click()
-  await page.locator('.cx-hash-table').getByTitle(olderRunId).waitFor()
+  await page.locator('.cx-hash-table code').filter({ hasText: olderRunId.slice(0, 7) }).first().hover()
+  await page.getByRole('tooltip').filter({ hasText: olderRunId }).waitFor()
   assert.equal(tracedRuns.at(-1), olderRunId, `the trace followed ${tracedRuns.at(-1)} instead of the selected run`)
 
   await page.getByRole('tab', { name: 'Alterações' }).click()
@@ -1486,7 +1488,9 @@ test('while a run works the mode chip stays readable, says why it cannot change,
   })
 
   const chip = page.getByRole('button', { name: 'Modo: Planejar. O modo muda quando o Builder parar.', exact: true })
-  await chip.waitFor()
+  await chip.hover()
+  await page.getByRole('tooltip').filter({ hasText: 'Planejar. O modo muda quando o Builder parar.' }).waitFor()
+  assert.equal(await chip.getAttribute('title'), null)
   await chip.click()
   await page.getByText('O modo muda quando o Builder parar.', { exact: true }).waitFor()
   assert.equal(await page.getByRole('menuitemradio').count(), 0, 'no mode is offered while the run works')
@@ -1572,6 +1576,20 @@ test('a narrow chat panel keeps the model name whole and shrinks the mode chip t
   await resizeChatTo(700)
   const wide = await measure()
   assert.deepEqual({ modelNameWhole: wide.modelNameWhole, chipLabelShown: wide.chipLabelShown }, { modelNameWhole: true, chipLabelShown: true })
+})
+
+test('hovering the mode chip shows the design system Tooltip beside the clip, never a native title', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-00000000023c', projectId: '70000000-0000-4000-8000-00000000023d', conversationId: 'conversation-tooltip',
+    omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
+  })
+  const chip = page.getByRole('button', { name: 'Modo: Planejar', exact: true })
+  await chip.hover()
+  await page.getByRole('tooltip').filter({ hasText: 'Planejar: Lê o app e propõe um plano antes de mudar qualquer arquivo' }).waitFor()
+  assert.equal(await chip.getAttribute('title'), null)
+  await page.mouse.move(0, 0)
+  await page.getByRole('button', { name: 'Anexar arquivo', exact: true }).hover()
+  await page.getByRole('tooltip').filter({ hasText: 'Anexar arquivo chega em breve' }).waitFor()
 })
 
 test('a plan the agent submits is sent back with feedback from its card, on the run\'s own session', async (t) => {
