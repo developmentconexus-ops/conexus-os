@@ -87,6 +87,21 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Unregistered', 'NEW', $3, 'u')", [unregistered, workspaceId, STARTER])
   })
 
+  await t.test('record_conversation_session keeps one row per conversation, in its own Project, for the executor only', async () => {
+    const conversationId = randomUUID()
+    const record = (parameters) => callAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', parameters)
+    const row = async () => (await query(connectionString, 'SELECT project_id, mirror_head, synced_main, last_turn_ended_at IS NOT NULL AS ended FROM builder.conversation_session WHERE conversation_id = $1', [conversationId])).rows
+    await record([projectId, conversationId, CANDIDATE, STARTER, false])
+    assert.deepEqual(await row(), [{ project_id: projectId, mirror_head: CANDIDATE, synced_main: STARTER, ended: false }])
+    await record([projectId, conversationId, OTHER, null, true])
+    await record([projectId, conversationId, OTHER, null, true])
+    assert.deepEqual(await row(), [{ project_id: projectId, mirror_head: OTHER, synced_main: STARTER, ended: true }])
+    assert.match(await refusalAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [unregistered, conversationId, OTHER, null, true]), /BUILDER_CONVERSATION_SESSION_REFUSED/)
+    assert.match(await refusalAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, 'main', null, true]), /BUILDER_CONVERSATION_SESSION_REFUSED/)
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, OTHER, null, true]), /permission denied/)
+    assert.deepEqual(await row(), [{ project_id: projectId, mirror_head: OTHER, synced_main: STARTER, ended: true }])
+  })
+
   await t.test('lock_project_for_run admits a builder of a registered Project and refuses the rest', async () => {
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, projectId]), true)
     assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, unregistered]), /BUILDER_SUBJECT_NOT_FOUND/)

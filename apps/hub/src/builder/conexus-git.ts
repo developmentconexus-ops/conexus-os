@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,8 +20,17 @@ export type GitTreeEntry = Readonly<{ mode: string; type: string; path: string }
 /** One path of `git diff-tree --name-status -M`, with git's own status letter. */
 export type GitChange = Readonly<{ status: string; path: string; previousPath: string | null }>
 
+/**
+ * One snapshot of a checkout, as the Hub accepts it into a ref it owns: one commit whose only parent
+ * is `parent`. A run's candidate is `refs/conexus/runs/<runId>` on the run's base; a conversation's
+ * mirror is `refs/conexus/conversations/<conversationId>` on the turn's start.
+ */
+export type Snapshot = Readonly<{ ref: string; parent: string }>
+
 const OID = /^[0-9a-f]{40}$/
-const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const PROJECT_ID = new RegExp(`^${UUID_PATTERN}$`)
+const SNAPSHOT_REF = new RegExp(`^refs/conexus/(runs|conversations)/${UUID_PATTERN}$`)
 const MAIN = 'refs/heads/main'
 const NO_OBJECT = '0'.repeat(40)
 const STARTER_MESSAGE = 'Start the Conexus application'
@@ -119,6 +129,15 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     ])), 'CONEXUS_GIT_STARTER_REFUSED')
   })
 
+  // A compare and swap from `expected` (null: the ref must not exist), or a plain move when omitted.
+  const moveRef = async (projectId: string, ref: string, next: string, expected?: string | null): Promise<void> => {
+    if (!OID.test(next)) throw new Error('CONEXUS_GIT_REF_REFUSED')
+    const from = expected === undefined ? [] : [expected ?? NO_OBJECT]
+    await git(projectId, ['update-ref', ref, next, ...from]).catch((error: unknown) => {
+      throw new Error('CONEXUS_GIT_REF_MOVED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+    })
+  }
+
   const readMain = async (projectId: string): Promise<string> => {
     const main = await readRef(projectId, MAIN).catch(() => null)
     if (!main) throw new Error('CONEXUS_GIT_MAIN_MISSING')
@@ -160,29 +179,40 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     },
 
     /**
-     * Takes one run's candidate out of a bundle the sandbox made. Only the run's own ref is fetched,
-     * every object is checked, and the candidate must be one commit whose only parent is the base.
+     * Takes one snapshot out of a bundle the sandbox made. Only the snapshot's own ref is fetched,
+     * into a staging ref, every object is checked, and the commit must have `parent` as its only
+     * parent. Then the snapshot's ref moves to it under git's ref lock: from `expected` when given
+     * (null creates it), or unconditionally when omitted, as for a run's own candidate ref.
      */
-    acceptCandidate: async (projectId: string, { runId, base, bundle }: Readonly<{ runId: string; base: string; bundle: Uint8Array }>): Promise<string> => {
-      if (!PROJECT_ID.test(runId) || !OID.test(base)) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-      const ref = candidateRef(runId)
-      await withTemporaryDirectory(async (directory) => {
-        const file = join(directory, 'candidate.bundle')
-        await writeFile(file, bundle, { mode: 0o600 })
-        await git(projectId, [
-          '-c', 'transfer.fsckObjects=true', '-c', 'fetch.fsckObjects=true',
-          'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', file, `${ref}:${ref}`,
-        ])
-      }).catch((error: unknown) => {
-        throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
-      })
-      const [candidate, ...parents] = (await text(git(projectId, ['rev-list', '--parents', '-n', '1', ref]))).split(' ')
-      if (!candidate || !OID.test(candidate) || parents.length !== 1 || parents[0] !== base) {
-        await git(projectId, ['update-ref', '-d', ref]).catch(() => undefined)
-        throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+    acceptSnapshot: async (projectId: string, { ref, parent, bundle, expected }: Snapshot & Readonly<{ bundle: Uint8Array; expected?: string | null }>): Promise<string> => {
+      if (!SNAPSHOT_REF.test(ref) || !OID.test(parent) || (expected && !OID.test(expected))) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      const staging = `refs/conexus/staging/${randomUUID()}`
+      try {
+        await withTemporaryDirectory(async (directory) => {
+          const file = join(directory, 'snapshot.bundle')
+          await writeFile(file, bundle, { mode: 0o600 })
+          await git(projectId, [
+            '-c', 'transfer.fsckObjects=true', '-c', 'fetch.fsckObjects=true',
+            'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', file, `+${ref}:${staging}`,
+          ])
+        }).catch((error: unknown) => {
+          throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+        })
+        const [commit, ...parents] = (await text(git(projectId, ['rev-list', '--parents', '-n', '1', staging]))).split(' ')
+        if (!commit || !OID.test(commit) || parents.length !== 1 || parents[0] !== parent) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+        await moveRef(projectId, ref, commit, expected)
+        return commit
+      } finally {
+        await git(projectId, ['update-ref', '-d', staging]).catch(() => undefined)
       }
-      return candidate
     },
+
+    /** The head of a conversation's mirror, or null when it has none yet. */
+    readMirror: (projectId: string, conversationId: string): Promise<string | null> => readRef(projectId, mirrorRef(conversationId)),
+
+    /** Moves a conversation's mirror from exactly `expected` (null: it has none) to `next`, under git's ref lock. */
+    moveMirror: (projectId: string, conversationId: string, { expected, next }: Readonly<{ expected: string | null; next: string }>): Promise<void> =>
+      moveRef(projectId, mirrorRef(conversationId), next, expected),
 
     /**
      * The moment of admission: `main` moves from exactly `base` to `candidate`, a descendant of it,
@@ -253,7 +283,18 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 const hasCommit = (git: (projectId: string, args: readonly string[]) => Promise<Buffer>, projectId: string, revision: string): Promise<boolean> =>
   OID.test(revision) ? git(projectId, ['cat-file', '-e', `${revision}^{commit}`]).then(() => true, () => false) : Promise.resolve(false)
 
-const candidateRef = (runId: string): string => `refs/conexus/runs/${runId}`
+const uuidRef = (prefix: string, id: string): string => {
+  if (!PROJECT_ID.test(id)) throw new Error('CONEXUS_GIT_REF_REFUSED')
+  return `${prefix}/${id}`
+}
+
+/** A run's candidate: one commit on the run's base. */
+export const candidateSnapshot = (runId: string, base: string): Snapshot => ({ ref: uuidRef('refs/conexus/runs', runId), parent: base })
+
+const mirrorRef = (conversationId: string): string => uuidRef('refs/conexus/conversations', conversationId)
+
+/** A conversation's mirror of its checkout: one commit on the turn's start. */
+export const mirrorSnapshot = (conversationId: string, turnStart: string): Snapshot => ({ ref: mirrorRef(conversationId), parent: turnStart })
 
 /** What a run's source steps need of its sandbox. Commands run in the checkout as the agent's user. */
 export type RunSourceSandbox = Readonly<{
@@ -294,34 +335,39 @@ export const seedSandbox = async ({ git, projectId, base, sandbox, checkout, see
 }
 
 /**
- * The Hub's commit of everything the run changed: the whole checkout (ignored files, `.conexus/plans/`
- * and the `excluded` paths left out) as one commit whose only parent is the base, bundled in the
- * sandbox and accepted into the Conexus Git. Answers null when the checkout holds exactly the base.
+ * The Hub's commit of the checkout: the whole tree (ignored files, `.conexus/plans/` and the
+ * `excluded` paths left out) as one commit on the snapshot's parent, bundled in the sandbox and
+ * accepted into the Conexus Git under the snapshot's ref. Answers null when the tree equals
+ * `unchangedFrom`'s. Each `scratch` has its own index and bundle file in the checkout, so a mirror
+ * and a candidate never remove each other's.
  */
-export const pullCandidate = async ({ git, projectId, runId, base, sandbox, checkout, excluded = [] }: Readonly<{
-  git: Pick<ConexusGit, 'acceptCandidate'>
+export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchangedFrom = snapshot.parent, scratch, sandbox, checkout, excluded = [] }: Readonly<{
+  git: Pick<ConexusGit, 'acceptSnapshot'>
   projectId: string
-  runId: string
-  base: string
+  snapshot: Snapshot
+  /** Passed to `acceptSnapshot`: the ref's head this snapshot replaces. */
+  expected?: string | null
+  unchangedFrom?: string
+  scratch: 'candidate' | 'mirror'
   sandbox: RunSourceSandbox
   checkout: string
   excluded?: readonly string[]
 }>): Promise<string | null> => {
-  const bundleFile = `${checkout}/.git/conexus-candidate.bundle`
-  const ref = candidateRef(runId)
+  const bundleFile = `${checkout}/.git/conexus-${scratch}.bundle`
+  const { ref, parent } = snapshot
   const committed = await sandbox.direct('sh', ['-c', [
     'set -e',
     `cd ${quoted(checkout)}`,
-    'export GIT_INDEX_FILE=.git/conexus-candidate-index',
+    `export GIT_INDEX_FILE=.git/conexus-${scratch}-index`,
     'rm -f "$GIT_INDEX_FILE"',
-    `git read-tree ${quoted(base)}`,
+    `git read-tree ${quoted(parent)}`,
     `git add --all -- . ${['.conexus/plans', ...excluded].map((path) => quoted(`:(exclude)${path}`)).join(' ')}`,
     'tree=$(git write-tree)',
-    `if [ "$tree" = "$(git rev-parse ${quoted(`${base}^{tree}`)})" ]; then echo UNCHANGED; exit 0; fi`,
-    `commit=$(git -c user.name=${quoted(BUILDER_IDENTITY.name)} -c user.email=${quoted(BUILDER_IDENTITY.email)} commit-tree "$tree" -p ${quoted(base)} -m 'Conexus Builder')`,
+    `if [ "$tree" = "$(git rev-parse ${quoted(`${unchangedFrom}^{tree}`)})" ]; then echo UNCHANGED; exit 0; fi`,
+    `commit=$(git -c user.name=${quoted(BUILDER_IDENTITY.name)} -c user.email=${quoted(BUILDER_IDENTITY.email)} commit-tree "$tree" -p ${quoted(parent)} -m 'Conexus Builder')`,
     `git update-ref ${quoted(ref)} "$commit"`,
     `rm -f ${quoted(bundleFile)}`,
-    `git bundle create --quiet ${quoted(bundleFile)} ${quoted(ref)} ${quoted(`^${base}`)}`,
+    `git bundle create --quiet ${quoted(bundleFile)} ${quoted(ref)} ${quoted(`^${parent}`)}`,
     'echo "$commit"',
   ].join('\n')])
   const reported = committed.stdout.trim().split('\n').pop() ?? ''
@@ -329,7 +375,7 @@ export const pullCandidate = async ({ git, projectId, runId, base, sandbox, chec
     throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
   }
   if (reported === 'UNCHANGED') return null
-  const candidate = await git.acceptCandidate(projectId, { runId, base, bundle: await sandbox.readAgentFile(bundleFile) })
-  if (candidate !== reported) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-  return candidate
+  const accepted = await git.acceptSnapshot(projectId, { ...snapshot, bundle: await sandbox.readAgentFile(bundleFile), ...(expected === undefined ? {} : { expected }) })
+  if (accepted !== reported) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+  return accepted
 }

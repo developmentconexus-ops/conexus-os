@@ -73,6 +73,8 @@ export type BuilderStore = Readonly<{
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
   recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
   listAdmissionRuns(): Promise<readonly AdmissionRun[]>
+  // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
+  recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   close(): Promise<void>
 }>
 
@@ -230,6 +232,11 @@ export const createBuilderStore = ({
   listAdmissionRuns: async () => {
     const result = await executorPool.query<JsonRow<readonly AdmissionRun[]>>('SELECT builder.list_admission_runs() AS value')
     return result.rows[0]?.value ?? []
+  },
+  recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
+    await executorPool.query(
+      'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, mirrorHead, syncedMain ?? null, turnEnded],
+    )
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

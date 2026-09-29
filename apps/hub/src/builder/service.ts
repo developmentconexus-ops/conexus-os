@@ -143,6 +143,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           await store.recordBuilderRunCandidate(claimed.builderRunId, sourceRevision)
           candidateRecorded = true
         },
+        recordMirror: (head: string) => store.recordConversationSession({ projectId: claimed.projectId, conversationId: claimed.conversationId, mirrorHead: head, turnEnded: true }),
       })
       if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
       if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
