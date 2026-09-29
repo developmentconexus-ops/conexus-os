@@ -4,14 +4,16 @@ import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace 
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
 import type { CheckReport } from './application-check.js'
-import { CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
+import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
+import { buildCandidateServer, createOperationRunner } from './run-operation.js'
+import type { CandidateOperationPorts, RunOperation } from './run-operation.js'
 import { RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
 import { pullCandidate, seedSandbox } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, type PromptVariantId, type RunTools } from './harness/index.js'
 import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
@@ -38,6 +40,8 @@ export type RunSandbox = Readonly<{
 
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
+// Where `conexus_run_operation` builds the server half, as the agent's user, before reading it back.
+const RUN_OPERATION_OUT = '/tmp/conexus-run-operation'
 
 type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
 
@@ -47,8 +51,13 @@ type RunSession = Readonly<{
   close(): Promise<void>
 }>
 
-/** One run's reach into its Project's bound Connections: the brief for its instructions and the scope its tool reads through. */
-type ConnectorRun = Readonly<{ brief: string; bind(requestContext: RequestContext): void; end(): void }>
+/** One run's reach into its Project's bound Connections: the brief for its instructions, the scope its tools read through, and a handler port on that scope. */
+type ConnectorRun = Readonly<{
+  brief: string
+  bind(requestContext: RequestContext): void
+  openHandlerPort(): ReturnType<CandidateOperationPorts['openConnectorPort']>
+  end(): void
+}>
 
 /** Everything a run's request context carries, set on every turn it takes, resumed ones included. */
 export type RunContextBinder = (requestContext: RequestContext) => void
@@ -59,6 +68,8 @@ export type BuilderRunPorts = Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
     /** The check `conexus_check` runs: the Hub's script on the checkout, as the agent's user. */
     runCheck: () => Promise<CheckReport>
+    /** The operation run `conexus_run_operation` does; absent when the Hub has no Prévia runner. */
+    runOperation?: RunOperation
   }>): Promise<RunSession>
   /**
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
@@ -69,6 +80,8 @@ export type BuilderRunPorts = Readonly<{
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
+  /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
+  invokeOperation?: CandidateOperationPorts['invoke']
   log(line: string): void
 }>
 
@@ -214,10 +227,27 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         writeFiles: (files) => sandbox.writeFiles(files),
       })
 
+      // The candidate's operations run before admission, in the Prévia's runner, on the run's own
+      // connector scope; the caller is the run's account.
+      const invokeOperation = ports.invokeOperation
+      const runOperation = invokeOperation ? createOperationRunner({
+        projectId: input.projectId,
+        caller: { accountId: input.accountId, email: null, displayName: 'Construir' },
+        buildServer: () => buildCandidateServer(
+          { node: CHECK_NODE_PATH, script: SERVER_BUILD_SCRIPT_PATH, checkout: SANDBOX_CHECKOUT, out: RUN_OPERATION_OUT },
+          (script, args) => onIncarnation(() => sandbox.executeCommand('sh', ['-c', script, 'conexus-run-operation', ...args], {
+            timeout: 120_000, cwd: '/', env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: `/home/${SANDBOX_AGENT_USER}`, LANG: 'C.UTF-8' },
+          })),
+          (path) => sandbox.readAgentFile(path),
+        ),
+        openConnectorPort: async () => (connectorRun ? connectorRun.openHandlerPort() : null),
+        invoke: invokeOperation,
+      }) : undefined
       session = await ports.openSession({
         projectId: input.projectId, conversationId: input.conversationId, builderRunId: input.executionId,
         workspace: sandbox.workspace, bindContext,
         runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
+        ...(runOperation ? { runOperation } : {}),
       })
       await input.setPhase('AGENT')
       const turn = await session.sendTurn(input.intent, runSignal)
@@ -347,26 +377,26 @@ const builderRunScope = (builderRunId: string): string => `builder:${builderRunI
  * turn that lasts until the agent is done, including while it waits for the person to approve a
  * plan or answer a question (AC-16).
  */
-export const createControllerRunSessions = ({ controller, runContexts, runWorkspaces, runChecks }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, runWorkspaces, runTools }: Readonly<{
   controller: AgentController
   /** The live runs' context binders by session scope, which the browser mount applies to every request it serves a run. */
   runContexts: Map<string, RunContextBinder>
   /** The live runs' workspaces by run id, which the controller's workspace resolver hands a run's session. */
   runWorkspaces: Map<string, Workspace>
-  /** The live runs' checks by run id, which the controller's `conexus_check` reads. */
-  runChecks: Map<string, () => Promise<CheckReport>>
-}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck }) => {
+  /** The live runs' checks and operation runs by run id, which the controller's `conexus_check` and `conexus_run_operation` read. */
+  runTools: Map<string, RunTools>
+}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
   const resourceId = projectResourceId(projectId)
   const scope = builderRunScope(builderRunId)
   const requestContext = new RequestContext()
   bindContext(requestContext)
   runWorkspaces.set(builderRunId, workspace)
-  runChecks.set(builderRunId, runCheck)
+  runTools.set(builderRunId, { check: runCheck, runOperation })
   runContexts.set(scope, bindContext)
   const forget = (): void => {
     runContexts.delete(scope)
     runWorkspaces.delete(builderRunId)
-    runChecks.delete(builderRunId)
+    runTools.delete(builderRunId)
   }
   const close = async (): Promise<void> => {
     forget()

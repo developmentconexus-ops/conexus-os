@@ -31,7 +31,7 @@ test('AC-6: the mode table exposes exactly the tool lists in the Tool contract, 
   const command = ['mastra_workspace_delete', 'mastra_workspace_execute_command', 'mastra_workspace_get_process_output', 'mastra_workspace_kill_process']
 
   assert.deepEqual([...BUILDER_MODES.plan.availableTools].sort(), [...read, ...write, ...shared, 'submit_plan'].sort())
-  assert.deepEqual([...BUILDER_MODES.build.availableTools].sort(), [...read, ...write, ...command, ...shared, 'conexus_check'].sort())
+  assert.deepEqual([...BUILDER_MODES.build.availableTools].sort(), [...read, ...write, ...command, ...shared, 'conexus_check', 'conexus_run_operation'].sort())
   assert.equal(BUILDER_MODES.plan.availableTools.has('conexus_check'), false, 'Planejar lists no conexus_check')
   // No git remote, GitHub, source control, subagent or agent connection tool in either mode.
   for (const name of [...BUILDER_MODES.plan.availableTools, ...BUILDER_MODES.build.availableTools]) {
@@ -52,19 +52,20 @@ test('AC-8: conexus_check returns the run check report in Construir and refuses 
   assert.equal(ran, 1)
 })
 
-test('AC-8: the controller offers conexus_check only to a turn whose run has a check', async () => {
+test('AC-8: the controller offers conexus_check to a turn whose run has a check, and conexus_run_operation when it can run one', async () => {
+  const runs = { r1: { check: async () => PASSING, runOperation: async () => ({ ok: false, operation: 'x', code: 'NOT_USED' }) }, r3: { check: async () => PASSING } }
   const controller = createBuilderController({
     model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
-    runCheck: ({ requestContext }) => (requestContext.getRaw('conexusBuilderRunId') === 'r1' ? async () => PASSING : undefined),
+    runTools: ({ requestContext }) => runs[requestContext.getRaw('conexusBuilderRunId')],
   })
   const session = await controller.createSession({ resourceId: 'project:probe-check', scope: 'probe-check' })
   const agent = controller.getCurrentAgent(session)
   const names = async (runId) => {
     const requestContext = new RequestContext()
     if (runId) requestContext.setRaw('conexusBuilderRunId', runId)
-    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name === 'conexus_check')
+    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name.startsWith('conexus_')).sort()
   }
-  assert.deepEqual([await names('r1'), await names('r2'), await names()], [['conexus_check'], [], []])
+  assert.deepEqual([await names('r1'), await names('r3'), await names('r2'), await names()], [['conexus_check', 'conexus_run_operation'], ['conexus_check'], [], []])
 })
 
 test('AC-3: plan mode may write only under .conexus/plans/', () => {
@@ -518,7 +519,7 @@ test("a run's turn lasts through the person's answer and the plan approval, on t
   t.after(() => controller.destroy?.())
   const projectId = '22222222-2222-4222-8222-222222222222'
   const builderRunId = '11111111-1111-4111-8111-111111111111'
-  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runChecks: new Map() })
+  const openSession = createControllerRunSessions({ controller, runContexts, runWorkspaces, runTools: new Map() })
   const run = await openSession({
     projectId, conversationId: '44444444-4444-4444-8444-444444444444', builderRunId, workspace,
     runCheck: async () => PASSING,
@@ -575,7 +576,7 @@ test("a run's plan waits for the person: ordinary tools never ask, Pedir ajustes
   t.after(() => controller.destroy?.())
   const projectId = '22222222-2222-4222-8222-222222222222'
   const builderRunId = '66666666-6666-4666-8666-666666666666'
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
     projectId, conversationId: '77777777-7777-4777-8777-777777777777', builderRunId, workspace,
     runCheck: async () => PASSING,
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
@@ -653,7 +654,7 @@ test('a model switched while the plan card waits is the model the build runs on'
   const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   await conversation.model.switch({ modelId: 'openai/gpt-5.6-sol', scope: 'thread' })
 
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
@@ -723,7 +724,7 @@ test("the conversation's mode follows a plan approval, once the run closes (item
   const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   assert.equal(conversation.mode.get(), 'plan', 'a new conversation starts in Planejar')
 
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runChecks: new Map() })({
+  const run = await createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => PASSING,
     bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),

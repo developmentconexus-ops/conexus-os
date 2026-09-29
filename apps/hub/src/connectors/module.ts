@@ -122,7 +122,7 @@ export const createConnectorModule = ({
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId }),
+    openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId, ports }),
     builderTools: createConnectorFetchTools(broker),
     toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,

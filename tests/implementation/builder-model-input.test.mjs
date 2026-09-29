@@ -56,8 +56,9 @@ test('AC-1: the printed input holds the Conexus layer, the mode file and the AGE
 
     assert.match(plan, /^Model: openai\/gpt-5\.6-sol$/m)
     assert.deepEqual(toolsOf(plan).sort(), [...READ, ...WRITE, ...SHARED, 'submit_plan'].sort())
-    assert.deepEqual(toolsOf(build).sort(), [...READ, ...WRITE, ...COMMAND, ...SHARED, 'conexus_check'].sort())
+    assert.deepEqual(toolsOf(build).sort(), [...READ, ...WRITE, ...COMMAND, ...SHARED, 'conexus_check', 'conexus_run_operation'].sort())
     assert.equal(toolsOf(plan).includes('conexus_check'), false, 'conexus_check appears only in construir')
+    assert.equal(toolsOf(plan).includes('conexus_run_operation'), false, 'conexus_run_operation appears only in construir')
   } finally {
     rmSync(project, { recursive: true, force: true })
   }

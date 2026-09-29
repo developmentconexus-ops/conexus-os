@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { ApplicationProfile } from '../platform/application-template-pins.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { CandidateOperationPorts } from './run-operation.js'
 
 export type BuilderRunApplicationBuildRequest = Readonly<{
   accountId: string
@@ -58,8 +59,10 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
 }>
 
 // The application runner, as the Builder needs it: converge a Project's Preview schema on a built
-// artifact's migrations before that artifact is offered as a Preview.
+// artifact's migrations before that artifact is offered as a Preview, and run one candidate
+// operation for `conexus_run_operation`.
 export type ApplicationServerPort = Readonly<{
+  invoke: CandidateOperationPorts['invoke']
   prepare(input: Readonly<{ projectId: string; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<
     | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
     | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>

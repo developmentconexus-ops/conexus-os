@@ -186,6 +186,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.
   ...(applicationRunner ? {
     applicationServer: {
+      invoke: applicationRunner.invoke,
       prepare: (input) => {
         const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
           (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))

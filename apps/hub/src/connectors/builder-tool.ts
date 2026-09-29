@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools'
 import type { ToolsInput } from '@mastra/core/agent'
 import type { Broker, FetchDescription } from './broker.js'
 import type { ConnectorBrief } from './builder-brief.js'
+import type { HandlerPort, HandlerPorts } from './handler-port.js'
 import { BROKER_ERROR_CODES } from './errors.js'
 import { CONNECTOR_FETCH_TOOL, FAILURE_PROJECTION, projectRequest, projectResult } from './fetch-projection.js'
 import { nativeRequestSchema } from './native.js'
@@ -30,12 +31,17 @@ export type BuilderConnectorRun = Readonly<{
   brief: string
   /** Gives the run's session the run's consumer, the only way `connector_fetch` finds its scope. */
   bind(requestContext: RequestContext): void
+  /**
+   * One handler invocation's port on the run's own scope, so an operation the Builder runs spends
+   * the run's calls and ends with it; null when the Hub serves no handler port.
+   */
+  openHandlerPort(): Promise<HandlerPort | null>
   /** Revokes the run's scope; repeating it changes nothing. */
   end(): void
 }>
 
 export const openBuilderRun = async (
-  { brief, projectId, builderRunId }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string }>,
+  { brief, projectId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string; ports?: HandlerPorts | null }>,
 ): Promise<BuilderConnectorRun> => {
   const scope = scopeForBuilderRun(projectId, BUILDER_RUN_TERMS)
   const consumer: Consumer = Object.freeze({ kind: 'agent', sessionId: builderRunId, scope })
@@ -43,6 +49,7 @@ export const openBuilderRun = async (
   return Object.freeze({
     brief: await brief(scope),
     bind: (requestContext: RequestContext) => requestContext.setRaw(RUN_CONSUMER_KEY, consumer),
+    openHandlerPort: async () => (ports ? ports.open(scope) : null),
     end: () => revokeScope(scope),
   })
 }

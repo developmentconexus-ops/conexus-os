@@ -27,6 +27,7 @@ const sentences: Readonly<Record<string, Sentence>> = {
   delete_file: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo', kind: 'outros' },
   mkdir: { running: 'Criando uma pasta', done: 'Criou uma pasta', ask: 'criar uma pasta', kind: 'outros' },
   conexus_check: { running: 'Verificando o app', done: 'Verificou o app', ask: 'verificar o app', kind: 'verificar' },
+  conexus_run_operation: { running: 'Testando uma operação com dados reais', done: 'Testou uma operação com dados reais', ask: 'testar uma operação com dados reais', kind: 'verificar' },
   skill: { running: 'Consultando a skill', done: 'Consultou a skill', ask: 'consultar a skill', kind: 'ler' },
   skill_read: { running: 'Lendo a skill', done: 'Leu a skill', ask: 'ler a skill', kind: 'ler' },
   skill_search: { running: 'Procurando uma skill', done: 'Procurou uma skill', ask: 'procurar uma skill', kind: 'buscar' },

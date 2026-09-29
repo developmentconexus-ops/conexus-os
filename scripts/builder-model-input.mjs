@@ -106,8 +106,10 @@ export const buildModelInput = async ({ project, thread, mode, model, revision =
     memory: new Memory({ options: { lastMessages: 40, semanticRecall: false } }),
     skillsPath: defaultBuilderSkillsRoot(),
     connectorFetch,
-    // conexus_check is registered only for a turn with a run behind it.
-    runCheck: modeId === 'build' ? () => async () => ({ ok: true, steps: [], facts: {} }) : undefined,
+    // conexus_check and conexus_run_operation are registered only for a turn with a run behind it.
+    runTools: modeId === 'build'
+      ? () => ({ check: async () => ({ ok: true, steps: [], facts: {} }), runOperation: async ({ operation }) => ({ ok: false, operation, code: 'NOT_RUN' }) })
+      : undefined,
   })
   try {
     await controller.init()
