@@ -16,7 +16,7 @@
       "node"
     ],
     "typeRoots": [
-      "/opt/conexus/compiler/full_modules/@types"
+      "/opt/conexus/compiler/full/node_modules/@types"
     ],
     "allowImportingTsExtensions": true
   },

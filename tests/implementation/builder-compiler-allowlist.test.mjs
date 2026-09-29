@@ -87,7 +87,7 @@ test('a screen cannot import node: modules or reach into the compiler packages, 
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
-  const reach = checkout({ 'app/src/lib/extra.ts': `import { produce } from '${join(compilerRoot, 'full_modules/immer/dist/immer.mjs')}'\nexport const extra = produce\n` })
+  const reach = checkout({ 'app/src/lib/extra.ts': `import { produce } from '${join(compilerRoot, 'full/node_modules/immer/dist/immer.mjs')}'\nexport const extra = produce\n` })
   try {
     assert.match(build(reach).output, /reaches into the compiler's packages; import a package by its name/)
   } finally {

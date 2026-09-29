@@ -11,7 +11,7 @@ const cache = resolve(repositoryRoot, 'node_modules/.cache/compiler-root')
 
 /**
  * A local copy of the E2B image's compiler root: the template's files, the lockfile's install as
- * `full_modules` and `node_modules` as the allowlist's view of it. Installed once per template
+ * `full/node_modules` and `node_modules` as the allowlist's view of it. Installed once per template
  * content and shared by every suite that needs a real compiler.
  */
 export const ensureCompilerRoot = async () => {
@@ -43,7 +43,8 @@ export const ensureCompilerRoot = async () => {
       if (result.status !== 0) throw new Error(`COMPILER_ROOT_INSTALL_FAILED ${command} ${args.join(' ')}\n${result.stdout}\n${result.stderr}`)
     }
     run('npm', ['ci', '--no-audit', '--no-fund'])
-    renameSync(resolve(partial, 'node_modules'), resolve(partial, 'full_modules'))
+    mkdirSync(resolve(partial, 'full'))
+    renameSync(resolve(partial, 'node_modules'), resolve(partial, 'full/node_modules'))
     run(process.execPath, ['allowlist.mjs', 'link', '.'])
     renameSync(partial, ready)
     return ready

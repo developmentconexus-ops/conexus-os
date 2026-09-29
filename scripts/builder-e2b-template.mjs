@@ -54,8 +54,8 @@ export const createBuilderTemplate = (Template) => {
       `cd ${BUILDER_TEMPLATE_COMPILER_ROOT}`,
       'npm ci --no-audit --no-fund',
       'npm cache clean --force',
-      // The install becomes full_modules; node_modules is then the allowlist's view of it.
-      'mv node_modules full_modules',
+      // The install moves to full/node_modules; node_modules is then the allowlist's view of it.
+      'mkdir full && mv node_modules full/node_modules',
       'node allowlist.mjs link .',
     ].join(' && '))
     // Commands and file writes run as this user unless one names root. The Hub runs its

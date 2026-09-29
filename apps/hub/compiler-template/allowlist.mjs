@@ -15,11 +15,12 @@ export const packageOf = (specifier) => {
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
 }
 
-// The install lands in FULL_MODULES. What an app resolves is `node_modules`, a folder of links to the
+// The install lands in FULL_MODULES, a node_modules folder of its own so that each package finds its
+// dependencies by the ordinary lookup. What an app resolves is `node_modules`, a folder of links to the
 // allowed packages and their type packages only, so a package that is merely somebody's dependency
 // is not there to import. Each link's real path is in FULL_MODULES, where the package finds its own
 // dependencies.
-export const FULL_MODULES = 'full_modules'
+export const FULL_MODULES = 'full/node_modules'
 
 export const linkAllowedModules = (compilerRoot) => {
   const full = join(compilerRoot, FULL_MODULES)

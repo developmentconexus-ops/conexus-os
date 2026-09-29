@@ -10,7 +10,7 @@ npm 12.0.2 on Debian 12 bookworm, and runs commands as the unprivileged `conexus
 ## The app stack
 
 `package.json` pins the app stack of spec 0003 exactly and `package-lock.json` is what `npm ci`
-installs. The recipe installs into `full_modules` and then links only the manifest's own packages
+installs. The recipe installs into `full/node_modules` and then links only the manifest's own packages
 into `node_modules` (`allowlist.mjs link`). An app resolves `node_modules`, so a package that is only
 somebody's dependency (`immer`, `scheduler`) cannot be imported: `tsc` says `Cannot find module` and
 names it. `vite.config.mjs` adds the same rule at build time, by name, and refuses a path that
@@ -18,7 +18,7 @@ reaches into the compiler's packages. Every other tool the check runs (`vite`, `
 `node_modules` as before.
 
 `@types/node` is installed but never linked into `node_modules`: `tsconfig.server.json` reads it from
-`full_modules/@types` for the handlers under `conexus/`, and the app project never sees it, so `node:`
+`full/node_modules/@types` for the handlers under `conexus/`, and the app project never sees it, so `node:`
 imports work in handlers and fail in screens.
 
 ## The TypeScript projects
