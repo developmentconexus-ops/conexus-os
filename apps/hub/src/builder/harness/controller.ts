@@ -61,6 +61,16 @@ const hasNativeWebSearch = async (
   return providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)
 }
 
+/**
+ * How many of one step's tool calls run at once. Mastra's default strategy `'available'` runs them
+ * one at a time whenever any tool in the active set can suspend (`ask_user`, `submit_plan`), which
+ * is every step here. `'called'` looks only at the tools the model called in that step, so a step
+ * that calls `ask_user` or `submit_plan` still runs one at a time and every other step runs in
+ * parallel. Same-path writes stay ordered by the workspace's own per-file write lock. The limit is
+ * low because each command runs in one E2B sandbox.
+ */
+const TOOL_CALL_CONCURRENCY = { limit: 4, strategy: 'called' } as const
+
 const checkTools = (runCheck: (() => Promise<CheckReport>) | undefined, modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>): ToolsInput =>
   runCheck ? { [CHECK_TOOL]: createCheckTool(runCheck, modes) } : {}
 
@@ -136,6 +146,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     workspace: undefined,
     // Mastra's fallback when errorProcessors are set, made explicit so the cap is ours to read.
     maxProcessorRetries: 3,
+    defaultOptions: { toolCallConcurrency: TOOL_CALL_CONCURRENCY },
   })
 
   return new AgentController({
