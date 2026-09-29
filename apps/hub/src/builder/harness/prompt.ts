@@ -43,8 +43,9 @@ const promptFile = (promptRoot: string, variant: PromptVariantId, name: string):
 
 /**
  * Builds the agent's dynamic `instructions` function: the Conexus prompt, the current mode's prompt,
- * the Project's `AGENTS.md` under a project-knowledge heading, then the connector brief, in that
- * order (Shape of the harness), all of the run's prompt variant. The mode prompt lives here, in agent
+ * the connector brief under a Conexões heading, then the Project's `AGENTS.md` under a
+ * project-knowledge heading, all of the run's prompt variant. The brief and its integrator guides are
+ * instructions, so they come before the notes and never read as part of them. The mode prompt lives here, in agent
  * instructions, rather than in the `AgentController` mode's own `instructions`, because only agent
  * instructions are resolved again on a resumed call (proven in the blast radius of slices 0 and 1).
  * A variant the Hub does not ship fails the turn rather than falling back to another prompt.
@@ -61,7 +62,7 @@ export const conexusInstructions = (
   return [
     promptFile(promptRoot, variant, 'conexus.md'),
     promptFile(promptRoot, variant, mode.promptFile),
+    ...(connectorBrief ? [`## Conexões\n\n${connectorBrief}`] : []),
     ...(projectKnowledge ? [`## Project knowledge\n\n${projectKnowledge}`] : []),
-    ...(connectorBrief ? [connectorBrief] : []),
   ].join('\n\n')
 }

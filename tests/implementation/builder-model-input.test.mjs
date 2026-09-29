@@ -89,14 +89,14 @@ test('AC-1: the input holds what Mastra adds at run time, in order: the task lis
       assert.equal(messages.length, 5, `${mode}: five system messages`)
       assert.ok(messages[0].startsWith('# Conexus Builder'), 'the Conexus prompt comes first')
       assert.ok(messages[0].includes('## Project knowledge'), 'the Project knowledge is in the first message')
-      assert.ok(messages[0].includes('Connections bound to this Project, each named by the Project-local name a request passes as `connection`: `erp` (integrator sankhya).'), 'the connector brief is in the first message when a Connection is bound')
+      assert.ok(messages[0].includes('## Conexões\n\nConexões bound to this Project, each named by the Project-local name a request passes as `connection`: `erp` (integrator sankhya).'), 'the connector brief is in the first message when a Connection is bound')
       assert.ok(messages[1].startsWith('Task list state may appear in the conversation'), 'Mastra\'s task list note comes second')
       assert.ok(messages[2].includes('Files are stored in a remote sandbox at /workspace/repo.'), 'the workspace text comes third')
       assert.ok(messages[3].startsWith('<available_skills>'), 'the skill list comes fourth')
       for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code']) assert.ok(messages[3].includes(`<name>${name}</name>`), `the skill list names ${name}`)
       assert.ok(messages[4].startsWith('IMPORTANT: Skills are NOT tools.'), 'the skill rule comes last')
       assert.ok(output.includes('=== FIRST USER MESSAGE ===\nQuero uma tela que lista os pedidos do ERP.\n'), 'the first user message is printed')
-      assert.match(output, /^--- connector_fetch\nRead one of the Connections bound to this Project/m, 'connector_fetch is printed with its description')
+      assert.match(output, /^--- connector_fetch\nRead one of the Conexões bound to this Project/m, 'connector_fetch is printed with its description')
       assert.match(output, /^--- skill\nActivate a skill to load its full instructions/m, 'the skill tool is printed with its description')
     }
   } finally {
