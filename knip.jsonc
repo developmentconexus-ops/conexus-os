@@ -17,7 +17,6 @@
     "scripts/builder-eval/oracle.mjs",
     "scripts/builder-eval/sankhya-sim.mjs",
     "scripts/builder-eval/serve.mjs",
-    "scripts/builder-model-input.mjs",
     "tests/**/*.test.mjs",
     // Test-support files that are run or loaded but never imported. Name each one: a directory glob
     // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).

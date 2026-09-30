@@ -81,9 +81,8 @@ test('every code a build failure can settle with names the build, not an interna
   }
 })
 
-test("a candidate the Project's own rules refuse reads as a rejected result (AC-9)", () => {
+test("a candidate the Hub's check refuses reads as a rejected result (AC-9)", () => {
   assert.equal(builderFailureCategory('BUILDER_CHECK_FAILED'), 'SOURCE_RESULT_REJECTED')
-  assert.equal(builderFailureCategory('BUILDER_AGENTS_MD_REFUSED'), 'SOURCE_RESULT_REJECTED')
 })
 
 test('no code outside the table reaches the wire', () => {

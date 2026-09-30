@@ -198,7 +198,7 @@ test('P3: an input naming a service, entity, expression, URL, header or token is
 
 test('P4 (G0): a write operation is EFFECT_REFUSED and a service outside the allow-list is SERVICE_REFUSED, each with zero fake requests', async (t) => {
   const writer = {
-    id: 'sankhya', credential: sankhyaDefinition.credential, events: [], builderSkill: '',
+    id: 'sankhya', credential: sankhyaDefinition.credential, events: [],
     operations: [
       { id: 'test.order.write', effect: 'write', summary: 'writes', input: z.object({}), output: z.object({}), run: async (_input, session) => session.loadRecords({}) },
       { id: 'test.order.other-service', effect: 'read', summary: 'asks another service', input: z.object({}), output: z.object({}), run: async (_input, session) => session.callService('CRUDServiceProvider.saveRecord', {}) },
@@ -248,7 +248,7 @@ test('P5: an extra provider field is dropped, an oversized body is RESPONSE_REFU
   assert.deepEqual(await extra.broker.call(consumer, READ, { documentNumber: 22790 }), { ok: true, value: EXPECTED_ORDER_22790 })
 
   const stripping = {
-    id: 'sankhya', credential: sankhyaDefinition.credential, events: [], builderSkill: '',
+    id: 'sankhya', credential: sankhyaDefinition.credential, events: [],
     operations: [{ id: 'test.order.extra', effect: 'read', summary: 'extra key', input: z.object({}), output: z.object({ kept: z.string() }), run: async () => ({ kept: 'yes', password: SECRET_MARKER }) }],
   }
   const strip = await setup(t, { extra: [stripping] })

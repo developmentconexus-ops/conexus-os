@@ -51,17 +51,17 @@ test('C-020 preserves state invariants and separates response settlement from bu
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
 
   ingressClient = await connect(ingress); executorClient = await connect(executor)
-  const create = async (client, mode, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value', [accountId, projectId, `conversa-${projectId}`, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, mode, id, source])).rows[0].value
+  const create = async (client, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value', [accountId, projectId, `conversa-${projectId}`, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, id, source])).rows[0].value
   const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1) AS value', [id])).rows[0].value
 
-  const planId = randomUUID(); await create(ingressClient, 'PLAN', planId)
+  const planId = randomUUID(); await create(ingressClient, planId)
   assert.equal((await claim(planId)).state, 'RUNNING')
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', 'FAIL'])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [planId, null, 'RESPONSE_ONLY', null])).rows[0].settle_builder_run, true)
 
   await adminClient.query('UPDATE builder.project_working_state SET last_preview_source_revision = $1, last_preview_artifact_revision_id = $2, last_preview_artifact_digest = $3 WHERE project_id = $4', [source, previousArtifactRevisionId, previousArtifactDigest, projectId])
-  const sourceId = randomUUID(); await create(ingressClient, 'BUILD', sourceId)
+  const sourceId = randomUUID(); await create(ingressClient, sourceId)
   await claim(sourceId)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED', null])).rows[0].settle_builder_run, false)
   assert.equal((await executorClient.query('SELECT builder.settle_builder_run($1,$2,$3,$4)', [sourceId, nextSource, 'SOURCE_CHANGED_BUILD_FAILED', 'COMPILE_FAILED'])).rows[0].settle_builder_run, false)
@@ -82,7 +82,7 @@ test('C-020 preserves state invariants and separates response settlement from bu
 
   // Removing the member is now the whole revocation: the queued run's next claim asks again
   // under its own author and is refused.
-  const staleId = randomUUID(); await create(ingressClient, 'BUILD', staleId)
+  const staleId = randomUUID(); await create(ingressClient, staleId)
   await adminClient.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
   await assert.rejects(() => claim(staleId), /NOT_ADMITTED/)
   await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])

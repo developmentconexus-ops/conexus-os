@@ -206,7 +206,7 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, conversationId, state, mode, baseSourceRevision, requestText, createdAt, failureCategory, cancellationRequested]
+      required: [builderRunId, projectId, conversationId, state, baseSourceRevision, requestText, createdAt, failureCategory, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -214,7 +214,6 @@ components:
         # resourceId, not a Conexus record: the product keeps no conversation store of its own.
         conversationId: { type: string, minLength: 1, maxLength: 200 }
         state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
-        mode: { type: string, enum: [BUILD, PLAN] }
         baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
         resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
@@ -267,8 +266,8 @@ components:
       properties:
         projectId: { type: string, format: uuid }
         # The Project's conversations are its Mastra threads, so the browser lists, opens and reads
-        # them, and switches their mode and model, over the Agent Controller routes. Nothing about
-        # them is projected here: a run starts in its conversation's own mode.
+        # them, and switches their model, over the Agent Controller routes. Nothing about them is
+        # projected here.
         latestBuilderRun:
           oneOf:
             - $ref: '#/components/schemas/BuilderRunSummary'
@@ -343,10 +342,6 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-        promptVariant:
-          description: The Builder prompt variant this run uses; absent means the default (v2). The eval names one to compare variants.
-          type: string
-          enum: [v2]
     BuilderMessageAccepted:
       type: object
       additionalProperties: false

@@ -118,10 +118,9 @@ test('P4: a write service and a mismatched or absent body serviceName are SERVIC
   assert.deepEqual(fake.requests.map(({ path, origin }) => [path, origin]), [['/authenticate', fake.origin], [ROUTE, fake.origin]])
 })
 
-test('a read-only consult passes, the Skill\'s example included: a SELECT and a WITH reach the vendor with the exact body, keywords in text and comments and a trailing ; included', async (t) => {
+test('a read-only consult passes, a SELECT and a WITH reach the vendor with the exact body, keywords in text and comments and a trailing ; included', async (t) => {
   const { fake, broker } = await setup(t)
   const taught = 'SELECT CAB.NUNOTA, CAB.DTNEG, PRO.CODPROD, PRO.DESCRPROD FROM TGFCAB CAB JOIN TGFITE ITE ON ITE.NUNOTA = CAB.NUNOTA JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD WHERE CAB.NUMNOTA = 1234'
-  assert.ok(sankhyaDefinition.builderSkill.includes(`\`${taught}\``), 'the Skill teaches this consult')
   const reads = [
     taught,
     'SELECT CODPROD, DESCRPROD FROM TGFPRO WHERE CODPROD IN (501, 502)',

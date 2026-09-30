@@ -52,7 +52,7 @@ const recoveryHarness = async (t, name, crashes) => {
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, crash.name, base])
     await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
     await query(connectionString, `
-      INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, mode, base_source_revision, state, phase)
+      INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase)
       VALUES ($1, $2, $3, $4, $5, $6, 'BUILD', $7, 'RUNNING', $8)`,
     [builderRunId, projectId, owner, randomUUID(), builderRunId.replaceAll('-', '').padEnd(64, '0'), 'f'.repeat(64), base, crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase])
     if (crash.candidate) assert.equal((await executorPool.query('SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, result])).rows[0].value, true)
@@ -144,8 +144,8 @@ test('a run that started in Planejar and built after the plan approval records, 
   await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Plan', 'NEW', $3, 'plan')", [projectId, workspaceId, base])
   await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
   await query(connectionString, `
-    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, mode, base_source_revision, state, phase)
-    VALUES ($1, $2, $3, $4, $5, $6, 'PLAN', $7, 'RUNNING', 'AGENT')`,
+    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', 'AGENT')`,
   [builderRunId, projectId, owner, randomUUID(), '1'.repeat(64), '2'.repeat(64), base])
   const executorPool = testPool({ ...connection, max: 1, options: '-c role=hub_builder_executor' })
   onCleanup(() => executorPool.end())
@@ -155,8 +155,8 @@ test('a run that started in Planejar and built after the plan approval records, 
   await store.advanceBuilderRunSource(builderRunId, candidate)
   const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
   await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
-  const [row] = (await query(connectionString, 'SELECT mode, state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
+  const [row] = (await query(connectionString, 'SELECT state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
   assert.deepEqual({ admitted: admitted.value, ...row }, {
-    admitted: true, mode: 'PLAN', state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
+    admitted: true, state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
   })
 })

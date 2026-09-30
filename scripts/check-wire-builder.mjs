@@ -51,17 +51,17 @@ const closed = (value, label) => {
 const session = closed(schema('BLD-23', 'response'), 'BLD-23 response')
 required(session, 'projectId', 'latestBuilderRun', 'latestCodeChangingRun', 'preview', 'runHistory')
 if (session.properties?.activeBuilderRun) throw new Error('BLD-23 exposes activeBuilderRun')
-// A Project's conversations, their mode and the model are Mastra's. Projecting any of them here
+// A Project's conversations and the model are Mastra's. Projecting any of them here
 // would put a second authority beside the one C-022 chose.
-for (const name of ['threadId', 'modelChoices', 'mode']) {
+for (const name of ['threadId', 'modelChoices']) {
   if (session.properties?.[name]) throw new Error(`BLD-23 exposes ${name}`)
 }
 const preview = closed(resolve(session.properties?.preview), 'BLD-23 preview')
 required(preview, 'workingSourceRevision', 'lastGoodSourceRevision', 'lastGoodArtifactRevisionId', 'lastGoodArtifactDigest')
 const message = closed(schema('BLD-24', 'request'), 'BLD-24 request')
 required(message, 'content', 'conversationId')
-// A run starts in its conversation's own mode, switched through the conversation's session.
-for (const name of ['modelChoiceId', 'mode']) {
+// A run starts on its conversation's own model, switched through the conversation's session.
+for (const name of ['modelChoiceId']) {
   if (message.properties?.[name]) throw new Error(`BLD-24 exposes ${name}`)
 }
 for (const id of ['BLD-27', 'BLD-28']) {

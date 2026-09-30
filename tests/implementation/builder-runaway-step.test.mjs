@@ -51,20 +51,20 @@ const openRun = async (t, model, modelStepTimeoutMs) => {
   t.after(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(root, { recursive: true })
   const workspace = new Workspace({ id: 'runaway-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const runWorkspaces = new Map()
+  const runWorkspaces = new Map([[conversationId, workspace]])
   const storage = new InMemoryStore()
   await storage.init()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderRunId')),
+    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
     model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
     ...(modelStepTimeoutMs ? { modelStepTimeoutMs } : {}),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  return createControllerRunSessions({ controller, runContexts: new Map(), runWorkspaces, runTools: new Map() })({
+  return createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces: runWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => { throw new Error('not used') },
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderRunId', builderRunId),
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
 }
 

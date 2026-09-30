@@ -166,9 +166,9 @@ test("the installation's default model for a role reads as NULL until it is set,
   const { connectionString } = await buildHubDatabase(t, 'conexus_model_installation_default')
   const admin = await account(connectionString, 'admin')
   const read = async (role) => (await callAs(connectionString, 'hub_model_account', 'SELECT model.read_installation_default($1) AS model_id', [role]))[0].model_id
-  assert.deepEqual([await read('plan'), await read('build')], [null, null])
+  assert.deepEqual([await read('memory'), await read('build')], [null, null])
   await query(connectionString, 'INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ($1,$2,$3)', ['build', 'google-ai-pro/gemini-3-flash', admin])
-  assert.deepEqual([await read('plan'), await read('build')], [null, 'google-ai-pro/gemini-3-flash'])
+  assert.deepEqual([await read('memory'), await read('build')], [null, 'google-ai-pro/gemini-3-flash'])
   assert.equal((await refusalAs(connectionString, 'hub_model_account', 'SELECT model_id FROM model.installation_default'))?.code, '42501')
 })
 

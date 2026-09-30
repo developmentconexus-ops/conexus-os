@@ -104,7 +104,7 @@ const fakeRunner = (t) => {
   return { invoke, invocations }
 }
 
-const inMode = (modeId) => { const requestContext = new RequestContext(); requestContext.set('controller', { session: { modeId } }); return { requestContext } }
+const inMode = () => ({ requestContext: new RequestContext() })
 
 const setup = async (t, { built = BUILT } = {}) => {
   const fake = await startFakeGateway()
@@ -134,7 +134,7 @@ const ITEM_VALUES = ['501', '502', '100.05', '130', '9001', '22790', 'Parafuso',
 
 test('the tool runs the operation through the run\'s Conexão and returns item counts and fill rates, never a value', async (t) => {
   const { fake, tool, runner } = await setup(t)
-  const report = await tool.execute({ operation: 'orderLines', input: {} }, inMode('build'))
+  const report = await tool.execute({ operation: 'orderLines', input: {} }, inMode())
   assert.deepEqual(report, {
     ok: true,
     operation: 'orderLines',
@@ -155,20 +155,20 @@ test('the tool runs the operation through the run\'s Conexão and returns item c
 
 test('an output that breaks the schema returns HANDLER_OUTPUT_REFUSED with the pointer, not the value', async (t) => {
   const { tool } = await setup(t)
-  const report = await tool.execute({ operation: 'orderLines', input: { priceAsNumber: true } }, inMode('build'))
+  const report = await tool.execute({ operation: 'orderLines', input: { priceAsNumber: true } }, inMode())
   assert.deepEqual(report, { ok: false, operation: 'orderLines', code: 'HANDLER_OUTPUT_REFUSED', detail: '/items/0/price: expected string' })
 })
 
 test('a handler\'s thrown message never reaches the tool result', async (t) => {
   const { tool } = await setup(t)
-  assert.deepEqual(await tool.execute({ operation: 'throwsWithValue', input: {} }, inMode('build')), { ok: false, operation: 'throwsWithValue', code: 'HANDLER_FAILED' })
+  assert.deepEqual(await tool.execute({ operation: 'throwsWithValue', input: {} }, inMode()), { ok: false, operation: 'throwsWithValue', code: 'HANDLER_FAILED' })
 })
 
 test('the operation spends the run\'s Conexão budget: with one call left, its second read is CALL_LIMIT', async (t) => {
   const { tool, connectorFetch, fake } = await setup(t)
   const read = { connection: 'erp', method: 'POST', path: '/gateway/v1/mge/service.sbr', query: { serviceName: 'CRUDServiceProvider.loadRecords', outputType: 'json' }, body: { serviceName: 'CRUDServiceProvider.loadRecords', requestBody: { dataSet: NATIVE_ORDER_DATASET } } }
   for (let call = 1; call < BUILDER_RUN_TERMS.calls; call += 1) assert.equal((await connectorFetch.execute(read)).ok, true)
-  const report = await tool.execute({ operation: 'orderLines', input: { readHeaderFirst: true } }, inMode('build'))
+  const report = await tool.execute({ operation: 'orderLines', input: { readHeaderFirst: true } }, inMode())
   assert.deepEqual(report, {
     ok: true,
     operation: 'orderLines',
@@ -182,26 +182,20 @@ test('the operation spends the run\'s Conexão budget: with one call left, its s
 test('after the run ends its scope is revoked, so the operation\'s reads are NOT_GRANTED', async (t) => {
   const { tool, run, fake } = await setup(t)
   run.end()
-  const report = await tool.execute({ operation: 'orderLines', input: {} }, inMode('build'))
+  const report = await tool.execute({ operation: 'orderLines', input: {} }, inMode())
   assert.deepEqual(report.fields['/failure'], { values: 1, filled: 1 })
   assert.equal(fake.requests.length, 0)
 })
 
 test('a server half that does not build, and an undeclared operation, answer with the build\'s own reason', async (t) => {
   const broken = await setup(t, { built: 'conexus/handlers/lines.ts does not exist' })
-  assert.deepEqual(await broken.tool.execute({ operation: 'orderLines', input: {} }, inMode('build')), {
+  assert.deepEqual(await broken.tool.execute({ operation: 'orderLines', input: {} }, inMode()), {
     ok: false, operation: 'orderLines', code: 'SERVER_BUILD_FAILED', detail: 'conexus/handlers/lines.ts does not exist',
   })
   const { tool, runner } = await setup(t)
-  assert.deepEqual(await tool.execute({ operation: 'orderTotals', input: {} }, inMode('build')), {
+  assert.deepEqual(await tool.execute({ operation: 'orderTotals', input: {} }, inMode()), {
     ok: false, operation: 'orderTotals', code: 'OPERATION_NOT_FOUND', detail: 'declared: orderLines, throwsWithValue',
   })
-  assert.deepEqual(runner.invocations, [])
-})
-
-test('conexus_run_operation refuses in Planejar', async (t) => {
-  const { tool, runner } = await setup(t)
-  await assert.rejects(() => tool.execute({ operation: 'orderLines', input: {} }, inMode('plan')), /Construir/)
   assert.deepEqual(runner.invocations, [])
 })
 

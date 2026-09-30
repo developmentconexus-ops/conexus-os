@@ -50,6 +50,7 @@ const applicationStackV2Digest = '80bc51c5c305246a5ddc91816e8fa81e8063996ebc7523
 const runModelAccountsDigest = '1de462f5dd403e811ab560cf91e787e69a2efde610f21cb62a039e345389b8cc'
 const conversationSessionDigest = 'b34c286a9c12f1b21c6a672001dd0cf3d75241fd9c72ffbebca576e431c4acfe'
 const conversationSandboxDigest = '22d9add00f715c6cf681cbea139629045c8b0c44d82c20c4569545f514f4e622'
+const oneModeDigest = 'f3947f61bdcc47936af47c4491a7b9e55e457a80fcb16b10e6766f5f93473aaa'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -92,6 +93,7 @@ const migrationDigests = new Map([
   ['0038_builder_run_model_accounts.sql', runModelAccountsDigest],
   ['0039_builder_conversation_session.sql', conversationSessionDigest],
   ['0040_builder_conversation_sandbox.sql', conversationSandboxDigest],
+  ['0041_builder_one_mode.sql', oneModeDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

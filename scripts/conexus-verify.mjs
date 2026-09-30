@@ -72,7 +72,6 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
   candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs'),
-  candidateStep('builder-model-input', 'node --test tests/implementation/builder-model-input.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),

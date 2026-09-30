@@ -154,34 +154,21 @@ test('a conversation session opens only on its own thread, and an id another Pro
   assert.equal(read.statusCode, 404, "another Project's conversation is not found under this Project")
 })
 
-test("a conversation's mode switches only while no run is in flight, and never on a run's own session (AC-5)", async (t) => {
+test("a conversation's model changes only while no run is in flight, and a run's own session refuses it", async (t) => {
   const { app, controller } = await createBuilderApp(t)
-  const switched = await app.inject({ method: 'POST', url: `${sessionBase()}/mode?${inConversation()}`, ...authentic, payload: { modeId: 'build' } })
+  const switched = await app.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(switched.statusCode, 200)
   const state = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation()}`, ...authentic })
-  assert.equal(state.json().modeId, 'build')
+  assert.equal(state.json().modelId, 'google-ai-pro/gemini-3-flash')
   const liveRun = `builder:${randomUUID()}`
   await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const onRun = await app.inject({ method: 'POST', url: `${sessionBase()}/mode?sessionScope=${liveRun}`, ...authentic, payload: { modeId: 'plan' } })
+  const onRun = await app.inject({ method: 'POST', url: `${sessionBase()}/model?sessionScope=${liveRun}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(onRun.statusCode, 409)
 
   const { app: busyApp } = await createBuilderApp(t, { busy: true })
-  const refused = await busyApp.inject({ method: 'POST', url: `${sessionBase()}/mode?${inConversation()}`, ...authentic, payload: { modeId: 'build' } })
+  const refused = await busyApp.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(refused.statusCode, 409)
-  assert.deepEqual(refused.json().title, 'O modo só muda quando o Builder está parado')
-})
-
-test("a model chosen on a run's own session, for both modes, is the conversation's model, even while the run is in flight", async (t) => {
-  const { app, controller } = await createBuilderApp(t)
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const chosen = []
-  for (const modeId of ['plan', 'build']) {
-    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/model?sessionScope=${liveRun}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread', modeId } })
-    chosen.push(response.statusCode)
-  }
-  const state = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation()}`, ...authentic })
-  assert.deepEqual([chosen, state.json().modelId], [[200, 200], 'google-ai-pro/gemini-3-flash'])
+  assert.deepEqual(refused.json().title, 'O modelo só muda quando o Builder está parado')
 })
 
 test('only the Builder controller id is served, the Factory mount is gone, and the browser may not create, switch, rename or delete threads', async (t) => {
@@ -336,7 +323,7 @@ test('the source compare route requires authentication and 40-hex revisions', as
   assert.equal(malformed.statusCode, 400)
 })
 
-test('a message names its conversation and no mode: the run starts in the conversation\'s own mode, and an unknown conversation is 404', async (t) => {
+test('a message names its conversation only: mode and promptVariant are refused, an unknown conversation is 404', async (t) => {
   const received = []
   const { app } = await createBuilderRoutesApp(t, {
     createBuilderRun: async (input) => { received.push(input); throw new Error('BUILDER_CONVERSATION_NOT_FOUND') },
@@ -344,22 +331,9 @@ test('a message names its conversation and no mode: the run starts in the conver
   const url = `/api/control/projects/${projectA}/builder-session/messages`
   const send = (payload) => app.inject({ method: 'POST', url, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload })
   const withMode = await send({ content: 'altere', conversationId: conversationA, mode: 'BUILD' })
+  const withVariant = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v2' })
   const unknown = await send({ content: 'altere', conversationId: conversationA })
-  assert.deepEqual([withMode.statusCode, unknown.statusCode], [400, 404])
+  assert.deepEqual([withMode.statusCode, withVariant.statusCode, unknown.statusCode], [400, 400, 404])
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
-})
-
-test('a message may name a prompt variant the Hub ships; an unknown one is refused before a run exists', async (t) => {
-  const received = []
-  const { app } = await createBuilderRoutesApp(t, {
-    createBuilderRun: async (input) => { received.push(input); throw new Error('BUILDER_CONVERSATION_NOT_FOUND') },
-  })
-  const url = `/api/control/projects/${projectA}/builder-session/messages`
-  const send = (payload) => app.inject({ method: 'POST', url, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload })
-  const named = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v2' })
-  const removed = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v1' })
-  const unknown = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v9' })
-  assert.deepEqual([named.statusCode, removed.statusCode, unknown.statusCode], [404, 400, 400])
-  assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere', promptVariant: 'v2' }])
 })

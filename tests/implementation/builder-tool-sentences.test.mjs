@@ -50,7 +50,7 @@ test('conexus_check reads as checking the app, running and done', () => {
   assert.equal(toolSentence('conexus_check', false), 'Verificou o app')
 })
 
-const { BUILDER_MODES } = await import(hubModuleUrl('builder/harness/modes.js'))
+const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 
 const REGISTERED_TOOL_SENTENCES = {
   mastra_workspace_read_file: 'Leu um arquivo',
@@ -75,14 +75,54 @@ const REGISTERED_TOOL_SENTENCES = {
   connector_fetch: 'Consultou um sistema da empresa',
   web_search: 'Pesquisou na internet',
   web_fetch: 'Abriu uma página da internet',
-  submit_plan: 'Enviou o plano',
   conexus_check: 'Verificou o app',
   conexus_run_operation: 'Testou uma operação com dados reais',
 }
 
-test('every tool a Builder mode registers has its own pt-BR sentence, running and done', () => {
-  const registered = [...new Set(Object.values(BUILDER_MODES).flatMap((mode) => [...mode.availableTools]))].sort()
-  assert.deepEqual(registered, Object.keys(REGISTERED_TOOL_SENTENCES).sort())
+// The names of the tools a run's first model call carries, by driving one turn on the real controller.
+const toolsOfARun = async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { resolve } = await import('node:path')
+  const { InMemoryStore } = await import('@mastra/core/storage')
+  const { createTool } = await import('@mastra/core/tools')
+  const { LocalFilesystem, LocalSandbox, Workspace } = await import('@mastra/core/workspace')
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-tool-sentences-'))
+  try {
+    let names = null
+    const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+    const model = {
+      specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+      async doGenerate() { throw new Error('doGenerate not used') },
+      async doStream(options) {
+        names ??= (options.tools ?? []).map((tool) => tool.name).sort()
+        return { stream: new ReadableStream({ start(controller) {
+          for (const part of [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]) controller.enqueue(part)
+          controller.close()
+        } }) }
+      },
+    }
+    const { BUILDER_WORKSPACE_TOOLS_CONFIG } = await import(hubModuleUrl('builder/sandbox.js'))
+    const workspace = new Workspace({ id: 'sentences-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }), tools: BUILDER_WORKSPACE_TOOLS_CONFIG })
+    const controller = createBuilderController({
+      workspace, model, storage: new InMemoryStore(), skillsPath: resolve(import.meta.dirname, '../../builder-skills'),
+      connectorFetch: () => ({ connector_fetch: createTool({ id: 'connector_fetch', description: 'probe', execute: async () => ({}) }) }),
+      runTools: () => ({ check: async () => ({}), runOperation: async () => ({}) }),
+    })
+    await controller.init()
+    const session = await controller.createSession({ resourceId: 'project:probe-sentences', scope: 'probe-sentences' })
+    await session.sendMessage({ content: 'oi' })
+    for (let waited = 0; names === null && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
+    await controller.destroy?.()
+    return names
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('every tool the Builder offers a run has its own pt-BR sentence, running and done', async () => {
+  const registered = (await toolsOfARun()).filter((name) => name !== 'web_search')
+  assert.deepEqual(registered, Object.keys(REGISTERED_TOOL_SENTENCES).filter((name) => name !== 'web_search').sort())
   for (const [toolName, done] of Object.entries(REGISTERED_TOOL_SENTENCES)) {
     assert.equal(toolSentence(toolName, false), done, toolName)
     assert.notEqual(toolSentence(toolName, true), 'Usando uma ferramenta', toolName)

@@ -38,10 +38,9 @@ const filesUnder = (directory, keep = () => true) =>
 
 const TEXT_EXTENSION = /\.(md|tsx?|mjs|json|css|html)$/
 // Every text the Builder reads: the Sankhya guide and the brief around it, the tool descriptions, the
-// shared prompt and every methodology's mode files, the skills with their reference examples, the starter AGENTS.md and the
+// Builder prompt, the skills with their reference examples, the starter AGENTS.md and the
 // starter template's example files.
 const BUILDER_TEXTS = [
-  'apps/hub/src/connectors/sankhya/skill.ts',
   'apps/hub/src/connectors/builder-brief.ts',
   'apps/hub/src/connectors/builder-tool.ts',
   'apps/hub/src/builder/harness/tools.ts',
@@ -60,10 +59,11 @@ const findLeaks = (files) =>
 
 test('the list of Builder texts covers the guide, the prompt, the skills, the starter and the tool descriptions', () => {
   for (const expected of [
-    'apps/hub/src/connectors/sankhya/skill.ts',
+    'builder-skills/conexus-sankhya/SKILL.md',
+    'builder-skills/conexus-plan/SKILL.md',
+    'builder-skills/conexus-build/SKILL.md',
     'apps/hub/src/builder/handler-kit/sankhya.ts',
-    'apps/hub/src/builder/harness/prompt/conexus.md',
-    ...['v2', 'afiado', 'escopo', 'tarefas', 'fatias'].flatMap((folder) => ['plan.md', 'build.md'].map((file) => `apps/hub/src/builder/harness/prompt/${folder}/${file}`)),
+    'apps/hub/src/builder/harness/prompt/builder.md',
     'builder-skills/conexus-server/SKILL.md',
     'builder-skills/conexus-app-code/references/router.tsx',
     'apps/hub/src/builder/starter/AGENTS.md',

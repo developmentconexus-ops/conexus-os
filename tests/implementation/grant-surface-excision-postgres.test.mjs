@@ -74,8 +74,8 @@ const seedProject = async (connection, workspaceId, label, sourceRevision) => {
 }
 const digest = () => randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64)
 const createRun = (connection, accountId, projectId, runId) =>
-  query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
-    [accountId, projectId, `conversa-${projectId}`, digest(), digest(), 'pedido', null, 'PLAN', runId, 'a'.repeat(40)])
+  query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
+    [accountId, projectId, `conversa-${projectId}`, digest(), digest(), 'pedido', null, runId, 'a'.repeat(40)])
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
   const connection = await freshDatabase(t)
@@ -120,7 +120,7 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [stranger, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [stranger, projectId])).rows[0].value, null)
   for (const [sql, parameters] of [
-    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, 'PLAN', randomUUID(), sourceRevision]],
+    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]],
     ['SELECT builder.request_builder_run_cancellation($1,$2,$3)', [stranger, projectId, runId]],
     ['SELECT * FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)', [stranger, workspaceId, 'f'.repeat(64), '0'.repeat(64), randomUUID()]],
   ]) {
@@ -183,8 +183,8 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.equal((await query(connection, 'SELECT builder.read_builder_run($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [dormant, projectId])).rows, [])
-  assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, 'PLAN', randomUUID(), sourceRevision]), { code: '42501', message: 'NOT_ADMITTED' })
+  assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]), { code: '42501', message: 'NOT_ADMITTED' })
 })
 
 test('the runner refuses a database where PUBLIC may execute a Hub function', async (t) => {

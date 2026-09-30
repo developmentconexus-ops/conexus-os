@@ -353,33 +353,39 @@ const routesOver = (holds = null) => ({
   'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
 })
 
-const routingOver = async ({ store, threadModels = {}, installationDefault = () => null, routes = routesOver() }) => {
+const routingOver = async ({ store, threadModel = null, defaults = {}, routes = routesOver() }) => {
   const { RequestContext } = await import('@mastra/core/request-context')
   const { createModelRouting } = await import(built('builder/model-routing.js'))
   const recorded = []
   const routing = createModelRouting({
     routes,
     modelAccounts: store,
-    modelOf: async (_projectId, _conversationId, mode) => threadModels[mode] ?? null,
-    readDefault: async () => installationDefault(),
+    conversationModel: async () => threadModel,
+    readDefault: async (role) => defaults[role] ?? null,
     record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
-  const call = (builderRunId, accountId, modelId, modeId = 'build') => {
+  const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()
     requestContext.setRaw('conexusBuilderRunId', builderRunId)
     requestContext.setRaw('conexusBuilderAccountId', accountId)
-    requestContext.set('controller', { session: { modelId, modeId } })
+    requestContext.set('controller', { session: { modelId } })
     return routing.resolve({ requestContext })
   }
-  const check = (accountId, mode = 'PLAN') => routing.check({ accountId, projectId: 'project-1', conversationId: 'conversation-1', mode })
-  return { call, check, recorded }
+  const memoryCall = (builderRunId, accountId) => {
+    const requestContext = new RequestContext()
+    requestContext.setRaw('conexusBuilderRunId', builderRunId)
+    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    return routing.resolveMemory(requestContext)
+  }
+  const check = (accountId) => routing.check({ accountId, projectId: 'project-1', conversationId: 'conversation-1' })
+  return { call, memoryCall, check, recorded }
 }
 
 test("a model call pays with the caller's own account for its model's provider, else the shared one; without either it fails with the connect-a-model message", async () => {
   const { store, share } = fakeStore()
   await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
   await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  const { call, check } = await routingOver({ store, threadModels: { plan: 'openai/gpt-5.6-sol' } })
+  const { call, check } = await routingOver({ store, threadModel: 'openai/gpt-5.6-sol', defaults: { memory: 'openai/gpt-5.6-sol' } })
 
   assert.deepEqual(await call('run-ana', ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
   await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, "bia's Google account does not pay for a ChatGPT model")
@@ -396,34 +402,27 @@ test('a model for a provider the Hub cannot call is refused with the connect-a-m
   await assert.rejects(call('run-ana', ana, 'anthropic/claude-fable-5'), /BUILDER_MODEL_NOT_SELECTED/)
 })
 
-test("the installation's default answers when the session chose no model", async () => {
+test("a session with no model is refused at the call; the start check falls back to the installation's Builder default and needs its memory default", async () => {
   const { store } = fakeStore()
   await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  let installationDefault = null
-  const { call } = await routingOver({ store, installationDefault: () => installationDefault })
-  await assert.rejects(call('run-bia', bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'no selection and no installation default')
-  installationDefault = 'google-ai-pro/gemini-3-flash'
-  assert.deepEqual(await call('run-bia', bia, ''), { called: 'gemini-3-flash', with: 'bia-google-secret' })
+  const { call, check } = await routingOver({ store })
+  await assert.rejects(call('run-bia', bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'the session holds no model')
+  await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no conversation model and no installation default')
+  const withBuild = await routingOver({ store, defaults: { build: 'google-ai-pro/gemini-3-flash' } })
+  await assert.rejects(withBuild.check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no memory default')
+  const withBoth = await routingOver({ store, defaults: { build: 'google-ai-pro/gemini-3-flash', memory: 'google-ai-pro/gemini-3-flash' } })
+  await assert.doesNotReject(withBoth.check(bia))
 })
 
-test('a run planned on ChatGPT and built on Google AI Pro pays each call with that model\'s account and records both', async () => {
+test("a run's Builder calls and its memory calls each pay with their own model's account and record both", async () => {
   const { store, rows } = fakeStore()
   await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
   await store.write(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
-  const { call, recorded } = await routingOver({ store })
+  const { call, memoryCall, recorded } = await routingOver({ store, defaults: { memory: 'google-ai-pro/gemini-3-flash' } })
 
-  assert.deepEqual(await call('run-1', ana, 'openai/gpt-5.6-sol', 'plan'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
-  assert.deepEqual(await call('run-1', ana, 'google-ai-pro/gemini-3-flash', 'build'), { called: 'gemini-3-flash', with: 'ana-google-secret' })
+  assert.deepEqual(await call('run-1', ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
+  assert.deepEqual(await memoryCall('run-1', ana), { called: 'gemini-3-flash', with: 'ana-google-secret' })
   assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:openai-codex`).id], ['run-1', rows.get(`${ana}:google-ai-pro`).id]])
-})
-
-test('a fresh conversation with a model only for Planejar starts: the start check reads the start mode alone', async () => {
-  const { store } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
-  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  const { check } = await routingOver({ store, threadModels: { plan: 'openai/gpt-5.6-sol', build: null } })
-  await assert.doesNotReject(check(ana, 'PLAN'))
-  await assert.rejects(check(bia, 'PLAN'), /BUILDER_MODEL_NOT_SELECTED/, 'the one model the run starts on has no account')
 })
 
 test('a ChatGPT token refreshed on one call is written back once, and the next call reads it from the row', async () => {

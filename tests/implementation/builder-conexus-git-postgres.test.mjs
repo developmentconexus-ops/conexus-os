@@ -37,9 +37,9 @@ const refusalAs = async (connectionString, role, sql, parameters = []) => {
 }
 const one = async (connectionString, role, sql, parameters) => Object.values((await callAs(connectionString, role, sql, parameters))[0])[0]
 
-const CREATE_RUN = 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS run'
-const runArguments = (accountId, projectId, key, runId, base = STARTER, mode = 'BUILD') =>
-  [accountId, projectId, `conversation-${projectId}`, key.repeat(64), 'f'.repeat(64), 'pedido', null, mode, runId, base]
+const CREATE_RUN = 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS run'
+const runArguments = (accountId, projectId, key, runId, base = STARTER) =>
+  [accountId, projectId, `conversation-${projectId}`, key.repeat(64), 'f'.repeat(64), 'pedido', null, runId, base]
 
 test('every function 0032 reshaped runs against a Project whose source is its Conexus Git repository', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_git_functions')

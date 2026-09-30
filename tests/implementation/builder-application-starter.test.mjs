@@ -15,7 +15,6 @@ const {
   materializeApplicationShape,
   fixedApplicationStarterFiles,
   materializeFixedApplicationStarter,
-  removeStaleServerSkill,
 } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const FIXED_APPLICATION_STARTER_FILES = fixedApplicationStarterFiles(repositoryRoot)
@@ -154,9 +153,13 @@ test('the candidate pull leaves out the compiler link and every generated file',
   assert.deepEqual(APPLICATION_CHECK_EXCLUDED, ['app/node_modules', '*.gen.ts'])
 })
 
-test('the starter Project knowledge leaves the app stack to the system prompt, which owns the package list', () => {
-  const knowledge = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/starter/AGENTS.md'), 'utf8')
-  assert.equal(knowledge, '# Project knowledge\n\n## Data sources\n\nNone yet.\n\n## Decisions\n\nNone yet.\n')
+test('the starter files give the people an AGENTS.md for their instructions and the Builder an empty memory index', async () => {
+  const { starterProjectFiles } = await import(hubModuleUrl('builder/project-context.js'))
+  const files = starterProjectFiles()
+  assert.deepEqual(files.map((file) => file.path), ['AGENTS.md', '.conexus/memory/MEMORY.md'])
+  assert.equal(files[1].content, '## Regras\n\n## Fontes\n\n## Decisões\n\n## Preferências\n')
+  assert.ok(files[0].content.length < 500, 'the starter AGENTS.md is short')
+  assert.doesNotMatch(files[0].content, /Project knowledge/)
 })
 
 test('the global conexus-server skill matches the check it documents', () => {
@@ -192,32 +195,6 @@ test('writes only the shape file a checkout lacks, and never over a symlink', as
     symlinkSync('/etc/hostname', join(root, 'conexus.json'))
     await assert.rejects(materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
     assert.equal(writes.length, 1)
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-})
-
-test('removeStaleServerSkill deletes a checkout own copy of the skill the Builder now serves globally', async () => {
-  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-'))
-  try {
-    mkdirSync(join(root, '.agents/skills/conexus-server'), { recursive: true })
-    writeFileSync(join(root, '.agents/skills/conexus-server/SKILL.md'), 'a stale Project copy\n')
-    writeFileSync(join(root, '.agents/skills/conexus-server/extra.txt'), 'leftover\n')
-    const writes = []
-    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.deepEqual(readdirSync(join(root, '.agents/skills')), [])
-    assert.deepEqual(writes, [])
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-})
-
-test('removeStaleServerSkill is a no-op when the checkout never carried the skill', async () => {
-  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-absent-'))
-  try {
-    const writes = []
-    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.deepEqual(readdirSync(root), [])
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

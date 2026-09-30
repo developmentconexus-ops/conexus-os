@@ -53,7 +53,7 @@ const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, memorySettings, mirrorDebounceMs = 0, promptVariant } = {}) => {
+const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0 } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -183,10 +183,10 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
     mirrorDebounceMs,
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
-    ...(memorySettings ? { readMemorySettings: async (payer) => { events.push(['memory-settings', payer]); return memorySettings } } : {}),
+    readProjectName: async () => 'Compras',
     log: (line) => { (line.startsWith('BUILDER_RUN_TIMING:') ? timings : logs).push(line) },
   })
-  const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', mode, baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   // The one run's row as the database holds it.
   const row = { running: true, candidate: null, result: null }
   const store = {
@@ -237,7 +237,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       runtime,
       git,
       conversations: {
-        modeOf: async () => (mode === 'PLAN' ? 'plan' : 'build'),
+        ownerOf: async () => 'PROJECT',
         titleFromRequest: async () => {},
       },
       source: createProjectSourceReads({ git }),
@@ -245,7 +245,7 @@ const harness = async (t, { mode = 'BUILD', turn, build, admissionReport, buildR
       reconcileEveryMs: 5,
     },
   })
-  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce', ...(promptVariant ? { promptVariant } : {}) })
+  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
   // The same run row started once more on the same sandbox, as the next run of the conversation would.
   const again = async () => {
     await new Promise((wake) => { setTimeout(wake, 20) })
@@ -720,64 +720,34 @@ test('the build compiles the candidate from the Conexus Git in a root-only direc
   assert.equal(run.commands().some((line) => line.includes('ls-tree') || line.includes(' archive ')), false, 'no agent-user command lists or archives the tree the build is admitted by')
 })
 
-test('a run that starts in Planejar and builds after the plan approval admits its source (AC-4)', async (t) => {
-  const run = await harness(t, { mode: 'PLAN' })
-  await run.start()
-  await run.service.close()
-  const result = run.result()
-  assert.equal(await run.main(), result)
-  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
-  assert.equal((await run.service.getSourceFile({ accountId, projectId, sourceRevision: result, path: 'app/index.html' })).content, '<h1>UNIT1</h1>\n')
-  assert.equal(run.events.includes('starter'), true)
-})
-
-test('a Planejar run that only wrote its plan settles as a response and leaves main at the base', async (t) => {
+test('a turn that writes the plan and the memory with its app change commits them with the version (AC-5)', async (t) => {
   const run = await harness(t, {
-    mode: 'PLAN',
     turn: ({ checkout }) => {
-      mkdirSync(join(checkout, '.conexus/plans'), { recursive: true })
-      writeFileSync(join(checkout, '.conexus/plans/p.md'), '# Plano\n')
-      return completed('Plano enviado.')
+      mkdirSync(join(checkout, '.conexus/memory'), { recursive: true })
+      writeFileSync(join(checkout, '.conexus/plan.md'), '# Painel\n\nEstado: entregue\n')
+      writeFileSync(join(checkout, '.conexus/memory/MEMORY.md'), '## Regras\n')
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>painel</h1>\n')
+      return completed('Pronto.')
     },
   })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
-  assert.equal(await run.main(), run.base)
-  assert.equal(run.result(), null)
+  assert.equal(await run.main(), run.result())
+  assert.deepEqual(run.inBare('ls-tree', '-r', '--name-only', run.result()).split('\n'), ['.conexus/memory/MEMORY.md', '.conexus/plan.md', 'AGENTS.md', 'app/index.html'])
 })
 
-// A turn that writes its methodology's plan file and an app change, ending in the given mode.
-const planAndBuild = (planPath, modeId = 'build') => ({ checkout }) => {
-  mkdirSync(dirname(join(checkout, planPath)), { recursive: true })
-  writeFileSync(join(checkout, planPath), '# Painel\n\nEstado: entregue\n')
-  if (modeId === 'build') writeFileSync(join(checkout, 'app/index.html'), '<h1>painel</h1>\n')
-  return { ...completed('Pronto.'), modeId }
-}
-
-test('a run on afiado commits its plan under docs/planos/ with the version, and a run on v2 leaves .conexus/plans/ out', async (t) => {
-  const afiado = await harness(t, { mode: 'PLAN', promptVariant: 'afiado', turn: planAndBuild('docs/planos/0001-painel/plano.md') })
-  await afiado.start()
-  await afiado.service.close()
-  assert.equal(afiado.sessionContext.get('conexusPromptVariant'), 'afiado')
-  assert.equal(await afiado.main(), afiado.result())
-  assert.deepEqual(afiado.inBare('ls-tree', '-r', '--name-only', afiado.result()).split('\n'), ['AGENTS.md', 'app/index.html', 'docs/planos/0001-painel/plano.md'])
-
-  const v2 = await harness(t, { mode: 'PLAN', turn: planAndBuild('.conexus/plans/painel.md') })
-  await v2.start()
-  await v2.service.close()
-  assert.equal(await v2.main(), v2.result())
-  assert.deepEqual(v2.inBare('ls-tree', '-r', '--name-only', v2.result()).split('\n'), ['AGENTS.md', 'app/index.html'])
-})
-
-test('a turn on afiado that ends in Planejar is no version: its plan rides the conversation mirror and main stays at the base', async (t) => {
-  const run = await harness(t, { mode: 'PLAN', promptVariant: 'afiado', turn: planAndBuild('docs/planos/0001-painel/plano.md', 'plan') })
+test('a turn that only wrote the plan is a version that holds it, admitted like any other', async (t) => {
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      mkdirSync(join(checkout, '.conexus'), { recursive: true })
+      writeFileSync(join(checkout, '.conexus/plan.md'), '# Painel\n')
+      return completed('Plano escrito.')
+    },
+  })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
-  assert.equal(await run.main(), run.base)
-  assert.equal(run.result(), null)
-  assert.deepEqual(run.mirrorFiles(), ['AGENTS.md', 'app/index.html', 'docs/planos/0001-painel/plano.md'])
+  assert.equal(await run.main(), run.result())
+  assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['advance', run.result()], ['settleBuild', run.result(), null]])
 })
 
 const timingStages = (run) => {
@@ -859,31 +829,19 @@ const refusedCandidate = async (t, turn) => {
   return run
 }
 
-test('a candidate whose AGENTS.md is missing, over 8 KB, or not UTF-8 is refused before its check, and main stays at the base (AC-9)', async (t) => {
-  const cases = {
-    missing: (checkout) => rmSync(join(checkout, 'AGENTS.md')),
-    'over 8 KB': (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), 'x'.repeat(8193)),
-    'not UTF-8': (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a])),
-  }
-  const outcomes = {}
-  for (const [name, change] of Object.entries(cases)) {
+test('a candidate whose AGENTS.md is missing, over 8 KB or not UTF-8 is admitted: the Hub no longer refuses it (AC-10)', async (t) => {
+  for (const change of [
+    (checkout) => rmSync(join(checkout, 'AGENTS.md')),
+    (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), 'x'.repeat(8193)),
+    (checkout) => writeFileSync(join(checkout, 'AGENTS.md'), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a])),
+  ]) {
     const run = await refusedCandidate(t, (checkout) => {
       writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
       change(checkout)
     })
-    outcomes[name] = {
-      settled: run.calls.at(-1),
-      main: await run.main() === run.base,
-      checked: run.events.includes('admission-check'),
-      note: run.diagnostics.map(({ outcome, detail }) => [outcome, detail]),
-    }
+    assert.equal(await run.main(), run.result())
+    assert.deepEqual(run.diagnostics, [])
   }
-  const refused = { settled: ['fail', 'BUILDER_AGENTS_MD_REFUSED'], main: true, checked: false }
-  assert.deepEqual(outcomes, {
-    missing: { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB.']] },
-    'over 8 KB': { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md has 8193 bytes; the limit is 8192 bytes (8 KB). Shorten it, keeping only confirmed facts.']] },
-    'not UTF-8': { ...refused, note: [['CANDIDATE_REFUSED', 'AGENTS.md is not valid UTF-8. Rewrite it as plain UTF-8 text.']] },
-  })
 })
 
 // A server error the Builder needs whole to fix: longer than the 400 and 1,200 characters the record cut before.
@@ -1000,20 +958,28 @@ test('a page that does not boot leaves the admitted source without a Preview and
   assert.deepEqual(run.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_SMOKE_FAILED', 'BUILD_FAILED', `boot failed:\nassets/index.js:1:9: BOOT_UNCAUGHT_ERROR ${thrown}`]])
 })
 
-test("the session context carries the base's AGENTS.md, cut at 8 KB with the note when it is longer (AC-8)", async (t) => {
+test("the session context carries the Project's name, the date, and the base's AGENTS.md and MEMORY.md, cut with their notes (AC-9)", async (t) => {
   const short = await harness(t)
   await short.start()
   await short.service.close()
-  assert.equal(short.sessionContext.get('conexusProjectKnowledge'), AGENTS_MD.trim())
+  assert.equal(short.sessionContext.get('conexusProjectName'), 'Compras')
+  assert.match(short.sessionContext.get('conexusTurnDate'), /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(short.sessionContext.get('conexusProjectInstructions'), AGENTS_MD.trim())
+  assert.equal(short.sessionContext.get('conexusProjectMemory'), '[.conexus/memory/MEMORY.md is missing; treat it as empty.]')
 
-  const long = `# Knowledge\n${'ção '.repeat(3_000)}`
-  const run = await harness(t, { starterFiles: [{ path: 'AGENTS.md', content: long }, ...STARTER.slice(1)] })
+  const long = `# Instruções\n${'ção '.repeat(3_000)}`
+  const memory = Array.from({ length: 250 }, (_, line) => `- linha ${line}`).join('\n')
+  const run = await harness(t, { starterFiles: [{ path: 'AGENTS.md', content: long }, { path: '.conexus/memory/MEMORY.md', content: memory }, ...STARTER.slice(1)] })
   await run.start()
   await run.service.close()
-  const knowledge = run.sessionContext.get('conexusProjectKnowledge')
-  assert.ok(knowledge.endsWith('\n\nAGENTS.md truncated at 8 KB; shorten it.'), knowledge.slice(-60))
-  const kept = knowledge.slice(0, -'\n\nAGENTS.md truncated at 8 KB; shorten it.'.length)
+  const instructions = run.sessionContext.get('conexusProjectInstructions')
+  const note = '\n\n[AGENTS.md was cut at 8 KB; the rest is not shown.]'
+  assert.ok(instructions.endsWith(note), instructions.slice(-60))
+  const kept = instructions.slice(0, -note.length)
   assert.ok(Buffer.byteLength(kept) <= 8192 && long.startsWith(kept), 'a prefix of the file within 8 KB, cut between characters')
+  const index = run.sessionContext.get('conexusProjectMemory')
+  assert.ok(index.endsWith('- linha 199\n\n[MEMORY.md was cut at 200 lines or 16 KB; the rest is not shown. Keep the index shorter.]'), index.slice(-120))
+  assert.equal(index.includes('linha 200'), false)
 })
 
 test('a person with no model account is refused before a sandbox exists', async (t) => {
@@ -1039,15 +1005,6 @@ test("a run checks its start model once, names its payer in every turn's context
     assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
     assert.equal(run.events.at(-1), 'pause')
   }
-})
-
-test('a run reads the observational-memory settings of the person it is for once, and every turn carries them', async (t) => {
-  const settings = { observerModelId: 'anthropic/claude-haiku-4-5', reflectorModelId: null, observationThreshold: 50_000, reflectionThreshold: 60_000 }
-  const run = await harness(t, { memorySettings: settings })
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'memory-settings'), [['memory-settings', accountId]])
-  assert.deepEqual(run.sessionContext.get('conexusBuilderMemorySettings'), settings)
 })
 
 test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUSED before the agent runs', async (t) => {
@@ -1131,7 +1088,7 @@ test("a Project with no binding is told it has no Connection and nothing about a
   const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
   const openRun = await connectorRuns({ listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) })
   const other = await openRun({ projectId: otherProjectId, builderRunId: runId })
-  assert.ok(other.brief.includes('`other-project-binding` (integrator sankhya)'), 'the other Project is told its own binding')
+  assert.ok(other.brief.includes('- `other-project-binding`: sankhya (skill `conexus-sankhya`)'), 'the other Project is told its own binding')
 
   const run = await harness(t, { openConnectorRun: openRun })
   await run.start()
@@ -1151,7 +1108,7 @@ test('a Project bound to Sankhya gets its own bindings, and is never told to ref
   await run.start()
   await run.service.close()
   const instructions = run.sessionContext.get('conexusConnectorBrief')
-  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('connector_fetch'), 'its own brief lists its binding and the tool that reads it')
+  assert.ok(instructions.startsWith('- `erp`: sankhya (skill `conexus-sankhya`)\n'), 'its own brief lists its binding with the skill that teaches it')
   assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
 })
 
