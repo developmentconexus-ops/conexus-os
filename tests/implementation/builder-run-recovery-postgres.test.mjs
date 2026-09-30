@@ -53,7 +53,7 @@ const recoveryHarness = async (t, name, crashes) => {
     await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
     await query(connectionString, `
       INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase)
-      VALUES ($1, $2, $3, $4, $5, $6, 'BUILD', $7, 'RUNNING', $8)`,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', $8)`,
     [builderRunId, projectId, owner, randomUUID(), builderRunId.replaceAll('-', '').padEnd(64, '0'), 'f'.repeat(64), base, crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase])
     if (crash.candidate) assert.equal((await executorPool.query('SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, result])).rows[0].value, true)
     if (crash.advanced) {
