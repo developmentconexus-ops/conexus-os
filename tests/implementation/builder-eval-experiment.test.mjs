@@ -31,14 +31,12 @@ test('loadArms reads each arm file in the order asked and refuses a key it does 
   assert.throws(() => loadArms(dir, ['flash', 'luna']), { message: 'builder-eval: arms/luna.json has unknown key modle' })
 })
 
-test('an arm may name the prompt variant its runs use beside the model', (t) => {
+test('an arm names a model and nothing else: the prompt variant key is gone', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'builder-eval-arms-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   writeFileSync(join(dir, 'luna-v2.json'), '{ "model": "m-luna", "promptVariant": "v2" }')
-  writeFileSync(join(dir, 'luna-blank.json'), '{ "model": "m-luna", "promptVariant": " " }')
 
-  assert.deepEqual(loadArms(dir, ['luna-v2']), [{ id: 'luna-v2', model: 'm-luna', promptVariant: 'v2' }])
-  assert.throws(() => loadArms(dir, ['luna-blank']), { message: 'builder-eval: arms/luna-blank.json "promptVariant" must be a non-empty string' })
+  assert.throws(() => loadArms(dir, ['luna-v2']), { message: 'builder-eval: arms/luna-v2.json has unknown key promptVariant' })
 })
 
 test('two arms, one trial: each experiment runs its case once, is graded and finalizes', async (t) => {

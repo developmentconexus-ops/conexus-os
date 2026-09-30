@@ -1,8 +1,10 @@
 // Where one Builder run's time went (study 25 section 6): the phases the person waits through, the
 // model against the tools, the checks until green. Every function is pure: spans and the run row
 // go in, one block of integer milliseconds comes out, so the block is comparable across arms.
-import { mainAgentRuns, mainAgentScope, planningStepsDoneBeforeSubmit, traceMetrics } from './scorers.mjs'
+import { flowOf } from './flow.mjs'
+import { mainAgentRuns, mainAgentScope, traceMetrics } from './scorers.mjs'
 
+// submit_plan is today's approval card; drop it with the legacy path of flow.mjs.
 const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
 const TASK_TOOLS = new Set(['task_write', 'task_update', 'task_complete', 'task_check'])
 // A model step shorter than this is a bookkeeping span, not a model call.
@@ -123,6 +125,6 @@ export function timingBlock({ spans, run, hubStages = null }) {
       parallelLowerBoundMs: sum(stepFacts.map((fact) => fact.longestCallMs)),
     },
     checks: { runs: checkRuns, redUntilGreen: firstGreen === -1 ? checkRuns.length : firstGreen },
-    planning: { stepsDoneBeforeSubmit: planningStepsDoneBeforeSubmit([...calls].sort((a, b) => ms(a.startedAt) - ms(b.startedAt))) },
+    flow: flowOf([...calls].sort((a, b) => ms(a.startedAt) - ms(b.startedAt))),
   }
 }

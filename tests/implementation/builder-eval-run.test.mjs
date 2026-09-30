@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { chromium } from '@playwright/test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPerson, parseSheet } from '../../scripts/builder-eval/person.mjs'
+import { parseCase } from '../../scripts/builder-eval/checks.mjs'
 import {
-  DEFAULT_BASE_URL, answerPendingCard, lastAssistantText, lastCheckReport, maskDigits, parseArgs, personCounts, resolveArm, resolveStatePath,
+  DEFAULT_BASE_URL, ac13Of, answerPendingCard, createCards, lastAssistantText, lastCheckReport, maskDigits, parseArgs, pendingCardCall, personCounts, resolveArm, resolveStatePath,
 } from '../../scripts/builder-eval/run.mjs'
 
 let browser
@@ -40,49 +41,48 @@ const withPage = async (html, run) => {
 
 test('the plan card is approved once and recorded with its title and text', async () => {
   await withPage(planPage, async (page) => {
-    const answers = []
-    const first = await answerPendingCard(page, answers, null)
-    assert.equal(first, 'plan:Lista de tarefas:1. Criar a tabela\n2. Criar a tela')
+    const cards = createCards()
+    const first = await answerPendingCard(page, cards, null)
+    assert.equal(first, 'card')
     assert.equal(await page.evaluate(() => window.sent), 'approved')
-    assert.deepEqual(answers, [{ kind: 'PLAN', title: 'Lista de tarefas', text: '1. Criar a tabela\n2. Criar a tela', answer: 'Aprovar e construir' }])
-    assert.equal(await answerPendingCard(page, answers, first), null)
-    assert.equal(answers.length, 1)
+    assert.deepEqual(cards.answers, [{ kind: 'PLAN', title: 'Lista de tarefas', text: '1. Criar a tabela\n2. Criar a tela', answer: 'Aprovar e construir' }])
+    assert.equal(await answerPendingCard(page, cards, first), null)
+    assert.equal(cards.answers.length, 1)
   })
 })
 
 test('a card still on screen while its answer travels is not answered twice', async () => {
   await withPage(planPage.replace("this.closest('section').remove()", ''), async (page) => {
-    const answers = []
-    const first = await answerPendingCard(page, answers, null)
-    const second = await answerPendingCard(page, answers, first)
-    assert.equal(second, first)
-    assert.equal(answers.length, 1)
+    const cards = createCards()
+    await answerPendingCard(page, cards, null)
+    assert.equal(await answerPendingCard(page, cards, 'card'), null, 'the card the driver marked is left alone')
+    assert.equal(cards.answers.length, 1)
   })
 })
 
 test('a question with options gets the first option', async () => {
   await withPage(optionsPage, async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null)
-    assert.deepEqual(answers, [{ kind: 'QUESTION', title: 'Qual formato de data?', text: 'Qual formato de data?', answer: 'Dia/mês/ano' }])
+    const cards = createCards()
+    await answerPendingCard(page, cards, null)
+    assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual formato de data?', text: 'Qual formato de data?', answer: 'Dia/mês/ano' }])
     assert.equal(await page.evaluate(() => window.sent), 'Dia/mês/ano\nPadrão brasileiro')
   })
 })
 
 test('a question without options gets the fixed simplest-way answer', async () => {
   await withPage(textPage, async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null)
-    assert.deepEqual(answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Pode seguir com o que achar mais simples.' }])
+    const cards = createCards()
+    await answerPendingCard(page, cards, null)
+    assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Pode seguir com o que achar mais simples.' }])
     assert.equal(await page.evaluate(() => window.sent), 'Pode seguir com o que achar mais simples.')
   })
 })
 
 test('a page with no card answers nothing', async () => {
   await withPage('<main>Construindo...</main>', async (page) => {
-    const answers = []
-    assert.equal(await answerPendingCard(page, answers, null), null)
-    assert.deepEqual(answers, [])
+    const cards = createCards()
+    assert.equal(await answerPendingCard(page, cards, null), null)
+    assert.deepEqual(cards.answers, [])
   })
 })
 
@@ -166,9 +166,9 @@ const scriptedPerson = byTopic({ vencido: 'vencido', semana: 'semana' })
 
 test('the scripted person answers a free-text card with the sheet\'s words and records how it decided', async () => {
   await withPage(textPage.replace('Qual o nome da empresa?', 'Quando um título fica vencido?'), async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null, scriptedPerson)
-    assert.deepEqual(answers, [{
+    const cards = createCards({ person: scriptedPerson })
+    await answerPendingCard(page, cards, null)
+    assert.deepEqual(cards.answers, [{
       kind: 'QUESTION', title: 'Quando um título fica vencido?', text: 'Quando um título fica vencido?',
       answer: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', via: 'sheet', ruleIds: ['vencido'],
     }])
@@ -178,19 +178,19 @@ test('the scripted person answers a free-text card with the sheet\'s words and r
 
 test('the scripted person says "Não sei." when the sheet is silent, and does not take the Builder\'s fixed answer', async () => {
   await withPage(textPage, async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null, scriptedPerson)
-    assert.deepEqual(answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Não sei.', via: 'silent', ruleIds: [] }])
+    const cards = createCards({ person: scriptedPerson })
+    await answerPendingCard(page, cards, null)
+    assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Não sei.', via: 'silent', ruleIds: [] }])
     assert.equal(await page.evaluate(() => window.sent), 'Não sei.')
   })
 })
 
 test('on an option card a silent sheet never clicks the first option, the Builder\'s recommendation', async () => {
   await withPage(optionsPage, async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null, scriptedPerson)
-    assert.equal(answers[0].answer, 'Ano-mês-dia')
-    assert.equal(answers[0].via, 'silent')
+    const cards = createCards({ person: scriptedPerson })
+    await answerPendingCard(page, cards, null)
+    assert.equal(cards.answers[0].answer, 'Ano-mês-dia')
+    assert.equal(cards.answers[0].via, 'silent')
   })
 })
 
@@ -201,9 +201,9 @@ const multiPage = `<div aria-label="Pergunta do agente"><p>O que mais devo inclu
 
 test('a multi-select card gets every option the sheet finds, then the submit button', async () => {
   await withPage(multiPage, async (page) => {
-    const answers = []
-    await answerPendingCard(page, answers, null, byTopic({ semana: 'semana' }))
-    assert.equal(answers[0].answer, 'Total por semana')
+    const cards = createCards({ person: byTopic({ semana: 'semana' }) })
+    await answerPendingCard(page, cards, null)
+    assert.equal(cards.answers[0].answer, 'Total por semana')
     assert.deepEqual(await page.evaluate(() => window.picked), ['Total por semana'])
     assert.equal(await page.evaluate(() => window.sent), 'submitted')
   })
@@ -220,28 +220,29 @@ const gatePage = (title) => `<section aria-label="Plano para aprovar">
 test('every plan gate is approved in the order it comes, and the whole plan is read from the reader', async () => {
   await withPage(gatePage('Escopo'), async (page) => {
     await page.evaluate((next) => { window.next = next }, gatePage('Fontes'))
-    const answers = []
-    const first = await answerPendingCard(page, answers, null, scriptedPerson)
-    const second = await answerPendingCard(page, answers, first, scriptedPerson)
-    assert.notEqual(second, first)
-    assert.equal(await answerPendingCard(page, answers, second, scriptedPerson), null)
+    const cards = createCards({ person: scriptedPerson })
+    await answerPendingCard(page, cards, null)
+    await answerPendingCard(page, cards, 'card')
+    assert.equal(await answerPendingCard(page, cards, 'card'), null)
     assert.deepEqual(await page.evaluate(() => window.approved), ['Escopo', 'Fontes'])
-    assert.deepEqual(answers.map((answer) => [answer.kind, answer.title, answer.text]), [
+    assert.deepEqual(cards.answers.map((answer) => [answer.kind, answer.title, answer.text]), [
       ['PLAN', 'Escopo', 'Plano inteiro de Escopo\nFatias restantes: 2'],
       ['PLAN', 'Fontes', 'Plano inteiro de Fontes\nFatias restantes: 2'],
     ])
   })
 })
 
-test('the arm and the slice options parse, and an arm id with a file takes its model and variant from it', () => {
-  const options = parseArgs(['--case', 'c.json', '--out', 'o', '--arm', 'afiado', '--repetition', '3', '--max-slices', '4', '--no-correction', '--hub-version', 'abc123'])
-  assert.deepEqual([options.arm, options.repetition, options.maxSlices, options.noCorrection, options.hubVersion], ['afiado', 3, 4, true, 'abc123'])
+test('the arm option parses, and an arm id takes its model from its file and must have one', () => {
+  const options = parseArgs(['--case', 'c.json', '--out', 'o', '--arm', 'flash', '--repetition', '3', '--no-correction', '--hub-version', 'abc123'])
+  assert.deepEqual([options.arm, options.repetition, options.noCorrection, options.hubVersion], ['flash', 3, true, 'abc123'])
   assert.throws(() => parseArgs(['--case', 'c.json', '--out', 'o', '--repetition', '0']), /--repetition must be a positive integer/)
+  assert.throws(() => parseArgs(['--case', 'c.json', '--out', 'o', '--prompt-variant', 'v2']), /unknown option --prompt-variant/)
+  assert.throws(() => parseArgs(['--case', 'c.json', '--out', 'o', '--max-slices', '2']), /unknown option --max-slices/)
   const dir = mkdtempSync(join(tmpdir(), 'arms-'))
   try {
-    writeFileSync(join(dir, 'tarefas.json'), JSON.stringify({ model: 'google-ai-pro/x', promptVariant: 'v2' }))
-    assert.deepEqual(resolveArm('tarefas', dir), { promptVariant: 'v2', model: 'google-ai-pro/x' })
-    assert.deepEqual(resolveArm('afiado', dir), { promptVariant: 'afiado', model: undefined })
+    writeFileSync(join(dir, 'tarefas.json'), JSON.stringify({ model: 'google-ai-pro/x' }))
+    assert.deepEqual(resolveArm('tarefas', dir), { model: 'google-ai-pro/x' })
+    assert.throws(() => resolveArm('afiado', dir), /has no file/)
     assert.throws(() => resolveArm('../x', dir), /not a valid arm id/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -250,9 +251,99 @@ test('the arm and the slice options parse, and an arm id with a file takes its m
 
 test('the person\'s interventions are counted from the driver\'s record', () => {
   const answers = [
-    { kind: 'QUESTION', via: 'sheet' }, { kind: 'QUESTION', via: 'silent' }, { kind: 'PLAN' }, { kind: 'PLAN' }, { kind: 'PLAN' },
+    { kind: 'QUESTION', via: 'sheet' }, { kind: 'QUESTION', via: 'silent' }, { kind: 'PLAN' }, { kind: 'APPROVAL' }, { kind: 'APPROVAL' },
   ]
-  assert.deepEqual(personCounts({ answers, repairIterations: 1, slicesContinued: 2, correction: { message: 'x' } }), {
-    approvals: 3, answers: 2, silentAnswers: 1, repairs: 1, slicesContinued: 2, corrections: 1,
+  assert.deepEqual(personCounts({ answers, repairIterations: 1, correction: { message: 'x' } }), {
+    approvals: 3, answers: 2, silentAnswers: 1, repairs: 1, corrections: 1,
   })
+})
+
+// The markup of the new approval card: ask_user with the two approval options (ask-user-pt.tsx).
+const approvalPage = (question = 'Posso construir assim?') => `<div aria-label="Pergunta do agente"><p>${question}</p>
+  <label><input type="radio" name="q" onchange="window.sent = [...(window.sent ?? []), this.nextElementSibling.innerText.split('\\n')[0]]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')"><span><span style="display:block">Aprovar e construir</span><span style="display:block">Começa a construir.</span></span></label>
+  <label><input type="radio" name="q" onchange="window.sent = [...(window.sent ?? []), this.nextElementSibling.innerText.split('\\n')[0]]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')"><span><span>Pedir ajustes</span></span></label></div>`
+const changePage = `<div aria-label="Pergunta do agente"><label for="c">O que você quer mudar?</label>
+  <div><input id="c" onkeydown="if (event.key === 'Enter') { window.sent = [...(window.sent ?? []), this.value]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '') }"><button aria-label="Enviar resposta">Enviar resposta</button></div></div>`
+const threadWith = (...calls) => [{ role: 'assistant', createdAt: '2026-09-30T10:00:00Z', content: { parts: calls.map(([toolName, toolCallId, state]) => ({ type: 'tool-invocation', toolInvocation: { toolName, toolCallId, state, args: {} } })) } }]
+
+test('the approval card is recognized by its options and approved, and never reaches the scripted person', async () => {
+  const asked = []
+  const person = { sheet: {}, answer: async (card) => { asked.push(card.question); return { answer: 'Pedir ajustes', via: 'sheet', ruleIds: [] } } }
+  await withPage(approvalPage(), async (page) => {
+    const cards = createCards({ person, readMessages: async () => [...threadWith(['ask_user', 'call-7', 'call']), { role: 'assistant', createdAt: '2026-09-30T10:05:00Z', content: { parts: [{ type: 'text', text: 'O plano: lista e tela.' }] } }] })
+    assert.equal(await answerPendingCard(page, cards, null), 'call:call-7')
+    assert.deepEqual(await page.evaluate(() => window.sent), ['Aprovar e construir'])
+    assert.deepEqual(cards.answers, [{ kind: 'APPROVAL', toolCallId: 'call-7', title: 'Posso construir assim?', text: 'O plano: lista e tela.', answer: 'Aprovar e construir' }])
+    assert.deepEqual(asked, [])
+  })
+})
+
+test('a case that scripts "Pedir ajustes" asks for one change, sends its text, then approves the next card', async () => {
+  await withPage(approvalPage(), async (page) => {
+    await page.evaluate((html) => { window.next = [html.change, html.again] }, { change: changePage, again: approvalPage('Posso construir assim agora?') })
+    const cards = createCards({ adjust: 'Quero também uma coluna de status.' })
+    await answerPendingCard(page, cards, null)
+    await answerPendingCard(page, cards, 'card')
+    await answerPendingCard(page, cards, 'card')
+    assert.deepEqual(await page.evaluate(() => window.sent), ['Pedir ajustes', 'Quero também uma coluna de status.', 'Aprovar e construir'])
+    assert.deepEqual(cards.answers.map(({ kind, answer, via }) => [kind, answer, via]), [
+      ['APPROVAL', 'Pedir ajustes', undefined], ['QUESTION', 'Quero também uma coluna de status.', 'case'], ['APPROVAL', 'Aprovar e construir', undefined],
+    ])
+  })
+})
+
+test('two card calls with the same question are told apart by their tool call ids and both answered', async () => {
+  await withPage(approvalPage(), async (page) => {
+    await page.evaluate((html) => { window.next = [html] }, approvalPage())
+    let messages = threadWith(['ask_user', 'call-1', 'call'])
+    const cards = createCards({ readMessages: async () => messages })
+    const first = await answerPendingCard(page, cards, null)
+    messages = threadWith(['ask_user', 'call-1', 'result'], ['ask_user', 'call-2', 'call'])
+    const second = await answerPendingCard(page, cards, first)
+    assert.deepEqual([first, second], ['call:call-1', 'call:call-2'])
+    assert.deepEqual(cards.answers.map((answer) => answer.toolCallId), ['call-1', 'call-2'])
+    assert.equal(await answerPendingCard(page, cards, second), null)
+  })
+})
+
+test('a card that comes back for the call already answered is not answered again', async () => {
+  await withPage(approvalPage().replace(/this\.closest\('div\[aria-label\]'\)\.remove\(\)/g, ''), async (page) => {
+    const cards = createCards({ readMessages: async () => threadWith(['ask_user', 'call-1', 'call']) })
+    const first = await answerPendingCard(page, cards, null)
+    await page.evaluate(() => document.querySelector('[data-eval-answered]').removeAttribute('data-eval-answered'))
+    assert.equal(await answerPendingCard(page, cards, first), 'call:call-1')
+    assert.equal(cards.answers.length, 1)
+  })
+})
+
+test('the pending card call is the newest ask_user or submit_plan the thread shows without a result', () => {
+  assert.deepEqual(pendingCardCall(threadWith(['ask_user', 'a', 'result'], ['mastra_workspace_read_file', 'b', 'call'], ['submit_plan', 'c', 'call'])), { toolCallId: 'c', toolName: 'submit_plan' })
+  assert.equal(pendingCardCall(threadWith(['ask_user', 'a', 'result'])), null)
+  assert.equal(pendingCardCall([]), null)
+})
+
+test('a case names whether it should be planned and may script one round of adjustments', () => {
+  const base = { request: 'Crie algo', checks: [] }
+  assert.deepEqual([parseCase(base).plan, parseCase(base).adjust], [null, null])
+  const scripted = parseCase({ ...base, plan: 'expected', approval: { answer: 'Pedir ajustes', change: ' Mais uma coluna. ' } })
+  assert.deepEqual([scripted.plan, scripted.adjust], ['expected', 'Mais uma coluna.'])
+  assert.throws(() => parseCase({ ...base, plan: 'sim' }), /case.plan must be one of expected, notApplicable/)
+  assert.throws(() => parseCase({ ...base, approval: { answer: 'Aprovar e construir', change: 'x' } }), /case.approval.answer must be "Pedir ajustes"/)
+  assert.throws(() => parseCase({ ...base, approval: { answer: 'Pedir ajustes' } }), /case.approval.change must be the non-empty free text/)
+})
+
+test('the three B cases parse, and only the small edit needs no plan', () => {
+  const read = (name) => parseCase(JSON.parse(readFileSync(new URL(`../../scripts/builder-eval/cases/b/${name}.json`, import.meta.url), 'utf8')))
+  assert.deepEqual(['b1-new-app', 'b2-new-feature', 'b3-small-edit'].map((name) => read(name).plan), ['expected', 'expected', 'notApplicable'])
+})
+
+test('the AC-13 block of a run joins the first run\'s flow with the checks and operations of every run', () => {
+  const block = (checks, operations, flow) => ({ flow, checks: { runs: Array.from({ length: checks }, () => ({ ok: true })) }, tools: { byTool: operations ? { conexus_run_operation: { calls: operations } } : {} } })
+  const flow = { planFile: { written: true, legacy: false, beforeFirstAppFile: true }, approval: { via: 'ask_user' }, appFilesBeforeApproval: 0, appFilesChanged: 3 }
+  const result = { answers: [{ kind: 'APPROVAL' }], wallTimeToUsablePreviewMs: 90_000 }
+  assert.deepEqual(ac13Of(result, { runs: [{ block: block(2, 1, flow) }, { block: block(1, 0, null) }] }, 'expected'), {
+    expectation: 'expected', planned: true, plannedWhenExpected: true, planFileBeforeFirstAppFile: true, approvalVia: 'ask_user', legacyPath: false,
+    appFilesBeforeApproval: 0, clicks: 1, timeToFirstPreviewMs: 90_000, checkRuns: 3, operationRuns: 1,
+  })
+  assert.equal(ac13Of(result, { runs: [{ block: null, reason: 'x' }] }, 'expected').checkRuns, null)
 })

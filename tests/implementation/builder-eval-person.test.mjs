@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { MockLanguageModelV3 } from 'ai/test'
 import {
-  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, personModel, silentOption, slicesRemaining,
+  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, personModel, silentOption,
 } from '../../scripts/builder-eval/person.mjs'
 import { completeLogin, startLogin } from '../../scripts/builder-eval/login.mjs'
 
@@ -119,12 +119,6 @@ test('the correction message names counts and fields the oracle found and nothin
     'Conferi um dos registros e o valor de Total devido está errado.',
     'Pode corrigir?',
   ].join('\n'))
-})
-
-test('the plan says slices are left through its last "Fatias restantes" line', () => {
-  assert.equal(slicesRemaining('Plano\nFatias restantes: 2'), true)
-  assert.equal(slicesRemaining('Fatias restantes: 2', 'Feito.\nFatias restantes: 0'), false)
-  assert.equal(slicesRemaining('sem linha', undefined), false)
 })
 
 const withAppData = async (run) => {

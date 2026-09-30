@@ -22,20 +22,11 @@ Options (`--help` prints the same list):
   creating one.
 - `--model <id>`: a model id from `GET /api/control/model-accounts/models`; default is the first
   model the signed-in account can actually use.
-- `--prompt-variant <id>`: the Builder prompt variant (a folder of
-  `apps/hub/src/builder/harness/prompt/`, such as `v2`) every run of this case uses; the
-  eval adds it to each message the UI sends. Default: the Hub's own default. The run's trace
-  records the variant the Hub used, as `conexusPromptVariant` beside `conexusBuilderRunId`.
 - `--grade-only` (needs `--project`): send no request; grade the Project's current Preview with the
   case's checks, including the reload when the case asks. Use it to regrade a run the tool misread.
-- `--arm <id>`: the methodology arm under test. `arms/<id>.json` may set `model` and `promptVariant`; an
-  id with no file is itself the prompt variant. It reaches the Hub only as the `promptVariant` field of
-  each message the driver sends, never in the Project name, the request or the person's words. The Hub's
-  route accepts only the ids in `PROMPT_VARIANTS`, so an arm the MethodologyVariant record has not added
-  yet is refused with a 400 at the first message.
+- `--arm <id>`: the arm under test. `arms/<id>.json` names the `model`; a run with no such file stops. It is
+  recorded in `timings.identity` and never reaches the Hub.
 - `--repetition <n>`, `--hub-version <sha>`: recorded in `timings.identity`.
-- `--max-slices <n>`: messages sent to carry a plan on after a version while it lists slices left;
-  default 6.
 - `--no-correction`: skip the scripted person's one correction message.
 - `--project-name <name>`: name for a newly created Project; default is the case's `person.projectName`
   (an organic name such as "Cobrança"), else `eval-<date>-<time>`.
@@ -63,9 +54,16 @@ the database or Mastra storage directly, only the Hub's own HTTP API and the pro
     { "action": "click", "selector": "text=Adicionar" },
     { "action": "expectText", "selector": "body", "text": "Lavar o carro" }
   ],
-  "reload": false
+  "reload": false,
+  "plan": "expected",
+  "approval": { "answer": "Pedir ajustes", "change": "Quero também uma coluna de status." }
 }
 ```
+
+`plan` (optional) says whether the request should get a plan and an approval: `expected`, or
+`notApplicable` for a small edit. `approval` (optional) scripts one round of adjustments: the person
+answers the approval card "Pedir ajustes", then sends `change` to the free-text question that follows,
+then approves the next card. Without it the person answers "Aprovar e construir".
 
 `checks` run in order against the Preview iframe once the run settles and the Preview names the
 final run's source revision (polled up to three minutes). `selector` is any Playwright locator
@@ -82,17 +80,23 @@ result was saved outside the browser.
 
 `result.json` in `--out`:
 
-- `projectId`, `conversationId`, `modelId`, `promptVariant` (`null` when the Hub's default was used), `request`.
+- `projectId`, `conversationId`, `modelId`, `request`.
 - `sourceRevisionBefore` / `sourceRevisionAfter`, `filesChanged` (from
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
   `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
 - `answers`: each card the driver answered while the run waited for a person, as
-  `{ kind, title, text, answer }`. A new conversation starts in Planejar, so the driver clicks
-  "Aprovar e construir" on the plan card, and on a question card ("Pergunta do agente") picks the
-  first option, or sends "Pode seguir com o que achar mais simples." when the card has none. It is
-  the same click a person makes, which sends Mastra's own `respondToToolSuspension`; the driver
-  adds no Hub route and must never reload the page while a run is active.
+  `{ kind, toolCallId, title, text, answer }`. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
+  (today's plan card). The driver recognizes the approval card by its options, "Aprovar e construir" and
+  "Pedir ajustes", answers "Aprovar e construir" (or the case's scripted "Pedir ajustes"), and never hands it
+  to the scripted person. A question card ("Pergunta do agente") gets the first option, or "Pode seguir com o
+  que achar mais simples." when it has none. `toolCallId` is the id of the `ask_user` call, read from the
+  thread's messages; two calls with the same question are two cards, and the element of a card the driver
+  answered is marked so it is never answered twice. It is the same click a person makes, which sends
+  Mastra's own `respondToToolSuspension`; the driver adds no Hub route and must never reload the page while
+  a run is active.
+- `ac13`: the AC-13 measures of this case run (see "Plan and approval scoring"); needs
+  `CONEXUS_EVAL_DATABASE_URL` for the trace parts, else those are `null`.
 - `lastCheckReport`: the last `conexus_check` report the agent got in the conversation, read from
   the thread's messages, or `null` with `lastCheckReportReason`.
 - `refusal`: only for a case with `missingSystem` (see `cases/sankhya-not-connected-run.json`):
@@ -134,8 +138,7 @@ reference.
 - `--hub-version <sha>`: recorded as the experiments' `provenance.sourceVersion`.
 - `--out <dir>`, `--max-repairs <n>`, `--base-url <url>`: as for `run.mjs`.
 
-An arm is `arms/<id>.json` with the key `model` and, optionally, `promptVariant` (as for
-`run.mjs --prompt-variant`), so two arms can compare prompt variants on the same model. An ERP case is `cases/erp/<id>.json` with
+An arm is `arms/<id>.json` with the key `model`; any other key is refused. An ERP case is `cases/erp/<id>.json` with
 `request` and one of two keys:
 
 - `fixture`: the driver binds the Project to the simulator, and the case's known answers come from
@@ -162,7 +165,7 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   rule of the sheet it touches (and, on an option card, which option says what the sheet says). The words
   come from the sheet. A question the sheet does not cover gets "Não sei." in text, or on an option card
   the option that says "não sei" or "tanto faz", else the last option that is neither the first nor
-  marked "recomendado". Every plan card is approved, in order. It sees the card and nothing else, never the arm.
+  marked "recomendado". It approves the plan and never sees the arm; the approval card does not reach it.
   The person runs on Claude Opus 5.5 through the Claude subscription, with no API key: Mastra's claude-max
   provider (`@mastra/code-sdk`) reads Mastra Code's own credential store (`auth.json` under
   `MASTRA_APP_DATA_DIR`, else the default app data dir), so the Hub and its accounts are not involved. Sign the
@@ -174,9 +177,6 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   file named by `CONEXUS_EVAL_VALUES_FILE`; a missing one stops the run before it starts. The matcher
   model reads the text with the placeholder, never the value. A rule with `"hidden": true` is a
   requirement the person holds and says only when a question touches it.
-- **Slices.** After a run that built, the driver reads the last plan and the last reply. While one says
-  `Fatias restantes: N` with N above zero, the person sends the sheet's `continue` text (default "Pode
-  seguir com a próxima fatia."), up to `--max-slices`. The arm's prompt must print that line.
 - **Oracle** (`oracle.mjs`). `node scripts/builder-eval/oracle.mjs --case h1 --preview <text file>
   [--plan <text file>]` compares a Preview with `<CONEXUS_EVAL_ORACLE_DIR>/h1.json` and prints booleans
   and counts only. The file format is in the header of the script. The oracle agent that writes those
@@ -190,3 +190,47 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   says why. `BUILDER_RUN_TIMING:<runId>:sandbox=...` lines from the Hub log fill `phases.hubStages`.
 - **Outcome.** A bakeoff case is `PASS` when the first Preview matches the oracle, `FAIL` when it does
   not, and `UNGRADED` when no oracle file exists for it.
+
+## Plan and approval scoring
+
+Spec 0004 (AC-13, AC-14). `flow.mjs` reads the plan and the approval from a run's tool calls;
+`scorers.mjs` registers three scorers on it and `timing.mjs` puts the result in each run's timing block
+as `flow`.
+
+| Scorer | Score |
+| --- | --- |
+| `plan-file-first` | 1 when `.conexus/plan.md` is written before the first app file, else 0 |
+| `approval-via-ask-user` | 1 when the approval came through `ask_user` with the options "Aprovar e construir" and "Pedir ajustes", else 0 |
+| `app-files-before-approval` | count of app files (anything outside `.conexus/`) written before the approval; lower is better |
+
+A case with `"plan": "notApplicable"` leaves the three out (`unscored`), and a run with no approval leaves
+out `app-files-before-approval`. The AC-13 block of `result.json` (`ac13`) holds, per run: `planned` and
+`plannedWhenExpected` (null for a small edit), `planFileBeforeFirstAppFile`, `approvalVia`,
+`appFilesBeforeApproval`, `clicks` (cards the person answered), `timeToFirstPreviewMs`, `checkRuns` and
+`operationRuns`.
+
+The baseline is recorded now on today's Builder and compared against the new one later, so the scorers read
+both. Today's Builder writes `.conexus/plans/<file>` and approves through `submit_plan` and the plan card;
+those runs score `plan-file-first` 1, `approval-via-ask-user` 0 and `legacyPath: true`. **Once the comparison
+is written, delete the `submit_plan` path** (the `submit_plan` branch of `approvalVia`, the
+`.conexus/plans/` branch of `planFileOf` and the `legacy` fields in `flow.mjs`, the plan card branch of
+`answerPendingCard` and `CARD_TOOLS` in `timing.mjs`).
+
+## The three B cases (AC-13)
+
+`cases/b/` holds the three requests that run on today's Builder for the baseline and again on the new
+one: a new app (`b1-new-app`), a new feature on it (`b2-new-feature`) and a small edit (`b3-small-edit`,
+`plan: notApplicable`). They chain on one Project, so b2 and b3 run with `--project` set to the Project b1
+created (b1 prints `projectId`; it is also in `result.json`). No Sankhya is needed. Each needs a signed-in
+session (`~/conexus-test-session.sh`) on the Hub under test; set `CONEXUS_EVAL_DATABASE_URL` and
+`CONEXUS_HUB_LOG` for the trace parts of `ac13`. Run them in order, one Hub at a time, with `--hub-version`
+naming the commit the Hub runs and `--repetition` counting the repetition:
+
+```bash
+B=scripts/builder-eval/cases/b; OUT=/tmp/builder-eval/b-baseline-1   # b-new-1 on the new Builder
+node scripts/builder-eval/run.mjs --case $B/b1-new-app.json --out $OUT/b1 --hub-version <sha>
+node scripts/builder-eval/run.mjs --case $B/b2-new-feature.json --project <projectId of b1> --out $OUT/b2 --hub-version <sha>
+node scripts/builder-eval/run.mjs --case $B/b3-small-edit.json --project <projectId of b1> --out $OUT/b3 --hub-version <sha>
+```
+
+`result.json` of each run holds `ac13`, `answers`, `timings` and the `flow` of every run.

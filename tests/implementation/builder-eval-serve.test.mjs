@@ -18,8 +18,8 @@ test('the eval server lists every eval scorer on loopback, for Studio to run', a
   assert.match(server.url, /^http:\/\/127\.0\.0\.1:\d+$/)
   assert.equal(response.status, 200)
   assert.deepEqual(Object.keys(await response.json()).sort(), [
-    'app-correct', 'calls-per-step', 'input-tokens', 'output-tokens', 'repeated-reads', 'sim-refusals',
-    'skill-reloads', 'tool-calls', 'tool-errors', 'wall-minutes',
+    'app-correct', 'app-files-before-approval', 'approval-via-ask-user', 'calls-per-step', 'input-tokens', 'output-tokens', 'plan-file-first',
+    'repeated-reads', 'sim-refusals', 'skill-reloads', 'tool-calls', 'tool-errors', 'wall-minutes',
   ])
 })
 

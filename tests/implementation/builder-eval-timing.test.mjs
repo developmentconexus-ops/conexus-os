@@ -40,7 +40,12 @@ test('the timing block splits a resumed run into phases, model and tool time, an
       ],
       redUntilGreen: 1,
     },
-    planning: { stepsDoneBeforeSubmit: [] },
+    flow: {
+      planFile: { written: false, legacy: false, beforeFirstAppFile: false },
+      approval: { via: 'submit_plan' },
+      appFilesBeforeApproval: 1,
+      appFilesChanged: 1,
+    },
   })
 })
 

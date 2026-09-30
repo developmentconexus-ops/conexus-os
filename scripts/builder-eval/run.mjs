@@ -3,7 +3,7 @@
 // whether a usable Preview came out the other end. Reruns turn a guidance/starter/skill change
 // into a measurement instead of an opinion.
 //
-// Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] [--prompt-variant <id>] --out <dir>
+// Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] --out <dir>
 import { chromium } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -12,13 +12,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
 import { compareToOracle, loadOracle } from './oracle.mjs'
-import { correctionMessage, createPerson, fillSheet, fillValues, loadValues, parseSheet, slicesRemaining } from './person.mjs'
+import { ac13Metrics, ADJUST_LABEL, APPROVE_LABEL, foldLabel, isApprovalOptions } from './flow.mjs'
+import { correctionMessage, createPerson, fillSheet, fillValues, loadValues, parseSheet } from './person.mjs'
 import { createEvalMastra, evalStorage, findTraceIds, gradeRefusal } from './scorers.mjs'
 import { hubTimingFromLog, timingBlock } from './timing.mjs'
 
 export const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
 export const DEFAULT_MAX_REPAIRS = 2
-export const DEFAULT_MAX_SLICES = 6
 const ARMS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'arms')
 const PREVIEW_IFRAME_TITLE = 'Prévia do aplicativo'
 const REPAIR_MESSAGE = 'o build falhou, corrija'
@@ -28,18 +28,16 @@ const RUN_POLL_INTERVAL_MS = 4_000
 const PREVIEW_READY_TIMEOUT_MS = 3 * 60 * 1000
 
 const usage = [
-  'Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] [--prompt-variant <id>] --out <dir>',
+  'Usage: node scripts/builder-eval/run.mjs --case <file> [--project <id> [--grade-only]] [--model <id>] --out <dir>',
   '',
   'Options:',
-  '  --case <file>          Case JSON: { request, checks[], reload? }; required',
+  '  --case <file>          Case JSON: { request, checks[], reload?, plan?, approval? }; required',
   '  --out <dir>            Directory to write result.json and preview.png; required',
   '  --project <id>         Reuse an existing Project (new conversation); default: create one',
   '  --grade-only           With --project: send nothing, grade the Project\'s current Preview',
   '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the first usable one',
-  '  --prompt-variant <id>  The Builder prompt variant every run of this case uses (such as v2); default: the Hub\'s',
-  '  --arm <id>             The methodology arm: arms/<id>.json when it exists (model, promptVariant), else the prompt variant <id>; sent only in the request context',
+  '  --arm <id>             The arm under test: arms/<id>.json, which names the model; recorded in the timing identity',
   '  --repetition <n>       Repetition number of this case on this arm, recorded in the timing identity; default: 1',
-  '  --max-slices <n>       Messages sent to carry a plan on after a version while it lists slices left; default: 6',
   '  --no-correction        Skip the one correction message the scripted person sends from the oracle diff',
   '  --hub-version <sha>    The running Hub\'s commit, recorded in the timing identity',
   '  --project-name <name>  Name for a newly created Project; default: the case\'s person.projectName, else eval-<UTC date>-<time>',
@@ -61,7 +59,7 @@ const valueFor = (argv, index, flag) => {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, promptVariant: undefined, arm: undefined, repetition: 1, maxSlices: DEFAULT_MAX_SLICES, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
+  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, arm: undefined, repetition: 1, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index]
     switch (flag) {
@@ -70,18 +68,11 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case '--project': options.project = valueFor(argv, index++, flag); break
       case '--grade-only': options.gradeOnly = true; break
       case '--model': options.model = valueFor(argv, index++, flag); break
-      case '--prompt-variant': options.promptVariant = valueFor(argv, index++, flag); break
       case '--arm': options.arm = valueFor(argv, index++, flag); break
       case '--repetition': {
         const value = valueFor(argv, index++, flag)
         if (!/^[1-9]\d*$/.test(value)) fail('--repetition must be a positive integer')
         options.repetition = Number(value)
-        break
-      }
-      case '--max-slices': {
-        const value = valueFor(argv, index++, flag)
-        if (!/^\d+$/.test(value)) fail('--max-slices must be a non-negative integer')
-        options.maxSlices = Number(value)
         break
       }
       case '--no-correction': options.noCorrection = true; break
@@ -107,12 +98,12 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return options
 }
 
-/** An arm names the methodology under test. `arms/<id>.json` may set its model and prompt variant; an id with no file is itself the prompt variant, which reaches the Hub only through the request's promptVariant field. */
+/** An arm is `arms/<id>.json`, which names the model under test. */
 export function resolveArm(armId, armsDir = ARMS_DIR) {
   if (!/^[a-z0-9][a-z0-9-]{0,30}$/.test(armId)) fail(`--arm ${armId} is not a valid arm id`)
   const file = join(armsDir, `${armId}.json`)
-  const arm = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
-  return { promptVariant: arm.promptVariant ?? armId, model: arm.model }
+  if (!existsSync(file)) fail(`--arm ${armId} has no file ${file}`)
+  return { model: JSON.parse(readFileSync(file, 'utf8')).model }
 }
 
 const defaultProjectName = () => `eval-${new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)}`
@@ -163,14 +154,14 @@ const readDiff = (page, projectId, baseSourceRevision, resultSourceRevision) => 
 }, { id: projectId, base: baseSourceRevision, result: resultSourceRevision })
 
 /** Waits for a BuilderRun other than `excludeRunId` to leave QUEUED/RUNNING, polling the same API the product polls. */
-async function pollForSettledRun(page, projectId, excludeRunId, answers, person = null) {
+async function pollForSettledRun(page, projectId, excludeRunId, cards) {
   const deadline = Date.now() + RUN_SETTLE_TIMEOUT_MS
   let session = null
   let answering = null
   while (Date.now() < deadline) {
-    const answered = answers.length
-    answering = await answerPendingCard(page, answers, answering, person)
-    if (answers.length > answered) answers.at(-1).answeredAt = new Date().toISOString()
+    const answered = cards.answers.length
+    answering = await answerPendingCard(page, cards, answering)
+    if (cards.answers.length > answered) cards.answers.at(-1).answeredAt = new Date().toISOString()
     session = await readSession(page, projectId)
     const run = session.latestBuilderRun
     if (run && run.builderRunId !== excludeRunId && run.state !== 'QUEUED' && run.state !== 'RUNNING') return { session, run }
@@ -211,51 +202,108 @@ async function readFullPlan(page, plan) {
   }
 }
 
+const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
+const UNANSWERED = ':not([data-eval-answered])'
+
+/** The cards the driver answers: its record (`answers`, shared with result.answers), the scripted person, the case's scripted
+ * request for one change (`adjust`, from case.approval) and the reader of the thread's messages. */
+export function createCards({ person = null, adjust = null, readMessages = async () => [] } = {}) {
+  return { answers: [], claimed: 0, person, adjust: adjust === null ? null : { change: adjust, state: 'pending' }, readMessages }
+}
+
+/** Pure. The newest `ask_user` or `submit_plan` call of the thread still waiting for the person, by its tool call id; null when the thread shows none. */
+export function pendingCardCall(messages) {
+  const calls = [...messages]
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .flatMap((message) => messageParts(message))
+    .filter((part) => part.type === 'tool-invocation' && CARD_TOOLS.has(part.toolInvocation?.toolName) && part.toolInvocation.state !== 'result')
+    .map((part) => part.toolInvocation)
+  const call = calls.at(-1)
+  return call?.toolCallId ? { toolCallId: call.toolCallId, toolName: call.toolName } : null
+}
+
+/** Marks the card on screen as the driver's, so the next tick leaves it alone, and returns a locator that still finds it. */
+async function claim(card, cards) {
+  cards.claimed += 1
+  const id = String(cards.claimed)
+  await card.evaluate((element, value) => { element.dataset.evalAnswered = value }, id)
+  return card.page().locator(`[data-eval-answered="${id}"]`)
+}
+
 /** Answers the pending card Construir shows while a run waits for the person, the same click a
- * person makes: the plan card is approved (every gate, in the order they come), and a question is
- * answered by `person` (the scripted person of a bakeoff case) or, with none, gets its first
- * (recommended) option or, with no options, a fixed "do the simplest" reply. The web sends
- * Mastra's own respondToToolSuspension; the driver never calls a Hub route of its own. `answering`
- * is the card already answered on an earlier tick, so a card still on screen while its answer
- * travels is not answered twice. Returns the card now on screen (null when none). */
-export async function answerPendingCard(page, answers, answering = null, person = null) {
-  const plan = page.locator(PLAN_CARD)
+ * person makes; the web sends Mastra's own respondToToolSuspension and the driver never calls a
+ * Hub route of its own. The approval card is recognized by its options, "Aprovar e construir" and
+ * "Pedir ajustes", and never reaches the scripted person: it is approved, unless the case scripts
+ * one round of "Pedir ajustes" (then the free-text question that follows gets the case's change).
+ * Today's plan card (`section` "Plano para aprovar") is approved too; that path goes with submit_plan.
+ * Any other question is answered by the scripted person or, with none, gets its first (recommended)
+ * option or, with no options, a fixed "do the simplest" reply.
+ * Each call is told apart by its tool call id, read from the thread, and a card the driver answered
+ * is marked on the element, so two calls with the same text are both answered and one is never
+ * answered twice. `answering` is the signature returned on the previous tick. Returns the signature
+ * of the card now on screen (null when none). */
+export async function answerPendingCard(page, cards, answering = null) {
+  const { answers } = cards
+  const plan = page.locator(`${PLAN_CARD}${UNANSWERED}`)
+  const question = page.locator(`${QUESTION_CARD}${UNANSWERED}`)
+  if (await plan.count() === 0 && await question.count() === 0) return null
+  const call = pendingCardCall(await cards.readMessages().catch(() => []))
+  const signature = call ? `call:${call.toolCallId}` : 'card'
+  if (call && signature === answering) return signature
+  const record = { ...(call ? { toolCallId: call.toolCallId } : {}) }
+
   if (await plan.count() > 0) {
-    const title = await plan.locator('strong').first().innerText().catch(() => '')
-    const shown = await plan.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
-    const signature = `plan:${title}:${shown}`
-    if (signature === answering) return signature
-    const text = await readFullPlan(page, plan) ?? shown
-    await plan.getByRole('button', { name: 'Aprovar e construir' }).click()
-    answers.push({ kind: 'PLAN', title, text, answer: 'Aprovar e construir' })
+    const card = await claim(plan.first(), cards)
+    const title = await card.locator('strong').first().innerText().catch(() => '')
+    const shown = await card.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
+    const text = await readFullPlan(page, card) ?? shown
+    await card.getByRole('button', { name: APPROVE_LABEL }).click()
+    answers.push({ kind: 'PLAN', ...record, title, text, answer: APPROVE_LABEL })
     return signature
   }
-  const question = page.locator(QUESTION_CARD)
-  if (await question.count() > 0) {
-    const text = (await question.first().innerText()).split('\n')[0].trim()
-    const signature = `question:${text}`
-    if (signature === answering) return signature
-    const { options, multi } = await readOptions(question)
-    const decision = person ? await person.answer({ question: text, options, multi }) : null
-    let answer
-    if (options.length > 0) {
-      const labels = decision ? [decision.answer].flat() : [options[0].label]
-      for (const label of labels) {
-        const index = options.findIndex((option) => option.label === label)
-        await question.locator('input[type=radio], input[type=checkbox]').nth(index).click({ force: true })
-      }
-      if (multi) await question.locator('button').last().click()
-      answer = labels.join(', ')
-    } else {
-      answer = decision ? decision.answer : FALLBACK_ANSWER
-      const input = question.locator('input, textarea').first()
-      await input.fill(answer)
-      await input.press('Enter')
-    }
-    answers.push({ kind: 'QUESTION', title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+
+  const card = await claim(question.first(), cards)
+  const text = (await card.innerText()).split('\n')[0].trim()
+  const { options, multi } = await readOptions(card)
+  const inputs = card.locator('input[type=radio], input[type=checkbox]')
+  const pick = (label) => inputs.nth(options.findIndex((option) => foldLabel(option.label) === foldLabel(label))).click({ force: true })
+
+  if (isApprovalOptions(options.map((option) => option.label))) {
+    const adjusting = cards.adjust?.state === 'pending'
+    const label = adjusting ? ADJUST_LABEL : APPROVE_LABEL
+    const planText = lastAssistantText(await cards.readMessages().catch(() => []))
+    await pick(label)
+    if (cards.adjust) cards.adjust.state = adjusting ? 'asked' : 'done'
+    answers.push({ kind: 'APPROVAL', ...record, title: text, text: planText || text, answer: label })
     return signature
   }
-  return null
+
+  if (options.length === 0 && cards.adjust?.state === 'asked') {
+    cards.adjust.state = 'done'
+    await fillAndSend(card, cards.adjust.change)
+    answers.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
+    return signature
+  }
+
+  const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
+  let answer
+  if (options.length > 0) {
+    const labels = decision ? [decision.answer].flat() : [options[0].label]
+    for (const label of labels) await pick(label)
+    if (multi) await card.locator('button').last().click()
+    answer = labels.join(', ')
+  } else {
+    answer = decision ? decision.answer : FALLBACK_ANSWER
+    await fillAndSend(card, answer)
+  }
+  answers.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+  return signature
+}
+
+async function fillAndSend(card, answer) {
+  const input = card.locator('input, textarea').first()
+  await input.fill(answer)
+  await input.press('Enter')
 }
 
 const digitsMasked = (text) => text?.replace(/\d/g, '#') ?? null
@@ -447,49 +495,33 @@ async function sendAndSettle(page, options, caseFile, result) {
   result.projectId = started.projectId
   result.conversationId = started.conversationId
 
-  const person = options.person ?? null
-  let settled = await pollForSettledRun(page, result.projectId, previousRunId, result.answers, person)
+  const { cards } = options
+  let settled = await pollForSettledRun(page, result.projectId, previousRunId, cards)
   result.runs.push(recordOf(settled.run, false))
   result.sourceRevisionBefore = settled.run.baseSourceRevision
-  settled = await repairUntilBuilt(page, options, result, settled, person)
+  settled = await repairUntilBuilt(page, options, result, settled)
 
-  // A plan that lists slices carries on after each version: the person sends one short message
-  // until the plan says none is left, up to the cap.
-  while (person && settled.run.state === 'SUCCEEDED' && result.slicesContinued < options.maxSlices) {
-    const messages = await readThreadMessages(page, result.projectId, result.conversationId).catch(() => [])
-    const lastPlan = result.answers.findLast((answer) => answer.kind === 'PLAN')
-    if (!slicesRemaining(lastPlan?.text, lastAssistantText(messages))) break
-    result.slicesContinued += 1
-    await sendMessage(page, person.sheet.continueText)
-    settled = await pollForSettledRun(page, result.projectId, settled.run.builderRunId, result.answers, person)
-    result.runs.push(recordOf(settled.run, false))
-    settled = await repairUntilBuilt(page, options, result, settled, person)
-  }
-
-  await judgeFinalRun(page, result.projectId, result, result.runs, result.slicesContinued > 0)
+  await judgeFinalRun(page, result.projectId, result, result.runs)
   return started.requestSentAt
 }
 
 /** Sends "o build falhou, corrija" while the last run's build failed on the source, up to the cap. */
-async function repairUntilBuilt(page, options, result, settled, person) {
+async function repairUntilBuilt(page, options, result, settled) {
   let current = settled
   while (needsRepair(current.run) && result.repairIterations < options.maxRepairs) {
     result.repairIterations += 1
     await sendMessage(page, REPAIR_MESSAGE)
-    current = await pollForSettledRun(page, result.projectId, current.run.builderRunId, result.answers, person)
+    current = await pollForSettledRun(page, result.projectId, current.run.builderRunId, options.cards)
     result.runs.push(recordOf(current.run, true))
   }
   return current
 }
 
 /** Fills `target` (sourceRevisionAfter, filesChanged, failure) from the final run and waits for the
- * Preview to name its revision. When slices went on, a last reply that changed nothing does not
- * fail the case: the Preview to grade is the newest source the person's messages produced. */
-async function judgeFinalRun(page, projectId, target, runs, afterSlices) {
+ * Preview to name its revision. */
+async function judgeFinalRun(page, projectId, target, runs) {
   const finalRun = runs.at(-1)
-  const producing = afterSlices && finalRun.resultKind === 'RESPONSE_ONLY'
-    ? runs.findLast((run) => run.resultKind === 'SOURCE_CHANGED' || run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') ?? finalRun
-    : finalRun
+  const producing = finalRun
   target.sourceRevisionAfter = producing.resultSourceRevision ?? producing.baseSourceRevision
   const before = runs[0].baseSourceRevision
   if (target.sourceRevisionAfter && target.sourceRevisionAfter !== before) {
@@ -508,7 +540,7 @@ async function judgeFinalRun(page, projectId, target, runs, afterSlices) {
 }
 
 /** The one correction message: the person sends it once after the first Preview, built from the oracle's diff, and the Preview it produces is compared again. */
-async function sendCorrection(page, options, result, { oracle, person, planText, rawFirst }) {
+async function sendCorrection(page, options, result, { oracle, planText, rawFirst }) {
   const comparison = compareToOracle(oracle, { previewText: rawFirst, planText })
   result.oracle = { afterFirstPreview: comparison, afterCorrection: null }
   const message = correctionMessage(comparison.defects)
@@ -518,10 +550,10 @@ async function sendCorrection(page, options, result, { oracle, person, planText,
   result.correction = correction
   const sentAt = Date.now()
   await sendMessage(page, message)
-  let settled = await pollForSettledRun(page, result.projectId, result.runs.at(-1).builderRunId, result.answers, person)
+  let settled = await pollForSettledRun(page, result.projectId, result.runs.at(-1).builderRunId, options.cards)
   result.runs.push(recordOf(settled.run, false))
-  settled = await repairUntilBuilt(page, options, result, settled, person)
-  await judgeFinalRun(page, result.projectId, correction, result.runs.slice(firstRun), false)
+  settled = await repairUntilBuilt(page, options, result, settled)
+  await judgeFinalRun(page, result.projectId, correction, result.runs.slice(firstRun))
   if (correction.failure) return
   const { usablePreviewAt, rawPreviewText } = await readPreview(page, join(options.out, 'preview-after-correction.png'), options.maskValues)
   correction.wallTimeToUsablePreviewMs = usablePreviewAt - sentAt
@@ -547,18 +579,31 @@ const tscProcesses = () => {
 
 /** Counts of what the person had to do, from the driver's own record. */
 export const personCounts = (result) => ({
-  approvals: result.answers.filter((answer) => answer.kind === 'PLAN').length,
+  approvals: result.answers.filter((answer) => answer.kind === 'APPROVAL' || answer.kind === 'PLAN').length,
   answers: result.answers.filter((answer) => answer.kind === 'QUESTION').length,
   silentAnswers: result.answers.filter((answer) => answer.via === 'silent').length,
   repairs: result.repairIterations,
-  slicesContinued: result.slicesContinued,
   corrections: result.correction ? 1 : 0,
 })
+
+/** Pure. The AC-13 block of a case run, from the driver's record and the timing blocks. The trace parts (plan file, app files before the approval, checks, operations) are null when a run has no trace. */
+export function ac13Of(result, timings, expectation) {
+  const blocks = timings.runs.map((run) => run.block)
+  const traced = blocks.length > 0 && blocks.every(Boolean)
+  return ac13Metrics({
+    expectation,
+    flow: blocks[0]?.flow ?? null,
+    answers: result.answers,
+    timeToFirstPreviewMs: result.wallTimeToUsablePreviewMs,
+    checkRuns: traced ? blocks.reduce((sum, block) => sum + block.checks.runs.length, 0) : null,
+    operationRuns: traced ? blocks.reduce((sum, block) => sum + (block.tools.byTool.conexus_run_operation?.calls ?? 0), 0) : null,
+  })
+}
 
 /** The timing block of every Builder run of this case. The spans come from the Hub database when CONEXUS_EVAL_DATABASE_URL names it, the Hub's stage times from the log CONEXUS_HUB_LOG names; either one missing leaves that part null and says why. */
 async function collectTimings(result, options, env = process.env) {
   const identity = {
-    case: options.case, arm: options.arm ?? null, repetition: options.repetition, modelId: result.modelId, promptVariant: result.promptVariant,
+    case: options.case, arm: options.arm ?? null, repetition: options.repetition, modelId: result.modelId,
     hubVersion: options.hubVersion, machine: { tscProcesses: tscProcesses(), loadAverage1m: loadavg()[0] },
   }
   const timings = { identity, person: personCounts(result), runs: [] }
@@ -601,33 +646,26 @@ export async function runCase(options) {
   const person = sheet ? createPerson({ sheet, ...(options.personModel ? { model: options.personModel } : {}) }) : null
   const oracle = typeof rawCase.oracle === 'string' ? loadOracle(rawCase.oracle) : null
   const arm = options.arm ? resolveArm(options.arm) : null
-  const promptVariant = options.promptVariant ?? arm?.promptVariant
   const modelId = options.model ?? arm?.model
-  const runOptions = { ...options, person, model: modelId, promptVariant }
+  const cards = createCards({ person, adjust: caseFile.adjust })
+  const runOptions = { ...options, cards, model: modelId }
   const sendRequest = sheet ? fillValues(caseFile.request, values) : caseFile.request
   const statePath = options.statePath ?? resolveStatePath(options.baseUrl)
   const browser = await chromium.launch({ headless: !options.headed })
   const context = await browser.newContext({ storageState: statePath, viewport: { width: 1480, height: 920 } })
   const page = await context.newPage()
-  // The product UI never names a prompt variant, so the eval adds it to each message the UI sends:
-  // the first request, every repair, slice and correction. The Builder sees it in the request
-  // context and nowhere else: not in the Project name, the request or the person's words.
-  if (promptVariant) {
-    await page.route('**/api/control/projects/*/builder-session/messages', (route) => route.continue({
-      postData: JSON.stringify({ ...JSON.parse(route.request().postData() ?? '{}'), promptVariant }),
-    }))
-  }
   const startedAt = new Date().toISOString()
   const result = {
     schema: 'conexus.builder-eval/v1', startedAt, finishedAt: null, outcome: 'ERROR', error: null,
     case: options.case, arm: options.arm ?? null, gradeOnly: options.gradeOnly, request: caseFile.request, baseUrl: options.baseUrl,
     workspaceId: null, projectId: options.project ?? null, projectName: options.project ? null : (options.projectName ?? sheet?.projectName ?? defaultProjectName()),
-    conversationId: null, modelId: modelId ?? null, promptVariant: promptVariant ?? null,
+    conversationId: null, modelId: modelId ?? null,
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
-    runs: [], answers: [], lastCheckReport: null, lastCheckReportReason: null, refusal: null, repairIterations: 0, slicesContinued: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
+    runs: [], answers: cards.answers, lastCheckReport: null, lastCheckReportReason: null, refusal: null, repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
     checks: { initial: [], afterReload: null }, previewText: null, screenshotPath: null, failure: null,
-    oracle: null, correction: null, timings: null,
+    oracle: null, correction: null, timings: null, ac13: null,
   }
+  cards.readMessages = async () => (result.projectId && result.conversationId ? readThreadMessages(page, result.projectId, result.conversationId) : [])
   try {
     let requestSentAt = null
     if (options.gradeOnly) {
@@ -644,8 +682,8 @@ export async function runCase(options) {
       const { usablePreviewAt, rawPreviewText } = await gradePreview(page, { out: options.out, caseFile, result, maskValues: options.maskValues })
       if (requestSentAt !== null) result.wallTimeToUsablePreviewMs = usablePreviewAt - requestSentAt
       if (person && oracle) {
-        const planText = result.answers.findLast((answer) => answer.kind === 'PLAN')?.text ?? null
-        await sendCorrection(page, runOptions, result, { oracle, person, planText, rawFirst: rawPreviewText })
+        const planText = result.answers.findLast((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL')?.text ?? null
+        await sendCorrection(page, runOptions, result, { oracle, planText, rawFirst: rawPreviewText })
       }
     }
 
@@ -674,6 +712,7 @@ export async function runCase(options) {
         : ranAnyChecks && initialOk && reloadOk
     result.outcome = passed === null ? 'UNGRADED' : passed ? 'PASS' : 'FAIL'
     result.timings = await collectTimings(result, options)
+    result.ac13 = ac13Of(result, result.timings, caseFile.plan)
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error)
     result.outcome = 'ERROR'
@@ -695,7 +734,7 @@ export async function main(argv = process.argv.slice(2)) {
     return 0
   }
   const result = await runCase(options)
-  process.stdout.write(`${JSON.stringify({ outcome: result.outcome, arm: result.arm, projectId: result.projectId, runs: result.runs.length, repairIterations: result.repairIterations, slicesContinued: result.slicesContinued, corrected: result.correction !== null, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, error: result.error }, null, 2)}\n`)
+  process.stdout.write(`${JSON.stringify({ outcome: result.outcome, arm: result.arm, projectId: result.projectId, runs: result.runs.length, repairIterations: result.repairIterations, ac13: result.ac13, corrected: result.correction !== null, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, error: result.error }, null, 2)}\n`)
   return result.outcome === 'PASS' ? 0 : 1
 }
 
