@@ -125,6 +125,52 @@ export function resumedBuilderTrace({ traceId = 'tr-r', builderRunId = 'run-r', 
   ]
 }
 
+const APPROVAL_OPTIONS = [{ label: 'Aprovar e construir', description: 'Começa a construir.' }, { label: 'Pedir ajustes', description: 'Diz o que mudar.' }]
+
+/**
+ * A recorded Builder run that plans, in one of three shapes: `new` (the plan in `.conexus/plan.md`,
+ * approval through `ask_user` with the approval options, after an unrelated question), `legacy`
+ * (today's Builder: `.conexus/plans/lista.md`, approval through `submit_plan`) and `edit` (a small
+ * edit: no plan, no approval, one app file). `appFirst` makes the new flow write an app file before
+ * the approval, the defect the scorers must catch.
+ */
+export function planFlowTrace(shape, { traceId = `tr-${shape}`, builderRunId = `run-${shape}`, projectId = 'p-flow', appFirst = false } = {}) {
+  const node = (spanId, parentSpanId, spanType, fields) => span(traceId, spanId, parentSpanId, spanType, fields)
+  let clock = 1000
+  const step = `${traceId}-step`
+  const tool = (entityName, input, fields = {}) => {
+    clock += 1000
+    return node(`${traceId}-t${clock}`, step, 'tool_call', { name: `tool: '${entityName}'`, entityType: 'tool', entityName, input, attributes: { success: true }, startedAt: at(clock), endedAt: at(clock + 500), ...fields })
+  }
+  const write = (path) => tool('mastra_workspace_write_file', { path, content: 'x' })
+  const check = () => tool('conexus_check', {}, { output: { ok: true, steps: [{ step: 'typecheck', status: 'passed', durationMs: 7000 }] } })
+  const shapes = {
+    new: () => [
+      tool('ask_user', { question: 'Qual o formato da data?', options: [{ label: 'Dia/mês/ano' }, { label: 'Ano-mês-dia' }] }),
+      write('.conexus/plan.md'),
+      ...(appFirst ? [write('src/app.tsx')] : []),
+      tool('ask_user', { question: 'Posso construir assim?', options: APPROVAL_OPTIONS }),
+      write('src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
+    ],
+    legacy: () => [
+      write('.conexus/plans/lista.md'),
+      tool('submit_plan', { path: '.conexus/plans/lista.md', title: 'Lista' }),
+      write('src/app.tsx'), write('src/api.ts'), check(),
+    ],
+    edit: () => [tool('mastra_workspace_read_file', { path: 'src/app.tsx' }), tool('mastra_workspace_edit_file', { path: 'src/app.tsx' }), check()],
+  }
+  const calls = shapes[shape]()
+  return [
+    node(`${traceId}-root`, null, 'agent_run', {
+      entityType: 'agent', entityId: 'code-agent', entityName: 'code-agent',
+      metadata: { conexusBuilderRunId: builderRunId, conexusBuilderProjectId: projectId }, startedAt: at(0), endedAt: at(clock + 5000),
+    }),
+    node(`${traceId}-gen`, `${traceId}-root`, 'model_generation', { attributes: { usage: { inputTokens: 100, outputTokens: 10 } } }),
+    node(step, `${traceId}-gen`, 'model_step'),
+    ...calls,
+  ]
+}
+
 export const seedSpans = async (storage, records) => (await storage.getStore('observability')).batchCreateSpans({ records })
 
 function fakeHub(models) {

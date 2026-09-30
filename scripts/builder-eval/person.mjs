@@ -1,6 +1,6 @@
 // The scripted person: the stand-in for the manager who talks to the Builder in a bakeoff run. It
 // answers each question card from the case's answer sheet, says it does not know when the sheet is
-// silent, approves every plan gate and, once, sends a correction built from the oracle's diff.
+// silent, approves the plan and, once, sends a correction built from the oracle's diff.
 //
 // A model only decides which sheet rule a question touches. The words the person says come from the
 // sheet, never from the model, so a run cannot drift from its answer sheet, and a silent sheet gives
@@ -16,7 +16,6 @@ const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
 // signed in to Mastra Code's own store by `login.mjs`.
 const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'
-const DEFAULT_CONTINUE_TEXT = 'Pode seguir com a próxima fatia.'
 
 const SILENT_OPTION = /n[ãa]o sei|tanto faz|qualquer|voc[êe] decide|voc[êe] escolhe/i
 const RECOMMENDED = /recomend/i
@@ -33,7 +32,7 @@ const text = (value, where) => {
 /**
  * The answer sheet of one case.
  * @typedef {Readonly<{ id: string, topic: string, say: string, pick: readonly string[], hidden: boolean }>} SheetRule
- * @typedef {Readonly<{ projectName: string, persona: string, continueText: string, rules: readonly SheetRule[] }>} Sheet
+ * @typedef {Readonly<{ projectName: string, persona: string, rules: readonly SheetRule[] }>} Sheet
  */
 
 /** Parses a case file's `person` block. Placeholders stay in the text until {@link fillValues}. @returns {Sheet} */
@@ -53,7 +52,6 @@ export function parseSheet(raw) {
   return Object.freeze({
     projectName: text(raw.projectName, 'person.projectName'),
     persona: text(raw.persona, 'person.persona'),
-    continueText: raw.continue === undefined ? DEFAULT_CONTINUE_TEXT : text(raw.continue, 'person.continue'),
     rules: Object.freeze(rules),
   })
 }
@@ -193,13 +191,4 @@ const defectSentence = (defect) => {
 export function correctionMessage(defects) {
   if (defects.length === 0) return null
   return ['Vi a prévia e encontrei o seguinte:', ...defects.map(defectSentence), 'Pode corrigir?'].join('\n')
-}
-
-/** Pure. True while the plan or the reply says slices are left: a line "Fatias restantes: N" with N above zero. */
-export const slicesRemaining = (...texts) => {
-  for (const source of texts.toReversed()) {
-    const match = /fatias restantes\s*:\s*(\d+)/i.exec(source ?? '')
-    if (match) return Number(match[1]) > 0
-  }
-  return false
 }

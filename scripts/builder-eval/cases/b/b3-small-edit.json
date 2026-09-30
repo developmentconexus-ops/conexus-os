@@ -1,0 +1,22 @@
+{
+  "plan": "notApplicable",
+  "request": "Troque o título da tela para \"Acompanhamento de compras\". O resto fica como está.",
+  "checks": [
+    {
+      "action": "expectText",
+      "selector": "body",
+      "text": "Acompanhamento de compras"
+    },
+    {
+      "action": "expectText",
+      "selector": "body",
+      "text": "Ligar para o fornecedor na segunda"
+    },
+    {
+      "action": "expectText",
+      "selector": "body",
+      "text": "Em aberto"
+    }
+  ],
+  "reload": true
+}

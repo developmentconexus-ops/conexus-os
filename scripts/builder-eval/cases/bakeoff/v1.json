@@ -5,7 +5,6 @@
   "person": {
     "projectName": "Visitas",
     "persona": "diretor comercial, que hoje controla as visitas numa planilha e sabe o que quer ver mas não pensa em telas nem em tabelas.",
-    "continue": "Pode seguir com a próxima fatia.",
     "answers": [
       {
         "id": "origem-visitas",
