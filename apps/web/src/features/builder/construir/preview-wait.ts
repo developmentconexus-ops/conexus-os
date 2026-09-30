@@ -1,16 +1,16 @@
-import type { BuilderMode, LiveTurn } from '../live-turn'
+import type { LiveTurn } from '../live-turn'
 import { type ActiveRunView, activeLine } from './run-state'
 
 /** What the Preview says while a first version does not exist yet: the phase, the agent's tasks and how long it has run. */
 export type PreviewWait = Readonly<{ title: string; tasks: LiveTurn['tasks']; elapsedMs: number }>
 
 /** What the conversation on screen knows about the run. A run in another conversation has none of it. */
-export type WaitContext = Readonly<{ mode: BuilderMode | null; waiting: boolean; tasks: LiveTurn['tasks'] }>
+export type WaitContext = Readonly<{ waiting: boolean; tasks: LiveTurn['tasks'] }>
 
-const title = (view: ActiveRunView, { mode, waiting }: WaitContext): string => {
+const title = (view: ActiveRunView, { waiting }: WaitContext): string => {
   if (waiting) return 'Esperando sua resposta'
   const working = view.run.phase === 'AGENT' || (view.run.phase === null && view.run.state === 'RUNNING')
-  if (working && mode) return mode === 'plan' ? 'Planejando o app' : 'Construindo o app'
+  if (working) return 'Construindo o app'
   return activeLine(view)
 }
 

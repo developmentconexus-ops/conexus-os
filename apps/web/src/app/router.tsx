@@ -7,7 +7,6 @@ import { settingsRoute } from '../routes/settings'
 import { settingsAccountRoute } from '../routes/settings-account'
 import { settingsIndexRoute } from '../routes/settings-index'
 import { settingsInstallationAdminsRoute } from '../routes/settings-installation-admins'
-import { settingsMemoryRoute } from '../routes/settings-memory'
 import { settingsModelsRoute } from '../routes/settings-models'
 import { setupRoute } from '../routes/setup'
 import { workspaceMembersRoute } from '../routes/workspace-members'
@@ -24,7 +23,6 @@ const settingsRouteWithChildren = settingsRoute.addChildren([
   settingsIndexRoute,
   settingsAccountRoute,
   settingsModelsRoute,
-  settingsMemoryRoute,
   settingsInstallationAdminsRoute,
 ])
 

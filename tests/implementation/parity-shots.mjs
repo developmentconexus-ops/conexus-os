@@ -45,7 +45,7 @@ async function mockHub(page) {
     if (p.endsWith('/builder-session')) return json(route, 200, { projectId: ids.vacation, latestBuilderRun: null, latestCodeChangingRun: null, preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null }, runHistory: [] })
     if (p.includes('/agent-controller/conexus-builder/sessions/') && p.endsWith('/threads')) return json(route, 200, { threads: [{ id: 'c1', title: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }] })
     if (p.includes('/agent-controller/conexus-builder/sessions/') && p.endsWith('/messages')) return json(route, 200, { messages: [] })
-    if (p.includes('/agent-controller/conexus-builder/sessions/')) return json(route, 200, { modelId: 'anthropic/claude-opus-4-5', modeId: 'build', threadId: 'c1' })
+    if (p.includes('/agent-controller/conexus-builder/sessions/')) return json(route, 200, { modelId: 'anthropic/claude-opus-4-5', threadId: 'c1' })
     if (p.endsWith('/model-accounts/models')) return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true }] })
     return json(route, 404, { type: 'not-mocked' })
   })

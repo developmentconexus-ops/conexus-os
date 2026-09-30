@@ -34,7 +34,6 @@ export type BuilderRun = Readonly<{
   projectId: string
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
   phase: 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING' | null
-  mode: 'BUILD' | 'PLAN'
   baseSourceRevision: string
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
@@ -106,7 +105,6 @@ export const getBuilderSession = async (projectId: string): Promise<BuilderSessi
   if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderSession>
 }
-// The run starts in the conversation's own mode, which the conversation's session switches.
 export const sendBuilderMessage = async (
   projectId: string, conversationId: string, content: string, idempotencyKey: string,
 ): Promise<BuilderMessageAccepted> => {
