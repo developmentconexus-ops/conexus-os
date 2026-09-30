@@ -79,6 +79,10 @@ const REGISTERED_TOOL_SENTENCES = {
   conexus_run_operation: 'Testou uma operação com dados reais',
 }
 
+test('recall, added by observational memory retrieval, reads as rereading earlier conversations', () => {
+  assert.equal(toolSentence('recall', false), 'Releu conversas anteriores')
+})
+
 // The names of the tools a run's first model call carries, by driving one turn on the real controller.
 const toolsOfARun = async () => {
   const { mkdtempSync, rmSync } = await import('node:fs')
