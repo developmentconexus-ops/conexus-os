@@ -7,7 +7,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderComposer, type ComposerMode } from '../../builder/composer/composer'
-import { type BuilderMode, type ReasoningLevel, useBuilderModels } from '../../builder/mastra-session'
+import { type ReasoningLevel, useBuilderModels } from '../../builder/mastra-session'
 import { suggestProjectName } from '../project-name'
 import { useStartProject } from '../start-project'
 import type { StartedProject } from '../start-project'
@@ -58,8 +58,6 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
   const [message, setMessage] = useState('')
   const [modelId, setModelId] = useState('')
   const [reasoning, setReasoning] = useState<ReasoningLevel | null>(null)
-  // A new conversation starts in Planejar (AC-2); the person may pick Construir before sending.
-  const [agentMode, setAgentMode] = useState<BuilderMode>('plan')
   const nameInput = useRef<HTMLInputElement>(null)
   const { start, mutation } = useStartProject(workspaceId)
   const openStarted = useOpenStartedProject()
@@ -93,7 +91,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       return
     }
     setMessage('')
-    start({ name: projectName, description: description.trim(), modelId: modelReady ? modelId : undefined, reasoning, mode: agentMode },
+    start({ name: projectName, description: description.trim(), modelId: modelReady ? modelId : undefined, reasoning },
       { onStarted: openStarted, onRefused: setMessage })
   }
 
@@ -122,8 +120,6 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       onModelChange={setModelId}
       reasoning={reasoning}
       onReasoningChange={setReasoning}
-      agentMode={agentMode}
-      onAgentModeChange={setAgentMode}
     />
 
     {confirming && (

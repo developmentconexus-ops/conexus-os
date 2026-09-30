@@ -43,7 +43,7 @@ async function stub(page, running) {
     message('u1', 'user', 'Crie uma agenda semanal para a equipe de vendas.'),
     message('a1', 'assistant', 'Li o app. Vou propor um plano antes de mudar qualquer arquivo.'),
   ] })))
-  await page.route(`${CONTROLLER}/sessions/*`, (route) => route.fulfill(json({ modelId: 'anthropic/claude-opus-4-5', modeId: 'plan', threadId: conversationId, omProgress })))
+  await page.route(`${CONTROLLER}/sessions/*`, (route) => route.fulfill(json({ modelId: 'anthropic/claude-opus-4-5', threadId: conversationId, omProgress })))
   await page.route(`${CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill({
     status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' },
     body: `data: ${JSON.stringify({ type: 'display_state_changed', displayState: { activeTools: {}, tasks: [], omProgress: { ...omProgress, status: 'observing', pendingTokens: 29_000 }, bufferingMessages: false, bufferingObservations: false } })}\n\n`,
@@ -86,13 +86,6 @@ async function main() {
         await page.screenshot({ path: resolve(outDir, `composer-${state}-${scheme}.png`), clip })
         await page.screenshot({ path: resolve(outDir, `construir-${state}-${scheme}.png`) })
         if (!running) {
-          const chip = page.getByRole('button', { name: /^Modo: / })
-          if (await chip.count()) {
-            await chip.click()
-            await page.waitForTimeout(250)
-            await page.screenshot({ path: resolve(outDir, `mode-menu-${scheme}.png`), clip: { ...clip, y: clip.y - 160, height: clip.height + 160 } })
-            await page.keyboard.press('Escape')
-          }
           const ring = page.getByRole('button', { name: /^Memória/ })
           if (await ring.count()) {
             await ring.click()

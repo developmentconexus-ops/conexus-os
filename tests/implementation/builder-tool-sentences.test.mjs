@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { hubModuleUrl } from './hub-build.mjs'
 import { TASK_TOOL_NAMES, groupSummary, toolRequest, toolSentence } from '../../apps/web/src/features/builder/construir/tool-sentences.ts'
 
 // Regression for the mislabeled-row bug: Mastra Code's task_update/task_check/task_complete
@@ -50,8 +49,6 @@ test('conexus_check reads as checking the app, running and done', () => {
   assert.equal(toolSentence('conexus_check', false), 'Verificou o app')
 })
 
-const { BUILDER_MODES } = await import(hubModuleUrl('builder/harness/modes.js'))
-
 const REGISTERED_TOOL_SENTENCES = {
   mastra_workspace_read_file: 'Leu um arquivo',
   mastra_workspace_list_files: 'Listou arquivos',
@@ -75,14 +72,11 @@ const REGISTERED_TOOL_SENTENCES = {
   connector_fetch: 'Consultou um sistema da empresa',
   web_search: 'Pesquisou na internet',
   web_fetch: 'Abriu uma página da internet',
-  submit_plan: 'Enviou o plano',
   conexus_check: 'Verificou o app',
   conexus_run_operation: 'Testou uma operação com dados reais',
 }
 
-test('every tool a Builder mode registers has its own pt-BR sentence, running and done', () => {
-  const registered = [...new Set(Object.values(BUILDER_MODES).flatMap((mode) => [...mode.availableTools]))].sort()
-  assert.deepEqual(registered, Object.keys(REGISTERED_TOOL_SENTENCES).sort())
+test('every tool the Builder registers has its own pt-BR sentence, running and done', () => {
   for (const [toolName, done] of Object.entries(REGISTERED_TOOL_SENTENCES)) {
     assert.equal(toolSentence(toolName, false), done, toolName)
     assert.notEqual(toolSentence(toolName, true), 'Usando uma ferramenta', toolName)

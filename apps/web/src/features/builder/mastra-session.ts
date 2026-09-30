@@ -2,10 +2,10 @@ import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { type BuilderMode, type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, asBuilderMode, builderModes, idleTurn, reduceTurn } from './live-turn'
+import { type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
-export type { ActiveTool, BuilderMode, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
+export type { ActiveTool, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
@@ -31,15 +31,6 @@ const conversationSession = (projectId: string, conversationId: string) =>
   builderController.session(projectResource(projectId), `conversation:${conversationId}`)
 const runSession = (projectId: string, conversationId: string) =>
   builderController.session(projectResource(projectId), `builder:${conversationId}`)
-
-type SessionHandle = ReturnType<typeof conversationSession>
-
-// A conversation has one current model, so the picker sets it for both modes: Mastra keeps a model
-// per mode on the thread, and a person who picks "Gemini" means it for the plan and for the build.
-// Naming each mode also sets the session's live model when the mode is the active one.
-const switchConversationModel = async (session: SessionHandle, modelId: string): Promise<void> => {
-  for (const modeId of builderModes) await session.switchModel(modelId, { scope: 'thread', modeId })
-}
 
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
@@ -107,15 +98,14 @@ const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
 // them on a conversation's own thread. Once the home prompt opens that first conversation, this
 // applies them to it, the same writes useSessionModel's own mutations make.
 export const applyThreadSettings = async (projectId: string, conversationId: string, settings: Readonly<{
-  modelId: string | undefined; reasoning: ReasoningLevel | null; mode: BuilderMode
+  modelId: string | undefined; reasoning: ReasoningLevel | null
 }>): Promise<void> => {
   const session = conversationSession(projectId, conversationId)
-  await session.switchMode(settings.mode)
-  if (settings.modelId) await switchConversationModel(session, settings.modelId)
+  if (settings.modelId) await session.switchModel(settings.modelId)
   if (settings.reasoning) await session.setState({ thinkingLevel: settings.reasoning })
 }
 
-export const useSessionModel = (projectId: string, conversationId: string | null, runActive = false) => {
+export const useSessionModel = (projectId: string, conversationId: string | null) => {
   const queryClient = useQueryClient()
   // A session arrives with no model selected, and an empty id is how the controller says so. An
   // absent thinking level means the controller's configured default applies.
@@ -125,7 +115,7 @@ export const useSessionModel = (projectId: string, conversationId: string | null
       const current = await conversationSession(projectId, conversationId ?? '').state()
       // The Hub reloads the memory a run of this conversation stored before it answers.
       const memory: MemoryGauge | null = current.omProgress ? { progress: current.omProgress, bufferingMessages: false, bufferingObservations: false } : null
-      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), mode: asBuilderMode(current.modeId), memory }
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), memory }
     },
     enabled: Boolean(conversationId),
   })
@@ -138,33 +128,16 @@ export const useSessionModel = (projectId: string, conversationId: string | null
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  // Thread scope is the only one the controller persists, and it is the right one: the choice is
-  // saved on the conversation, which is what a run opened from it will read. While a run is active
-  // the switch goes to the session that runs, so the model it calls next, after a plan approval or
-  // an answer, is the new one. A run that has no session yet reads the thread when it opens one.
+  // The model is the conversation's own, held in its Mastra session. The Hub refuses the change
+  // while a turn is active and the composer disables the control then, so the next turn reads it.
   const choose = useMutation({
-    mutationFn: async (modelId: string) => {
+    mutationFn: (modelId: string) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      if (runActive) {
-        try {
-          return await switchConversationModel(runSession(projectId, conversationId), modelId)
-        } catch {
-          // Not open yet (the run is still preparing): the thread carries the choice to it.
-        }
-      }
-      return switchConversationModel(conversationSession(projectId, conversationId), modelId)
+      return conversationSession(projectId, conversationId).switchModel(modelId)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  // The Hub refuses a switch while a run is in flight (AC-5); the next run starts in this mode.
-  const chooseMode = useMutation({
-    mutationFn: (mode: BuilderMode) => {
-      if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return conversationSession(projectId, conversationId).switchMode(mode)
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
-  })
-  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, mode: state.data?.mode ?? 'plan', memory: state.data?.memory ?? null, choose, chooseReasoning, chooseMode }
+  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, memory: state.data?.memory ?? null, choose, chooseReasoning }
 }
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
@@ -197,8 +170,7 @@ export const useBuilderLiveTurn = (
             dispatch({ runId: builderRunId, kind: 'event', event })
             if (event.type === 'agent_end') {
               resync()
-              // A plan's approval can change the conversation's mode (item C); the Hub rehydrates it
-              // when the run's session closes, so the chip refetches once the run is truly over.
+              // The run stored memory for the conversation; read it again once the run is truly over.
               if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
             }
           },
@@ -229,11 +201,10 @@ export const useBuilderLiveTurn = (
  * "always allow" to send.
  */
 // respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
-// from a single-select AskUser question), a string array (the options chosen from a multi-select
-// question), or a PlanResume for submit_plan.
+// from a single-select AskUser question), or a string array (the options chosen from a multi-select
+// question).
 export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
   const session = runSession(projectId, conversationId)
   if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
-  if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
   return session.respondToToolSuspension(pending.toolCallId, answer.text)
 }

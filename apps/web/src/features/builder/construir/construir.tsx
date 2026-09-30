@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], mode: null, modelId: null, memory: null, memoryFailed: null, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -120,7 +120,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const conversationActions = useConversationActions(projectId)
   const conversation = conversations.data?.find((entry) => entry.id === conversationId) ?? null
   const models = useBuilderModels()
-  const sessionModel = useSessionModel(projectId, conversationId, latestRun?.conversationId === conversationId && isActive(latestRun))
+  const sessionModel = useSessionModel(projectId, conversationId)
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the person can use.
   const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
@@ -147,10 +147,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const history = useBuilderThreadMessages(projectId, conversationId)
   const turn = useBuilderLiveTurn(projectId, run ?? undefined, isActive(run) && run.phase === 'AGENT')
   const conversationTurn = runHere ? turn : noTurn
-  // While the run is live its own session is the truth: a plan approval switches it to Construir
-  // before the conversation's saved mode catches up when the run closes.
-  const shownMode = conversationTurn.status === 'LIVE' && conversationTurn.mode ? conversationTurn.mode : sessionModel.mode
-  const shownModelId = conversationTurn.status === 'LIVE' && conversationTurn.modelId ? conversationTurn.modelId : sessionModel.modelId
   const shownMemory = conversationTurn.status === 'LIVE' && conversationTurn.memory ? conversationTurn.memory : sessionModel.memory
   const pending = Object.values(conversationTurn.waiting)
 
@@ -232,7 +228,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
 
   const wait = view.kind === 'ACTIVE'
-    ? previewWait(view, runHere ? { mode: shownMode, waiting: pending.length > 0, tasks: conversationTurn.tasks } : { mode: null, waiting: false, tasks: [] }, now)
+    ? previewWait(view, runHere ? { waiting: pending.length > 0, tasks: conversationTurn.tasks } : { waiting: false, tasks: [] }, now)
     : null
 
   const stage = <section className="cx-stage" aria-label="Palco">
@@ -300,7 +296,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} model={offeredModels.find((entry) => entry.id === shownModelId) ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
@@ -347,13 +343,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onModelChange={(modelId) => sessionModel.choose.mutate(modelId)}
           reasoning={sessionModel.reasoning}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
-          agentMode={shownMode}
           memory={shownMemory}
           memoryFailed={conversationTurn.memoryFailed}
-          onAgentModeChange={(next) => sessionModel.chooseMode.mutate(next, {
-            onSuccess: () => setSendError(null),
-            onError: () => setSendError('O modo só muda quando o Builder está parado.'),
-          })}
         />
       </ChatShell.Column>
         </ChatShell.Dock>

@@ -34,7 +34,7 @@ test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into 
 })
 
 const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
-// The model, the mode and a conversation's own state are the controller's, so the screen reads
+// The model and a conversation's own state are the controller's, so the screen reads
 // them from the Builder's controller and holds none. A model with no key is never offered.
 const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
@@ -73,16 +73,10 @@ const routeBuilder = async (page, state) => {
   await page.route('**/api/control/model-accounts/models', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, modeId: state.modeId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
     state.modelId = route.request().postDataJSON().modelId
-    state.modelSwitches.push([state.modelId, route.request().postDataJSON().modeId])
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-  })
-  // A glob ending in mode* would also take the model route.
-  await page.route((url) => url.pathname.startsWith('/api/builder/agent-controller/conexus-builder/sessions/') && url.pathname.endsWith('/mode'), (route) => {
-    state.modeId = route.request().postDataJSON().modeId
-    state.modeSwitches.push([conversationOf(route.request().url()), state.modeId])
+    state.modelSwitches.push(state.modelId)
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => {
@@ -93,7 +87,7 @@ const routeBuilder = async (page, state) => {
 }
 
 const builderState = (conversations, messages = {}, modelId = SELECTED_MODEL) =>
-  ({ conversations, messages, modelId, modeId: 'build', modelSwitches: [], modeSwitches: [], messageReads: [], opened: [] })
+  ({ conversations, messages, modelId, modelSwitches: [], messageReads: [], opened: [] })
 const assistantMessage = (id, text) => ({ id, role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
 const userMessage = (id, text) => ({ id, role: 'user', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
 const sse = (...events) => ({
@@ -157,8 +151,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
-  // The second send settles as RESPONSE_ONLY: Plan mode is gone, so a response-only outcome is
-  // reached by an ordinary BUILD send that changes nothing, not by a separate mode.
+  // The second send settles as RESPONSE_ONLY: an ordinary send that changes nothing.
   const session = () => ({
     projectId,
     latestBuilderRun: run && runFinished
@@ -185,7 +178,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     buildCount += 1
     threadMessages.push(userMessage(`user-${threadMessages.length + 1}`, body.content))
     runFinished = false
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) =>
@@ -281,8 +274,6 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.locator('.cx-dfile-head .cx-dfile-path', { hasText: 'app/index.html' }).waitFor()
   await page.locator('.cx-dt tr.cx-dt-add .cx-dt-t', { hasText: 'Counter v2' }).waitFor()
 
-  // Plan mode is removed from the product: a second BUILD send that settles RESPONSE_ONLY is what
-  // used to be exercised by switching into Plan.
   const secondSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByLabel('Mensagem para o agente').fill('Explique o contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
@@ -330,7 +321,7 @@ test('new Project lands directly in Build and can send its first Builder message
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     const body = route.request().postDataJSON()
     conversationMessages.push(userMessage('new-message', body.content))
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'QUEUED', phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'QUEUED', phase: null, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
@@ -372,7 +363,7 @@ test('an untitled conversation shows the title its first request gives it while 
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     // The Hub titles a conversation from its first request once the run has saved it.
     state.conversations = [conversation(conversationId, 'Crie um contador de visitas')]
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
@@ -438,7 +429,7 @@ test('a Project holds several conversations, and switching between them leaves t
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
   // composer's placeholder leaving its "no model" wording, not by the button alone.
   await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
-  assert.deepEqual(state.modelSwitches, [[SELECTED_MODEL, 'plan'], [SELECTED_MODEL, 'build']], 'the picker sets the conversation\'s model for both modes')
+  assert.deepEqual(state.modelSwitches, [SELECTED_MODEL], 'the picker sets the conversation\'s one model')
 
   assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
@@ -480,7 +471,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
 
   const conversationId = 'conversation-history'
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
-    builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null, mode: 'BUILD',
+    builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null,
     baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null, failureCategory: null,
     requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
   })
@@ -494,7 +485,6 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     latestBuilderRun: settled(latestRunId, latestBase, latestResult),
     latestCodeChangingRun: { baseSourceRevision: latestBase, resultSourceRevision: latestResult, resultKind: 'SOURCE_CHANGED' },
     preview: { workingSourceRevision: latestResult, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    mode: 'BUILD',
     runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/trace`, (route) => {
@@ -576,7 +566,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
     keys.push(route.request().headers()['idempotency-key'])
     return keys.length === 1 ? route.abort('connectionreset') : route.fulfill({
       status: 201, contentType: 'application/json',
-      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, mode: 'BUILD', baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
     })
   })
 
@@ -626,7 +616,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     phase = 'B'
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
-      builderRun: { builderRunId: '70000000-0000-4000-8000-000000000025', projectId, state: 'SUCCEEDED', phase: null, mode: 'BUILD', baseSourceRevision: sourceA, resultSourceRevision: sourceB, resultKind: 'SOURCE_CHANGED', failureCode: null },
+      builderRun: { builderRunId: '70000000-0000-4000-8000-000000000025', projectId, state: 'SUCCEEDED', phase: null, baseSourceRevision: sourceA, resultSourceRevision: sourceB, resultKind: 'SOURCE_CHANGED', failureCode: null },
     }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, async (route) => {
@@ -680,7 +670,7 @@ test('a run that failed before the agent still shows the request and names why i
   // empty and the row is the only record of what the operator asked for.
   const conversationId = 'conversation-pre-agent-failure'
   const failedRun = {
-    builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null, mode: 'BUILD',
+    builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
     failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
@@ -719,7 +709,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   const working = 'conversation-working'
   const other = 'conversation-other'
   const baseRun = {
-    builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+    builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null,
     requestText: 'Crie um cadastro de clientes', createdAt: new Date(Date.now() - 75_000).toISOString(),
   }
@@ -879,7 +869,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     phase = 'B'
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
-      builderRun: { builderRunId: '70000000-0000-4000-8000-000000000035', projectId, state: 'SUCCEEDED', phase: null, mode: 'BUILD', baseSourceRevision: sourceA, resultSourceRevision: sourceB, resultKind: 'SOURCE_CHANGED', failureCode: null },
+      builderRun: { builderRunId: '70000000-0000-4000-8000-000000000035', projectId, state: 'SUCCEEDED', phase: null, baseSourceRevision: sourceA, resultSourceRevision: sourceB, resultKind: 'SOURCE_CHANGED', failureCode: null },
     }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, async (route) => {
@@ -955,13 +945,13 @@ test('a Project lists its conversations as the threads of its resource, and each
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: conversations }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) => {
     const id = conversationOf(route.request().url())
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', modeId: 'build', threadId: id }) })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', threadId: id }) })
   })
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
     const id = conversationOf(route.request().url())
@@ -991,7 +981,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   // The send button also stays disabled on an empty draft, so a chosen model is proven by the
   // composer's placeholder leaving its "no model" wording, not by the button alone.
   await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, NO_MODEL_PLACEHOLDER)
-  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL], [counterId, SELECTED_MODEL]], 'one write for each mode')
+  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]], 'one write for the conversation')
 
   const createConversation = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/builder/agent-controller/conexus-builder/sessions' && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Nova conversa' }).click()
@@ -1002,7 +992,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   assert.match(threadId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   assert.equal(sessionScope, `conversation:${threadId}`, 'a conversation is opened as its own session on the thread of the same id')
   assert.equal((await readConversationTitles(page, 3)).length, 3)
-  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL], [counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
+  assert.deepEqual(modelWrites, [[counterId, SELECTED_MODEL]], 'a model chosen in one conversation is not written onto another')
 
   await switchConversationTo(page, 'Contador')
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
@@ -1057,7 +1047,7 @@ test('a reply the controller finalizes under a different id than its live stream
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: runFinished ? 'SUCCEEDED' : 'RUNNING', phase: runFinished ? null : 'AGENT', mode: 'BUILD',
+      builderRunId: runId, projectId, conversationId, state: runFinished ? 'SUCCEEDED' : 'RUNNING', phase: runFinished ? null : 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: runFinished ? sourceRevision : null, resultKind: runFinished ? 'SOURCE_CHANGED' : null,
       failureCode: null, failureCategory: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
     },
@@ -1128,7 +1118,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, failureCategory: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     },
@@ -1201,7 +1191,7 @@ const openLiveTurn = async (t, events) => {
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
     },
@@ -1404,7 +1394,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'BUILD',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, failureCategory: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     },
@@ -1424,7 +1414,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
 })
 
 
-// A conversation of Project "Agenda" whose latest run, when given, is working in Planejar.
+// A conversation of Project "Agenda" whose latest run, when given, is working.
 const openAgenda = async (t, { accountId, projectId, conversationId, runId = null, stream = [], omProgress = null, viewport = { width: 1100, height: 900 } }) => {
   const sourceRevision = 'a'.repeat(40)
   const origin = await startWebServer(t)
@@ -1432,7 +1422,6 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport })
   const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: runId ? [userMessage('user-1', 'Crie uma agenda')] : [] })
-  state.modeId = 'plan'
   state.omProgress = omProgress
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -1440,7 +1429,7 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: runId ? {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
     } : null,
@@ -1457,50 +1446,7 @@ const OM_IDLE = {
   projectedMessageRemoval: 0, projectedReflectionSavings: 0,
 }
 
-test('an idle conversation switches between Planejar and Construir from the mode chip and with Shift+Tab, on its own session', async (t) => {
-  const conversationId = 'conversation-mode'
-  const { page, state } = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000221', projectId: '70000000-0000-4000-8000-000000000222', conversationId })
-  const legacyRequests = trackLegacyRequests(page)
 
-  const chip = page.getByRole('button', { name: /^Modo: / })
-  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
-  await chip.click()
-  assert.deepEqual(await page.getByRole('menuitemradio').allInnerTexts(), [
-    'Planejar\nLê o app e propõe um plano antes de mudar qualquer arquivo',
-    'Construir\nMuda o app e publica a prévia',
-  ])
-  await page.getByRole('menuitemradio', { name: /^Construir/ }).click()
-  await page.getByRole('button', { name: 'Modo: Construir', exact: true }).waitFor()
-
-  await messageBox(page).focus()
-  await page.keyboard.press('Shift+Tab')
-  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
-  assert.deepEqual(state.modeSwitches, [[conversationId, 'build'], [conversationId, 'plan']])
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Mensagem para o agente', 'Shift+Tab keeps the cursor in the message')
-  assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
-})
-
-test('while a run works the mode chip stays readable, says why it cannot change, and Shift+Tab says so too', async (t) => {
-  const conversationId = 'conversation-mode-running'
-  const { page, state } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000224', projectId: '70000000-0000-4000-8000-000000000225', conversationId,
-    runId: '70000000-0000-4000-8000-000000000226',
-  })
-
-  const chip = page.getByRole('button', { name: 'Modo: Planejar. O modo muda quando o Builder parar.', exact: true })
-  await chip.hover()
-  await page.getByRole('tooltip').filter({ hasText: 'Planejar. O modo muda quando o Builder parar.' }).waitFor()
-  assert.equal(await chip.getAttribute('title'), null)
-  await chip.click()
-  await page.getByText('O modo muda quando o Builder parar.', { exact: true }).waitFor()
-  assert.equal(await page.getByRole('menuitemradio').count(), 0, 'no mode is offered while the run works')
-  await page.keyboard.press('Escape')
-
-  await messageBox(page).focus()
-  await page.keyboard.press('Shift+Tab')
-  assert.equal(await page.getByRole('status').filter({ hasText: 'O modo muda quando o Builder parar.' }).count(), 1)
-  assert.deepEqual(state.modeSwitches, [])
-})
 
 test('the memory rings under the composer read the conversation\'s memory, then the run\'s live one', async (t) => {
   const meters = async (page) => page.locator('.cx-memory-status [role="meter"]').evaluateAll((nodes) => nodes.map((node) => [node.getAttribute('aria-label'), node.getAttribute('aria-valuetext')]))
@@ -1521,243 +1467,47 @@ test('the memory rings under the composer read the conversation\'s memory, then 
   assert.deepEqual(await meters(live.page), [['Guardando as mensagens na memória', '29/30k']], 'an empty observation budget is not drawn, as in the Factory')
 })
 
-test('at a 420px chat panel the mode chip, the model name and the send button share one row without overlapping', async (t) => {
-  const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-00000000022c', projectId: '70000000-0000-4000-8000-00000000022d', conversationId: 'conversation-420',
-    omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
-  })
-  const chat = page.locator('.cx-chat')
-  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
-  const separator = await page.locator('[data-separator]').boundingBox()
-  const width = (await chat.boundingBox()).width
-  await page.mouse.move(separator.x + separator.width / 2, separator.y + separator.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(separator.x + separator.width / 2 - (420 - width), separator.y + separator.height / 2, { steps: 8 })
-  await page.mouse.up()
 
-  const measured = await page.evaluate(() => {
-    const box = (selector) => document.querySelector(selector).getBoundingClientRect()
-    const chip = box('.cx-mode-chip')
-    const model = box('.cx-model-button')
-    const send = box('.cx-send-button')
-    const name = document.querySelector('.cx-model-name')
-    return {
-      chat: Math.round(box('.cx-chat').width),
-      chipBeforeModel: chip.right <= model.left,
-      modelBeforeSend: model.right <= send.left,
-      oneRow: Math.abs(chip.top + chip.height / 2 - (model.top + model.height / 2)) < 2,
-      modelNameWhole: name.scrollWidth <= name.clientWidth,
-    }
-  })
-  assert.deepEqual(measured, { chat: 420, chipBeforeModel: true, modelBeforeSend: true, oneRow: true, modelNameWhole: true })
-})
 
-test('a narrow chat panel keeps the model name whole and shrinks the mode chip to its icon, a wide one shows the label', async (t) => {
-  const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-00000000023a', projectId: '70000000-0000-4000-8000-00000000023b', conversationId: 'conversation-fit',
-    omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
-  })
-  await page.getByRole('button', { name: 'Modo: Planejar', exact: true }).waitFor()
-  const resizeChatTo = async (target) => {
-    const separator = await page.locator('[data-separator]').boundingBox()
-    const width = (await page.locator('.cx-chat').boundingBox()).width
-    await page.mouse.move(separator.x + separator.width / 2, separator.y + separator.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(separator.x + separator.width / 2 - (target - width), separator.y + separator.height / 2, { steps: 8 })
-    await page.mouse.up()
-  }
-  const measure = () => page.evaluate(() => {
-    const name = document.querySelector('.cx-model-name')
-    const chip = document.querySelector('.cx-mode-chip')
-    return { modelNameWhole: name.scrollWidth <= name.clientWidth, chipLabelShown: chip.querySelector('.cx-mode-label').getBoundingClientRect().width > 0, chipWidth: Math.round(chip.getBoundingClientRect().width) }
-  })
-  await resizeChatTo(340)
-  assert.deepEqual(await measure(), { modelNameWhole: true, chipLabelShown: false, chipWidth: 28 })
-  await resizeChatTo(700)
-  const wide = await measure()
-  assert.deepEqual({ modelNameWhole: wide.modelNameWhole, chipLabelShown: wide.chipLabelShown }, { modelNameWhole: true, chipLabelShown: true })
-})
-
-test('hovering the mode chip shows the design system Tooltip beside the clip, never a native title', async (t) => {
+test('a soon button shows the design system Tooltip, never a native title', async (t) => {
   const { page } = await openAgenda(t, {
     accountId: '70000000-0000-4000-8000-00000000023c', projectId: '70000000-0000-4000-8000-00000000023d', conversationId: 'conversation-tooltip',
     omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
   })
-  const chip = page.getByRole('button', { name: 'Modo: Planejar', exact: true })
-  await chip.hover()
-  await page.getByRole('tooltip').filter({ hasText: 'Planejar: Lê o app e propõe um plano antes de mudar qualquer arquivo' }).waitFor()
-  assert.equal(await chip.getAttribute('title'), null)
-  await page.mouse.move(0, 0)
-  await page.getByRole('button', { name: 'Anexar arquivo', exact: true }).hover()
+  const attach = page.getByRole('button', { name: 'Anexar arquivo', exact: true })
+  await attach.hover()
   await page.getByRole('tooltip').filter({ hasText: 'Anexar arquivo chega em breve' }).waitFor()
+  assert.equal(await attach.getAttribute('title'), null)
 })
 
-test('a plan the agent submits is sent back with feedback from its card, on the run\'s own session', async (t) => {
-  const accountId = '70000000-0000-4000-8000-000000000231'
-  const projectId = '70000000-0000-4000-8000-000000000232'
-  const runId = '70000000-0000-4000-8000-000000000233'
-  const conversationId = 'conversation-plan'
-  const sourceRevision = 'b'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
-  const legacyRequests = trackLegacyRequests(page)
-
-  const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda')] })
-  state.modeId = 'plan'
-  const answers = []
-  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, state)
-  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId,
-    latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
-      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
-    },
-    latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    runHistory: [],
-  }) }))
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
-    const url = new URL(route.request().url())
-    answers.push([decodeURIComponent(url.pathname.split('/').at(-2)), url.searchParams.get('sessionScope'), route.request().postDataJSON()])
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+test('while a run works the model control is disabled, so the model never changes during a turn', async (t) => {
+  const { page, state } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000224', projectId: '70000000-0000-4000-8000-000000000225', conversationId: 'conversation-model-running',
+    runId: '70000000-0000-4000-8000-000000000226',
   })
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-    { type: 'tool_suspended', toolCallId: 'plan-1', toolName: 'submit_plan', args: { title: 'Agenda semanal', plan: '1. Tela da semana' }, suspendPayload: { title: 'Agenda semanal', plan: '1. Tela da semana' } },
-    { type: 'agent_end', reason: 'suspended' },
-  )))
-
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  await page.getByText('Agenda semanal', { exact: true }).waitFor()
-  const planCard = page.getByRole('region', { name: 'Plano para aprovar' })
-  await planCard.locator('.cx-plan-clamp li', { hasText: 'Tela da semana' }).waitFor()
-  assert.equal(await planCard.evaluate((card) => card.querySelector('.cx-plan-clamp').compareDocumentPosition(card.querySelector('.cx-pending-actions')) === Node.DOCUMENT_POSITION_FOLLOWING), true, 'the plan comes before the buttons')
-  const askChanges = page.getByRole('button', { name: 'Pedir ajustes' })
-  assert.equal(await askChanges.isDisabled(), true, 'feedback is required to send a plan back')
-  await page.getByLabel('O que mudar no plano').fill('Inclua os fins de semana')
-  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
-  await askChanges.click()
-  await answered
-  assert.deepEqual(answers, [[`project:${projectId}`, `builder:${conversationId}`, { toolCallId: 'plan-1', resumeData: { action: 'rejected', feedback: 'Inclua os fins de semana' } }]])
-  assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+  await openModelPicker(page)
+  assert.equal(await page.getByRole('option').first().isDisabled(), true)
+  assert.deepEqual(state.modelSwitches, [])
 })
 
-test('approving a submitted plan answers it with the approval the controller moves on to Construir with', async (t) => {
-  const accountId = '70000000-0000-4000-8000-000000000241'
-  const projectId = '70000000-0000-4000-8000-000000000242'
-  const runId = '70000000-0000-4000-8000-000000000243'
-  const conversationId = 'conversation-plan-approve'
-  const sourceRevision = 'c'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
-
-  const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda')] })
+test('the approval of a plan is a question with two options, and the chosen label is the answer', async (t) => {
+  const page = await openLiveTurn(t, [
+    { type: 'tool_suspended', toolCallId: 'approval-1', toolName: 'ask_user', args: { question: 'Posso construir assim?', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' }, suspendPayload: { question: 'Posso construir assim?', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' } },
+  ])
   const answers = []
-  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, state)
-  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId,
-    latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
-      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
-    },
-    latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    runHistory: [],
-  }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     answers.push(route.request().postDataJSON())
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-    { type: 'tool_suspended', toolCallId: 'plan-2', toolName: 'submit_plan', args: { title: 'Agenda semanal' }, suspendPayload: { title: 'Agenda semanal' } },
-  )))
-
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
-  await page.getByRole('button', { name: 'Aprovar e construir' }).click()
-  await answered
-  assert.deepEqual(answers, [{ toolCallId: 'plan-2', resumeData: { action: 'approved' } }])
+  await page.getByText('Posso construir assim?', { exact: true }).waitFor()
+  await page.getByRole('radio', { name: 'Pedir ajustes' }).waitFor()
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await page.getByRole('radio', { name: 'Aprovar e construir' }).click()
+  await sent
+  assert.deepEqual(answers, [{ toolCallId: 'approval-1', resumeData: 'Aprovar e construir' }])
 })
 
-const PLAN_TEXT = [
-  '## Para a pessoa', '', 'Uma tela com **Compras** do mês e um botão para exportar.', '',
-  '## Para Construir', '', '- Rota `/pedidos` com a operação `listarPedidos`',
-].join('\n')
 
-// A Project whose Planejar run is waiting on the person's approval of PLAN_TEXT.
-const openPlanCard = async (t, answers) => {
-  const accountId = '70000000-0000-4000-8000-000000000271'
-  const projectId = '70000000-0000-4000-8000-000000000272'
-  const runId = '70000000-0000-4000-8000-000000000273'
-  const conversationId = 'conversation-plan-reader'
-  const sourceRevision = 'd'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
-  const state = builderState([conversation(conversationId, 'Compras')], { [conversationId]: [userMessage('user-1', 'Crie uma tela de compras')] })
-  state.modeId = 'plan'
-  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, state)
-  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Compras', projectRevision: 'revision', archived: false }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId,
-    latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
-      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie uma tela de compras', createdAt: new Date().toISOString(),
-    },
-    latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
-    runHistory: [],
-  }) }))
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
-    answers.push(route.request().postDataJSON())
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-  })
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-    { type: 'tool_suspended', toolCallId: 'plan-r', toolName: 'submit_plan', args: { title: 'Compras do mês', plan: PLAN_TEXT }, suspendPayload: { title: 'Compras do mês', plan: PLAN_TEXT } },
-  )))
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  return page.getByRole('region', { name: 'Plano para aprovar' })
-}
-
-test('the plan card renders the Markdown of the person\'s part and leaves the technical part for the reader', async (t) => {
-  const card = await openPlanCard(t, [])
-  await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
-  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
-  assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
-  assert.equal(await card.locator('pre').count(), 0, 'the plan is not a monospace block')
-})
-
-test('Ler plano completo opens the whole plan over the screen, Esc closes it, and approving from it answers the plan and closes it', async (t) => {
-  const answers = []
-  const card = await openPlanCard(t, answers)
-  const page = card.page()
-  await card.getByRole('button', { name: 'Ler plano completo' }).click()
-  const reader = page.getByRole('alertdialog', { name: 'Compras do mês' })
-  await reader.getByText('listarPedidos').waitFor()
-  await reader.getByRole('heading', { name: 'Para Construir' }).waitFor()
-
-  await page.keyboard.press('Escape')
-  await reader.waitFor({ state: 'detached' })
-
-  await card.getByRole('button', { name: 'Ler plano completo' }).click()
-  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
-  await reader.getByRole('button', { name: 'Aprovar e construir' }).click()
-  await answered
-  assert.deepEqual(answers, [{ toolCallId: 'plan-r', resumeData: { action: 'approved' } }])
-  await reader.waitFor({ state: 'detached' })
-})
 
 test('while the first version does not exist the Preview names the phase, the tasks and the time', async (t) => {
   const tasks = [
@@ -1777,7 +1527,7 @@ test('while the first version does not exist the Preview names the phase, the ta
 })
 
 for (const width of [1536, 1700]) {
-  test(`the conversation panel fits its column at ${width}px with a long plan card and long tool rows`, async (t) => {
+  test(`the conversation panel fits its column at ${width}px with a long question card and long tool rows`, async (t) => {
     const accountId = '70000000-0000-4000-8000-000000000251'
     const projectId = '70000000-0000-4000-8000-000000000252'
     const runId = '70000000-0000-4000-8000-000000000253'
@@ -1789,7 +1539,7 @@ for (const width of [1536, 1700]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } })
 
     const longPath = `apps/web/src/features/${'agenda-semanal-com-nome-muito-comprido/'.repeat(4)}componente.tsx`
-    const plan = ['1. Criar a tela', `2. Editar \`${longPath}\``, `3. Rodar npm run test -- ${longPath} --reporter=verbose --coverage`, `4. ${'a'.repeat(160)}`].join('\n')
+    const question = ['Posso construir assim?', `Vou editar \`${longPath}\``, `e rodar npm run test -- ${longPath} --reporter=verbose --coverage`, 'a'.repeat(160)].join(' ')
     const toolPart = (id, toolName, args) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: 'result', args, result: 'ok' } })
     const reply = { id: 'assistant-long', role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [
       toolPart('long-1', 'read_file', { path: longPath }),
@@ -1804,7 +1554,7 @@ for (const width of [1536, 1700]) {
     await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId,
       latestBuilderRun: {
-        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT', mode: 'PLAN',
+        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
         baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
         failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       },
@@ -1813,11 +1563,11 @@ for (const width of [1536, 1700]) {
       runHistory: [],
     }) }))
     await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-      { type: 'tool_suspended', toolCallId: 'plan-w', toolName: 'submit_plan', args: { title: 'Agenda semanal', plan }, suspendPayload: { title: 'Agenda semanal', plan } },
+      { type: 'tool_suspended', toolCallId: 'ask-w', toolName: 'ask_user', args: { question }, suspendPayload: { question, options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' } },
     )))
 
     await page.goto(`${origin}/projects/${projectId}/build`)
-    await page.getByRole('button', { name: 'Aprovar e construir' }).waitFor()
+    await page.getByRole('radio', { name: 'Aprovar e construir' }).waitFor()
     if (process.env.CHATWIDTH_SHOT) await page.screenshot({ path: process.env.CHATWIDTH_SHOT })
     const measured = await page.evaluate(() => {
       const chat = document.querySelector('.cx-chat')
@@ -1827,13 +1577,12 @@ for (const width of [1536, 1700]) {
         chatOverflow: chat.scrollWidth - chat.clientWidth,
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
         composerRight: Math.ceil(composer.getBoundingClientRect().right),
-        chipsOverlap: document.querySelector('.cx-mode-chip').getBoundingClientRect().right > document.querySelector('.cx-model-button').getBoundingClientRect().left,
         chatRight: Math.floor(chat.getBoundingClientRect().right),
       }
     })
     assert.deepEqual(
-      { chatOverflow: measured.chatOverflow, pageOverflow: measured.pageOverflow, composerInside: measured.composerRight <= measured.chatRight && measured.chatRight <= measured.viewport, chipsOverlap: measured.chipsOverlap },
-      { chatOverflow: 0, pageOverflow: 0, composerInside: true, chipsOverlap: false },
+      { chatOverflow: measured.chatOverflow, pageOverflow: measured.pageOverflow, composerInside: measured.composerRight <= measured.chatRight && measured.chatRight <= measured.viewport },
+      { chatOverflow: 0, pageOverflow: 0, composerInside: true },
       JSON.stringify(measured),
     )
   })

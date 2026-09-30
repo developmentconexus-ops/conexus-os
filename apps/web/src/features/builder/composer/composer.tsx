@@ -2,14 +2,12 @@ import './composer.css'
 import {
   Composer, ComposerActions, ComposerBox, ComposerInput, ComposerRing, ComposerSuggestions, type ComposerCommand, useComposerCommands,
 } from '@mastra/playground-ui/components/Composer'
-import { DropdownMenu } from '@mastra/playground-ui/components/DropdownMenu'
 import { Popover, PopoverContent, PopoverTrigger } from '@mastra/playground-ui/components/Popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
-import { ArrowUp, ChevronDown, Hammer, Lock, Map as MapIcon, Mic, Paperclip, Square } from 'lucide-react'
+import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderMode, type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, reasoningLevels } from '../mastra-session'
-import { builderModes } from '../live-turn'
+import { type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, reasoningLevels } from '../mastra-session'
 import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
@@ -30,52 +28,6 @@ const commands: readonly ComposerCommand[] = [
   { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
 ]
 
-type AgentMode = Readonly<{ label: string; hint: string; icon: typeof MapIcon }>
-const agentModes: Readonly<Record<BuilderMode, AgentMode>> = {
-  plan: { label: 'Planejar', hint: 'Lê o app e propõe um plano antes de mudar qualquer arquivo', icon: MapIcon },
-  build: { label: 'Construir', hint: 'Muda o app e publica a prévia', icon: Hammer },
-}
-const nextMode = (mode: BuilderMode): BuilderMode => builderModes[(builderModes.indexOf(mode) + 1) % builderModes.length] ?? mode
-// A conversation's mode changes only between runs (AC-5); the chip says so instead of going dead.
-const MODE_LOCKED = 'O modo muda quando o Builder parar.'
-
-/**
- * The conversation's mode as one chip: it names the current mode, opens the two with what each
- * does, and while a run works it stays readable and tells why it cannot change.
- */
-function ModeChip({ mode, locked, onChange }: Readonly<{ mode: BuilderMode; locked: boolean; onChange: (mode: BuilderMode) => void }>) {
-  const current = agentModes[mode]
-  const Icon = current.icon
-  const lockedNote = `${current.label}. ${MODE_LOCKED}`
-  if (locked) {
-    return <Popover>
-      <Tooltip>
-        <TooltipTrigger render={<PopoverTrigger render={<button type="button" className="cx-mode-chip" data-mode={mode} data-locked aria-label={`Modo: ${lockedNote}`} />} />}>
-          <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><Lock size={12} aria-hidden="true" />
-        </TooltipTrigger>
-        <TooltipContent>{lockedNote}</TooltipContent>
-      </Tooltip>
-      <PopoverContent side="top" align="start" sideOffset={8} className="cx-mode-note">{MODE_LOCKED}</PopoverContent>
-    </Popover>
-  }
-  return <DropdownMenu>
-    <Tooltip>
-      <TooltipTrigger render={<DropdownMenu.Trigger className="cx-mode-chip" data-mode={mode} aria-label={`Modo: ${current.label}`} />}>
-        <Icon size={14} aria-hidden="true" /><span className="cx-mode-label">{current.label}</span><ChevronDown size={13} aria-hidden="true" />
-      </TooltipTrigger>
-      <TooltipContent>{`${current.label}: ${current.hint}`}</TooltipContent>
-    </Tooltip>
-    <DropdownMenu.Content side="top" align="start" sideOffset={8} className="cx-mode-menu">
-      <DropdownMenu.RadioGroup value={mode} onValueChange={(value) => { const next = builderModes.find((option) => option === value); if (next && next !== mode) onChange(next) }}>
-        {builderModes.map((option) => { const entry = agentModes[option]; return <DropdownMenu.RadioItem key={option} value={option} className="cx-mode-option" data-mode={option}>
-          <entry.icon size={15} aria-hidden="true" />
-          <span className="cx-mode-option-text"><span className="cx-mode-option-name">{entry.label}</span><span className="cx-mode-option-hint">{entry.hint}</span></span>
-        </DropdownMenu.RadioItem> })}
-      </DropdownMenu.RadioGroup>
-    </DropdownMenu.Content>
-  </DropdownMenu>
-}
-
 const modelName = (model: BuilderModel | undefined): string => model ? humanizeModelName(model.modelName) : 'Escolha um modelo'
 
 // Not built yet, and said so: focusable for its tooltip, inert to clicks, never a fake action.
@@ -93,7 +45,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  agentMode, onAgentModeChange, memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?',
+  memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?',
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -108,9 +60,6 @@ export function BuilderComposer({
   onModelChange: (modelId: string) => void
   reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
-  // Planejar or Construir, the conversation's own mode; it switches only while nothing runs (AC-5).
-  agentMode: BuilderMode
-  onAgentModeChange: (mode: BuilderMode) => void
   // The conversation's observational memory; absent before a conversation exists.
   memory?: MemoryGauge | null
   // What the memory last failed at, until it succeeds at it again.
@@ -121,12 +70,8 @@ export function BuilderComposer({
   const [interim, setInterim] = useState('')
   const [pulse, setPulse] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [modeNote, setModeNote] = useState<string | null>(null)
-  const modeLocked = working || mode.kind === 'SENDING'
-  const changeMode = (next: BuilderMode) => {
-    setModeNote(null)
-    onAgentModeChange(next)
-  }
+  // The Hub refuses a model change while a turn is active, so the control waits for it to end.
+  const modelLocked = working || mode.kind === 'SENDING'
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
@@ -151,13 +96,6 @@ export function BuilderComposer({
   }
   const slash = useComposerCommands({ commands, value: draft, onValueChange: onDraftChange, onSubmit: submit, inputRef })
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Shift+Tab cycles the mode, as in Mastra Code and Claude Code.
-    if (!event.defaultPrevented && event.key === 'Tab' && event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault()
-      if (modeLocked) setModeNote(MODE_LOCKED)
-      else changeMode(nextMode(agentMode))
-      return
-    }
     if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
     submit(draft)
@@ -196,7 +134,6 @@ export function BuilderComposer({
         <ComposerActions className="cx-composer-actions">
           <div className="cx-composer-tools">
             <Soon label="Anexar arquivo"><Paperclip size={17} aria-hidden="true" /></Soon>
-            <ModeChip mode={agentMode} locked={modeLocked} onChange={changeMode} />
           </div>
           <div className="cx-composer-tools">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -213,10 +150,10 @@ export function BuilderComposer({
                   models={models}
                   modelId={selected ? modelId : ''}
                   onModelChange={(next) => { onModelChange(next); setPickerOpen(false) }}
-                  disabled={modelsPending || mode.kind === 'RUNNING'}
+                  disabled={modelsPending || modelLocked}
                   reasoning={level}
                   onReasoningChange={onReasoningChange}
-                  reasoningDisabled={!selected || mode.kind === 'RUNNING' || Boolean(lockedReasoning)}
+                  reasoningDisabled={!selected || modelLocked || Boolean(lockedReasoning)}
                   reasoningLocked={Boolean(lockedReasoning)}
                 />
               </PopoverContent>
@@ -235,10 +172,9 @@ export function BuilderComposer({
       </ComposerBox>
     </ComposerRing>
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
-    {modeNote && <p className="cx-composer-note" role="status">{modeNote}</p>}
     <div className="cx-composer-foot">
       {memory && <MemoryStatus memory={memory} failed={memoryFailed} />}
-      <p className="cx-composer-hint">Enter envia · Shift+Tab muda o modo · / comandos</p>
+      <p className="cx-composer-hint">Enter envia · / comandos</p>
     </div>
   </Composer>
 }

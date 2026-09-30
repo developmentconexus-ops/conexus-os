@@ -33,7 +33,6 @@ const sentences: Readonly<Record<string, Sentence>> = {
   skill_search: { running: 'Procurando uma skill', done: 'Procurou uma skill', ask: 'procurar uma skill', kind: 'buscar' },
   connector_fetch: { running: 'Consultando um sistema da empresa', done: 'Consultou um sistema da empresa', ask: 'consultar um sistema da empresa', kind: 'outros' },
   web_fetch: { running: 'Abrindo uma página da internet', done: 'Abriu uma página da internet', ask: 'abrir uma página da internet', kind: 'outros' },
-  submit_plan: { running: 'Enviando o plano', done: 'Enviou o plano', ask: 'enviar o plano', kind: 'outros' },
   ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você', kind: 'outros' },
   task_write: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas', kind: 'outros' },
   task_update: { running: 'Atualizando as tarefas', done: 'Atualizou as tarefas', ask: 'atualizar as tarefas', kind: 'outros' },
@@ -47,7 +46,7 @@ export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set(['task_write', 'task
 
 // Calls that always read as their own row: the person answers them, or they open a skill, so a fold
 // into "Editou 4 arquivos" would hide the one call the conversation turns on.
-export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set(['ask_user', 'submit_plan', 'skill'])
+export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set(['ask_user', 'skill'])
 
 // Names the same underlying action under a different id (a shell alias, an older or provider-specific
 // spelling). Each maps onto one of the sentences above instead of duplicating it.
