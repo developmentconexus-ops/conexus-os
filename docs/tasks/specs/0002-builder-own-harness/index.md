@@ -440,8 +440,9 @@ copied code the providers may change; native web search may be missing for a pil
 ## Amendment, 2026-09-29: a conversation owns its sandbox and its branch
 
 **Status**: decided by the operator on 2026-09-29. Units B1 to B8 below carry it. B1 and B2 are
-built and merged as `9d1f8dc5`. B3 is built on `feat/builder-conversation-sandbox`. B4 to B8 are
-not built. The
+built and merged as `1851797c` (B2 adds migration `0039`). B3 is built and merged as `6009a5a5`
+(migration `0040`), and it ran live in a replay on 2026-09-29, where the second turn resumed the
+same E2B sandbox. B4 to B8 are not built. The
 [Builder own harness task](../../stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work)
 tracks their state.
 
