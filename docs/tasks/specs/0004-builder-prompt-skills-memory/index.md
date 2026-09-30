@@ -102,7 +102,7 @@ Models
   `AGENTS.md`.
 
 Eval and proof
-- **AC-13**: Before any code changes, the Builder eval runs three requests on today's Builder (a new
+- **AC-13** (Leandro, 2026-09-30: no baseline on today's Builder; the three requests run on the new Builder only, and the comparison is dropped): Before any code changes, the Builder eval runs three requests on today's Builder (a new
   app, a new feature on it, a small edit) and the result is kept; after the change the same three run
   on the new Builder. For each: whether it planned when it should (not applicable to the small edit),
   app files changed before the approval, the person's clicks, the time to the first Prévia, and the
