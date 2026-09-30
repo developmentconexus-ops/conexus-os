@@ -199,6 +199,11 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+  readProjectName: async (input) => {
+    const name = await project?.readProjectName(input)
+    if (!name) throw new Error('BUILDER_PROJECT_NOT_FOUND')
+    return name
+  },
   connectors: {
     openRun: connectors.openBuilderRun,
     tools: connectors.builderTools,

@@ -8,7 +8,6 @@ import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/cr
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
-import type { MemorySettings, MemorySettingsStore } from './memory.js'
 import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
 import { OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
@@ -55,23 +54,16 @@ const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
 
 type Connection = Readonly<{ provider: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
 
-// Below this an observation or a reflection would run on almost every turn; above it the window
-// outgrows every model the Builder offers.
-const MEMORY_THRESHOLD = { type: 'integer', minimum: 1_000, maximum: 1_000_000 } as const
-const MEMORY_MODEL = { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLength: 200 }] } as const
-
 /**
  * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
  * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
  * slice 5.
  */
-export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, memorySettings, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
+export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   modelAccounts: ModelAccountStore
-  // Which models observe and reflect for this person, and when; absent, the Builder has no memory settings screen.
-  memorySettings?: MemorySettingsStore
   // OpenAI's device-code endpoints; only tests replace them.
   openaiCodexDevice?: CodexDevice
   // Anthropic's authorization endpoints; only tests replace them.
@@ -116,32 +108,6 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     if (!caller) return reply
     return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })) }
   })
-
-  if (memorySettings) {
-    app.get('/api/control/model-accounts/memory', async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
-      return { settings: await memorySettings.read(caller.accountId) }
-    })
-    // A model a role is set to must be one this person can call, as the picker offers it; null
-    // keeps the conversation's own model.
-    app.put<{ Body: MemorySettings }>('/api/control/model-accounts/memory', {
-      schema: {
-        body: {
-          type: 'object', additionalProperties: false,
-          required: ['observerModelId', 'reflectorModelId', 'observationThreshold', 'reflectionThreshold'],
-          properties: { observerModelId: MEMORY_MODEL, reflectorModelId: MEMORY_MODEL, observationThreshold: MEMORY_THRESHOLD, reflectionThreshold: MEMORY_THRESHOLD },
-        },
-      },
-    }, async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
-      const offered = new Set((await offeredModels(caller.accountId)).map((model) => model.id))
-      const chosen = [request.body.observerModelId, request.body.reflectorModelId].filter((modelId) => modelId !== null)
-      if (chosen.some((modelId) => !offered.has(modelId))) return sendProblem(reply, 400, 'memory-model-refused', 'This model is not one you can use')
-      return { settings: await memorySettings.write(caller.accountId, request.body) }
-    })
-  }
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
   app.get('/api/control/model-accounts', async (request, reply) => {

@@ -13,6 +13,8 @@ import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04' | ProjectSummaryOperationId)[]>
+  /** The display name of a Project the account may see, or null when it may not. */
+  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string | null>
   close(): Promise<void>
 }>
 
@@ -37,6 +39,7 @@ const createProjectModule = ({
       ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
       ...await registerProjectSummaryRoutes(app, { store, resolveCurrentSession }),
     ],
+    readProjectName: async (input) => (await store.getProject(input))?.name ?? null,
     close: async () => {
       await Promise.all([commandPool.end(), readPool.end()])
     },

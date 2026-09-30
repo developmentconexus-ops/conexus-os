@@ -108,28 +108,3 @@ export const materializeApplicationShape = async ({
   }
   if (missing.length > 0) await writeFiles(missing)
 }
-
-const STALE_SERVER_SKILL_PATH = '.agents/skills/conexus-server'
-
-/**
- * Deletes a checkout's own copy of the server/data guide, which earlier BUILD runs wrote as
- * `.agents/skills/conexus-server/SKILL.md`. The guide is now an agent level skill of the Hub (served
- * from the Hub's `builder-skills/` folder), so a leftover Project copy is a platform-owned path,
- * like the other generated owner files, and must never shadow the global one.
- */
-export const removeStaleServerSkill = async ({
-  repositoryRoot,
-  directCommand,
-}: Readonly<{
-  repositoryRoot: string
-  directCommand: FixedApplicationStarterWorkspace['directCommand']
-}>): Promise<void> => {
-  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Error('BUILDER_STARTER_ROOT_REFUSED')
-  const target = join(repositoryRoot, STALE_SERVER_SKILL_PATH)
-  const result = await directCommand('sh', ['-c', 'rm -rf -- "$1"', 'conexus-fixed-application-starter', target])
-  if (result.exitCode !== 0) {
-    throw new Error('BUILDER_STARTER_STALE_SKILL_REMOVAL_FAILED', {
-      cause: { exitCode: result.exitCode, stdout: commandEvidence(result.stdout), stderr: commandEvidence(result.stderr) },
-    })
-  }
-}

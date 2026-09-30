@@ -89,7 +89,7 @@ export const createConnectorModule = ({
     secretFields: registeredConnectors.flatMap(({ definition }) => definition.secretFields),
   })
   const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, observability })
-  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore, observability })
+  const connectorBrief = createConnectorBrief({ store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {

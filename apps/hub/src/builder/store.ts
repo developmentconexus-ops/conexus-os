@@ -12,7 +12,6 @@ export type BuilderRunSummary = Readonly<{
   conversationId: string
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
   phase: BuilderRunningPhase | null
-  mode: 'BUILD' | 'PLAN'
   baseSourceRevision: string
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
@@ -51,7 +50,7 @@ type AdmissionRun = Readonly<{
 export type BuilderStore = Readonly<{
   // Takes the Project's run lock, reads the base with readBase while holding it, and inserts the run
   // on that base, all in one transaction.
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; mode: 'BUILD' | 'PLAN'; readBase(): Promise<string> }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; readBase(): Promise<string> }>): Promise<BuilderRunSummary>
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
@@ -90,16 +89,16 @@ export const createBuilderStore = ({
   executorPool: PostgresPool
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, mode, readBase }) => {
-    const request = { mode, content }
+  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, readBase }) => {
+    const request = { content }
     const client = await ingressPool.connect()
     try {
       await client.query('BEGIN')
       await client.query('SELECT builder.lock_project_for_run($1,$2)', [accountId, projectId])
       const base = await readBase()
       const result = await client.query<JsonRow<BuilderRunSummary>>(
-        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
-        [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mode, mintIdentity(), base],
+        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
+        [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mintIdentity(), base],
       )
       await client.query('COMMIT')
       const value = result.rows[0]?.value

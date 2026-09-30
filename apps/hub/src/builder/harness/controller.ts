@@ -11,17 +11,14 @@ import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore } from '@mastra/core/storage'
 import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
-import { attachBuilderModeGuard, DEFAULT_REPOSITORY_ROOT } from './guard.js'
-import { BUILDER_MODES, DEFAULT_BUILDER_MODE, type BuilderModeDefinition, type BuilderModeId } from './modes.js'
-import { readMethodology } from './methodology.js'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
-import { CHECK_TOOL, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL } from './tools.js'
+import { CHECK_TOOL, createCheckTool, createRunOperationTool, RUN_OPERATION_TOOL } from './tools.js'
 import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
 
 /** The skills the Builder loads, one folder each under the skills root. */
-export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app-ui', 'conexus-app-code'] as const
+export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app-ui', 'conexus-app-code', 'conexus-plan', 'conexus-build', 'conexus-sankhya'] as const
 
 /** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). Mastra scans each subfolder holding a SKILL.md. */
 export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills')
@@ -85,9 +82,9 @@ const webSearchFor = async (
 
 /**
  * How many of one step's tool calls run at once. Mastra's default strategy `'available'` runs them
- * one at a time whenever any tool in the active set can suspend (`ask_user`, `submit_plan`), which
+ * one at a time whenever any tool in the active set can suspend (`ask_user`), which
  * is every step here. `'called'` looks only at the tools the model called in that step, so a step
- * that calls `ask_user` or `submit_plan` still runs one at a time and every other step runs in
+ * that calls `ask_user` still runs one at a time and every other step runs in
  * parallel. Same-path writes stay ordered by the workspace's own per-file write lock. The limit is
  * low because each command runs in one E2B sandbox.
  */
@@ -135,9 +132,9 @@ const builderErrorProcessors = (): NonNullable<Parameters<typeof createCodingAge
 /** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
 export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined }>
 
-const runToolsInput = (tools: RunTools | undefined, modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>): ToolsInput => ({
-  ...(tools ? { [CHECK_TOOL]: createCheckTool(tools.check, modes) } : {}),
-  ...(tools?.runOperation ? { [RUN_OPERATION_TOOL]: createRunOperationTool(tools.runOperation, modes) } : {}),
+const runToolsInput = (tools: RunTools | undefined): ToolsInput => ({
+  ...(tools ? { [CHECK_TOOL]: createCheckTool(tools.check) } : {}),
+  ...(tools?.runOperation ? { [RUN_OPERATION_TOOL]: createRunOperationTool(tools.runOperation) } : {}),
 })
 
 export type BuilderControllerDeps = Readonly<{
@@ -153,61 +150,31 @@ export type BuilderControllerDeps = Readonly<{
   runTools?: (ctx: { requestContext: RequestContext }) => RunTools | undefined
   /** Absolute path to a folder of agent skills, one subfolder per skill. Defaults to the Hub's own `builder-skills/`. */
   skillsPath?: string
-  /** Where the run's checkout sits; the mode guard reads every tool path against it. Defaults to `/workspace/repo`. */
-  repositoryRoot?: string
   /** Overrides how long one model call may run; only for tests. */
   modelStepTimeoutMs?: number
-  /** Overrides the mode table; only for tests. */
-  modes?: Readonly<Record<BuilderModeId, BuilderModeDefinition>>
   id?: string
 }>
 
 /**
- * Attaches the mode guard to whatever `Workspace` a (possibly dynamic) workspace dependency
- * resolves to, without attaching it twice to the same instance.
- */
-const guardedWorkspace = (
-  workspace: BuilderControllerDeps['workspace'],
-  modes: Readonly<Record<BuilderModeId, BuilderModeDefinition>>,
-  repositoryRoot: string,
-): DynamicArgument<Workspace | undefined> => {
-  if (typeof workspace !== 'function') {
-    if (workspace) attachBuilderModeGuard(workspace, modes, repositoryRoot)
-    return workspace
-  }
-  const guarded = new WeakSet<Workspace>()
-  return async (ctx) => {
-    const resolved = await workspace(ctx)
-    if (resolved && !guarded.has(resolved)) {
-      attachBuilderModeGuard(resolved, modes, repositoryRoot)
-      guarded.add(resolved)
-    }
-    return resolved
-  }
-}
-
-/**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
- * every mode shares (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run (Construir only), `web_fetch`, and `web_search` when the run's model has native
- * provider search in Mastra), the `plan`/`build` modes with the
- * plan-to-build transition, `submit_plan` overridden for AC-1 and mode-gated on its first call, and
- * the mode guard attached to whatever workspace the run resolves to. No Hub wiring: the caller owns
- * sessions, routes, and where `workspace`, `model`, `storage`, and `connectorFetch` come from.
+ * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, `web_fetch`,
+ * and `web_search` when the run's model has native provider search in Mastra), and the one `build`
+ * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
+ * reaches the model. The built-in `submit_plan` is disabled: a plan is approved through `ask_user`.
+ * No Hub wiring: the caller owns sessions, routes, and where `workspace`, `model`, `storage`, and
+ * `connectorFetch` come from.
  */
 export const createBuilderController = (deps: BuilderControllerDeps): AgentController => {
-  const modes = deps.modes ?? BUILDER_MODES
-  const repositoryRoot = deps.repositoryRoot ?? DEFAULT_REPOSITORY_ROOT
-
   const skillsRoot = deps.skillsPath ?? defaultBuilderSkillsRoot()
 
   const agent = createCodingAgent({
     id: 'conexus-builder',
     name: 'Conexus Builder',
     model: deps.model,
-    instructions: conexusInstructions(modes),
+    instructions: conexusInstructions(),
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
-      ...runToolsInput(deps.runTools?.(ctx), modes),
+      ...runToolsInput(deps.runTools?.(ctx)),
       ...(await webSearchFor(deps.model, ctx)),
       web_fetch: webFetchTool,
     }),
@@ -228,25 +195,10 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
   return new AgentController({
     id: deps.id ?? 'conexus-builder',
     agent,
-    workspace: guardedWorkspace(deps.workspace, modes, repositoryRoot),
+    workspace: deps.workspace,
     ...(deps.storage ? { storage: deps.storage } : {}),
     ...(deps.memory ? { memory: deps.memory } : {}),
     disableBuiltinTools: ['submit_plan'],
-    // Built per request from the run's methodology, whose plan folder the tool takes its file from.
-    // A run naming an unknown one gets no tool; its instructions already fail the turn.
-    tools: ({ requestContext }) => {
-      const methodology = readMethodology(requestContext)
-      return methodology ? { submit_plan: createSubmitPlanTool(methodology, modes, repositoryRoot) } : {}
-    },
-    modes: [
-      {
-        id: modes.plan.id,
-        name: modes.plan.displayName,
-        metadata: { default: modes.plan.id === DEFAULT_BUILDER_MODE },
-        availableTools: [...modes.plan.availableTools],
-        ...(modes.plan.transitionsTo ? { transitionsTo: modes.plan.transitionsTo } : {}),
-      },
-      { id: modes.build.id, name: modes.build.displayName, availableTools: [...modes.build.availableTools] },
-    ],
+    modes: [{ id: 'build', name: 'Builder', metadata: { default: true } }],
   })
 }

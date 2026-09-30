@@ -2,19 +2,27 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * The Project's own `AGENTS.md` (spec 0002, AC-7 to AC-9): a short file at the repository root
- * the Builder keeps current with what it confirmed. The Hub reads it from `main`, never from the
- * sandbox, and refuses a candidate that breaks the rule.
+ * The two files the prompt carries from the Project's own repository: `AGENTS.md`, the instructions
+ * the company's people write for the Builder, and `.conexus/memory/MEMORY.md`, the index of what the
+ * Builder learned. The Hub reads both from `main`, never from the sandbox, so a turn cannot put its
+ * own text into the next turn's prompt before a version is saved (spec 0004, AC-9).
  */
-export const PROJECT_KNOWLEDGE_PATH = 'AGENTS.md'
-const PROJECT_KNOWLEDGE_LIMIT_BYTES = 8 * 1024
-// A file past this is not read at all; it is over the limit either way.
-export const PROJECT_KNOWLEDGE_READ_LIMIT = 1024 * 1024
-const PROJECT_KNOWLEDGE_TRUNCATED_NOTE = 'AGENTS.md truncated at 8 KB; shorten it.'
+export const PROJECT_INSTRUCTIONS_PATH = 'AGENTS.md'
+export const PROJECT_MEMORY_PATH = '.conexus/memory/MEMORY.md'
 
-type Blob = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
+const INSTRUCTIONS_LIMIT_BYTES = 8 * 1024
+const MEMORY_LIMIT_BYTES = 16 * 1024
+const MEMORY_LIMIT_LINES = 200
+// A file past this is not read at all.
+export const PROJECT_FILE_READ_LIMIT = 1024 * 1024
+
+/** What `readBlob` answers: null when the path is not there, bytes null when the file is past the read limit. */
+export type ProjectBlob = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
+/** A blob, or undefined when reading it failed. */
+export type ProjectFile = ProjectBlob | undefined
 
 const strictUtf8 = new TextDecoder('utf-8', { fatal: true })
+const encoder = new TextEncoder()
 
 const decode = (bytes: Uint8Array): string | null => {
   try {
@@ -31,33 +39,37 @@ const characterBoundary = (bytes: Uint8Array, limit: number): number => {
   return cut
 }
 
-/**
- * The text a run's instructions carry under project knowledge: the whole file when it is within
- * 8 KB, else its first 8 KB cut at a character boundary and followed by the note. A file that is
- * missing, not a file, or not UTF-8 gives nothing.
- */
-export const readProjectKnowledge = (blob: Blob): string => {
-  if (blob?.type !== 'blob') return ''
-  if (!blob.bytes) return PROJECT_KNOWLEDGE_TRUNCATED_NOTE
-  if (decode(blob.bytes) === null) return ''
-  if (blob.bytes.length <= PROJECT_KNOWLEDGE_LIMIT_BYTES) return strictUtf8.decode(blob.bytes).trim()
-  const kept = strictUtf8.decode(blob.bytes.subarray(0, characterBoundary(blob.bytes, PROJECT_KNOWLEDGE_LIMIT_BYTES)))
-  return `${kept.trimEnd()}\n\n${PROJECT_KNOWLEDGE_TRUNCATED_NOTE}`
+const cutToBytes = (text: string, limit: number): string => {
+  const bytes = encoder.encode(text)
+  return strictUtf8.decode(bytes.subarray(0, characterBoundary(bytes, limit)))
 }
 
-/**
- * Why a candidate's `AGENTS.md` is refused, written for the next turn to act on, or null when it
- * keeps the rule: present at the repository root, a regular file, UTF-8, at most 8 KB.
- */
-export const refuseCandidateKnowledge = (blob: Blob): string | null => {
-  if (blob?.type !== 'blob') return 'AGENTS.md is missing at the repository root. Write it with what this run confirmed, under 8 KB.'
-  if (!blob.bytes || blob.size > PROJECT_KNOWLEDGE_LIMIT_BYTES) return `AGENTS.md has ${blob.size} bytes; the limit is ${PROJECT_KNOWLEDGE_LIMIT_BYTES} bytes (8 KB). Shorten it, keeping only confirmed facts.`
-  if (decode(blob.bytes) === null) return 'AGENTS.md is not valid UTF-8. Rewrite it as plain UTF-8 text.'
-  return null
+// Text for the prompt: the file's content, or an empty file with one line saying why.
+const read = (file: ProjectFile, name: string, cut: (text: string) => string | null, limitNote: string): string => {
+  if (file === undefined) return `[${name} could not be read; treat it as empty.]`
+  if (file?.type !== 'blob') return `[${name} is missing; treat it as empty.]`
+  if (!file.bytes) return `[${name} is too large to read; treat it as empty.]`
+  const text = decode(file.bytes)
+  if (text === null) return `[${name} is not UTF-8 text; treat it as empty.]`
+  const kept = cut(text)
+  return kept === null ? text.trim() : `${kept.trimEnd()}\n\n[${limitNote}]`
 }
 
-/** The starter every new Project's repository gets (AC-7), shipped with the Hub like its prompts. */
-export const starterProjectKnowledge = (cwd: string = process.cwd()): Readonly<{ path: string; content: string }> => Object.freeze({
-  path: PROJECT_KNOWLEDGE_PATH,
-  content: readFileSync(resolve(cwd, 'apps/hub/src/builder/starter/AGENTS.md'), 'utf8'),
-})
+/** `AGENTS.md` for the prompt: whole within 8 KB, else its first 8 KB cut at a character boundary, followed by a note. */
+export const readProjectInstructions = (file: ProjectFile): string =>
+  read(file, PROJECT_INSTRUCTIONS_PATH, (text) => encoder.encode(text).length > INSTRUCTIONS_LIMIT_BYTES ? cutToBytes(text, INSTRUCTIONS_LIMIT_BYTES) : null,
+    'AGENTS.md was cut at 8 KB; the rest is not shown.')
+
+/** `MEMORY.md` for the prompt: whole within 200 lines and 16 KB, else cut at whichever limit comes first, followed by a note. */
+export const readProjectMemory = (file: ProjectFile): string =>
+  read(file, PROJECT_MEMORY_PATH, (text) => {
+    const lines = text.split('\n')
+    const byLines = lines.length > MEMORY_LIMIT_LINES ? lines.slice(0, MEMORY_LIMIT_LINES).join('\n') : text
+    return byLines.length < text.length || encoder.encode(byLines).length > MEMORY_LIMIT_BYTES ? cutToBytes(byLines, MEMORY_LIMIT_BYTES) : null
+  }, 'MEMORY.md was cut at 200 lines or 16 KB; the rest is not shown. Keep the index shorter.')
+
+/** The files every new Project's repository starts with: the people's instructions and an empty memory index, shipped with the Hub like its prompt. */
+export const starterProjectFiles = (cwd: string = process.cwd()): readonly Readonly<{ path: string; content: string }>[] => [
+  { path: PROJECT_INSTRUCTIONS_PATH, content: readFileSync(resolve(cwd, 'apps/hub/src/builder/starter/AGENTS.md'), 'utf8') },
+  { path: PROJECT_MEMORY_PATH, content: readFileSync(resolve(cwd, 'apps/hub/src/builder/starter/MEMORY.md'), 'utf8') },
+]

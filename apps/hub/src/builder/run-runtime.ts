@@ -1,26 +1,25 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
-import { WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
 import type { CheckReport } from './application-check.js'
 import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
-import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter, removeStaleServerSkill } from './application-starter.js'
+import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
-import { MEMORY_SETTINGS_KEY, type MemorySettings } from './memory.js'
 import { buildCandidateServer, createOperationRunner } from './run-operation.js'
 import type { CandidateOperationPorts, RunOperation } from './run-operation.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
 import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_KNOWLEDGE_KEY, CONEXUS_PROMPT_VARIANT_KEY, CONEXUS_TURN_CONFLICTS_KEY, METHODOLOGY_VARIANTS, uncommittedPlanPaths, type PromptVariantId, type RunTools } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from './harness/index.js'
+import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
-import { PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT, readProjectKnowledge, refuseCandidateKnowledge } from './project-knowledge.js'
+import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, CodingWorkerResult, SourceAdmittedResult } from './runtime.js'
-import { createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
+import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunningPhase } from './store.js'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
@@ -52,8 +51,8 @@ const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 // Where `conexus_run_operation` builds the server half, as the agent's user, before reading it back.
 const RUN_OPERATION_OUT = '/tmp/conexus-run-operation'
 
-/** How the agent's turn ended; `modeId` is the session's mode then, `plan` when it never left Planejar. */
-type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number; modeId?: string }>
+/** How the agent's turn ended. */
+type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
 
 /** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
@@ -89,15 +88,15 @@ export type BuilderRunPorts = Readonly<{
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
-  checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string; mode: 'BUILD' | 'PLAN' }>): Promise<void>
+  checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string }>): Promise<void>
   git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
   /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
   mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
-  /** The observational-memory settings of the person a run is for, read when it starts. Absent, the run keeps Mastra Code's defaults. */
-  readMemorySettings?(accountId: string): Promise<MemorySettings>
+  /** The Project's display name, read when a turn starts. */
+  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
   invokeOperation?: CandidateOperationPorts['invoke']
   log(line: string): void
@@ -109,9 +108,6 @@ type BuilderRunInput = Readonly<{
   conversationId: string
   executionId: string
   intent: string
-  mode: 'BUILD' | 'PLAN'
-  /** The prompt the run's turns load; the run's trace records it beside the run id. */
-  promptVariant: PromptVariantId
   baseSourceRevision: string
   /** The E2B sandbox the conversation's last turn ran on, which this turn resumes; null for none recorded. */
   providerSandboxId: string | null
@@ -130,7 +126,7 @@ export type BuilderRunRuntime = Readonly<{
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
 export class CandidateRefused extends Error {
-  constructor(code: 'BUILDER_CHECK_FAILED' | 'BUILDER_AGENTS_MD_REFUSED', readonly detail: string) {
+  constructor(code: 'BUILDER_CHECK_FAILED', readonly detail: string) {
     super(code)
   }
 }
@@ -140,7 +136,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> = async (input) => {
   await materializeFixedApplicationStarter(input)
-  await removeStaleServerSkill(input)
   await materializeApplicationShape(input)
 }
 
@@ -150,11 +145,6 @@ const BUILD_ROOT = '/var/lib/conexus-build'
 
 const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 
-// Every workspace tool that can change the checkout, the shell included.
-const CHECKOUT_WRITERS: ReadonlySet<string> = new Set([
-  WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE, WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE, WORKSPACE_TOOLS.FILESYSTEM.DELETE,
-  WORKSPACE_TOOLS.FILESYSTEM.MKDIR, WORKSPACE_TOOLS.FILESYSTEM.AST_EDIT, WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND,
-])
 const MIRROR_DEBOUNCE_MS = 5_000
 // A turn-end mirror after a failure waits no longer than this before the sandbox pauses.
 const FAILED_TURN_MIRROR_MS = 30_000
@@ -258,7 +248,7 @@ const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
     hooks: {
       ...existing.hooks,
       afterToolCall: async (hookContext) => {
-        if (CHECKOUT_WRITERS.has(hookContext.workspaceToolName)) slot.current.schedule()
+        if (CHECKOUT_WRITER_TOOLS.has(hookContext.workspaceToolName)) slot.current.schedule()
         await priorAfterToolCall?.(hookContext)
       },
     },
@@ -271,9 +261,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
     const base = input.baseSourceRevision
     const timing = createRunTiming()
-    const methodology = METHODOLOGY_VARIANTS[input.promptVariant]
-    // What no commit of this run holds: generated files, and the plan folder of a methodology that keeps plans out.
-    const excluded = [...APPLICATION_CHECK_EXCLUDED, ...uncommittedPlanPaths(methodology)]
+    // What no commit of this run holds: generated files.
+    const excluded = APPLICATION_CHECK_EXCLUDED
     const cancelled = (): boolean => input.signal?.aborted === true
     const keepaliveController = new AbortController()
     const runSignal = input.signal ? AbortSignal.any([input.signal, keepaliveController.signal]) : keepaliveController.signal
@@ -282,7 +271,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     // The start model's account is the person's own, else the installation's shared one; none
     // refuses the run before a sandbox exists, with the "connect a model" answer.
     await ports.checkModel({
-      builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId, mode: input.mode,
+      builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId,
     })
     const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
     const sandbox = ports.openSandbox({ conversationId: input.conversationId, providerSandboxId: input.providerSandboxId })
@@ -311,20 +300,24 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       await (keep ? open?.end() : open?.discard())
     }
     try {
-      // Project knowledge is read by the Hub from the base in the Conexus Git, never from the sandbox (AC-8).
-      const knowledge = readProjectKnowledge(await ports.git.readBlob(input.projectId, base, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
-      const memorySettings = await ports.readMemorySettings?.(input.accountId)
+      // The Project's instructions and memory are read by the Hub from the base in the Conexus Git, never from the sandbox (AC-9).
+      const readProjectFile = (path: string) => ports.git.readBlob(input.projectId, base, path, PROJECT_FILE_READ_LIMIT).catch(() => undefined)
+      const instructions = readProjectInstructions(await readProjectFile(PROJECT_INSTRUCTIONS_PATH))
+      const memory = readProjectMemory(await readProjectFile(PROJECT_MEMORY_PATH))
+      const projectName = await ports.readProjectName({ accountId: input.accountId, projectId: input.projectId })
+      const date = turnDate()
       // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
       let conflicted: readonly string[] = []
       const bindContext: RunContextBinder = (requestContext) => {
-        if (memorySettings) requestContext.setRaw(MEMORY_SETTINGS_KEY, memorySettings)
         requestContext.setRaw('conexusBuilderProjectId', input.projectId)
         requestContext.setRaw(RUN_ID_KEY, input.executionId)
         requestContext.setRaw(CONVERSATION_ID_KEY, input.conversationId)
         requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)
-        requestContext.setRaw(CONEXUS_PROJECT_KNOWLEDGE_KEY, knowledge)
+        requestContext.setRaw(CONEXUS_PROJECT_NAME_KEY, projectName)
+        requestContext.setRaw(CONEXUS_TURN_DATE_KEY, date)
+        requestContext.setRaw(CONEXUS_PROJECT_INSTRUCTIONS_KEY, instructions)
+        requestContext.setRaw(CONEXUS_PROJECT_MEMORY_KEY, memory)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
-        requestContext.setRaw(CONEXUS_PROMPT_VARIANT_KEY, input.promptVariant)
         requestContext.setRaw(CONEXUS_TURN_CONFLICTS_KEY, conflicted.join('\n'))
         connectorRun?.bind(requestContext)
       }
@@ -397,7 +390,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
       ].join('\n'))
       if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
-      // A run that starts in Planejar builds in the same run once its plan is approved (AC-4).
       await (ports.materializeStarter ?? materializeRunStarter)({
         repositoryRoot: SANDBOX_CHECKOUT,
         directCommand: (command, args) => direct(command, [...args]),
@@ -410,7 +402,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const invokeOperation = ports.invokeOperation
       const runOperation = invokeOperation ? createOperationRunner({
         projectId: input.projectId,
-        caller: { accountId: input.accountId, email: null, displayName: 'Construir' },
+        caller: { accountId: input.accountId, email: null, displayName: 'Builder' },
         buildServer: () => buildCandidateServer(
           { node: CHECK_NODE_PATH, script: SERVER_BUILD_SCRIPT_PATH, checkout: SANDBOX_CHECKOUT, out: RUN_OPERATION_OUT },
           (script, args) => onIncarnation(() => sandbox.executeCommand('sh', ['-c', script, 'conexus-run-operation', ...args], {
@@ -445,15 +437,11 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       timing.mark('agent')
 
       // A turn that changed nothing still offers the files it started from when they are not on `main`.
-      // A turn that ends in Planejar on a methodology that commits its plans offers nothing: its plan
-      // rides the conversation's mirror and reaches `main` with the first built version (study 34,
-      // decision 2).
-      const planningTurn = methodology.planCommitted && turn.modeId === 'plan'
-      const changed = planningTurn ? null : await pullSnapshot({
+      const changed = await pullSnapshot({
         git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
         scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
       })
-      const result = planningTurn ? null : changed ?? (turnStart.start === base ? null : turnStart.start)
+      const result = changed ?? (turnStart.start === base ? null : turnStart.start)
       await endMirror(result)
       timing.mark('pull')
       const scope = {
@@ -470,13 +458,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
 
-      // Admission (AC-9, AC-14): the candidate's AGENTS.md is within the rule and the Hub's own check
-      // passes on the candidate's tree, taken from the Conexus Git once every process of the agent's
+      // Admission (AC-9, AC-14): the Hub's own check passes on the candidate's tree, taken from the Conexus Git once every process of the agent's
       // user is gone. The check runs as root on that copy and drops to the agent's user for every step
       // that executes application code; nothing in the tree is ever run as the gate.
       await input.setPhase('SOURCE_ADMISSION')
-      const refusal = refuseCandidateKnowledge(await ports.git.readBlob(input.projectId, result, PROJECT_KNOWLEDGE_PATH, PROJECT_KNOWLEDGE_READ_LIMIT))
-      if (refusal) throw new CandidateRefused('BUILDER_AGENTS_MD_REFUSED', refusal)
       await sh('kill -KILL -1 2>/dev/null; true')
       const candidateTar = `${SEED_ROOT}/${input.executionId}.candidate.tar`
       await writeRootFile(candidateTar, await ports.git.archive(input.projectId, result, []))
@@ -587,12 +572,14 @@ type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 /**
  * The conversation's session on the Builder controller for one turn (spec 0002 amendment, B3): one
  * session per conversation on its thread, kept across turns like its sandbox, on that sandbox's
- * workspace, with every tool allowed without asking (the mode guard is the enforcement), and a turn
- * that lasts until the agent is done, including while it waits for the person to approve a plan or
- * answer a question (AC-16). The context, the check and the operation run are the turn's own.
+ * workspace, with every tool allowed without asking (the workspace lists the tools the Builder has), and
+ * a turn that lasts until the agent is done, including while it waits for the person to answer a
+ * question (AC-16). The context, the check and the operation run are the turn's own.
  */
-export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel }: Readonly<{
   controller: AgentController
+  /** The installation's default Builder model, which a conversation with no model of its own starts on. */
+  readDefaultModel(): Promise<string | null>
   /** The live turns' context binders by session scope, which the browser mount applies to every request it serves a turn. */
   runContexts: Map<string, RunContextBinder>
   /** The live turns' workspaces by conversation id, which the controller's workspace resolver hands a new session. */
@@ -618,12 +605,6 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   }
   const end = async (): Promise<void> => {
     forget()
-    // The conversation's session, if the browser has it open, keeps the mode and model it had when it
-    // was created; a plan's approval writes the new mode to the thread from the turn's own scope, so
-    // the conversation's in-memory session never sees it (item C). Rehydrating from the thread is
-    // Mastra's own mechanism for this, and it emits `mode_changed` for the browser to pick up.
-    const conversation = await controller.getSessionByResource(resourceId, `conversation:${conversationId}`)
-    await conversation?.thread.loadMetadata()
   }
   let session: ControllerSession
   try {
@@ -635,8 +616,14 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     }
     if (session.getWorkspace() !== workspace) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
-    // The mode and model the person set on the conversation since the session was made.
+    // The model the person set on the conversation since the session was made. A conversation with
+    // none starts on the installation's default, kept on the thread from its first turn on.
     await session.thread.loadMetadata()
+    if (!session.model.hasSelection()) {
+      const modelId = await readDefaultModel()
+      if (!modelId) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+      await session.model.switch({ modelId })
+    }
     await session.state.set({ yolo: true })
   } catch (error) {
     forget()
@@ -656,14 +643,14 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       else signal?.addEventListener('abort', abort, { once: true })
       try {
         let reason: string = await sendBuilderTurnMessage(session, { content }, { requestContext, ...(signal ? { signal } : {}), onContinuation: (count) => { continuations = count } }) ?? 'unknown'
-        // A plan waiting for approval, or a question waiting for an answer, keeps the run active: the
+        // A question waiting for an answer keeps the run active: the
         // person answers through the browser, and the turn goes on until the agent ends for good.
         while (reason === 'suspended') reason = await nextAgentEnd(session, signal)
         const messages = await session.thread.listActiveMessages() as readonly RecordedMessage[]
         userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
         const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
           .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
-        return { reason, userMessageId, summary, continuations, modeId: session.mode.get() }
+        return { reason, userMessageId, summary, continuations }
       } finally {
         detach()
         signal?.removeEventListener('abort', abort)

@@ -2,7 +2,6 @@ import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { CandidateRefused } from './run-runtime.js'
 import type { BuilderRunRuntime } from './run-runtime.js'
-import { DEFAULT_PROMPT_VARIANT, type PromptVariantId } from './harness/index.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
 import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
@@ -10,11 +9,7 @@ import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 
 export type BuilderService = Readonly<{
-  /**
-   * The run starts in the conversation's own mode, which lives only in its thread (AC-2). It uses the
-   * named prompt variant, or the default one; the eval names one to compare variants.
-   */
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; promptVariant?: PromptVariantId }>): Promise<BuilderRunSummary>
+  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
@@ -44,7 +39,7 @@ type DiagnosticAppender = (note: RunNote) => Promise<void>
 export type BuilderRunDependencies = Readonly<{
   runtime: BuilderRunRuntime
   git: Pick<ConexusGit, 'readMain' | 'mainContains'>
-  conversations: Pick<Conversations, 'modeOf' | 'titleFromRequest'>
+  conversations: Pick<Conversations, 'ownerOf' | 'titleFromRequest'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
   reconcileEveryMs?: number
@@ -83,8 +78,6 @@ const recoverAdmissions = async ({ store, git, active }: Readonly<{
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
-const RUN_MODE = Object.freeze({ plan: 'PLAN', build: 'BUILD' } as const)
-
 export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs }: Readonly<{
   store: BuilderStore
   applicationArtifacts: BuilderApplicationArtifacts
@@ -114,7 +107,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
   }
-  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; promptVariant?: PromptVariantId }>): void => {
+  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
     // The browser reads run.phase from the builder-session poll; the live turn itself is Mastra's.
@@ -131,8 +124,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const conversation = { projectId: claimed.projectId, conversationId: claimed.conversationId }
       const result = await runs.runtime.execute({
         projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
-        executionId: claimed.builderRunId, intent: input.content, promptVariant: input.promptVariant ?? DEFAULT_PROMPT_VARIANT,
-        mode: claimed.mode, baseSourceRevision: claimed.baseSourceRevision,
+        executionId: claimed.builderRunId, intent: input.content, baseSourceRevision: claimed.baseSourceRevision,
         providerSandboxId: await store.readConversationSandbox(conversation),
         signal: controller.signal,
         setPhase: async (phase: BuilderRunningPhase) => {
@@ -257,10 +249,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
-      const mode = await runs.conversations.modeOf(input.projectId, input.conversationId)
-      if (!mode) throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
+      if (await runs.conversations.ownerOf(input.projectId, input.conversationId) !== 'PROJECT') throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
       // The base is `main`, read only once the database holds the Project's run lock.
-      const run = await store.createBuilderRun({ ...input, mode: RUN_MODE[mode], readBase: () => runs.git.readMain(input.projectId) })
+      const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
       if (run.state === 'QUEUED') {
         await runs.conversations.titleFromRequest(input.projectId, input.conversationId, input.content).catch(() => undefined)
         dispatchBuilderRun(run, input)

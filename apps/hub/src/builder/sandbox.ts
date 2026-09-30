@@ -1,5 +1,5 @@
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
-import { Workspace } from '@mastra/core/workspace'
+import { Workspace, WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
 
@@ -133,6 +133,24 @@ export const createConversationSandbox = ({ apiKey, templateId, conversationId, 
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
 })
 
+/** Every workspace tool that can change the checkout, the shell included. */
+export const CHECKOUT_WRITER_TOOLS: ReadonlySet<string> = new Set([
+  WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE, WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE, WORKSPACE_TOOLS.FILESYSTEM.DELETE,
+  WORKSPACE_TOOLS.FILESYSTEM.MKDIR, WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND,
+])
+
+/** The workspace tools the Builder has: the checkout's writers and its readers. Every other tool Mastra ships stays off. */
+const BUILDER_WORKSPACE_TOOLS: readonly string[] = [
+  ...CHECKOUT_WRITER_TOOLS,
+  WORKSPACE_TOOLS.FILESYSTEM.READ_FILE, WORKSPACE_TOOLS.FILESYSTEM.LIST_FILES, WORKSPACE_TOOLS.FILESYSTEM.GREP, WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT,
+  WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT, WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS,
+]
+
+/** The workspace `tools` option: nothing is on unless the Builder has it. */
+export const BUILDER_WORKSPACE_TOOLS_CONFIG = Object.freeze({
+  enabled: false, ...Object.fromEntries(BUILDER_WORKSPACE_TOOLS.map((name) => [name, { enabled: true }])),
+})
+
 /** The agent's workspace on a conversation's sandbox: its file tools and its commands share the checkout. */
 export const createRunWorkspace = (sandbox: ConexusRunSandbox): Workspace => new Workspace({
   id: `conexus-run-workspace-${sandbox.id}`,
@@ -143,4 +161,5 @@ export const createRunWorkspace = (sandbox: ConexusRunSandbox): Workspace => new
     workdir: SANDBOX_CHECKOUT,
   }),
   sandbox,
+  tools: BUILDER_WORKSPACE_TOOLS_CONFIG,
 })

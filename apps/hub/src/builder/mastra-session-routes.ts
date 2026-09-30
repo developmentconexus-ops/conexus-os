@@ -24,14 +24,12 @@ const CONVERSATION_SCOPE = new RegExp(`^conversation:(${UUID})$`)
 // browser chose. The browser may not switch, rename, clone or delete threads here.
 const CREATE_SESSION_ROUTE = 'POST /agent-controller/:controllerId/sessions'
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
-  'GET /agent-controller/:controllerId/modes',
   CREATE_SESSION_ROUTE,
   `GET ${SESSION_BASE}`,
   `GET ${SESSION_BASE}/threads`,
   `GET ${SESSION_BASE}/stream`,
   `GET ${SESSION_BASE}/threads/:threadId/messages`,
   `POST ${SESSION_BASE}/abort`,
-  `POST ${SESSION_BASE}/mode`,
   `POST ${SESSION_BASE}/model`,
   `POST ${SESSION_BASE}/tool-approval`,
   `POST ${SESSION_BASE}/tool-suspension`,
@@ -41,8 +39,8 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
 // Routes that read no session: the resource's threads, and a thread's messages read by id and
 // checked against the resource.
 const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([`GET ${SESSION_BASE}/threads`, `GET ${SESSION_BASE}/threads/:threadId/messages`])
-// A conversation's settings change only between runs (AC-5); a run in flight is refused.
-const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([`POST ${SESSION_BASE}/mode`])
+// A conversation's model changes only between runs (AC-12); a run in flight is refused.
+const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([`POST ${SESSION_BASE}/model`])
 
 // The Hub is the single writer of tool policy; the browser may only answer for the one pending
 // tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
@@ -183,7 +181,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // before Mastra does: the session the Hub runs a conversation's turns in (builder:<id>), which
       // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
       if (sessionScope !== undefined && RUN_SCOPE.test(sessionScope)) {
-        if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modo só muda quando o Builder está parado')
+        if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
           return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
         }
@@ -192,7 +190,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         if (!conversationId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
         if (await mount.conversationOwner({ projectId, conversationId }) !== 'PROJECT') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
         if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) {
-          return sendProblem(reply, 409, 'builder-busy', 'O modo só muda quando o Builder está parado')
+          return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
         }
         await bindConversationSession(mount.controller, resource, sessionScope as string, conversationId)
       }
@@ -218,7 +216,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 }
 
 // A conversation's session is bound to its thread and reads the thread's settings again on every
-// request, so the mode or model a run changed on the thread is what the browser sees and changes.
+// request, so the model a run changed on the thread is what the browser sees and changes.
 // Its observational-memory progress is read again too: only a run's own session observes, so the
 // conversation's session learns what that run stored from Mastra's own record.
 const bindConversationSession = async (controller: AgentController, resourceId: string, scope: string, conversationId: string): Promise<BuilderSession> => {
@@ -231,7 +229,7 @@ const bindConversationSession = async (controller: AgentController, resourceId: 
 /**
  * The Builder's native session routes under `/api/builder` (spec 0002, API surface): the ones the
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
- * conversation's mode and model, each behind the Hub session and the Project the resource names.
+ * conversation's model, each behind the Hub session and the Project the resource names.
  */
 export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads }: Readonly<{
   mastra: Mastra

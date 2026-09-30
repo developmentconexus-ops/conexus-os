@@ -5,11 +5,11 @@ import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
 import { SpanType } from '@mastra/core/observability'
-import type { RequestContext } from '@mastra/core/request-context'
+import { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import type { Workspace } from '@mastra/core/workspace'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
-import { PgFactoryStorage, PostgresStore } from '@mastra/pg'
+import { PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
@@ -31,7 +31,7 @@ import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './applica
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { createBuilderController, type RunTools } from './harness/index.js'
-import { starterProjectKnowledge } from './project-knowledge.js'
+import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
@@ -41,8 +41,8 @@ import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
-import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRoute } from './model-routing.js'
-import { BuilderMemorySettings, createBuilderMemory } from './memory.js'
+import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRole, type ModelRoute } from './model-routing.js'
+import { createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
@@ -240,7 +240,7 @@ export type BuilderConnectorPort = Readonly<{
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectors, connectorObservability }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
@@ -257,6 +257,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  /** The Project's display name, which the Builder's prompt states. */
+  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
 }>) => {
@@ -275,7 +277,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
   })
   const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
-  const readDefault = async (role: 'plan' | 'build'): Promise<string | null> =>
+  const readDefault = async (role: ModelRole): Promise<string | null> =>
     (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
@@ -284,7 +286,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
-  const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, starterProjectKnowledge()] })
+  const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
   const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
@@ -292,9 +294,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const googleWriteBack = createRefreshWriteBack(modelAccounts)
   const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
   googleAiProReady.catch(() => undefined)
-
-  // Each person's observational-memory settings, a collection beside the threads in the same store.
-  const memorySettings = new PgFactoryStorage({ store: storage }).registerDomain(new BuilderMemorySettings())
 
   const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
     // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
@@ -324,8 +323,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const modelRouting = createModelRouting({
     routes,
     modelAccounts,
-    // Read when a run starts, long after the conversations below exist.
-    modelOf: (projectId, conversationId, mode) => conversations.modelOf(projectId, conversationId, mode),
+    // Read when a run starts, long after the controller below exists.
+    conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
     readDefault,
     record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
   })
@@ -340,7 +339,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return typeof runId === 'string' ? runTools.get(runId) : undefined
     },
     model: modelRouting.resolve,
-    memory: createBuilderMemory({ storage, roleModel: (requestContext, modelId) => modelRouting.resolve({ requestContext }, modelId) }),
+    memory: createBuilderMemory({ storage, memoryModel: modelRouting.resolveMemory }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
   })
   const mastra = new Mastra({
@@ -351,6 +350,15 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
+  // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
+  const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
+    await ready
+    const session = await controller.createSession({
+      resourceId: projectResourceId(projectId), scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext(),
+    })
+    await session.thread.loadMetadata()
+    return session.model.hasSelection() ? session.model.get() : null
+  }
   const retentionPrune = scheduleRetentionPrune(storage, log)
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')
@@ -358,7 +366,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools })
+  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
   const runtime = createBuilderRunRuntime({
     openSandbox: e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
     openSession: async (input) => {
@@ -366,7 +374,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return openSession(input)
     },
     checkModel: modelRouting.check,
-    readMemorySettings: (accountId) => memorySettings.read(accountId),
+    readProjectName,
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
     ...(applicationServer ? { invokeOperation: applicationServer.invoke } : {}),
@@ -441,7 +449,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         resolveCurrentSession,
         isInstallationAdministrator,
         modelAccounts,
-        memorySettings,
         ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
       })
       return builderOperations
