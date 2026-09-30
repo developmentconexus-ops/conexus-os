@@ -240,10 +240,11 @@ screenshots with every business value masked, and the `CheckReport`s go to the
 3. **Issue #342 contradicts spec 0003.** It asks the project check to refuse a handler that imports
    `node:fs`. Spec 0003 lets handlers import `node:` modules (`builder-application-check:122`,
    `builder-compiler-allowlist:81`). One of the two must change.
-4. **Not built at the census head:** observational memory (AC-19), the removal of the Factory and
-   Mastra Code (AC-24), API keys and the Claude subscription (AC-20), the sharing routes (AC-21), the
-   installation defaults route (AC-23), the common search tool (AC-11), and the sandbox secret scan
-   (AC-15).
+4. **Not built at the census head (`40d9671d`):** observational memory (AC-19), the removal of the
+   Factory and Mastra Code (AC-24), API keys and the Claude subscription (AC-20), the sharing routes
+   (AC-21), the installation defaults route (AC-23), the common search tool (AC-11), and the sandbox
+   secret scan (AC-15). Observational memory and the Anthropic accounts have been built since (section
+   10, items 13 and 15), and web search exists per provider (item 12).
 5. **Unmeasured in E2B:** the check's wall time (estimated under 15 s), sandbox start with a larger
    image, and the effect of the first-load JavaScript growth from about 60 KB to about 280 KB gzip
    (`S17:120-129`, `S17:433-445`; `0003:340-344`).
@@ -252,7 +253,7 @@ screenshots with every business value masked, and the `CheckReport`s go to the
    `CheckReport`s are the measurement (`S17:444-445`).
 7. **Waiting for the operator:** the Sankhya credential on the branch Hub (AC-29), the pass rule for
    `erp/sales-dashboard`, his reading of the model input (AC-30), the search provider and its key
-   (AC-11), the Claude subscription sign-in (AC-20), the drop of the `factory` schema on the branch
+   (AC-11), the Claude subscription sign-in (AC-20, built, the operator has not signed in), the drop of the `factory` schema on the branch
    database (AC-24) (`S21:183-199`). C-032 and C-033 were accepted on 2026-09-29.
 8. **Packaging.** No issue covers this work, and the pull request must link one
    ([Git and pull requests](../development/delivery.md#git-and-pull-requests); `S21:112`).
@@ -282,28 +283,64 @@ remain after the verdict:
 ## 10. Direction: the ordered work
 
 This section owns the order of the Builder work on this branch and the state of each item. It
-does not own gate status, which the [roadmap](../roadmap.md) owns. States are as of 2026-09-29 at
-`47794034`. "Done" names the commit on `feat/builder-own-harness`. "Running" names the branch where
-the work is. "Next" is approved and not started. "Later" waits for the items above it.
+does not own gate status, which the [roadmap](../roadmap.md) owns. States are as of 2026-09-30 at
+`ed087966`, the head of `feat/builder-own-harness`. "Done" names the commit on that branch.
+"Running" names the branch where the work is. "Next" is approved and not started. "Later" waits
+for the items above it.
 
-Order follows the operator's direction of 2026-09-29: first the Builder's flow, what it creates, its
-screens and its speed; then the sandbox per conversation.
+Order follows the operator's direction of 2026-09-29 and 2026-09-30: first the Builder's flow, what
+it creates, its screens and its speed; then the sandbox per conversation. The Builder system prompt
+is rewritten before the planning bakeoff, and the bakeoff comes before the last three sandbox units.
+
+### Done
 
 | # | Work | State | Why | Proof |
 | --- | --- | --- | --- | --- |
 | 1 | B0: retry a transient storage or network failure within the same turn, and name a platform fault as one | done, `0ecb20a4` | `S23:154-180`, `S23:389` | Retry and run runtime tests. Live: the first-read defect below stays open |
 | 2 | Q-6: handlers read a Connection with `connectors.fetch`. The Builder learns only `fetch` | done, built from `main` (`bb7edf96`, `6db652fc`, `c88db0f1`), merged as `12aeb4f3`, `78747137` | `S22`, `S20:129-148` | Real bubblewrap: another Project gets `NOT_GRANTED` with zero gateway requests, and no credential is visible. The Preview response scan (`S22:667-678`) has not run |
-| 3 | A production or sandbox destination per Connection (D-1) | built on `feat/connector-destination` (`85de1af1`, `97dd8983`). Lands after this branch, as migration `0039` | `S22:417-568` | Connector suites, with a real Chromium test of the Integrações select |
+| 3 | A production or sandbox destination per Connection (D-1) | built on `feat/connector-destination` (`85de1af1`, `97dd8983`). Lands after this branch. Its migration number moves after `0040`, because B2 and B3 took `0039` and `0040` | `S22:417-568` | Connector suites, with a real Chromium test of the Integrações select |
 | 4 | Read-only SQL consult on Sankhya (`DbExplorerSP.executeQuery`), behind a single-statement tripwire | done, `27d02d1d`, `0a9c0ed3` | `S27:146-170`, `S28:162-171` | Connector suites. The operator confirmed the integration user only reads. A live read has not run |
 | 5 | Run one step's tool calls in parallel | done, `47794034` | `S25:143-150`, `S25:324` | A red then green overlap test. The live gain is not measured |
-| 6 | Compact chat: the Preview says what is happening, one reasoning line, tool group headers, borderless rows, the plan card as Markdown with a reading panel | running, `feat/builder-compact-chat`, sent back to fix the global button default | `S26:123-276`, `S25:325` | Screenshots in both themes after the rework |
+| 6 | Compact chat: the Preview says what is happening, one reasoning line, tool group headers, borderless rows, one card per question, the plan card as Markdown with a reading panel | done, merged as `ccb2dcf0` (button default fix `5f0c1bd7`, answered question row `85fb6da4`) | `S26:123-276`, `S25:325` | Screenshots in both themes after the rework |
 | 7 | Restart the branch Hub and the app runner together | done on the branch Hub, by a local script outside the repository | `S25:281-288` | The runner log starts on the Hub's head. The guard against drift is an open defect below |
-| 8 | Wave 1: the integrator guide as a discovery method, one handler and screen contract, an honest plan | running, `feat/builder-guidance-w1` | `S29:8-20` | Item 9 |
-| 9 | Control eval: replay the quote request after wave 1, once on `gpt-6-luna` and once on Opus | next, after wave 1 | `S29:29-33`, `S27:373-383` | The plan names a source for all four requested metrics |
-| 10 | Wave 2: a Construir tool that runs one app operation on real data and returns shape and counts, a tested helper that pages and decodes a Sankhya list, the project `AGENTS.md` as a domain map | next, after item 9 | `S29:22-27`, `S27:309-355`, `S28:296-307` | The replay's app shows every line of the test quote with real costs, prices, promotions and stock |
-| 11 | Record the declared gate runs in the [evidence](../evidence/builder-own-harness/README.md): AC-28 case A, AC-27 `todo-reload` and `erp/sankhya-not-connected`, the AC-12 refusal | next | Section 6 | The evidence tables filled, with values masked |
-| 12 | Context7 for the Builder | later, an idea. It needs a key and a measured replay | No study yet. Context7 lists the Sankhya developer reference with no snippets | A replay with and without it |
-| 13 | Sandbox per conversation, units B1 to B8 | B1 and B2 are built, merged as `9d1f8dc5`. B3 is built on `feat/builder-conversation-sandbox`. B4 to B8 are not built | [Spec 0002 amendment](specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch), `S23:383-400`, `S24:276-288` | One crash test per unit (`S23:387-398`). B3's pause and resume on a real E2B VM has not run |
+| 8 | Wave 1: the integrator guide as a discovery method, one handler and screen contract, an honest plan | done, merged as `a3711dcc` (neutral examples and the denylist test, `c3404fd0`) | `S29:8-20` | Item 9 |
+| 9 | Control eval: replay the quote request after wave 1, three times. R1 on `f2a79e32`, R2 on `9d1f8dc5`, R3 on `dc96ad86` | done, ran | `S29:29-33`, `S27:373-383` | Plan source: PASS in R1 and R2. Preview: FAIL in all three, on the promotional price, a column that exists and is empty. R3 fixed the stock format and the highlight. A cost of zero is still not flagged |
+| 10 | Wave 2: the Construir tool `conexus_run_operation` that runs one read operation on real data and returns shape and counts, the generated Sankhya reader that handlers import, the runner's refusal detail in its log. The app `AGENTS.md` as a domain map ships inside the methodology arms | done, merged as `9d1f8dc5` (map: `dc96ad86`) | `S29:22-27`, `S27:309-355`, `S28:296-307` | R2 and R3 above. The replay's app does not yet show every line with real prices and promotions |
+| 11 | Sandbox per conversation, units B1 to B3: the mirror ref per conversation, a turn that starts from the mirror with `main` brought in, one E2B sandbox and one Builder session per conversation, paused between turns | done. B1 and B2 merged as `1851797c`. B3 merged as `6009a5a5` with migrations `0039` and `0040` | [Spec 0002 amendment](specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch), `S23:383-400`, `S24:276-288` | B3 ran live in R3. The second turn resumed the same E2B sandbox and reached the Preview in 1 minute 52 seconds |
+| 12 | Web search per provider: OpenAI's native `web_search` for the ChatGPT account | done, `0d6aae4c` | The Builder can search the web on the ChatGPT account | The commit adds the provider tool. No live search run is recorded |
+| 13 | Model accounts by Anthropic API key and by Claude subscription | done, merged as `bb6a7633` (the decision on the Claude subscription: `f2a79e32`) | AC-20, study 30 | Account tests. The operator's own Claude sign in is still owed (limit 7) |
+| 14 | Runaway step guard: a per-step output cap and time budget. The opt-in model stream recorder, on while a diagnostic directory is set | done, `0abc4e21`, `f160f7e1` | A model step that streams without end | Guard tests. The root cause of the runaway stream is unproven (open defects) |
+| 15 | Observational memory on by default with per-person settings, the memory rings under the composer and one mode chip | done, merged as `ba9dc1f7` | AC-19, study 33 | Web and Hub tests |
+| 16 | Google AI Pro waits for its proxy account before the first call. A failed observation shows on the ring | done, merged as `07030ac2` | Study 19 | A test where a call reaches the proxy before the stored sign in is accepted |
+| 17 | ChatGPT on Mastra's own sign in and provider. Our copy of that code is deleted | done, merged as `3a3a2ce2` | One pattern with Claude, study 38 | Account tests |
+| 18 | Clean model names: every offer sends the bare id and the web formats it. Composer fit: the name shows whole and the mode chip folds to its icon when narrow | done, merged as `5ce28478` and `996d9462` | The model name showed cut off in the composer | Web tests |
+| 19 | One `Tooltip` everywhere. `web:style:check` fails on a native `title` | done, merged as `9a80d80a` | One pattern everywhere in the web app | The style check |
+| 20 | Bakeoff eval harness: scripted person, answer sheets, oracle comparison, timing block, gates and slices. The scripted person runs on Opus 5.5 through the Claude subscription | done, merged as `e56e96e7` and `54102601` | Studies 34 and 31 | `scripts/builder-eval` suites |
+| 21 | Planning methodologies as one record, four arms, the seven step planning checklist and the `BUILDER_RUN_TIMING` log line | done, `dc96ad86` | Study 34 | Unit tests. No bakeoff has run |
+| 22 | The skill catalog shows skill names, never a folder on the Hub host | done, merged as `ed087966` | The model saw paths that exist only on the Hub host | A test that fails when a Hub path reaches the model |
+
+### Next, in this order
+
+The operator decided this order on 2026-09-29 and 2026-09-30.
+
+| # | Work | State | Why | Proof |
+| --- | --- | --- | --- | --- |
+| a | Rewrite the Builder system prompt topic by topic from reference prompts (Claude Code, Codex, Cursor, Mastra Code), co-written with the operator in a new conversation. The intro must not assume that the company's own systems are the only ones: integrations include outside services | next. The starting point is the draft `f70b30e5` on `feat/builder-prompt-find-then-ask`, whose two rules the operator approved. First, search the Project, the source and research, then ask in one card, and mark a source as not found only after the person says they do not know. Second, no fixed question count: ask one at a time while the answer changes the build | Study 43 (running), studies 42 and 36c. The Builder reports an empty source instead of searching further | The model input printed by `scripts/builder-model-input.mjs`, read by the operator, and a replay of the quote request |
+| b | The planning bakeoff (study 34): build the oracle agent, replace eval case V1 with one written by someone who did not write the arms, then stage 1 on `gpt-6-luna` and an Opus control. The arm `fatias` needs B4 or runs last | next, after a | Studies 34 and 31 | The bakeoff report with the gates and slices of `scripts/builder-eval` |
+| c | Sandbox units B4 (the version act), B5 (a lock per conversation) and B6 (a 7 day sweeper that also evicts the in-memory sandbox and session of each conversation) | next, after b | Spec 0002 amendment, `S23:387-398` | One crash test per unit |
+| d | Record the declared gate runs in the [evidence](../evidence/builder-own-harness/README.md): AC-28 case A, AC-27 `todo-reload` and `erp/sankhya-not-connected`, the AC-12 refusal | next | Section 6 | The evidence tables filled, with values masked |
+
+### Later
+
+| # | Work | State | Why | Proof |
+| --- | --- | --- | --- | --- |
+| e | Context7 for the Builder | later, an idea. It needs a key and a measured replay | No study yet. Context7 lists the Sankhya developer reference with no snippets | A replay with and without it |
+| f | A Mastra gateway for Google AI Pro instead of CLIProxy | later | Study 38 | The Google AI Pro account tests on the gateway |
+| g | The eval platform (studies 39 to 41), future work run in parallel. The [roadmap](../roadmap.md#explicitly-deferred-until-after-stage-2-evidence) defers it | later | Studies 39, 40a, 40b and 41 | Not started |
+| h | B7 (a draft Preview of the conversation branch) and B8 (Mastra's durable agent continues an interrupted turn) | later | Spec 0002 amendment | Not started |
+
+Studies 34, 36c, 38, 39, 40a, 40b, 41 and 42 are cited by number in this section. They stay in the operator's study
+notes until a review clears them for the [research index](../research/builder/index.md).
 
 Open defects. Each one needs a fix and a test before the pilot runs on this Builder.
 
@@ -311,6 +348,14 @@ Open defects. Each one needs a fix and a test before the pilot runs on this Buil
 | --- | --- | --- |
 | A storage fault on a message's first read hangs the turn | If the agent storage fails on the first `getWorkflowRunById` read of a message, before the loop step, the controller emits no error and `sendMessage` never settles. The run stays active with no timeout. B0 covers only the loop step's read | B0 worker probe on `9a9455d3`, `apps/hub/src/builder/run-runtime.ts` (no turn timeout) |
 | A first Sankhya read after a cold login can time out | The first read hit the 5 s handler limit in 2 of 11 calls. The cause is not isolated | `S25:274-277`, `S25:312-316`, `S25:329` |
-| The Hub does not recover its database pools after a database restart | The Hub answers 503 until someone restarts it | #339 |
-| The runner log drops a handler refusal's detail | `HANDLER_OUTPUT_REFUSED` is logged without the field that broke the output schema, so the cause needs a code read | `apps/hub/src/app-runner/supervisor.ts:280`, `S25:281-288` |
 | Nothing stops the Hub, the runner and the sandbox template drifting apart | An app runs older runner code than the Builder that wrote it, or a check fails on an older template | `S25:323` |
+| The cause of the runaway model stream is unproven | A model step can stream past its output cap. The runaway guard ends such a step. The model stream recorder stays on until a real case shows the cause | `0abc4e21`, `f160f7e1` |
+| The Builder does not flag a cost of zero | An app shows a line with a zero cost as if it were real. The check and the plan do not mark it | Control eval R1 to R3 |
+| The Builder reports an empty source instead of searching further | The Builder tells the person that a column is empty and stops. Item a addresses it | Control eval R1 to R3, study 42 |
+
+Fixed since 2026-09-29:
+
+| Defect | Fix |
+| --- | --- |
+| The Hub did not recover its database pools after a database restart (#339) | A pool error listener logs `HUB_POOL_ERROR` and the Hub keeps running, `73c975b6` (#347) |
+| The runner log dropped a handler refusal's detail | The log names the schema refusal detail, `511ccbad`, merged as `9d1f8dc5` |

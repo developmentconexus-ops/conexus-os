@@ -180,7 +180,8 @@ The first gate does not need Sankhya or employee app identity. It proves only th
 - Agent Studio;
 - generic template marketplace;
 - standalone full-stack deployment per Project;
-- cloud-provider abstraction.
+- cloud-provider abstraction;
+- the eval platform: a screen and a store for the Builder's eval runs, built on Mastra's datasets and experiments. Studies 39 to 41 describe it, and the Builder work in the [ordered work](tasks/stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work) does not wait for it.
 
 These return only through a named real consumer and their own qualification.
 
@@ -219,7 +220,15 @@ it is built.
 First, the [Builder own harness qualification](tasks/stage2-builder-own-harness-qualification.md).
 It is the Builder half of Q4's "builds and changes a useful application", and its
 [section 10](tasks/stage2-builder-own-harness-qualification.md#10-direction-the-ordered-work) orders
-the work. Then the Q4 closure items on the pilot, running `main`:
+the work. On 2026-09-30 the Builder is at `ed087966` with waves 1 and 2, sandbox units B1 to B3 and the
+control eval done. The next work is, in this order:
+
+1. Rewrite the Builder system prompt topic by topic from reference prompts, co-written with the
+   operator in a new conversation, starting from the draft `f70b30e5`.
+2. Run the planning bakeoff, with a new eval case V1 written by someone who did not write the arms.
+3. Build sandbox units B4, B5 and B6.
+
+Then the Q4 closure items on the pilot, running `main`:
 
 [Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)
 
@@ -249,7 +258,12 @@ Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#f
 
 ## What the operator still owes
 
-- Nothing for Q4 today. The Sankhya administrator confirmed on 2026-09-29 that the integration
+- For the Builder: co-write the system prompt with an agent in a new conversation, and name who
+  writes the new eval case V1 for the planning bakeoff. The operator also owes his own Claude
+  subscription sign in on the branch Hub, the Sankhya credential on the branch Hub and the pass rule
+  for `erp/sales-dashboard`
+  ([section 7](tasks/stage2-builder-own-harness-qualification.md#7-open-limits)).
+- Nothing else for Q4 today. The Sankhya administrator confirmed on 2026-09-29 that the integration
   user can only read ([evidence](evidence/builder-own-harness/README.md#sankhya-read-only-sql-consult)).
   C-030 also asks the Connection to record who confirmed it and when, and the Connection has no
   field for that yet. Without that record, Q4 closes at most ACCEPT_WITH_BOUNDARY.
