@@ -200,22 +200,45 @@ const scriptedModel = () => {
   return { model, calls }
 }
 
-test('a Google AI Pro model lists its tools without throwing and has no web_search; a native provider model keeps it', async () => {
-  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
-  // The exact MastraModelConfig shape module.ts's createModelResolver returns for every run today
-  // (Only Google AI Pro is wired in slice 1): an OpenAICompatibleConfig routed through CLIProxy,
-  // whose provider id Mastra's built-in webSearchTool cannot infer as OpenAI, Anthropic, Google, or xAI.
-  const googleAiProModel = { providerId: 'google-ai-pro', modelId: 'gemini-3.1-pro-low', url: 'http://127.0.0.1:1/v1', apiKey: 'test-key' }
-  const googleController = createBuilderController({ model: googleAiProModel, storage: new InMemoryStore(), skillsPath })
-  const googleSession = await googleController.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
-  const googleTools = await googleController.getCurrentAgent(googleSession).listTools({ requestContext: new RequestContext() })
-  assert.equal('web_search' in googleTools, false, 'a provider Mastra cannot infer gets no web_search tool')
-  assert.equal('web_fetch' in googleTools, true, 'web_fetch stays available regardless of provider')
+test("a Google AI Pro run's web_search is a search-only agent on the person's own model, and Google's search never sits beside the Builder's function tools", async (t) => {
+  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
+  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
+  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
+  const model = () => route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const session = await controller.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
+  const agent = controller.getCurrentAgent(session)
+  const tools = await agent.listTools({ requestContext: new RequestContext() })
 
-  const nativeController = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore(), skillsPath })
-  const nativeSession = await nativeController.createSession({ resourceId: 'project:probe-native-search', scope: 'probe-native-search' })
-  const nativeTools = await nativeController.getCurrentAgent(nativeSession).listTools({ requestContext: new RequestContext() })
-  assert.equal('web_search' in nativeTools, true, 'a model on a native-search provider keeps web_search')
+  // Gemini's API, answering one grounded search; every request is recorded.
+  const sent = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    const body = await request.json()
+    sent.push({ url: request.url, tools: body.tools, thinking: body.generationConfig?.thinkingConfig })
+    const answer = { candidates: [{ content: { role: 'model', parts: [{ text: 'O Node 24 é a LTS atual.' }] }, finishReason: 'STOP', groundingMetadata: { groundingChunks: [{ web: { uri: 'https://nodejs.org/en/about/previous-releases', title: 'nodejs.org' } }] } }] }
+    return request.url.includes(':streamGenerateContent')
+      ? new Response(`data: ${JSON.stringify(answer)}\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+      : Response.json(answer)
+  }
+  t.after(() => { globalThis.fetch = original })
+
+  assert.deepEqual([tools.web_search.id, 'type' in tools.web_search, 'web_fetch' in tools], ['web_search', false, true], 'web_search is a function tool of the Builder, not a provider search')
+  assert.deepEqual(await tools.web_search.execute({ query: 'qual a LTS atual do Node?' }, {}), {
+    text: 'O Node 24 é a LTS atual.',
+    sources: [{ title: 'nodejs.org', url: 'https://nodejs.org/en/about/previous-releases' }],
+  })
+  assert.deepEqual(sent, [{
+    url: 'http://127.0.0.1:9/v1beta/models/gemini-3-flash:generateContent', tools: [{ googleSearch: {} }], thinking: { thinkingLevel: 'low' },
+  }], 'one call per query, with Google search as its only tool')
+
+  sent.length = 0
+  await (await agent.stream('pesquise a LTS do Node', { requestContext: new RequestContext(), maxSteps: 1 })).consumeStream()
+  const [builderCall] = sent
+  const declared = builderCall.tools.flatMap((tool) => tool.functionDeclarations?.map(({ name }) => name) ?? [])
+  assert.deepEqual([declared.includes('web_search'), builderCall.tools.some((tool) => 'googleSearch' in tool)], [true, false], 'the Builder declares web_search as a function and never asks for Google search itself')
 })
 
 test('a ChatGPT subscription model lists its tools without throwing and gets OpenAI\'s Responses web_search: it reports provider openai.responses, which Mastra\'s webSearchTool cannot map', async () => {

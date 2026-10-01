@@ -4,7 +4,7 @@ import { createCodingAgent } from '@mastra/core/coding-agent'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, SkillsProcessor, StreamErrorRetryProcessor } from '@mastra/core/processors'
 import { resolveAgentSkills } from '@mastra/core/skills'
-import type { ToolsInput } from '@mastra/core/agent'
+import { Agent, type ToolsInput } from '@mastra/core/agent'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { MastraMemory } from '@mastra/core/memory'
 import type { RequestContext } from '@mastra/core/request-context'
@@ -12,7 +12,8 @@ import type { MastraCompositeStore } from '@mastra/core/storage'
 import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { conexusInstructions } from './prompt.js'
-import { webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { createTool, webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { z } from 'zod'
 import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
@@ -29,8 +30,8 @@ export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string =>
  * (`normalizeWebSearchProvider` in `@mastra/core/tools`'s `tools-*.js`, not part of that package's
  * public `./tools` export surface, so the Hub cannot call it directly and duplicates the set here,
  * once). Offering `web_search` for any other provider throws `WEB_SEARCH_UNSUPPORTED_PROVIDER`
- * before the first model call (spec 0002 AC-11): a model without native search gets no `web_search`
- * tool at all here, in slice 1; a common search tool for such models is slice 6's owed decision.
+ * before the first model call (spec 0002 AC-11), so a model none of these searches for gets no
+ * `web_search` tool at all.
  */
 const NATIVE_WEB_SEARCH_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'google', 'xai'])
 
@@ -40,43 +41,76 @@ const providerOf = (modelString: string): string => {
   return slash > 0 ? modelString.slice(0, slash) : modelString
 }
 
-/**
- * The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model`
- * router string, either `OpenAICompatibleConfig` shape (module.ts's `createModelResolver` returns
- * the `providerId` one for Google AI Pro today), or an already-resolved language model instance.
- */
+/** The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model` router string or config, or an already-built language model. */
 const resolveModelProviderId = (model: MastraModelConfig): string | undefined => {
   if (typeof model === 'string') return providerOf(model)
   if (typeof model !== 'object' || model === null) return undefined
-  if ('providerId' in model && typeof model.providerId === 'string') return model.providerId
   if ('id' in model && typeof model.id === 'string') return providerOf(model.id)
   if ('provider' in model && typeof model.provider === 'string') return model.provider
   return undefined
 }
 
 /**
- * The provider ids a subscription model reports: `openaiCodexModel` (ChatGPT) and Mastra Code's
- * Claude provider (`anthropic.messages`). `webSearchTool` cannot map them
- * (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix), so each gets the
- * provider-defined tool `webSearchTool` itself resolves to for its family
+ * The provider-defined tool `webSearchTool` resolves to for each family
  * (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the model executes
- * server-side, as Mastra Code does (`mastracode/sdk/src/agents/tools.ts`). Whether each
- * subscription backend accepts its tool is proven only by a live run.
+ * server-side, as Mastra Code does (`mastracode/sdk/src/agents/tools.ts`).
  */
-const SUBSCRIPTION_WEB_SEARCH: Readonly<Record<string, ToolsInput[string]>> = Object.freeze({
-  'openai.responses': { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} },
-  'anthropic.messages': { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} },
+const OPENAI_WEB_SEARCH = { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} } as const
+const ANTHROPIC_WEB_SEARCH = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} } as const
+const GOOGLE_SEARCH = { type: 'provider-defined', id: 'google.google_search', name: 'google_search', args: {} } as const
+
+const WEB_SEARCH_DESCRIPTION = 'Searches the web for one query and returns what it found, with the address of each source. Call it once per question.'
+
+/**
+ * `web_search` for a model on Gemini's own API, which Google AI Pro reaches through Antigravity:
+ * Antigravity answers 400 to `googleSearch` beside function tools, so Google's search never sits in
+ * the Builder's own tool set. The Builder's `web_search` asks an agent on the same model whose only
+ * tool is Google's search, in one model call per query, and returns its answer and sources.
+ */
+const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
+  const searcher = new Agent({
+    id: 'conexus-web-search',
+    name: 'Conexus web search',
+    instructions: 'Search the web for the query and answer it from what you find. Keep each fact next to the source it came from.',
+    model,
+    tools: { google_search: GOOGLE_SEARCH },
+  })
+  return createTool({
+    id: 'web_search',
+    description: WEB_SEARCH_DESCRIPTION,
+    inputSchema: z.strictObject({ query: z.string().min(1) }),
+    execute: async ({ query }, context) => {
+      const result = await searcher.generate(query, { maxSteps: 1, ...context?.abortSignal ? { abortSignal: context.abortSignal } : {} })
+      return {
+        text: result.text,
+        sources: result.sources.flatMap(({ payload }) => payload.url ? [{ title: payload.title, url: payload.url }] : []),
+      }
+    },
+  })
+}
+
+/**
+ * The `web_search` of a model `webSearchTool` cannot map, by the provider id the model reports:
+ * the ChatGPT subscription's (`openaiCodexModel`) and Mastra Code's Claude provider take their
+ * family's own tool (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix),
+ * and Mastra's Google provider takes the search-only agent. Whether each subscription backend
+ * accepts its tool is proven only by a live run.
+ */
+const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig) => ToolsInput[string]>> = Object.freeze({
+  'openai.responses': () => OPENAI_WEB_SEARCH,
+  'anthropic.messages': () => ANTHROPIC_WEB_SEARCH,
+  'google.generative-ai': searchOnlyWebSearch,
 })
 
-/** The run's `web_search` tool, or none when its model has no provider-native search in Mastra (spec 0002 AC-11, Tool contract). */
+/** The run's `web_search` tool, or none when its model has no provider search in Mastra (spec 0002 AC-11, Tool contract). */
 const webSearchFor = async (
   model: BuilderControllerDeps['model'],
   ctx: { requestContext: RequestContext },
 ): Promise<ToolsInput> => {
   const resolved = typeof model === 'function' ? await model(ctx) : model
   const providerId = resolveModelProviderId(resolved)
-  const subscriptionSearch = providerId !== undefined && Object.hasOwn(SUBSCRIPTION_WEB_SEARCH, providerId) ? SUBSCRIPTION_WEB_SEARCH[providerId] : undefined
-  if (subscriptionSearch) return { web_search: subscriptionSearch }
+  const providerSearch = providerId !== undefined && Object.hasOwn(PROVIDER_WEB_SEARCH, providerId) ? PROVIDER_WEB_SEARCH[providerId] : undefined
+  if (providerSearch) return { web_search: providerSearch(resolved) }
   if (providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)) return { web_search: webSearchTool }
   return {}
 }
@@ -159,7 +193,7 @@ export type BuilderControllerDeps = Readonly<{
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
  * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, `web_fetch`,
- * and `web_search` when the run's model has native provider search in Mastra), and the one `build`
+ * and `web_search` when the run's model has a provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
  * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
  * to suspend with the plan the Hub read, so the plan is approved on its card. `ask_user` is ours, taking 1 to 4
