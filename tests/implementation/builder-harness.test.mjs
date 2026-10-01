@@ -284,6 +284,37 @@ const toolsSentToModel = async (model, resourceId) => {
   return { provider: recorded.provider, search: sent[0].filter((tool) => tool.name === 'web_search'), names: sent[0].map((tool) => tool.name) }
 }
 
+test("the Google search agent is built once however many runs ask for web_search, and each search resolves the model of the run that made it", async (t) => {
+  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
+  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
+  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
+  const resolvedFor = []
+  const model = ({ requestContext }) => {
+    resolvedFor.push(requestContext.getRaw('conexusRunOwner'))
+    return route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+  }
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const session = await controller.createSession({ resourceId: 'project:probe-search-once', scope: 'probe-search-once' })
+  const agent = controller.getCurrentAgent(session)
+  const requestContextOf = (owner) => { const requestContext = new RequestContext(); requestContext.setRaw('conexusRunOwner', owner); return requestContext }
+  const searchTools = []
+  for (let run = 0; run < 25; run += 1) searchTools.push((await agent.listTools({ requestContext: requestContextOf(`run-${run}`) })).web_search)
+  assert.equal(new Set(searchTools).size, 1, 'twenty-five runs were offered the same search tool, so the same agent behind it')
+
+  const original = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    await request.json()
+    return Response.json({ candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }] })
+  }
+  t.after(() => { globalThis.fetch = original })
+  resolvedFor.length = 0
+  await searchTools[0].execute({ query: 'a' }, { requestContext: requestContextOf('ana') })
+  await searchTools[0].execute({ query: 'b' }, { requestContext: requestContextOf('bia') })
+  assert.deepEqual([...new Set(resolvedFor)], ['ana', 'bia'], "each search resolved the model through its own run's context, not the first run's")
+})
+
 test('a ChatGPT subscription model, which reports provider openai.responses and which webSearchTool cannot map, asks OpenAI for its own web_search', async () => {
   const { codexModel } = await import('./codex-model.mjs')
   const unused = { access: 'unused', refresh: 'unused', expires: Date.now() + 3_600_000, accountId: 'unused' }
