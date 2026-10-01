@@ -6,7 +6,7 @@
 // Usage:
 //   node scripts/builder-eval/plan-score.mjs --run <dir> [--case <file>]
 //   node scripts/builder-eval/plan-score.mjs --cc-record <record.json> --cc-plan <plan.md> --cc-events <events.jsonl> --case <file> --out <dir>
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Agent } from '@mastra/core/agent'
@@ -213,6 +213,21 @@ export function rejectionOf(result) {
   if (result.failure !== 'STOPPED_AT_PLAN') return `the run did not stop at a plan card (failure ${result.failure ?? 'none'})`
   if (!Array.isArray(result.answers) || !result.answers.some((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL')) return 'the run left no plan'
   return null
+}
+
+/**
+ * Runs one attempt and scores only what that attempt wrote. The artifacts of an earlier attempt in `dir`
+ * are removed first, and the result must carry the project this attempt started, so a run that dies
+ * before it writes its own result is rejected instead of scored from stale files.
+ * @returns {Promise<{ line: object, exit: number | null }>} the score line, or `{ case, rejected }`
+ */
+export async function scoreAttempt(dir, { casePath, projectId, run, judge }) {
+  for (const name of ['result.json', 'thread.json', 'plan-score.json']) rmSync(join(dir, name), { force: true })
+  const exit = await run()
+  const resultFile = join(dir, 'result.json')
+  const result = existsSync(resultFile) ? JSON.parse(readFileSync(resultFile, 'utf8')) : null
+  const rejected = result === null ? 'the run wrote no result.json' : result.projectId !== projectId ? `the result is for project ${result.projectId ?? 'none'}, not ${projectId}` : rejectionOf(result)
+  return { line: rejected ? { case: casePath, rejected } : await scoreRunDir(dir, { casePath, judge }), exit }
 }
 
 /** Scores the run `run.mjs --stop-at-plan` left in `dir`. */

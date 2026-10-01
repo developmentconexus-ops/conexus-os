@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { rejectionOf, scoreRunDir } from './plan-score.mjs'
+import { rejectionOf, scoreAttempt } from './plan-score.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ERP_NAME = 'erp'
@@ -126,11 +126,13 @@ export async function main(argv = process.argv.slice(2)) {
         const project = await createProject(page, { workspace: options.workspace, name, erp: entry.erp ? { connectionId: options.erpConnection, name: ERP_NAME } : null })
         if (project.error) throw new Error(`plan-bench: ${caseId} #${repetition}: ${project.error}`)
         const started = Date.now()
-        const run = spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--case', casePath, '--project', project.projectId, '--stop-at-plan', '--model', options.model,
-          '--base-url', options.baseUrl, '--repetition', String(repetition), '--mask-values', '--out', dir], { stdio: ['ignore', 'ignore', 'inherit'], env: process.env })
-        const rejected = existsSync(resultFile) ? rejectionOf(JSON.parse(readFileSync(resultFile, 'utf8'))) : 'the run wrote no result.json'
-        const scored = rejected ? { case: casePath, rejected } : await scoreRunDir(dir, { casePath })
-        const line = { ...scored, repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: run.status }
+        const { line: scored, exit } = await scoreAttempt(dir, {
+          casePath,
+          projectId: project.projectId,
+          run: () => spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--case', casePath, '--project', project.projectId, '--stop-at-plan', '--model', options.model,
+            '--base-url', options.baseUrl, '--repetition', String(repetition), '--mask-values', '--out', dir], { stdio: ['ignore', 'ignore', 'inherit'], env: process.env }).status,
+        })
+        const line = { ...scored, repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: exit }
         lines.push(line)
         appendFileSync(log, `${JSON.stringify(line)}\n`)
         process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, rejected: line.rejected, wallMs: line.wallMs })}\n`)

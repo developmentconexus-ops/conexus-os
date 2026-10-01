@@ -3,7 +3,7 @@ import test from 'node:test'
 import { mkdirSync, mkdtempSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { interviewFromRun, rejectionOf, scoreInterview, scoreRunDir } from '../../scripts/builder-eval/plan-score.mjs'
+import { interviewFromRun, rejectionOf, scoreAttempt, scoreInterview, scoreRunDir } from '../../scripts/builder-eval/plan-score.mjs'
 import { parseSheet } from '../../scripts/builder-eval/person.mjs'
 
 const sheet = parseSheet({
@@ -162,4 +162,24 @@ test('scoreRunDir refuses a failed run and a run without a plan and writes no sc
     await assert.rejects(scoreRunDir(dir, { casePath: 'unused.json', judge }), /is not scorable/)
     assert.equal(existsSync(join(dir, 'plan-score.json')), false)
   }
+})
+
+test('an attempt that dies before it writes a result is rejected, not scored from the previous attempt\'s files', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plan-attempt-'))
+  const stale = { ...planned, projectId: 'project-old' }
+  writeFileSync(join(dir, 'result.json'), JSON.stringify(stale))
+  writeFileSync(join(dir, 'thread.json'), '[]')
+  writeFileSync(join(dir, 'plan-score.json'), '{"primary":1}')
+  const judge = async () => assert.fail('a rejected attempt must not reach the judge')
+  const attempt = await scoreAttempt(dir, { casePath: 'unused.json', projectId: 'project-new', run: async () => 1, judge })
+  assert.deepEqual(attempt, { line: { case: 'unused.json', rejected: 'the run wrote no result.json' }, exit: 1 })
+  assert.deepEqual([existsSync(join(dir, 'result.json')), existsSync(join(dir, 'thread.json')), existsSync(join(dir, 'plan-score.json'))], [false, false, false])
+})
+
+test('an attempt whose result belongs to another project is rejected', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'plan-attempt-'))
+  const judge = async () => assert.fail('a rejected attempt must not reach the judge')
+  const run = async () => { writeFileSync(join(dir, 'result.json'), JSON.stringify({ ...planned, projectId: 'project-other' })); return 0 }
+  const attempt = await scoreAttempt(dir, { casePath: 'unused.json', projectId: 'project-new', run, judge })
+  assert.deepEqual(attempt, { line: { case: 'unused.json', rejected: 'the result is for project project-other, not project-new' }, exit: 0 })
 })
