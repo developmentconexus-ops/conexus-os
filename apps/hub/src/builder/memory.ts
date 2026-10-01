@@ -31,8 +31,21 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
         activateAfterIdle: 'auto',
         // A person can change the model between turns (AC-12).
         activateOnProviderChange: true,
-        observation: { model, messageTokens: OBSERVATION_THRESHOLD },
-        reflection: { model, observationTokens: REFLECTION_THRESHOLD },
+        // A reminder before a message that follows a gap of ten minutes or more (Mastra Code, `agents/memory.js`).
+        temporalMarkers: true,
+        observation: {
+          model,
+          messageTokens: OBSERVATION_THRESHOLD,
+          // Mastra Code's buffering for thread scope (`agents/memory.js`, `bufferTokens: isResourceScope ? false : 1 / 5`
+          // and the lines after it): observe in the background every fifth of the window, keep 2,000 tokens on
+          // activation, and force activation at twice the window.
+          bufferTokens: 1 / 5,
+          bufferActivation: 2_000,
+          blockAfter: 2,
+          previousObserverTokens: 1_000,
+          threadTitle: true,
+        },
+        reflection: { model, observationTokens: REFLECTION_THRESHOLD, bufferActivation: 1 / 2, blockAfter: 1.1 },
       },
     },
   })

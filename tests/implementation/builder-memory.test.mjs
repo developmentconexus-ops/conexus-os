@@ -185,3 +185,37 @@ test('a run refuses to start when the installation has no memory default, and no
   await assert.rejects(unset.check({ accountId: ana, projectId: 'p', conversationId: 'c' }), /^Error: BUILDER_MODEL_NOT_SELECTED$/)
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: 'p', conversationId: 'c' }))
 })
+
+test('a message that follows a ninety-minute gap in a conversation is preceded by a temporal-gap marker, as in Mastra Code', async (t) => {
+  const { controller, storage } = await builderWithMemory(t)
+  const memoryStore = await storage.getStore('memory')
+  const threadId = '55555555-5555-4555-8555-555555555555'
+  const resourceId = 'project:memory'
+  const lastAnswer = new Date(Date.now() - 90.5 * 60 * 1000)
+  await memoryStore.saveThread({ thread: { id: threadId, resourceId, title: 'Agenda', createdAt: lastAnswer, updatedAt: lastAnswer, metadata: {} } })
+  const message = (id, role, text, createdAt) => ({ id, role, createdAt, threadId, resourceId, content: { format: 2, parts: [{ type: 'text', text }] } })
+  await memoryStore.saveMessages({ messages: [
+    message('older-user', 'user', 'Quero uma agenda semanal.', new Date(lastAnswer.getTime() - 1000)),
+    message('older-assistant', 'assistant', 'Certo.', lastAnswer),
+  ] })
+
+  await firstWindows(controller, 'Volte à agenda.', { resourceId, threadId })
+
+  const { messages } = await memoryStore.listMessages({ threadId, perPage: false, includeSystemReminders: true })
+  const markers = messages.flatMap((stored) => {
+    const attributes = stored.content?.metadata?.signal?.attributes
+    return attributes?.type === 'temporal-gap' ? [attributes.gapText] : []
+  })
+  assert.deepEqual(markers, ['1 hour 30 minutes later'])
+})
+
+test('a request one fifth of the way to the window is observed in the background, as Mastra Code buffers it', async (t) => {
+  const { controller, calls } = await builderWithMemory(t)
+
+  const { windows } = await firstWindows(controller, `Quero uma agenda semanal. ${'Detalhes da agenda. '.repeat(1800)}`)
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  assert.equal(windows[0].messages.threshold, 30_000)
+  assert.ok(windows[0].messages.tokens < 30_000, 'under the window: no blocking observation')
+  assert.deepEqual(calls.map(([name]) => name).sort(), ['main', 'observer'], 'the Observer ran once, buffered, beside the main call')
+})
