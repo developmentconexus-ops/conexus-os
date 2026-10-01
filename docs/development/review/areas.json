@@ -76,6 +76,9 @@
       "apps/hub/src/builder/model-accounts.ts",
       "apps/hub/src/builder/chat-models.ts",
       "apps/hub/src/builder/google-ai-pro/**",
+      "apps/hub/src/builder/openai-codex/**",
+      "apps/hub/src/builder/model-account-store.ts",
+      "apps/hub/src/builder/model-routing.ts",
       "apps/hub/src/builder/factory-provisioning.ts",
       "apps/hub/src/platform/secrets.ts",
       "scripts/builder-e2b-template.mjs",
@@ -87,6 +90,7 @@
       "tests/implementation/application-cluster*",
       "tests/implementation/sandbox-probe/**",
       "tests/implementation/builder-google-*",
+      "tests/implementation/builder-openai-*",
       "tests/implementation/builder-model-*",
       "tests/implementation/builder-e2b-*",
       "tests/implementation/builder-factory-fake-github.mjs",
@@ -118,11 +122,13 @@
       "apps/hub/src/factory-cli.ts",
       "apps/hub/compiler-template/**",
       "factory-skills/**",
+      "builder-skills/**",
       "scripts/builder-eval/**",
       "scripts/builder-e2b-template.mjs",
       "scripts/hub-factory.mjs",
       "tests/implementation/builder-*",
-      "tests/implementation/factory-skills-guard.test.mjs"
+      "tests/implementation/factory-skills-guard.test.mjs",
+      "tests/implementation/builder-skills-guard.test.mjs"
     ],
     "page": "docs/development/review/builder-factory.md"
   },

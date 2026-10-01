@@ -7,23 +7,30 @@ This file owns the status of the stage gates and names the current gate. Workstr
 
 Conexus is the platform a company uses to build, administer and evolve internal software connected to its own data and systems.
 
-The development plane is Factory-centered:
+Under C-032 the development plane is the Builder on Conexus's own harness, built on Mastra's engine:
 
 ```text
 Account / Workspace / Project
         ↓
-persistent Project conversation
+persistent Project conversations
         ↓
-Mastra Factory / Code
+Builder: AgentController over createCodingAgent (Mastra), one mode
         ↓
-private Git repository
+E2B sandbox, seeded by the Hub; it holds no secret
         ↓
-Builder edits + checks
+Conexus Git on the Hub: main is the admitted revision
+        ↓
+platform check (conexus_check and admission)
         ↓
 Conexus build / Preview
 ```
 
-Conexus owns Product authority that the Factory must not own: Account, Workspace, Project authorization, source admission, application runtime policy, enterprise capabilities, Release and Publish.
+Conexus owns Account, Workspace, Project authorization, Project source, model accounts, the
+Builder's prompt, mode and tools, source admission, application runtime policy, enterprise
+capabilities, Release and Publish. The Mastra Factory and Mastra Code leave the Hub. Spec 0004
+replaces the two modes of C-032 with one. The
+[Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) qualifies this plane.
+Until its Builder pull requests merge, `main` runs the Factory-centered Builder of Stage 1.
 
 ## Current trunk
 
@@ -49,7 +56,7 @@ Current delivered base includes:
 - compile, smoke and Preview;
 - source/code/change inspection surfaces.
 
-C-022 owns the Factory-centered boundary. The single-owner map owns every concept shared by Conexus and Factory.
+C-032 supersedes the former Factory-centered boundary in C-022. The single-owner map owns every concept shared by Conexus and Factory.
 
 Historical tasks and evidence remain records. They are not current execution paths.
 
@@ -111,6 +118,42 @@ Current baseline and challenger state:
 - pg-boss/Mastra Workflows/Inngest/Trigger.dev/Temporal: deferred until background/durable work is a current requirement;
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
+
+### Accepted target under C-033
+
+The operator accepted this app stack under C-033 on 2026-09-29. It is a target, and nothing in the
+table is installed on `main` yet. `main` still builds apps on REACT_VITE_V1. The Builder pull
+requests install the stack in the compiler template, and from then on an app imports only these
+packages. React 19.2.8, Vite 8.2.2 and TypeScript 6.0.2 stay as the V1 compiler template pins them.
+
+The pinned list is the *App stack* section of [spec 0003](tasks/specs/0003-app-stack-v2/index.md).
+The alternatives come from [study 17](research/builder/17-app-stack-decision.md), section 2.2. The
+CSP and size measurements come from its section 2.3, taken on a probe app outside this repository.
+In the table, S17 2.2 and S17 2.3 name those two sections.
+
+| Packages and versions | What a generated app uses it for | Named limitation | Evidence | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `@vitejs/plugin-react` 6.1.1, `@tailwindcss/vite` 4.3.3 | The compiler's Vite build | The Tailwind classes and the `@theme` token sheet need a compile step. The Hub web app builds with the same two plugins | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | None named in study 17 |
+| `@tanstack/react-router` 1.170.32 | Code routes in one file | V1 has no router, so an app has one screen or hand-written routing | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | File-based routes need a plugin and a generated route tree before `tsc`. One explicit file is easier for the model to read. Revisit past about 10 screens |
+| `@tanstack/react-query` 5.102.8 | Every screen that loads data through the generated client | V1 screens use plain `useEffect` fetches with no cache, loading, error or invalidation state | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | Plain `useEffect` fetches, which is V1 |
+| `@base-ui/react` 1.8.0, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.7.0 | The curated shadcn components copied into the starter | The Preview's CSP is `style-src 'self'`, which blocks a library that injects a `<style>` element | [S17 2.3](research/builder/17-app-stack-decision.md#23-what-the-probe-showed): one CSP violation per Radix dialog open, none for Base UI | shadcn on Radix (`radix-ui` 1.6.7). Models know it better, but it breaks the CSP. Relaxing the CSP to `'unsafe-inline'` styles would be a security decision of its own |
+| `tailwindcss` 4.3.3 | The Conexus tokens in `@theme` | shadcn source assumes Tailwind. The look must come from tokens only | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | Plain CSS, which shadcn source does not use |
+| `recharts` 3.10.1 | Charts, through a CSP-safe `chart.tsx` | V1 apps draw charts in hand-written SVG. shadcn's own `chart.tsx` writes an inline `<style>`, which the CSP refuses | [S17 2.3](research/builder/17-app-stack-decision.md#23-what-the-probe-showed) | ECharts: more chart types and a larger bundle, with no shadcn wrapper. Revisit when a dashboard needs a chart Recharts lacks |
+| `@tanstack/react-table` 9.2.4 | Tables | V1 tables are written by hand | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | v8.21.3, which models know better. shadcn's data table is already on v9 |
+| `react-hook-form` 7.89.0, `@hookform/resolvers` 5.9.1, `zod` 4.6.5 | Forms, with each form's schema from the generated client | The generated client needs a schema library, and a form must check the limits the runner enforces | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | TanStack Form 1.33.5: same family as Router and Query, but younger and less familiar to models |
+| `date-fns` 4.4.0, `react-day-picker` 9.x | pt-BR dates, and the date picker. `react-day-picker` is the 9.x version that the pinned shadcn `calendar.tsx` requires | V1 has no date formatting or date picker | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | `Intl` only, with no date picker |
+| `lucide-react` 1.47.0 | The icons of the starter components | The shadcn components import their icons from it | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | None. The Hub web app uses the same package |
+
+### Accepted under C-032, amended on 2026-10-01
+
+The operator decided the model path on 2026-10-01. `@mastra/code-sdk` 1.8.3 is already a Hub
+dependency on `main`, where the Factory-centered Builder uses it. Under C-032 as amended, the Mastra
+Code product leaves the Hub, and the package stays as a pinned library that the Builder pull requests
+use.
+
+| Package and exact version | Consumer | Named limitation | Evidence | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `@mastra/code-sdk` 1.8.3 | The Claude subscription and the ChatGPT subscription (sign-in, refresh and model), the sandbox filesystem (`SandboxFilesystem`), error classification (`parseError`) and the eval's Claude login | The subscription flows are unofficial, and Mastra maintains them for its own product. A provider's change must reach the Hub | [C-032](decisions/index.md#in-force) and the [spec 0002 amendment](tasks/specs/0002-builder-own-harness/index.md#amendment-2026-10-01-mastracode-sdk-stays-as-a-library) | Copy the code into the Hub, as C-032 first planned. A provider's change would then need a port by hand instead of an upgrade |
 
 Every application-architecture gate follows the
 [Builder proof rule](development/delivery.md#builder-proof-rule).
