@@ -4,7 +4,6 @@
 import { flowOf } from './flow.mjs'
 import { mainAgentRuns, mainAgentScope, traceMetrics } from './scorers.mjs'
 
-// submit_plan is today's approval card; drop it with the legacy path of flow.mjs.
 const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
 const TASK_TOOLS = new Set(['task_write', 'task_update', 'task_complete', 'task_check'])
 // A model step shorter than this is a bookkeeping span, not a model call.

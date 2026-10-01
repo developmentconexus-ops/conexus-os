@@ -147,8 +147,13 @@ export function planFlowTrace(shape, { traceId = `tr-${shape}`, builderRunId = `
   const shapes = {
     new: () => [
       tool('ask_user', { question: 'Qual o formato da data?', options: [{ label: 'Dia/mês/ano' }, { label: 'Ano-mês-dia' }] }),
-      write('.conexus/plan.md'),
+      write('/workspace/repo/.conexus/plan.md'),
       ...(appFirst ? [write('src/app.tsx')] : []),
+      tool('submit_plan', { path: '.conexus/plan.md' }),
+      write('/workspace/repo/src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
+    ],
+    askUser: () => [
+      write('.conexus/plan.md'),
       tool('ask_user', { question: 'Posso construir assim?', options: APPROVAL_OPTIONS }),
       write('src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
     ],

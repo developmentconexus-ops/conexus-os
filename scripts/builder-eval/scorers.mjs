@@ -288,8 +288,8 @@ function createScorers(loadSpans) {
     .preprocess(({ run }) => flowOfRun(run))
     .generateScore(({ results }) => score(results.preprocessStepResult))
   const flowScorers = [
-    flowScorer('plan-file-first', 'O arquivo do plano (.conexus/plan.md; .conexus/plans/ no Builder de hoje) foi escrito antes do primeiro arquivo do app (1 ou 0)', (flow) => (flow.planFile.beforeFirstAppFile ? 1 : 0)),
-    flowScorer('approval-via-ask-user', 'A aprovação veio por ask_user com as opções Aprovar e construir e Pedir ajustes; submit_plan, do Builder de hoje, dá 0 (1 ou 0)', (flow) => (flow.approval.via === 'ask_user' ? 1 : 0)),
+    flowScorer('plan-file-first', 'O arquivo do plano (.conexus/plan.md) foi escrito antes do primeiro arquivo do app (1 ou 0)', (flow) => (flow.planFile.beforeFirstAppFile ? 1 : 0)),
+    flowScorer('approval-via-submit-plan', 'A aprovação veio por submit_plan, o cartão do plano com Aprovar e construir e Pedir ajustes (1 ou 0)', (flow) => (flow.approval.via === 'submit_plan' ? 1 : 0)),
     flowScorer('app-files-before-approval', 'Arquivos do app mudados antes da aprovação (menor é melhor)', (flow) => {
       if (flow.appFilesBeforeApproval === null) throw new Error('sem aprovação: nada a contar')
       return flow.appFilesBeforeApproval

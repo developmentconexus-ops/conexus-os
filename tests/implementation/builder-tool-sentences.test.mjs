@@ -53,6 +53,7 @@ test('conexus_check reads as checking the app, running and done', () => {
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 
 const REGISTERED_TOOL_SENTENCES = {
+  submit_plan: 'Enviou o plano',
   mastra_workspace_read_file: 'Leu um arquivo',
   mastra_workspace_list_files: 'Listou arquivos',
   mastra_workspace_grep: 'Buscou no código',
@@ -143,4 +144,10 @@ test('groupSummary says what a run of calls did, by kind, in the order the kinds
 test('groupSummary names the failures when there are any', () => {
   assert.equal(groupSummary(['edit_file', 'edit_file', 'execute_command'], 1), 'Editou 2 arquivos, executou 1 comando · 1 falhou')
   assert.equal(groupSummary(['edit_file', 'edit_file', 'execute_command'], 2), 'Editou 2 arquivos, executou 1 comando · 2 falharam')
+})
+
+test('submit_plan has its own pt-BR sentence and stays a row of its own', () => {
+  assert.equal(toolSentence('submit_plan', true), 'Enviando o plano')
+  assert.equal(toolSentence('submit_plan', false), 'Enviou o plano')
+  assert.equal(toolRequest('submit_plan'), 'enviar o plano')
 })

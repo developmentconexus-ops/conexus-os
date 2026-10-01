@@ -13,7 +13,8 @@ import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
-import { CHECK_TOOL, createCheckTool, createRunOperationTool, RUN_OPERATION_TOOL } from './tools.js'
+import { CHECK_TOOL, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
+import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
 
@@ -160,7 +161,8 @@ export type BuilderControllerDeps = Readonly<{
  * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, `web_fetch`,
  * and `web_search` when the run's model has native provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
- * reaches the model. The built-in `submit_plan` is disabled: a plan is approved through `ask_user`.
+ * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
+ * to suspend with the plan the Hub read, so the plan is approved on its card.
  * No Hub wiring: the caller owns sessions, routes, and where `workspace`, `model`, `storage`, and
  * `connectorFetch` come from.
  */
@@ -198,7 +200,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     workspace: deps.workspace,
     ...(deps.storage ? { storage: deps.storage } : {}),
     ...(deps.memory ? { memory: deps.memory } : {}),
-    disableBuiltinTools: ['submit_plan'],
+    disableBuiltinTools: [SUBMIT_PLAN_TOOL],
+    tools: { [SUBMIT_PLAN_TOOL]: createSubmitPlanTool(SANDBOX_CHECKOUT) },
     modes: [{ id: 'build', name: 'Builder', metadata: { default: true } }],
   })
 }

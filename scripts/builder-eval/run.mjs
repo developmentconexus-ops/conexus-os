@@ -235,7 +235,8 @@ async function claim(card, cards) {
  * Hub route of its own. The approval card is recognized by its options, "Aprovar e construir" and
  * "Pedir ajustes", and never reaches the scripted person: it is approved, unless the case scripts
  * one round of "Pedir ajustes" (then the free-text question that follows gets the case's change).
- * Today's plan card (`section` "Plano para aprovar") is approved too; that path goes with submit_plan.
+ * The plan card (`section` "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
+ * request for one change it first sends that change with "Pedir ajustes", then approves the resubmitted plan.
  * Any other question is answered by the scripted person or, with none, gets its first (recommended)
  * option or, with no options, a fixed "do the simplest" reply.
  * Each call is told apart by its tool call id, read from the thread, and a card the driver answered
@@ -257,6 +258,13 @@ export async function answerPendingCard(page, cards, answering = null) {
     const title = await card.locator('strong').first().innerText().catch(() => '')
     const shown = await card.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
     const text = await readFullPlan(page, card) ?? shown
+    if (cards.adjust?.state === 'pending') {
+      cards.adjust.state = 'done'
+      await card.getByLabel('O que mudar no plano').fill(cards.adjust.change)
+      await card.getByRole('button', { name: ADJUST_LABEL }).click()
+      answers.push({ kind: 'PLAN', ...record, title, text, answer: ADJUST_LABEL, feedback: cards.adjust.change })
+      return signature
+    }
     await card.getByRole('button', { name: APPROVE_LABEL }).click()
     answers.push({ kind: 'PLAN', ...record, title, text, answer: APPROVE_LABEL })
     return signature

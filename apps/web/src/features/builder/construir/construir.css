@@ -114,6 +114,12 @@
 .cx-pending-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .cx-pending-answer { display: grid; gap: .5rem; margin: 0; }
 .cx-pending-answer textarea { width: 100%; padding: .5rem .6rem; border: 1px solid var(--cx-line); border-radius: 8px; resize: vertical; }
+.cx-plan-clamp { max-height: 14rem; overflow: hidden; mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent); }
+.cx-plan-read { justify-self: start; }
+.cx-plan-reader { width: min(48rem, calc(100% - 2rem)); max-width: 48rem; max-height: calc(100dvh - 4rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.cx-plan-reader-body { min-height: 0; overflow-y: auto; padding: 0 1rem; }
+.cx-plan-reader-reply { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: .6rem; }
+.cx-pending-feedback { width: 100%; min-height: 3.5rem; padding: .5rem .6rem; border: 1px solid var(--cx-line); border-radius: 6px; background: var(--cx-surface); color: var(--cx-text); font: inherit; resize: vertical; }
 .cx-pending-error { margin: 0; color: var(--cx-danger); font-size: .8125rem; }
 .cx-button-ink { background: var(--cx-ink); border-color: var(--cx-ink); color: var(--cx-on-ink); }
 .cx-button-ink:hover:not(:disabled) { opacity: .88; }

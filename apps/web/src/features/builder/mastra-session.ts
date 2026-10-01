@@ -206,5 +206,6 @@ export const useBuilderLiveTurn = (
 export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
   const session = runSession(projectId, conversationId)
   if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
+  if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
   return session.respondToToolSuspension(pending.toolCallId, answer.text)
 }
