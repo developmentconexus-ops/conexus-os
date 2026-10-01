@@ -1507,6 +1507,60 @@ test('the approval of a plan is a question with two options, and the chosen labe
   assert.deepEqual(answers, [{ toolCallId: 'approval-1', resumeData: 'Aprovar e construir' }])
 })
 
+const PLAN_TEXT = [
+  '## Para a pessoa', '', 'Uma tela com **Compras** do mês e um botão para exportar.', '',
+  '## Para construir', '', '- Rota `/pedidos` com a operação `listarPedidos`',
+].join('\n')
+
+// The Hub suspends submit_plan with the path, and the title and plan it read from .conexus/plan.md.
+const openPlanCard = async (t, answers, plan = PLAN_TEXT) => {
+  const payload = { toolId: 'submit_plan', path: '.conexus/plan.md', title: 'Compras do mês', plan }
+  const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: 'plan-r', toolName: 'submit_plan', args: { path: '.conexus/plan.md' }, suspendPayload: payload }])
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    answers.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  return page.getByRole('region', { name: 'Plano para aprovar' })
+}
+
+test('the plan card shows only the person\'s part, with the Markdown rendered, and leaves the technical part for the reader', async (t) => {
+  const card = await openPlanCard(t, [])
+  await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
+  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
+  assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
+})
+
+test('Ler plano completo opens the whole plan, Esc closes it, and approving from it answers submit_plan and closes it', async (t) => {
+  const answers = []
+  const card = await openPlanCard(t, answers)
+  const page = card.page()
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const reader = page.getByRole('alertdialog', { name: 'Compras do mês' })
+  await reader.getByText('listarPedidos').waitFor()
+  await reader.getByRole('heading', { name: 'Para construir' }).waitFor()
+  await page.keyboard.press('Escape')
+  await reader.waitFor({ state: 'detached' })
+
+  await card.getByRole('button', { name: 'Ler plano completo' }).click()
+  const answered = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
+  await reader.getByRole('button', { name: 'Aprovar e construir' }).click()
+  await answered
+  assert.deepEqual(answers, [{ toolCallId: 'plan-r', resumeData: { action: 'approved' } }])
+  await reader.waitFor({ state: 'detached' })
+})
+
+test('Pedir ajustes needs the person\'s words and sends them with the rejection', async (t) => {
+  const answers = []
+  const card = await openPlanCard(t, answers)
+  const askChanges = card.getByRole('button', { name: 'Pedir ajustes' })
+  assert.equal(await askChanges.isDisabled(), true, 'feedback is required to send a plan back')
+  await card.getByLabel('O que mudar no plano').fill('Inclua os fins de semana')
+  const answered = card.page().waitForRequest((request) => new URL(request.url()).pathname.endsWith('/tool-suspension'))
+  await askChanges.click()
+  await answered
+  assert.deepEqual(answers, [{ toolCallId: 'plan-r', resumeData: { action: 'rejected', feedback: 'Inclua os fins de semana' } }])
+})
+
 
 
 test('while the first version does not exist the Preview names the phase, the tasks and the time', async (t) => {

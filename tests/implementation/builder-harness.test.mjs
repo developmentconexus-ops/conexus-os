@@ -300,9 +300,8 @@ test("a turn lasts through the person's answer on the conversation's session and
   const turn = await run.sendTurn('faça um app')
   assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
   assert.equal(typeof turn.userMessageId, 'string')
-  // With no allowlist on the one mode, every tool the controller registers reaches the model, and submit_plan is not among them.
-  for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
-  assert.equal(calls[0].tools.includes('submit_plan'), false)
+  // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
+  for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
   await run.end()
   assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])

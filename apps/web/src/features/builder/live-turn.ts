@@ -36,16 +36,18 @@ export type LiveTurn = Readonly<{
   error: string | null
 }>
 
-// A call the run parked on the person: a tool to allow or a question to answer. The plan's approval
-// is an ordinary question with the options "Aprovar e construir" and "Pedir ajustes".
-export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
-export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>
+// A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve.
+export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
+// submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
+// person's feedback back to the model.
+type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
 
 export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
 
 const parked = (state: DisplayState): LiveTurn['waiting'] => ({
   ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
-    [call.toolCallId, { kind: 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
+    [call.toolCallId, { kind: call.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
   ...(state.pendingApproval ? { [state.pendingApproval.toolCallId]: { kind: 'APPROVAL' as const, toolCallId: state.pendingApproval.toolCallId, toolName: state.pendingApproval.toolName, args: state.pendingApproval.args, prompt: null } } : {}),
 })
 
@@ -121,7 +123,7 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
     case 'tool_end':
     case 'tool_suspension_cancelled':
       return { ...turn, waiting: without(turn.waiting, event.toolCallId) }

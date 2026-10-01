@@ -1,9 +1,8 @@
 // The plan-and-approval flow of one Builder run, read from its tool calls. Spec 0004 (AC-13, AC-14):
-// the Builder writes `.conexus/plan.md` before any app file and asks for the approval with `ask_user`.
-// Today's Builder writes `.conexus/plans/<file>` and approves through `submit_plan` and the plan card.
-// The baseline is recorded on today's Builder and compared later, so every function here reads both
-// paths. Delete the `submit_plan` and `.conexus/plans/` branches (marked "legacy") once the comparison
-// is written.
+// the Builder writes `.conexus/plan.md` before any app file and asks for the approval with `submit_plan`,
+// which the person answers on the plan card. An `ask_user` with the approval options is still read as an
+// approval, so a run of the earlier Builder scores on the same terms. The baseline's `.conexus/plans/<file>`
+// is read too; delete that branch (marked "legacy") once the comparison is written.
 
 export const APPROVE_LABEL = 'Aprovar e construir'
 export const ADJUST_LABEL = 'Pedir ajustes'
@@ -12,7 +11,12 @@ const LEGACY_PLAN_DIR = '.conexus/plans/'
 const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
 
 export const foldLabel = (value) => String(value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
-const normalizePath = (path) => String(path ?? '').replace(/^\.\//, '')
+const CHECKOUT = '/workspace/repo/'
+// The model spells a path as the sandbox filesystem reads it: relative to the checkout, or absolute under it.
+const normalizePath = (path) => {
+  const text = String(path ?? '')
+  return (text.startsWith(CHECKOUT) ? text.slice(CHECKOUT.length) : text).replace(/^\.\//, '')
+}
 
 /** Pure. True when a card's option labels are the approval pair: what tells the approval card from any other question. */
 export const isApprovalOptions = (labels) => {
@@ -20,7 +24,7 @@ export const isApprovalOptions = (labels) => {
   return seen.has(foldLabel(APPROVE_LABEL)) && seen.has(foldLabel(ADJUST_LABEL))
 }
 
-/** @returns {'ask_user' | 'submit_plan' | null} how this tool call asked for the approval; `submit_plan` is legacy. */
+/** @returns {'ask_user' | 'submit_plan' | null} how this tool call asked for the approval. */
 export function approvalVia(call) {
   if (call.entityName === 'ask_user') {
     const options = Array.isArray(call.input?.options) ? call.input.options : []
@@ -93,7 +97,7 @@ export function ac13Metrics({ expectation, flow, answers, timeToFirstPreviewMs, 
     plannedWhenExpected: expectation === 'expected' ? planned : null,
     planFileBeforeFirstAppFile: flow ? flow.planFile.beforeFirstAppFile : null,
     approvalVia: via,
-    legacyPath: flow ? flow.planFile.legacy || via === 'submit_plan' : via === 'submit_plan',
+    legacyPath: flow ? flow.planFile.legacy : false,
     appFilesBeforeApproval: flow ? flow.appFilesBeforeApproval : null,
     clicks: answers.length,
     timeToFirstPreviewMs,

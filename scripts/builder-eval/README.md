@@ -200,7 +200,7 @@ as `flow`.
 | Scorer | Score |
 | --- | --- |
 | `plan-file-first` | 1 when `.conexus/plan.md` is written before the first app file, else 0 |
-| `approval-via-ask-user` | 1 when the approval came through `ask_user` with the options "Aprovar e construir" and "Pedir ajustes", else 0 |
+| `approval-via-submit-plan` | 1 when the approval came through `submit_plan` (the plan card with "Aprovar e construir" and "Pedir ajustes"), else 0 |
 | `app-files-before-approval` | count of app files (anything outside `.conexus/`) written before the approval; lower is better |
 
 A case with `"plan": "notApplicable"` leaves the three out (`unscored`), and a run with no approval leaves
@@ -209,12 +209,12 @@ out `app-files-before-approval`. The AC-13 block of `result.json` (`ac13`) holds
 `appFilesBeforeApproval`, `clicks` (cards the person answered), `timeToFirstPreviewMs`, `checkRuns` and
 `operationRuns`.
 
-The baseline is recorded now on today's Builder and compared against the new one later, so the scorers read
-both. Today's Builder writes `.conexus/plans/<file>` and approves through `submit_plan` and the plan card;
-those runs score `plan-file-first` 1, `approval-via-ask-user` 0 and `legacyPath: true`. **Once the comparison
-is written, delete the `submit_plan` path** (the `submit_plan` branch of `approvalVia`, the
-`.conexus/plans/` branch of `planFileOf` and the `legacy` fields in `flow.mjs`, the plan card branch of
-`answerPendingCard` and `CARD_TOOLS` in `timing.mjs`).
+The scripted person answers a `submit_plan` card the way a person does: it approves, or, when the case has
+`approval.change`, first sends that change with "Pedir ajustes" and then approves the plan the model submits
+again. An `ask_user` with the two approval options is still recognized as an approval (`approvalVia`
+`ask_user`), so a run of the earlier Builder scores on the same terms; its `.conexus/plans/<file>` plan file
+counts as `legacyPath: true`. The model spells paths as the sandbox does, so `/workspace/repo/.conexus/plan.md`
+and `.conexus/plan.md` are the same file.
 
 ## The three B cases (AC-13)
 

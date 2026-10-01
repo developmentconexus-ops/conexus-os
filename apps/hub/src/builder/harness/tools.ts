@@ -1,7 +1,9 @@
+import { submitPlanTool } from '@mastra/core/agent-controller'
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { checkReportSchema, type CheckReport } from '../application-check.js'
 import { operationRunReportSchema, type RunOperation } from '../run-operation.js'
+import { isPlanPath, PLAN_PATH, splitPlanFile } from './plan-file.js'
 
 export const CHECK_TOOL = 'conexus_check'
 
@@ -39,4 +41,40 @@ export const createRunOperationTool = (runOperation: RunOperation) => createTool
   }),
   outputSchema: operationRunReportSchema,
   execute: async (request) => runOperation(request),
+})
+
+export const SUBMIT_PLAN_TOOL = 'submit_plan'
+
+const SUBMIT_PLAN_DESCRIPTION = [
+  `Submit the plan you wrote to \`${PLAN_PATH}\` for the person to review.`,
+  `Pass \`path\` as \`${PLAN_PATH}\`, the only file a plan lives in; write the file first and do not paste the plan text here.`,
+  'Reuse the same file across revisions. The person approves it or rejects it with feedback; after a rejection, edit the file and call this tool again.',
+].join(' ')
+
+type SubmitPlanExecute = NonNullable<typeof submitPlanTool.execute>
+type SubmitPlanInput = Parameters<SubmitPlanExecute>[0]
+type SubmitPlanContext = Parameters<SubmitPlanExecute>[1]
+
+/**
+ * Mastra's own `submit_plan`, with two things the host owns. The plan path is checked at the
+ * boundary: only `.conexus/plan.md` in the run's checkout is submitted. And, as the tool's reference
+ * has the host do, the Hub reads the plan from the run's workspace and suspends with its `title` and
+ * `plan` beside the `path`, so the browser, which has no filesystem, can show it. A resumed call
+ * (`resumeData` set) is the person's decision replaying and goes straight to the native tool.
+ */
+export const createSubmitPlanTool = (checkout: string): typeof submitPlanTool => ({
+  ...submitPlanTool,
+  description: SUBMIT_PLAN_DESCRIPTION,
+  execute: async (input: SubmitPlanInput, context: SubmitPlanContext) => {
+    const agent = context?.agent
+    if (agent?.resumeData === undefined) {
+      if (!isPlanPath(input.path, checkout)) return `Refused: the plan lives in ${PLAN_PATH}. Write the plan there and submit that path.`
+      const raw = await context?.workspace?.filesystem?.readFile(input.path, { encoding: 'utf-8' }).catch(() => undefined)
+      if (typeof raw === 'string' && agent?.suspend) {
+        await agent.suspend({ toolId: SUBMIT_PLAN_TOOL, path: PLAN_PATH, ...splitPlanFile(raw) })
+        return undefined
+      }
+    }
+    return submitPlanTool.execute?.(input, context)
+  },
 })

@@ -20,7 +20,8 @@ const planPage = `<section aria-label="Plano para aprovar">
   <p>O agente propõe um plano: <strong>Lista de tarefas</strong>. Aprovar e construir?</p>
   <details open><summary>Plano</summary><pre>1. Criar a tabela\n2. Criar a tela</pre></details>
   <button onclick="window.sent = 'approved'; this.closest('section').remove()">Aprovar e construir</button>
-  <button disabled>Pedir ajustes</button>
+  <textarea aria-label="O que mudar no plano"></textarea>
+  <button onclick="window.sent = 'rejected: ' + this.previousElementSibling.value; this.closest('section').remove()">Pedir ajustes</button>
 </section>`
 const optionsPage = `<div aria-label="Pergunta do agente"><p>Qual formato de data?</p>
   <label><input type="radio" name="q" onchange="window.sent = this.nextElementSibling.innerText; this.closest('div[aria-label]').remove()"><span><span style="display:block">Dia/mês/ano</span><span style="display:block">Padrão brasileiro</span></span></label>
@@ -48,6 +49,21 @@ test('the plan card is approved once and recorded with its title and text', asyn
     assert.deepEqual(cards.answers, [{ kind: 'PLAN', title: 'Lista de tarefas', text: '1. Criar a tabela\n2. Criar a tela', answer: 'Aprovar e construir' }])
     assert.equal(await answerPendingCard(page, cards, first), null)
     assert.equal(cards.answers.length, 1)
+  })
+})
+
+test('with a scripted change, the plan card is sent back with it once and the next plan card is approved', async () => {
+  await withPage(planPage, async (page) => {
+    const cards = createCards({ adjust: 'Inclua os fins de semana' })
+    const first = await answerPendingCard(page, cards, null)
+    assert.equal(await page.evaluate(() => window.sent), 'rejected: Inclua os fins de semana')
+    await page.setContent(planPage)
+    await answerPendingCard(page, cards, first)
+    assert.equal(await page.evaluate(() => window.sent), 'approved')
+    assert.deepEqual(cards.answers.map(({ kind, answer, feedback }) => ({ kind, answer, feedback })), [
+      { kind: 'PLAN', answer: 'Pedir ajustes', feedback: 'Inclua os fins de semana' },
+      { kind: 'PLAN', answer: 'Aprovar e construir', feedback: undefined },
+    ])
   })
 })
 

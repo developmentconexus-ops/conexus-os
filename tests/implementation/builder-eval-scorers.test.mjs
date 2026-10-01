@@ -45,8 +45,23 @@ test('traceMetrics counts the run resumed after a question, with the current too
 
 const flowOfTrace = (shape, options) => flowOf(mainToolCalls(planFlowTrace(shape, options)))
 
-test('the new flow writes .conexus/plan.md first and approves through ask_user, after an unrelated question', () => {
+test('the new flow writes .conexus/plan.md first, as an absolute path, and approves through submit_plan, after an unrelated question', () => {
   assert.deepEqual(flowOfTrace('new'), {
+    planFile: { written: true, legacy: false, beforeFirstAppFile: true },
+    approval: { via: 'submit_plan' },
+    appFilesBeforeApproval: 0,
+    appFilesChanged: 2,
+  })
+})
+
+test('a plan file written under /workspace/repo is the plan, not an app file', () => {
+  const write = (path) => ({ entityName: 'mastra_workspace_write_file', input: { path }, attributes: { success: true } })
+  const flow = flowOf([write('/workspace/repo/.conexus/plan.md'), { entityName: 'submit_plan', input: { path: '.conexus/plan.md' } }, write('/workspace/repo/app/home.tsx')])
+  assert.deepEqual(flow, { planFile: { written: true, legacy: false, beforeFirstAppFile: true }, approval: { via: 'submit_plan' }, appFilesBeforeApproval: 0, appFilesChanged: 1 })
+})
+
+test('an approval asked with ask_user and its two options still reads as ask_user', () => {
+  assert.deepEqual(flowOfTrace('askUser'), {
     planFile: { written: true, legacy: false, beforeFirstAppFile: true },
     approval: { via: 'ask_user' },
     appFilesBeforeApproval: 0,
@@ -60,7 +75,7 @@ test('an app file written before the approval is counted, and the plan file no l
   assert.equal(flow.appFilesBeforeApproval, 1)
 })
 
-test('today\'s Builder is scored on the same terms: a plan file under .conexus/plans and approval through submit_plan', () => {
+test('the earlier Builder is scored on the same terms: a plan file under .conexus/plans and approval through submit_plan', () => {
   assert.deepEqual(flowOfTrace('legacy'), {
     planFile: { written: true, legacy: true, beforeFirstAppFile: true },
     approval: { via: 'submit_plan' },
@@ -90,9 +105,13 @@ test('the AC-13 measures of a run of each flow, with the person\'s clicks and th
   const answers = [{ kind: 'QUESTION' }, { kind: 'APPROVAL' }]
   const measures = (shape, expectation, cards) => {
     const flow = flowOfTrace(shape)
-    return ac13Metrics({ expectation, flow, answers: cards, timeToFirstPreviewMs: 61_000, checkRuns: 1, operationRuns: shape === 'new' ? 1 : 0 })
+    return ac13Metrics({ expectation, flow, answers: cards, timeToFirstPreviewMs: 61_000, checkRuns: 1, operationRuns: shape === 'new' || shape === 'askUser' ? 1 : 0 })
   }
-  assert.deepEqual(measures('new', 'expected', answers), {
+  assert.deepEqual(measures('new', 'expected', [{ kind: 'QUESTION' }, { kind: 'PLAN' }]), {
+    expectation: 'expected', planned: true, plannedWhenExpected: true, planFileBeforeFirstAppFile: true, approvalVia: 'submit_plan', legacyPath: false,
+    appFilesBeforeApproval: 0, clicks: 2, timeToFirstPreviewMs: 61_000, checkRuns: 1, operationRuns: 1,
+  })
+  assert.deepEqual(measures('askUser', 'expected', answers), {
     expectation: 'expected', planned: true, plannedWhenExpected: true, planFileBeforeFirstAppFile: true, approvalVia: 'ask_user', legacyPath: false,
     appFilesBeforeApproval: 0, clicks: 2, timeToFirstPreviewMs: 61_000, checkRuns: 1, operationRuns: 1,
   })
@@ -109,28 +128,30 @@ test('the AC-13 measures of a run of each flow, with the person\'s clicks and th
 
 test('with no trace the approval path and the clicks still come from the driver\'s record', () => {
   assert.deepEqual(ac13Metrics({ expectation: 'expected', flow: null, answers: [{ kind: 'PLAN' }], timeToFirstPreviewMs: null, checkRuns: null, operationRuns: null }), {
-    expectation: 'expected', planned: true, plannedWhenExpected: true, planFileBeforeFirstAppFile: null, approvalVia: 'submit_plan', legacyPath: true,
+    expectation: 'expected', planned: true, plannedWhenExpected: true, planFileBeforeFirstAppFile: null, approvalVia: 'submit_plan', legacyPath: false,
     appFilesBeforeApproval: null, clicks: 1, timeToFirstPreviewMs: null, checkRuns: null, operationRuns: null,
   })
 })
 
-test('the flow scorers score a stored run of the new Builder and of today\'s, and skip a case that needs no plan', async () => {
+test('the flow scorers score a stored run of the new Builder and of the earlier ones, and skip a case that needs no plan', async () => {
   const { storage, mastra } = evalMastra()
   await seedSpans(storage, [
     ...planFlowTrace('new', { traceId: 'tr-new', builderRunId: 'run-new', projectId: 'p-n' }),
     ...planFlowTrace('legacy', { traceId: 'tr-old', builderRunId: 'run-old', projectId: 'p-o' }),
+    ...planFlowTrace('askUser', { traceId: 'tr-ask', builderRunId: 'run-ask', projectId: 'p-a' }),
     ...planFlowTrace('edit', { traceId: 'tr-edit', builderRunId: 'run-edit', projectId: 'p-e' }),
   ])
   const flowScores = async (traceId, plan) => {
     const { scores, unscored } = await scoreRun(mastra, { output: { runs: [{ traceId }] }, groundTruth: { plan } })
-    return { scores: scores.filter(({ scorerId }) => ['plan-file-first', 'approval-via-ask-user', 'app-files-before-approval'].includes(scorerId)).map(({ scorerId, score }) => [scorerId, score]), unscored: unscored.filter(({ scorerId }) => scorerId.startsWith('plan-file') || scorerId.startsWith('approval') || scorerId.startsWith('app-files')) }
+    return { scores: scores.filter(({ scorerId }) => ['plan-file-first', 'approval-via-submit-plan', 'app-files-before-approval'].includes(scorerId)).map(({ scorerId, score }) => [scorerId, score]), unscored: unscored.filter(({ scorerId }) => scorerId.startsWith('plan-file') || scorerId.startsWith('approval') || scorerId.startsWith('app-files')) }
   }
-  assert.deepEqual((await flowScores('tr-new', 'expected')).scores, [['plan-file-first', 1], ['approval-via-ask-user', 1], ['app-files-before-approval', 0]])
-  assert.deepEqual((await flowScores('tr-old', 'expected')).scores, [['plan-file-first', 1], ['approval-via-ask-user', 0], ['app-files-before-approval', 0]])
+  assert.deepEqual((await flowScores('tr-new', 'expected')).scores, [['plan-file-first', 1], ['approval-via-submit-plan', 1], ['app-files-before-approval', 0]])
+  assert.deepEqual((await flowScores('tr-old', 'expected')).scores, [['plan-file-first', 1], ['approval-via-submit-plan', 1], ['app-files-before-approval', 0]])
+  assert.deepEqual((await flowScores('tr-ask', 'expected')).scores, [['plan-file-first', 1], ['approval-via-submit-plan', 0], ['app-files-before-approval', 0]])
   const edit = await flowScores('tr-edit', 'notApplicable')
   assert.deepEqual(edit.scores, [])
   assert.deepEqual(edit.unscored.map(({ scorerId, message }) => [scorerId, message]), [
-    ['plan-file-first', 'não se aplica: o caso não pede plano'], ['approval-via-ask-user', 'não se aplica: o caso não pede plano'], ['app-files-before-approval', 'não se aplica: o caso não pede plano'],
+    ['plan-file-first', 'não se aplica: o caso não pede plano'], ['approval-via-submit-plan', 'não se aplica: o caso não pede plano'], ['app-files-before-approval', 'não se aplica: o caso não pede plano'],
   ])
 })
 
@@ -150,7 +171,7 @@ test('scoreRun sums the trace metrics of a request and its repair and grades the
   assert.deepEqual(scores.map(({ scorerId, score }) => [scorerId, score]), [
     ['app-correct', 1], ['tool-calls', 20], ['tool-errors', 2], ['calls-per-step', 3.3333333333333335],
     ['repeated-reads', 4], ['skill-reloads', 2], ['wall-minutes', 10], ['input-tokens', 2000],
-    ['output-tokens', 100], ['sim-refusals', 2], ['plan-file-first', 0], ['approval-via-ask-user', 0],
+    ['output-tokens', 100], ['sim-refusals', 2], ['plan-file-first', 0], ['approval-via-submit-plan', 0],
   ])
   assert.deepEqual(unscored, [{ scorerId: 'app-files-before-approval', message: 'sem aprovação: nada a contar' }], 'a run that asked no approval has no app files before it to count')
 })
@@ -162,7 +183,7 @@ test('scoreRun leaves every trace scorer out when a run has no trace, instead of
   const { scores, unscored } = await scoreRun(mastra, { output, groundTruth })
 
   assert.deepEqual(scores.map(({ scorerId, score }) => [scorerId, score]), [['app-correct', 1]])
-  assert.deepEqual(unscored, ['tool-calls', 'tool-errors', 'calls-per-step', 'repeated-reads', 'skill-reloads', 'wall-minutes', 'input-tokens', 'output-tokens', 'sim-refusals', 'plan-file-first', 'approval-via-ask-user', 'app-files-before-approval']
+  assert.deepEqual(unscored, ['tool-calls', 'tool-errors', 'calls-per-step', 'repeated-reads', 'skill-reloads', 'wall-minutes', 'input-tokens', 'output-tokens', 'sim-refusals', 'plan-file-first', 'approval-via-submit-plan', 'app-files-before-approval']
     .map((scorerId) => ({ scorerId, message: 'trace ausente' })))
 })
 
