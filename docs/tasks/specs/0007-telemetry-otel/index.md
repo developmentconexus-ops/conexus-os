@@ -131,7 +131,9 @@ Metrics and the heap alarm
 - **AC-18**: The installation's SigNoz holds the alert rules in `infra/telemetry/alerts/`, applied
   by `scripts/telemetry-alerts.mjs` (idempotent): heap ratio above 0.8 for 2 minutes, event loop
   delay p99 above 1 second for 2 minutes, a Hub or runner with no metrics for 2 minutes, and the
-  SigNoz data volume above 80%. Each rule notifies the channel the operator names.
+  SigNoz data volume above 80%. Each rule notifies a Telegram bot chat (operator decision of
+  2026-10-01; bot token and chat id read from files, never printed), with an email copy once the
+  installation's sender exists.
   [live check on the pilot: a child process held above 0.8 raises the alert]
 
 Builder and connectors through Mastra
@@ -533,7 +535,7 @@ Each slice is one pull request, merged and checked on the dev installation befor
    The study's item 4. Satisfies **AC-19** to **AC-22**.
 4. **SigNoz on the pilot.** Foundry casting and generated compose, retention, data volume cap, the
    alert rules and their script, the measured disk number in the README. Needs the operator's
-   choice of alert channel and the pilot's memory. Satisfies **AC-18**, **AC-26**.
+   Telegram bot and the pilot's memory. Satisfies **AC-18**, **AC-26**.
 5. **Business gauges.** Sessions, runs, streams, pools, gates, sandboxes. Satisfies the rest of
    **AC-16**.
 6. **Browser errors.** The Hub web reporter, `/__conexus/report.js` and its injection, the two
