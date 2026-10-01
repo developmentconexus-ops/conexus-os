@@ -775,6 +775,10 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   await messageBox(page).press('Enter')
   for (let wait = 0; wait < 50 && chosen.at(-1) !== 'high'; wait += 1) await page.waitForTimeout(100)
   assert.equal(chosen.at(-1), 'high')
+  await messageBox(page).fill('/raciocinio  LOW ')
+  await messageBox(page).press('Enter')
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'low'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'low', "Mastra Code's own parse ignores case and spacing")
 
   await chooseModel(page, 'Gemini Pro Agent')
   await page.locator('.cx-model-popover').waitFor({ state: 'detached' })

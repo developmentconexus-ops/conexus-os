@@ -12,6 +12,7 @@ import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
+import { parseThinkCommand } from '@mastra/code-sdk/thinking'
 import { humanizeModelName } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
@@ -81,13 +82,13 @@ export function BuilderComposer({
   const selected = models.find((model) => model.id === modelId)
   const levels = selected?.thinkingLevels ?? []
   const runCommand = (text: string): boolean => {
-    const [name, argument] = text.trim().slice(1).split(/\s+/)
+    const [name, ...argument] = text.trim().slice(1).split(/\s+/)
     if (!text.startsWith('/')) return false
     if (name === 'nova') onNewConversation()
     else if (name === 'raciocinio') {
-      const level = levels.find((candidate) => candidate === argument)
-      if (!level) return false
-      onReasoningChange(level)
+      const command = parseThinkCommand(argument.join(' '), levels)
+      if (command.kind !== 'set') return false
+      onReasoningChange(command.level)
     } else return false
     onDraftChange('')
     return true
