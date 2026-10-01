@@ -100,6 +100,9 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
 
 // While the agent thinks the thread says so; a thought that settled is a collapsed row that opens to
 // the provider's own words, the way a tool call opens to its arguments.
+const retryNotice = ({ attempt, maxRetries }: NonNullable<LiveTurn['retrying']>): string =>
+  `O modelo não respondeu. Tentando de novo (${attempt}${maxRetries === null ? '' : ` de ${maxRetries}`}).`
+
 function Thinking() {
   return <p className="cx-thinking" role="status"><Shimmer active>Pensando…</Shimmer></p>
 }
@@ -317,6 +320,7 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
   const rendered = renderPieces(pieces, turn.tools, model)
   return <>
     {rendered}
+    {turn.retrying && <p className="builder-turn-reason" role="status">{retryNotice(turn.retrying)}</p>}
     {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
     {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
   </>

@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null, retrying: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.

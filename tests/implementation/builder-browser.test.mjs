@@ -1338,6 +1338,17 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
+test('a model call the controller is retrying reads as a retry in progress, not as a failure, and the next reply clears it', async (t) => {
+  const retryError = { type: 'error', error: { message: 'Service Unavailable' }, retryable: true, retryAttempt: 2, maxRetries: 10 }
+  const retrying = await openLiveTurn(t, [retryError])
+  await retrying.getByRole('status').getByText('O modelo não respondeu. Tentando de novo (2 de 10).', { exact: true }).waitFor()
+  assert.equal(await retrying.getByRole('alert').count(), 0, 'a retry is not a failure')
+  const recovered = await openLiveTurn(t, [retryError, { type: 'message_start', message: assistantMessage('live-retry-1', 'Voltei.') }])
+  await recovered.locator('.cx-messages').getByText('Voltei.', { exact: true }).waitFor()
+  assert.equal(await recovered.getByText('Tentando de novo', { exact: false }).count(), 0)
+  assert.equal(await recovered.getByRole('alert').count(), 0)
+})
+
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
 
 test('a reasoning part still streaming is one "Pensando…" line and not yet a "Pensou" row', async (t) => {
