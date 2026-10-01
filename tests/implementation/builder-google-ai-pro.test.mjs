@@ -77,7 +77,7 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
   assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), /^Error: GOOGLE_AI_PRO_RECORD_REFUSED$/)
 })
 
-test('the proxy config asks Gemini for its thinking summary and leaves every other key as it was', () => {
+test('the proxy config sets no payload rule: the request itself asks Gemini for its thinking', () => {
   assert.equal(configYaml({ port: 8317, authDir: '/state/auth', proxyKey: 'key-1' }), [
     'host: "127.0.0.1"',
     'port: 8317',
@@ -90,13 +90,6 @@ test('the proxy config asks Gemini for its thinking summary and leaves every oth
     '  disable-control-panel: true',
     'usage-statistics-enabled: false',
     'logging-to-file: false',
-    'payload:',
-    '  default:',
-    '    - models:',
-    '        - name: "gemini-*"',
-    '          protocol: "antigravity"',
-    '      params:',
-    '        "generationConfig.thinkingConfig.includeThoughts": true',
     '',
   ].join('\n'))
 })

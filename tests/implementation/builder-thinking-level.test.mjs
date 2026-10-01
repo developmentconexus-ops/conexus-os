@@ -77,9 +77,12 @@ const CASES = [
   ['anthropic/claude-opus-5-5', claudeSubscription, 'high', 'anthropic', { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' }],
   ['openai/gpt-5.6-sol', rows.anthropic, 'low', 'openai', { effort: 'low', summary: 'auto' }],
   ['openai/gpt-5.6-sol', rows.anthropic, 'xhigh', 'openai', { effort: 'xhigh', summary: 'auto' }],
-  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'low', 'google', { thinkingLevel: 'low' }],
-  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'high', 'google', { thinkingLevel: 'high' }],
-  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'xhigh', 'google', { thinkingLevel: 'high' }],
+  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'low', 'google', { thinkingLevel: 'low', includeThoughts: true }],
+  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'medium', 'google', { thinkingLevel: 'medium', includeThoughts: true }],
+  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'high', 'google', { thinkingLevel: 'high', includeThoughts: true }],
+  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'xhigh', 'google', { thinkingLevel: 'high', includeThoughts: true }],
+  ['google-ai-pro/gemini-3-flash', rows.anthropic, 'off', 'google', undefined],
+  ['google-ai-pro/gemini-2.5-pro', rows.anthropic, 'medium', 'google', { thinkingBudget: 8192, includeThoughts: true }],
   ['google-ai-pro/gemini-pro-agent', rows.anthropic, 'high', 'google', undefined],
 ]
 
@@ -99,7 +102,7 @@ test('a conversation whose person picked no level runs every provider at medium'
     { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'medium' },
     { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'medium' },
     { effort: 'medium', summary: 'auto' },
-    { thinkingLevel: 'medium' },
+    { thinkingLevel: 'medium', includeThoughts: true },
   ])
 })
 
@@ -131,6 +134,6 @@ test("a Google AI Pro model is Mastra's own Google provider on Gemini's API, thr
     thinking: sent.body.generationConfig.thinkingConfig,
   }, {
     provider: 'google.generative-ai', url: `${ROUTER}/v1beta/models/gemini-3.8-flash-high:streamGenerateContent?alt=sse`, key: googleKey, authorization: null,
-    thinking: { thinkingLevel: 'low' },
+    thinking: { thinkingLevel: 'low', includeThoughts: true },
   })
 })
