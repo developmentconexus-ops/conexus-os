@@ -45,7 +45,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
   'builder-harness',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'openai-codex', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'openai-codex', 'anthropic', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
@@ -203,6 +203,25 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/app-runner-worker.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/application-release.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/manifest-enum.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-submit-plan.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-project-context.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-memory.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-model-stream-recorder.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-run-operation.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-sankhya-reader.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-agent-retry.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-runaway-step.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['c020-browser', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
     'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
