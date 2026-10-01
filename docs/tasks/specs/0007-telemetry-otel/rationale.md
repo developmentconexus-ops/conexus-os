@@ -152,11 +152,23 @@ Probes run on 2026-10-01 in a scratch directory outside the repository, with `@m
 - **P5, Hub to runner over a unix socket**: with the ESM hook registered, a Node HTTP request over a
   unix socket to Fastify carried `traceparent`; the server span, Fastify's request and handler spans
   and the client span shared one trace id.
+- **P6, the effective heap cap**: on Node 24.20.0, `heap_size_limit` is 704 MiB under
+  `--max-old-space-size=512` alone, 1216 MiB under `NODE_OPTIONS=--max-old-space-size=1024` alone,
+  and 704 MiB under both `NODE_OPTIONS=--max-old-space-size=1024 node --max-old-space-size=512` and
+  `NODE_OPTIONS=--max-old-space-size=256 node --max-old-space-size=512`: the command line wins.
+  Two flags on the command line or two in `NODE_OPTIONS` resolve to the last. `process.execArgv`
+  holds only the command line flags.
+- **P7, unix socket and TCP requests**: on a Node HTTP server, a request over TCP has
+  `socket.remoteAddress` `127.0.0.1` and `remoteFamily` `IPv4`; a request over a unix socket has
+  both undefined. `instrumentation-http` 0.221.0 calls `startIncomingSpanHook` with the request
+  before `propagation.extract(ROOT_CONTEXT, request.headers)` (`build/src/http.js:322,341`).
 - **Versions on 2026-10-01** from the GitHub releases API: SigNoz v0.144.0 (installs through
   Foundry; `deploy/README.md` says the compose files are deprecated), `opentelemetry-collector-releases`
   v0.162.0, `docker-otel-lgtm` v0.34.0, `signoz-mcp-server` v0.15.0.
 - Not probed: SigNoz itself, the Collector, Sentry's envelope endpoint, the bridge's log
-  forwarding. Slices 1, 4 and 8 prove them.
+  forwarding, and the Builder's run id in the metadata of a model span's metric event (Mastra
+  1.18.1 copies the span's metadata onto the event, `dist/index.js:4866`). Slices 1, 3, 4 and 8
+  prove them.
 
 ## References
 
