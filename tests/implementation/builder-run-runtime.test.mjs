@@ -958,6 +958,17 @@ test('a page that does not boot leaves the admitted source without a Preview and
   assert.deepEqual(run.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_SMOKE_FAILED', 'BUILD_FAILED', `boot failed:\nassets/index.js:1:9: BOOT_UNCAUGHT_ERROR ${thrown}`]])
 })
 
+test('the session context marks a Project new while main is the starter, and not after a saved version', async (t) => {
+  const run = await harness(t)
+  await run.start()
+  assert.equal(await run.settled(), true)
+  assert.equal(run.sessionContext.get('conexusProjectNew'), 'true')
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(run.sessionContext.get('conexusProjectNew'), '')
+})
+
 test("the session context carries the Project's name, the date, and the base's AGENTS.md and MEMORY.md, cut with their notes (AC-9)", async (t) => {
   const short = await harness(t)
   await short.start()

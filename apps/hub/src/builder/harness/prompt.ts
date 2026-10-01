@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import type { RequestContext } from '@mastra/core/request-context'
 import { MODEL_KNOWLEDGE_CUTOFFS } from './model-cutoffs.js'
 import {
-  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_TURN_DATE_KEY,
+  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_DATE_KEY,
   readRawString, readSessionModelId, readTurnConflicts,
 } from './request-context.js'
 
@@ -31,6 +31,8 @@ export type PromptValues = Readonly<{
   date: string
   /** The model's knowledge cutoff, `Month YYYY`; null drops the clause. */
   cutoff: string | null
+  /** True while the Project's `main` is still the starter commit; the Environment's new-app line is dropped otherwise. */
+  isNew: boolean
   /** The Conexões section's lines: the list, or the one line that says there is none to show. */
   connections: string
   /** `AGENTS.md` as the Hub read it from `main`, with its notes. */
@@ -40,10 +42,11 @@ export type PromptValues = Readonly<{
 }>
 
 // One pass over the template, so text a placeholder brings in is never read as another placeholder.
-const PLACEHOLDER = / Your knowledge cutoff: \{cutoff\}\.|^- `\{name\}`: \{integrator\} \(skill `conexus-\{integrator\}`\)$|\{project name\}|\{date\}|\{AGENTS\.md content\}|\{index\}/gm
+const PLACEHOLDER = /^- This app is new: it has only the starter screen\.\n| Your knowledge cutoff: \{cutoff\}\.|^- `\{name\}`: \{integrator\} \(skill `conexus-\{integrator\}`\)$|\{project name\}|\{date\}|\{AGENTS\.md content\}|\{index\}/gm
 
 /** Fills the prompt's placeholders. A placeholder the template has no slot for is an error in the template, never in the values. */
 export const fillPrompt = (template: string, values: PromptValues): string => template.replace(PLACEHOLDER, (slot) => {
+  if (slot.startsWith('- This app is new')) return values.isNew ? slot : ''
   if (slot.startsWith(' Your knowledge cutoff')) return values.cutoff ? ` Your knowledge cutoff: ${values.cutoff}.` : ''
   if (slot.startsWith('- `{name}`')) return values.connections
   switch (slot) {
@@ -69,6 +72,7 @@ export const conexusInstructions = (
   const filled = fillPrompt(promptFile(join(promptRoot, 'builder.md')), {
     projectName: readRawString(requestContext, CONEXUS_PROJECT_NAME_KEY),
     date: readRawString(requestContext, CONEXUS_TURN_DATE_KEY),
+    isNew: readRawString(requestContext, CONEXUS_PROJECT_NEW_KEY) === 'true',
     cutoff: cutoff ?? null,
     connections: readRawString(requestContext, CONEXUS_CONNECTOR_BRIEF_KEY),
     instructions: readRawString(requestContext, CONEXUS_PROJECT_INSTRUCTIONS_KEY),

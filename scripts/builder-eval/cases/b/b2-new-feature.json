@@ -5,12 +5,7 @@
     {
       "action": "expectText",
       "selector": "body",
-      "text": "Ligar para o fornecedor na segunda"
-    },
-    {
-      "action": "expectText",
-      "selector": "body",
-      "text": "Em aberto"
+      "text": "status"
     }
   ],
   "reload": true

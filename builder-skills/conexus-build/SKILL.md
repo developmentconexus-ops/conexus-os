@@ -1,6 +1,6 @@
 ---
 name: conexus-build
-description: Use before you change the code of an app, to build an approved plan or a request without one. Covers working step by step, proving each step with the check and real operations, what to do when a step fails or the work leaves the plan, keeping the code clean, and finishing.
+description: Use before you change the code of an app, to build an approved plan or a small change with nothing left to decide. Covers working step by step, proving each step with the check and real operations, what to do when a step fails or the work leaves the plan, keeping the code clean, and finishing.
 ---
 
 # Building
@@ -8,8 +8,9 @@ description: Use before you change the code of an app, to build an approved plan
 Build in small steps and prove each one before the next. A step is done when you saw it work; code that compiles is not proof.
 
 ## Start
+- First, decide whether this needs a plan. Do not judge it by whether the request feels clear: list what the change needs (each screen, what each record holds, its kinds and statuses, who sees what, each rule). If the app is new, or any of these is named by neither the request nor the app, and the person has not approved a plan for this request in this conversation, load `conexus-plan` and build nothing yet.
 - With an approved plan: read `.conexus/plan.md` and turn "Ordem" into your task list, one task per step. If the list already has proven steps from an earlier run, continue from the first open one; never redo a proven step.
-- Without a plan: before you edit, decide how you will prove the change works (which check, which operation, which count), then make it.
+- Without a plan, for a small change with nothing left to decide: before you edit, decide how you will prove the change works (which check, which operation, which count), then make it.
 
 ## Prove each step
 

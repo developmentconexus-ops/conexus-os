@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
 import { compareToOracle, loadOracle } from './oracle.mjs'
 import { ac13Metrics, ADJUST_LABEL, APPROVE_LABEL, foldLabel, isApprovalOptions } from './flow.mjs'
-import { correctionMessage, createPerson, fillSheet, fillValues, loadValues, parseSheet } from './person.mjs'
+import { correctionMessage, createPerson, fillSheet, fillValues, hiddenRuleOutcomes, loadValues, parseSheet } from './person.mjs'
 import { createEvalMastra, evalStorage, findTraceIds, gradeRefusal } from './scorers.mjs'
 import { hubTimingFromLog, timingBlock } from './timing.mjs'
 
@@ -35,7 +35,7 @@ const usage = [
   '  --out <dir>            Directory to write result.json and preview.png; required',
   '  --project <id>         Reuse an existing Project (new conversation); default: create one',
   '  --grade-only           With --project: send nothing, grade the Project\'s current Preview',
-  '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the first usable one',
+  '  --model <id>           A model id from GET /api/control/model-accounts/models; default: the model the product preselects for a person (the composer own default)',
   '  --arm <id>             The arm under test: arms/<id>.json, which names the model; recorded in the timing identity',
   '  --repetition <n>       Repetition number of this case on this arm, recorded in the timing identity; default: 1',
   '  --no-correction        Skip the one correction message the scripted person sends from the oracle diff',
@@ -377,6 +377,17 @@ async function pickModel(page, modelId) {
   await option.click()
 }
 
+/** The model the composer has selected, read from its own picker the way a person would see the check mark.
+ * With no `--model`, the run keeps whatever the product preselects, so this is the model the person gets. */
+async function selectedModelId(page) {
+  await page.getByRole('button', { name: /^Modelo /u }).click()
+  const selected = page.locator('[role=option][data-model-id][aria-selected=true]')
+  await selected.waitFor({ state: 'visible', timeout: 15_000 })
+  const id = await selected.getAttribute('data-model-id')
+  await page.keyboard.press('Escape')
+  return id
+}
+
 /** Creates a fresh Project from the workspace home: one composer submit carries the name, the
  * model and the first request together, the same as a person filling in the home prompt. */
 async function createProjectAndSend(page, { request, modelId, projectName }) {
@@ -385,6 +396,7 @@ async function createProjectAndSend(page, { request, modelId, projectName }) {
   if (modelId) await pickModel(page, modelId)
   await composer.fill(request)
   await waitForComposerReady(page)
+  const selectedModel = await selectedModelId(page)
   await page.getByRole('button', { name: 'Enviar' }).click()
   const nameInput = page.getByLabel('Nome do Projeto')
   await nameInput.waitFor({ state: 'visible', timeout: 10_000 })
@@ -393,7 +405,7 @@ async function createProjectAndSend(page, { request, modelId, projectName }) {
   await page.getByRole('button', { name: 'Criar e começar' }).click()
   await page.waitForURL(/\/projects\/[^/]+\/c\/[^/]+/, { timeout: 180_000 })
   const [, , projectId, , conversationId] = new URL(page.url()).pathname.split('/')
-  return { projectId, conversationId, requestSentAt }
+  return { projectId, conversationId, requestSentAt, modelId: selectedModel }
 }
 
 /** Opens a fresh conversation on an existing Project and sends the request through Construir's
@@ -410,9 +422,10 @@ async function openConversationAndSend(page, { baseUrl, projectId, request, mode
   if (modelId) await pickModel(page, modelId)
   await composer.fill(request)
   await waitForComposerReady(page)
+  const selectedModel = await selectedModelId(page)
   const requestSentAt = Date.now()
   await page.getByRole('button', { name: 'Enviar' }).click()
-  return { projectId, conversationId, requestSentAt }
+  return { projectId, conversationId, requestSentAt, modelId: selectedModel }
 }
 
 async function sendMessage(page, message) {
@@ -484,7 +497,6 @@ async function sendAndSettle(page, options, caseFile, result) {
   if (options.model && !usable.models.some((model) => model.id === options.model)) {
     fail(`--model ${options.model} is not usable; available: ${usable.models.map((model) => model.id).join(', ')}`)
   }
-  result.modelId = options.model ?? usable.models[0].id
 
   const previousRunId = options.project
     ? (await readSession(page, options.project)).latestBuilderRun?.builderRunId ?? null
@@ -492,6 +504,7 @@ async function sendAndSettle(page, options, caseFile, result) {
   const started = options.project
     ? await openConversationAndSend(page, { baseUrl: options.baseUrl, projectId: options.project, request: caseFile.request, modelId: options.model })
     : await createProjectAndSend(page, { request: caseFile.request, modelId: options.model, projectName: result.projectName })
+  result.modelId = started.modelId
   result.projectId = started.projectId
   result.conversationId = started.conversationId
 
@@ -663,7 +676,7 @@ export async function runCase(options) {
     sourceRevisionBefore: null, sourceRevisionAfter: null, filesChanged: [],
     runs: [], answers: cards.answers, lastCheckReport: null, lastCheckReportReason: null, refusal: null, repairIterations: 0, wallTimeToUsablePreviewMs: null, previewUrl: null,
     checks: { initial: [], afterReload: null }, previewText: null, screenshotPath: null, failure: null,
-    oracle: null, correction: null, timings: null, ac13: null,
+    oracle: null, correction: null, timings: null, ac13: null, hiddenRules: null,
   }
   cards.readMessages = async () => (result.projectId && result.conversationId ? readThreadMessages(page, result.projectId, result.conversationId) : [])
   try {
@@ -691,6 +704,11 @@ export async function runCase(options) {
       const messages = await readThreadMessages(page, result.projectId, result.conversationId).catch(() => null)
       if (messages === null) result.lastCheckReportReason = 'thread messages could not be read'
       else {
+        if (sheet?.rules.some((rule) => rule.hidden)) {
+          const builderText = [...messages.filter((message) => message.role === 'assistant').flatMap((message) => messageParts(message).filter((part) => part.type === 'text').map((part) => part.text)),
+            ...result.answers.filter((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL').map((answer) => answer.text)].join('\n')
+          result.hiddenRules = hiddenRuleOutcomes(sheet, result.answers, builderText)
+        }
         const { report, reason } = lastCheckReport(messages)
         result.lastCheckReport = report
         result.lastCheckReportReason = reason

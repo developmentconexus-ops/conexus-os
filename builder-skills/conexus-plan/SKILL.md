@@ -1,6 +1,6 @@
 ---
 name: conexus-plan
-description: Use before you change anything for a new app or a big or unclear change. Explores the app and the Conexões, asks what is missing, writes the plan to `.conexus/plan.md` and gets the person's approval before you build.
+description: Use before you change anything for a new app or a request that leaves open what the app must do, even one that sounds small and clear, such as adding a record, a field or a status. Explores the app and the Conexões, asks what is missing, writes the plan to `.conexus/plan.md` and gets the person's approval before you build.
 ---
 
 # Planning

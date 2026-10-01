@@ -8,6 +8,8 @@ import type { RequestContext } from '@mastra/core/request-context'
  */
 export const CONEXUS_PROJECT_NAME_KEY = 'conexusProjectName'
 export const CONEXUS_TURN_DATE_KEY = 'conexusTurnDate'
+/** `'true'` while the Project's `main` is still the starter commit; absent otherwise. */
+export const CONEXUS_PROJECT_NEW_KEY = 'conexusProjectNew'
 export const CONEXUS_PROJECT_INSTRUCTIONS_KEY = 'conexusProjectInstructions'
 export const CONEXUS_PROJECT_MEMORY_KEY = 'conexusProjectMemory'
 export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'

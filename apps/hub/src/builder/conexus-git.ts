@@ -267,6 +267,10 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       if (!moved && await readMain(projectId) !== candidate) throw new Error('BUILDER_SOURCE_BASE_MOVED')
     },
 
+    /** Whether this commit is the starter: the root commit `ensureRepository` made, which no saved version precedes. */
+    isStarter: async (projectId: string, revision: string): Promise<boolean> =>
+      await hasCommit(git, projectId, revision) && (await text(git(projectId, ['rev-list', '--parents', '-n', '1', revision]))).split(' ').length === 1,
+
     /** Whether `main` holds this commit in its history, which is how a restart learns a run was admitted. */
     mainContains: async (projectId: string, revision: string): Promise<boolean> => {
       if (!await hasCommit(git, projectId, revision)) return false

@@ -192,3 +192,20 @@ export function correctionMessage(defects) {
   if (defects.length === 0) return null
   return ['Vi a prévia e encontrei o seguinte:', ...defects.map(defectSentence), 'Pode corrigir?'].join('\n')
 }
+
+/**
+ * Pure. For each rule the person tells only when asked (`hidden`), whether the Builder asked about it (a question card the
+ * matcher tied to the rule) and whether it proposed it unprompted (one of the rule's `pick` words in what the Builder wrote).
+ * @param {Sheet} sheet
+ * @param {readonly Readonly<{ ruleIds?: readonly string[] }>[]} answers
+ * @param {string} builderText everything the Builder wrote in the chat and in its plan
+ * @returns {readonly Readonly<{ id: string, asked: boolean, proposed: boolean }>[]}
+ */
+export function hiddenRuleOutcomes(sheet, answers, builderText) {
+  const written = plain(builderText)
+  return sheet.rules.filter((rule) => rule.hidden).map((rule) => Object.freeze({
+    id: rule.id,
+    asked: answers.some((answer) => answer.ruleIds?.includes(rule.id)),
+    proposed: rule.pick.some((word) => written.includes(plain(word))),
+  }))
+}

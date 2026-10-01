@@ -6,16 +6,6 @@
       "action": "expectText",
       "selector": "body",
       "text": "Acompanhamento de compras"
-    },
-    {
-      "action": "expectText",
-      "selector": "body",
-      "text": "Ligar para o fornecedor na segunda"
-    },
-    {
-      "action": "expectText",
-      "selector": "body",
-      "text": "Em aberto"
     }
   ],
   "reload": true

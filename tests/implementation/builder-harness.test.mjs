@@ -9,7 +9,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 
 const {
-  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
+  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
 } = await import(hubModuleUrl('builder/harness/request-context.js'))
 const { conexusInstructions, fillPrompt, turnDate } = await import(hubModuleUrl('builder/harness/prompt.js'))
 const { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -25,7 +25,7 @@ const PLACEHOLDERS = ['{project name}', '{date}', '{cutoff}', '`{name}`: {integr
 
 const template = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/harness/prompt/builder.md'), 'utf8')
 const VALUES = {
-  projectName: 'Compras', date: '2026-09-30', cutoff: 'Março 2026',
+  projectName: 'Compras', date: '2026-09-30', cutoff: 'Março 2026', isNew: true,
   connections: '- `erp`: sankhya (skill `conexus-sankhya`)', instructions: 'Responda sempre em inglês {index}.', memory: '## Regras\n- [Prazo](prazo.md): 30 dias',
 }
 
@@ -49,7 +49,7 @@ test('AC-1: a model with no cutoff loses the cutoff clause and nothing else', ()
 test('AC-1, AC-2: the model input holds the approved text and no word of a mode or of submit_plan', () => {
   const requestContext = new RequestContext()
   for (const [key, value] of [
-    [CONEXUS_PROJECT_NAME_KEY, 'Compras'], [CONEXUS_TURN_DATE_KEY, '2026-09-30'], [CONEXUS_CONNECTOR_BRIEF_KEY, VALUES.connections],
+    [CONEXUS_PROJECT_NAME_KEY, 'Compras'], [CONEXUS_PROJECT_NEW_KEY, 'true'], [CONEXUS_TURN_DATE_KEY, '2026-09-30'], [CONEXUS_CONNECTOR_BRIEF_KEY, VALUES.connections],
     [CONEXUS_PROJECT_INSTRUCTIONS_KEY, VALUES.instructions], [CONEXUS_PROJECT_MEMORY_KEY, VALUES.memory],
   ]) requestContext.setRaw(key, value)
   requestContext.set('controller', { session: { modelId: 'anthropic/known' } })
@@ -59,6 +59,16 @@ test('AC-1, AC-2: the model input holds the approved text and no word of a mode 
   assert.ok(text.startsWith('You are the Conexus Builder, running inside Conexus.'))
   requestContext.set('controller', { session: { modelId: 'anthropic/unknown' } })
   assert.equal(conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext }).includes('knowledge cutoff'), false)
+})
+
+test('the new-app line is in the Environment of a new Project and absent, with no empty bullet, after a saved version', () => {
+  const line = '- This app is new: it has only the starter screen.\n'
+  const fresh = fillPrompt(template, VALUES)
+  assert.ok(fresh.includes(`Your knowledge cutoff: Março 2026.\n${line}- The sandbox runs Debian 12`))
+  const saved = fillPrompt(template, { ...VALUES, isNew: false })
+  assert.equal(saved.includes('This app is new'), false)
+  assert.ok(saved.includes('Your knowledge cutoff: Março 2026.\n- The sandbox runs Debian 12'))
+  assert.equal(fresh.replace(line, ''), saved)
 })
 
 test('the paths a turn\'s start left in conflict are appended after the filled prompt', () => {

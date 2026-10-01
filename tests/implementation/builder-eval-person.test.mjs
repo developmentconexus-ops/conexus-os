@@ -188,3 +188,19 @@ test('login start keeps the verifier private and prints only the address; comple
     await assert.rejects(completeLogin('again', { authorization, verifierFile, storage }), /run "login.mjs start" first/)
   })
 })
+
+test('hiddenRuleOutcomes records, per hidden rule, whether the Builder asked about it and whether it proposed it', async () => {
+  const { hiddenRuleOutcomes, parseSheet } = await import('../../scripts/builder-eval/person.mjs')
+  const sheet = parseSheet({
+    projectName: 'Compras', persona: 'comprador',
+    answers: [
+      { id: 'status', topic: 'status', say: 'Tem status.', pick: ['Em aberto'], hidden: true },
+      { id: 'autor', topic: 'autor', say: 'Só o autor edita.', pick: ['autor'], hidden: true },
+      { id: 'visivel', topic: 'x', say: 'x', pick: ['x'] },
+    ],
+  })
+  assert.deepEqual(hiddenRuleOutcomes(sheet, [{ ruleIds: ['autor'] }, { ruleIds: [] }], 'Cada nota começa Em aberto.'), [
+    { id: 'status', asked: false, proposed: true },
+    { id: 'autor', asked: true, proposed: false },
+  ])
+})

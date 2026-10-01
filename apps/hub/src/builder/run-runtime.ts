@@ -13,7 +13,7 @@ import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-rou
 import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from './harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from './harness/index.js'
 import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
@@ -89,7 +89,7 @@ export type BuilderRunPorts = Readonly<{
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
   checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string }>): Promise<void>
-  git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'listFilesLong' | 'archive' | 'readBlob'>
+  git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'isStarter' | 'listFilesLong' | 'archive' | 'readBlob'>
   /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
   mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
@@ -306,6 +306,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const memory = readProjectMemory(await readProjectFile(PROJECT_MEMORY_PATH))
       const projectName = await ports.readProjectName({ accountId: input.accountId, projectId: input.projectId })
       const date = turnDate()
+      const isNew = await ports.git.isStarter(input.projectId, base)
       // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
       let conflicted: readonly string[] = []
       const bindContext: RunContextBinder = (requestContext) => {
@@ -315,6 +316,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)
         requestContext.setRaw(CONEXUS_PROJECT_NAME_KEY, projectName)
         requestContext.setRaw(CONEXUS_TURN_DATE_KEY, date)
+        requestContext.setRaw(CONEXUS_PROJECT_NEW_KEY, isNew ? 'true' : '')
         requestContext.setRaw(CONEXUS_PROJECT_INSTRUCTIONS_KEY, instructions)
         requestContext.setRaw(CONEXUS_PROJECT_MEMORY_KEY, memory)
         requestContext.setRaw(CONEXUS_CONNECTOR_BRIEF_KEY, connectorRun?.brief ?? '')
