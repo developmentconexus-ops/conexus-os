@@ -8,7 +8,7 @@ Each topic lists the tables, the columns to check, what varies per company, how 
 - Columns to check: `TIPMOV` (kind of movement), `ATUALEST` (moves stock), `ATUALFIN` and `TIPATUALFIN` (makes financial titles), `PENDENTE`, `GOLSINAL`, `GOLDEV` (a return), `ANALISEGIRO`, `BONIFICACAO`, `NAOINCCONF`, `CODTIPOPERDESTINO`, `EXIGELIB`, `EXIGECONF`, `PRECIFICA`, `NFE`, `GRUPO`, `DESCROPER`.
 - Varies: the codes, their descriptions and flags. Several TOPs can fit one business word, such as a normal sale, a bonus shipment, a consignment, a shipment to a branch or an online channel. One kind of movement does not equal one business concept.
 - Discover: the current version of each TOP (the latest `DHALTER` per code). What documents really use, grouped by TOP, kind of movement and status, with counts and totals. The version history of a TOP you rely on. The meaning of each `TIPMOV` letter in `TDDOPC`.
-- Ask: which of the operation types you found count for the person's concept, shown by their descriptions and counts, with your recommendation.
+- Ask: which of the operation types you found count for the person's concept, shown by their descriptions, with your recommendation. Keep the counts for your own check; they never go in a message or in memory.
 
 ## Document header and items
 
