@@ -37,3 +37,18 @@ test('a failed reflection and a failed background buffer are marked by what they
   const buffered = reduceTurn(buffering, event('run-1', { type: 'om_buffering_end', cycleId: 'c3', operationType: 'observation', tokensBuffered: 100, bufferedTokens: 100 }))
   assert.equal(buffered.memoryFailed, null)
 })
+
+test('a question answered after the run stopped parked on it ends completed, not failed', () => {
+  const state = (activeTools) => ({ type: 'display_state_changed', displayState: { activeTools, tasks: [], pendingApproval: null, pendingSuspensions: {} } })
+  const ask = { name: 'ask_user', args: { questions: [] } }
+  let turn = reduceTurn(idleTurn, event('run-1', state({ call1: { ...ask, status: 'running' } })))
+  turn = reduceTurn(turn, event('run-1', { type: 'tool_suspended', toolCallId: 'call1', toolName: 'ask_user', args: {}, suspendPayload: {} }))
+  turn = reduceTurn(turn, event('run-1', { type: 'agent_end', reason: 'suspended' }))
+  turn = reduceTurn(turn, event('run-1', state({ call1: { ...ask, status: 'error' } })))
+  assert.equal(turn.tools.call1.status, 'error')
+  turn = reduceTurn(turn, event('run-1', state({})))
+  turn = reduceTurn(turn, event('run-1', { type: 'tool_end', toolCallId: 'call1', result: { content: 'User answered: A' }, isError: false }))
+  assert.equal(turn.tools.call1.status, 'completed')
+  assert.equal(turn.tools.call1.isError, false)
+  assert.deepEqual(turn.waiting, {})
+})
