@@ -6,9 +6,10 @@ const INTERVAL_MS = 15_000
 
 const MEGABYTE = 1024 * 1024
 
-/** @public Tests import this at runtime from the built module. The last --max-old-space-size (MB) in the arguments, or null when none is set. */
+/** @public Tests import this at runtime from the built module. The --max-old-space-size (MB) V8 applies, or null when none is set. */
 export const oldSpaceCapBytes = (execArgv: readonly string[], nodeOptions: string | undefined): number | null => {
-  const flags = [...execArgv, ...(nodeOptions?.split(/\s+/) ?? [])]
+  // The command line wins over NODE_OPTIONS and the last flag wins within each (spec 0007, probe P6).
+  const flags = [...(nodeOptions?.split(/\s+/) ?? []), ...execArgv]
   let megabytes: number | null = null
   for (const flag of flags) {
     const match = /^--max[-_]old[-_]space[-_]size=(\d+)$/.exec(flag)

@@ -11,16 +11,23 @@ const EXACT: ReadonlySet<string> = new Set([
   'mastra.metadata.conexusBuilderProjectId', 'mastra.metadata.conexusBuilderRunId', 'mastra.metadata.result',
   'mastra.metadata.consumer', 'mastra.metadata.connector', 'mastra.metadata.step', 'mastra.metadata.attempt',
   'mastra.metadata.shared',
-  'error.type', 'exception.type', 'exception.stacktrace', 'exception.message',
+  'error.type', 'exception.type', 'exception.stacktrace',
   'trace_id', 'span_id', 'level', 'event', 'code',
 ])
 const PREFIXES = ['network.', 'gen_ai.usage.', 'conexus.'] as const
-const MESSAGE_LIMIT = 300
 
-// A stack starts with the error's message, so the same cut applies to its first part.
-const cutStack = (stack: string): string => {
-  const frames = stack.indexOf('\n    at ')
-  return frames < 0 ? stack.slice(0, MESSAGE_LIMIT) : stack.slice(0, Math.min(frames, MESSAGE_LIMIT)) + stack.slice(frames)
+// A stack begins with the error's message; only its frame lines leave.
+const framesOf = (stack: string): string | undefined => {
+  const frames = stack.split('\n').filter((line) => /^\s+at /.test(line))
+  return frames.length > 0 ? frames.join('\n') : undefined
+}
+
+const CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?=$|[:\s])/
+
+/** @public Tests import this at runtime from the built module. A log body leaves as its leading code, never as its text. */
+export const logBodyCode = (body: unknown): string | undefined => {
+  if (body === undefined) return undefined
+  return (typeof body === 'string' ? CODE.exec(body)?.[0] : undefined) ?? 'UNCODED_LOG'
 }
 
 const allowed = (key: string): boolean => EXACT.has(key) || PREFIXES.some((prefix) => key.startsWith(prefix))
@@ -30,9 +37,10 @@ export const redactAttributes = <V>(attributes: Readonly<Record<string, V | unde
   const kept: Record<string, V | undefined> = {}
   for (const [key, value] of Object.entries(attributes)) {
     if (!allowed(key)) continue
-    if (typeof value === 'string' && key === 'exception.message') kept[key] = value.slice(0, MESSAGE_LIMIT) as V
-    else if (typeof value === 'string' && key === 'exception.stacktrace') kept[key] = cutStack(value) as V
-    else kept[key] = value
+    if (key === 'exception.stacktrace' && typeof value === 'string') {
+      const frames = framesOf(value)
+      if (frames !== undefined) kept[key] = frames as V
+    } else kept[key] = value
   }
   return kept
 }
@@ -65,7 +73,10 @@ export const redactingSpans = (exporter: tracing.SpanExporter): tracing.SpanExpo
 
 export const redactingLogs = (exporter: logs.LogRecordExporter): logs.LogRecordExporter => ({
   export: (records: logs.ReadableLogRecord[], done: (result: core.ExportResult) => void) =>
-    exporter.export(records.map((record) => Object.create(record, { attributes: { value: redacted(record.attributes) } })), done),
+    exporter.export(records.map((record) => Object.create(record, {
+      attributes: { value: redacted(record.attributes) },
+      body: { value: logBodyCode(record.body) },
+    })), done),
   shutdown: () => exporter.shutdown(),
   forceFlush: () => exporter.forceFlush(),
 })

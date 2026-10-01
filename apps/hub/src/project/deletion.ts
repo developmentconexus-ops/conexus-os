@@ -94,7 +94,7 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
     } catch (error) {
       if (projectErrorCode(error) === 'PROJECT_BUSY') throw error
       // The caller only ever sees DELETION_INCOMPLETE, so the step that failed is logged here.
-      recordFailure(logger, `PROJECT_DELETION_INCOMPLETE:${tombstone.project_id}`, error)
+      recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', error, { 'conexus.project_id': tombstone.project_id })
       throw projectError('DELETION_INCOMPLETE')
     }
   }

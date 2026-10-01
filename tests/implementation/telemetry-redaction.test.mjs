@@ -3,9 +3,9 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { runWithTelemetry, startCollector } from './telemetry-harness.mjs'
 
-const { redactAttributes } = await import(hubModuleUrl('telemetry/redact.js'))
+const { logBodyCode, redactAttributes } = await import(hubModuleUrl('telemetry/redact.js'))
 
-test('redactAttributes keeps only allowlisted keys and cuts exception.message to 300 characters', () => {
+test('redactAttributes keeps only allowlisted keys, drops exception.message and keeps only the frames of a stack', () => {
   const kept = redactAttributes({
     'http.request.method': 'GET',
     'http.route': '/x',
@@ -18,14 +18,32 @@ test('redactAttributes keeps only allowlisted keys and cuts exception.message to
     'mastra.metadata.connector': 'sankhya',
     'network.protocol.version': '1.1',
     'conexus.project_id': 'p1',
-    'exception.message': 'm'.repeat(400),
+    'exception.message': 'SECRET message',
+    'exception.stacktrace': 'Error: SECRET first line\nSECRET second line\n    at run (file:///hub/a.js:1:2)\n    at main (file:///hub/b.js:3:4)',
     'brand.new.library.attribute': 'SECRET',
   })
-  assert.deepEqual(Object.keys(kept).sort(), [
-    'conexus.project_id', 'db.system.name', 'exception.message', 'gen_ai.usage.input_tokens', 'http.request.method',
-    'http.route', 'mastra.metadata.connector', 'network.protocol.version',
-  ])
-  assert.equal(kept['exception.message'].length, 300)
+  assert.deepEqual(kept, {
+    'conexus.project_id': 'p1',
+    'db.system.name': 'postgresql',
+    'exception.stacktrace': '    at run (file:///hub/a.js:1:2)\n    at main (file:///hub/b.js:3:4)',
+    'gen_ai.usage.input_tokens': 12,
+    'http.request.method': 'GET',
+    'http.route': '/x',
+    'mastra.metadata.connector': 'sankhya',
+    'network.protocol.version': '1.1',
+  })
+  assert.deepEqual(redactAttributes({ 'exception.stacktrace': 'SECRET without frames' }), {})
+})
+
+test('a log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
+  assert.equal(logBodyCode('HTTP_SERVER_ERROR'), 'HTTP_SERVER_ERROR')
+  assert.equal(logBodyCode('BUILDER_RETENTION_PRUNED:builder.runs:12'), 'BUILDER_RETENTION_PRUNED')
+  assert.equal(logBodyCode('BUILDER_RUN_FAILED SECRET cause'), 'BUILDER_RUN_FAILED')
+  assert.equal(logBodyCode('builder stream recorder stopped: SECRET'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('ACME failed'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('HTTP_SERVER_ERROR-SECRET'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('{"event":"prepare_failed"}'), 'UNCODED_LOG')
+  assert.equal(logBodyCode(undefined), undefined)
 })
 
 const PLANT = {
@@ -84,5 +102,36 @@ await trace.getTracerProvider().getDelegate().forceFlush()
     assert.equal(exported.includes('SELECT'), false, 'no SQL text was exported')
     assert.equal(exported.includes('key='), false, 'no URL query was exported')
     assert.ok(Buffer.concat(collector.bodies('/v1/metrics')).includes('conexus.telemetry.attributes_dropped'), 'drops are counted by key')
+  } finally { await collector.close() }
+})
+
+const LOG_PLANT = {
+  lineText: 'PLANTED_LOG_LINE_TEXT_4b7e',
+  uncodedText: 'PLANTED_UNCODED_TEXT_19ad',
+  errorMessage: 'PLANTED_ERROR_MESSAGE_d03c',
+  pinoMessage: 'PLANTED_PINO_MESSAGE_8f21',
+}
+
+test('log lines and logged errors export their codes, types and frames, and none of the planted text', async () => {
+  const collector = await startCollector()
+  try {
+    const result = await runWithTelemetry(`
+const P = JSON.parse(process.env.PLANT)
+const { logLine, logger, recordFailure } = await import(process.env.HUB_BUILD + '/platform/logger.js')
+logLine('BUILDER_RUN_FAILED:run-1:' + P.lineText + '\\n')
+logLine('runner said ' + P.uncodedText, 'warn')
+logger.info({ code: 'PLAIN_CODE_FIELD' }, 'HEAP_PROBE_DONE ' + P.pinoMessage)
+recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', new Error('provider echoed ' + P.errorMessage), { 'conexus.project_id': 'project-1' })
+`, { endpoint: collector.endpoint, env: { PLANT: JSON.stringify(LOG_PLANT) } })
+    assert.equal(result.code, 0, result.stderr)
+    const stdout = result.stdout
+    for (const value of Object.values(LOG_PLANT)) assert.ok(stdout.includes(value), `${value} stays on stdout`)
+    const logs = Buffer.concat(collector.bodies('/v1/logs'))
+    for (const expected of ['BUILDER_RUN_FAILED', 'UNCODED_LOG', 'HEAP_PROBE_DONE', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
+      assert.ok(logs.includes(expected), `the log export holds ${JSON.stringify(expected)}`)
+    }
+    const exported = collector.everything()
+    for (const [name, value] of Object.entries(LOG_PLANT)) assert.equal(exported.includes(value), false, `${name} was exported`)
+    assert.equal(exported.includes('exception.message'), false, 'no error message key was exported')
   } finally { await collector.close() }
 })

@@ -27,6 +27,14 @@ test('the runner script passes the same flags and loads the runner entry after t
   assert.match(line.replace(/\s+/g, ' '), /^node --max-old-space-size=512 --heapsnapshot-near-heap-limit=1 --diagnostic-dir="\$diagnostics" --report-on-fatalerror --report-directory="\$diagnostics" --import "file:\/\/\$PWD\/\$build\/telemetry\/register.js" "\$build\/app-runner\/main.js"$/)
 })
 
+test('the pilot scripts export the version on its own variable and leave OTEL_RESOURCE_ATTRIBUTES to the env file', () => {
+  for (const name of ['hub.sh', 'runner.sh']) {
+    const script = readFileSync(resolve(repositoryRoot, 'infra/pilot', name), 'utf8')
+    assert.match(script, /^export CONEXUS_SERVICE_VERSION="\$\(git rev-parse --short HEAD\)"$/m, name)
+    assert.doesNotMatch(script, /OTEL_RESOURCE_ATTRIBUTES/, name)
+  }
+})
+
 test('a forced OOM on a throwaway child with those flags writes a heap snapshot and a diagnostic report', () => {
   const directory = mkdtempSync(join(tmpdir(), 'conexus-oom-'))
   try {

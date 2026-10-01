@@ -21,7 +21,7 @@ set -a
 source "$env_file"
 set +a
 echo "runner starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
-export OTEL_RESOURCE_ATTRIBUTES="service.version=$(git rev-parse --short HEAD)${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
+export CONEXUS_SERVICE_VERSION="$(git rev-parse --short HEAD)"
 diagnostics="${CONEXUS_DIAGNOSTIC_DIR:-$logs/diagnostics}"
 mkdir -p "$diagnostics"
 node --max-old-space-size=512 --heapsnapshot-near-heap-limit=1 --diagnostic-dir="$diagnostics" \

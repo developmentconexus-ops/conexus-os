@@ -42,7 +42,8 @@ test('a 5xx logs its type, message and stack with the trace id and marks the spa
     assert.match(inside.trace_id, /^[0-9a-f]{32}$/, 'every record written inside a span carries trace_id')
     const logs = Buffer.concat(collector.bodies('/v1/logs'))
     assert.ok(logs.includes('HTTP_SERVER_ERROR'))
-    assert.ok(logs.includes('cause: PLANTED_CAUSE_TEXT'), 'the cause is in the OTLP log export')
+    assert.equal(logs.includes('PLANTED_CAUSE_TEXT'), false, 'the cause stays on stdout and out of the OTLP log export')
+    assert.ok(logs.includes('exception.stacktrace'), 'the export carries the frames')
     assert.ok(logs.includes(Buffer.from(failure.trace_id, 'hex')), 'the OTLP log record carries the same trace id')
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes(Buffer.from(failure.trace_id, 'hex')), 'and the trace holds it')
   } finally { await collector.close() }
@@ -93,5 +94,6 @@ test('the application host logs the cause of a failed invoke with project and op
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes(Buffer.from(failure.trace_id, 'hex')))
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes('exception'), 'the exception is recorded on the span')
+    assert.equal(collector.everything().includes('PLANTED_RUNNER_CAUSE'), false, 'the cause stays on stdout')
   } finally { await collector.close() }
 })

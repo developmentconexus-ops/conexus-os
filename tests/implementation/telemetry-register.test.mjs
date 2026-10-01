@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { runWithTelemetry, startCollector } from './telemetry-harness.mjs'
@@ -27,18 +30,39 @@ test('with the endpoint set the Hub exports traces, logs and metrics for the hub
   try {
     const result = await runWithTelemetry(`
 const { logger } = await import(process.env.HUB_BUILD + '/platform/logger.js')
-logger.info('telemetry-register-log-line')
+logger.info('TELEMETRY_REGISTER_LOG_LINE')
 ${SERVE_ONE_REQUEST}`, { endpoint: collector.endpoint, env: { OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=test,service.version=abc1234' } })
     assert.equal(result.code, 0, result.stderr)
     const paths = [...new Set(collector.requests.map((entry) => entry.path))].sort()
     assert.deepEqual(paths, ['/v1/logs', '/v1/metrics', '/v1/traces'])
     const traces = Buffer.concat(collector.bodies('/v1/traces'))
     for (const expected of ['conexus-hub', 'abc1234', 'deployment.environment.name', '/ping']) assert.ok(traces.includes(expected), `trace export holds ${expected}`)
-    assert.ok(Buffer.concat(collector.bodies('/v1/logs')).includes('telemetry-register-log-line'))
+    assert.ok(Buffer.concat(collector.bodies('/v1/logs')).includes('TELEMETRY_REGISTER_LOG_LINE'))
     for (const name of ['conexus.process.heap.used_ratio', 'process.memory.usage', 'v8js.memory.heap.used']) {
       assert.ok(Buffer.concat(collector.bodies('/v1/metrics')).includes(name), `metrics export holds ${name}`)
     }
   } finally { await collector.close() }
+})
+
+test('the env file names the environment and the launch script the version, and neither overrides the other', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'conexus-env-file-'))
+  const envFile = join(directory, 'hub.env')
+  writeFileSync(envFile, 'OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=pilot-from-env-file\n')
+  const collector = await startCollector()
+  try {
+    const result = await runWithTelemetry(SERVE_ONE_REQUEST, {
+      endpoint: collector.endpoint,
+      nodeArguments: [`--env-file=${envFile}`],
+      env: { CONEXUS_SERVICE_VERSION: 'feed123', OTEL_RESOURCE_ATTRIBUTES: undefined },
+    })
+    assert.equal(result.code, 0, result.stderr)
+    const traces = Buffer.concat(collector.bodies('/v1/traces'))
+    assert.ok(traces.includes('pilot-from-env-file'), 'the env file environment reached the resource')
+    assert.ok(traces.includes('service.version') && traces.includes('feed123'), 'the launch script version reached the resource')
+  } finally {
+    await collector.close()
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 test('the runner entry names itself conexus-runner', async () => {
