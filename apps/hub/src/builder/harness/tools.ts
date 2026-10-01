@@ -80,7 +80,7 @@ export const createSubmitPlanTool = (checkout: string): typeof submitPlanTool =>
 })
 
 export const ASK_USER_TOOL = 'ask_user'
-export const MAX_QUESTIONS = 4
+const MAX_QUESTIONS = 4
 
 const ASK_USER_DESCRIPTION = [
   'Ask the person 1 to 4 questions in one card and wait for their answers. Use it only for what the person alone can decide: a business rule, a company fact or a preference you cannot find in the Project, the Conexão, the web or a sensible default. Never ask what you can look up or choose yourself.',
@@ -99,7 +99,7 @@ const askQuestionSchema = z.object({
   multiSelect: z.boolean().optional(),
 })
 
-export type AskQuestion = z.infer<typeof askQuestionSchema>
+type AskQuestion = z.infer<typeof askQuestionSchema>
 
 const askInputSchema = z.object({ questions: z.array(askQuestionSchema).min(1).max(MAX_QUESTIONS) })
 

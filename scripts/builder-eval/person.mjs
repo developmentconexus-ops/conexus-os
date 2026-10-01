@@ -16,7 +16,7 @@ const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
 // signed in to Mastra Code's own store by `login.mjs`.
 const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'
-export const RULE_KINDS = Object.freeze(['stated', 'design'])
+const RULE_KINDS = Object.freeze(['stated', 'design'])
 
 const SILENT_OPTION = /n[ãa]o sei|tanto faz|qualquer|voc[êe] decide|voc[êe] escolhe/i
 

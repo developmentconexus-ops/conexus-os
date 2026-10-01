@@ -70,7 +70,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs tests/implementation/connector-fetch-postgres.test.mjs', 'postgres'),
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
-  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs'),
+  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),
@@ -124,7 +124,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
 
   candidateStep('brand-wordmark-csp', 'node --test tests/implementation/brand-wordmark-csp.test.mjs', 'browser'),
   candidateStep('builder-tool-sentences', 'node --test tests/implementation/builder-tool-sentences.test.mjs'),
-  candidateStep('builder-skills-guard', 'node --test tests/implementation/builder-skills-guard.test.mjs tests/implementation/builder-skill-manifest-vocabulary.test.mjs'),
+  candidateStep('builder-skills-guard', 'node --test tests/implementation/builder-skills-guard.test.mjs tests/implementation/builder-skills-no-answer-key.test.mjs tests/implementation/builder-skill-manifest-vocabulary.test.mjs'),
   candidateStep('builder-guidance-neutral', 'node --test tests/repository/builder-guidance-neutral.test.mjs'),
   candidateStep('conexus-preflight', 'node --test tests/repository/conexus-preflight.test.mjs'),
 
@@ -147,7 +147,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
-  candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs', 'browser'),
+  candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs', 'browser'),
   candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
