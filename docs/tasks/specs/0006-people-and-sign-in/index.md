@@ -151,9 +151,12 @@ Realm, bootstrap and Microsoft
   realm holds a `realm-management` role other than the service account's two, or when any
   permission or policy of the `admin-permissions` client is not one it created.
   [`keycloak-people-probe`, live]
-- **AC-19**: `provision.sh --first-admin-email --first-admin-name --hub-env` creates the first person
-  with no password typed anywhere, sends the invite and writes `CONEXUS_BOOTSTRAP_SUBJECT`.
-  `create-first-user.sh` is deleted. [live check]
+- **AC-19**: `conexus-settings first-person --email --name --hub-env` creates the first person with no
+  password typed anywhere, sends the invite and writes `CONEXUS_BOOTSTRAP_SUBJECT`. It is the last
+  step of 0008's *Fresh install order*, after `apply keycloak` and before the Hub's first sign-in,
+  and signs in as the provisioner client with `keycloak-provisioner`, not as the bootstrap or
+  break-glass account. It refuses when `keycloak-provisioner` is missing or a person already exists.
+  `create-first-user.sh` is deleted and `provision.sh` has no `--first-admin-*` flag. [live check]
 - **AC-20**: `apply keycloak` creates or updates the identity provider and the flow
   `conexus-first-broker-login` from `identity.source` (0008 AC-24), with the alias from the setting,
   not the literal `microsoft`, and the exact settings of *Microsoft sign-in*. `--entra-file` does not
@@ -372,16 +375,19 @@ binding), moved to one shared function. Lookups use `exact=true`. `createUser` r
 
 `apply keycloak` (0008) applies the same file to a running realm: realm attributes, missing clients
 created from the file, the service account's two roles, the permissions of *Provisioner authority*,
-the client secret generated once and written to `--provisioner-secret-file` (mode 600) when that file
-is absent. It also sets the per-installation parts no file in the repository holds, from settings:
+the client secret generated once and written to `keycloak-provisioner` in the operator secrets
+directory (mode 600) when that file is absent, and replaced by `--init --rotate`. It also sets the per-installation parts no file in the repository holds, from settings:
 the session fields from `identity.session.*`, the `conexus-hub` redirect URIs and `baseUrl` from
 `CONEXUS_ORIGIN`, SMTP from `mail.smtp` (`host`, `port`, `from`, `fromDisplayName`, `starttls`,
 `ssl`, `auth`, `user`) with the password file `smtp-password` of the operator secrets directory, and
 *Microsoft sign-in* from `identity.source`. Flows and identity providers are set by `apply keycloak`
 only, because a realm import that carries `authenticationFlows` replaces Keycloak's built-in flows.
-A fresh install follows 0008's *Fresh install order*. `provision.sh` gains `--first-admin-email`,
-`--first-admin-name` and `--hub-env`, which create the first person through `kcadm` exactly as
-CreatePerson does in Keycloak, send `INVITE_WITH_PASSWORD`, and write `CONEXUS_BOOTSTRAP_SUBJECT`.
+A fresh install follows 0008's *Fresh install order*. Its last step, `conexus-settings first-person
+--email --name --hub-env`, creates the first person through the Keycloak admin API with the
+provisioner credential, exactly as CreatePerson does, sends `INVITE_WITH_PASSWORD`, and writes
+`CONEXUS_BOOTSTRAP_SUBJECT`. It is a `conexus-settings` subcommand so the operator keeps one tool
+after `provision.sh`. It cannot run earlier: SMTP is set before `apply keycloak`, and `--init`
+deletes the bootstrap admin.
 The `conexus` realm has no human administrator. The `master` realm holds the operator's break-glass
 account and the `conexus-settings` service account that `apply keycloak` uses (0008 AC-13); the
 bootstrap admin is temporary in Keycloak 26, and `apply keycloak --init` deletes it.
@@ -596,8 +602,8 @@ same rows.
    "starttls": true, "ssl": false, "auth": true, "user" }' --reason <text>`. For the local live check,
    a mail catcher on the Keycloak container's network (`host` its container name, `port` 1025,
    `auth` `false`).
-2. **Realm.** Follow 0008's *Fresh install order*, with `apply keycloak --provisioner-secret-file
-   <path>` against the running `conexus-keycloak` (26.7.2, where admin permissions v2 is on by
+2. **Realm.** Follow 0008's *Fresh install order*, with `apply keycloak`, which writes
+   `keycloak-provisioner`, against the running `conexus-keycloak` (26.7.2, where admin permissions v2 is on by
    default; do not start it with `--features=admin-fine-grained-authz:v1`). Check in the Keycloak
    console (signed in with the break-glass account): Realm settings > General has Admin Permissions
    on; Clients > `conexus-hub-provisioner` > Service account roles shows only `query-users` and
@@ -605,13 +611,15 @@ same rows.
    manage) and `conexus-provisioner-no-password` (Users, all users, reset-password, policy
    `conexus-nobody`); Realm settings > Email shows the sender; Realm settings > Events has admin events on. Never give the service account
    `manage-users`, `view-users` or any other admin role: a role switches the permissions off.
-3. **Hub.** Add `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE=<path>` to `hub.env` and restart the Hub,
-   after `apply keycloak` wrote the secret.
+3. **First person and Hub.** After `apply keycloak`, run `conexus-settings first-person --email
+   <email> --name <name> --hub-env <path>`. Add `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE=<path to
+   keycloak-provisioner>` to `hub.env` and start the Hub, which refuses to start without it.
 4. **Microsoft (company IT).** Send the company's Microsoft 365 administrator the Entra guide with this
    installation's redirect URI, `https://<Keycloak host>/realms/conexus/broker/<alias>/endpoint`,
    single tenant, a client secret valid 6 months, delegated `openid`, `profile`, `email`, `User.Read`
    with admin consent, and under Token configuration the optional ID token claim `email`. Receive the
-   tenant id, client id and secret over a private channel.
+   tenant id, client id and secret over a private channel. On a brokered installation, set
+   `identity.source` (step 5) before `apply keycloak` of step 2 on a fresh install.
 5. **Microsoft (Keycloak).** Write the client secret to `entra-client-secret` in the operator secrets
    directory, mode 600, then `conexus-settings set identity.source '{ "kind": "BROKERED", "alias",
    "tenantId", "clientId", "secretExpiresOn" }' --reason <text>`, which runs `apply keycloak`. No env
@@ -638,7 +646,7 @@ Slices 3 to 5 are one release: the migration removes the only other way an accou
 Pessoas screen must ship with it.
 
 1. Realm, after 0008's slice 1 delivers `apply keycloak`: `realm-conexus.json`, *Provisioner
-   authority* in `apply keycloak`, the `provision.sh` flags, the deletion of
+   authority* in `apply keycloak`, `conexus-settings first-person`, the deletion of
    `create-first-user.sh`, the README and `AGENTS.md`. Operator steps 1 and 2. Satisfies **AC-18**,
    **AC-19**.
 2. Adapter: `keycloak-admin.ts` with `readAdminEvents`, the shared local issuer transport, the
