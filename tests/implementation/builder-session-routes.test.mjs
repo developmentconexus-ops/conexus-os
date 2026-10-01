@@ -76,7 +76,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, controller, conversations, reachedContexts }
+  return { app, controller, conversations, memory, reachedContexts }
 }
 
 const authentic = {
@@ -247,7 +247,7 @@ test('a session-state write outside the reasoning level is refused before it rea
   const { app, reachedContexts } = await createBuilderApp(t)
   const stateUrl = `${sessionBase()}/state?${inConversation()}`
   const yolo = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { yolo: true } } })
-  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'max' } } })
+  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'extreme' } } })
   const mixed = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low', yolo: true } } })
   const extraTopLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low' }, extra: 1 } })
   assert.deepEqual([yolo.statusCode, badLevel.statusCode, mixed.statusCode, extraTopLevel.statusCode], [400, 400, 400, 400])
@@ -255,13 +255,23 @@ test('a session-state write outside the reasoning level is refused before it rea
   assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/state')), [])
 })
 
+test("the reasoning level write admits each of Mastra Code's six levels", async (t) => {
+  const { app } = await createBuilderApp(t)
+  const stateUrl = `${sessionBase()}/state?${inConversation()}`
+  const statuses = []
+  for (const thinkingLevel of ['off', 'low', 'medium', 'high', 'xhigh', 'max']) {
+    statuses.push((await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel } } })).statusCode)
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200])
+})
+
 test("deleting a Project's conversations removes its threads and their messages, leaves another Project's, and repeating it converges", async (t) => {
-  const { app, controller, conversations } = await createBuilderApp(t)
+  const { app, controller, conversations, memory } = await createBuilderApp(t)
   const elsewhere = randomUUID()
   await controller.createSession({ resourceId: `project:${projectB}`, scope: `conversation:${elsewhere}`, threadId: elsewhere })
   const second = randomUUID()
   assert.equal((await openConversation(app, projectA, second)).statusCode, 200)
-  await conversations.appendMessage({ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } })
+  await memory.saveMessages({ messages: [{ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } }] })
   await conversations.deleteAll(projectA)
   await conversations.deleteAll(projectA)
   assert.deepEqual(await listConversations(app), [])
@@ -336,4 +346,18 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.deepEqual([withMode.statusCode, withVariant.statusCode, unknown.statusCode], [400, 400, 404])
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
+})
+
+test("the browser reaches exactly ten of Mastra's agent-controller routes, each one Mastra's own route table names", async (t) => {
+  const { SERVER_ROUTES } = await import('@mastra/server/server-adapter')
+  const { app } = await createBuilderApp(t)
+  const mounted = SERVER_ROUTES
+    .filter((route) => route.path.startsWith('/agent-controller/'))
+    .filter((route) => app.hasRoute({ method: route.method, url: `/api/builder${route.path}` }))
+    .map((route) => `${route.method} ${route.path.replace('/agent-controller/:controllerId/sessions', '')}`)
+  assert.deepEqual(mounted.sort(), [
+    'GET /:resourceId', 'GET /:resourceId/stream', 'GET /:resourceId/threads', 'GET /:resourceId/threads/:threadId/messages',
+    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-approval', 'POST /:resourceId/tool-suspension',
+    'PUT /:resourceId/state',
+  ])
 })

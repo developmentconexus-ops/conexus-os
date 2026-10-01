@@ -238,7 +238,6 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       git,
       conversations: {
         ownerOf: async () => 'PROJECT',
-        titleFromRequest: async () => {},
       },
       source: createProjectSourceReads({ git }),
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },

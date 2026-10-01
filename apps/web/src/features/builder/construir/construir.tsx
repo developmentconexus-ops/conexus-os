@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null, retrying: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -123,7 +123,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const sessionModel = useSessionModel(projectId, conversationId)
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the person can use.
-  const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
+  const offeredModels = (models.data?.models ?? []).filter((model) => model.hasApiKey)
   const modelReady = offeredModels.some((model) => model.id === sessionModel.modelId)
 
   const run = session.data?.latestBuilderRun ?? null
@@ -296,7 +296,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
@@ -341,7 +341,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           modelsPending={models.isPending}
           modelId={modelReady ? sessionModel.modelId : ''}
           onModelChange={(modelId) => sessionModel.choose.mutate(modelId)}
-          reasoning={sessionModel.reasoning}
+          reasoning={sessionModel.reasoning ?? models.data?.defaultThinkingLevel ?? null}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           memory={shownMemory}
           memoryFailed={conversationTurn.memoryFailed}

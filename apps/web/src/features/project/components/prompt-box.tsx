@@ -64,7 +64,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
   const seconds = useElapsedSeconds(mutation.isPending)
   const confirming = name !== null
   const models = useBuilderModels()
-  const offeredModels = (models.data ?? []).filter((model) => model.hasApiKey)
+  const offeredModels = (models.data?.models ?? []).filter((model) => model.hasApiKey)
   const modelReady = offeredModels.some((model) => model.id === modelId)
   // Construir reads its default from the conversation the server already gave one; there is no
   // conversation yet here, so the first model this account can actually use stands in for it.
@@ -118,7 +118,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       modelsPending={models.isPending}
       modelId={modelReady ? modelId : ''}
       onModelChange={setModelId}
-      reasoning={reasoning}
+      reasoning={reasoning ?? models.data?.defaultThinkingLevel ?? null}
       onReasoningChange={setReasoning}
     />
 

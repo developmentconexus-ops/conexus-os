@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { modelSpecificPrompts } from '@mastra/code-sdk/agents/prompts/model'
 import type { RequestContext } from '@mastra/core/request-context'
 import { MODEL_KNOWLEDGE_CUTOFFS } from './model-cutoffs.js'
 import {
@@ -81,10 +82,13 @@ export const conexusInstructions = (
     instructions: readRawString(requestContext, CONEXUS_PROJECT_INSTRUCTIONS_KEY),
     memory: readRawString(requestContext, CONEXUS_PROJECT_MEMORY_KEY),
   })
+  // Mastra Code's guidance for this model (`modelSpecificPrompts` in `@mastra/code-sdk`, keyed by the same `<provider>/<model>` id), added after the prompt as `buildFullPromptSections` adds it after the base prompt.
+  const modelPrompt = modelId !== undefined && Object.hasOwn(modelSpecificPrompts, modelId) ? modelSpecificPrompts[modelId as keyof typeof modelSpecificPrompts].trim() : ''
+  const prompt = modelPrompt ? `${filled.trimEnd()}\n\n${modelPrompt}` : filled
   const conflicts = readTurnConflicts(requestContext)
   return conflicts.length > 0
-    ? `${filled.trimEnd()}\n\n## Merge conflicts\n\nBringing the Project's current main into these files left conflict markers; resolve them before any other change: ${conflicts.map((path) => `\`${path}\``).join(', ')}.`
-    : filled
+    ? `${prompt.trimEnd()}\n\n## Merge conflicts\n\nBringing the Project's current main into these files left conflict markers; resolve them before any other change: ${conflicts.map((path) => `\`${path}\``).join(', ')}.`
+    : prompt
 }
 
 /** Today as `YYYY-MM-DD` in `America/Sao_Paulo`, the date the prompt states. */

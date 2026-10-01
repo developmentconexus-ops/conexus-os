@@ -19,14 +19,14 @@ const builderRunId = '11111111-1111-4111-8111-111111111111'
 const conversationId = '44444444-4444-4444-8444-444444444444'
 const CONNECT_TIMEOUT = 'timeout exceeded when trying to connect'
 
-const answering = (failModelWith) => {
+const answering = (failModelWith, failTimes = Infinity) => {
   const calls = []
   const model = {
     specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
     async doGenerate() { throw new Error('doGenerate not used') },
     async doStream() {
       calls.push(calls.length)
-      if (failModelWith) throw failModelWith
+      if (failModelWith && calls.length <= failTimes) throw failModelWith
       return { stream: streamOf([{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Pronto.' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]) }
     },
   }
@@ -55,7 +55,7 @@ const openRun = async (t, { model, failsRead }) => {
   }
   const controller = createBuilderController({
     workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
-    model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
+    model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'), modelRetryDelayMs: () => 1,
   })
   await controller.init()
   t.after(() => controller.destroy?.())
@@ -64,7 +64,7 @@ const openRun = async (t, { model, failsRead }) => {
     runCheck: async () => { throw new Error('not used') },
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
-  return { run, storageCalls }
+  return { run, storageCalls, controller }
 }
 
 const settle = (turn) => turn.then((value) => ({ settled: 'resolved', reason: value.reason, continuations: value.continuations }), (error) => ({ settled: 'rejected', code: error.message }))
@@ -103,4 +103,38 @@ test('the web says a platform fault was the Conexus, not the model, and other in
   assert.equal(failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_PREPARATION_FAILED' }), 'Ocorreu um erro interno inesperado. Tente novamente.')
   assert.equal(failureReason({ failureCategory: 'MODEL_REQUEST_REFUSED', failureCode: 'BUILDER_MODEL_STREAM_FAILED' }), 'O provedor do modelo recusou ou interrompeu o pedido. Tente novamente ou escolha outro modelo.')
   assert.equal(failureReason(null), 'Ocorreu um erro interno inesperado. Tente novamente.')
+})
+
+const MODEL_FAILURES = [
+  ['503', Object.assign(new Error('Service Unavailable'), { statusCode: 503 })],
+  ['ECONNRESET', Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })],
+  ['overloaded 529', Object.assign(new Error('Overloaded'), { statusCode: 529 })],
+]
+for (const [label, failure] of MODEL_FAILURES) {
+  test(`a model ${label} three times is retried by Mastra inside the call, and the turn completes with no continuation message`, async (t) => {
+    const { model, calls } = answering(failure, 3)
+    const { run, controller } = await openRun(t, { model, failsRead: () => false })
+    const retryEvents = []
+    const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+    session.subscribe((event) => { if (event.type === 'error') retryEvents.push([event.retryable, event.retryAttempt, event.maxRetries]) })
+    assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'resolved', reason: 'complete', continuations: 0 })
+    assert.equal(calls.length, 4, 'one call that failed three times, then the one that answered')
+    assert.deepEqual(retryEvents, [[true, 1, 10], [true, 2, 10], [true, 3, 10]], 'each retry is announced as a retryable error event')
+  })
+}
+
+test("a model 503 that never clears is retried ten times, Mastra Code's limit, then fails as a refused model request without a continuation", async (t) => {
+  const { model, calls } = answering(Object.assign(new Error('Service Unavailable'), { statusCode: 503 }))
+  const { run } = await openRun(t, { model, failsRead: () => false })
+  const outcome = await settle(run.sendTurn('Faça o app.'))
+  assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' })
+  assert.equal(calls.length, 11)
+  assert.equal(builderFailureCategory(outcome.code), 'MODEL_REQUEST_REFUSED')
+})
+
+test('a rate limit is retried by Mastra twice, then fails as rate limited, with no continuation message', async (t) => {
+  const { model, calls } = answering(Object.assign(new Error('Too many requests'), { statusCode: 429 }))
+  const { run } = await openRun(t, { model, failsRead: () => false })
+  assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
+  assert.equal(calls.length, 3)
 })

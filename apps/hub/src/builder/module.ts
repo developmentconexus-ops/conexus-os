@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { createHash } from 'node:crypto'
+import type { AgentController } from '@mastra/core/agent-controller'
 import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
@@ -36,7 +37,8 @@ import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
 import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
-import { GOOGLE_AI_PRO_PROVIDER, parseKey } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import { createGoogleAiProRoute } from './google-ai-pro/route.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
@@ -134,15 +136,28 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
 
-const noteMessage = (note: RunNote) => ({
-  id: diagnosticMessageId(note.builderRunId, note.code), role: 'assistant' as const, createdAt: new Date(), threadId: note.conversationId,
-  resourceId: projectResourceId(note.projectId),
-  content: { format: 2 as const, parts: [{ type: 'text' as const, text: NOTE_TEXT[note.outcome](note) }] },
+type NoteSession = Pick<Awaited<ReturnType<AgentController['createSession']>>, 'sendSignalToThread'>
+
+/**
+ * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as
+ * 6b in docs/reference/mastra-boundary.md): the next turn's model reads it as
+ * `<notification source="conexus" ...>` context, and the thread stores it as a `signal` row the
+ * browser renders as a notice, never as the Builder speaking. Its id is deterministic, so a retry
+ * writes it once.
+ */
+const noteSignal = (note: RunNote) => ({
+  id: diagnosticMessageId(note.builderRunId, note.code),
+  type: 'notification' as const,
+  contents: NOTE_TEXT[note.outcome](note),
+  attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
 /** @public Tests import this at runtime from the built module. */
-export const createDiagnosticAppender = (conversations: Pick<ReturnType<typeof createConversations>, 'appendMessage'>) =>
-  (note: RunNote): Promise<void> => conversations.appendMessage(noteMessage(note))
+export const createDiagnosticAppender = (openSession: (target: Readonly<{ resourceId: string; threadId: string }>) => Promise<NoteSession>) =>
+  async (note: RunNote): Promise<void> => {
+    const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
+    await (await openSession(target)).sendSignalToThread(noteSignal(note), target).accepted
+  }
 
 /** @public Tests import this at runtime from the built module. */
 export const compactProcessorRunPayloads: SpanOutputProcessor = {
@@ -296,23 +311,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   googleAiProReady.catch(() => undefined)
 
   const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
-    // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
-    [GOOGLE_AI_PRO_PROVIDER]: {
-      accountProvider: GOOGLE_AI_PRO_PROVIDER,
-      take: (account) => {
-        const key = parseKey(account.secret)
-        if (!key) throw new Error('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
-        googleWriteBack.track(key, account.modelAccountId)
-        return {
-          modelProvider: GOOGLE_AI_PRO_PROVIDER,
-          model: async (modelName) => {
-            const url = (await googleAiProReady.catch(() => undefined))?.url
-            if (!url) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-            return { providerId: GOOGLE_AI_PRO_PROVIDER, modelId: modelName, url: `${url}/v1`, apiKey: key }
-          },
-        }
-      },
-    },
+    [GOOGLE_AI_PRO_PROVIDER]: createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
     [OPENAI_MODEL_PROVIDER]: createOpenAICodexRoute(createCodexHolds({ store: modelAccounts }), builder.modelStreamRecordDir),
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
     [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
@@ -350,12 +349,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
+  const conversationSession = async (resourceId: string, conversationId: string) => {
+    await ready
+    return controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext() })
+  }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
   const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
-    await ready
-    const session = await controller.createSession({
-      resourceId: projectResourceId(projectId), scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext(),
-    })
+    const session = await conversationSession(projectResourceId(projectId), conversationId)
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
@@ -385,7 +385,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     git,
     conversations,
     source: createProjectSourceReads({ git }),
-    appendDiagnostic: createDiagnosticAppender(conversations),
+    appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,

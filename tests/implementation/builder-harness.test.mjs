@@ -61,6 +61,28 @@ test('AC-1, AC-2: the model input holds the approved text and no word of a mode 
   assert.equal(conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext }).includes('knowledge cutoff'), false)
 })
 
+test('an openai gpt-5.5 or gpt-5.4 conversation gets Mastra Code\'s model prompt after the Conexus prompt, and any other model gets none', () => {
+  const instructionsFor = (modelId, conflicts = '') => {
+    const requestContext = new RequestContext()
+    for (const [key, value] of [
+      [CONEXUS_PROJECT_NAME_KEY, VALUES.projectName], [CONEXUS_TURN_DATE_KEY, VALUES.date], [CONEXUS_PROJECT_NEW_KEY, 'true'],
+      [CONEXUS_CONNECTOR_BRIEF_KEY, VALUES.connections], [CONEXUS_PROJECT_INSTRUCTIONS_KEY, VALUES.instructions], [CONEXUS_PROJECT_MEMORY_KEY, VALUES.memory],
+      [CONEXUS_TURN_CONFLICTS_KEY, conflicts],
+    ]) requestContext.setRaw(key, value)
+    requestContext.set('controller', { session: { modelId } })
+    return conexusInstructions(undefined, {})({ requestContext })
+  }
+  const plain = instructionsFor('anthropic/claude-opus-5-5')
+  const gpt55 = instructionsFor('openai/gpt-5.5')
+  assert.equal(gpt55.startsWith(`${plain.trimEnd()}\n\n<coding_behavior>\nWork outcome-first: infer the user's goal`), true)
+  assert.equal(gpt55.endsWith('and comments that only explain the diff.\n</coding_behavior>'), true)
+  const gpt54 = instructionsFor('openai/gpt-5.4')
+  assert.equal(gpt54.startsWith(`${plain.trimEnd()}\n\n<autonomy_and_persistence>\nPersist until the task is fully handled`), true)
+  assert.equal(instructionsFor('openai/gpt-5.3'), plain)
+  const withConflicts = instructionsFor('openai/gpt-5.5', 'app/a.tsx')
+  assert.equal(withConflicts.endsWith('</coding_behavior>\n\n## Merge conflicts\n\nBringing the Project\'s current main into these files left conflict markers; resolve them before any other change: `app/a.tsx`.'), true)
+})
+
 test('the new-app line is in the Environment of a new Project and absent, with no empty bullet, after a saved version', () => {
   const line = '- This app is new: it has only the starter screen.\n'
   const fresh = fillPrompt(template, VALUES)
@@ -200,53 +222,87 @@ const scriptedModel = () => {
   return { model, calls }
 }
 
-test('a Google AI Pro model lists its tools without throwing and has no web_search; a native provider model keeps it', async () => {
-  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
-  // The exact MastraModelConfig shape module.ts's createModelResolver returns for every run today
-  // (Only Google AI Pro is wired in slice 1): an OpenAICompatibleConfig routed through CLIProxy,
-  // whose provider id Mastra's built-in webSearchTool cannot infer as OpenAI, Anthropic, Google, or xAI.
-  const googleAiProModel = { providerId: 'google-ai-pro', modelId: 'gemini-3.1-pro-low', url: 'http://127.0.0.1:1/v1', apiKey: 'test-key' }
-  const googleController = createBuilderController({ model: googleAiProModel, storage: new InMemoryStore(), skillsPath })
-  const googleSession = await googleController.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
-  const googleTools = await googleController.getCurrentAgent(googleSession).listTools({ requestContext: new RequestContext() })
-  assert.equal('web_search' in googleTools, false, 'a provider Mastra cannot infer gets no web_search tool')
-  assert.equal('web_fetch' in googleTools, true, 'web_fetch stays available regardless of provider')
+test("a Google AI Pro run's web_search is a search-only agent on the person's own model, and Google's search never sits beside the Builder's function tools", async (t) => {
+  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
+  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
+  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
+  const model = () => route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const session = await controller.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
+  const agent = controller.getCurrentAgent(session)
+  const tools = await agent.listTools({ requestContext: new RequestContext() })
 
-  const nativeController = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore(), skillsPath })
-  const nativeSession = await nativeController.createSession({ resourceId: 'project:probe-native-search', scope: 'probe-native-search' })
-  const nativeTools = await nativeController.getCurrentAgent(nativeSession).listTools({ requestContext: new RequestContext() })
-  assert.equal('web_search' in nativeTools, true, 'a model on a native-search provider keeps web_search')
+  // Gemini's API, answering one grounded search; every request is recorded.
+  const sent = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    const body = await request.json()
+    sent.push({ url: request.url, tools: body.tools, thinking: body.generationConfig?.thinkingConfig })
+    const answer = { candidates: [{ content: { role: 'model', parts: [{ text: 'O Node 24 é a LTS atual.' }] }, finishReason: 'STOP', groundingMetadata: { groundingChunks: [{ web: { uri: 'https://nodejs.org/en/about/previous-releases', title: 'nodejs.org' } }] } }] }
+    return request.url.includes(':streamGenerateContent')
+      ? new Response(`data: ${JSON.stringify(answer)}\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+      : Response.json(answer)
+  }
+  t.after(() => { globalThis.fetch = original })
+
+  assert.deepEqual([tools.web_search.id, 'type' in tools.web_search, 'web_fetch' in tools], ['web_search', false, true], 'web_search is a function tool of the Builder, not a provider search')
+  assert.deepEqual(await tools.web_search.execute({ query: 'qual a LTS atual do Node?' }, {}), {
+    text: 'O Node 24 é a LTS atual.',
+    sources: [{ title: 'nodejs.org', url: 'https://nodejs.org/en/about/previous-releases' }],
+  })
+  assert.deepEqual(sent, [{
+    url: 'http://127.0.0.1:9/v1beta/models/gemini-3-flash:generateContent', tools: [{ googleSearch: {} }], thinking: { thinkingLevel: 'low', includeThoughts: true },
+  }], 'one call per query, with Google search as its only tool')
+
+  sent.length = 0
+  await (await agent.stream('pesquise a LTS do Node', { requestContext: new RequestContext(), maxSteps: 1 })).consumeStream()
+  const [builderCall] = sent
+  const declared = builderCall.tools.flatMap((tool) => tool.functionDeclarations?.map(({ name }) => name) ?? [])
+  assert.deepEqual([declared.includes('web_search'), builderCall.tools.some((tool) => 'googleSearch' in tool)], [true, false], 'the Builder declares web_search as a function and never asks for Google search itself')
 })
 
-test('a ChatGPT subscription model lists its tools without throwing and gets OpenAI\'s Responses web_search: it reports provider openai.responses, which Mastra\'s webSearchTool cannot map', async () => {
+// What the model receives as tools on one turn, with the provider's own stream replaced by a canned reply.
+const toolsSentToModel = async (model, resourceId) => {
+  const sent = []
+  const v3Usage = { inputTokens: { total: 1, noCache: 1 }, outputTokens: { total: 1, text: 1 } }
+  const { wrapLanguageModel } = await import('ai')
+  const recorded = wrapLanguageModel({
+    model: await model(),
+    middleware: {
+      specificationVersion: 'v3',
+      wrapStream: async ({ params }) => {
+        sent.push(params.tools)
+        return { stream: streamOf([{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage: v3Usage }]) }
+      },
+    },
+  })
+  const controller = createBuilderController({ model: () => recorded, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const session = await controller.createSession({ resourceId, scope: resourceId })
+  await (await controller.getCurrentAgent(session).stream('pesquise', { requestContext: new RequestContext(), maxSteps: 1 })).consumeStream()
+  return { provider: recorded.provider, search: sent[0].filter((tool) => tool.name === 'web_search'), names: sent[0].map((tool) => tool.name) }
+}
+
+test('a ChatGPT subscription model, which reports provider openai.responses and which webSearchTool cannot map, asks OpenAI for its own web_search', async () => {
   const { codexModel } = await import('./codex-model.mjs')
-  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
   const unused = { access: 'unused', refresh: 'unused', expires: Date.now() + 3_600_000, accountId: 'unused' }
-  // The model module.ts's resolver returns for an `openai/*` selection on a ChatGPT subscription.
-  const model = () => codexModel('gpt-5.6-sol', unused)
-  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
-  const session = await controller.createSession({ resourceId: 'project:probe-chatgpt', scope: 'probe-chatgpt' })
-  const tools = await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() })
-  assert.deepEqual(['web_search' in tools, 'web_fetch' in tools, (await model()).provider], [true, true, 'openai.responses'])
-  assert.deepEqual(tools.web_search, { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} })
+  const { provider, search, names } = await toolsSentToModel(() => codexModel('gpt-5.6-sol', unused), 'project:probe-chatgpt')
+  assert.equal(provider, 'openai.responses')
+  assert.deepEqual(search, [{ type: 'provider', name: 'web_search', id: 'openai.web_search', args: {} }])
+  assert.equal(names.includes('web_fetch'), true)
 })
 
-test('both kinds of Anthropic account get web search: Anthropic\'s own web_search tool', async () => {
+test('both kinds of Anthropic account ask Anthropic for its own web_search', async () => {
   const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
   const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
-  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
   const route = createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } }))
-  const toolsOf = async (account) => {
-    const model = () => route.take(account).model('claude-sonnet-5')
-    const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
-    const session = await controller.createSession({ resourceId: `project:probe-${account.kind}`, scope: `probe-${account.kind}` })
-    return { tools: await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() }), resolved: await model() }
-  }
-  const key = await toolsOf({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` })
-  const subscription = await toolsOf({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) })
-  const anthropicSearch = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} }
-  assert.deepEqual([key.resolved.id, key.tools.web_search], ['anthropic/claude-sonnet-5', anthropicSearch], 'Mastra maps webSearchTool for a router model id')
-  assert.deepEqual([subscription.resolved.provider, subscription.tools.web_search], ['anthropic.messages', anthropicSearch])
+  const sentFor = (account, resourceId) => toolsSentToModel(() => route.take(account).model('claude-sonnet-5'), resourceId)
+  const key = await sentFor({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` }, 'project:probe-api_key')
+  const subscription = await sentFor({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) }, 'project:probe-oauth')
+  const anthropicSearch = [{ type: 'provider', name: 'web_search', id: 'anthropic.web_search_20250305', args: {} }]
+  assert.deepEqual([key.provider, key.search], ['anthropic.messages', anthropicSearch])
+  assert.deepEqual([subscription.provider, subscription.search], ['anthropic.messages', anthropicSearch])
 })
 
 test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {

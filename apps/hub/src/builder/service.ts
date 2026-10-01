@@ -39,7 +39,7 @@ type DiagnosticAppender = (note: RunNote) => Promise<void>
 export type BuilderRunDependencies = Readonly<{
   runtime: BuilderRunRuntime
   git: Pick<ConexusGit, 'readMain' | 'mainContains'>
-  conversations: Pick<Conversations, 'ownerOf' | 'titleFromRequest'>
+  conversations: Pick<Conversations, 'ownerOf'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
   reconcileEveryMs?: number
@@ -253,7 +253,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // The base is `main`, read only once the database holds the Project's run lock.
       const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
       if (run.state === 'QUEUED') {
-        await runs.conversations.titleFromRequest(input.projectId, input.conversationId, input.content).catch(() => undefined)
         dispatchBuilderRun(run, input)
       }
       return run

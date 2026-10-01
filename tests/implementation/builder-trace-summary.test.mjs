@@ -92,3 +92,22 @@ test('UNAVAILABLE_TRACE_SUMMARY is the exact shape the route returns when no tra
     available: false, traceId: null, spans: [], usage: null, modelCalls: 0, toolCalls: 0, scores: [],
   })
 })
+
+test('usage keeps Mastra UsageStats cache and reasoning breakdown per span and summed over the run', () => {
+  const cached = {
+    ...modelGeneration, spanId: 'span-cached',
+    attributes: { model: 'anthropic/claude', usage: { inputTokens: 1000, outputTokens: 200, inputDetails: { text: 100, cacheRead: 800, cacheWrite: 100 }, outputDetails: { text: 150, reasoning: 50 } } },
+  }
+  const second = {
+    ...modelGeneration, spanId: 'span-second',
+    attributes: { model: 'anthropic/claude', usage: { inputTokens: 500, outputTokens: 40, inputDetails: { cacheRead: 450 }, outputDetails: { reasoning: 10, bogus: 'x' } } },
+  }
+  assert.deepEqual(summarizeSpan(cached).usage, {
+    inputTokens: 1000, outputTokens: 200, totalTokens: 1200,
+    inputDetails: { text: 100, cacheRead: 800, cacheWrite: 100 }, outputDetails: { text: 150, reasoning: 50 },
+  })
+  assert.deepEqual(summarizeRunUsage([cached, second, modelGeneration]), {
+    inputTokens: 1620, outputTokens: 270, totalTokens: 1890,
+    inputDetails: { text: 100, cacheRead: 1250, cacheWrite: 100 }, outputDetails: { text: 150, reasoning: 60 },
+  })
+})
