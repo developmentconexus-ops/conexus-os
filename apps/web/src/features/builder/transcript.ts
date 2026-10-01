@@ -32,8 +32,9 @@ export type MessageEntry = Readonly<{
   id: string
   message: MastraDBMessage
   streaming?: boolean
-  // A message the person sent from this page that the conversation has not shown back yet.
-  delivery?: 'pending' | 'failed'
+  // A message the person sent from this page that the conversation has not shown back yet. Unknown
+  // means the response was lost, so the Hub may hold it; failed means the Hub refused it.
+  delivery?: 'pending' | 'unknown' | 'failed'
   runtimeTools?: Readonly<Record<string, RuntimeTool>>
   // Which of the server message's parts this entry draws, when a part was drawn by an earlier entry.
   sourcePartIndexes?: readonly number[]
@@ -66,6 +67,7 @@ export type TranscriptState = Readonly<{
 export type TranscriptAction =
   | Readonly<{ type: 'event'; event: AgentControllerEvent }>
   | Readonly<{ type: 'localUser'; id: string; text: string }>
+  | Readonly<{ type: 'unknownLocalUser'; id: string }>
   | Readonly<{ type: 'failLocalUser'; id: string }>
   | Readonly<{ type: 'dropLocalUser'; id: string }>
   | Readonly<{ type: 'resolvePrompt'; toolCallId: string }>
@@ -91,14 +93,13 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
       }
       const index = state.entries.findIndex((candidate) => candidate.id === action.id)
       const entries = index === -1 ? [...state.entries, entry] : state.entries.map((candidate, position) => position === index ? entry : candidate)
-      return { ...state, pending: true, entries }
+      // A new send is a new run, and the previous run's task list is not its own.
+      return { ...state, pending: true, entries, tasks: [] }
     }
+    case 'unknownLocalUser':
+      return settleLocalUser(state, action.id, 'unknown')
     case 'failLocalUser':
-      return {
-        ...state,
-        pending: false,
-        entries: state.entries.map((entry) => entry.kind === 'message' && entry.id === action.id && entry.delivery === 'pending' ? { ...entry, delivery: 'failed' } : entry),
-      }
+      return settleLocalUser(state, action.id, 'failed')
     case 'dropLocalUser':
       return { ...state, entries: state.entries.filter((entry) => !(entry.kind === 'message' && entry.id === action.id && entry.delivery !== undefined)) }
     case 'resolvePrompt':
@@ -109,6 +110,12 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
       return applyEvent(state, action.event)
   }
 }
+
+const settleLocalUser = (state: TranscriptState, id: string, delivery: 'unknown' | 'failed'): TranscriptState => ({
+  ...state,
+  pending: false,
+  entries: state.entries.map((entry) => entry.kind === 'message' && entry.id === id && entry.delivery !== undefined ? { ...entry, delivery } : entry),
+})
 
 // The model spoke again, or the run ended: a retry the thread showed is over.
 const RETRY_ENDED: ReadonlySet<string> = new Set(['message_start', 'message_update', 'agent_end'])

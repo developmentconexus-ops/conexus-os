@@ -644,3 +644,30 @@ test('a part delta that skips parts the tab never saw leaves no hole, so the nex
   state = merge(state, [dbMessage('assistant-1', 'assistant', [text('Hello world'), toolPart('tool-9', 'result', { result: 'ok' })])])
   assert.deepEqual(partsOf(state.entries[0]).map((part) => part.type), ['text', 'tool-invocation'])
 })
+
+test('a send whose response was lost is unknown, not failed, and a refusal after it settles as failed', () => {
+  let state = transcriptReducer(emptyTranscript('c1'), { type: 'localUser', id: 'local-k1', text: 'oi' })
+  state = transcriptReducer(state, { type: 'unknownLocalUser', id: 'local-k1' })
+  assert.deepEqual([state.pending, state.entries.map((entry) => entry.delivery)], [false, ['unknown']])
+  state = transcriptReducer(state, { type: 'failLocalUser', id: 'local-k1' })
+  assert.deepEqual(state.entries.map((entry) => entry.delivery), ['failed'])
+  state = transcriptReducer(state, { type: 'localUser', id: 'local-k1', text: 'oi' })
+  assert.deepEqual(state.entries.map((entry) => entry.delivery), ['pending'])
+})
+
+test('an unknown local message is confirmed when the thread shows it back', () => {
+  let state = transcriptReducer(emptyTranscript('c1'), { type: 'localUser', id: 'local-k1', text: 'hello' })
+  state = transcriptReducer(state, { type: 'unknownLocalUser', id: 'local-k1' })
+  state = merge(state, [dbMessage('stored-1', 'user', [text('hello')])])
+  assert.deepEqual(state.entries.map((entry) => [entry.id, entry.delivery]), [['local-k1', undefined]])
+})
+
+test('the previous run\'s tasks are gone the moment the person sends the next message', () => {
+  const tasks = [{ content: 'Montar a tela', status: 'completed', activeForm: 'Montando a tela' }]
+  let state = event(emptyTranscript('c1'), { type: 'display_state_changed', displayState: { activeTools: {}, tasks, pendingApproval: null, pendingSuspensions: {} } })
+  assert.deepEqual(state.tasks, tasks)
+  state = transcriptReducer(state, { type: 'localUser', id: 'local-k2', text: 'agora outra coisa' })
+  assert.deepEqual(state.tasks, [])
+  state = event(state, { type: 'agent_end', reason: 'error' })
+  assert.deepEqual(state.tasks, [], 'a run that fails before any task state leaves no tasks behind')
+})

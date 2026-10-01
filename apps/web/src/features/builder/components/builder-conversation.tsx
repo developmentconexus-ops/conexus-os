@@ -131,10 +131,11 @@ const messageTime = (message: MastraDBMessage): number => {
 }
 
 // A message this page sent that never reached the Hub keeps its place and its words, marked unsent.
-function UserBubble({ text, at, unsent = false }: Readonly<{ text: string; at: number | null; unsent?: boolean }>) {
+function UserBubble({ text, at, delivery }: Readonly<{ text: string; at: number | null; delivery?: 'unknown' | 'failed' | undefined }>) {
   return <div className="builder-turn builder-turn-user-row">
     <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div>
-    {unsent ? <span className="builder-turn-unsent">Não enviado</span>
+    {delivery === 'failed' ? <span className="builder-turn-unsent">Não enviado</span>
+      : delivery === 'unknown' ? <span className="builder-turn-unsent">Sem confirmação</span>
       : at !== null && <span className="builder-turn-time">{clockLabel(new Date(at).toISOString())}</span>}
   </div>
 }
@@ -208,7 +209,7 @@ function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | nul
 // One flat sequence of pieces, built once from the transcript and the orphan requests in order, so a
 // run of tool calls groups across whatever message ids the controller split it into.
 type Piece =
-  | Readonly<{ kind: 'user'; key: string; text: string; at: number | null; unsent: boolean }>
+  | Readonly<{ kind: 'user'; key: string; text: string; at: number | null; delivery?: 'unknown' | 'failed' | undefined }>
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
   | Readonly<{ kind: 'notice'; key: string; text: string }>
   | Readonly<{ kind: 'status'; key: string; level: 'info' | 'error'; text: string }>
@@ -223,7 +224,7 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
   const key = entry.id
   if (isUserAuthored(message)) {
     const text = userText(message)
-    return text ? [{ kind: 'user', key, text, at: messageTime(message) || null, unsent: entry.delivery === 'failed' }] : []
+    return text ? [{ kind: 'user', key, text, at: messageTime(message) || null, delivery: entry.delivery === 'unknown' || entry.delivery === 'failed' ? entry.delivery : undefined }] : []
   }
   if (isNotice(message)) {
     const text = userText(message)
@@ -268,7 +269,7 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
     turnBuffer = []
   }
   for (const piece of pieces) {
-    if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} unsent={piece.unsent} />); continue }
+    if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} delivery={piece.delivery} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
     if (piece.kind === 'notice') { flushTurn(); out.push(<div key={piece.key} className="builder-turn-notice" role="note"><Notice variant="note"><Notice.Message>{piece.text}</Notice.Message></Notice></div>); continue }
     if (piece.kind === 'prompt') { flushTurn(); out.push(<div key={piece.key}>{renderPrompt(piece.prompt)}</div>); continue }
@@ -318,8 +319,19 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
 }>) {
   const messages = entries.filter((entry): entry is MessageEntry => entry.kind === 'message')
   const merged = new Map(mergeCalls(messages.map((entry) => entry.message)).map((message, index) => [messages[index]?.id ?? '', message]))
-  const spoken = new Set(messages.map((entry) => entry.message).filter(isUserAuthored).map(userText))
-  const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text)).map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry }))
+  // Only what the thread showed back covers a persisted request, one message to one request; a
+  // local bubble still waiting on its send never stands in for the Hub's own row.
+  const spoken = new Map<string, number>()
+  for (const entry of messages) {
+    if (entry.delivery === undefined && isUserAuthored(entry.message)) spoken.set(userText(entry.message), (spoken.get(userText(entry.message)) ?? 0) + 1)
+  }
+  const covered = (text: string): boolean => {
+    const left = spoken.get(text) ?? 0
+    if (left === 0) return false
+    spoken.set(text, left - 1)
+    return true
+  }
+  const orphans = persistedRequests.filter((entry) => !covered(entry.text)).map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry }))
     .sort((left, right) => left.at - right.at)
   const reason = failureReason(failure)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []

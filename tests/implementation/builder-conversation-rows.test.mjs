@@ -113,3 +113,29 @@ test('a message still marked streaming after its run ended reads as settled, wit
   assert.equal(count(html, 'Pensando…'), 0)
   assert.equal(count(html, 'Pensou'), 1)
 })
+
+const persistedRun = { runId: 'run-1', text: 'Crie um contador', createdAt: '2026-10-01T14:00:00.000Z', reason: null }
+const sentLocally = (settle) => reduce([{ type: 'localUser', id: 'local-k1', text: 'Crie um contador' }, ...settle])
+
+test('a send with no confirmation says so, and does not claim the Hub refused it', () => {
+  const html = render({ entries: sentLocally([{ type: 'unknownLocalUser', id: 'local-k1' }]).entries })
+  assert.equal(count(html, 'Sem confirmação'), 1)
+  assert.equal(count(html, 'Não enviado'), 0)
+})
+
+test('only a send the Hub refused reads "Não enviado"', () => {
+  const html = render({ entries: sentLocally([{ type: 'failLocalUser', id: 'local-k1' }]).entries })
+  assert.equal(count(html, 'Não enviado'), 1)
+  assert.equal(count(html, 'Sem confirmação'), 0)
+})
+
+test('the Hub\'s stored request is drawn even when an unconfirmed local bubble has the same words', () => {
+  const html = render({ entries: sentLocally([{ type: 'unknownLocalUser', id: 'local-k1' }]).entries, persistedRequests: [persistedRun] })
+  assert.equal(count(html, 'Crie um contador'), 2)
+})
+
+test('a thread message covers one stored request, so a repeated request still shows its twin', () => {
+  const thread = reduce([{ type: 'mergeWindow', messages: [{ id: 'u1', threadId: 't', role: 'user', createdAt: '2026-10-01T14:00:00.000Z', content: { format: 2, parts: [{ type: 'text', text: 'Crie um contador' }] } }] }])
+  const html = render({ entries: thread.entries, persistedRequests: [persistedRun, { ...persistedRun, runId: 'run-2', createdAt: '2026-10-01T15:00:00.000Z' }] })
+  assert.equal(count(html, 'Crie um contador'), 2)
+})

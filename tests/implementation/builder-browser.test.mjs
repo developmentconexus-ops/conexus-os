@@ -599,9 +599,10 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  await page.getByText('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
-  await user.getByText('Não enviado', { exact: true }).waitFor()
+  await user.getByText('Sem confirmação', { exact: true }).waitFor()
+  assert.equal(await user.getByText('Não enviado', { exact: true }).count(), 0, 'a lost response is not a refusal')
   assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the unsent message keeps its place and its words')
   assert.equal(await messageBox(page).inputValue(), 'Crie um contador', 'the words go back to the composer')
   const retry = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
@@ -609,6 +610,52 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await retry
   assert.equal(keys.length, 2)
   assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
+  await user.getByText('Sem confirmação', { exact: true }).waitFor({ state: 'detached' })
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the resend is the same message, not a second one')
+  assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('a send the Hub refused reads Não enviado and takes a fresh key on a resend', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000081'
+  const projectId = '70000000-0000-4000-8000-000000000082'
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const legacyRequests = trackLegacyRequests(page)
+
+  const keys = []
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation('conversation-refused', 'Conversa')]))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  // The Hub answers the first attempt with a refusal, so the message certainly did not take.
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
+    keys.push(route.request().headers()['idempotency-key'])
+    return keys.length === 1 ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'about:blank', status: 500 }) }) : route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+    })
+  })
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  const user = page.locator('.cx-messages .builder-turn-user-row')
+  await user.getByText('Não enviado', { exact: true }).waitFor()
+  assert.equal(await user.getByText('Sem confirmação', { exact: true }).count(), 0)
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the unsent message keeps its place and its words')
+  assert.equal(await messageBox(page).inputValue(), 'Crie um contador', 'the words go back to the composer')
+  const retry = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await retry
+  assert.equal(keys.length, 2)
+  assert.notEqual(keys[0], keys[1], 'a refusal took no effect, so its key is not reused')
   await user.getByText('Não enviado', { exact: true }).waitFor({ state: 'detached' })
   assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the resend is the same message, not a second one')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')

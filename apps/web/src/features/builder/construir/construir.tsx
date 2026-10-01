@@ -178,13 +178,16 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error, { content, key }) => {
-      dispatch({ type: 'failLocalUser', id: localMessageId(key) })
+      // No status means the response never arrived, so the Hub may have the message.
+      const unknown = error instanceof BuilderRequestError && error.status === null
+      dispatch({ type: unknown ? 'unknownLocalUser' : 'failLocalUser', id: localMessageId(key) })
       unsent.current = localMessageId(key)
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
-      if (!(error instanceof BuilderRequestError && error.status === null)) retainedKey.current = null
+      if (!unknown) retainedKey.current = null
       if (error instanceof BuilderRequestError && error.status === 409) setSendError('O Project está ocupado ou recebeu outra alteração. Aguarde e envie de novo.')
       else if (error instanceof BuilderRequestError && error.status === 403) setSendError('Você não tem permissão para construir neste Project.')
+      else if (unknown) setSendError('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.')
       else setSendError('Não foi possível enviar o pedido. Tente de novo.')
     },
   })
@@ -232,7 +235,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     ? `${runHere ? statusLine(view) : `${statusLine(view)} em outra conversa`}${pending.length ? ' · Aguardando você' : ''}`
     : statusLine(hereView)
   const settledHere = hereView.kind === 'SETTLED' ? hereView : null
-  const persisted = persistedRequestsOf((session.data?.runHistory ?? []).filter((entry) => entry.conversationId === conversationId), runHere)
+  // The run this page's own accepted send made is drawn by its local bubble until the thread shows it.
+  const persisted = persistedRequestsOf((session.data?.runHistory ?? []).filter((entry) => entry.conversationId === conversationId && entry.builderRunId !== localSend?.runId), runHere?.builderRunId === localSend?.runId ? null : runHere)
   const preview_ = session.data?.preview
   const sourceAhead = Boolean(preview_?.lastGoodSourceRevision && preview_.workingSourceRevision && preview_.workingSourceRevision !== preview_.lastGoodSourceRevision)
   // "Versão N" counts the Project's own code-changing runs, oldest first, regardless of which
