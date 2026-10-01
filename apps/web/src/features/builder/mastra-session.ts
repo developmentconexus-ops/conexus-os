@@ -3,22 +3,18 @@ import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
+import { hubFetch } from '../../app/http'
 import { type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
 export type { ActiveTool, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
-
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
 const clientAt = (apiPrefix: string) => new MastraClient({
   baseUrl: window.location.origin,
   apiPrefix,
   credentials: 'same-origin',
   retries: 0,
-  fetch: (input, init) => fetch(input, {
-    ...init,
-    headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), ...((init?.method ?? 'GET').toUpperCase() === 'GET' ? {} : { 'x-conexus-csrf': csrf() }) },
-  }),
+  fetch: hubFetch,
 })
 
 // The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
@@ -85,7 +81,7 @@ export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
   queryFn: async (): Promise<Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>> => {
     const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
-    const response = await fetch(url, { credentials: 'same-origin' })
+    const response = await hubFetch(url)
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
     return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
   },

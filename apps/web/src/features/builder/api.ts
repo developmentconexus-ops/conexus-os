@@ -1,3 +1,4 @@
+import { hubFetch } from '../../app/http'
 import { clearAuthorityCache } from '../../app/query-client'
 import type { BuilderFailureCategory } from './failure-reasons'
 export type SourceTree = Readonly<{
@@ -74,15 +75,9 @@ export class BuilderRequestError extends Error {
   }
 }
 
-const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
 const request = async (url: string, init: RequestInit = {}): Promise<Response> => {
   try {
-    const method = (init.method ?? 'GET').toUpperCase()
-    return await fetch(url, {
-      ...init,
-      credentials: 'same-origin',
-      headers: { ...(init.headers ?? {}), ...(method === 'POST' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) },
-    })
+    return await hubFetch(url, init)
   } catch {
     throw new BuilderRequestError(null)
   }

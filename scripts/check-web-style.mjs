@@ -48,6 +48,16 @@ const DYNAMIC_CLASSES = [
 const NATIVE_HINT_MESSAGE = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
 const isNativeHintHost = tag => (/^[a-z]/.test(tag) && tag !== 'iframe') || tag.includes('.')
 
+// The Hub's CSRF cookie is read in one place, apps/web/src/app/http.ts (csrfToken, hubFetch). The
+// generated clients are written by their generator, not by hand, and stay out of this check.
+const CSRF_COOKIE = '__Host-conexus_csrf'
+const CSRF_READER = 'apps/web/src/app/http.ts'
+const csrfViolations = (path, text) => {
+  if (!/\.tsx?$/.test(path) || !path.startsWith(`${CLASS_TSX_ROOT}/`) || path === CSRF_READER || path.startsWith(`${CLASS_TSX_ROOT}/generated/`)) return []
+  const index = text.indexOf(CSRF_COOKIE)
+  return index === -1 ? [] : [{ path, line: lineOf(text, index), message: `reads the CSRF cookie by hand; call hubFetch or csrfToken from ${CSRF_READER}` }]
+}
+
 const nativeHintViolations = (path, text) => {
   if (!path.endsWith('.tsx') || !path.startsWith(`${CLASS_TSX_ROOT}/`)) return []
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -210,8 +220,9 @@ const scanTree = root => {
   const contentOf = path => contents.get(path)
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
   const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
+  const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
   const classResult = classCheck(files, contentOf)
-  return { files, violations: [...violations, ...hintViolations, ...classResult.violations], unused: classResult.unused }
+  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...classResult.violations], unused: classResult.unused }
 }
 
 const main = () => {
