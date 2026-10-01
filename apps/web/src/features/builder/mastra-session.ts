@@ -3,8 +3,11 @@ import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import { hubFetch } from '../../app/http'
+import { parseRunState } from './api'
+import { builderSessionKey, writeStreamedRun } from './builder-session'
+import { type StreamState, useSessionStream, useStreamState } from './connection'
 import { type MemoryGauge, type RuntimeState, emptyRuntime, runtimeReducer } from './runtime'
 import { type PromptEntry, type TranscriptAction, type TranscriptState, emptyTranscript, transcriptReducer } from './transcript'
 
@@ -162,15 +165,24 @@ const reduceConversation = (state: ConversationState, action: TranscriptAction):
 
 const startConversation = (conversationId: string): ConversationState => ({ transcript: emptyTranscript(conversationId), runtime: emptyRuntime })
 
+/** The stream of the session a conversation's runs go through, one per conversation on the page. */
+export const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/builder:${conversationId}`
+
+/** Whether the stream of the conversation's runs is open, for the poll to keep its pace. */
+export const useConversationStreamOpen = (projectId: string, conversationId: string): boolean =>
+  useStreamState(conversationStreamKey(projectId, conversationId)) === 'connected'
+
 /**
  * The conversation's thread: the message window read from its Mastra thread, merged with the events
- * of the run's session while `follow` names a run of this conversation in its agent step.
+ * of the session its runs go through. The stream is followed whenever the conversation is on screen;
+ * before a run made that session the Hub refuses it, and each new `epoch` (a builder-session read)
+ * tries again.
  */
-export const useBuilderConversation = (projectId: string, conversationId: string, follow: Readonly<{ builderRunId: string }> | null) => {
+export const useBuilderConversation = (projectId: string, conversationId: string, epoch: number) => {
   const [state, dispatch] = useReducer(reduceConversation, conversationId, startConversation)
   if (state.transcript.conversationId !== conversationId) dispatch({ type: 'reset', conversationId })
-  const [live, setLive] = useState(false)
   const queryClient = useQueryClient()
+  const streamKey = conversationStreamKey(projectId, conversationId)
   const history = useQuery({
     queryKey: builderThreadMessagesKey(projectId, conversationId),
     queryFn: () => projectSessions(projectId).listMessages(conversationId, 200),
@@ -180,50 +192,39 @@ export const useBuilderConversation = (projectId: string, conversationId: string
     if (history.data) dispatch({ type: 'mergeWindow', messages: history.data })
   }, [history.data])
 
-  const followedRunId = follow?.builderRunId
-  useEffect(() => {
-    if (!followedRunId) return undefined
-    const session = runSession(projectId, conversationId)
-    let closed = false
-    let unsubscribe = () => {}
-    let retry: ReturnType<typeof setTimeout> | undefined
-    const resync = (): void => { void queryClient.invalidateQueries({ queryKey: ['builder-thread-messages', projectId] }) }
-    const connect = async (): Promise<void> => {
-      try {
-        const subscription = await session.subscribe({
-          onEvent: (event) => {
-            dispatch({ type: 'event', event })
-            if (event.type === 'agent_end') {
-              resync()
-              // The run stored memory for the conversation; read it again once the run is truly over.
-              if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
-            }
-          },
-          onReconnect: resync,
-          onError: () => setLive(false),
-          reconnect: { maxRetries: 8 },
-        })
-        if (closed) return subscription.unsubscribe()
-        unsubscribe = subscription.unsubscribe
-        setLive(true)
-      } catch {
-        if (!closed) retry = setTimeout(() => { void connect() }, 1_000)
+  const rereadThread = (): void => { void queryClient.invalidateQueries({ queryKey: builderThreadMessagesKey(projectId, conversationId) }) }
+  const rereadSession = (): void => { void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) }) }
+  useSessionStream({
+    key: streamKey,
+    open: () => runSession(projectId, conversationId),
+    // A window merges what it does not hold after what is on screen, so the stream waits for the
+    // thread's first read: the history has to be there before anything streamed lands after it.
+    epoch: history.data ? epoch : 0,
+    onEvent: (event) => {
+      dispatch({ type: 'event', event })
+      if (event.type === 'state_changed' && typeof event.state === 'object' && event.state !== null && 'conexusRun' in event.state) {
+        const run = parseRunState(event.state.conexusRun)
+        if (run) writeStreamedRun(queryClient, projectId, run)
       }
-    }
-    void connect()
-    return () => {
-      closed = true
-      if (retry) clearTimeout(retry)
-      unsubscribe()
-      setLive(false)
-    }
-  }, [conversationId, followedRunId, projectId, queryClient])
+      if (event.type === 'agent_end') {
+        rereadThread()
+        // The run stored memory for the conversation; read it again once the run is truly over.
+        if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
+      }
+    },
+    // The stream sends nothing on subscribe and replays nothing after a gap, so opening it reads the
+    // thread again, and reopening it reads the run too. While it is down the poll keeps the run.
+    onStateChange: (next: StreamState, previous: StreamState) => {
+      if (next !== 'connected') return
+      rereadThread()
+      if (previous === 'dropped') rereadSession()
+    },
+  })
 
   return {
     history,
     transcript: state.transcript.conversationId === conversationId ? state.transcript : emptyTranscript(conversationId),
     runtime: state.transcript.conversationId === conversationId ? state.runtime : emptyRuntime,
-    live,
     dispatch,
   }
 }

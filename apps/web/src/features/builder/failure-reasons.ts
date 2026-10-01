@@ -25,6 +25,9 @@ const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = Object.
   INTERNAL_ERROR: 'Ocorreu um erro interno inesperado. Tente novamente.',
 })
 
+export const isBuilderFailureCategory = (value: unknown): value is BuilderFailureCategory =>
+  typeof value === 'string' && Object.hasOwn(failureReasons, value)
+
 // A code inside INTERNAL_ERROR whose cause is known says so, instead of the generic sentence.
 const failureReasonsByCode: Readonly<Record<string, string>> = Object.freeze({
   BUILDER_AGENT_PLATFORM_FAILED: 'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',

@@ -11,12 +11,13 @@ import { AppWindow, MessageSquare, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, getBuilderSession, sendBuilderMessage } from '../api'
+import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
+import { useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
 import {
-  answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions,
+  answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
 import { localMessageId, type TaskSnapshot } from '../transcript.ts'
@@ -110,11 +111,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const layout = useDefaultLayout({ id: `conexus-construir:${accountId}`, storage: guardedStorage, onlySaveAfterUserInteractions: true })
 
-  const session = useQuery({
-    queryKey: ['builder-session', projectId],
-    queryFn: () => getBuilderSession(projectId),
-    refetchInterval: (query) => query.state.data?.latestBuilderRun?.state === 'RUNNING' ? 1_000 : 2_000,
-  })
+  const session = useBuilderSession(queryClient, projectId, conversationId, useConversationStreamOpen(projectId, conversationId))
   const latestRun = session.data?.latestBuilderRun
   const conversations = useProjectConversations(projectId, latestRun?.conversationId === conversationId && isActive(latestRun) ? conversationId : null)
   const conversationActions = useConversationActions(projectId)
@@ -144,20 +141,12 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     enabled: Boolean(diffBasis),
   })
 
-  const thread = useBuilderConversation(projectId, conversationId, runHere && isActive(runHere) && runHere.phase === 'AGENT' ? runHere : null)
+  const thread = useBuilderConversation(projectId, conversationId, session.dataUpdatedAt)
   const { history, transcript, runtime } = thread
-  const shownMemory = thread.live && runtime.memory ? runtime.memory : sessionModel.memory
+  // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
+  const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
   // A call stays parked on the person only while the run that parked it is still going.
   const pending = runHere && isActive(runHere) ? transcript.entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
-
-  // A run that settles refreshes what it touched: its session, its messages and the titles.
-  const previousState = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    const wasActive = previousState.current === 'QUEUED' || previousState.current === 'RUNNING'
-    previousState.current = run?.state
-    if (!run || !wasActive || isActive(run)) return
-    void Promise.all([session.refetch(), history.refetch(), conversations.refetch()])
-  }, [conversations, history, run, session])
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the

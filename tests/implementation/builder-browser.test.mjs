@@ -216,6 +216,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const streamScopes = []
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
+    // The conversation is followed from the moment it opens; until a run made its session the Hub refuses.
+    if (!run || runFinished) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'builder-session-not-ready' }) })
     setTimeout(() => {
       threadMessages.push(assistantMessage('assistant-live-1', 'Aplicando a alteração'), assistantMessage(`assistant-final-${threadMessages.length}`, 'Build concluído'))
       runFinished = true
@@ -1169,7 +1171,11 @@ test('a turn the stream delivered only in part is completed from the thread, and
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId: 'artifact', artifactDigest: 'd'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString() }) }))
   await page.route(`${origin}/preview-entry`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>app</title><main>ok</main>' }))
   await page.route(`**/api/control/projects/${projectId}/source/compare*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, files: [{ path: 'app/main.tsx', status: 'MODIFIED', previousPath: null }] }) }))
+  // A stream replays nothing: the events reach the first subscription only.
+  let streamed = false
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
+    if (streamed) return route.fulfill(sse())
+    streamed = true
     setTimeout(() => {
       threadMessages.length = 1
       threadMessages.push(persistedReply)
@@ -1360,6 +1366,42 @@ const openLiveTurn = async (t, events) => {
   await page.goto(`${origin}/projects/${projectId}/build`)
   return page
 }
+
+test('the run the Hub publishes into the stream moves the status line without another builder-session read', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000311'
+  const projectId = '70000000-0000-4000-8000-000000000312'
+  const runId = '70000000-0000-4000-8000-000000000313'
+  const conversationId = 'conversation-streamed-phase'
+  const sourceRevision = 'b'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const run = {
+    builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+    failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+  }
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude o título')] }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
+  // Only the first read is answered: whatever the screen learns after it comes from the stream.
+  let reads = 0
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    reads += 1
+    if (reads > 1) return undefined
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      runHistory: [],
+    }) })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'state_changed', state: { yolo: true, conexusRun: { ...run, phase: 'COMPILING' } }, changedKeys: ['conexusRun'] },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.cx-chat-step', { hasText: 'Verificando o app' }).waitFor()
+})
 
 test('a live reply streamed as deltas renders whole while the run is still working', async (t) => {
   const page = await openLiveTurn(t, [
