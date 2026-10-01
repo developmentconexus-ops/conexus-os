@@ -56,7 +56,7 @@ test('a run that asked one rule and left one open discovers two of four, and its
   const score = scoreInterview(sheet, interviewFromRun(result, thread), judged)
 
   assert.deepEqual({ ...score, rules: undefined }, {
-    primary: 0.5, discovered: 2, total: 4, assumedWithoutAsking: 2, contrary: 1, questions: 2, cards: 1,
+    primary: 0.5, primaryStrict: 0.5, discovered: 2, discoveredStrict: 2, total: 4, assumedWithoutAsking: 2, contrary: 1, questions: 2, cards: 1,
     planSubmitted: true, appFilesBeforePlan: 1,
     rubric: { screensAsExperience: true, valuesHaveSource: false, suggestionsMarked: false, assumptionsWithUndo: false, oddDataSurfaced: null, checksAsExamples: false },
     rubricPassed: 1, rubricApplicable: 5,
@@ -76,4 +76,42 @@ test('a run that never submitted a plan discovers nothing from the plan and coun
   assert.equal(score.planSubmitted, false)
   assert.equal(score.appFilesBeforePlan, 2)
   assert.equal(score.rubricPassed, 0)
+})
+
+const kindSheet = parseSheet({
+  projectName: 'Cobrança',
+  persona: 'gerente financeiro',
+  answers: [
+    { id: 'pago', kind: 'stated', topic: 'só a receber', say: 'Só a receber.' },
+    { id: 'status', kind: 'design', topic: 'status da nota', say: 'Tem status.' },
+    { id: 'juros', topic: 'se juros entram', say: 'Não entram.' },
+  ],
+})
+const noInterview = { questions: [], cards: 0, planText: null, appFilesBeforePlan: 0 }
+const judgedAs = (status, contrary = false) => ({
+  rules: ['pago', 'status', 'juros'].map((id) => ({ id, status, contrary: status === 'open' || status === 'absent' ? null : contrary, cite: [] })),
+  rubric: [],
+})
+const found = (score) => Object.entries(score.rules).map(([id, rule]) => `${id}:${rule.discovered}`).join(' ')
+
+test('a stated rule counts when the plan applies it, a design rule when the plan proposes it, a default rule only when asked or open', () => {
+  const byStatus = Object.fromEntries(['open', 'assumed', 'decided', 'absent'].map((status) => [status, scoreInterview(kindSheet, noInterview, judgedAs(status))]))
+
+  assert.equal(found(byStatus.open), 'pago:true status:true juros:true')
+  assert.equal(found(byStatus.assumed), 'pago:true status:true juros:false')
+  assert.equal(found(byStatus.decided), 'pago:true status:false juros:false')
+  assert.equal(found(byStatus.absent), 'pago:false status:false juros:false')
+  assert.deepEqual(Object.values(byStatus).map((score) => [score.discovered, score.primary, score.discoveredStrict, score.primaryStrict]), [
+    [3, 1, 3, 1], [2, 0.667, 0, 0], [1, 0.333, 0, 0], [0, 0, 0, 0],
+  ])
+})
+
+test('a contrary plan decision earns no fair credit on a tagged rule, and an asked tagged rule still counts', () => {
+  const contrary = scoreInterview(kindSheet, noInterview, judgedAs('assumed', true))
+  assert.equal(found(contrary), 'pago:false status:false juros:false')
+  assert.equal(contrary.discovered, 0)
+
+  const asked = scoreInterview(kindSheet, { ...noInterview, questions: [{ text: 'Status?', ruleIds: ['status'] }] }, judgedAs('decided', true))
+  assert.equal(found(asked), 'pago:false status:true juros:false')
+  assert.deepEqual([asked.discovered, asked.discoveredStrict], [1, 1])
 })

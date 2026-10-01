@@ -60,11 +60,14 @@ export function scoreInterview(sheet, interview, judged) {
     const judgment = judged.rules.find((entry) => entry.id === rule.id) ?? { status: 'absent', contrary: null }
     const wasAsked = asked.has(rule.id)
     const decided = judgment.status === 'assumed' || judgment.status === 'decided'
+    const strict = wasAsked || judgment.status === 'open'
+    const accepted = rule.kind === 'stated' ? decided : rule.kind === 'design' ? judgment.status === 'assumed' : false
     return {
       id: rule.id,
       asked: wasAsked,
       status: judgment.status,
-      discovered: wasAsked || judgment.status === 'open',
+      discoveredStrict: strict,
+      discovered: strict || (accepted && judgment.contrary !== true),
       assumedWithoutAsking: !wasAsked && decided,
       contrary: !wasAsked && decided && judgment.contrary === true,
     }
@@ -77,9 +80,13 @@ export function scoreInterview(sheet, interview, judged) {
   }))
   const verdicts = Object.values(rubric)
   const discovered = rules.filter((rule) => rule.discovered).length
+  const discoveredStrict = rules.filter((rule) => rule.discoveredStrict).length
+  const share = (count) => (sheet.rules.length === 0 ? null : Number((count / sheet.rules.length).toFixed(3)))
   return {
-    primary: sheet.rules.length === 0 ? null : Number((discovered / sheet.rules.length).toFixed(3)),
+    primary: share(discovered),
+    primaryStrict: share(discoveredStrict),
     discovered,
+    discoveredStrict,
     total: sheet.rules.length,
     assumedWithoutAsking: rules.filter((rule) => rule.assumedWithoutAsking).length,
     contrary: rules.filter((rule) => rule.contrary).length,

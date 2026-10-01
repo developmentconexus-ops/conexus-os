@@ -16,6 +16,7 @@ const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
 // signed in to Mastra Code's own store by `login.mjs`.
 const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'
+export const RULE_KINDS = Object.freeze(['stated', 'design'])
 
 const SILENT_OPTION = /n[ãa]o sei|tanto faz|qualquer|voc[êe] decide|voc[êe] escolhe/i
 
@@ -30,7 +31,7 @@ const text = (value, where) => {
 
 /**
  * The answer sheet of one case.
- * @typedef {Readonly<{ id: string, topic: string, say: string, pick: readonly string[], hidden: boolean }>} SheetRule
+ * @typedef {Readonly<{ id: string, topic: string, say: string, pick: readonly string[], hidden: boolean, kind?: 'stated' | 'design' }>} SheetRule
  * @typedef {Readonly<{ projectName: string, persona: string, rules: readonly SheetRule[] }>} Sheet
  */
 
@@ -46,7 +47,8 @@ export function parseSheet(raw) {
     ids.add(id)
     const pick = entry.pick ?? []
     if (!Array.isArray(pick) || pick.some((word) => typeof word !== 'string' || !word.trim())) fail(`${where}.pick must be an array of words`)
-    return Object.freeze({ id, topic: text(entry.topic, `${where}.topic`), say: text(entry.say, `${where}.say`), pick: Object.freeze(pick.map((word) => word.trim())), hidden: entry.hidden === true })
+    if (entry.kind !== undefined && !RULE_KINDS.includes(entry.kind)) fail(`${where}.kind must be one of ${RULE_KINDS.join(', ')}`)
+    return Object.freeze({ id, topic: text(entry.topic, `${where}.topic`), say: text(entry.say, `${where}.say`), pick: Object.freeze(pick.map((word) => word.trim())), hidden: entry.hidden === true, ...(entry.kind && { kind: entry.kind }) })
   })
   return Object.freeze({
     projectName: text(raw.projectName, 'person.projectName'),

@@ -178,6 +178,12 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   file named by `CONEXUS_EVAL_VALUES_FILE`; a missing one stops the run before it starts. The matcher
   model reads the text with the placeholder, never the value. A rule with `"hidden": true` is a
   requirement the person holds and says only when a question touches it.
+- **Plan score** (`plan-score.mjs`). A rule counts as discovered when a question card touched it or the plan
+  leaves it open for the person; a rule the plan settles on its own does not. A rule may carry `"kind"`:
+  `stated` (the request already says it) also counts when the plan applies it, `design` (what a saved thing
+  holds, such as its kinds and statuses) also counts when the plan proposes it as a changeable choice, and
+  neither counts when the judge marks the decision contrary. Every score reports this fair count as
+  `discovered` and `primary`, and the untagged count as `discoveredStrict` and `primaryStrict`.
 - **Oracle** (`oracle.mjs`). `node scripts/builder-eval/oracle.mjs --case h1 --preview <text file>
   [--plan <text file>]` compares a Preview with `<CONEXUS_EVAL_ORACLE_DIR>/h1.json` and prints booleans
   and counts only. The file format is in the header of the script. The oracle agent that writes those

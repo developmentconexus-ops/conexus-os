@@ -205,3 +205,11 @@ test('hiddenRuleOutcomes records, per hidden rule, whether the Builder asked abo
     { id: 'autor', asked: true, proposed: false },
   ])
 })
+
+test('a rule kind is stated or design, and anything else stops the sheet at parse', () => {
+  const sheetWith = (kind) => ({ projectName: 'P', persona: 'p', answers: [{ id: 'a', topic: 't', say: 's', ...(kind && { kind }) }] })
+  assert.equal(parseSheet(sheetWith('stated')).rules[0].kind, 'stated')
+  assert.equal(parseSheet(sheetWith('design')).rules[0].kind, 'design')
+  assert.equal(parseSheet(sheetWith()).rules[0].kind, undefined)
+  assert.throws(() => parseSheet(sheetWith('data')), /person\.answers\[0\]\.kind must be one of stated, design/)
+})

@@ -47,6 +47,7 @@ export function summarize(lines) {
       runs: runs.length,
       scored: scored.length,
       primary: median(primaries),
+      primaryStrict: median(scored.map((run) => run.primaryStrict).filter((value) => typeof value === 'number')),
       spread: primaries.length ? Number((Math.max(...primaries) - Math.min(...primaries)).toFixed(3)) : null,
       rubricPassed: median(scored.map((run) => run.rubricPassed)),
       assumedWithoutAsking: median(scored.map((run) => run.assumedWithoutAsking)),
@@ -125,7 +126,7 @@ export async function main(argv = process.argv.slice(2)) {
         const line = { ...(await scoreRunDir(dir, { casePath })), repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: run.status }
         lines.push(line)
         appendFileSync(log, `${JSON.stringify(line)}\n`)
-        process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, discovered: line.discovered, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, wallMs: line.wallMs })}\n`)
+        process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, wallMs: line.wallMs })}\n`)
       }
     }
   }
