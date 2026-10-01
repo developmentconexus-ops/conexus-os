@@ -275,7 +275,13 @@ remain after the verdict:
 
 - Done on 2026-09-29: `docs/decisions/index.md` records C-032 and C-033 as current, removes C-022
   and C-025 from the in-force table, and records the C-027 and C-028 amendments.
-- Done on 2026-09-29: `docs/roadmap.md` records the stack v2 and ChatGPT model path as accepted.
+- Done on 2026-10-01: the register marks the parts of C-024, C-026 and C-028 that C-032 supersedes,
+  and records that spec 0004 replaces the two modes of C-032 with one.
+- Done on 2026-10-01: `docs/roadmap.md` shows the development plane of C-032 with the one mode of
+  spec 0004, and its technology baseline records the stack v2 of C-033 as accepted.
+- The ChatGPT model path in the roadmap's technology baseline. The branch code signs in, refreshes
+  and calls Codex through `@mastra/code-sdk` 1.8.3 (`124d314f`), and C-032 says Mastra Code leaves
+  the Hub. The operator settles which holds before the baseline records the path.
 - The documents that state C-022 as current, as slice 7 of spec 0002 requires (`0002:376-380`).
 - `docs/reference/builder-c020-mastra-native.md`, which names the REACT_VITE_V1 profile at line 184.
 - Done on 2026-10-01: the Q4 task's closure item 4 says "a real Builder conversation", not "a real
