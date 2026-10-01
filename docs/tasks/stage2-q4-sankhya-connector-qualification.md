@@ -134,7 +134,7 @@ handler prove the claim, and the relay's only consumer is exploratory scripts.
 
 The Builder that runs items 4 and 5 is qualified by the
 [Builder own harness qualification](stage2-builder-own-harness-qualification.md): the Builder off
-the Mastra Factory, on the app stack v2, if the operator accepts C-032 and C-033.
+the Mastra Factory, on the app stack v2, which the operator accepted as C-032 and C-033 on 2026-09-29.
 
 ### Evidence the verdict needs
 

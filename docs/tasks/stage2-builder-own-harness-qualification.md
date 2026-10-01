@@ -3,7 +3,8 @@
 **Status:** PREPARED on 2026-09-29. The candidate is the branch `feat/builder-own-harness`. The
 states in section 5 are those of the integration head `40d9671d` (merge base with `main`
 `eb564cfe`). [Section 10](#10-direction-the-ordered-work) holds the ordered work and its state at
-`47794034`.\
+`47794034`. None of the candidate's code is on `main` yet. It lands with the Builder pull requests,
+and every file, test and migration this task cites is on the branch heads named here.\
 **Type:** runtime, dependency and Builder-evidence qualification. Q-a: it is the Builder half of the
 Q4 gate's "builds and changes a useful application". Q-b: it moves source custody and model
 credentials into Conexus and changes the Hub database. Q-c: live Builder runs are its proof. Q-d: 20

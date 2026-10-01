@@ -2,6 +2,8 @@
 
 **Date**: 2026-09-30
 **Status**: Proposed
+**Base**: "today" in this spec means the Builder on `feat/builder-own-harness` before this spec,
+not `main`. None of this code is on `main` yet. It lands with the Builder pull requests.
 
 ## Summary
 
@@ -310,7 +312,7 @@ The code reaches `main` with the Builder pull requests.
 four-question card, split planning into two skills, added the task-list rule and gave the eval a
 fair score beside the strict one.
 
-### What the code does
+### What the code on those branches does
 
 1. **`submit_plan` is exposed.** It is Mastra's own `submit_plan`, wrapped in
    `harness/tools.ts`. The wrapper refuses any path other than `.conexus/plan.md` in the run's
