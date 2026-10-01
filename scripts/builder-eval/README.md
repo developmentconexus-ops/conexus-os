@@ -85,11 +85,12 @@ result was saved outside the browser.
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
   `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
-- `answers`: each card the driver answered while the run waited for a person, as
-  `{ kind, toolCallId, title, text, answer }`. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
+- `answers`: each question the driver answered while the run waited for a person, as
+  `{ kind, toolCallId, title, text, answer }`. A question card holds 1 to 4 questions: each is one record,
+  all with the card's `toolCallId`, and one "Enviar" sends them together. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
   (today's plan card). The driver recognizes the approval card by its options, "Aprovar e construir" and
   "Pedir ajustes", answers "Aprovar e construir" (or the case's scripted "Pedir ajustes"), and never hands it
-  to the scripted person. A question card ("Pergunta do agente") gets the first option, or "Pode seguir com o
+  to the scripted person. Each question of a card ("Pergunta do agente") gets the first option, or "Pode seguir com o
   que achar mais simples." when it has none. `toolCallId` is the id of the `ask_user` call, read from the
   thread's messages; two calls with the same question are two cards, and the element of a card the driver
   answered is marked so it is never answered twice. It is the same click a person makes, which sends
@@ -164,8 +165,8 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
 - **The scripted person** (`person.mjs`). A small Mastra Agent reads each question card and returns which
   rule of the sheet it touches (and, on an option card, which option says what the sheet says). The words
   come from the sheet. A question the sheet does not cover gets "Não sei." in text, or on an option card
-  the option that says "não sei" or "tanto faz", else the last option that is neither the first nor
-  marked "recomendado". It approves the plan and never sees the arm; the approval card does not reach it.
+  the option that says "não sei" or "tanto faz", else "Não sei." typed in the card's own answer field. A
+  rule no option says is answered in the sheet's words in that field. It approves the plan and never sees the arm; the approval card does not reach it.
   The person runs on Claude Opus 5.5 through the Claude subscription, with no API key: Mastra's claude-max
   provider (`@mastra/code-sdk`) reads Mastra Code's own credential store (`auth.json` under
   `MASTRA_APP_DATA_DIR`, else the default app data dir), so the Hub and its accounts are not involved. Sign the
@@ -177,6 +178,12 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   file named by `CONEXUS_EVAL_VALUES_FILE`; a missing one stops the run before it starts. The matcher
   model reads the text with the placeholder, never the value. A rule with `"hidden": true` is a
   requirement the person holds and says only when a question touches it.
+- **Plan score** (`plan-score.mjs`). A rule counts as discovered when a question card touched it or the plan
+  leaves it open for the person; a rule the plan settles on its own does not. A rule may carry `"kind"`:
+  `stated` (the request already says it) also counts when the plan applies it, `design` (what a saved thing
+  holds, such as its kinds and statuses) also counts when the plan proposes it as a changeable choice, and
+  neither counts when the judge marks the decision contrary. Every score reports this fair count as
+  `discovered` and `primary`, and the untagged count as `discoveredStrict` and `primaryStrict`.
 - **Oracle** (`oracle.mjs`). `node scripts/builder-eval/oracle.mjs --case h1 --preview <text file>
   [--plan <text file>]` compares a Preview with `<CONEXUS_EVAL_ORACLE_DIR>/h1.json` and prints booleans
   and counts only. The file format is in the header of the script. The oracle agent that writes those

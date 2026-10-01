@@ -15,6 +15,7 @@
     "answers": [
       {
         "id": "status",
+        "kind": "design",
         "hidden": true,
         "topic": "se a nota tem um status e quais",
         "say": "Cada nota tem um status: Em aberto, Aguardando fornecedor ou Resolvida.",
@@ -37,6 +38,7 @@
       },
       {
         "id": "tipo",
+        "kind": "design",
         "hidden": true,
         "topic": "se a nota tem um tipo e quais",
         "say": "Cada nota tem um tipo: Fornecedor, Entrega ou Financeiro.",

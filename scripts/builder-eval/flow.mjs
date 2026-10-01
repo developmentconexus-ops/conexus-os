@@ -27,8 +27,10 @@ export const isApprovalOptions = (labels) => {
 /** @returns {'ask_user' | 'submit_plan' | null} how this tool call asked for the approval. */
 function approvalVia(call) {
   if (call.entityName === 'ask_user') {
-    const options = Array.isArray(call.input?.options) ? call.input.options : []
-    return isApprovalOptions(options.map((option) => (typeof option === 'string' ? option : option?.label))) ? 'ask_user' : null
+    // The one-question call is the approval; a trace from before `questions` carried `options` on the input itself.
+    const questions = Array.isArray(call.input?.questions) ? call.input.questions : null
+    const options = (questions ? (questions.length === 1 ? questions[0]?.options : null) : call.input?.options) ?? []
+    return Array.isArray(options) && isApprovalOptions(options.map((option) => (typeof option === 'string' ? option : option?.label))) ? 'ask_user' : null
   }
   return call.entityName === 'submit_plan' ? 'submit_plan' : null
 }
