@@ -26,53 +26,71 @@ const MAX_JOB_BYTES = 8 * 1024 * 1024
 // Where the runner binds the Hub's connector port for this invocation (sandbox.ts binds exactly this).
 const CONNECTOR_SOCKET = '/run/conexus/connector/.s.connector'
 const CONNECTOR_BODY_BYTES = 64 * 1024
-const CONNECTOR_ANSWER_BYTES = 2 * 1024 * 1024
+// The Hub bounds /v1/fetch to 256 KiB; the legacy /v1/call keeps its 2 MiB until that path is deleted.
+const CONNECTOR_ANSWER_BYTES: Readonly<Record<string, number>> = { '/v1/call': 2 * 1024 * 1024, '/v1/fetch': 256 * 1024 }
 
-type ConnectorAnswer = Readonly<{ ok: true; value: unknown }> | Readonly<{ ok: false; code: string; issues?: readonly string[] }>
+type ConnectorAnswer = Readonly<{ ok: boolean; code?: string; [field: string]: unknown }>
 
-const unconfigured: ConnectorAnswer = Object.freeze({ ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+const refusal = (code: string): ConnectorAnswer => Object.freeze({ ok: false, code })
+const unconfigured = refusal('CONNECTOR_UNCONFIGURED')
 
-// The handler's one way to a Connector: an operation id and its input over the bound socket. It
-// never throws, and it carries nothing that names a Project, a Connection or a provider.
-const connectorCall = (bound: boolean) => async (operationId: unknown, input?: unknown): Promise<ConnectorAnswer> => {
-  if (!bound) return unconfigured
-  if (typeof operationId !== 'string') return Object.freeze({ ok: false, code: 'OPERATION_UNKNOWN' })
-  let payload: Buffer
-  try {
-    payload = Buffer.from(JSON.stringify({ operation: operationId, input }))
-  } catch {
-    return Object.freeze({ ok: false, code: 'INPUT_REFUSED' })
-  }
-  if (payload.byteLength > CONNECTOR_BODY_BYTES) return Object.freeze({ ok: false, code: 'INPUT_REFUSED' })
-  return new Promise<ConnectorAnswer>((resolve) => {
-    const outgoing = request({
-      socketPath: CONNECTOR_SOCKET, path: '/v1/call', method: 'POST',
-      headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
-    }, (response) => {
-      const chunks: Buffer[] = []
-      let bytes = 0
-      response.on('data', (chunk: Buffer) => {
-        bytes += chunk.byteLength
-        if (bytes > CONNECTOR_ANSWER_BYTES) response.destroy()
-        else chunks.push(chunk)
-      })
-      response.on('end', () => {
-        try {
-          const answer = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { ok?: unknown; value?: unknown; code?: unknown; issues?: unknown }
-          if (answer.ok === true) return resolve(Object.freeze({ ok: true, value: answer.value }))
-          if (answer.ok === false && typeof answer.code === 'string') {
-            const issues = Array.isArray(answer.issues) ? answer.issues.filter((issue): issue is string => typeof issue === 'string') : []
-            return resolve(Object.freeze(issues.length > 0 ? { ok: false, code: answer.code, issues: Object.freeze(issues) } : { ok: false, code: answer.code }))
-          }
-        } catch {
-          // an unreadable answer is the port not being there
-        }
-        resolve(unconfigured)
-      })
-      response.on('error', () => resolve(unconfigured))
+// One POST over the bound socket, answered by the Hub. The answer is the Hub's own JSON, passed through
+// untouched: within the route's limit, and anything unreadable is the port not being there.
+const post = (path: string, payload: Buffer): Promise<ConnectorAnswer> => new Promise((resolve) => {
+  const outgoing = request({
+    socketPath: CONNECTOR_SOCKET, path, method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
+  }, (response) => {
+    const chunks: Buffer[] = []
+    let bytes = 0
+    let tooLarge = false
+    const limit = CONNECTOR_ANSWER_BYTES[path] ?? 0
+    response.on('data', (chunk: Buffer) => {
+      bytes += chunk.byteLength
+      if (bytes > limit) {
+        tooLarge = true
+        response.destroy()
+      } else chunks.push(chunk)
     })
-    outgoing.on('error', () => resolve(unconfigured))
-    outgoing.end(payload)
+    response.on('close', () => {
+      if (tooLarge) return resolve(refusal('RESPONSE_TOO_LARGE'))
+      try {
+        const answer = JSON.parse(Buffer.concat(chunks).toString('utf8')) as ConnectorAnswer
+        if (typeof answer.ok === 'boolean') return resolve(Object.freeze(answer))
+      } catch {
+        // an unreadable answer is the port not being there
+      }
+      resolve(unconfigured)
+    })
+    response.on('error', () => resolve(unconfigured))
+  })
+  outgoing.on('error', () => resolve(unconfigured))
+  outgoing.end(payload)
+})
+
+// A payload the handler gave, as bytes the port will take; the refusal code when it cannot be sent.
+const encode = (value: unknown): Buffer | 'INPUT_REFUSED' => {
+  try {
+    const payload = Buffer.from(JSON.stringify(value) ?? 'null')
+    return payload.byteLength > CONNECTOR_BODY_BYTES ? 'INPUT_REFUSED' : payload
+  } catch {
+    return 'INPUT_REFUSED'
+  }
+}
+
+// The handler's ways to a Connector. Neither throws, and neither carries anything that names a Project,
+// a Connection or a provider: only the Hub's port can resolve the request.
+const connectorClient = (bound: boolean) => {
+  const send = async (path: string, value: unknown): Promise<ConnectorAnswer> => {
+    if (!bound) return unconfigured
+    const payload = encode(value)
+    return typeof payload === 'string' ? refusal(payload) : post(path, payload)
+  }
+  return Object.freeze({
+    call: (operationId: unknown, input?: unknown) => (typeof operationId === 'string'
+      ? send('/v1/call', { operation: operationId, input })
+      : Promise.resolve(refusal('OPERATION_UNKNOWN'))),
+    fetch: (request: unknown) => send('/v1/fetch', request),
   })
 }
 
@@ -136,7 +154,7 @@ const run = async (): Promise<never> => {
     },
   })
   const caller = Object.freeze({ accountId: job.caller.accountId, email: job.caller.email, displayName: job.caller.displayName })
-  const connectors = Object.freeze({ call: connectorCall(job.connector) })
+  const connectors = connectorClient(job.connector)
   let value: unknown
   try {
     value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))

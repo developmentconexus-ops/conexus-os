@@ -8,14 +8,30 @@ import { z } from 'zod'
 import type { Broker } from './broker.js'
 import { refused } from './errors.js'
 import type { BrokerResult } from './errors.js'
+import type { FetchResult } from './native.js'
 import type { ConsumerScope } from './scope.js'
 
 // One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
 // Nothing on the wire names a Project.
 
-export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number }>
+/** `answerBytes` bounds `/v1/fetch`; `callAnswerBytes` keeps the legacy `/v1/call` allowance until that path is deleted.
+ * `invocationMs` is the runner's invocation timeout (`invokeTimeoutMs` in app-runner/supervisor.ts), and `marginMs` is
+ * what a fetch leaves for the handler to answer before the runner stops it. */
+export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number; callAnswerBytes: number; invocationMs: number; marginMs: number }>
 
-const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2 })
+const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({
+  bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024, callAnswerBytes: 2 * 1024 * 1024, invocationMs: 5000, marginMs: 250,
+})
+
+type FetchRefusal = Extract<FetchResult, { ok: false }>
+/** What a handler sees of a fetch: the executor's result without the vendor's error body, which only the Builder's model needs. */
+type HandlerFetchResult = Extract<FetchResult, { ok: true }> | Readonly<Omit<FetchRefusal, 'body'>>
+
+const forHandler = (result: FetchResult): HandlerFetchResult => {
+  if (result.ok) return result
+  const { body: _vendorErrorBody, ...refusal } = result
+  return Object.freeze(refusal)
+}
 
 export type HandlerPort = Readonly<{
   socketPath: string
@@ -31,8 +47,9 @@ export type HandlerPorts = Readonly<{
 
 const callBody = z.strictObject({ operation: z.string().max(200), input: z.unknown() })
 
-const answer = (response: ServerResponse, result: BrokerResult<unknown>): void => {
-  const payload = JSON.stringify(result)
+const answer = (response: ServerResponse, result: BrokerResult<unknown> | HandlerFetchResult, answerBytes = Infinity): void => {
+  let payload = JSON.stringify(result)
+  if (Buffer.byteLength(payload) > answerBytes) payload = JSON.stringify(refused('RESPONSE_TOO_LARGE'))
   response.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) })
   response.end(payload)
 }
@@ -65,13 +82,15 @@ const sweepSocketDirectory = async (directory: string): Promise<void> => {
   }
 }
 
-export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LIMITS }: Readonly<{
+export const createHandlerPorts = ({ directory, broker, limits: overrides }: Readonly<{
   directory: string
   broker: Broker
-  limits?: HandlerPortLimits
+  limits?: Partial<HandlerPortLimits>
 }>): HandlerPorts => Object.freeze({
   sweep: () => sweepSocketDirectory(directory),
   async open(scope: ConsumerScope): Promise<HandlerPort> {
+    const limits: HandlerPortLimits = { ...DEFAULT_PORT_LIMITS, ...overrides }
+    const invocationEnds = Date.now() + limits.invocationMs
     const invocationId = randomUUID()
     // A unix socket path is capped at 107 bytes, so the name stays short.
     const socketPath = join(directory, `${randomBytes(9).toString('base64url')}.s`)
@@ -79,8 +98,31 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
     let calls = 0
     let active = 0
 
+    const consumer = { kind: 'handler', invocationId, scope } as const
+    // Each verb is one route. Both spend the invocation's one budget and answer with the executor's own result.
+    const routes: Readonly<Record<string, Readonly<{ answerBytes: number; run: (body: unknown) => Promise<BrokerResult<unknown> | HandlerFetchResult> }>>> = {
+      '/v1/call': {
+        answerBytes: limits.callAnswerBytes,
+        run: async (body) => {
+          const parsed = callBody.safeParse(body)
+          return parsed.success ? broker.call(consumer, parsed.data.operation, parsed.data.input) : refused('INPUT_REFUSED')
+        },
+      },
+      // The executor's strict parse of the request is the boundary; the port only carries the JSON. The fetch gets
+      // what is left of the invocation, so the executor aborts it and frees its capacity before the runner stops the worker.
+      '/v1/fetch': {
+        answerBytes: limits.answerBytes,
+        run: async (body) => {
+          const deadlineMs = invocationEnds - Date.now() - limits.marginMs
+          if (deadlineMs <= 0) return refused('PROVIDER_TIMEOUT')
+          return forHandler(await broker.fetch(consumer, body, { deadlineMs }))
+        },
+      },
+    }
+
     const handle = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
-      if (request.method !== 'POST' || request.url !== '/v1/call') {
+      const route = request.method === 'POST' && request.url !== undefined && Object.hasOwn(routes, request.url) ? routes[request.url] : undefined
+      if (!route) {
         response.writeHead(404).end()
         return
       }
@@ -92,14 +134,13 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
       active += 1
       try {
         const bytes = await readBody(request, limits.bodyBytes)
-        let body: unknown = null
-        try { body = bytes ? JSON.parse(bytes.toString('utf8')) : null } catch { body = null }
-        const parsed = callBody.safeParse(body)
-        if (!parsed.success) {
-          answer(response, refused('INPUT_REFUSED'))
-          return
+        let body: unknown
+        try {
+          body = bytes ? JSON.parse(bytes.toString('utf8')) : undefined
+        } catch {
+          body = undefined
         }
-        answer(response, await broker.call({ kind: 'handler', invocationId, scope }, parsed.data.operation, parsed.data.input))
+        answer(response, body === undefined ? refused('INPUT_REFUSED') : await route.run(body), route.answerBytes)
       } finally {
         active -= 1
       }

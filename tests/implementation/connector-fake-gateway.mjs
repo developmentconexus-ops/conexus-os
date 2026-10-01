@@ -2,12 +2,14 @@ import { createServer } from 'node:http'
 
 // A local stand-in for the Sankhya gateway on 127.0.0.1. It records every request with the origin its
 // host header names, issues numbered short-lived tokens and answers loadRecords from a fixed purchase
-// order, in the operation path's body shape or any native one. A request for any other service is
-// counted as a write that reached the vendor. Its values are invented; only the document number 22790
+// order, in the operation path's body shape or any native one, and executeQuery from a fixed consult
+// answer. A request for any other service is counted as a write that reached the vendor. Its values are invented; only the document number 22790
 // is the task's. No test ever reaches a Sankhya host: the broker receives this origin through the
 // adapter factory, not configuration.
 
 const LOAD_RECORDS = 'CRUDServiceProvider.loadRecords'
+const EXECUTE_QUERY = 'DbExplorerSP.executeQuery'
+const READS = new Set([LOAD_RECORDS, EXECUTE_QUERY])
 
 export const SECRET_MARKER = 'SECRET-MARKER-7f3a9c'
 export const FAKE_CREDENTIAL = Object.freeze({ clientId: 'fake-client-id', clientSecret: 'fake-client-secret-5d1e', xToken: 'fake-x-token-88b2' })
@@ -45,6 +47,16 @@ export const EXPECTED_NATIVE_ORDER = Object.freeze({
     metadata: { fields: { field: [{ name: 'NUNOTA' }, { name: 'NUMNOTA' }, { name: 'VLRNOTA' }] } },
     entity: { f0: { $: '9001' }, f1: { $: '22790' }, f2: { $: '1520.50' } },
   } },
+})
+
+/** What this fake answers any executeQuery with: column names in `fieldsMetadata`, positional `rows`. */
+export const EXPECTED_NATIVE_CONSULT = Object.freeze({
+  serviceName: EXECUTE_QUERY, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
+  responseBody: {
+    fieldsMetadata: [{ name: 'CODPROD', description: 'CODPROD', order: 1, userType: 'I' }, { name: 'DESCRPROD', description: 'DESCRPROD', order: 2, userType: 'S' }],
+    rows: [[501, 'Parafuso'], [502, 'Arruela']],
+    burstLimit: false,
+  },
 })
 
 export const HEADER_FIELDS = 'NUNOTA,NUMNOTA,DTNEG,STATUSNOTA,VLRNOTA'
@@ -99,7 +111,8 @@ export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'f
         headers: Object.keys(request.headers).sort(),
       }
       requests.push(record)
-      if (url.pathname !== '/authenticate' && (record.serviceName !== LOAD_RECORDS || record.body?.serviceName !== LOAD_RECORDS)) nonReads += 1
+      const read = READS.has(record.serviceName) && record.body?.serviceName === record.serviceName
+      if (url.pathname !== '/authenticate' && !read) nonReads += 1
       const send = (status, body, statusMessage = 'OK') => {
         if (bearer) open.set(bearer, open.get(bearer) - 1)
         const payload = typeof body === 'string' ? body : JSON.stringify(body)
@@ -116,7 +129,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'f
       if (url.pathname !== '/gateway/v1/mge/service.sbr') return send(404, { error: SECRET_MARKER })
       const service = mode.service
       if (service === 'stall') return
-      if (record.serviceName !== LOAD_RECORDS || record.body?.serviceName !== LOAD_RECORDS) return send(200, { serviceName: record.serviceName, status: '1', pendingPrinting: 'false' })
+      if (!read) return send(200, { serviceName: record.serviceName, status: '1', pendingPrinting: 'false' })
       if (service === 'redirect') {
         if (bearer) open.set(bearer, open.get(bearer) - 1)
         response.writeHead(302, { location: `${mode.redirectTo}${url.pathname}${url.search}` })
@@ -142,7 +155,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'f
       if (service === 'envelope-status-47') return send(200, { serviceName: record.serviceName, status: '47', statusMessage: `Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'envelope-error') return send(200, { serviceName: record.serviceName, status: '0', statusMessage: `[CORE_E01234] Falha ${SECRET_MARKER}`, pendingPrinting: 'false' })
       if (service === 'oversized') return send(200, { serviceName: record.serviceName, status: '1', padding: 'x'.repeat(300 * 1024) })
-      const loaded = () => send(200, {
+      const loaded = () => record.serviceName === EXECUTE_QUERY ? send(200, EXPECTED_NATIVE_CONSULT) : send(200, {
         serviceName: record.serviceName, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
         responseBody: { entities: loadRecords(record.body.requestBody.dataSet, { extraField: service === 'extra-field' }) },
       })

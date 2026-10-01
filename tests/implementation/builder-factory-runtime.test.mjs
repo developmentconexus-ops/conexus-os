@@ -699,7 +699,7 @@ test('a Project bound to Sankhya gets the same provenance rule and its own bindi
   await run.service.close()
   const [instructions] = run.configuredInstructions
   assert.ok(instructions.includes(EXTERNAL_DATA_INSTRUCTION), 'the same static rule runs for a bound Project too')
-  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('sankhya.purchase-order.read'), 'its own brief lists its binding and the read it can make')
+  assert.ok(instructions.includes('`erp` (integrator sankhya)') && instructions.includes('connectors.fetch'), 'its own brief lists its binding and points the handler at connectors.fetch')
   assert.equal(instructions.includes(CONNECTOR_BRIEF_UNBOUND), false)
 })
 
