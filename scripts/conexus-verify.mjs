@@ -66,7 +66,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('hub-call-site-privileges', 'node --test --test-concurrency=1 tests/implementation/hub-call-site-privileges-postgres.test.mjs', 'postgres'),
   candidateStep('connector-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-postgres.test.mjs', 'postgres'),
   candidateStep('connector-routes', 'node --test tests/implementation/connector-routes.test.mjs'),
-  candidateStep('connector-broker', 'node --test tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-fetch.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/application-invoker.test.mjs'),
+  candidateStep('connector-broker', 'node --test tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-fetch.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/connector-handler-fetch.test.mjs tests/implementation/application-invoker.test.mjs'),
   candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs tests/implementation/connector-fetch-postgres.test.mjs', 'postgres'),
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
