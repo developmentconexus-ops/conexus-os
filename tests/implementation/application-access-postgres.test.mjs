@@ -1024,7 +1024,7 @@ test('the Hub seals in the envelope the database CHECK constraints require', { s
   const checks = (await client.query(`
     SELECT conrelid::regclass::text AS relation, pg_get_constraintdef(oid) AS definition FROM pg_constraint
     WHERE contype = 'c' AND pg_get_constraintdef(oid) LIKE '%mastra:factory-secret:%' ORDER BY 1`)).rows
-  assert.deepEqual(checks.map((check) => check.relation), ['connector.connection', 'iam.handoff', 'iam.host_session'])
+  assert.deepEqual(checks.map((check) => check.relation), ['connector.connection', 'iam.handoff', 'iam.host_session', 'model.model_account'])
   for (const { relation, definition } of checks) {
     const prefix = /'(mastra:factory-secret:[^%']*)%'/.exec(definition)?.[1]
     assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Hub seals ${sealed.slice(0, 32)}…`)
