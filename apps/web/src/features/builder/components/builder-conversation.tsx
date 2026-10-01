@@ -3,6 +3,7 @@ import { Notice } from '@mastra/playground-ui/components/Notice'
 import { ScrollArea } from '@mastra/playground-ui/components/ScrollArea'
 import { Shimmer } from '@mastra/playground-ui/components/Shimmer'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
+import { useRevealedParts } from '@mastra/playground-ui/components/ai/message-reveal'
 import {
   TOOL_GROUP_MIN, ToolCall, ToolCallCommand, ToolCallContent, ToolCallDetail, ToolCallDisclosure, ToolCallEdit, ToolCallHeader, ToolCallIcon,
   ToolCallLabel, ToolCallMono, ToolCallPresentedHeader, ToolCallSpacer, ToolCallTrailing, ToolCallTrigger,
@@ -270,7 +271,7 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
   for (const piece of pieces) {
     if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} unsent={piece.unsent} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
-    if (piece.kind === 'notice') { flushTurn(); out.push(<p key={piece.key} className="builder-turn-reason builder-turn-notice" role="note">{piece.text}</p>); continue }
+    if (piece.kind === 'notice') { flushTurn(); out.push(<div key={piece.key} className="builder-turn-notice" role="note"><Notice variant="note"><Notice.Message>{piece.text}</Notice.Message></Notice></div>); continue }
     if (piece.kind === 'prompt') { flushTurn(); out.push(<div key={piece.key}>{renderPrompt(piece.prompt)}</div>); continue }
     if (piece.kind === 'status') { flushTurn(); out.push(<TurnNotice key={piece.key} level={piece.level} text={piece.text} />); continue }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
@@ -284,6 +285,26 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
   }
   flushTurn()
   return out
+}
+
+// The reply the run here is writing, paced by Mastra's message reveal. Every assistant message since
+// the person last spoke is one script, so a message that starts mid-turn continues the clock rather
+// than restarting it, and the person's next message empties the script and starts a new one.
+const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<string, MastraDBMessage>, working: boolean): ReadonlyMap<string, MessagePart[]> => {
+  let start = 0
+  messages.forEach((entry, index) => { if (isUserAuthored(entry.message)) start = index + 1 })
+  const turn = messages.slice(start).flatMap((entry) => {
+    const message = merged.get(entry.id) ?? entry.message
+    return message.role === 'assistant' && !isNotice(message) ? [{ id: entry.id, parts: message.content.parts }] : []
+  })
+  const shown = useRevealedParts(turn.flatMap((message) => message.parts), working)
+  const revealed = new Map<string, MessagePart[]>()
+  let at = 0
+  for (const message of turn) {
+    revealed.set(message.id, shown.slice(at, at + message.parts.length))
+    at += message.parts.length
+  }
+  return revealed
 }
 
 export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
@@ -304,6 +325,7 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
   const reason = failureReason(failure)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
   const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
+  const revealed = useRevealedTurn(messages, merged, working)
   const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
   const pieces: Piece[] = []
@@ -324,7 +346,9 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
       pieces.push({ kind: 'status', key: entry.id, level: entry.level, text: entry.text })
       continue
     }
-    const message = merged.get(entry.id) ?? entry.message
+    const whole = merged.get(entry.id) ?? entry.message
+    const parts = revealed.get(entry.id)
+    const message = parts ? { ...whole, content: { ...whole.content, parts } } : whole
     requestsBefore(messageTime(message))
     const flat = flattenMessage(entry, message, working && entry.streaming === true, reason, parked)
     for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true

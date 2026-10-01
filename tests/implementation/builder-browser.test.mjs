@@ -1198,6 +1198,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
   await page.getByTitle('Prévia do aplicativo').waitFor()
   await page.waitForTimeout(600)
 
+  await page.locator('.cx-messages').getByText(finalText, { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
     'the reply the stream never delivered is drawn once, from the thread')
   assert.equal(await page.locator('.builder-turn-body button').count(), 1,
@@ -1420,6 +1421,16 @@ test('a live reply streamed as deltas renders whole while the run is still worki
   await page.locator('.cx-messages').getByText('Vou trocar o título agora.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages').getByText('perdido').count(), 0,
     'a delta for a message that never started is dropped')
+})
+
+test('a long reply that arrives at once is laid down word by word, and ends whole', async (t) => {
+  const reply = Array.from({ length: 80 }, (_, index) => `palavra${index}`).join(' ')
+  const page = await openLiveTurn(t, [{ type: 'message_start', message: assistantMessage('live-reveal-1', reply) }])
+  const shown = page.locator('.cx-messages').getByText(/palavra0/)
+  await shown.waitFor()
+  const first = (await shown.innerText()).split(/\s+/).length
+  assert.ok(first < 80, `the reply starts partly laid down, not whole (${first} of 80 words)`)
+  await page.locator('.cx-messages').getByText(reply, { exact: true }).waitFor({ timeout: 15_000 })
 })
 
 test('a model call the controller is retrying reads as a retry in progress, not as a failure, and the next reply clears it', async (t) => {

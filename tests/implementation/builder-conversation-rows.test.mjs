@@ -19,6 +19,9 @@ const build = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 assert.equal(build.status, 0, build.stderr)
 const { BuilderConversation } = createRequire(import.meta.url)(componentPath)
+// A static render has no animation frames, so the live turn's reveal is told what a reader who
+// prefers reduced motion tells it: lay every part down at once.
+globalThis.window = { matchMedia: (query) => ({ matches: query === '(prefers-reduced-motion: reduce)' }) }
 test.after(() => rmSync(buildRoot, { recursive: true, force: true }))
 
 // The events a real controller emits for an ask, the answer and the finish, recorded from
