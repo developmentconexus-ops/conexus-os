@@ -3,8 +3,9 @@
 // go in, one block of integer milliseconds comes out, so the block is comparable across arms.
 import { flowOf } from './flow.mjs'
 import { mainAgentRuns, mainAgentScope, traceMetrics } from './scorers.mjs'
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from './tool-names.mjs'
 
-const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
+const CARD_TOOLS = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL])
 const TASK_TOOLS = new Set(['task_write', 'task_update', 'task_complete', 'task_check'])
 // A model step shorter than this is a bookkeeping span, not a model call.
 const MIN_STEP_MS = 50

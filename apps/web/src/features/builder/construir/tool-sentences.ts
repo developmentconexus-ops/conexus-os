@@ -1,5 +1,6 @@
 // The plain sentence a person reads for each Mastra Code tool, in the running and the finished
 // voice. The tool name, arguments and output stay behind the disclosure.
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from '../mastra-tool-names.ts'
 import type { BuiltinToolId } from '@mastra/core/agent-controller'
 import type { WORKSPACE_TOOLS_PREFIX, WorkspaceToolName } from '@mastra/core/workspace'
 
@@ -70,11 +71,11 @@ const sentences: Readonly<Record<string, Sentence>> = { ...ownSentences, ...work
 
 // The Mastra Code task tools (@mastra/core's built-in task-tools): construir.tsx drives the
 // pinned checklist from their calls instead of the conversation rendering one row per call.
-export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set(['task_write', 'task_update', 'task_check', 'task_complete'])
+export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set<BuiltinToolId>(['task_write', 'task_update', 'task_check', 'task_complete'])
 
 // Calls that always read as their own row: the person answers them, or they open a skill, so a fold
 // into "Editou 4 arquivos" would hide the one call the conversation turns on.
-export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set(['ask_user', 'submit_plan', 'skill'])
+export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL, 'skill'])
 
 // Names the same underlying action under a different id (a shell alias, an older or provider-specific
 // spelling). Each maps onto one of the sentences above instead of duplicating it.

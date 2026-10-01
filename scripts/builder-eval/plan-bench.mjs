@@ -107,7 +107,6 @@ export async function main(argv = process.argv.slice(2)) {
   const lines = []
   // The CDP browser is the operator's own signed-in Chromium: the bench only borrows a tab and never closes it.
   const { page } = await hubPage(options)
-  {
     for (const entry of casesOf(options.set)) {
       const casePath = resolve(HERE, entry.file)
       const caseId = entry.file.replace(/^cases\//, '').replace(/\.json$/, '').replaceAll('/', '-')
@@ -129,7 +128,6 @@ export async function main(argv = process.argv.slice(2)) {
         process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, wallMs: line.wallMs })}\n`)
       }
     }
-  }
   const summary = summarize(lines)
   appendFileSync(log, `${JSON.stringify({ summary })}\n`)
   process.stdout.write(`${JSON.stringify({ summary })}\n`)

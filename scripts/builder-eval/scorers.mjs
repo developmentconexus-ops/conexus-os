@@ -3,6 +3,7 @@ import { createScorer } from '@mastra/core/evals'
 import { PostgresStore } from '@mastra/pg'
 import { flowOf } from './flow.mjs'
 import { SIMULATOR_REFUSAL_MARKER } from './sankhya-sim.mjs'
+import { EDIT_FILE_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL } from './tool-names.mjs'
 
 /** Integer cents; never a float. @typedef {number} Cents */
 /** @typedef {Readonly<{ cents: Cents, label: string }>} LabeledAmount */
@@ -135,10 +136,10 @@ export function mainAgentScope(spans) {
   return spans.filter((span) => runs.has(ownerOf(span)))
 }
 
-const READ_TOOL = 'mastra_workspace_read_file'
+const READ_TOOL = READ_FILE_TOOL
 const OPERATION_TOOL = 'conexus_run_operation'
 const CHECK_TOOL = 'conexus_check'
-const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
+const WRITE_TOOLS = new Set([WRITE_FILE_TOOL, EDIT_FILE_TOOL])
 
 /** Pure. The main agent's tool calls, resumed runs included, in start order. */
 export function mainToolCalls(spans) {

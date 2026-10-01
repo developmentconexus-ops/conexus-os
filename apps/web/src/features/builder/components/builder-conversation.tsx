@@ -14,6 +14,7 @@ import { providerIcon } from '../composer/model-order'
 import { humanizeModelName } from '../composer/model-display-name'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
 import { clockLabel } from '../construir/run-state'
 import { TASK_TOOL_NAMES, UNGROUPED_TOOL_NAMES, groupSummary, toolSentence } from '../construir/tool-sentences'
@@ -90,7 +91,7 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
-      {toolName === 'ask_user' ? <AskedAndAnswered asked={askedAndAnswered(args, result)} />
+      {toolName === ASK_USER_TOOL ? <AskedAndAnswered asked={askedAndAnswered(args, result)} />
         : edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
       {output && <ToolCallMono copyText={stripAnsi(output)}>{preview(output)}</ToolCallMono>}
     </ToolCallContent>

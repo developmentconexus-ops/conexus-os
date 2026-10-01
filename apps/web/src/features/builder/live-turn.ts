@@ -1,4 +1,5 @@
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
+import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 import type { AgentControllerEvent, AgentControllerOMProgress, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
@@ -47,7 +48,7 @@ export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages:
 
 const parked = (state: DisplayState): LiveTurn['waiting'] => ({
   ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
-    [call.toolCallId, { kind: call.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
+    [call.toolCallId, { kind: call.toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
   ...(state.pendingApproval ? { [state.pendingApproval.toolCallId]: { kind: 'APPROVAL' as const, toolCallId: state.pendingApproval.toolCallId, toolName: state.pendingApproval.toolName, args: state.pendingApproval.args, prompt: null } } : {}),
 })
 
@@ -123,7 +124,7 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
     // The controller's display state forgets a tool when the run restarts to resume it, so its own
     // tool_end can find nothing to update there. The turn records the outcome itself, or a call that
     // agent_end marked "error" while parked would stay failed after the person answered it.

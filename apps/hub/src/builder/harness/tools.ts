@@ -1,4 +1,4 @@
-import { submitPlanTool } from '@mastra/core/agent-controller'
+import { askUserTool, submitPlanTool } from '@mastra/core/agent-controller'
 import { createTool, formatQuestionAnswer, type AskUserAnswer } from '@mastra/core/tools'
 import { z } from 'zod'
 import { checkReportSchema, type CheckReport } from '../application-check.js'
@@ -43,7 +43,7 @@ export const createRunOperationTool = (runOperation: RunOperation) => createTool
   execute: async (request) => runOperation(request),
 })
 
-export const SUBMIT_PLAN_TOOL = 'submit_plan'
+export const SUBMIT_PLAN_TOOL = submitPlanTool.id
 
 const SUBMIT_PLAN_DESCRIPTION = [
   `Submit the plan you wrote to \`${PLAN_PATH}\` for the person to review.`,
@@ -79,7 +79,7 @@ export const createSubmitPlanTool = (checkout: string): typeof submitPlanTool =>
   },
 })
 
-export const ASK_USER_TOOL = 'ask_user'
+export const ASK_USER_TOOL = askUserTool.id
 export const MAX_QUESTIONS = 4
 
 const ASK_USER_DESCRIPTION = [

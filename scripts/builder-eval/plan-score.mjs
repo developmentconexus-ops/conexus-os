@@ -13,6 +13,7 @@ import { Agent } from '@mastra/core/agent'
 import { z } from 'zod'
 import { flowOf, isApprovalOptions } from './flow.mjs'
 import { fillSheet, loadValues, parseSheet, personModel } from './person.mjs'
+import { SUBMIT_PLAN_TOOL, WRITE_FILE_TOOL } from './tool-names.mjs'
 
 export const QUESTION_CAP = 8
 
@@ -134,10 +135,10 @@ export function interviewFromClaudeCode(record, events, planText, armDir) {
   const approval = (event) => event.name === 'ExitPlanMode' || (event.name === 'AskUserQuestion' && approvalCalls[asks++] === true)
   const toolEvents = events.filter((event) => event.type === 'tool')
   const flowCalls = toolEvents.map((event) => {
-    if (approval(event)) return { entityName: 'submit_plan', input: {} }
+    if (approval(event)) return { entityName: SUBMIT_PLAN_TOOL, input: {} }
     if (event.name !== 'Write' && event.name !== 'Edit') return { entityName: event.name, input: {} }
     const path = /"file_path":"([^"]+)"/.exec(String(event.input))?.[1] ?? ''
-    return { entityName: 'mastra_workspace_write_file', input: { path: path.startsWith(`${armDir}/`) ? path.slice(armDir.length + 1) : path } }
+    return { entityName: WRITE_FILE_TOOL, input: { path: path.startsWith(`${armDir}/`) ? path.slice(armDir.length + 1) : path } }
   })
   const flow = flowOf(flowCalls)
   return { questions, cards: calls.filter((call) => call.length > 0).length, planText, appFilesBeforePlan: flow.appFilesBeforeApproval }
