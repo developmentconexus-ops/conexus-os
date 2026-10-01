@@ -159,6 +159,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
+  candidateStep('conexus-backup', 'node --test tests/implementation/conexus-backup.test.mjs'),
 
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
