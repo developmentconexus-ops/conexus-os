@@ -15,6 +15,7 @@ import { humanizeModelName } from '../composer/model-display-name'
 import { providerName } from '../../settings/provider-names'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { mergeCalls } from './merge-calls'
 import { clockLabel } from '../construir/run-state'
 import { TASK_TOOL_NAMES, UNGROUPED_TOOL_NAMES, groupSummary, toolSentence } from '../construir/tool-sentences'
 
@@ -43,25 +44,6 @@ const callState = (part: ToolInvocationPart, live: ActiveTool | undefined): Call
   if (state === 'result') return isErrorResult(result) || live?.isError === true ? 'failed' : 'done'
   if (live?.isError === true || live?.status === 'error') return 'failed'
   return live?.status === 'completed' ? 'done' : 'running'
-}
-
-const emptyArgs = (args: unknown): boolean =>
-  args === null || args === undefined || (typeof args === 'object' && Object.keys(args).length === 0)
-
-// A call is one thing however many snapshots of it the message carries: the controller can append the
-// resolved result of a parked call as a new part, with no arguments, after the part that asked. The
-// call keeps the place and the arguments of its first snapshot and takes the state of its last.
-const mergeCalls = (parts: readonly MessagePart[]): readonly MessagePart[] => {
-  const merged: MessagePart[] = []
-  const at = new Map<string, number>()
-  for (const part of parts) {
-    if (part.type !== 'tool-invocation') { merged.push(part); continue }
-    const first = at.get(part.toolInvocation.toolCallId)
-    const earlier = first === undefined ? undefined : merged[first]
-    if (first === undefined || earlier?.type !== 'tool-invocation') { at.set(part.toolInvocation.toolCallId, merged.push(part) - 1); continue }
-    merged[first] = { ...part, toolInvocation: { ...part.toolInvocation, args: emptyArgs(part.toolInvocation.args) ? earlier.toolInvocation.args : part.toolInvocation.args } }
-  }
-  return merged
 }
 
 // What the person asked and was answered: the controller words the answer in English, one
@@ -211,7 +193,7 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
     return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
   }
   if (message.role !== 'assistant') return []
-  const parts = mergeCalls(message.content.parts)
+  const parts = message.content.parts
   const streaming = message.id === streamingId
   return parts.flatMap((part, index): Piece[] => {
     const key = `${message.id}-${index}`
@@ -285,11 +267,12 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
       const text = assistantReplyText(message)
       return !text || !settledReplies.has(text)
     })
+  const calls = mergeCalls([...settled, ...liveMessages])
   const spoken = new Set([...settled, ...liveMessages].filter(isUserAuthored).map(userText))
   const requestVisible = pendingRequest !== null && spoken.has(pendingRequest)
   const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text) && entry.text !== pendingRequest)
   const timeline = [
-    ...settled.map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
+    ...calls.slice(0, settled.length).map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
     ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
   ].sort((left, right) => left.at - right.at)
   const reason = failureReason(failure)
@@ -302,7 +285,7 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason, parked))
   }
   if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
-  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason, parked))
+  for (const message of calls.slice(settled.length)) pieces.push(...flattenMessage(message, streamingId, reason, parked))
 
   const rendered = renderPieces(pieces, turn.tools, model)
   return <>
