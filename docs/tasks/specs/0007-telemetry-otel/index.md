@@ -20,9 +20,12 @@ fetch. Mastra's `OtelBridge` puts Builder runs and connector calls into the same
 forwarder sends the token, cost and duration metrics that Mastra already computes. Every log line
 carries its trace id. The Hub and the runner export heap, RSS, event loop, GC, sessions, runs,
 streams and pool usage, and an alarm fires when the heap passes 80% of its limit. An allowlist in
-the process strips attributes before export: prompts, tool and handler payloads, SQL text and URL
-queries never leave the process. Browser errors from the Hub web and from generated apps reach the
-Hub through a same-origin reporter. A company that opts in sends them to Sentry instead.
+the process strips attributes before export, and exported log bodies and errors carry codes, never
+free text: prompts, tool and handler payloads, SQL text, URL queries and error messages never leave
+the process. Each Builder run's tokens and estimated cost are exported under its run id and Project.
+A public entry point starts a new trace and ignores a caller's `traceparent`. Browser errors from
+the Hub web and from generated apps reach the Hub through a same-origin reporter. A company that
+opts in sends them to Sentry instead.
 
 ## Requirements
 
@@ -84,18 +87,26 @@ One trace end to end
   with `conexus.source` set to `PREVIEW` or `BUILDER`. [`telemetry-app-trace`]
 - **AC-8**: Every response of the Hub, the Preview host and the application host carries
   `x-conexus-trace-id` with the trace id of its server span. [`telemetry-app-trace`]
+- **AC-28**: A request that reaches a TCP listener (the Hub API, the Preview host, the application
+  host) with `traceparent`, `tracestate` or `baggage` headers gets a server span that is the root of
+  a new trace, with no parent and no link to the inbound ids. A request over a unix socket (the Hub
+  to the runner, the worker to the Hub's handler port) continues the inbound trace.
+  [`telemetry-trace-trust`]
 
 Attributes and redaction
 - **AC-9**: App spans carry the attributes in *Attributes*: `conexus.project_id`,
   `conexus.app_slug`, `conexus.operation`, `conexus.source`, `conexus.artifact_revision_id`,
   `conexus.account_id`, `conexus.result` and, on failure, `error.type` and span status `ERROR`.
   [`telemetry-app-trace`]
-- **AC-10**: Every span, span event and log record passes `redactAttributes` before export. Only
-  keys on the allowlist in *Redaction* leave the process; every other key is dropped and counted in
-  `conexus.telemetry.attributes_dropped` by key. A recorded Builder run, an app invoke with a
-  connector fetch, and a model request to a URL with `?key=` export none of the strings planted in
-  their prompts, tool arguments, tool results, handler input, handler output, SQL or URL query.
-  [`telemetry-redaction`]
+- **AC-10**: Every span, span event and log record passes the redaction of *Redaction* before
+  export. Only keys on the allowlist leave the process; every other key is dropped and counted in
+  `conexus.telemetry.attributes_dropped` by key. A log record's body leaves as its leading code
+  (`PROJECT_DELETION_INCOMPLETE` of `PROJECT_DELETION_INCOMPLETE:<id> ...`) or as `UNCODED_LOG`,
+  never as its text. An error leaves as its type and its stack frames, never as its message. A
+  recorded Builder run, an app invoke with a connector fetch, a model request to a URL with `?key=`,
+  a log line written through `logLine` or `logger`, and an error logged with `recordFailure` export
+  none of the strings planted in their prompts, tool arguments, tool results, handler input,
+  handler output, SQL, URL query, log text or error message. [`telemetry-redaction`]
 - **AC-11**: The thrown message and the stdout and stderr of a handler are never exported. A
   failing handler exports `error.type` (the worker's result code, or `CRASHED`, `TIMEOUT`,
   `RESULT_TOO_LARGE`) and nothing of its text. [`telemetry-redaction`]
@@ -113,14 +124,17 @@ Logs
   [`hub-log-sinks`]
 - **AC-14**: `setErrorHandler` (`http/app.ts:44`) logs every 5xx at `error` with the error's type,
   message and stack, records the exception on the active span and sets its status to `ERROR`. A 4xx
-  is not logged. The answer body is unchanged. [`hub-http-errors`]
+  is not logged. The answer body is unchanged. The stdout record holds the message; the export
+  holds what *Redaction* lets through. [`hub-http-errors`]
 - **AC-15**: The `catch` at `mar/application-host-routes.ts:164` logs the cause (type, message,
   `conexus.project_id`, `conexus.operation`) and records it on the span, then answers 503
-  `APPLICATION_RUNNER_UNAVAILABLE` as today. [`application-host`]
+  `APPLICATION_RUNNER_UNAVAILABLE` as today. The message stays on stdout, as in AC-14.
+  [`application-host`]
 
 Metrics and the heap alarm
-- **AC-16**: The Hub and the runner export the metrics in *Metrics*: heap used and heap limit,
-  `conexus.process.heap.used_ratio` (used heap divided by the old-space cap, see *Metrics*), RSS, event loop delay and utilization, GC duration, and on the
+- **AC-16**: The Hub and the runner export the metrics in *Metrics*: heap used and heap space
+  sizes, `conexus.process.heap.used_ratio` (used heap divided by the old-space cap, see *Metrics*),
+  RSS, event loop delay and utilization, GC duration, and on the
   Hub controller sessions, active runs, open session streams, pool connections by pool and state,
   app invocations in flight and queued. The runner adds sandboxes running. The export interval is
   15 seconds. [`telemetry-metrics`]
@@ -151,7 +165,15 @@ Builder and connectors through Mastra
   Mastra's automatic metrics into OpenTelemetry instruments: `mastra_*_duration_ms` as histograms,
   `mastra_model_*_tokens` as counters with `gen_ai.provider.name` and `gen_ai.request.model`, and
   `conexus.builder.cost` (USD, from Mastra's `costContext.estimatedCost`). A Builder run with a
-  known model shows its tokens and estimated cost in the backend. [`telemetry-mastra-bridge`]
+  known model shows its tokens and estimated cost in the backend. These counters stay per provider
+  and model: a run id as a metric label would grow one series per run.
+  [`telemetry-mastra-bridge`]
+- **AC-29**: For each token or cost metric event, the forwarder also writes one
+  `BUILDER_MODEL_USAGE` log record under the event's trace id, with `conexus.builder_run_id`,
+  `conexus.project_id`, `gen_ai.provider.name`, `gen_ai.request.model`, `conexus.builder.metric`,
+  `conexus.builder.metric_value` and, when Mastra estimated one, `conexus.builder.cost_usd`. Two
+  Builder runs of one Project on the same model, run at the same time, export records whose sums by
+  `conexus.builder_run_id` equal each run's own tokens and cost. [`telemetry-mastra-bridge`]
 - **AC-22**: The Builder keeps `MastraStorageExporter` and its 30 day retention unchanged. The
   connector instance keeps its `MastraStorageExporter` (the C-029 record) and loses
   `SpanLineExporter`; connector JSON lines no longer reach stderr. [`connector-record`]
@@ -253,7 +275,19 @@ startHeapWatch()  // AC-17: runs with or without the SDK
 OTLPTraceExporter()))]`, `logRecordProcessors: [new BatchLogRecordProcessor(redacting(new
 OTLPLogExporter()))]`, a `PeriodicExportingMetricReader` at 15 seconds, the sampler
 `parentbased_always_on`, and the instrumentations above. `instrumentation-http` ignores incoming
-requests for static assets and `/v1/health`. `SIGTERM` flushes with a 2 second deadline.
+requests for static assets and `/v1/health`. `SIGTERM` flushes with a 2 second deadline. The
+resource's `service.version` comes from `CONEXUS_SERVICE_VERSION`, and every other resource
+attribute from `OTEL_RESOURCE_ATTRIBUTES`, so a launch script never edits a variable the env file
+also sets (`node --env-file` keeps an inherited variable over the file's value).
+
+Trust of inbound trace context (AC-28) is one `startIncomingSpanHook` on `instrumentation-http`. The
+instrumentation calls it before it extracts the inbound context. For a request whose socket has a
+remote address, that is a TCP listener, the hook deletes `traceparent`, `tracestate` and `baggage`
+from the request headers, so extraction finds nothing and the server span starts a new trace. A
+unix socket has no remote address (probe P7), so the runner and the handler port keep the header.
+`@fastify/otel` extracts only when no span is active, and the HTTP server span always is, so it
+adds no second path. The inbound id is not kept as a link: an outside caller could still tie
+unrelated requests together through it.
 
 Launch: `scripts/build-hub-local.mjs:36` spawns the child with
 `['--max-old-space-size=512', '--heapsnapshot-near-heap-limit=1', '--diagnostic-dir=<d>',
@@ -290,6 +324,10 @@ browser ── POST /__conexus/api/listDeals ──▶ Hub application host (Fas
   `conexus.builder.run` span and a link to the request span. A run lasts minutes and survives the
   request, so it does not hang under a short HTTP span.
 - `x-conexus-trace-id`: one `onSend` hook in `http/app.ts`, shared by the three apps.
+- Public entry points: the Hub API, the Preview host and the application host listen on TCP, behind
+  the reverse proxy, and start a new trace for every request (AC-28). Only the two unix socket hops
+  above carry a trace in. A browser that wants to name its trace reads `x-conexus-trace-id` from
+  the answer instead.
 
 ### Attributes (AC-9)
 
@@ -317,7 +355,25 @@ installation's `CONEXUS_TELEMETRY_SALT`, first 16 hex characters.
 
 `redactAttributes` in `telemetry/redact.ts` is pure: it takes an attribute map and returns the
 allowed subset. `redacting(exporter)` applies it to span attributes, span event attributes and log
-record attributes before the wrapped exporter runs. The allowlist is exact keys and prefixes:
+record attributes before the wrapped exporter runs, and replaces each log record's body by its
+code. What an exported record may carry, exactly:
+
+| Record | Exported | Never exported |
+|---|---|---|
+| Span | name (set by an instrumentation or our code after a route template, operation, tool or model, never after a value), kind, ids, parent, links, times, status code, allowlisted attributes, events with allowlisted attributes | status message, every other attribute |
+| Log record | time, severity, trace and span ids, allowlisted attributes, and a body that is the leading code of the message or `UNCODED_LOG` | the message text past its code, every other attribute |
+| Error (on a span event or a log record) | `exception.type`, `error.type`, `exception.stacktrace` from its first frame line on | `exception.message`, and the message lines a stack begins with |
+| Resource | `service.name`, `service.version`, `deployment.environment.name`, `conexus.installation`, the SDK's host and process attributes | nothing of the environment beyond `OTEL_RESOURCE_ATTRIBUTES` and `CONEXUS_SERVICE_VERSION` |
+
+A code is a run of capital letters, digits and underscores with at least one underscore, at the
+start of the message and followed by its end, a colon or a space: `HTTP_SERVER_ERROR`,
+`BUILDER_RETENTION_PRUNED` of `BUILDER_RETENTION_PRUNED:builder.runs:12`. The platform already
+writes its log lines this way (`builder/run-runtime.ts`, `platform/postgres.ts`,
+`platform/connection-census.ts`). A line with no code, such as the runner's JSON lines until slice 2
+writes them as fields, leaves as `UNCODED_LOG` with its allowlisted fields. The full text stays on
+stdout and in `hub.log` on the installation's own disk, found by the record's trace id.
+
+The allowlist is exact keys and prefixes:
 
 - Resource and HTTP: `http.request.method`, `http.response.status_code`, `http.route`,
   `url.path`, `url.scheme`, `server.address`, `server.port`, `network.*`, `user_agent.original`.
@@ -330,17 +386,17 @@ record attributes before the wrapped exporter runs. The allowlist is exact keys 
   `mastra.metadata.result`, `mastra.metadata.consumer`, `mastra.metadata.connector`,
   `mastra.metadata.step`, `mastra.metadata.attempt`, `mastra.metadata.shared`, `mastra.tags`.
 - Ours: `conexus.*`, `error.type`.
-- Exceptions: `exception.type`, `exception.stacktrace`, and `exception.message` cut to 300
-  characters.
-- Logs: `trace_id`, `span_id`, `level`, `event`, `code`, and the log body.
+- Exceptions: `exception.type`, and `exception.stacktrace` cut to its frames.
+- Logs: `trace_id`, `span_id`, `level`, `event`, `code`. The body is not an attribute; it leaves as
+  its code.
 
 What this removes, by name: `gen_ai.input.messages`, `gen_ai.output.messages`,
 `gen_ai.system_instructions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`,
 `gen_ai.tool.definitions` and every `mastra.<span type>.input` and `.output` (probe P2: the bridge
 exports all of these, prompts and tool results included); `db.query.text`; `url.full` and
-`url.query` (a Google model URL carries `?key=`); any `mastra.metadata.*` not listed. Handler
-stdout, stderr, thrown messages, input and output never become attributes: the runner already logs
-only codes (`app-runner/http.ts:48-57`), and AC-11 keeps that rule for spans.
+`url.query` (a Google model URL carries `?key=`); `exception.message`; any `mastra.metadata.*`
+not listed. Handler stdout, stderr, thrown messages, input and output never become attributes: the
+runner already logs only codes (`app-runner/http.ts:48-57`), and AC-11 keeps that rule for spans.
 
 The Builder's prompts and tool payloads stay where they are today: Mastra's Postgres store, 30
 days, read by the Builder's trace summary. Telemetry gets the structure, timing and usage of a run,
@@ -353,7 +409,8 @@ never its content. That keeps the backend safe to open to Conexus support and to
 `disableRequestLogging: true`; request records would only repeat the server spans.
 `instrumentation-pino` adds `trace_id` and `span_id` to each record and sends it to the
 `LoggerProvider`. The existing string sinks keep their call sites and text: their lines become the
-record's message (`logger.info(line)`), so a `grep BUILDER_RETENTION_PRUNED hub.log` still works.
+record's message (`logger.info(line)`), so a `grep BUILDER_RETENTION_PRUNED hub.log` still works;
+the export carries the line's code (*Redaction*).
 `identity-access/oidc.ts` logs its event object as fields. The runner's `ready` line stays a raw
 stderr write; a test may wait on it.
 
@@ -364,7 +421,7 @@ has no log table, and Mastra's internal logs are out of scope here.
 
 | Instrument | Kind | Source |
 |---|---|---|
-| `v8js.memory.heap.used`, `v8js.memory.heap.limit` (per space), `v8js.gc.duration`, `nodejs.eventloop.delay.*`, `nodejs.eventloop.utilization` | from `instrumentation-runtime-node` | Hub, runner |
+| `v8js.memory.heap.used`, `v8js.memory.heap.space.size`, `v8js.memory.heap.space.available_size`, `v8js.memory.heap.space.physical_size` (per space), `v8js.gc.duration`, `nodejs.eventloop.delay.*`, `nodejs.eventloop.utilization`, `nodejs.eventloop.time`, `v8js.resource.active` | from `instrumentation-runtime-node` | Hub, runner |
 | `conexus.process.heap.used_ratio` | observable gauge | `v8.getHeapStatistics().used_heap_size` divided by the old-space cap |
 | `process.memory.usage` (RSS, bytes) | observable gauge | `process.memoryUsage().rss` |
 | `conexus.builder.sessions` | up-down counter | `controller.onSessionCreated` and `onSessionDeleted` (Mastra) |
@@ -375,14 +432,21 @@ has no log table, and Mastra's internal logs are out of scope here.
 | `conexus.runner.sandboxes.running` | observable gauge | the `running` count checked at `app-runner/supervisor.ts:266` |
 | `conexus.telemetry.attributes_dropped` (`key`) | counter | `redactAttributes` |
 
-The heap ratio divides used heap by the old-space cap, read once at start from the last
-`--max-old-space-size` in `process.execArgv` or `NODE_OPTIONS`, and falls back to
+The heap ratio divides used heap by the old-space cap, read once at start, and falls back to
 `heap_size_limit` only when no flag is set. V8 dies when used heap reaches the cap, not
-`heap_size_limit` (the cap plus the young generation): under a 512 MB cap `heap_size_limit` is 738 MB
-on Node 24.20 and the process died at about 0.73 of it, so a ratio over `heap_size_limit` never
-reaches 0.8. The gauge's description names its denominator. The per-space
-`v8js.memory.heap.limit` is deprecated in `instrumentation-runtime-node` and is not exported. The
-watch in AC-17 samples every 15 seconds.
+`heap_size_limit` (the cap plus the young generation): under a 512 MiB cap `heap_size_limit` is 704
+MiB on Node 24.20 and the process died at about 0.73 of it, so a ratio over `heap_size_limit` never
+reaches 0.8. The gauge's description names its denominator.
+
+The effective cap is the last `--max-old-space-size` in `process.execArgv` when the command line
+sets one, and otherwise the last one in `NODE_OPTIONS`. The command line wins whatever the order of
+values (probe P6): `NODE_OPTIONS=--max-old-space-size=1024 node --max-old-space-size=512` and
+`NODE_OPTIONS=--max-old-space-size=256 node --max-old-space-size=512` both give a `heap_size_limit`
+of 704 MiB, the 512 MiB cap. `process.execArgv` never holds the `NODE_OPTIONS` flags.
+
+`instrumentation-runtime-node` 0.34.0 emits only the instruments in the table. It declares
+`v8js.memory.heap.limit` as deprecated and does not emit it, so no heap limit instrument is exported;
+the ratio is the one signal that names the cap. The watch in AC-17 samples every 15 seconds.
 
 ### Builder metrics through Mastra (AC-21)
 
@@ -403,6 +467,17 @@ ours on that path. It is added to the Builder config's `exporters` beside `Mastr
 The estimate uses list prices. A run billed through a subscription costs what the subscription
 costs, and the dashboard labels the number "estimated, at list price".
 
+Per run (AC-29): the counters answer "what does this model cost us"; the `BUILDER_MODEL_USAGE`
+records answer "what did this run cost". The forwarder writes one record per token or cost event
+through the OpenTelemetry logs API, with the event's `traceId` and `spanId` as its context, so the
+record sits in the run's trace. The run id and Project come from the event's `metadata`: Mastra
+copies the span's metadata onto each metric event, and the Builder puts `conexusBuilderRunId` and
+`conexusBuilderProjectId` into every span's metadata through
+`BUILDER_TRACE_REQUEST_CONTEXT_KEYS` (`builder/runtime.ts:39`). An event without a run id is
+counted and writes no record. In SigNoz, the run's cost is the sum of `conexus.builder.cost_usd`
+over `BUILDER_MODEL_USAGE` records grouped by `conexus.builder_run_id`, and a Project's cost the same
+grouped by `conexus.project_id`.
+
 ### Browser report (AC-23 to AC-25)
 
 ```ts
@@ -417,7 +492,9 @@ type BrowserErrorReport = Readonly<{
 }>
 ```
 
-Never in a report: query strings, form values, response bodies, local storage, cookies. The Hub
+Never in a report: query strings, form values, response bodies, local storage, cookies. The
+`message` follows the rule for errors in *Redaction*: the Hub writes it to its stdout log under the
+report's trace id and exports the report without it, to the Collector and to Sentry alike. The Hub
 web adds the reporter in `apps/web/src/main.tsx` and the router's `defaultErrorComponent`
 (`apps/web/src/app/router.tsx:48`). Generated apps change nothing: the host adds the script tag
 when it serves `index.html`, so the Builder cannot remove it, and `script-src 'self'` and
@@ -469,7 +546,7 @@ Building the tool and its prompt is later work.
 
 | Value | Source |
 |---|---|
-| `service.version` | `git rev-parse --short HEAD`, passed by the launch script as `OTEL_RESOURCE_ATTRIBUTES` |
+| `service.version` | `git rev-parse --short HEAD`, exported by the launch script as `CONEXUS_SERVICE_VERSION` |
 | `deployment.environment.name` | `OTEL_RESOURCE_ATTRIBUTES` in the installation's env file |
 | `conexus.installation` | the Collector's `resource` processor |
 | `conexus.app_slug`, `conexus.project_id` | the app host's resolved target (`application-host-routes.ts:140`) |
@@ -477,6 +554,7 @@ Building the tool and its prompt is later work.
 | handler span parent | `traceparent` of the runner's active span, written into `WorkerJob` |
 | query timings | the worker's `db.query` wrapper, clamped by the runner |
 | tokens, cost, durations | Mastra metric events |
+| run id and Project of a usage record | the metric event's `metadata` (`conexusBuilderRunId`, `conexusBuilderProjectId`) |
 | heap ratio | `v8.getHeapStatistics()` |
 | account hash | HMAC-SHA256 with `CONEXUS_TELEMETRY_SALT` |
 
@@ -497,16 +575,22 @@ Building the tool and its prompt is later work.
 - The worker gains no network and no secret; `traceparent` and timings are not secrets.
 - Sentry receives only what the Collector would, under a hashed account id, and only when the
   company set the DSN.
-- Stated limits: `exception.message` of a platform error can quote a value a provider echoed; it is
-  cut to 300 characters and the connector path records codes, not messages (C-029). A handler can
-  forge its timings and the trace header; both affect only telemetry of its own Project.
+- Free text never leaves: a log body leaves as its code, an error as its type and frames. A value a
+  provider echoed into an error message stays in `hub.log` on the installation.
+- Trace context is trusted only on unix sockets, which only the Hub, the runner and the worker
+  reach. Every TCP request starts a new trace.
+- Stated limits: a handler can forge its timings and the trace header of its port requests; both
+  affect only telemetry of its own Project. Span names come from instrumentations and our code; a
+  library that names a span after a value would export it, and slice 3's planted-string run is the
+  check for Mastra's names.
 
 ### Configuration required
 
 | Variable | Where | Meaning |
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Hub and runner env | `http://127.0.0.1:4318`; unset turns the SDK off |
-| `OTEL_RESOURCE_ATTRIBUTES` | Hub and runner env | `deployment.environment.name=dev` or `pilot`, plus `service.version` |
+| `OTEL_RESOURCE_ATTRIBUTES` | the installation's env file | `deployment.environment.name=dev` or `pilot` |
+| `CONEXUS_SERVICE_VERSION` | launch scripts | the git short head, the resource's `service.version` |
 | `CONEXUS_DIAGNOSTIC_DIR` | launch scripts | heap snapshots and fatal reports |
 | `LOG_LEVEL` | Hub and runner env | default `info` |
 | `CONEXUS_TELEMETRY_SALT` | Hub env | 32 random bytes, per installation |
@@ -521,7 +605,10 @@ port closed during a burst (AC-4); a worker that reports 500 timings and timings
 (AC-6); a session stream cancelled by the browser and one closed by session delete (AC-16); the
 heap ratio crossing 0.8, staying, dropping to 0.75 and crossing again (one record, AC-17); a
 browser report of 9 KiB and the 21st report in a minute (AC-24); a report body that claims another
-account id (AC-24).
+account id (AC-24); a log line `CODE:PLANTED` and an error whose message is planted, through
+`logLine`, `logger` and `recordFailure` (AC-10); a request with a forged `traceparent` on each TCP
+listener and one over the runner's unix socket (AC-28); two concurrent Builder runs on one model
+(AC-29); `NODE_OPTIONS` and the command line both setting `--max-old-space-size` (AC-17).
 
 ## Build plan
 
@@ -531,14 +618,14 @@ Each slice is one pull request, merged and checked on the dev installation befor
    launch flags, `platform/logger.ts` and the sink migration, the error handler and the host
    `catch`, runtime metrics, heap ratio, RSS and the heap watch, `infra/telemetry/collector.yaml`
    and the dev backend compose. This is the study's first slice, items 1, 5 and 6. Satisfies
-   **AC-1** to **AC-4**, **AC-10**, **AC-12** to **AC-15**, **AC-17**, and the process part of
-   **AC-16**.
+   **AC-1** to **AC-4**, **AC-10**, **AC-12** to **AC-15**, **AC-17**, **AC-28** (the HTTP
+   instrumentation ships here), and the process part of **AC-16**.
 2. **One trace to the handler.** `conexus.app.invoke`, `conexus.app.handler`, `traceparent` in the
    job and on the port, worker timings, `x-conexus-trace-id`, the attributes. The study's items 2
    and 3. Satisfies **AC-5** to **AC-9**, **AC-11**.
 3. **Mastra in the same trace.** `OtelBridge` on both instances, the Builder run root, the
    `MastraMetricForwarder`, `SpanLineExporter` removal, the redaction cases for Builder content.
-   The study's item 4. Satisfies **AC-19** to **AC-22**.
+   The study's item 4. Satisfies **AC-19** to **AC-22** and **AC-29**.
 4. **SigNoz on the pilot.** Foundry casting and generated compose, retention, data volume cap, the
    alert rules and their script, the measured disk number in the README. Needs the operator's
    Telegram bot and the pilot's memory. Satisfies **AC-18**, **AC-26**.
@@ -567,7 +654,7 @@ and without the SDK and records both); SigNoz's 4 to 8 GB beside the Hub on a 10
 **Positive**:
 - The next OOM shows as a rising line and a warning minutes before, with a heap snapshot after.
 - A failing app call is one trace with its app, operation, person id, timings and error code.
-- Builder cost and tokens per model come from Mastra's own numbers.
+- Builder cost and tokens per model and per run come from Mastra's own numbers.
 - Changing backend is a Collector exporter change.
 
 **Negative / tradeoffs**:
