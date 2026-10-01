@@ -58,7 +58,7 @@ const WEB_SEARCH_DESCRIPTION = 'Searches the web for one query and returns what 
  * the Builder's own tool set. The Builder's `web_search` asks an agent on the same model whose only
  * tool is Google's search, in one model call per query, and returns its answer and sources.
  */
-const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
+const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[string] => {
   const searcher = new Agent({
     id: 'conexus-web-search',
     name: 'Conexus web search',
@@ -71,7 +71,12 @@ const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
     description: WEB_SEARCH_DESCRIPTION,
     inputSchema: z.strictObject({ query: z.string().min(1) }),
     execute: async ({ query }, context) => {
-      const result = await searcher.generate(query, { maxSteps: 1, ...context?.abortSignal ? { abortSignal: context.abortSignal } : {} })
+      const result = await searcher.generate(query, {
+        maxSteps: 1,
+        // The searcher is built once and resolves its model for each search, from the run's own request context.
+        ...context?.requestContext ? { requestContext: context.requestContext } : {},
+        ...context?.abortSignal ? { abortSignal: context.abortSignal } : {},
+      })
       return {
         text: result.text,
         sources: result.sources.flatMap(({ payload }) => payload.url ? [{ title: payload.title, url: payload.url }] : []),
@@ -90,22 +95,23 @@ const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
  * the search-only agent. Whether each subscription backend accepts its tool is proven only by a
  * live run.
  */
-const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig) => ToolsInput[string]>> = Object.freeze({
+const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig, searchOnly: () => ToolsInput[string]) => ToolsInput[string]>> = Object.freeze({
   // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
   'openai.responses': () => createOpenAI({}).tools.webSearch() as ToolsInput[string],
   'anthropic.messages': () => createAnthropic({}).tools.webSearch_20250305() as ToolsInput[string],
-  'google.generative-ai': searchOnlyWebSearch,
+  'google.generative-ai': (_model, searchOnly) => searchOnly(),
 })
 
 /** The run's `web_search` tool, or none when its model has no provider search in Mastra (spec 0002 AC-11, Tool contract). */
 const webSearchFor = async (
   model: BuilderControllerDeps['model'],
+  searchOnly: () => ToolsInput[string],
   ctx: { requestContext: RequestContext },
 ): Promise<ToolsInput> => {
   const resolved = typeof model === 'function' ? await model(ctx) : model
   const providerId = resolveModelProviderId(resolved)
   const providerSearch = providerId !== undefined && Object.hasOwn(PROVIDER_WEB_SEARCH, providerId) ? PROVIDER_WEB_SEARCH[providerId] : undefined
-  if (providerSearch) return { web_search: providerSearch(resolved) }
+  if (providerSearch) return { web_search: providerSearch(resolved, searchOnly) }
   if (providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)) return { web_search: webSearchTool }
   return {}
 }
@@ -173,6 +179,9 @@ export type BuilderControllerDeps = Readonly<{
  */
 export const createBuilderController = (deps: BuilderControllerDeps): AgentController => {
   const skillsRoot = deps.skillsPath ?? defaultBuilderSkillsRoot()
+  // The `tools` function below runs for every agent call, so the searcher is built once, when the first Google model asks for it.
+  let googleSearch: ToolsInput[string] | undefined
+  const searchOnly = (): ToolsInput[string] => (googleSearch ??= searchOnlyWebSearch(deps.model))
 
   const agent = createCodingAgent({
     id: 'conexus-builder',
@@ -182,7 +191,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
       ...runToolsInput(deps.runTools?.(ctx)),
-      ...(await webSearchFor(deps.model, ctx)),
+      ...(await webSearchFor(deps.model, searchOnly, ctx)),
       web_fetch: webFetchTool,
     }),
     skills: [skillsRoot],

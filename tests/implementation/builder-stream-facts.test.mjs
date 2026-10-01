@@ -13,6 +13,7 @@ const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createConversations } = await import(hubModuleUrl('builder/conversations.js'))
+const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const origin = 'https://conexus.test'
 const accountId = '22222222-2222-4222-8222-222222222222'
@@ -57,7 +58,7 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, origin,
+        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null,
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: id }) => conversations.ownerOf(project, id),

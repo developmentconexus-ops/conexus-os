@@ -32,6 +32,7 @@ import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './applica
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
+import { createConversationSessions } from './conversation-sessions.js'
 import { createBuilderController, type RunTools } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
@@ -350,9 +351,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
+  const sessions = createConversationSessions({ controller, log })
   const conversationSession = async (resourceId: string, conversationId: string) => {
     await ready
-    return controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext() })
+    return sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
   const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
@@ -368,8 +370,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
+  const sandboxes = e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
   const runtime = createBuilderRunRuntime({
-    openSandbox: e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
+    openSandbox: sandboxes.open,
     openSession: async (input) => {
       await ready
       return openSession(input)
@@ -441,7 +444,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
+        mastra, controller, sessions, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
@@ -464,7 +467,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
-      await conversations.deleteAll(projectId)
+      const conversationIds = await conversations.deleteAll(projectId)
+      await sessions.drop(projectResourceId(projectId), conversationIds)
+      await sandboxes.destroy(conversationIds)
       await git.deleteRepository(projectId)
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
@@ -476,6 +481,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         await service.close()
       } finally {
         try {
+          await sessions.close()
           await controller.destroy()
         } finally {
           await googleAiProReady.then((started) => started?.close(), () => undefined)

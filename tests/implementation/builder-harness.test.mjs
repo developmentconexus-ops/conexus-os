@@ -284,6 +284,37 @@ const toolsSentToModel = async (model, resourceId) => {
   return { provider: recorded.provider, search: sent[0].filter((tool) => tool.name === 'web_search'), names: sent[0].map((tool) => tool.name) }
 }
 
+test("the Google search agent is built once however many runs ask for web_search, and each search resolves the model of the run that made it", async (t) => {
+  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
+  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
+  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
+  const resolvedFor = []
+  const model = ({ requestContext }) => {
+    resolvedFor.push(requestContext.getRaw('conexusRunOwner'))
+    return route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+  }
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  const session = await controller.createSession({ resourceId: 'project:probe-search-once', scope: 'probe-search-once' })
+  const agent = controller.getCurrentAgent(session)
+  const requestContextOf = (owner) => { const requestContext = new RequestContext(); requestContext.setRaw('conexusRunOwner', owner); return requestContext }
+  const searchTools = []
+  for (let run = 0; run < 25; run += 1) searchTools.push((await agent.listTools({ requestContext: requestContextOf(`run-${run}`) })).web_search)
+  assert.equal(new Set(searchTools).size, 1, 'twenty-five runs were offered the same search tool, so the same agent behind it')
+
+  const original = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    await request.json()
+    return Response.json({ candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }] })
+  }
+  t.after(() => { globalThis.fetch = original })
+  resolvedFor.length = 0
+  await searchTools[0].execute({ query: 'a' }, { requestContext: requestContextOf('ana') })
+  await searchTools[0].execute({ query: 'b' }, { requestContext: requestContextOf('bia') })
+  assert.deepEqual([...new Set(resolvedFor)], ['ana', 'bia'], "each search resolved the model through its own run's context, not the first run's")
+})
+
 test('a ChatGPT subscription model, which reports provider openai.responses and which webSearchTool cannot map, asks OpenAI for its own web_search', async () => {
   const { codexModel } = await import('./codex-model.mjs')
   const unused = { access: 'unused', refresh: 'unused', expires: Date.now() + 3_600_000, accountId: 'unused' }
@@ -370,19 +401,22 @@ test("a turn lasts through the person's answer on the conversation's session and
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
   await run.end()
   assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])
+  await run.release()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'the run deletes its session when it is over')
 
   // The person changes the model between messages, through the conversation's session; the next turn runs on it.
   await conversation.model.switch({ modelId: 'anthropic/chosen-model' })
   const nextRunId = '55555555-5555-4555-8555-555555555555'
   const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), live, 'the next turn on the same VM runs in the same session')
-  assert.equal(live.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its session')
+  const nextLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  assert.notEqual(nextLive, live, 'the next run makes its own session, since the last run deleted its own')
+  assert.equal(nextLive.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its thread')
   await next.end()
   const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
   const onNewVm = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
   const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.deepEqual({ same: remade === live, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
-  await onNewVm.discard()
+  assert.deepEqual({ same: remade === nextLive, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
+  await onNewVm.release()
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined)
 })
 

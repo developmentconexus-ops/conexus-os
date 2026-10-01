@@ -32,6 +32,7 @@ export const isBuilderFailureCategory = (value: unknown): value is BuilderFailur
 const failureReasonsByCode: Readonly<Record<string, string>> = Object.freeze({
   BUILDER_AGENT_PLATFORM_FAILED: 'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
   BUILDER_AGENT_STALLED: 'O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
+  BUILDER_ANSWER_TIMEOUT: 'A pergunta do Builder ficou sem resposta por 25 minutos, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
   BUILDER_MODEL_STEP_TIMEOUT: 'O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente, de preferência em partes menores.',
 })
 

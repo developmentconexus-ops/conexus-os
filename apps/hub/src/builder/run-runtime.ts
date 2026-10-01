@@ -57,10 +57,10 @@ type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; s
 /** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
   sendTurn(content: string, signal?: AbortSignal): Promise<AgentTurn>
-  /** Ends the turn and keeps the session for the conversation's next one. */
+  /** The agent's turn is over: its context and tools are forgotten, and the session stays for the run's remaining phases. */
   end(): Promise<void>
-  /** Ends the turn and deletes the session, whose workspace is on a VM the conversation no longer has. */
-  discard(): Promise<void>
+  /** The run is over: ends the turn and deletes the session, which Mastra keeps in memory until it is deleted. */
+  release(): Promise<void>
 }>
 
 /** One run's reach into its Project's bound Connections: the brief for its instructions, the scope its tools read through, and a handler port on that scope. */
@@ -293,11 +293,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       return mirrorEnded
     }
     // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
-    const endSession = async (keep = true): Promise<void> => {
+    const endTurn = async (): Promise<void> => {
       connectorRun?.end()
-      const open = session
-      session = undefined
-      await (keep ? open?.end() : open?.discard())
+      await session?.end()
     }
     try {
       // The Project's instructions and memory are read by the Hub from the base in the Conexus Git, never from the sandbox (AC-9).
@@ -433,7 +431,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // call it could not authenticate; reporting that as their cancellation would be false.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
-      await endSession().catch((error: unknown) => {
+      await endTurn().catch((error: unknown) => {
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
       timing.mark('agent')
@@ -552,10 +550,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       else mirror?.abandon()
-      await endSession(live).catch(() => undefined)
       const failed = (code: string) => (error: unknown): void => {
         ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       }
+      // The run owns the session it opened, whatever way it ended: Mastra frees none by itself.
+      connectorRun?.end()
+      await session?.release().catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
@@ -571,9 +571,16 @@ type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }
  * read that never settles (Mastra's `getWorkflowRunById` was seen to) emits no error and no end, and
  * neither `session.abort()` nor Mastra's `untilIdle` timer, which watches background tasks, settles
  * it. It is twice one model step's budget, so a slow step or a long tool call never reaches it. A
- * turn waiting on the person's answer is not working and has no limit.
+ * turn waiting on the person's answer is not working and has `ANSWER_WAIT_MS` instead.
  */
 const TURN_SILENCE_MS = 10 * 60_000
+/**
+ * How long a turn waits on the person's answer. Mastra keeps a suspended run warm for
+ * `MASTRA_SUSPENDED_RUN_TTL_MS` (30 minutes) and then evicts it from memory, after which no
+ * `agent_end` can arrive: a wait past it would hold the run lock, the sandbox keepalive, the
+ * listeners and the session until the Hub restarts. The wait ends before Mastra's does.
+ */
+const ANSWER_WAIT_MS = 25 * 60_000
 const STALLED_SESSION_DELETE_MS = 5_000
 
 /** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
@@ -582,16 +589,20 @@ export const conversationRunScope = (conversationId: string): string => `builder
 type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /**
- * The conversation's session on the Builder controller for one turn (spec 0002 amendment, B3): one
- * session per conversation on its thread, kept across turns like its sandbox, on that sandbox's
- * workspace, with every tool allowed without asking (the workspace lists the tools the Builder has), and
- * a turn that lasts until the agent is done, including while it waits for the person to answer a
- * question (AC-16). The context, the check and the operation run are the turn's own.
+ * The conversation's session on the Builder controller for one run (spec 0002 amendment, B3): one
+ * session per run on the conversation's thread, on that conversation's sandbox workspace, with every
+ * tool allowed without asking (the workspace lists the tools the Builder has), and a turn that
+ * lasts until the agent is done, including while it waits for the person to answer a question
+ * (AC-16). The context, the check and the operation run are the turn's own. Mastra keeps a live
+ * session until it is deleted, so the run deletes its own; the thread, which holds the
+ * conversation, is in storage.
  */
-export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS, answerWaitMs = ANSWER_WAIT_MS }: Readonly<{
   controller: AgentController
   /** How long a working turn may go without an event before it settles as `BUILDER_AGENT_STALLED`. */
   turnSilenceMs?: number
+  /** How long a turn parked on the person's answer waits before it settles as `BUILDER_ANSWER_TIMEOUT`. */
+  answerWaitMs?: number
   /** The installation's default Builder model, which a conversation with no model of its own starts on. */
   readDefaultModel(): Promise<string | null>
   /** The live turns' context binders by session scope, which the browser mount applies to every request it serves a turn. */
@@ -614,8 +625,8 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     runTools.delete(builderRunId)
   }
   const deleteSession = async (): Promise<void> => {
-    const deleted = await controller.deleteSession({ resourceId, scope })
-    if (!deleted || await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+    await controller.deleteSession({ resourceId, scope })
+    if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
   const end = async (): Promise<void> => {
     forget()
@@ -648,35 +659,44 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     sendTurn: async (content: string, signal?: AbortSignal): Promise<AgentTurn> => {
       let userMessageId: string | undefined
       let continuations = 0
-      let silence: ReturnType<typeof setTimeout> | undefined
-      let stall: (error: Error) => void = () => undefined
-      const stalled = new Promise<never>((_, reject) => { stall = reject })
-      stalled.catch(() => undefined)
-      const watch = (): void => {
-        clearTimeout(silence)
-        silence = setTimeout(() => {
+      let parked = false
+      let limit: ReturnType<typeof setTimeout> | undefined
+      let expire: (error: Error) => void = () => undefined
+      const expired = new Promise<never>((_, reject) => { expire = reject })
+      expired.catch(() => undefined)
+      // The turn is either working, and silent too long is a stall, or parked on the person, and
+      // unanswered too long is a timeout. Either one aborts the session and settles the turn.
+      const within = <T>(step: Promise<T>): Promise<T> => Promise.race([step, expired])
+      const watch = (ms: number, code: string): void => {
+        clearTimeout(limit)
+        limit = setTimeout(() => {
           session.abort()
-          stall(new Error('BUILDER_AGENT_STALLED'))
-        }, turnSilenceMs)
-        silence.unref?.()
+          expire(new Error(code))
+        }, ms)
+        limit.unref?.()
       }
-      const within = <T>(step: Promise<T>): Promise<T> => Promise.race([step, stalled])
+      const working = (): void => watch(turnSilenceMs, 'BUILDER_AGENT_STALLED')
       // A continuation is the Hub's own message; the person's request stays the turn's anchor.
       const detach = session.subscribe((event) => {
         if (event.type === 'message_start' && continuations === 0 && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
-        if (event.type === 'agent_end' && event.reason === 'suspended') clearTimeout(silence)
-        else watch()
+        // Mastra's `display_state_changed` follows the suspended `agent_end`, so only the run starting
+        // again (`agent_start`, which an answer causes) ends the wait.
+        if (event.type === 'agent_end') parked = event.reason === 'suspended'
+        else if (event.type === 'agent_start') parked = false
+        else if (parked) return
+        if (parked) watch(answerWaitMs, 'BUILDER_ANSWER_TIMEOUT')
+        else working()
       })
       const abort = (): void => { session.abort() }
       if (signal?.aborted) abort()
       else signal?.addEventListener('abort', abort, { once: true })
       try {
-        watch()
+        working()
         let reason: string = await within(sendBuilderTurnMessage(session, { content }, { requestContext, ...(signal ? { signal } : {}), onContinuation: (count) => { continuations = count } })) ?? 'unknown'
         // A question waiting for an answer keeps the run active: the
         // person answers through the browser, and the turn goes on until the agent ends for good.
         while (reason === 'suspended') reason = await within(nextAgentEnd(session, signal))
-        watch()
+        working()
         const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
         userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
         const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
@@ -685,19 +705,19 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       } catch (error) {
         // The stuck run still holds the session, so the next turn must not find it: the session is
         // deleted, waiting only briefly, since the store that hung may not answer the delete either.
-        if (error instanceof Error && error.message === 'BUILDER_AGENT_STALLED') {
+        if (error instanceof Error && (error.message === 'BUILDER_AGENT_STALLED' || error.message === 'BUILDER_ANSWER_TIMEOUT')) {
           forget()
           await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
         }
         throw error
       } finally {
-        clearTimeout(silence)
+        clearTimeout(limit)
         detach()
         signal?.removeEventListener('abort', abort)
       }
     },
     end,
-    discard: async () => {
+    release: async () => {
       forget()
       await deleteSession()
     },
@@ -720,35 +740,72 @@ const nextAgentEnd = (session: Awaited<ReturnType<AgentController['createSession
 
 /**
  * The production sandboxes: one E2B VM per conversation, with the agent's workspace on its checkout.
- * The same instance serves every turn of the conversation in this process, so its session keeps its
- * workspace, and `start()` after a pause resumes the VM. A killed one is forgotten, and the next turn
- * gets a new instance and a new VM.
+ * While a conversation has a run, or a pause still pending, that run's instance is the one every
+ * run of it gets, so the next `start()` waits for the pause. Once the VM is paused the Hub drops
+ * the instance, with the workspace and the process handles it holds (Mastra's Factory does the
+ * same when it retires a session): the paused VM stays at E2B, and the next run builds an instance
+ * that resumes it by the provider id the Hub recorded. A workspace is never destroyed on a pause,
+ * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
+ * gets a new one.
  */
-export const e2bConversationSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: string; templateId: string }>): BuilderRunPorts['openSandbox'] => {
-  const open = new Map<string, RunSandbox>()
-  return ({ conversationId, providerSandboxId }) => {
-    const kept = open.get(conversationId)
-    if (kept) return kept
-    const sandbox = createConversationSandbox({ apiKey, templateId, conversationId, providerSandboxId })
+export const e2bConversationSandboxes = ({ apiKey, templateId, create = createConversationSandbox, log = () => undefined }: Readonly<{
+  apiKey: string
+  templateId: string
+  create?: typeof createConversationSandbox
+  log?: (line: string) => void
+}>): Readonly<{
+  open: BuilderRunPorts['openSandbox']
+  /** The conversations are gone for good: their instances are dropped, and the VMs they hold are killed. */
+  destroy(conversationIds: readonly string[]): Promise<void>
+}> => {
+  // `opened` counts the runs that took the instance, so a pause that finishes after a later run took it drops nothing.
+  const kept = new Map<string, { readonly sandbox: RunSandbox; opened: number }>()
+  const open: BuilderRunPorts['openSandbox'] = ({ conversationId, providerSandboxId }) => {
+    const held = kept.get(conversationId)
+    if (held) {
+      held.opened += 1
+      return held.sandbox
+    }
+    const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId })
     const workspace = createRunWorkspace(sandbox)
-    const opened: RunSandbox = Object.freeze({
-      get sandboxId() { return sandbox.sandboxId },
-      workspace,
-      start: async () => { await sandbox.start() },
-      executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
-      writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-      runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-      writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
-      readAgentFile: (path: string) => sandbox.readAgentFile(path),
-      runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
-      holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-      pause: () => sandbox.pause(),
-      kill: async () => {
-        open.delete(conversationId)
-        await sandbox.kill()
-      },
-    })
-    open.set(conversationId, opened)
-    return opened
+    const entry: { sandbox: RunSandbox; opened: number } = {
+      opened: 1,
+      sandbox: Object.freeze({
+        get sandboxId() { return sandbox.sandboxId },
+        workspace,
+        start: async () => { await sandbox.start() },
+        executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
+        writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+        runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
+        writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
+        readAgentFile: (path: string) => sandbox.readAgentFile(path),
+        runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+        holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
+        pause: async () => {
+          const opened = entry.opened
+          try {
+            await sandbox.pause()
+          } finally {
+            if (kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
+          }
+        },
+        kill: async () => {
+          if (kept.get(conversationId) === entry) kept.delete(conversationId)
+          await sandbox.kill()
+        },
+      }),
+    }
+    kept.set(conversationId, entry)
+    return entry.sandbox
   }
+  return Object.freeze({
+    open,
+    destroy: async (conversationIds) => {
+      for (const conversationId of conversationIds) {
+        await kept.get(conversationId)?.sandbox.kill().catch((error: unknown) => {
+          log(`BUILDER_SANDBOX_KILL_FAILED:${conversationId}:${error instanceof Error ? error.message : String(error)}`)
+        })
+      }
+    },
+  })
 }

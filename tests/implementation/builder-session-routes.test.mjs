@@ -15,7 +15,9 @@ const { registerBuilderSessionRoutes } = await import(built('builder/mastra-sess
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
+const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 
+const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const origin = 'https://conexus.test'
 const accountA = '22222222-2222-4222-8222-222222222222'
 const accountB = '55555555-5555-4555-8555-555555555555'
@@ -45,6 +47,8 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
+  const clock = { now: 0 }
+  const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
   const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
@@ -60,7 +64,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, origin, resolveCurrentSession,
+        mastra, controllerId: 'conexus-builder', controller, sessions, origin, resolveCurrentSession,
         admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
@@ -71,12 +75,13 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
     staticRoot: null,
   })
   t.after(async () => {
+    await sessions.close()
     await app.close()
     await controller.destroy()
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, controller, conversations, memory, reachedContexts }
+  return { app, controller, conversations, memory, reachedContexts, sessions, clock }
 }
 
 const authentic = {
@@ -272,10 +277,33 @@ test("deleting a Project's conversations removes its threads and their messages,
   const second = randomUUID()
   assert.equal((await openConversation(app, projectA, second)).statusCode, 200)
   await memory.saveMessages({ messages: [{ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } }] })
-  await conversations.deleteAll(projectA)
-  await conversations.deleteAll(projectA)
+  assert.deepEqual([...await conversations.deleteAll(projectA)].sort(), [conversationA, second].sort(), 'it answers the ids it deleted, which the Hub deletes the sessions of')
+  assert.deepEqual(await conversations.deleteAll(projectA), [])
   assert.deepEqual(await listConversations(app), [])
   assert.deepEqual(await Promise.all([conversationA, second, elsewhere].map((id) => conversations.ownerOf(projectA, id))), ['NONE', 'NONE', 'OTHER'])
+})
+
+test("a conversation's session the browser stops using is deleted by the idle sweep, and its next request opens it again from the thread", async (t) => {
+  const { app, controller, sessions, clock } = await createBuilderApp(t)
+  const conversation = randomUUID()
+  const resource = `project:${projectA}`
+  const live = (id) => controller.getSessionByResource(resource, `conversation:${id}`)
+  assert.equal((await openConversation(app, projectA, conversation)).statusCode, 200)
+  assert.notEqual(await live(conversation), undefined, 'the browser opened the session')
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  await sessions.sweep()
+  assert.notEqual(await live(conversation), undefined, 'a session idle for less than the limit stays')
+  clock.now += 1
+  await sessions.sweep()
+  assert.equal(await live(conversation), undefined, 'a session idle for the limit is deleted')
+  const read = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })
+  assert.equal(read.statusCode, 200)
+  assert.notEqual(await live(conversation), undefined, 'the next request opens it from the thread')
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  assert.equal((await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })).statusCode, 200)
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  await sessions.sweep()
+  assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 
 const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun } = {}) => {
