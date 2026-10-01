@@ -23,6 +23,8 @@ const errorCode = (error: unknown): string | undefined =>
     ? (error as { code: string }).code
     : undefined
 
+const DEFAULT_CONNECT_TIMEOUT_MS = 5000
+
 export const createPostgresPool = (
   connection: PostgresConnection,
   write: (line: string) => void = (line) => { process.stderr.write(line) },
@@ -32,7 +34,7 @@ export const createPostgresPool = (
     ...connection,
     application_name: `conexus-hub:${capability}`,
     max: connection.max ?? 6,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: connection.connectionTimeoutMillis ?? DEFAULT_CONNECT_TIMEOUT_MS,
   })
   // Listen on client directly so checked-out clients don't crash on dropped connections.
   // Pool-level error handler prevents duplicate unhandled errors from idle client drops.

@@ -94,7 +94,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
-        mode: run?.mode ?? 'BUILD',
       }
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
@@ -102,10 +101,10 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { content: string; mode: 'BUILD' | 'PLAN'; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
+  app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['content', 'mode', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, mode: { type: 'string', enum: ['BUILD', 'PLAN'] }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
+      body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -118,12 +117,13 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       const run = await dependencies.service.createBuilderRun({
         accountId: session.account.accountId, projectId: request.params.projectId,
         conversationId: request.body.conversationId,
-        idempotencyKey, content: request.body.content, mode: request.body.mode,
+        idempotencyKey, content: request.body.content,
       })
       return reply.code(201).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      if (detail === 'BUILDER_CONVERSATION_NOT_FOUND') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')

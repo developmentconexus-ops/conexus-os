@@ -28,12 +28,20 @@ export type HubConfig = Readonly<{
   builder: Readonly<{
     ingressPasswordFile: string
     executorPasswordFile: string
+    modelAccountPasswordFile: string
     e2bApiKeyFile: string
     e2bTemplateId: string
+    /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
+    gitRoot: string
+    /**
+     * CONEXUS_BUILDER_STREAM_RECORD_DIR: a diagnostic, off when unset. Every ChatGPT-account model
+     * call's stream is recorded there as one JSONL file (`createModelStreamRecorder`).
+     */
+    modelStreamRecordDir: string | undefined
   }> | undefined
   /**
    * The installation's AES-256 credential key and the keys a rotation retired (decrypt-only). It seals every
-   * Hub and application session's Keycloak refresh token, and the Factory's stored credentials.
+   * Hub and application session's Keycloak refresh token, and every model account's credential.
    */
   secretKey: InstallationSecretKey
   factory: FactoryRuntimeConfig | undefined
@@ -71,19 +79,13 @@ export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string
 // the keys it replaced, until every value sealed under them has been rewritten.
 export type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
 
+// The database role the Builder's Mastra storage connects as; slice 7 renames it with its schema.
 export type FactoryRuntimeConfig = Readonly<{
-  orgId: string
-  githubAppId: string
-  githubClientId: string
-  githubAppSlug: string
-  githubPrivateKeyFile: string
-  githubClientSecretFile: string
-  stateSecretFile: string
   databasePasswordFile: string
 }>
 
 /** CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
-export const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
+const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
   const files = (environment.CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
   if (files.some((file) => !file.startsWith('/'))) throw new Error('INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES')
   return files
@@ -154,6 +156,19 @@ const RETIRED_MODEL_CONNECTION_VARIABLES = [
 // them. An operator whose environment still carries the old variable names would otherwise get a
 // 28P01 from the cluster, several layers away from the file that needs editing, so each retired
 // name is refused here and the error says which one replaced it.
+// The Mastra Factory and its GitHub App left the Hub with spec 0002: the Builder runs on its own
+// controller and the Conexus Git. A deployment still carrying these is configured for a runtime the
+// Hub no longer has, so it is refused rather than ignored.
+const RETIRED_FACTORY_VARIABLES = [
+  'CONEXUS_FACTORY_ORG_ID',
+  'CONEXUS_FACTORY_GITHUB_APP_ID',
+  'CONEXUS_FACTORY_GITHUB_CLIENT_ID',
+  'CONEXUS_FACTORY_GITHUB_APP_SLUG',
+  'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
+  'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
+  'CONEXUS_FACTORY_STATE_SECRET_FILE',
+] as const
+
 const RENAMED_ROLE_VARIABLES = {
   CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE',
   CONEXUS_DB_S2_READ_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE',
@@ -188,23 +203,43 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
   return ordinary
 }
 
+const DEFAULT_GIT_ROOT = '/var/lib/conexus/git'
+
+const gitRoot = (environment: NodeJS.ProcessEnv): string => {
+  const value = environment.CONEXUS_GIT_ROOT ?? DEFAULT_GIT_ROOT
+  if (!value.startsWith('/') || value.split('/').includes('..')) throw new Error('INVALID_CONFIG_CONEXUS_GIT_ROOT')
+  return value.replace(/\/+$/, '') || '/'
+}
+
+const modelStreamRecordDir = (environment: NodeJS.ProcessEnv): string | undefined => {
+  const value = environment.CONEXUS_BUILDER_STREAM_RECORD_DIR
+  if (!value) return undefined
+  if (!value.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_BUILDER_STREAM_RECORD_DIR')
+  return value
+}
+
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
   const values = {
     ingressPasswordFile: environment.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
     executorPasswordFile: environment.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
+    modelAccountPasswordFile: environment.CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
   }
   if (Object.values(values).every(Boolean)) return {
     ingressPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE'),
     executorPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE'),
+    modelAccountPasswordFile: required(environment, 'CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE'),
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
+    gitRoot: gitRoot(environment),
+    modelStreamRecordDir: modelStreamRecordDir(environment),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
       CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
       CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
+      CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: values.modelAccountPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
     })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
@@ -212,29 +247,8 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
   return undefined
 }
 
-const FACTORY_VARIABLES = {
-  orgId: 'CONEXUS_FACTORY_ORG_ID',
-  githubAppId: 'CONEXUS_FACTORY_GITHUB_APP_ID',
-  githubClientId: 'CONEXUS_FACTORY_GITHUB_CLIENT_ID',
-  githubAppSlug: 'CONEXUS_FACTORY_GITHUB_APP_SLUG',
-  githubPrivateKeyFile: 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
-  githubClientSecretFile: 'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
-  stateSecretFile: 'CONEXUS_FACTORY_STATE_SECRET_FILE',
-  databasePasswordFile: 'CONEXUS_DB_FACTORY_PASSWORD_FILE',
-} as const satisfies Record<keyof FactoryRuntimeConfig, string>
-
-// The Mastra Factory adds Mastra Platform integrations on its own whenever it sees Platform
-// credentials in the process, so a Hub composing it must not carry any.
-const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] => {
-  const present = Object.values(FACTORY_VARIABLES).filter((name) => environment[name])
-  if (present.length === 0) return undefined
-  for (const name of Object.values(FACTORY_VARIABLES)) if (!environment[name]) throw new Error(`MISSING_CONFIG_${name}`)
-  for (const name of Object.keys(environment)) {
-    if (name.startsWith('MASTRA_PLATFORM_') && environment[name]) throw new Error(`FACTORY_REFUSES_CONFIG_${name}`)
-  }
-  const variables = Object.fromEntries(Object.entries(FACTORY_VARIABLES).map(([key, name]) => [key, required(environment, name)])) as Record<keyof typeof FACTORY_VARIABLES, string>
-  return variables
-}
+const factoryRuntime = (environment: NodeJS.ProcessEnv): HubConfig['factory'] =>
+  environment.CONEXUS_DB_FACTORY_PASSWORD_FILE ? { databasePasswordFile: required(environment, 'CONEXUS_DB_FACTORY_PASSWORD_FILE') } : undefined
 
 const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAiPro'] => {
   const binary = environment.CONEXUS_CLIPROXY_BIN
@@ -300,6 +314,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     ...RETIRED_BRAIN_CONNECTIONS_VARIABLES,
     ...RETIRED_MODEL_CATALOG_VARIABLES,
     ...RETIRED_MODEL_CONNECTION_VARIABLES,
+    ...RETIRED_FACTORY_VARIABLES,
   ]) {
     if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
   }
@@ -342,10 +357,10 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   if (config.googleAiPro && !config.factory) throw new Error('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED')
   // The application host reads what it serves as the Builder executor; without it the listener never starts.
   if (config.application && !config.builder) throw new Error('APPLICATION_BUILDER_RUNTIME_REQUIRED')
-  // A Builder runs every Project through the Factory; there is no second agent runtime to fall back to.
+  // The Builder's threads, traces and memory live in the Mastra storage this role reaches.
   if (config.builder && !config.factory) throw new Error('BUILDER_FACTORY_RUNTIME_REQUIRED')
-  // Every Connector call to a provider is recorded in the Factory's Mastra storage (C-029); without the
-  // Factory there is no native record, so no gateway either.
+  // Every Connector call to a provider is recorded in the Builder's Mastra storage (C-029); without it
+  // there is no native record, so no gateway either.
   if (config.connectors.gatewayOrigin && !config.factory) throw new Error('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
   return config
 }

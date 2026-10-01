@@ -1,8 +1,9 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import { createTool } from '@mastra/core/tools'
-import type { FactoryIntegration, IntegrationTools } from '@mastra/factory'
+import type { ToolsInput } from '@mastra/core/agent'
 import type { Broker, FetchDescription } from './broker.js'
 import type { ConnectorBrief } from './builder-brief.js'
+import type { HandlerPort, HandlerPorts } from './handler-port.js'
 import { BROKER_ERROR_CODES } from './errors.js'
 import { CONNECTOR_FETCH_TOOL, FAILURE_PROJECTION, projectRequest, projectResult } from './fetch-projection.js'
 import { nativeRequestSchema } from './native.js'
@@ -30,12 +31,17 @@ export type BuilderConnectorRun = Readonly<{
   brief: string
   /** Gives the run's session the run's consumer, the only way `connector_fetch` finds its scope. */
   bind(requestContext: RequestContext): void
+  /**
+   * One handler invocation's port on the run's own scope, so an operation the Builder runs spends
+   * the run's calls and ends with it; null when the Hub serves no handler port.
+   */
+  openHandlerPort(): Promise<HandlerPort | null>
   /** Revokes the run's scope; repeating it changes nothing. */
   end(): void
 }>
 
 export const openBuilderRun = async (
-  { brief, projectId, builderRunId }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string }>,
+  { brief, projectId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string; ports?: HandlerPorts | null }>,
 ): Promise<BuilderConnectorRun> => {
   const scope = scopeForBuilderRun(projectId, BUILDER_RUN_TERMS)
   const consumer: Consumer = Object.freeze({ kind: 'agent', sessionId: builderRunId, scope })
@@ -43,15 +49,17 @@ export const openBuilderRun = async (
   return Object.freeze({
     brief: await brief(scope),
     bind: (requestContext: RequestContext) => requestContext.setRaw(RUN_CONSUMER_KEY, consumer),
+    openHandlerPort: async () => (ports ? ports.open(scope) : null),
     end: () => revokeScope(scope),
   })
 }
 
-const DESCRIPTION = 'Read one of the Connections bound to this Project, while you build, to learn its real data before you write '
+const DESCRIPTION = 'Read one of the Conexões bound to this Project, while you build, to learn its real data before you write '
   + 'code that depends on it. Send one request in the integrator\'s native format: `connection` is the Project-local name '
-  + 'these instructions list, `path` is relative to the Connection\'s own address, and `query` and `body` are optional. '
+  + 'these instructions list, `path` is relative to the Conexão\'s own address, and `query` and `body` are optional. '
   + 'Answers `{ ok: true, status, bytes, body }` with the vendor\'s JSON, or `{ ok: false, code }` with one of: '
-  + `${BROKER_ERROR_CODES.join(', ')}. Only read services are sent, and each run has a limited number of calls.`
+  + `${BROKER_ERROR_CODES.join(', ')}. Only read services are sent, and each run has ${BUILDER_RUN_TERMS.calls} calls in all, `
+  + 'so answer several questions with one read where you can.'
 
 const connectorFetchTool = (broker: Broker, consumer: Consumer) => {
   // The display and transcript targets project the same input: one binding lookup serves both.
@@ -81,14 +89,8 @@ const connectorFetchTool = (broker: Broker, consumer: Consumer) => {
   })
 }
 
-/** Contributes `connector_fetch` to a Factory session whose request context carries a Builder run's consumer, and to no other. */
-export const createConnectorFetchIntegration = (broker: Broker): FactoryIntegration => Object.freeze({
-  id: 'conexus-connectors',
-  routes: () => [],
-  diagnostics: () => ({}),
-  sessionTools: ({ requestContext }: Readonly<{ requestContext: RequestContext }>) => {
-    const consumer = runConsumerOf(requestContext)
-    // createTool always sets `execute`; its declared type keeps it optional, which exactOptionalPropertyTypes refuses here.
-    return consumer ? { [CONNECTOR_FETCH_TOOL]: connectorFetchTool(broker, consumer) as IntegrationTools[string] } : {}
-  },
-})
+/** Contributes `connector_fetch` to a Builder run whose request context carries the run's consumer, and to no other. */
+export const createConnectorFetchTools = (broker: Broker) => ({ requestContext }: Readonly<{ requestContext: RequestContext }>): ToolsInput => {
+  const consumer = runConsumerOf(requestContext)
+  return consumer ? { [CONNECTOR_FETCH_TOOL]: connectorFetchTool(broker, consumer) } : {}
+}

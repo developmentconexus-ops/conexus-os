@@ -6,7 +6,6 @@
     "scripts/check-test-skips.mjs",
     "scripts/generate-r1-connector-contracts.mjs",
     "scripts/generate-wire-projection.mjs",
-    "scripts/hub-factory.mjs",
     "scripts/issue-230-no-access-proof.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/q3-negative-proof.mjs",
@@ -15,12 +14,14 @@
     "scripts/single-session-proof.mjs",
     "scripts/builder-eval/run.mjs",
     "scripts/builder-eval/experiment.mjs",
+    "scripts/builder-eval/oracle.mjs",
     "scripts/builder-eval/sankhya-sim.mjs",
     "scripts/builder-eval/serve.mjs",
     "tests/**/*.test.mjs",
     // Test-support files that are run or loaded but never imported. Name each one: a directory glob
     // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
+    "tests/implementation/builder-composer-screenshots.mjs",
     "tests/implementation/connector-integrations-screenshot.mjs",
     "tests/implementation/guard-mutations.mjs",
     "tests/implementation/parity-shots.mjs",
@@ -32,12 +33,12 @@
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
+    // Read as text by the check, which writes it into each Project as conexus/sankhya.gen.ts.
+    "apps/hub/src/builder/handler-kit/sankhya.ts",
     "apps/hub/src/server.ts",
-    "apps/hub/src/factory-cli.ts",
     "apps/hub/src/app-runner/main.ts",
     "apps/web/src/main.tsx",
-    "apps/hub/compiler-template/**",
-    "factory-skills/**"
+    "apps/hub/compiler-template/**"
   ],
   "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**"],
   "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],
@@ -46,5 +47,5 @@
   "ignoreDependencies": [
     "class-variance-authority"
   ],
-  "ignoreBinaries": ["setpriv"]
+  "ignoreBinaries": ["setpriv", "pgrep"]
 }

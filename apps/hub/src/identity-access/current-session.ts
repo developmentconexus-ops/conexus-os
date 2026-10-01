@@ -7,7 +7,7 @@ export type AccountSummary = Readonly<{ accountId: AccountId; displayName: strin
 // `issuer` and `subject` are the provider identity this session was established from.
 // No route reads them to decide authority.
 export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string; subject: string }>
-// What a session is read from: the Hub's own requests, and a Factory route's request.
+// What a session is read from: the Hub's own requests, and the Builder's Mastra routes' requests.
 export type SessionRequest = Readonly<{ cookies: Readonly<Record<string, string | undefined>>; headers: Readonly<Record<string, string | string[] | undefined>> }>
 export type ResolveCurrentSession = (request: SessionRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
 
