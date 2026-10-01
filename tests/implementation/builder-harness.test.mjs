@@ -253,7 +253,7 @@ test("a Google AI Pro run's web_search is a search-only agent on the person's ow
     sources: [{ title: 'nodejs.org', url: 'https://nodejs.org/en/about/previous-releases' }],
   })
   assert.deepEqual(sent, [{
-    url: 'http://127.0.0.1:9/v1beta/models/gemini-3-flash:generateContent', tools: [{ googleSearch: {} }], thinking: { thinkingLevel: 'low' },
+    url: 'http://127.0.0.1:9/v1beta/models/gemini-3-flash:generateContent', tools: [{ googleSearch: {} }], thinking: { thinkingLevel: 'low', includeThoughts: true },
   }], 'one call per query, with Google search as its only tool')
 
   sent.length = 0
