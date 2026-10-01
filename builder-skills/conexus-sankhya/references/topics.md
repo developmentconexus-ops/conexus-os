@@ -20,7 +20,7 @@ Each topic lists the tables, the columns to check, what varies per company, how 
 
 ## Finance
 
-- Tables: `TGFFIN` (titles), `TGFTIT` (title types).
+- Tables: the financial titles table (find it in `TDDTAB` by its description) and `TGFTIT` (title types).
 - Columns to check: `RECDESP` (numeric: 1 receivable, -1 payable, not text), `PROVISAO`, `DTVENC`, `DHBAIXA`, `VLRBAIXA`, `VLRDESDOB`, `ORIGEM`, `NUNOTA`, `CODTIPTIT`, `CODNAT`, `CODCENCUS`, `CODPROJ`, `CODVEND`, `CODEMP`, `NURENEG`.
 - Varies: the title types, whether the company uses provisions, manual titles without a document, renegotiation.
 - Discover: group titles by `RECDESP`, `PROVISAO`, `CODTIPTIT` and `ORIGEM` with counts. A title is linked to its document by `NUNOTA` in some setups and by `NUMNOTA` plus `SERIENOTA` in others. Test both on known documents and keep the one that matches.
@@ -28,8 +28,8 @@ Each topic lists the tables, the columns to check, what varies per company, how 
 
 ## Partners and products
 
-- Tables: `TGFPAR` (partners), `TGFPRO` (products), `TGFGRU` (product groups).
-- Columns to check: on `TGFPAR`, `CLIENTE`, `FORNECEDOR`, `VENDEDOR`, `TRANSPORTADORA`, `ATIVO`, `CODVEND`. On `TGFPRO`, `USOPROD`, `CODGRUPOPROD`, `ATIVO`. On `TGFGRU`, `CODGRUPAI`, `GRAU`, `ANALITICO`.
+- Tables: `TGFPAR` (partners), the products table (find it in `TDDTAB` by its description), `TGFGRU` (product groups).
+- Columns to check: on `TGFPAR`, `CLIENTE`, `FORNECEDOR`, `VENDEDOR`, `TRANSPORTADORA`, `ATIVO`, `CODVEND`. On the products table, `USOPROD`, `CODGRUPOPROD`, `ATIVO`. On `TGFGRU`, `CODGRUPAI`, `GRAU`, `ANALITICO`.
 - Varies: the partner flags are independent, and a company may not keep them up to date. One partner can be customer and supplier. How `USOPROD` and the group tree are used. Code masks live in `TSIPAR`.
 - Discover: count partners with documents of the concept against partners with the flag set. Walk the group tree from the root to see its levels.
 - Ask: how the person groups products, and whether a partner with no flag but with documents counts.
@@ -86,6 +86,6 @@ Detect the engine with `SELECT 1 FROM DUAL` (Oracle) or `SELECT @@VERSION` (SQL 
 
 ## Validity and versions
 
-- Price tables: `TGFTAB` (`NUTAB`, `CODTAB`, `DTVIGOR`) with prices in `TGFEXC`. Cost: `TGFCUS`, by `DTATUAL`.
+- Price tables: `TGFTAB` (`NUTAB`, `CODTAB`, `DTVIGOR`) with prices in `TGFEXC`. Cost: the cost table (find it in `TDDTAB`), by its update date.
 - Use the version valid on the date of interest, not the latest one.
 - Ask: which price or cost counts, and on which date.
