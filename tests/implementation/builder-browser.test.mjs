@@ -1221,16 +1221,16 @@ test('a live reply streamed as deltas renders whole while the run is still worki
 
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
 
-test('a reasoning part still streaming is one "Pensando…" line and never the provider\'s own summary', async (t) => {
+test('a reasoning part still streaming is one "Pensando…" line and not yet a "Pensou" row', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-1', 'Certo.') },
     { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoningPart } },
   ])
   await page.getByText('Pensando…', { exact: true }).waitFor()
-  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'the English summary is not on screen')
+  assert.equal(await page.getByText('Pensou', { exact: true }).count(), 0, 'the thought is not settled yet')
 })
 
-test('a reasoning part that settled leaves nothing in the thread', async (t) => {
+test('a reasoning part that settled is a collapsed "Pensou" row that opens to its text', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-2', 'Certo.') },
     { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 1, part: reasoningPart } },
@@ -1238,7 +1238,9 @@ test('a reasoning part that settled leaves nothing in the thread', async (t) => 
   ])
   await page.locator('.cx-messages').getByText('Pronto.', { exact: true }).waitFor()
   assert.equal(await page.getByText('Pensando…').count(), 0)
-  assert.equal(await page.getByText('Planning schema validation').count(), 0)
+  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'collapsed, the text is not on screen')
+  await page.getByText('Pensou', { exact: true }).click()
+  await page.getByText('Planning schema validation').waitFor()
 })
 
 const toolPart = (id, toolName, args, state = 'result', result = 'ok') => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state, args, result } })

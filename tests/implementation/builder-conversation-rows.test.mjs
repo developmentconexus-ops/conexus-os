@@ -31,7 +31,7 @@ const rows = (html) => html.match(/Pergunt(?:ou|ando) a você/g)?.length ?? 0
 const asked = (messages) => mergeCalls(messages).flatMap((message) => message.content.parts.flatMap((part) => part.type === 'tool-invocation' && part.toolInvocation.toolName === 'ask_user'
   ? [[part.toolInvocation.args.questions.map((entry) => entry.question), part.toolInvocation.result.content]] : []))
 const answer = [[['Qual cor?'], 'User answered:\nQual cor?: azul']]
-const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { history: [], turn: idleTurn, pendingRequest: null, persistedRequests: [], failure: null, model: null, ...props }))
+const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { history: [], turn: idleTurn, pendingRequest: null, persistedRequests: [], failure: null, model: null, working: false, ...props }))
 
 test('an ask, its answer and the finish are one "Perguntou a você" row with the question and the answer', () => {
   const html = render({ turn: lived })
@@ -59,4 +59,31 @@ test('while the run is parked on the question there is no row, only the card to 
   const parked = events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).reduce((turn, event) => reduceTurn(turn, { runId: 'run-1', kind: 'event', event }), idleTurn)
   assert.deepEqual(Object.values(parked.waiting).map((call) => [call.kind, call.toolCallId, call.args.questions[0].question]), [['QUESTION', 'q1', 'Qual cor?']])
   assert.equal(rows(render({ turn: parked })), 0)
+})
+
+const assistant = (id, parts) => ({ id, threadId: 't', role: 'assistant', createdAt: '2026-10-01T14:35:55.000Z', content: { format: 2, parts } })
+const thought = { type: 'reasoning', reasoning: 'Planejando o esquema', details: [{ type: 'text', text: 'Planejando o esquema' }] }
+const count = (html, word) => html.match(new RegExp(word, 'g'))?.length ?? 0
+
+test('a run in its agent step says it is thinking before its first part arrives', () => {
+  assert.equal(count(render({ working: true }), 'Pensando…'), 1)
+})
+
+test('the thinking line goes once the run has spoken, and not while it is parked on a question', () => {
+  const spoke = { ...idleTurn, runId: 'run-1', messages: [assistant('live-1', [{ type: 'text', text: 'Vou ver.' }])] }
+  assert.equal(count(render({ working: true, turn: spoke }), 'Pensando…'), 0)
+  assert.equal(count(render({ working: true, turn: { ...idleTurn, waiting: { q1: { kind: 'QUESTION', toolCallId: 'q1', toolName: 'ask_user', args: {}, prompt: null } } } }), 'Pensando…'), 0)
+})
+
+test('a settled thought is one collapsed "Pensou" row, in the history and in the live turn', () => {
+  const message = assistant('m1', [thought, { type: 'text', text: 'Pronto.' }])
+  assert.equal(count(render({ history: [message] }), 'Pensou'), 1)
+  assert.equal(count(render({ turn: { ...idleTurn, runId: 'run-1', messages: [assistant('live-2', [thought, { type: 'text', text: 'Pronto.' }])] } }), 'Pensou'), 1)
+  assert.equal(count(render({ history: [message] }), 'Pensando…'), 0)
+})
+
+test('the thought still streaming reads "Pensando…" and has no "Pensou" row yet', () => {
+  const html = render({ working: true, turn: { ...idleTurn, runId: 'run-1', status: 'LIVE', messages: [assistant('live-3', [{ type: 'text', text: 'Certo.' }, thought])] } })
+  assert.equal(count(html, 'Pensando…'), 1)
+  assert.equal(count(html, 'Pensou'), 0)
 })

@@ -7,7 +7,7 @@ import {
   ToolCallLabel, ToolCallMono, ToolCallPresentedHeader, ToolCallSpacer, ToolCallTrailing, ToolCallTrigger,
   presentTool, stringifyToolValue, stripAnsi, toolEdit,
 } from '@mastra/playground-ui/components/ai/tool-call'
-import { Check } from 'lucide-react'
+import { Brain, Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
@@ -94,10 +94,21 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
   </ToolCall>
 }
 
-// The provider's reasoning summary is in its own language and not written for this person, so the
-// thread says only that the agent is thinking, and only while it is.
+// While the agent thinks the thread says so; a thought that settled is a collapsed row that opens to
+// the provider's own words, the way a tool call opens to its arguments.
 function Thinking() {
   return <p className="cx-thinking" role="status"><Shimmer active>Pensando…</Shimmer></p>
+}
+
+function Thought({ text }: Readonly<{ text: string }>) {
+  return <ToolCall status="idle">
+    <ToolCallTrigger>
+      <ToolCallPresentedHeader icon={Brain} label="Pensou" disclosure />
+    </ToolCallTrigger>
+    <ToolCallContent>
+      <ToolCallMono copyText={text}>{text}</ToolCallMono>
+    </ToolCallContent>
+  </ToolCall>
 }
 
 const userText = (message: MastraDBMessage): string =>
@@ -185,6 +196,7 @@ type Piece =
   | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
   | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
   | Readonly<{ kind: 'thinking'; key: string }>
+  | Readonly<{ kind: 'thought'; key: string; text: string }>
   | Readonly<{ kind: 'error'; key: string; text: string }>
 
 const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
@@ -204,8 +216,8 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
     // A call parked for the person is answered on its card below the thread, so it has no row yet.
     if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
-    // Only the part still streaming shows: a settled reasoning summary is the provider's own words.
-    if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key }] : []
+    // The part still streaming says the agent is thinking; a settled one is a row that opens to its text.
+    if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key }] : part.reasoning.trim() ? [{ kind: 'thought', key, text: part.reasoning }] : []
     // The provider's own words name sandboxes, ids and stack frames. The category is what the
     // operator is told.
     if (part.type === 'error') return [{ kind: 'error', key, text: reason }]
@@ -240,19 +252,22 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
     if (piece.kind === 'tool') { toolBuffer.push(piece.part); flushTools(); continue }
     if (piece.kind === 'text') turnBuffer.push(<MarkdownRenderer key={piece.key} streaming={piece.streaming}>{piece.text}</MarkdownRenderer>)
     else if (piece.kind === 'thinking') turnBuffer.push(<Thinking key={piece.key} />)
+    else if (piece.kind === 'thought') turnBuffer.push(<div key={piece.key} className="cx-tool-rows"><Thought text={piece.text} /></div>)
     else turnBuffer.push(<p key={piece.key} className="builder-turn-reason" role="note">{piece.text}</p>)
   }
   flushTurn()
   return out
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failure, model }: Readonly<{
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failure, model, working }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
   persistedRequests: readonly PersistedRequest[]
   failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
   model: BuilderModel | null
+  // The run is in its agent step: until its first part arrives the thread already says it is thinking.
+  working: boolean
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
   const settled = history.filter((message) => !liveIds.has(message.id))
@@ -285,7 +300,9 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason, parked))
   }
   if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
-  for (const message of calls.slice(settled.length)) pieces.push(...flattenMessage(message, streamingId, reason, parked))
+  const livePieces = calls.slice(settled.length).flatMap((message) => flattenMessage(message, streamingId, reason, parked))
+  pieces.push(...livePieces)
+  if (working && parked.size === 0 && livePieces.every((piece) => piece.kind === 'user')) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
   const rendered = renderPieces(pieces, turn.tools, model)
   return <>
