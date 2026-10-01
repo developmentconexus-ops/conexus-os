@@ -1,4 +1,4 @@
-import { isThinkingLevelSetting, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import { isThinkingLevelSetting, resolveDefaultThinkingLevel, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { RequestContext } from '@mastra/core/request-context'
 
 /**
@@ -19,8 +19,11 @@ export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 
 type ControllerContextValue = Readonly<{ session?: Readonly<{ modelId?: unknown }>; getState?: () => Readonly<Record<string, unknown>> }>
 
-/** The level a conversation runs at until the person picks one; the composer shows the same. */
-const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = 'medium'
+/**
+ * The level a conversation runs at until the person picks one, resolved the way Mastra Code does.
+ * The Hub sends it to the composer with the models, so the screen never holds a second copy.
+ */
+export const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = resolveDefaultThinkingLevel({ globalDefault: 'medium', modeDefaults: {} }, 'build').level
 
 /**
  * The thinking level the conversation's session runs at, read on every call as Mastra Code's

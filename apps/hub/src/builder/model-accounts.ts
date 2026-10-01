@@ -4,6 +4,7 @@ import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@
 import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
 import { sendProblem } from '../http/problem.js'
 import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
@@ -165,7 +166,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
-    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })) }
+    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
   })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.

@@ -80,7 +80,7 @@ const routeBuilder = async (page, state) => {
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads*`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: state.conversations }) }))
   await page.route('**/api/control/model-accounts/models', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS, defaultThinkingLevel: state.defaultThinkingLevel ?? 'medium' }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
@@ -734,7 +734,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
     { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
   ]
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models })
+  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models, defaultThinkingLevel: 'high' })
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Níveis', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
@@ -761,7 +761,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   }
   await openModelPicker(page)
   const slider = page.getByRole('slider', { name: 'Raciocínio' })
-  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['5', 'Médio', 6])
+  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['5', 'Alto', 6], 'a conversation with no level of its own runs at the level the Hub sends')
   const sliderBox = await slider.boundingBox()
   await page.mouse.click(sliderBox.x + sliderBox.width - 2, sliderBox.y + sliderBox.height / 2)
   for (let wait = 0; wait < 50 && chosen.at(-1) !== 'max'; wait += 1) await page.waitForTimeout(100)
@@ -1068,7 +1068,7 @@ test('a Project lists its conversations as the threads of its resource, and each
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) => {
     const id = conversationOf(route.request().url())
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', threadId: id }) })

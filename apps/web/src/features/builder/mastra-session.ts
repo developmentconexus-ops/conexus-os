@@ -83,11 +83,11 @@ export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | '
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
-  queryFn: async (): Promise<readonly BuilderModel[]> => {
+  queryFn: async (): Promise<Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>> => {
     const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
     const response = await fetch(url, { credentials: 'same-origin' })
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
-    return (await response.json() as Readonly<{ models: readonly BuilderModel[] }>).models
+    return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
   },
 })
 
@@ -97,12 +97,12 @@ const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   THINKING_LEVEL_VALUES.find((level) => level === value) ?? null
 
 /**
- * The level a model runs at for the conversation's choice (medium until the person picks one): the
+ * The level a model runs at for the conversation's level (the Hub's default until the person picks one): the
  * choice itself when the model honors it, else the closest level below it that the model honors
  * (Gemini runs `xhigh` as `high`). Null for a model with no reasoning level.
  */
-export const levelForModel = (levels: readonly ReasoningLevel[], chosen: ReasoningLevel | null): ReasoningLevel | null => {
-  const wanted = THINKING_LEVEL_VALUES.indexOf(chosen ?? 'medium')
+export const levelForModel = (levels: readonly ReasoningLevel[], chosen: ReasoningLevel): ReasoningLevel | null => {
+  const wanted = THINKING_LEVEL_VALUES.indexOf(chosen)
   return levels.filter((level) => THINKING_LEVEL_VALUES.indexOf(level) <= wanted).at(-1) ?? levels[0] ?? null
 }
 

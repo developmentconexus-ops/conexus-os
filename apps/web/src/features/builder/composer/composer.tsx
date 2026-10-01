@@ -110,7 +110,7 @@ export function BuilderComposer({
     if (mode.kind === 'RUNNING') onStop()
     else submit(draft)
   }
-  const level = levelForModel(levels, reasoning)
+  const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
