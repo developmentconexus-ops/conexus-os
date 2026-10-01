@@ -347,3 +347,17 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
 })
+
+test("the browser reaches exactly ten of Mastra's agent-controller routes, each one Mastra's own route table names", async (t) => {
+  const { SERVER_ROUTES } = await import('@mastra/server/server-adapter')
+  const { app } = await createBuilderApp(t)
+  const mounted = SERVER_ROUTES
+    .filter((route) => route.path.startsWith('/agent-controller/'))
+    .filter((route) => app.hasRoute({ method: route.method, url: `/api/builder${route.path}` }))
+    .map((route) => `${route.method} ${route.path.replace('/agent-controller/:controllerId/sessions', '')}`)
+  assert.deepEqual(mounted.sort(), [
+    'GET /:resourceId', 'GET /:resourceId/stream', 'GET /:resourceId/threads', 'GET /:resourceId/threads/:threadId/messages',
+    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-approval', 'POST /:resourceId/tool-suspension',
+    'PUT /:resourceId/state',
+  ])
+})

@@ -9,9 +9,22 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
 
+type ServerRoute = typeof SERVER_ROUTES[number]
+
+/**
+ * A route as Mastra's own table names it. The Hub's allowlists are built through this, so a route
+ * Mastra renames or drops stops the Hub at boot instead of silently leaving the browser without it.
+ */
+const mastraRoute = (method: ServerRoute['method'], path: string): string => {
+  if (!SERVER_ROUTES.some((route) => route.method === method && route.path === path)) throw new Error(`BUILDER_MASTRA_ROUTE_MISSING:${method} ${path}`)
+  return `${method} ${path}`
+}
+const sessionRoute = (method: ServerRoute['method'], suffix = ''): string => mastraRoute(method, `${SESSION_BASE}${suffix}`)
+
 const BUILDER_PREFIX = '/api/builder'
 const CSRF_COOKIE = '__Host-conexus_csrf'
-const SESSION_BASE = '/agent-controller/:controllerId/sessions/:resourceId'
+const SESSIONS_PATH = '/agent-controller/:controllerId/sessions'
+const SESSION_BASE = `${SESSIONS_PATH}/:resourceId`
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const PROJECT_RESOURCE = new RegExp(`^project:(${UUID})$`)
 const RUN_SCOPE = new RegExp(`^builder:${UUID}$`)
@@ -23,32 +36,32 @@ const CONVERSATION_SCOPE = new RegExp(`^conversation:(${UUID})$`)
 // Mastra's own route, unmodified: a Project's conversations are its threads, listed under the
 // Project's resource, and a conversation is created by opening its session on a thread id the
 // browser chose. The browser may not switch, rename, clone or delete threads here.
-const CREATE_SESSION_ROUTE = 'POST /agent-controller/:controllerId/sessions'
+const CREATE_SESSION_ROUTE = mastraRoute('POST', SESSIONS_PATH)
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   CREATE_SESSION_ROUTE,
-  `GET ${SESSION_BASE}`,
-  `GET ${SESSION_BASE}/threads`,
-  `GET ${SESSION_BASE}/stream`,
-  `GET ${SESSION_BASE}/threads/:threadId/messages`,
-  `POST ${SESSION_BASE}/abort`,
-  `POST ${SESSION_BASE}/model`,
-  `POST ${SESSION_BASE}/tool-approval`,
-  `POST ${SESSION_BASE}/tool-suspension`,
-  `PUT ${SESSION_BASE}/state`,
+  sessionRoute('GET'),
+  sessionRoute('GET', '/threads'),
+  sessionRoute('GET', '/stream'),
+  sessionRoute('GET', '/threads/:threadId/messages'),
+  sessionRoute('POST', '/abort'),
+  sessionRoute('POST', '/model'),
+  sessionRoute('POST', '/tool-approval'),
+  sessionRoute('POST', '/tool-suspension'),
+  sessionRoute('PUT', '/state'),
 ])
 
 // Routes that read no session: the resource's threads, and a thread's messages read by id and
 // checked against the resource.
-const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([`GET ${SESSION_BASE}/threads`, `GET ${SESSION_BASE}/threads/:threadId/messages`])
+const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/threads'), sessionRoute('GET', '/threads/:threadId/messages')])
 // A conversation's model changes only between runs (AC-12); a run in flight is refused.
-const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([`POST ${SESSION_BASE}/model`])
+const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/model')])
 
 // The Hub is the single writer of tool policy; the browser may only answer for the one pending
 // tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
 // and the third literal grants the tool's whole category for the rest of the session, so it is a
 // policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
-const APPROVAL_ANSWER_ROUTES: readonly string[] = [`POST ${SESSION_BASE}/tool-approval`, `POST ${SESSION_BASE}/tool-suspension`]
+const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), sessionRoute('POST', '/tool-suspension')]
 const POLICY_CHANGING_DECISION = 'always_allow_category'
 const carriesPolicyChangingAnswer = (value: unknown): boolean => {
   if (typeof value === 'string') return value === POLICY_CHANGING_DECISION
@@ -59,7 +72,7 @@ const carriesPolicyChangingAnswer = (value: unknown): boolean => {
 
 // The browser's only session-state write is its own reasoning level; yolo, notifications, and
 // smartEditing stay under the Hub's or the operator's own settings surface, never this route.
-const STATE_ROUTES: readonly string[] = [`PUT ${SESSION_BASE}/state`]
+const STATE_ROUTES: readonly string[] = [sessionRoute('PUT', '/state')]
 const isReasoningLevelOnlyState = (body: unknown): boolean => {
   if (typeof body !== 'object' || body === null) return false
   const bodyKeys = Object.keys(body as Readonly<Record<string, unknown>>)
@@ -79,9 +92,7 @@ export type ToolPayloadProjection = Readonly<{ value(value: unknown): unknown; s
 
 // Both routes serve Mastra's messages unmodified, and the web renders a tool's arguments and result
 // as it receives them.
-const PROJECTED_ROUTES: ReadonlySet<string> = new Set([`GET ${SESSION_BASE}/stream`, `GET ${SESSION_BASE}/threads/:threadId/messages`])
-
-type ServerRoute = typeof SERVER_ROUTES[number]
+const PROJECTED_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/stream'), sessionRoute('GET', '/threads/:threadId/messages')])
 
 const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection): ServerRoute => ({
   ...route,
