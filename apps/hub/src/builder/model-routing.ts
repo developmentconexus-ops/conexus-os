@@ -1,5 +1,5 @@
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
-import type { GatewayLanguageModel, MastraModelConfig } from '@mastra/core/llm'
+import { type GatewayLanguageModel, type MastraModelConfig, parseModelString } from '@mastra/core/llm'
 import type { RequestContext } from '@mastra/core/request-context'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
@@ -34,7 +34,7 @@ export const RUN_ACCOUNT_ID_KEY = 'conexusBuilderAccountId'
 /** Where a turn's request context carries its conversation, whose workspace a new session resolves. */
 export const CONVERSATION_ID_KEY = 'conexusBuilderConversationId'
 
-const providerOfModel = (modelId: string): string => modelId.slice(0, Math.max(0, modelId.indexOf('/')))
+const providerOfModel = (modelId: string): string => parseModelString(modelId).provider ?? ''
 
 /**
  * Which model a call uses and which account pays for it (spec 0002, Value sourcing). A Builder call
@@ -67,7 +67,7 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
     const { route, account, modelId: selected } = await accountFor(payer, modelId)
     await record(runId, account.modelAccountId)
     const held = route.take(account)
-    return held.model(selected.slice(held.modelProvider.length + 1), thinkingLevel)
+    return held.model(parseModelString(selected).modelId, thinkingLevel)
   }
   return Object.freeze({
     /** Refuses a run before it starts when the model it starts on, or the memory's, has no usable account. */
