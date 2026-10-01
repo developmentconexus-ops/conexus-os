@@ -206,9 +206,8 @@ export const createBroker = ({
   }
 
   /** The admitted request on the Connection's token, under one deadline for authentication and request. */
-  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, options: FetchOptions): Promise<FetchResult> => {
+  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
     const protocol = connector.definition.native
-    const signal = AbortSignal.timeout(Math.min(nativeLimits.deadlineMs, options.deadlineMs ?? Infinity))
     let attempt = 0
     let issued = 0
     let answered: ProviderAnswer = {}
@@ -247,7 +246,7 @@ export const createBroker = ({
   }
 
   /** The request admitted for one of the consumer's bindings, or its refusal: no network, no budget spent. */
-  const admitFetch = async (consumer: Consumer, request: unknown, at: number): Promise<Admission> => {
+  const admitFetch = async (consumer: Consumer, request: unknown, at: number, signal?: AbortSignal): Promise<Admission> => {
     const parsed = parseNativeRequest(request, nativeLimits)
     if (!parsed.ok) return { ok: false, refusal: refused('INPUT_REFUSED', parsed.issues), binding: null, connector: null }
     const { connection, method, path, query, body } = parsed.request
@@ -255,9 +254,10 @@ export const createBroker = ({
     if (!isMintedScope(scope, at)) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
     let bindings: readonly BoundConnection[]
     try {
-      bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+      const lookup = store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+      bindings = await (signal ? untilDeadline(signal, lookup) : lookup)
     } catch {
-      return { ok: false, refusal: refused('PROVIDER_UNAVAILABLE'), binding: null, connector: null }
+      return { ok: false, refusal: refused(signal?.aborted ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE'), binding: null, connector: null }
     }
     const binding = bindings.find((candidate) => candidate.name === connection)
     if (!binding) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
@@ -271,14 +271,15 @@ export const createBroker = ({
     return { ok: true, scope, binding, target: { connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
   }
 
-  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan, options: FetchOptions): Promise<FetchResult> => {
-    const admission = await admitFetch(consumer, request, at)
+  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
+    const admission = await admitFetch(consumer, request, at, signal)
     if (admission.binding) {
       span.update({ metadata: { connection: admission.binding.name, connector: admission.ok ? admission.target.connector.definition.id : admission.connector?.definition.id ?? null } })
     }
     if (!admission.ok) return admission.refusal
+    if (signal.aborted) return refused('PROVIDER_TIMEOUT')
     if (!spendCall(admission.scope)) return refused('CALL_LIMIT')
-    return sendOnToken(admission.target, span, options)
+    return sendOnToken(admission.target, span, signal)
   }
 
   return Object.freeze({
@@ -294,6 +295,8 @@ export const createBroker = ({
     },
     async fetch(consumer: Consumer, request: unknown, options: FetchOptions = {}): Promise<FetchResult> {
       const at = now()
+      // One deadline from entry, over the binding lookup, authentication and the vendor request alike.
+      const signal = AbortSignal.timeout(Math.min(nativeLimits.deadlineMs, options.deadlineMs ?? Infinity))
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.fetch', metadata: {
         consumer: recordedKind(consumer),
         projectId: isMintedScope(consumer?.scope, at) ? consumer.scope.projectId : null,
@@ -302,7 +305,7 @@ export const createBroker = ({
       } })
       let result: FetchResult
       try {
-        result = await executeFetch(consumer, request, at, span, options)
+        result = await executeFetch(consumer, request, at, span, signal)
       } catch {
         result = refused('PROVIDER_UNAVAILABLE')
       }

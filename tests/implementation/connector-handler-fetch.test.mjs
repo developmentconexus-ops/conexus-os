@@ -42,13 +42,13 @@ const READ = {
 }
 const ORDER_BYTES = Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER))
 
-const setup = async (t, { limits, tokenPrefix } = {}) => {
+const setup = async (t, { limits, tokenPrefix, lookupDelayMs = 0 } = {}) => {
   const fake = await startFakeGateway(tokenPrefix ? { tokenPrefix } : {})
   t.after(() => fake.close())
   const envelope = createSecretEnvelope('ef'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    listBindings: async ({ projectId, environment }) => (environment === 'preview' && projectId === PROJECT
+    listBindings: async ({ projectId, environment }) => (await new Promise((resolve) => setTimeout(resolve, lookupDelayMs)), environment === 'preview' && projectId === PROJECT
       ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
   }
@@ -154,4 +154,14 @@ test('the legacy /v1/call keeps a 2 MiB answer while /v1/fetch stays at 256 KiB'
   t.after(() => port.close())
   assert.deepEqual((await post(port.socketPath, { operation: 'x', input: {} }, '/v1/call')).json, big)
   assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'RESPONSE_TOO_LARGE' })
+})
+
+test('a binding lookup that outlasts the invocation ends in PROVIDER_TIMEOUT and the vendor sees nothing', async (t) => {
+  const { fake, open } = await setup(t, { limits: { invocationMs: 300, marginMs: 80 }, lookupDelayMs: 450 })
+  const port = await open()
+  const started = Date.now()
+  assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'PROVIDER_TIMEOUT' })
+  assert.ok(Date.now() - started < 400, 'the answer comes at the deadline, not after the lookup')
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.deepEqual(fake.requests, [])
 })
