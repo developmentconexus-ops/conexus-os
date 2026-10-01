@@ -1,3 +1,4 @@
+import { DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD } from '@mastra/code-sdk/constants'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore } from '@mastra/core/storage'
@@ -5,10 +6,6 @@ import { Memory } from '@mastra/memory'
 
 /** The model both observational-memory roles call: the installation's memory default, paid by the run's account. */
 export type MemoryModel = (requestContext: RequestContext) => Promise<MastraModelConfig>
-
-/** Mastra Code's defaults (`DEFAULT_OBS_THRESHOLD`, `DEFAULT_REF_THRESHOLD`), tokens of messages and of observations each role waits for. */
-const OBSERVATION_THRESHOLD = 30_000
-const REFLECTION_THRESHOLD = 40_000
 
 /** Mastra's default title instructions (`resolveTitleInstructions` in `@mastra/core`), in Portuguese and about what the person asks of the app. */
 const TITLE_INSTRUCTIONS = `
@@ -49,7 +46,7 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
         temporalMarkers: true,
         observation: {
           model,
-          messageTokens: OBSERVATION_THRESHOLD,
+          messageTokens: DEFAULT_OBS_THRESHOLD,
           // Mastra Code's buffering for thread scope (`agents/memory.js`, `bufferTokens: isResourceScope ? false : 1 / 5`
           // and the lines after it): observe in the background every fifth of the window, keep 2,000 tokens on
           // activation, and force activation at twice the window.
@@ -61,7 +58,7 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
           // The Observer's title guidance names no language, so a Portuguese conversation got an English title on the pilot (docs/reference/mastra-boundary.md, item 5).
           instruction: OBSERVER_TITLE_INSTRUCTION,
         },
-        reflection: { model, observationTokens: REFLECTION_THRESHOLD, bufferActivation: 1 / 2, blockAfter: 1.1 },
+        reflection: { model, observationTokens: DEFAULT_REF_THRESHOLD, bufferActivation: 1 / 2, blockAfter: 1.1 },
       },
     },
   })

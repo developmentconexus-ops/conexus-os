@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD } from '@mastra/code-sdk/constants'
 import { Mastra } from '@mastra/core/mastra'
 import { RequestContext } from '@mastra/core/request-context'
 import { LibSQLStore } from '@mastra/libsql'
@@ -108,7 +109,7 @@ test('a run observes its conversation on the installation memory model, paid by 
 
   const { windows } = await firstWindows(controller, LONG_REQUEST)
 
-  assert.deepEqual([windows[0].messages.threshold, windows[0].observations.threshold], [30_000, 40_000])
+  assert.deepEqual([windows[0].messages.threshold, windows[0].observations.threshold], [DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD], "the windows are Mastra Code's own thresholds")
   assert.ok(windows[0].observations.tokens > 0, 'the request was observed before the first answer')
   const payer = `acct-${ana}`
   assert.deepEqual(calls, [['observer', payer], ['main', payer]], 'the Observer ran inside the run, on the memory default and the run\'s account')
