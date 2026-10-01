@@ -124,3 +124,105 @@ test("the idle sweep deletes a conversation's session after the limit and never 
   assert.notEqual(await live(conversation(1)), undefined, 'the run still holds its own')
   await run.release()
 })
+
+const ASK = [{ question: 'Qual cor?', options: [{ label: 'Azul' }, { label: 'Verde' }] }]
+// A scripted model: the first call of a run asks the person, every call after an answer or in a later run answers in text.
+const askingModel = ({ afterAnswerMs = 0 } = {}) => {
+  const state = { calls: 0 }
+  const text = [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Pronto.' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+  return {
+    state,
+    model: {
+      specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+      async doGenerate() { throw new Error('doGenerate not used') },
+      async doStream(options) {
+        state.calls += 1
+        const answered = JSON.stringify(options.prompt).includes('User answered')
+        const asking = state.calls === 1
+        if (answered) await new Promise((wake) => { setTimeout(wake, afterAnswerMs) })
+        const parts = asking
+          ? [{ type: 'tool-call', toolCallId: 'c1', toolName: 'ask_user', input: JSON.stringify({ questions: ASK }) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+          : text
+        return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
+      },
+    },
+  }
+}
+
+const parkedRunner = async (t, { afterAnswerMs, answerWaitMs, turnSilenceMs }) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-answer-wait-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'answer-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const conversationWorkspaces = new Map()
+  const { model, state } = askingModel({ afterAnswerMs })
+  const storage = new InMemoryStore()
+  await storage.init()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const openSession = createControllerRunSessions({
+    controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(),
+    readDefaultModel: async () => 'anthropic/default-model', answerWaitMs, ...(turnSilenceMs ? { turnSilenceMs } : {}),
+  })
+  const open = (builderRunId) => openSession({
+    projectId, conversationId: conversation(1), builderRunId, workspace, runCheck: async () => { throw new Error('not used') },
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversation(1)) },
+  })
+  return { open, state, controller }
+}
+
+test('a question nobody answers ends the turn as BUILDER_ANSWER_TIMEOUT inside the wait, frees its session, and the next run on the conversation completes', async (t) => {
+  const { open, state, controller } = await parkedRunner(t, { answerWaitMs: 300 })
+  const first = await open(runId(1))
+  const parked = []
+  const live = await controller.getSessionByResource(resourceId, `builder:${conversation(1)}`)
+  live.subscribe((event) => { if (event.type === 'tool_suspended') parked.push(event.toolName) })
+  const started = Date.now()
+  const outcome = await first.sendTurn('faça um app').then((turn) => ({ settled: 'resolved', reason: turn.reason }), (error) => ({ settled: 'rejected', code: error.message }))
+  assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_ANSWER_TIMEOUT' })
+  assert.deepEqual(parked, ['ask_user'], 'the turn was parked on the question')
+  assert.ok(Date.now() - started < 5_000, `the wait ended ${Date.now() - started} ms after it started`)
+  await first.release()
+  assert.equal(await controller.getSessionByResource(resourceId, `builder:${conversation(1)}`), undefined)
+
+  const later = await open(runId(2))
+  const turn = await later.sendTurn('faça o app de novo')
+  assert.deepEqual({ reason: turn.reason, modelCalls: state.calls }, { reason: 'complete', modelCalls: 2 })
+  await later.release()
+})
+
+test('an answer inside the wait resumes the turn, and the agent then works longer than the wait without being cut off', async (t) => {
+  const { open, controller } = await parkedRunner(t, { answerWaitMs: 400, afterAnswerMs: 900 })
+  const run = await open(runId(1))
+  const live = await controller.getSessionByResource(resourceId, `builder:${conversation(1)}`)
+  live.subscribe((event) => {
+    if (event.type === 'tool_suspended') setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: ['Azul'] }) }, 100)
+  })
+  const turn = await run.sendTurn('faça um app')
+  assert.equal(turn.reason, 'complete')
+  await run.release()
+})
+
+test('a turn parked on a question is not a silent turn: the person may take longer than the stall limit to answer', async (t) => {
+  const { open, controller } = await parkedRunner(t, { answerWaitMs: 5_000, turnSilenceMs: 200 })
+  const run = await open(runId(1))
+  const live = await controller.getSessionByResource(resourceId, `builder:${conversation(1)}`)
+  live.subscribe((event) => {
+    if (event.type === 'tool_suspended') setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: ['Verde'] }) }, 800)
+  })
+  assert.equal((await run.sendTurn('faça um app')).reason, 'complete')
+  await run.release()
+})
+
+test('BUILDER_ANSWER_TIMEOUT reaches the person as an internal category with its own sentence', async () => {
+  const { builderFailureCategory } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
+  const { failureReason } = await import('../../apps/web/src/features/builder/failure-reasons.ts')
+  assert.equal(builderFailureCategory('BUILDER_ANSWER_TIMEOUT'), 'INTERNAL_ERROR')
+  assert.equal(
+    failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_ANSWER_TIMEOUT' }),
+    'A pergunta do Builder ficou sem resposta por 25 minutos, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
+  )
+})

@@ -571,9 +571,16 @@ type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }
  * read that never settles (Mastra's `getWorkflowRunById` was seen to) emits no error and no end, and
  * neither `session.abort()` nor Mastra's `untilIdle` timer, which watches background tasks, settles
  * it. It is twice one model step's budget, so a slow step or a long tool call never reaches it. A
- * turn waiting on the person's answer is not working and has no limit.
+ * turn waiting on the person's answer is not working and has `ANSWER_WAIT_MS` instead.
  */
 const TURN_SILENCE_MS = 10 * 60_000
+/**
+ * How long a turn waits on the person's answer. Mastra keeps a suspended run warm for
+ * `MASTRA_SUSPENDED_RUN_TTL_MS` (30 minutes) and then evicts it from memory, after which no
+ * `agent_end` can arrive: a wait past it would hold the run lock, the sandbox keepalive, the
+ * listeners and the session until the Hub restarts. The wait ends before Mastra's does.
+ */
+const ANSWER_WAIT_MS = 25 * 60_000
 const STALLED_SESSION_DELETE_MS = 5_000
 
 /** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
@@ -590,10 +597,12 @@ type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
  * session until it is deleted, so the run deletes its own; the thread, which holds the
  * conversation, is in storage.
  */
-export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
+export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS, answerWaitMs = ANSWER_WAIT_MS }: Readonly<{
   controller: AgentController
   /** How long a working turn may go without an event before it settles as `BUILDER_AGENT_STALLED`. */
   turnSilenceMs?: number
+  /** How long a turn parked on the person's answer waits before it settles as `BUILDER_ANSWER_TIMEOUT`. */
+  answerWaitMs?: number
   /** The installation's default Builder model, which a conversation with no model of its own starts on. */
   readDefaultModel(): Promise<string | null>
   /** The live turns' context binders by session scope, which the browser mount applies to every request it serves a turn. */
@@ -650,35 +659,44 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     sendTurn: async (content: string, signal?: AbortSignal): Promise<AgentTurn> => {
       let userMessageId: string | undefined
       let continuations = 0
-      let silence: ReturnType<typeof setTimeout> | undefined
-      let stall: (error: Error) => void = () => undefined
-      const stalled = new Promise<never>((_, reject) => { stall = reject })
-      stalled.catch(() => undefined)
-      const watch = (): void => {
-        clearTimeout(silence)
-        silence = setTimeout(() => {
+      let parked = false
+      let limit: ReturnType<typeof setTimeout> | undefined
+      let expire: (error: Error) => void = () => undefined
+      const expired = new Promise<never>((_, reject) => { expire = reject })
+      expired.catch(() => undefined)
+      // The turn is either working, and silent too long is a stall, or parked on the person, and
+      // unanswered too long is a timeout. Either one aborts the session and settles the turn.
+      const within = <T>(step: Promise<T>): Promise<T> => Promise.race([step, expired])
+      const watch = (ms: number, code: string): void => {
+        clearTimeout(limit)
+        limit = setTimeout(() => {
           session.abort()
-          stall(new Error('BUILDER_AGENT_STALLED'))
-        }, turnSilenceMs)
-        silence.unref?.()
+          expire(new Error(code))
+        }, ms)
+        limit.unref?.()
       }
-      const within = <T>(step: Promise<T>): Promise<T> => Promise.race([step, stalled])
+      const working = (): void => watch(turnSilenceMs, 'BUILDER_AGENT_STALLED')
       // A continuation is the Hub's own message; the person's request stays the turn's anchor.
       const detach = session.subscribe((event) => {
         if (event.type === 'message_start' && continuations === 0 && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
-        if (event.type === 'agent_end' && event.reason === 'suspended') clearTimeout(silence)
-        else watch()
+        // Mastra's `display_state_changed` follows the suspended `agent_end`, so only the run starting
+        // again (`agent_start`, which an answer causes) ends the wait.
+        if (event.type === 'agent_end') parked = event.reason === 'suspended'
+        else if (event.type === 'agent_start') parked = false
+        else if (parked) return
+        if (parked) watch(answerWaitMs, 'BUILDER_ANSWER_TIMEOUT')
+        else working()
       })
       const abort = (): void => { session.abort() }
       if (signal?.aborted) abort()
       else signal?.addEventListener('abort', abort, { once: true })
       try {
-        watch()
+        working()
         let reason: string = await within(sendBuilderTurnMessage(session, { content }, { requestContext, ...(signal ? { signal } : {}), onContinuation: (count) => { continuations = count } })) ?? 'unknown'
         // A question waiting for an answer keeps the run active: the
         // person answers through the browser, and the turn goes on until the agent ends for good.
         while (reason === 'suspended') reason = await within(nextAgentEnd(session, signal))
-        watch()
+        working()
         const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
         userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
         const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
@@ -687,13 +705,13 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       } catch (error) {
         // The stuck run still holds the session, so the next turn must not find it: the session is
         // deleted, waiting only briefly, since the store that hung may not answer the delete either.
-        if (error instanceof Error && error.message === 'BUILDER_AGENT_STALLED') {
+        if (error instanceof Error && (error.message === 'BUILDER_AGENT_STALLED' || error.message === 'BUILDER_ANSWER_TIMEOUT')) {
           forget()
           await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
         }
         throw error
       } finally {
-        clearTimeout(silence)
+        clearTimeout(limit)
         detach()
         signal?.removeEventListener('abort', abort)
       }
