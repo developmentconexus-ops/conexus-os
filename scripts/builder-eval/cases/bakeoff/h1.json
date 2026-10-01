@@ -44,6 +44,7 @@
       },
       {
         "id": "receber-pago",
+        "kind": "stated",
         "topic": "se contas a pagar e títulos já pagos entram",
         "say": "Só o que os clientes nos devem. Conta a pagar e título já pago não entram.",
         "pick": [

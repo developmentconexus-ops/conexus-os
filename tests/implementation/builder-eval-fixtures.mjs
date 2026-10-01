@@ -105,7 +105,7 @@ export function resumedBuilderTrace({ traceId = 'tr-r', builderRunId = 'run-r', 
     node(`${traceId}-chunk-1`, `${traceId}-gen-1`, 'model_chunk', { name: 'chunk: reasoning', startedAt: s(8), endedAt: s(9) }),
     node(`${traceId}-chunk-2`, `${traceId}-gen-1`, 'model_chunk', { name: 'chunk: text', startedAt: s(12), endedAt: s(13) }),
     step(`${traceId}-s1`, `${traceId}-gen-1`, 5, 60, { inputTokens: 1000, inputDetails: { cacheRead: 0 }, outputTokens: 100 }),
-    tool(`${traceId}-ask`, `${traceId}-s1`, 15, 60, 'ask_user', { question: 'Qual a regra?' }),
+    tool(`${traceId}-ask`, `${traceId}-s1`, 15, 60, 'ask_user', { questions: [{ question: 'Qual a regra?' }] }),
     agent(`${traceId}-resumed`, `${traceId}-gen-1`, 160, 400),
     node(`${traceId}-gen-2`, `${traceId}-resumed`, 'model_generation', { startedAt: s(160), endedAt: s(400), attributes: { usage: { inputTokens: 5200, inputDetails: { cacheRead: 2000 }, outputTokens: 920 } } }),
     step(`${traceId}-s2`, `${traceId}-gen-2`, 160, 200, { inputTokens: 2000, inputDetails: { cacheRead: 1000 }, outputTokens: 200 }),
@@ -146,7 +146,7 @@ export function planFlowTrace(shape, { traceId = `tr-${shape}`, builderRunId = `
   const check = () => tool('conexus_check', {}, { output: { ok: true, steps: [{ step: 'typecheck', status: 'passed', durationMs: 7000 }] } })
   const shapes = {
     new: () => [
-      tool('ask_user', { question: 'Qual o formato da data?', options: [{ label: 'Dia/mês/ano' }, { label: 'Ano-mês-dia' }] }),
+      tool('ask_user', { questions: [{ question: 'Qual o formato da data?', options: [{ label: 'Dia/mês/ano' }, { label: 'Ano-mês-dia' }] }, { question: 'Quando um título vence?' }] }),
       write('/workspace/repo/.conexus/plan.md'),
       ...(appFirst ? [write('src/app.tsx')] : []),
       tool('submit_plan', { path: '.conexus/plan.md' }),
@@ -154,7 +154,7 @@ export function planFlowTrace(shape, { traceId = `tr-${shape}`, builderRunId = `
     ],
     askUser: () => [
       write('.conexus/plan.md'),
-      tool('ask_user', { question: 'Posso construir assim?', options: APPROVAL_OPTIONS }),
+      tool('ask_user', { questions: [{ question: 'Posso construir assim?', options: APPROVAL_OPTIONS }] }),
       write('src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
     ],
     legacy: () => [

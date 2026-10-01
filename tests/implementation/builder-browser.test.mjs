@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { startWebServer } from './web-dev-server.mjs'
+import { answerPendingCard, createCards } from '../../scripts/builder-eval/run.mjs'
 import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
 
 // The formatter has no Mastra field to read a display name from (see model-display-name.ts's own
@@ -1133,7 +1134,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
     { type: 'message_start', message: liveMessage },
     { type: 'display_state_changed', displayState: { activeTools: {}, tasks } },
-    { type: 'tool_suspended', toolCallId: 'tool-ask-1', toolName: 'ask_user', args: { question, options, selectionMode: 'single_select' }, suspendPayload: { question, options, selectionMode: 'single_select' } },
+    { type: 'tool_suspended', toolCallId: 'tool-ask-1', toolName: 'ask_user', args: { questions: [{ question, options }] }, suspendPayload: { questions: [{ question, options }] } },
   )))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
@@ -1156,9 +1157,10 @@ test('a suspended ask_user with options renders the options and submits the chos
 
   const suspensionSent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
   await blue.click()
+  await page.getByRole('button', { name: 'Enviar resposta' }).click()
   await suspensionSent
-  assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-1', resumeData: 'Azul' }],
-    'the chosen option label is sent as respondToToolSuspension\'s resumeData, unchanged')
+  assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-1', resumeData: ['Azul'] }],
+    'the chosen option label is sent as respondToToolSuspension\'s resumeData, one answer per question')
 
   // playground-ui's TaskList/AskUser hard-code their labels in English (no labels prop exists), so
   // the Construir screen composes its own pt-BR wrappers around the same primitives; this pins the
@@ -1281,26 +1283,27 @@ test('a running group names the call in progress and how many are done', async (
 // The message shapes a real run produced: the suspended ask_user call as a part still open, the controller
 // marking it "error" once the run ended as suspended, and the resolved call appended later as a second
 // part with no arguments and the answer as its result.
-const ASK_ARGS = { options: null, question: 'Qual número de orçamento podemos usar?', selectionMode: null }
+const ASK_ARGS = { questions: [{ question: 'Qual número de orçamento podemos usar?', options: null }] }
+const ASK_QUESTION = ASK_ARGS.questions[0].question
 const askParts = (answered) => [
   { type: 'text', text: 'Preciso de um número.' },
   { type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ask', toolName: 'ask_user', state: 'call', args: ASK_ARGS } },
-  ...(answered ? [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ask', toolName: 'ask_user', state: 'result', args: {}, result: { content: 'User answered: 144118. O markup é 1.45 × custo.', isError: false } } }] : []),
+  ...(answered ? [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ask', toolName: 'ask_user', state: 'result', args: {}, result: { content: 'User answered:\nQual número de orçamento podemos usar?: 144118. O markup é 1.45 × custo.', isError: false } } }] : []),
 ]
 const askEvents = (answered) => [
   { type: 'message_start', message: { ...assistantMessage('ask-live', ''), content: { format: 2, parts: askParts(false) } } },
-  { type: 'tool_suspended', toolCallId: 'call_ask', toolName: 'ask_user', args: ASK_ARGS, suspendPayload: { question: ASK_ARGS.question } },
+  { type: 'tool_suspended', toolCallId: 'call_ask', toolName: 'ask_user', args: ASK_ARGS, suspendPayload: ASK_ARGS },
   { type: 'display_state_changed', displayState: { activeTools: { call_ask: { name: 'ask_user', args: ASK_ARGS, status: 'error' } }, tasks: [] } },
   ...(answered ? [
     { type: 'message_update', id: 'ask-live', event: { type: 'part', index: 2, part: askParts(true)[2] } },
-    { type: 'tool_end', toolCallId: 'call_ask', result: { content: 'User answered: 144118. O markup é 1.45 × custo.', isError: false }, isError: false },
+    { type: 'tool_end', toolCallId: 'call_ask', result: { content: 'User answered:\nQual número de orçamento podemos usar?: 144118. O markup é 1.45 × custo.', isError: false }, isError: false },
   ] : []),
 ]
 
 test('a question waiting for the person is a card, not a failed tool row', async (t) => {
   const page = await openLiveTurn(t, askEvents(false))
-  await page.getByText(ASK_ARGS.question, { exact: true }).waitFor()
-  assert.equal(await page.getByText(ASK_ARGS.question, { exact: true }).count(), 1, 'one card for the question')
+  await page.getByText(ASK_QUESTION, { exact: true }).waitFor()
+  assert.equal(await page.getByText(ASK_QUESTION, { exact: true }).count(), 1, 'one card for the question')
   assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'no tool row for a call that has not been answered')
   assert.equal(await page.getByText('Tool call failed').count(), 0)
 })
@@ -1314,7 +1317,7 @@ test('an answered question is one row that shows the question and the answer, an
   assert.equal(await page.locator('[data-status="error"]').count(), 0)
   await row.click()
   const asked = page.locator('.cx-asked')
-  assert.equal((await asked.textContent()).trim(), `${ASK_ARGS.question}144118. O markup é 1.45 × custo.`)
+  assert.equal((await asked.textContent()).trim(), `${ASK_QUESTION}144118. O markup é 1.45 × custo.`)
 })
 
 // The plain-button look (border, padding, fill) is the default of a <button> with no class. A part of
@@ -1372,6 +1375,71 @@ test('text streamed after a tool call renders after it, not appended to the text
     ['Antes', 'tool', 'Depois'])
 })
 
+// The eval driver answers the real multi-question card: a pick by option label (also one spelled without
+// the "(recomendado)" suffix the agent adds), an own answer typed into "Outra resposta", and a fallback to
+// the first option when the person's answer matches nothing usable.
+test('the eval driver answers every question of the real multi-question ask_user card', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000231'
+  const projectId = '70000000-0000-4000-8000-000000000232'
+  const runId = '70000000-0000-4000-8000-000000000233'
+  const conversationId = 'conversation-ask-user-many'
+  const sourceRevision = 'd'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const questions = [
+    { question: 'Contar provisórios?', multiSelect: false, options: [{ label: 'Sim, contar também os provisórios', description: 'Inclui rascunhos' }, { label: 'Não' }] },
+    { question: 'O que excluir?', multiSelect: true, options: [{ label: 'Cancelados' }, { label: 'Estornados' }] },
+    { question: 'Qual período?', multiSelect: false, options: [{ label: 'Mês atual' }, { label: 'Ano' }] },
+    { question: 'Qual valor usar?', multiSelect: false, options: [{ label: 'Valor original do título (recomendado)', description: 'Sem juros' }, { label: 'Valor líquido' }] },
+  ]
+  const suspensionRequests = []
+  const state = builderState([conversation(conversationId, 'Cartão')], { [conversationId]: [userMessage('user-1', 'Crie um painel')] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Cartão', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    suspensionRequests.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'tool_suspended', toolCallId: 'tool-ask-many', toolName: 'ask_user', args: { questions }, suspendPayload: { questions } },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Contar provisórios?', { exact: true }).waitFor()
+
+  const scripted = {
+    'Contar provisórios?': ['Sim, contar também os provisórios'],
+    'O que excluir?': ['Excluir cartão e marketplace'],
+    'Qual período?': ['Mês atual'],
+    'Qual valor usar?': ['Valor original do título'],
+  }
+  const person = { answer: async ({ question }) => ({ answer: scripted[question], via: 'case', ruleIds: [] }) }
+  const cards = createCards({ person })
+  const suspensionSent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await answerPendingCard(page, cards, null)
+  await suspensionSent
+  assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-many', resumeData: [
+    'Sim, contar também os provisórios',
+    ['Excluir cartão e marketplace'],
+    'Mês atual',
+    'Valor original do título (recomendado)',
+  ] }])
+})
+
 // A free-text ask_user (no options on the suspend payload) drives AskUserPt's other branch: the
 // same pt-BR placeholder and submit label the fixture above never exercises.
 test('a suspended ask_user with no options renders the pt-BR free-text form', async (t) => {
@@ -1404,7 +1472,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-    { type: 'tool_suspended', toolCallId: 'tool-ask-2', toolName: 'ask_user', args: { question }, suspendPayload: { question } },
+    { type: 'tool_suspended', toolCallId: 'tool-ask-2', toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question }] } },
   )))
 
   await page.goto(`${origin}/projects/${projectId}/build`)
@@ -1490,9 +1558,11 @@ test('while a run works the model control is disabled, so the model never change
   assert.deepEqual(state.modelSwitches, [])
 })
 
+const APPROVAL_ASK = { questions: [{ question: 'Posso construir assim?', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }] }] }
+
 test('the approval of a plan is a question with two options, and the chosen label is the answer', async (t) => {
   const page = await openLiveTurn(t, [
-    { type: 'tool_suspended', toolCallId: 'approval-1', toolName: 'ask_user', args: { question: 'Posso construir assim?', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' }, suspendPayload: { question: 'Posso construir assim?', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' } },
+    { type: 'tool_suspended', toolCallId: 'approval-1', toolName: 'ask_user', args: APPROVAL_ASK, suspendPayload: APPROVAL_ASK },
   ])
   const answers = []
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
@@ -1503,8 +1573,103 @@ test('the approval of a plan is a question with two options, and the chosen labe
   await page.getByRole('radio', { name: 'Pedir ajustes' }).waitFor()
   const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
   await page.getByRole('radio', { name: 'Aprovar e construir' }).click()
+  await page.getByRole('button', { name: 'Enviar resposta' }).click()
   await sent
-  assert.deepEqual(answers, [{ toolCallId: 'approval-1', resumeData: 'Aprovar e construir' }])
+  assert.deepEqual(answers, [{ toolCallId: 'approval-1', resumeData: ['Aprovar e construir'] }])
+})
+
+const threeQuestions = { questions: [
+  { question: 'Qual cor?', header: 'Cor', options: [{ label: 'Azul (recomendado)', description: 'Combina com a marca' }, { label: 'Verde' }] },
+  { question: 'Quais telas?', multiSelect: true, options: [{ label: 'Lista' }, { label: 'Detalhe' }, { label: 'Resumo' }] },
+  { question: 'Algo mais que devo saber?' },
+] }
+
+const openThreeQuestions = async (t, toolCallId, replies) => {
+  const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: threeQuestions, suspendPayload: threeQuestions }])
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    replies.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  const card = page.getByLabel('Pergunta do agente')
+  await card.getByText('Qual cor?', { exact: true }).waitFor()
+  return { page, card }
+}
+
+test('a card with three questions shows one at a time, reviews the answers, and sends them in one reply', async (t) => {
+  const replies = []
+  const { page, card } = await openThreeQuestions(t, 'ask-3', replies)
+  assert.equal(await card.locator('[data-ask-question]').count(), 1)
+  assert.deepEqual(await card.getByRole('tab').allInnerTexts(), ['Cor', 'Pergunta 2', 'Pergunta 3', 'Revisar'])
+  assert.equal(await card.getByRole('tab', { name: 'Revisar' }).isDisabled(), true, 'the review waits for every answer')
+  assert.equal(await card.getByRole('button', { name: 'Enviar respostas' }).count(), 0, 'nothing is sent before the review')
+
+  await card.getByRole('radio', { name: /Azul/ }).click()
+  await card.getByText('Quais telas?', { exact: true }).waitFor()
+  assert.equal(await card.getByText('Qual cor?', { exact: true }).count(), 0, 'a single choice moves to the next question')
+  assert.equal(await card.getByRole('tab', { name: /Cor/ }).innerText(), '✓ Cor')
+
+  const next = card.getByRole('button', { name: 'Próxima', exact: true })
+  assert.equal(await next.isDisabled(), true, 'a multi-select question waits for a choice')
+  await card.getByRole('checkbox', { name: 'Lista' }).click()
+  await card.getByRole('checkbox', { name: 'Resumo' }).click()
+  await card.getByLabel('Outra resposta: Quais telas?').fill('Calendário')
+  await next.click()
+
+  await card.getByText('Algo mais que devo saber?', { exact: true }).waitFor()
+  assert.equal(await next.isDisabled(), true, 'a typed answer is still missing')
+  await card.getByPlaceholder('Digite sua resposta…').fill('Sem pressa')
+  await next.click()
+
+  await card.locator('[data-ask-review]').waitFor()
+  assert.equal(await card.locator('[data-ask-question]').count(), 0)
+  assert.deepEqual(await card.locator('[data-ask-review] dd').allInnerTexts(), ['Azul (recomendado)', 'Lista, Resumo, Calendário', 'Sem pressa'])
+
+  await card.getByRole('tab', { name: /Cor/ }).click()
+  await card.getByRole('radio', { name: 'Verde' }).click()
+  await card.getByRole('tab', { name: 'Revisar' }).click()
+  assert.deepEqual(await card.locator('[data-ask-review] dd').allInnerTexts(), ['Verde', 'Lista, Resumo, Calendário', 'Sem pressa'], 'an earlier answer can be changed')
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await card.getByRole('button', { name: 'Enviar respostas' }).click()
+  await sent
+  assert.deepEqual(replies, [{ toolCallId: 'ask-3', resumeData: ['Verde', ['Lista', 'Resumo', 'Calendário'], 'Sem pressa'] }])
+})
+
+test('the arrow keys move through the options of a question and Enter confirms the chosen one', async (t) => {
+  const replies = []
+  const { page, card } = await openThreeQuestions(t, 'ask-keys', replies)
+  await card.getByRole('radio', { name: /Azul/ }).focus()
+  await page.keyboard.press('ArrowDown')
+  assert.equal(await card.getByText('Qual cor?', { exact: true }).count(), 1, 'the arrow key only moves the choice')
+  assert.equal(await card.getByRole('radio', { name: 'Verde' }).isChecked(), true)
+  await page.keyboard.press('Enter')
+  await card.getByText('Quais telas?', { exact: true }).waitFor()
+  await page.keyboard.press('Space')
+  await page.keyboard.press('Enter')
+  await card.getByText('Algo mais que devo saber?', { exact: true }).waitFor()
+  await page.keyboard.type('Sim')
+  await page.keyboard.press('Enter')
+  await card.locator('[data-ask-review]').waitFor()
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await page.keyboard.press('Enter')
+  await sent
+  assert.deepEqual(replies, [{ toolCallId: 'ask-keys', resumeData: ['Verde', ['Lista'], 'Sim'] }])
+})
+
+test('a typed answer replaces the chosen option of a single-select question', async (t) => {
+  const ask = { questions: [{ question: 'Qual cor?', options: [{ label: 'Azul' }, { label: 'Verde' }] }] }
+  const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: 'ask-own', toolName: 'ask_user', args: ask, suspendPayload: ask }])
+  const replies = []
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    replies.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  const card = page.getByLabel('Pergunta do agente')
+  await card.getByRole('radio', { name: 'Azul' }).click()
+  await card.getByLabel('Outra resposta: Qual cor?').fill('Laranja')
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await card.getByRole('button', { name: 'Enviar resposta' }).click()
+  await sent
+  assert.deepEqual(replies, [{ toolCallId: 'ask-own', resumeData: ['Laranja'] }])
 })
 
 const PLAN_TEXT = [
@@ -1617,7 +1782,7 @@ for (const width of [1536, 1700]) {
       runHistory: [],
     }) }))
     await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
-      { type: 'tool_suspended', toolCallId: 'ask-w', toolName: 'ask_user', args: { question }, suspendPayload: { question, options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }], selectionMode: 'single_select' } },
+      { type: 'tool_suspended', toolCallId: 'ask-w', toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question, options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }] }] } },
     )))
 
     await page.goto(`${origin}/projects/${projectId}/build`)

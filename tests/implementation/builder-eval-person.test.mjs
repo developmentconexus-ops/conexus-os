@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { MockLanguageModelV3 } from 'ai/test'
 import {
-  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, personModel, silentOption,
+  correctionMessage, createPerson, decideAnswer, fillSheet, fillValues, loadValues, parseSheet, personModel, silentAnswer,
 } from '../../scripts/builder-eval/person.mjs'
 import { completeLogin, startLogin } from '../../scripts/builder-eval/login.mjs'
 
@@ -25,12 +25,11 @@ test('a silent sheet gives "Não sei." on a free-text question', () => {
   assert.deepEqual(decideAnswer(h1, free('Em qual tabela ficam os títulos?'), []), { answer: 'Não sei.', via: 'silent', ruleIds: [] })
 })
 
-test('a silent sheet never picks the first or the recommended option', () => {
-  const card = options('Qual formato?', 'Tabela simples (recomendado)', 'Cartões', 'Gráfico')
-  assert.deepEqual(decideAnswer(h1, card, []), { answer: 'Gráfico', via: 'silent', ruleIds: [] })
-  assert.equal(silentOption([{ label: 'A', description: '' }, { label: 'B', description: 'Recomendado para este caso' }, { label: 'C', description: '' }]).label, 'C')
-  assert.equal(silentOption([{ label: 'A', description: '' }, { label: 'Tanto faz', description: '' }, { label: 'C', description: '' }]).label, 'Tanto faz')
-  assert.equal(silentOption([{ label: 'Única', description: '' }]).label, 'Única')
+test('a silent sheet says "Não sei." on an option card, or the option that says so', () => {
+  const card = options('Como mostrar o total?', 'Tabela (recomendado)', 'Gráfico')
+  assert.deepEqual(decideAnswer(h1, card, []), { answer: 'Não sei.', via: 'silent', ruleIds: [] })
+  assert.equal(silentAnswer([{ label: 'A', description: '' }, { label: 'Tanto faz', description: '' }, { label: 'C', description: '' }]), 'Tanto faz')
+  assert.equal(silentAnswer([{ label: 'Única', description: '' }]), 'Não sei.')
 })
 
 test('an option card is answered with the option the rule\'s words find, whatever its place', () => {
@@ -41,14 +40,16 @@ test('an option card is answered with the option the rule\'s words find, whateve
 test('the matcher\'s hinted label counts when no pick word finds an option, and only if the card has it', () => {
   const card = options('Quais títulos entram?', 'Todos', 'Apenas os atrasados sem pagamento')
   assert.equal(decideAnswer(h1, card, ['vencido'], ['Apenas os atrasados sem pagamento']).answer, 'Apenas os atrasados sem pagamento')
-  assert.deepEqual(decideAnswer(h1, card, ['vencido'], ['Um rótulo inventado']), { answer: 'Apenas os atrasados sem pagamento', via: 'silent', ruleIds: ['vencido'] })
+  const said = decideAnswer(h1, card, ['vencido'], ['Um rótulo inventado'])
+  assert.deepEqual({ via: said.via, ruleIds: said.ruleIds }, { via: 'sheet', ruleIds: ['vencido'] })
+  assert.equal(said.answer, h1.rules.find((rule) => rule.id === 'vencido').say)
 })
 
-test('a multi-select card takes every option a rule finds, and the silent choice when none', () => {
+test('a multi-select card takes every option a rule finds, and "Não sei." when none', () => {
   const v1 = parseSheet(caseFile('v1').person)
   const card = { question: 'O que mais devo incluir?', multi: true, options: ['Total por semana', 'Alerta de 60 dias sem visita', 'Exportar planilha'].map((label) => ({ label, description: '' })) }
   assert.deepEqual(decideAnswer(v1, card, ['total-semanal', 'sem-visita']), { answer: ['Total por semana', 'Alerta de 60 dias sem visita'], via: 'sheet', ruleIds: ['total-semanal', 'sem-visita'] })
-  assert.deepEqual(decideAnswer(v1, card, []), { answer: ['Exportar planilha'], via: 'silent', ruleIds: [] })
+  assert.deepEqual(decideAnswer(v1, card, []), { answer: ['Não sei.'], via: 'silent', ruleIds: [] })
 })
 
 test('the person asks the model which rule a question touches and says only what the sheet says', async () => {
@@ -203,4 +204,12 @@ test('hiddenRuleOutcomes records, per hidden rule, whether the Builder asked abo
     { id: 'status', asked: false, proposed: true },
     { id: 'autor', asked: true, proposed: false },
   ])
+})
+
+test('a rule kind is stated or design, and anything else stops the sheet at parse', () => {
+  const sheetWith = (kind) => ({ projectName: 'P', persona: 'p', answers: [{ id: 'a', topic: 't', say: 's', ...(kind && { kind }) }] })
+  assert.equal(parseSheet(sheetWith('stated')).rules[0].kind, 'stated')
+  assert.equal(parseSheet(sheetWith('design')).rules[0].kind, 'design')
+  assert.equal(parseSheet(sheetWith()).rules[0].kind, undefined)
+  assert.throws(() => parseSheet(sheetWith('data')), /person\.answers\[0\]\.kind must be one of stated, design/)
 })

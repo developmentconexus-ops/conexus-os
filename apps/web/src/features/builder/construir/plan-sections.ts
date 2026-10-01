@@ -1,4 +1,4 @@
-// The plan template (builder-skills/conexus-plan) writes the person's part first and the technical
+// The plan templates (builder-skills/conexus-plan-new and conexus-plan-change) write the person's part first and the technical
 // part after the heading `## Para construir`. The match ignores case so a model that writes
 // `## Para Construir` is split the same way. tests/implementation/builder-plan-sections.test.mjs
 // keeps this heading and the template in step.

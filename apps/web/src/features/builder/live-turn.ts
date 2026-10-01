@@ -41,7 +41,7 @@ export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; t
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
 type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
-export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
 export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
 
@@ -124,7 +124,14 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
-    case 'tool_end':
+    // The controller's display state forgets a tool when the run restarts to resume it, so its own
+    // tool_end can find nothing to update there. The turn records the outcome itself, or a call that
+    // agent_end marked "error" while parked would stay failed after the person answered it.
+    case 'tool_end': {
+      const call = turn.tools[event.toolCallId]
+      const tools = call ? { ...turn.tools, [event.toolCallId]: { ...call, status: event.isError ? 'error' as const : 'completed' as const, result: event.result, isError: event.isError } } : turn.tools
+      return { ...turn, tools, waiting: without(turn.waiting, event.toolCallId) }
+    }
     case 'tool_suspension_cancelled':
       return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
     case 'error':

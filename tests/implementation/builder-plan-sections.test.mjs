@@ -19,8 +19,8 @@ test('personPart returns a plan without the technical heading whole', () => {
 })
 
 test('the plan skill templates write the two headings the card splits on, in the case it matches', async () => {
-  for (const name of ['new-app', 'change']) {
-    const template = await readFile(new URL(`../../builder-skills/conexus-plan/${name}.md`, import.meta.url), 'utf8')
+  for (const name of ['conexus-plan-new', 'conexus-plan-change']) {
+    const template = await readFile(new URL(`../../builder-skills/${name}/references/plan-template.md`, import.meta.url), 'utf8')
     assert.equal(template.includes('\n## Para a pessoa\n'), true, `${name} has the person heading`)
     assert.equal(personPart(template).includes('## Para construir'), false, `${name} splits at its technical heading`)
   }

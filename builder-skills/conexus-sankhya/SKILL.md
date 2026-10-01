@@ -17,7 +17,9 @@ A consulta SQL é `DbExplorerSP.executeQuery`, com `requestBody: { sql }`. É co
 
 3. Confirme que a coluna existe antes de usá-la, porque o dicionário lista campos que a tabela não tem. No Oracle: `SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = '<TABELA>'`; no SQL Server, `INFORMATION_SCHEMA.COLUMNS`.
 
-4. Antes de juntar uma tabela, conte as linhas por chave. Se uma chave tem várias linhas, a tabela guarda histórico, uma linha por data ou por vigência. Escolha a linha certa para cada chave antes de juntar, por exemplo a mais recente até a data que importa, porque juntar todas multiplica as linhas do resultado.
+4. Prove o campo com uma amostra parecida com o uso real: registros recentes e uma lista lida até o fim, porque uma amostra antiga ou pequena esconde listas com várias páginas, campos vazios e linhas repetidas. Conte quantas linhas da amostra têm o campo preenchido. Um campo que existe mas volta vazio não é fonte; procure outro.
+
+5. Antes de juntar uma tabela, conte as linhas por chave. Se uma chave tem várias linhas, a tabela guarda histórico, uma linha por data ou por vigência. Escolha a linha certa para cada chave antes de juntar, por exemplo a mais recente até a data que importa, porque juntar todas multiplica as linhas do resultado.
 
 A consulta SQL só lê. O Conexus recusa com `INPUT_REFUSED` (issue `/body/requestBody/sql`) toda SQL que não seja uma única instrução `SELECT` ou `WITH`, ou que traga, fora de comentários e de textos entre aspas, uma palavra como `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `CREATE`, `DROP`, `ALTER`, `EXEC`, `CALL` ou `INTO`. Um apelido de coluna com um desses nomes precisa de outro nome. Não contorne a recusa: reescreva a consulta como uma leitura.
 

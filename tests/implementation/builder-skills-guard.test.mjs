@@ -10,10 +10,10 @@ mkdirSync(cacheRoot, { recursive: true })
 
 const { assertBuilderSkillsAvailable } = await import(hubModuleUrl('builder/skills-guard.js'))
 
-test('starts when the skills folder carries the five builder skills', () => {
+test('starts when the skills folder carries the six builder skills', () => {
   const root = mkdtempSync(resolve(cacheRoot, 'builder-skills-present-'))
   try {
-    for (const name of ['conexus-server', 'conexus-app', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
+    for (const name of ['conexus-server', 'conexus-app', 'conexus-plan-new', 'conexus-plan-change', 'conexus-build', 'conexus-sankhya']) {
       mkdirSync(join(root, name))
       writeFileSync(join(root, name, 'SKILL.md'), `---\nname: ${name}\n---\nguide\n`)
     }
@@ -28,19 +28,19 @@ test('refuses to start when the skills folder lacks a builder skill, and names i
   try {
     mkdirSync(join(root, 'conexus-server'))
     writeFileSync(join(root, 'conexus-server', 'SKILL.md'), '---\nname: conexus-server\n---\nguide\n')
-    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app, conexus-plan, conexus-build, conexus-sankhya; /)
+    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app, conexus-plan-new, conexus-plan-change, conexus-build, conexus-sankhya; /)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('the repository ships the five builder skills where the Hub looks for them', () => {
+test('the repository ships the six builder skills where the Hub looks for them', () => {
   assert.doesNotThrow(() => assertBuilderSkillsAvailable(resolve(repositoryRoot, 'builder-skills')))
 })
 
 const skillText = (name) => readFileSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md'), 'utf8')
 
-for (const name of ['conexus-server', 'conexus-app', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
+for (const name of ['conexus-server', 'conexus-app', 'conexus-plan-new', 'conexus-plan-change', 'conexus-build', 'conexus-sankhya']) {
   test(`builder-skills/${name} is a skill named after its folder whose cited references exist`, () => {
     const text = skillText(name)
     assert.equal(/^---\nname: (.+)\n/.exec(text)?.[1], name)

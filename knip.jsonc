@@ -13,6 +13,8 @@
     "scripts/run-kubb-wire-probe.mjs",
     "scripts/single-session-proof.mjs",
     "scripts/builder-eval/run.mjs",
+    "scripts/builder-eval/plan-bench.mjs",
+    "scripts/builder-eval/plan-score.mjs",
     "scripts/builder-eval/experiment.mjs",
     "scripts/builder-eval/oracle.mjs",
     "scripts/builder-eval/sankhya-sim.mjs",

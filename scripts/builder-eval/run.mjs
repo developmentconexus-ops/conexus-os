@@ -45,6 +45,7 @@ const usage = [
   '  --base-url <url>       Hub origin; default: https://hub.conexus.localhost:3443 (any other origin needs CONEXUS_STATE)',
   '  --mask-values          Hide business values in the saved evidence: mask table cells in screenshots and replace digits in previewText',
   '  --headed               Launch a visible browser instead of headless',
+  '  --stop-at-plan         End at the first plan card: record its text and the thread (thread.json), then stop the run with the Hub\'s cancel; nothing is built',
   '  --help                 Show this help',
 ].join('\n')
 
@@ -59,7 +60,7 @@ const valueFor = (argv, index, flag) => {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, arm: undefined, repetition: 1, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
+  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, arm: undefined, repetition: 1, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, stopAtPlan: false, help: false }
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index]
     switch (flag) {
@@ -87,6 +88,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case '--base-url': options.baseUrl = valueFor(argv, index++, flag); break
       case '--mask-values': options.maskValues = true; break
       case '--headed': options.headed = true; break
+      case '--stop-at-plan': options.stopAtPlan = true; break
       case '--help': options.help = true; break
       default: fail(`unknown option ${flag}`)
     }
@@ -161,9 +163,10 @@ async function pollForSettledRun(page, projectId, excludeRunId, cards) {
   while (Date.now() < deadline) {
     const answered = cards.answers.length
     answering = await answerPendingCard(page, cards, answering)
-    if (cards.answers.length > answered) cards.answers.at(-1).answeredAt = new Date().toISOString()
+    for (const record of cards.answers.slice(answered)) record.answeredAt = new Date().toISOString()
     session = await readSession(page, projectId)
     const run = session.latestBuilderRun
+    if (cards.stopAtPlan === 'plan-seen' && run) cards.stopAtPlan = await cancelRun(page, projectId, run.builderRunId)
     if (run && run.builderRunId !== excludeRunId && run.state !== 'QUEUED' && run.state !== 'RUNNING') return { session, run }
     await page.waitForTimeout(RUN_POLL_INTERVAL_MS)
   }
@@ -183,6 +186,43 @@ async function readOptions(question) {
     options.push({ label, description: description.join(' ') })
   }
   return { options, multi: options.length > 0 && (await inputs.first().getAttribute('type')) === 'checkbox' }
+}
+
+const RECOMMENDED_SUFFIX = /\s*\(recomendad[oa]\)\s*$/i
+const optionKey = (label) => foldLabel(String(label ?? '').replace(RECOMMENDED_SUFFIX, ''))
+const optionIndex = (options, label) => options.findIndex((option) => optionKey(option.label) === optionKey(label))
+
+/** Clicks the option's own label, the way a person does, so the card's React state sees the change. */
+async function pickOption(entry, options, label) {
+  const row = entry.locator('label').filter({ has: entry.page().locator('input[type=radio], input[type=checkbox]') }).nth(optionIndex(options, label))
+  const input = row.locator('input')
+  if (await input.isChecked()) return
+  await row.click()
+}
+
+/** Types the person's own words into the question's "Outra resposta" input (or the lone text input of a free-text question). */
+async function typeOwnAnswer(entry, text) {
+  const field = entry.getByPlaceholder('Outra resposta').or(entry.locator('input[type=text], input:not([type]), textarea')).first()
+  await field.click()
+  await field.fill(text)
+  if (await field.inputValue() !== text) {
+    await field.fill('')
+    await field.pressSequentially(text)
+  }
+}
+
+/** True when the question shows an answer: a checked option or a non-empty text input. */
+const hasAnswer = (entry) => entry.evaluate((node) => node.querySelector('input:checked') !== null
+  || [...node.querySelectorAll('input:not([type=radio]):not([type=checkbox]), textarea')].some((field) => field.value.trim() !== ''))
+
+/** True when the card's tab for the question at `index` shows it answered. */
+const tabAnswered = async (card, index) => (await card.getByRole('tab').nth(index).getAttribute('data-answered')) === 'true'
+
+/** Steps a multi-question card on from the question the driver just answered, with "Próxima", unless the card already moved on by itself (a single choice does). */
+async function moveOn(card, text, stepped) {
+  if (!stepped) return
+  const shown = await card.locator('[data-ask-question]').first().getAttribute('data-ask-question', { timeout: 1_000 }).catch(() => null)
+  if (shown === text) await card.getByRole('button', { name: 'Próxima', exact: true }).click()
 }
 
 /** The whole plan, from the reader the card's "Ler plano completo" opens; null when the card has none. */
@@ -207,9 +247,17 @@ const UNANSWERED = ':not([data-eval-answered])'
 
 /** The cards the driver answers: its record (`answers`, shared with result.answers), the scripted person, the case's scripted
  * request for one change (`adjust`, from case.approval) and the reader of the thread's messages. */
-export function createCards({ person = null, adjust = null, readMessages = async () => [] } = {}) {
-  return { answers: [], claimed: 0, person, adjust: adjust === null ? null : { change: adjust, state: 'pending' }, readMessages }
+export function createCards({ person = null, adjust = null, readMessages = async () => [], stopAtPlan = false } = {}) {
+  return { answers: [], claimed: 0, person, adjust: adjust === null ? null : { change: adjust, state: 'pending' }, readMessages, stopAtPlan }
 }
+
+const cancelRun = (page, projectId, builderRunId) => page.evaluate(async ({ id, run }) => {
+  const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
+  const response = await fetch(`/api/control/projects/${id}/builder-session/runs/${run}/cancel`, {
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-conexus-csrf': decodeURIComponent(csrf ?? '') }, body: '{}',
+  })
+  return response.ok ? 'cancelled' : `cancel-failed-${response.status}`
+}, { id: projectId, run: builderRunId })
 
 /** Pure. The newest `ask_user` or `submit_plan` call of the thread still waiting for the person, by its tool call id; null when the thread shows none. */
 export function pendingCardCall(messages) {
@@ -237,8 +285,9 @@ async function claim(card, cards) {
  * one round of "Pedir ajustes" (then the free-text question that follows gets the case's change).
  * The plan card (`section` "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
  * request for one change it first sends that change with "Pedir ajustes", then approves the resubmitted plan.
- * Any other question is answered by the scripted person or, with none, gets its first (recommended)
- * option or, with no options, a fixed "do the simplest" reply.
+ * Any other card holds 1 to 4 questions; each is answered by the scripted person or, with none, gets
+ * its first (recommended) option or, with no options, a fixed "do the simplest" reply; the card shows
+ * one question at a time, so the driver steps through it and sends all at the review with one "Enviar". Every question is recorded in `answers` on its own, with the card's tool call id.
  * Each call is told apart by its tool call id, read from the thread, and a card the driver answered
  * is marked on the element, so two calls with the same text are both answered and one is never
  * answered twice. `answering` is the signature returned on the previous tick. Returns the signature
@@ -258,6 +307,11 @@ export async function answerPendingCard(page, cards, answering = null) {
     const title = await card.locator('strong').first().innerText().catch(() => '')
     const shown = await card.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
     const text = await readFullPlan(page, card) ?? shown
+    if (cards.stopAtPlan) {
+      cards.stopAtPlan = 'plan-seen'
+      answers.push({ kind: 'PLAN', ...record, title, text, answer: null })
+      return signature
+    }
     if (cards.adjust?.state === 'pending') {
       cards.adjust.state = 'done'
       await card.getByLabel('O que mudar no plano').fill(cards.adjust.change)
@@ -271,47 +325,64 @@ export async function answerPendingCard(page, cards, answering = null) {
   }
 
   const card = await claim(question.first(), cards)
-  const text = (await card.innerText()).split('\n')[0].trim()
-  const { options, multi } = await readOptions(card)
-  const inputs = card.locator('input[type=radio], input[type=checkbox]')
-  const pick = (label) => inputs.nth(options.findIndex((option) => foldLabel(option.label) === foldLabel(label))).click({ force: true })
+  const count = Number(await card.getAttribute('data-ask-total')) || 1
+  const stepped = count > 1
+  const records = []
+  for (let index = 0; index < count; index += 1) {
+    const entry = card.locator('[data-ask-question]')
+    const text = await entry.getAttribute('data-ask-question')
+    const { options, multi } = await readOptions(entry)
+    const pick = (label) => pickOption(entry, options, label)
 
-  if (isApprovalOptions(options.map((option) => option.label))) {
-    const adjusting = cards.adjust?.state === 'pending'
-    const label = adjusting ? ADJUST_LABEL : APPROVE_LABEL
-    const planText = lastAssistantText(await cards.readMessages().catch(() => []))
-    await pick(label)
-    if (cards.adjust) cards.adjust.state = adjusting ? 'asked' : 'done'
-    answers.push({ kind: 'APPROVAL', ...record, title: text, text: planText || text, answer: label })
-    return signature
-  }
+    if (count === 1 && isApprovalOptions(options.map((option) => option.label))) {
+      const adjusting = cards.adjust?.state === 'pending'
+      const label = adjusting ? ADJUST_LABEL : APPROVE_LABEL
+      const planText = lastAssistantText(await cards.readMessages().catch(() => []))
+      await pick(label)
+      if (cards.adjust) cards.adjust.state = adjusting ? 'asked' : 'done'
+      records.push({ kind: 'APPROVAL', ...record, title: text, text: planText || text, answer: label })
+      break
+    }
 
-  if (options.length === 0 && cards.adjust?.state === 'asked') {
-    cards.adjust.state = 'done'
-    await fillAndSend(card, cards.adjust.change)
-    answers.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
-    return signature
-  }
+    if (options.length === 0 && cards.adjust?.state === 'asked') {
+      cards.adjust.state = 'done'
+      await entry.locator('input').first().fill(cards.adjust.change)
+      records.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
+      await moveOn(card, text, stepped)
+      continue
+    }
 
-  const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
-  let answer
-  if (options.length > 0) {
-    const labels = decision ? [decision.answer].flat() : [options[0].label]
-    for (const label of labels) await pick(label)
-    if (multi) await card.locator('button').last().click()
-    answer = labels.join(', ')
-  } else {
-    answer = decision ? decision.answer : FALLBACK_ANSWER
-    await fillAndSend(card, answer)
+    const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
+    let answer
+    if (options.length > 0) {
+      const labels = decision ? [decision.answer].flat().filter((label) => String(label).trim()) : []
+      if (labels.length === 0) labels.push(options[0].label)
+      const isOption = (label) => optionIndex(options, label) >= 0
+      for (const label of labels.filter(isOption)) await pick(label)
+      // The person's own words, when they match no option, go in the card's free-text answer.
+      const own = labels.filter((label) => !isOption(label))
+      if (own.length > 0) await typeOwnAnswer(entry, own.join('. '))
+      answer = labels.join(', ')
+      // A single choice moves the card to the next question, so a stepped card is read from its tab.
+      if (!await (stepped ? tabAnswered(card, index) : hasAnswer(entry))) {
+        await pick(options[0].label)
+        answer = `${answer} (sem resposta registrada; escolhida a primeira opção: ${options[0].label})`
+      }
+    } else {
+      answer = decision ? decision.answer : FALLBACK_ANSWER
+      await entry.locator('input').first().fill(answer)
+    }
+    records.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+    await moveOn(card, text, stepped)
   }
-  answers.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+  const send = card.getByRole('button', { name: /^Enviar respostas?$/ })
+  if (process.env.CONEXUS_EVAL_DEBUG_CARD && await send.isDisabled()) {
+    const state = await card.evaluate((node) => [...node.querySelectorAll('[role=tab]')].map((tab) => ({ tab: tab.textContent, answered: tab.getAttribute('data-answered') })))
+    console.error('CARD_DEBUG', JSON.stringify({ records, state }))
+  }
+  await send.click()
+  answers.push(...records)
   return signature
-}
-
-async function fillAndSend(card, answer) {
-  const input = card.locator('input, textarea').first()
-  await input.fill(answer)
-  await input.press('Enter')
 }
 
 const digitsMasked = (text) => text?.replace(/\d/g, '#') ?? null
@@ -520,6 +591,11 @@ async function sendAndSettle(page, options, caseFile, result) {
   let settled = await pollForSettledRun(page, result.projectId, previousRunId, cards)
   result.runs.push(recordOf(settled.run, false))
   result.sourceRevisionBefore = settled.run.baseSourceRevision
+  if (options.stopAtPlan) {
+    result.failure = 'STOPPED_AT_PLAN'
+    result.stopAtPlan = cards.stopAtPlan
+    return started.requestSentAt
+  }
   settled = await repairUntilBuilt(page, options, result, settled)
 
   await judgeFinalRun(page, result.projectId, result, result.runs)
@@ -668,7 +744,7 @@ export async function runCase(options) {
   const oracle = typeof rawCase.oracle === 'string' ? loadOracle(rawCase.oracle) : null
   const arm = options.arm ? resolveArm(options.arm) : null
   const modelId = options.model ?? arm?.model
-  const cards = createCards({ person, adjust: caseFile.adjust })
+  const cards = createCards({ person, adjust: caseFile.adjust, stopAtPlan: options.stopAtPlan === true })
   const runOptions = { ...options, cards, model: modelId }
   const sendRequest = sheet ? fillValues(caseFile.request, values) : caseFile.request
   const statePath = options.statePath ?? resolveStatePath(options.baseUrl)
@@ -712,6 +788,7 @@ export async function runCase(options) {
       const messages = await readThreadMessages(page, result.projectId, result.conversationId).catch(() => null)
       if (messages === null) result.lastCheckReportReason = 'thread messages could not be read'
       else {
+        if (options.stopAtPlan) writeFileSync(join(options.out, 'thread.json'), `${JSON.stringify(messages)}\n`, 'utf8')
         if (sheet?.rules.some((rule) => rule.hidden)) {
           const builderText = [...messages.filter((message) => message.role === 'assistant').flatMap((message) => messageParts(message).filter((part) => part.type === 'text').map((part) => part.text)),
             ...result.answers.filter((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL').map((answer) => answer.text)].join('\n')

@@ -61,7 +61,7 @@ const runStep = async (t, calls) => {
   const ended = []
   session.subscribe((event) => {
     if (event.type === 'tool_end') ended.push(event.toolCallId)
-    if (event.type === 'tool_suspended') setTimeout(() => { void session.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: 'azul' }) }, 10)
+    if (event.type === 'tool_suspended') setTimeout(() => { void session.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: ['azul'] }) }, 10)
   })
   await session.sendMessage({ content: 'leia os arquivos' })
   for (let waited = 0; steps < 2 && waited < 8000; waited += 50) await new Promise((r) => setTimeout(r, 50))
@@ -75,7 +75,7 @@ test('two read tools called in one step run at the same time', async (t) => {
 })
 
 test('a step that calls ask_user with two reads runs one tool at a time', async (t) => {
-  const { peak, steps, ended } = await runStep(t, [read('r1', 'a.txt'), toolCall('q1', 'ask_user', { question: 'Qual cor?' }), read('r2', 'b.txt')])
+  const { peak, steps, ended } = await runStep(t, [read('r1', 'a.txt'), toolCall('q1', 'ask_user', { questions: [{ question: 'Qual cor?' }] }), read('r2', 'b.txt')])
   assert.equal(steps, 2)
   assert.equal(peak, 1)
   assert.deepEqual([...ended].sort(), ['q1', 'r1', 'r2'])
