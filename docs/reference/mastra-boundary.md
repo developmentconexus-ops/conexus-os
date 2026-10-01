@@ -41,6 +41,7 @@ embedded doc page.
 | 14 | The composer's focus glow | Deliberate override, C-031 | Implemented |
 | 15 | AppShell's frame chrome | Deliberate override, C-031 | Implemented |
 | 16 | MainSidebar's row and icon sizing | Deliberate override, C-031 | Implemented |
+| 17 | Retrying a model's transient failures | A for the processor, B for Mastra Code's policy | Implemented; waits on U10 |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -469,6 +470,29 @@ rule, reasoned in the comment at that location.
 
 **Implemented.** `frame.css:70-72`.
 
+## 17. Retrying a model's transient failures
+
+**Current code.** `apps/hub/src/builder/harness/error-processors.ts` builds the agent's
+`errorProcessors`, and `harness/controller.ts` sets `maxProcessorRetries` to 64.
+`apps/hub/src/builder/runtime.ts` continues a session only for a storage or network fault under the
+loop.
+
+**What Mastra offers.** `StreamErrorRetryProcessor` (`@mastra/core/processors`) retries a failed model
+call inside the call, with matchers, a delay and an `onRetry` hook. Mastra Code's own policy for it is
+in `createMastraCode` (`code-sdk/dist/index.js`): ten retries for a dropped connection or a 5xx, a
+delay of 500 ms doubling to 30 s, an `error` event with `retryable`, `retryAttempt` and `maxRetries`
+on each retry, and `maxProcessorRetries` of 64 so core's cap of 3 does not cut it short. The package
+does not export the matchers or the delay.
+
+**Decision.** A for the processor and the event. B for the policy: the two matchers, the delay and the
+constants are copied with their license note (Apache License 2.0) and listed as U10. The Hub no
+longer sends the model a "transient failure" message for a failure Mastra retries itself. A storage
+fault still continues the session with one line, because `sendMessage` takes content and has no call
+to carry a turn on.
+
+**Implemented.** `error-processors.ts` and `runtime.ts`. The web reads a `retryable` error event as a
+retry in progress (`live-turn.ts`).
+
 ## Upstream proposals
 
 U1 to U4 are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. U6 and U7 are drafts
@@ -605,3 +629,16 @@ so a host's platform rules can only travel as `pluginInstructions`, which rank b
 
 Proposal: accept `hostInstructions` (a string or a function of the request context) in the
 `MastraFactory` config and compose it with the Factory's own.
+
+### U10. Export Mastra Code's transient-error policy
+
+**Package.** `@mastra/code-sdk` 1.8.3, `dist/index.js` (`createMastraCode`).
+
+`createMastraCode` retries a model call that failed on a dropped connection or a 5xx. Its constants,
+`isTransientConnectionError`, `isTransientServerError`, `getTransientRetryDelay` and the code that
+emits the retryable `error` event are private to that function. A host that builds its own agent
+with `createCodingAgent` and `StreamErrorRetryProcessor` cannot reuse them, so it copies them and
+drifts when Mastra Code changes them.
+
+Proposal: export them from `@mastra/code-sdk` (for example `@mastra/code-sdk/transient-errors`), or
+add them to `defaultErrorProcessors` in `@mastra/core/coding-agent`.

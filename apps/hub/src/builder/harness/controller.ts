@@ -1,8 +1,7 @@
 import { resolve } from 'node:path'
 import { AgentController } from '@mastra/core/agent-controller'
 import { createCodingAgent } from '@mastra/core/coding-agent'
-import { isMastraTimeoutError } from '@mastra/core/loop'
-import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, SkillsProcessor, StreamErrorRetryProcessor } from '@mastra/core/processors'
+import { SkillsProcessor } from '@mastra/core/processors'
 import { resolveAgentSkills } from '@mastra/core/skills'
 import { Agent, type ToolsInput } from '@mastra/core/agent'
 import { type MastraModelConfig, parseModelString } from '@mastra/core/llm'
@@ -11,6 +10,7 @@ import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore } from '@mastra/core/storage'
 import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
+import { builderErrorProcessors, BUILDER_MAX_PROCESSOR_RETRIES } from './error-processors.js'
 import { conexusInstructions } from './prompt.js'
 import { createTool, webFetchTool, webSearchTool } from '@mastra/core/tools'
 import { z } from 'zod'
@@ -132,33 +132,6 @@ const TOOL_CALL_CONCURRENCY = { limit: 4, strategy: 'called' } as const
 const BUILDER_MAX_OUTPUT_TOKENS = 32_000
 const BUILDER_MODEL_STEP_TIMEOUT_MS = 5 * 60_000
 
-const isConnectionReset = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && (
-    ('code' in error && typeof error.code === 'string' && error.code.toUpperCase() === 'ECONNRESET')
-    || (error instanceof Error && /econnreset|socket hang up/i.test(error.message))
-  )
-
-/**
- * Mastra Code's `defaultErrorProcessors` (`createCodingAgent` in `@mastra/core/coding-agent`) with
- * one matcher added: a call that ran past `BUILDER_MODEL_STEP_TIMEOUT_MS` is not retried. Retrying
- * replays the same request, and a step that ran away once would run away again, holding the run
- * for three budgets instead of one.
- */
-const builderErrorProcessors = (): NonNullable<Parameters<typeof createCodingAgent>[0]['errorProcessors']> => [
-  new ProviderHistoryCompat(),
-  new PrefillErrorHandler(),
-  new StreamErrorRetryProcessor({
-    retryUnknownErrors: true,
-    maxRetries: 2,
-    delayMs: 3000,
-    matchers: [
-      { match: (error) => isMastraTimeoutError(error), maxRetries: 0 },
-      { match: isBadRequestError, maxRetries: 1, delayMs: 2000 },
-      { match: isConnectionReset, maxRetries: 2, delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000) },
-    ],
-  }),
-]
-
 /** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
 export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined }>
 
@@ -182,6 +155,8 @@ export type BuilderControllerDeps = Readonly<{
   skillsPath?: string
   /** Overrides how long one model call may run; only for tests. */
   modelStepTimeoutMs?: number
+  /** Overrides the wait before each retry of a transient model failure; only for tests. */
+  modelRetryDelayMs?: (retryCount: number) => number
   id?: string
 }>
 
@@ -215,9 +190,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     inputProcessors: [new SkillsProcessor({ skills: resolveAgentSkills([skillsRoot]), formatLocation: (skill) => skill.name })],
     ...(deps.memory ? { memory: deps.memory } : {}),
     workspace: undefined,
-    errorProcessors: builderErrorProcessors(),
-    // Mastra's fallback when errorProcessors are set, made explicit so the cap is ours to read.
-    maxProcessorRetries: 3,
+    errorProcessors: builderErrorProcessors(deps.modelRetryDelayMs),
+    maxProcessorRetries: BUILDER_MAX_PROCESSOR_RETRIES,
     defaultOptions: {
       toolCallConcurrency: TOOL_CALL_CONCURRENCY,
       modelSettings: { maxOutputTokens: BUILDER_MAX_OUTPUT_TOKENS, timeout: { stepMs: deps.modelStepTimeoutMs ?? BUILDER_MODEL_STEP_TIMEOUT_MS } },
