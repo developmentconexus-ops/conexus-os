@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { scoreRunDir } from './plan-score.mjs'
+import { rejectionOf, scoreRunDir } from './plan-score.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ERP_NAME = 'erp'
@@ -117,7 +117,9 @@ export async function main(argv = process.argv.slice(2)) {
       const name = JSON.parse(readFileSync(casePath, 'utf8')).person.projectName
       for (let repetition = 1; repetition <= options.n; repetition += 1) {
         const dir = join(out, `${caseId}-${repetition}`)
-        if (existsSync(join(dir, 'plan-score.json'))) {
+        const resultFile = join(dir, 'result.json')
+        const reusable = existsSync(join(dir, 'plan-score.json')) && existsSync(resultFile) && rejectionOf(JSON.parse(readFileSync(resultFile, 'utf8'))) === null
+        if (reusable) {
           lines.push({ case: casePath, ...JSON.parse(readFileSync(join(dir, 'plan-score.json'), 'utf8')) })
           continue
         }
@@ -126,10 +128,12 @@ export async function main(argv = process.argv.slice(2)) {
         const started = Date.now()
         const run = spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--case', casePath, '--project', project.projectId, '--stop-at-plan', '--model', options.model,
           '--base-url', options.baseUrl, '--repetition', String(repetition), '--mask-values', '--out', dir], { stdio: ['ignore', 'ignore', 'inherit'], env: process.env })
-        const line = { ...(await scoreRunDir(dir, { casePath })), repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: run.status }
+        const rejected = existsSync(resultFile) ? rejectionOf(JSON.parse(readFileSync(resultFile, 'utf8'))) : 'the run wrote no result.json'
+        const scored = rejected ? { case: casePath, rejected } : await scoreRunDir(dir, { casePath })
+        const line = { ...scored, repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: run.status }
         lines.push(line)
         appendFileSync(log, `${JSON.stringify(line)}\n`)
-        process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, wallMs: line.wallMs })}\n`)
+        process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, rejected: line.rejected, wallMs: line.wallMs })}\n`)
       }
     }
   }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { interviewFromRun, scoreInterview } from '../../scripts/builder-eval/plan-score.mjs'
+import { mkdirSync, mkdtempSync, writeFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { interviewFromRun, rejectionOf, scoreInterview, scoreRunDir } from '../../scripts/builder-eval/plan-score.mjs'
 import { parseSheet } from '../../scripts/builder-eval/person.mjs'
 
 const sheet = parseSheet({
@@ -114,4 +117,49 @@ test('a contrary plan decision earns no fair credit on a tagged rule, and an ask
   const asked = scoreInterview(kindSheet, { ...noInterview, questions: [{ text: 'Status?', ruleIds: ['status'] }] }, judgedAs('decided', true))
   assert.equal(found(asked), 'pago:false status:true juros:false')
   assert.deepEqual([asked.discovered, asked.discoveredStrict], [1, 1])
+})
+
+test('a failed workspace write before the plan does not count as an app change, a successful one does', () => {
+  const failedWrite = { type: 'tool-invocation', toolInvocation: { toolName: 'mastra_workspace_write_file', toolCallId: 'w1', args: { path: 'app/src/routes/home.tsx' }, state: 'result', result: { isError: true, content: 'EACCES' } } }
+  const result = { answers: [{ kind: 'PLAN', text: plan, answer: null }] }
+  const withFailure = interviewFromRun(result, [
+    message('2026-10-01T00:00:01Z', failedWrite),
+    message('2026-10-01T00:00:02Z', call('submit_plan', { path: '.conexus/plan.md' })),
+  ])
+  assert.equal(withFailure.appFilesBeforePlan, 0)
+  const withSuccess = interviewFromRun(result, [
+    message('2026-10-01T00:00:01Z', call('mastra_workspace_write_file', { path: 'app/src/routes/home.tsx' })),
+    message('2026-10-01T00:00:02Z', call('submit_plan', { path: '.conexus/plan.md' })),
+  ])
+  assert.equal(withSuccess.appFilesBeforePlan, 1)
+  const score = scoreInterview(sheet, withFailure, { rules: [], rubric: [] })
+  assert.equal(score.appFilesBeforePlan, 0)
+  assert.equal(score.gates.noAppFilesBeforePlan, true)
+})
+
+const planned = { failure: 'STOPPED_AT_PLAN', outcome: 'UNGRADED', error: null, answers: [{ kind: 'PLAN', text: plan, answer: null }] }
+
+test('only a clean stop at a plan card is scorable, and STOPPED_AT_PLAN is a failure value, not an outcome', () => {
+  assert.equal(rejectionOf(planned), null)
+  assert.equal(rejectionOf({ ...planned, outcome: 'FAIL' }), null)
+  assert.match(rejectionOf({ ...planned, outcome: 'ERROR', error: 'builder-eval: timed out' }), /^the run failed: builder-eval: timed out$/)
+  assert.match(rejectionOf({ ...planned, error: 'locator.click: Timeout' }), /^the run failed/)
+  assert.match(rejectionOf({ ...planned, failure: null, outcome: 'PASS' }), /did not stop at a plan card \(failure none\)/)
+  assert.match(rejectionOf({ ...planned, failure: 'NO_PREVIEW' }), /\(failure NO_PREVIEW\)/)
+  assert.equal(rejectionOf({ ...planned, answers: [{ kind: 'QUESTION', text: 'Quais empresas?', answer: 'Todas.' }] }), 'the run left no plan')
+})
+
+test('scoreRunDir refuses a failed run and a run without a plan and writes no score for them', async () => {
+  const dirOf = (result) => {
+    const dir = mkdtempSync(join(tmpdir(), 'plan-score-'))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'result.json'), JSON.stringify(result))
+    return dir
+  }
+  const judge = async () => assert.fail('a rejected run must not reach the judge')
+  for (const result of [{ ...planned, outcome: 'ERROR', error: 'boom' }, { ...planned, answers: [] }]) {
+    const dir = dirOf(result)
+    await assert.rejects(scoreRunDir(dir, { casePath: 'unused.json', judge }), /is not scorable/)
+    assert.equal(existsSync(join(dir, 'plan-score.json')), false)
+  }
 })

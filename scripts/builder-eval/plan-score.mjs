@@ -109,7 +109,7 @@ const sortedParts = (messages) => [...messages]
 /** Pure. The thread's tool calls in the shape `flowOf` reads. */
 export const threadCalls = (messages) => sortedParts(messages)
   .filter((part) => part.type === 'tool-invocation')
-  .map(({ toolInvocation: call }) => ({ entityName: call.toolName, input: call.args, error: call.state === 'error' ? true : undefined }))
+  .map(({ toolInvocation: call }) => ({ entityName: call.toolName, input: call.args, error: call.state === 'error' || call.result?.isError === true ? true : undefined }))
 
 /** Pure. The interview of a Builder run from its result.json and its thread. */
 export function interviewFromRun(result, messages) {
@@ -203,9 +203,23 @@ export async function scoreAndRecord({ casePath, interview, out, source, judge =
   return line
 }
 
+/**
+ * Pure. Why a `--stop-at-plan` result must not be scored, or null when it is a clean stop at a plan card.
+ * The runner records a stop at the plan as `failure: 'STOPPED_AT_PLAN'` with an outcome of FAIL or UNGRADED,
+ * so the failure value is what says the run reached the plan, and `error` and an ERROR outcome say it crashed.
+ */
+export function rejectionOf(result) {
+  if (result.error || result.outcome === 'ERROR') return `the run failed: ${result.error ?? 'outcome ERROR'}`
+  if (result.failure !== 'STOPPED_AT_PLAN') return `the run did not stop at a plan card (failure ${result.failure ?? 'none'})`
+  if (!Array.isArray(result.answers) || !result.answers.some((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL')) return 'the run left no plan'
+  return null
+}
+
 /** Scores the run `run.mjs --stop-at-plan` left in `dir`. */
 export async function scoreRunDir(dir, { casePath, judge } = {}) {
   const result = JSON.parse(readFileSync(join(dir, 'result.json'), 'utf8'))
+  const rejection = rejectionOf(result)
+  if (rejection) throw new Error(`plan-score: ${dir} is not scorable: ${rejection}`)
   const threadFile = join(dir, 'thread.json')
   const messages = existsSync(threadFile) ? JSON.parse(readFileSync(threadFile, 'utf8')) : null
   return scoreAndRecord({ casePath: casePath ?? result.case, interview: interviewFromRun(result, messages), out: dir, source: `builder:${result.projectId}`, judge })
