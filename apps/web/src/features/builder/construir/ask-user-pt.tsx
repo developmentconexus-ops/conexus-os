@@ -68,13 +68,13 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
           size="sm"
         />
         if (entry.options.length === 0) {
-          return <div key={questionId} data-ask-question>
+          return <div key={questionId} data-ask-question={entry.question}>
             {entry.header ? <span className="text-neutral4 mb-1 block text-xs">{entry.header}</span> : null}
             <label className="text-neutral6 mb-2 block font-medium" htmlFor={`${questionId}-text`}>{entry.question}</label>
             {input}
           </div>
         }
-        return <fieldset key={questionId} data-ask-question disabled={isSubmitting} className="space-y-2">
+        return <fieldset key={questionId} data-ask-question={entry.question} disabled={isSubmitting} className="space-y-2">
           {entry.header ? <span className="text-neutral4 block text-xs">{entry.header}</span> : null}
           <AskUserQuestion>{entry.question}</AskUserQuestion>
           {entry.options.map((option) => <AskUserOptionControl

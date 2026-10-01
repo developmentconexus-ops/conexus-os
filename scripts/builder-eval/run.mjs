@@ -318,7 +318,8 @@ export async function answerPendingCard(page, cards, answering = null) {
     const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
     let answer
     if (options.length > 0) {
-      const labels = decision ? [decision.answer].flat() : [options[0].label]
+      const labels = decision ? [decision.answer].flat().filter((label) => String(label).trim()) : []
+      if (labels.length === 0) labels.push(options[0].label)
       const isOption = (label) => options.some((option) => foldLabel(option.label) === foldLabel(label))
       for (const label of labels.filter(isOption)) await pick(label)
       // The person's own words, when they match no option, go in the card's free-text answer.
