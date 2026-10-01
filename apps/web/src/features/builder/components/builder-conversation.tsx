@@ -64,11 +64,17 @@ const mergeCalls = (parts: readonly MessagePart[]): readonly MessagePart[] => {
   return merged
 }
 
-// What the person asked and was answered: the controller words the answer in English.
-const askedAndAnswered = (args: unknown, result: unknown): Readonly<{ question: string; answer: string }> => {
-  const question = typeof args === 'object' && args !== null && 'question' in args && typeof args.question === 'string' ? args.question : ''
+// What the person asked and was answered: the controller words the answer in English, one
+// "question: answer" line per question.
+const askedAndAnswered = (args: unknown, result: unknown): readonly Readonly<{ question: string; answer: string }>[] => {
+  const list = typeof args === 'object' && args !== null && 'questions' in args && Array.isArray(args.questions) ? args.questions : []
+  const questions = list.flatMap((entry: unknown) => (typeof entry === 'object' && entry !== null && 'question' in entry && typeof entry.question === 'string' ? [entry.question] : []))
   const content = typeof result === 'object' && result !== null && 'content' in result && typeof result.content === 'string' ? result.content : ''
-  return { question, answer: content.replace(/^User answered:\s*/, '') }
+  const lines = content.replace(/^User answered:\s*/, '').split('\n')
+  return questions.map((question, index) => {
+    const line = lines[index] ?? ''
+    return { question, answer: line.startsWith(`${question}: `) ? line.slice(question.length + 2) : '' }
+  })
 }
 
 // A call's output is a preview, not the full text: the whole result stays in the run's record.
@@ -78,8 +84,8 @@ const preview = (text: string): string => {
   return plain.length > OUTPUT_LIMIT ? `${plain.slice(0, OUTPUT_LIMIT)}…` : plain
 }
 
-function AskedAndAnswered({ question, answer }: Readonly<{ question: string; answer: string }>) {
-  return <p className="cx-asked">{question}{answer && <strong>{answer}</strong>}</p>
+function AskedAndAnswered({ asked }: Readonly<{ asked: readonly Readonly<{ question: string; answer: string }>[] }>) {
+  return <>{asked.map(({ question, answer }) => <p key={question} className="cx-asked">{question}{answer && <strong>{answer}</strong>}</p>)}</>
 }
 
 // A row is one line, opened on click. An edit opens to its diff and a command to the command with
@@ -99,7 +105,7 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
-      {toolName === 'ask_user' ? <AskedAndAnswered {...askedAndAnswered(args, result)} />
+      {toolName === 'ask_user' ? <AskedAndAnswered asked={askedAndAnswered(args, result)} />
         : edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
       {output && <ToolCallMono copyText={stripAnsi(output)}>{preview(output)}</ToolCallMono>}
     </ToolCallContent>

@@ -1,5 +1,5 @@
 import { submitPlanTool } from '@mastra/core/agent-controller'
-import { createTool } from '@mastra/core/tools'
+import { createTool, formatQuestionAnswer, type AskUserAnswer } from '@mastra/core/tools'
 import { z } from 'zod'
 import { checkReportSchema, type CheckReport } from '../application-check.js'
 import { operationRunReportSchema, type RunOperation } from '../run-operation.js'
@@ -76,5 +76,59 @@ export const createSubmitPlanTool = (checkout: string): typeof submitPlanTool =>
       }
     }
     return submitPlanTool.execute?.(input, context)
+  },
+})
+
+export const ASK_USER_TOOL = 'ask_user'
+export const MAX_QUESTIONS = 4
+
+const ASK_USER_DESCRIPTION = [
+  'Ask the person 1 to 4 questions in one card and wait for their answers. Use it only for what the person alone can decide: a business rule, a company fact or a preference you cannot find in the Project, the Conexão, the web or a sensible default. Never ask what you can look up or choose yourself.',
+  'Batch every related question into one call; the person answers them all and sends once.',
+  'Give a question 2 to 4 `options` when it has likely answers, each a short `label` and an optional `description`. If you recommend one, make it the first option and end its label with "(recomendado)". Set `multiSelect: true` when more than one option can be picked. Omit `options` for an open question. The person can always write their own answer instead of an option.',
+  'Write each question so it reads alone, in the person\'s language. `header` is an optional short tag for it (up to 12 characters).',
+  'Returns one line per question with the answer.',
+].join(' ')
+
+const askOptionsSchema = z.array(z.object({ label: z.string().min(1), description: z.string().optional() })).optional()
+
+const askQuestionSchema = z.object({
+  question: z.string().min(1),
+  header: z.string().min(1).max(12).optional(),
+  options: askOptionsSchema,
+  multiSelect: z.boolean().optional(),
+})
+
+export type AskQuestion = z.infer<typeof askQuestionSchema>
+
+const askInputSchema = z.object({ questions: z.array(askQuestionSchema).min(1).max(MAX_QUESTIONS) })
+
+const askResumeSchema = z.array(z.union([z.string(), z.array(z.string())]))
+
+/**
+ * `ask_user` for 1 to 4 questions in one card, on the same suspend and resume primitive as Mastra's
+ * own `ask_user`: it suspends with the questions and resumes with one answer per question, in order
+ * (a string, or a string array for a `multiSelect` question; free text is a string either way).
+ * The Hub registers it under the native id and disables the native tool.
+ */
+export const createAskUserTool = () => createTool({
+  id: ASK_USER_TOOL,
+  description: ASK_USER_DESCRIPTION,
+  inputSchema: askInputSchema,
+  suspendSchema: askInputSchema,
+  resumeSchema: askResumeSchema,
+  execute: async ({ questions }, context) => {
+    const bad = questions.find((entry) => (entry.multiSelect && !entry.options?.length))
+    if (bad) return { content: `Failed to ask user: multiSelect requires options (${bad.question}).`, isError: true }
+    const resumeData = context?.agent?.resumeData as AskUserAnswer[] | undefined
+    if (resumeData !== undefined) {
+      const lines = questions.map((entry, index) => `${entry.question}: ${formatQuestionAnswer(resumeData[index] ?? '')}`)
+      return { content: `User answered:\n${lines.join('\n')}`, isError: false }
+    }
+    if (context?.agent?.suspend) {
+      await context.agent.suspend({ questions })
+      return undefined
+    }
+    return { content: questions.map((entry) => `[Question for user]: ${entry.question}${entry.options?.length ? `\nOptions: ${entry.options.map((option) => option.label).join(', ')}` : ''}`).join('\n'), isError: false }
   },
 })
