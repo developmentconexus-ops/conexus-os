@@ -370,19 +370,22 @@ test("a turn lasts through the person's answer on the conversation's session and
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
   await run.end()
   assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])
+  await run.release()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'the run deletes its session when it is over')
 
   // The person changes the model between messages, through the conversation's session; the next turn runs on it.
   await conversation.model.switch({ modelId: 'anthropic/chosen-model' })
   const nextRunId = '55555555-5555-4555-8555-555555555555'
   const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), live, 'the next turn on the same VM runs in the same session')
-  assert.equal(live.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its session')
+  const nextLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  assert.notEqual(nextLive, live, 'the next run makes its own session, since the last run deleted its own')
+  assert.equal(nextLive.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its thread')
   await next.end()
   const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
   const onNewVm = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
   const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.deepEqual({ same: remade === live, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
-  await onNewVm.discard()
+  assert.deepEqual({ same: remade === nextLive, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
+  await onNewVm.release()
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined)
 })
 

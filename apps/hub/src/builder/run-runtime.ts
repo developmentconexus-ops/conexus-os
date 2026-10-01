@@ -57,10 +57,10 @@ type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; s
 /** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
   sendTurn(content: string, signal?: AbortSignal): Promise<AgentTurn>
-  /** Ends the turn and keeps the session for the conversation's next one. */
+  /** The agent's turn is over: its context and tools are forgotten, and the session stays for the run's remaining phases. */
   end(): Promise<void>
-  /** Ends the turn and deletes the session, whose workspace is on a VM the conversation no longer has. */
-  discard(): Promise<void>
+  /** The run is over: ends the turn and deletes the session, which Mastra keeps in memory until it is deleted. */
+  release(): Promise<void>
 }>
 
 /** One run's reach into its Project's bound Connections: the brief for its instructions, the scope its tools read through, and a handler port on that scope. */
@@ -293,11 +293,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       return mirrorEnded
     }
     // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
-    const endSession = async (keep = true): Promise<void> => {
+    const endTurn = async (): Promise<void> => {
       connectorRun?.end()
-      const open = session
-      session = undefined
-      await (keep ? open?.end() : open?.discard())
+      await session?.end()
     }
     try {
       // The Project's instructions and memory are read by the Hub from the base in the Conexus Git, never from the sandbox (AC-9).
@@ -433,7 +431,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // call it could not authenticate; reporting that as their cancellation would be false.
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       if (turn.reason !== 'complete') throw new Error('BUILDER_MODEL_INCOMPLETE')
-      await endSession().catch((error: unknown) => {
+      await endTurn().catch((error: unknown) => {
         ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       })
       timing.mark('agent')
@@ -552,10 +550,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       else mirror?.abandon()
-      await endSession(live).catch(() => undefined)
       const failed = (code: string) => (error: unknown): void => {
         ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       }
+      // The run owns the session it opened, whatever way it ended: Mastra frees none by itself.
+      connectorRun?.end()
+      await session?.release().catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
@@ -582,11 +582,13 @@ const conversationRunScope = (conversationId: string): string => `builder:${conv
 type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /**
- * The conversation's session on the Builder controller for one turn (spec 0002 amendment, B3): one
- * session per conversation on its thread, kept across turns like its sandbox, on that sandbox's
- * workspace, with every tool allowed without asking (the workspace lists the tools the Builder has), and
- * a turn that lasts until the agent is done, including while it waits for the person to answer a
- * question (AC-16). The context, the check and the operation run are the turn's own.
+ * The conversation's session on the Builder controller for one run (spec 0002 amendment, B3): one
+ * session per run on the conversation's thread, on that conversation's sandbox workspace, with every
+ * tool allowed without asking (the workspace lists the tools the Builder has), and a turn that
+ * lasts until the agent is done, including while it waits for the person to answer a question
+ * (AC-16). The context, the check and the operation run are the turn's own. Mastra keeps a live
+ * session until it is deleted, so the run deletes its own; the thread, which holds the
+ * conversation, is in storage.
  */
 export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
   controller: AgentController
@@ -614,8 +616,8 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     runTools.delete(builderRunId)
   }
   const deleteSession = async (): Promise<void> => {
-    const deleted = await controller.deleteSession({ resourceId, scope })
-    if (!deleted || await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
+    await controller.deleteSession({ resourceId, scope })
+    if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
   const end = async (): Promise<void> => {
     forget()
@@ -697,7 +699,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       }
     },
     end,
-    discard: async () => {
+    release: async () => {
       forget()
       await deleteSession()
     },
