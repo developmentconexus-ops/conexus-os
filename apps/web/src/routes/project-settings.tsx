@@ -5,13 +5,12 @@ import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ExternalLink, KeyRound } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import {
-  deleteProject, getProject, getProjectRepository, projectDeleteMessage, ProjectRequestError,
-  projectQueryKey, projectRepositoryQueryKey, projectSummariesQueryKey,
+  deleteProject, getProject, projectDeleteMessage, ProjectRequestError, projectQueryKey, projectSummariesQueryKey,
 } from '../features/project/api'
 import { useInstallation } from '../features/settings/use-installation'
 import type { ProjectRepresentation } from '../generated/project-client'
@@ -66,8 +65,8 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
         <dd>{project.name}{project.archived && <span className="cx-chip">Arquivado</span>}</dd>
       </div>
       <div>
-        <dt>Repositório</dt>
-        <dd><RepositoryState projectId={project.projectId} /></dd>
+        <dt>Código</dt>
+        <dd>Guardado no próprio Conexus. Cada mudança aprovada vira uma nova versão.</dd>
       </div>
       <div>
         <dt>Internet</dt>
@@ -176,27 +175,4 @@ function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
     </AlertDialog>
     {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
   </section>
-}
-
-function RepositoryState({ projectId }: Readonly<{ projectId: string }>) {
-  const repository = useQuery({ queryKey: projectRepositoryQueryKey(projectId), queryFn: () => getProjectRepository(projectId) })
-  if (repository.isPending) return <span className="cx-repo" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Verificando o repositório</span></span>
-  if (repository.isError) {
-    return <span className="cx-repo">
-      <span>Não foi possível verificar o repositório agora.</span>
-      <Button type="button" variant="ghost" size="sm" onClick={() => void repository.refetch()}>Verificar de novo</Button>
-    </span>
-  }
-  if (repository.data.state === 'UNREACHABLE') {
-    return <span className="cx-repo">
-      <span className="cx-chip" data-tone="failed">Inacessível</span>
-      <span className="cx-repo-note">O Conexus não consegue alcançar o repositório no GitHub, então novos pedidos ficam parados. Um administrador da instalação pode reconectar o GitHub em Configurações.</span>
-    </span>
-  }
-  return <span className="cx-repo">
-    <a href={repository.data.url} target="_blank" rel="noreferrer" className="cx-repo-link">
-      {repository.data.fullName} <ExternalLink size={14} aria-hidden /><span className="sr-only"> (abre o GitHub em outra aba)</span>
-    </a>
-    <span className="cx-chip" data-tone="live">Acessível</span>
-  </span>
 }

@@ -7,7 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/c
 import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
@@ -44,7 +45,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  placeholder = 'O que vamos construir ou melhorar?',
+  memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?',
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -59,12 +60,18 @@ export function BuilderComposer({
   onModelChange: (modelId: string) => void
   reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
+  // The conversation's observational memory; absent before a conversation exists.
+  memory?: MemoryGauge | null
+  // What the memory last failed at, until it succeeds at it again.
+  memoryFailed?: MemoryOperation | null
   placeholder?: string
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [interim, setInterim] = useState('')
   const [pulse, setPulse] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The Hub refuses a model change while a turn is active, so the control waits for it to end.
+  const modelLocked = working || mode.kind === 'SENDING'
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
@@ -143,10 +150,10 @@ export function BuilderComposer({
                   models={models}
                   modelId={selected ? modelId : ''}
                   onModelChange={(next) => { onModelChange(next); setPickerOpen(false) }}
-                  disabled={modelsPending || mode.kind === 'RUNNING'}
+                  disabled={modelsPending || modelLocked}
                   reasoning={level}
                   onReasoningChange={onReasoningChange}
-                  reasoningDisabled={!selected || mode.kind === 'RUNNING' || Boolean(lockedReasoning)}
+                  reasoningDisabled={!selected || modelLocked || Boolean(lockedReasoning)}
                   reasoningLocked={Boolean(lockedReasoning)}
                 />
               </PopoverContent>
@@ -165,7 +172,10 @@ export function BuilderComposer({
       </ComposerBox>
     </ComposerRing>
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
-    <p className="cx-composer-hint">Enter envia · Shift+Enter quebra linha · / comandos</p>
+    <div className="cx-composer-foot">
+      {memory && <MemoryStatus memory={memory} failed={memoryFailed} />}
+      <p className="cx-composer-hint">Enter envia · / comandos</p>
+    </div>
   </Composer>
 }
 

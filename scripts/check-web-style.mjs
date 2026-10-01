@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 // The trees whose CSS and TSX paint the product: the web app, the sign-in theme and the brand
 // package they both import.
@@ -39,6 +40,29 @@ const DYNAMIC_CLASSES = [
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
   { file: 'apps/web/src/features/settings/components/states.tsx', token: 'cxs-chip-${tone}', resolves: ['cxs-chip-positive', 'cxs-chip-warning', 'cxs-chip-neutral'] },
 ]
+
+// A hover hint is the design system Tooltip, never the browser's native `title` bubble (HQ decision
+// 2026-09-29). A `title` is a hint on an intrinsic element or on a dotted component such as
+// DropdownMenu.Trigger, which forward it to the DOM. A `title` on a plain component (Status,
+// PageHeader) is a heading prop, and an iframe's `title` is its accessible name, so both stay.
+const NATIVE_HINT_MESSAGE = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
+const isNativeHintHost = tag => (/^[a-z]/.test(tag) && tag !== 'iframe') || tag.includes('.')
+
+const nativeHintViolations = (path, text) => {
+  if (!path.endsWith('.tsx') || !path.startsWith(`${CLASS_TSX_ROOT}/`)) return []
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const violations = []
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && node.name.getText(source) === 'title') {
+      const element = node.parent.parent
+      const tag = ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element) ? element.tagName.getText(source) : ''
+      if (isNativeHintHost(tag)) violations.push({ path, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, message: `<${tag} title=...>: ${NATIVE_HINT_MESSAGE}` })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return violations
+}
 
 const lineOf = (text, index) => text.slice(0, index).split('\n').length
 
@@ -185,8 +209,9 @@ const scanTree = root => {
   const contents = new Map(files.map(path => [path, readFileSync(resolve(root, path), 'utf8')]))
   const contentOf = path => contents.get(path)
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
+  const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
   const classResult = classCheck(files, contentOf)
-  return { files, violations: [...violations, ...classResult.violations], unused: classResult.unused }
+  return { files, violations: [...violations, ...hintViolations, ...classResult.violations], unused: classResult.unused }
 }
 
 const main = () => {

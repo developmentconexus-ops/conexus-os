@@ -25,5 +25,14 @@ const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = Object.
   INTERNAL_ERROR: 'Ocorreu um erro interno inesperado. Tente novamente.',
 })
 
-export const failureReason = (category: BuilderFailureCategory | null | undefined): string =>
-  category ? failureReasons[category] : failureReasons.INTERNAL_ERROR
+// A code inside INTERNAL_ERROR whose cause is known says so, instead of the generic sentence.
+const failureReasonsByCode: Readonly<Record<string, string>> = Object.freeze({
+  BUILDER_AGENT_PLATFORM_FAILED: 'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
+  BUILDER_MODEL_STEP_TIMEOUT: 'O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente, de preferência em partes menores.',
+})
+
+export const failureReason = (failure: Readonly<{ failureCategory: BuilderFailureCategory | null | undefined; failureCode?: string | null | undefined }> | null | undefined): string => {
+  const category = failure?.failureCategory
+  if (category === 'INTERNAL_ERROR' && failure?.failureCode) return failureReasonsByCode[failure.failureCode] ?? failureReasons.INTERNAL_ERROR
+  return category ? failureReasons[category] : failureReasons.INTERNAL_ERROR
+}

@@ -1,9 +1,13 @@
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
+import { ScrollArea } from '@mastra/playground-ui/components/ScrollArea'
+import { Shimmer } from '@mastra/playground-ui/components/Shimmer'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import {
-  ToolCall, ToolCallCommand, ToolCallContent, ToolCallEdit, ToolCallMono, ToolCallPresentedHeader, ToolCallTrigger,
+  TOOL_GROUP_MIN, ToolCall, ToolCallCommand, ToolCallContent, ToolCallDetail, ToolCallDisclosure, ToolCallEdit, ToolCallHeader, ToolCallIcon,
+  ToolCallLabel, ToolCallMono, ToolCallPresentedHeader, ToolCallSpacer, ToolCallTrailing, ToolCallTrigger,
   presentTool, stringifyToolValue, stripAnsi, toolEdit,
 } from '@mastra/playground-ui/components/ai/tool-call'
-import { Brain, Check, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
@@ -12,12 +16,11 @@ import { providerName } from '../../settings/provider-names'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { clockLabel } from '../construir/run-state'
-import { TASK_TOOL_NAMES, toolSentence } from '../construir/tool-sentences'
+import { TASK_TOOL_NAMES, UNGROUPED_TOOL_NAMES, groupSummary, toolSentence } from '../construir/tool-sentences'
 
 export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
 type MessagePart = MastraDBMessage['content']['parts'][number]
 type ToolInvocationPart = Extract<MessagePart, { type: 'tool-invocation' }>
-type ReasoningPart = Extract<MessagePart, { type: 'reasoning' }>
 
 const isUserAuthored = (message: MastraDBMessage): boolean => {
   if (message.role === 'user') return true
@@ -27,40 +30,86 @@ const isUserAuthored = (message: MastraDBMessage): boolean => {
   return type === 'user' || type === 'user-message'
 }
 
-const reasoningText = (part: ReasoningPart): string =>
-  part.reasoning || part.details.flatMap((detail) => detail.type === 'text' ? [detail.text] : []).join('')
+type CallState = 'running' | 'failed' | 'done'
 
+// The result the thread records is the truth about a call that has one: a call parked for the person
+// and stopped with the run reads "error" in the controller's display state (agent_end marks every
+// tool still running that way), yet the person's answer is the call's ordinary result.
+const isErrorResult = (result: unknown): boolean =>
+  typeof result === 'object' && result !== null && 'isError' in result && result.isError === true
+
+const callState = (part: ToolInvocationPart, live: ActiveTool | undefined): CallState => {
+  const { state, result } = part.toolInvocation
+  if (state === 'result') return isErrorResult(result) || live?.isError === true ? 'failed' : 'done'
+  if (live?.isError === true || live?.status === 'error') return 'failed'
+  return live?.status === 'completed' ? 'done' : 'running'
+}
+
+const emptyArgs = (args: unknown): boolean =>
+  args === null || args === undefined || (typeof args === 'object' && Object.keys(args).length === 0)
+
+// A call is one thing however many snapshots of it the message carries: the controller can append the
+// resolved result of a parked call as a new part, with no arguments, after the part that asked. The
+// call keeps the place and the arguments of its first snapshot and takes the state of its last.
+const mergeCalls = (parts: readonly MessagePart[]): readonly MessagePart[] => {
+  const merged: MessagePart[] = []
+  const at = new Map<string, number>()
+  for (const part of parts) {
+    if (part.type !== 'tool-invocation') { merged.push(part); continue }
+    const first = at.get(part.toolInvocation.toolCallId)
+    const earlier = first === undefined ? undefined : merged[first]
+    if (first === undefined || earlier?.type !== 'tool-invocation') { at.set(part.toolInvocation.toolCallId, merged.push(part) - 1); continue }
+    merged[first] = { ...part, toolInvocation: { ...part.toolInvocation, args: emptyArgs(part.toolInvocation.args) ? earlier.toolInvocation.args : part.toolInvocation.args } }
+  }
+  return merged
+}
+
+// What the person asked and was answered: the controller words the answer in English.
+const askedAndAnswered = (args: unknown, result: unknown): Readonly<{ question: string; answer: string }> => {
+  const question = typeof args === 'object' && args !== null && 'question' in args && typeof args.question === 'string' ? args.question : ''
+  const content = typeof result === 'object' && result !== null && 'content' in result && typeof result.content === 'string' ? result.content : ''
+  return { question, answer: content.replace(/^User answered:\s*/, '') }
+}
+
+// A call's output is a preview, not the full text: the whole result stays in the run's record.
+const OUTPUT_LIMIT = 800
+const preview = (text: string): string => {
+  const plain = stripAnsi(text)
+  return plain.length > OUTPUT_LIMIT ? `${plain.slice(0, OUTPUT_LIMIT)}…` : plain
+}
+
+function AskedAndAnswered({ question, answer }: Readonly<{ question: string; answer: string }>) {
+  return <p className="cx-asked">{question}{answer && <strong>{answer}</strong>}</p>
+}
+
+// A row is one line, opened on click. An edit opens to its diff and a command to the command with
+// its output; any other call opens to its arguments. Only a failure adds the result to a row that
+// would not show it.
 function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; live: ActiveTool | undefined }>) {
-  const { toolName, args, state } = part.toolInvocation
-  const result = state === 'result' ? part.toolInvocation.result : live?.result
-  const running = state !== 'result' && live?.status !== 'completed' && live?.status !== 'error'
-  const failed = live?.isError === true || live?.status === 'error'
+  const { toolName, args } = part.toolInvocation
+  const state = callState(part, live)
+  const result = part.toolInvocation.state === 'result' ? part.toolInvocation.result : live?.result
   const presentation = presentTool(toolName, args)
   const edit = toolEdit(toolName, args)
-  const output = live?.shellOutput ?? live?.partialResult
   const resultText = result === undefined ? '' : stringifyToolValue(result)
-  return <ToolCall status={failed ? 'error' : running ? 'running' : 'idle'}>
+  const output = presentation.command ? (state === 'running' ? live?.shellOutput ?? live?.partialResult ?? '' : resultText) : state === 'failed' ? resultText : ''
+  return <ToolCall status={state === 'done' ? 'idle' : state === 'failed' ? 'error' : 'running'}>
     <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, running)} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
+      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, state === 'running')} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
-      {edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
-      {running && output && <ToolCallMono copyText={stripAnsi(output)}>{stripAnsi(output)}</ToolCallMono>}
-      {resultText && <ToolCallMono copyText={stripAnsi(resultText)}>{stripAnsi(resultText)}</ToolCallMono>}
+      {toolName === 'ask_user' ? <AskedAndAnswered {...askedAndAnswered(args, result)} />
+        : edit ? <ToolCallEdit edit={edit} /> : !presentation.command && <ToolCallMono copyText={stringifyToolValue(args)}>{stringifyToolValue(args)}</ToolCallMono>}
+      {output && <ToolCallMono copyText={stripAnsi(output)}>{preview(output)}</ToolCallMono>}
     </ToolCallContent>
   </ToolCall>
 }
 
-function Reasoning({ part, streaming }: Readonly<{ part: ReasoningPart; streaming: boolean }>) {
-  const text = reasoningText(part)
-  if (!text && !streaming) return null
-  return <ToolCall status={streaming ? 'running' : 'idle'}>
-    <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={Brain} label={streaming ? 'Pensando' : 'Raciocínio'} disclosure={Boolean(text)} />
-    </ToolCallTrigger>
-    {text && <ToolCallContent><MarkdownRenderer streaming={streaming}>{text}</MarkdownRenderer></ToolCallContent>}
-  </ToolCall>
+// The provider's reasoning summary is in its own language and not written for this person, so the
+// thread says only that the agent is thinking, and only while it is.
+function Thinking() {
+  return <p className="cx-thinking" role="status"><Shimmer active>Pensando…</Shimmer></p>
 }
 
 const userText = (message: MastraDBMessage): string =>
@@ -89,35 +138,44 @@ function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
   </>
 }
 
-const isRunningInvocation = (part: ToolInvocationPart, tools: LiveTurn['tools']): boolean => {
-  const live = tools[part.toolInvocation.toolCallId]
-  return part.toolInvocation.state !== 'result' && live?.status !== 'completed' && live?.status !== 'error'
-}
-
-// Every tool call the agent ran for this turn reads as one action, not a scroll of individual
-// steps or one disclosure per message the Factory happened to split the turn across.
+// Three or more calls in a row fold into one line. Closed, it names the call running now and how many
+// are done; settled, it says what the calls did. Opened, the rows scroll in a fixed height and follow
+// the newest while the agent works.
 function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPart[]; tools: LiveTurn['tools'] }>) {
-  const running = parts.filter((part) => isRunningInvocation(part, tools)).length
-  const label = running > 0 ? `Executando ${parts.length} ${parts.length === 1 ? 'ação' : 'ações'}` : `${parts.length} ${parts.length === 1 ? 'ação concluída' : 'ações concluídas'}`
-  return <details className="cx-tool-group">
-    <summary>
-      {running > 0 ? <span className="cx-tool-group-spinner" aria-hidden="true" /> : <Check size={13} className="cx-tool-group-check" aria-hidden="true" />}
-      <span>{label}</span>
-      <ChevronDown size={13} aria-hidden="true" />
-    </summary>
-    <div className="cx-tool-group-body">
-      {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}
-    </div>
-  </details>
+  const states = parts.map((part) => callState(part, tools[part.toolInvocation.toolCallId]))
+  const runningIndex = states.lastIndexOf('running')
+  const current = runningIndex === -1 ? undefined : parts[runningIndex]
+  const presentation = current && presentTool(current.toolInvocation.toolName, current.toolInvocation.args)
+  const failed = states.filter((state) => state === 'failed').length
+  return <ToolCall status={current ? 'running' : 'idle'}>
+    <ToolCallTrigger>
+      <ToolCallHeader>
+        <ToolCallIcon>{presentation ? <presentation.icon size={14} strokeWidth={1.75} className="text-icon2" aria-hidden="true" /> : <Check size={14} className="cx-tool-group-check" aria-hidden="true" />}</ToolCallIcon>
+        <ToolCallLabel className="max-w-full">{current ? toolSentence(current.toolInvocation.toolName, true) : groupSummary(parts.map((part) => part.toolInvocation.toolName), failed)}</ToolCallLabel>
+        {presentation?.detail && <ToolCallDetail>{presentation.detail}</ToolCallDetail>}
+        <ToolCallSpacer />
+        {current && <ToolCallTrailing className="cx-tool-group-count">{parts.length - states.filter((state) => state === 'running').length}/{parts.length}</ToolCallTrailing>}
+        <ToolCallDisclosure />
+      </ToolCallHeader>
+    </ToolCallTrigger>
+    <ToolCallContent>
+      <ScrollArea maxHeight="18rem" autoScroll={current !== undefined}>
+        {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}
+      </ScrollArea>
+    </ToolCallContent>
+  </ToolCall>
 }
 
 function ModelChip({ model }: Readonly<{ model: BuilderModel | null }>) {
   if (!model) return null
   const Icon = providerIcon(model.provider)
-  return <span className="builder-turn-model" title={`${providerName(model.provider)} · ${model.modelName}`}>
-    <Icon width={12} height={12} aria-hidden="true" />
-    {humanizeModelName(model.modelName)}
-  </span>
+  return <Tooltip>
+    <TooltipTrigger render={<span className="builder-turn-model" />}>
+      <Icon width={12} height={12} aria-hidden="true" />
+      {humanizeModelName(model.modelName)}
+    </TooltipTrigger>
+    <TooltipContent>{`${providerName(model.provider)} · ${model.modelName}`}</TooltipContent>
+  </Tooltip>
 }
 
 function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | null; children: readonly ReactNode[] }>) {
@@ -138,16 +196,16 @@ type Piece =
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
   | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
   | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
-  | Readonly<{ kind: 'reasoning'; key: string; part: ReasoningPart; streaming: boolean }>
+  | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'error'; key: string; text: string }>
 
-const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string): readonly Piece[] => {
+const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
   if (isUserAuthored(message)) {
     const text = userText(message)
     return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
   }
   if (message.role !== 'assistant') return []
-  const parts = message.content.parts
+  const parts = mergeCalls(message.content.parts)
   const streaming = message.id === streamingId
   return parts.flatMap((part, index): Piece[] => {
     const key = `${message.id}-${index}`
@@ -155,9 +213,11 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
     // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
     // display state), not a conversation row: rendering it here too would repeat what the
     // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
-    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) ? [] : [{ kind: 'tool', key, part }]
+    // A call parked for the person is answered on its card below the thread, so it has no row yet.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
-    if (part.type === 'reasoning') return [{ kind: 'reasoning', key, part, streaming: last }]
+    // Only the part still streaming shows: a settled reasoning summary is the provider's own words.
+    if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key }] : []
     // The provider's own words name sandboxes, ids and stack frames. The category is what the
     // operator is told.
     if (part.type === 'error') return [{ kind: 'error', key, text: reason }]
@@ -172,7 +232,10 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
   let turnKey = ''
   const flushTools = () => {
     if (!toolBuffer.length) return
-    turnBuffer.push(<ToolGroup key={`${turnKey}-tools-${turnBuffer.length}`} parts={toolBuffer} tools={tools} />)
+    const key = `${turnKey}-tools-${turnBuffer.length}`
+    turnBuffer.push(toolBuffer.length >= TOOL_GROUP_MIN
+      ? <ToolGroup key={key} parts={toolBuffer} tools={tools} />
+      : <div key={key} className="cx-tool-rows">{toolBuffer.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}</div>)
     toolBuffer = []
   }
   const flushTurn = () => {
@@ -184,22 +247,23 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
     if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
-    if (piece.kind === 'tool') { toolBuffer.push(piece.part); continue }
+    if (piece.kind === 'tool' && !UNGROUPED_TOOL_NAMES.has(piece.part.toolInvocation.toolName)) { toolBuffer.push(piece.part); continue }
     flushTools()
+    if (piece.kind === 'tool') { toolBuffer.push(piece.part); flushTools(); continue }
     if (piece.kind === 'text') turnBuffer.push(<MarkdownRenderer key={piece.key} streaming={piece.streaming}>{piece.text}</MarkdownRenderer>)
-    else if (piece.kind === 'reasoning') turnBuffer.push(<Reasoning key={piece.key} part={piece.part} streaming={piece.streaming} />)
+    else if (piece.kind === 'thinking') turnBuffer.push(<Thinking key={piece.key} />)
     else turnBuffer.push(<p key={piece.key} className="builder-turn-reason" role="note">{piece.text}</p>)
   }
   flushTurn()
   return out
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failureCategory, model }: Readonly<{
+export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failure, model }: Readonly<{
   history: readonly MastraDBMessage[]
   turn: LiveTurn
   pendingRequest: string | null
   persistedRequests: readonly PersistedRequest[]
-  failureCategory: BuilderFailureCategory | null
+  failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
   model: BuilderModel | null
 }>) {
   const liveIds = new Set(turn.messages.map((message) => message.id))
@@ -222,16 +286,17 @@ export function BuilderConversation({ history, turn, pendingRequest, persistedRe
     ...settled.map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
     ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
   ].sort((left, right) => left.at - right.at)
-  const reason = failureReason(failureCategory)
+  const reason = failureReason(failure)
+  const parked = new Set(Object.keys(turn.waiting))
   const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
 
   const pieces: Piece[] = []
   for (const item of timeline) {
     if (item.entry) pieces.push({ kind: 'request', key: item.key, entry: item.entry })
-    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason))
+    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason, parked))
   }
   if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
-  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason))
+  for (const message of liveMessages) pieces.push(...flattenMessage(message, streamingId, reason, parked))
 
   const rendered = renderPieces(pieces, turn.tools, model)
   return <>

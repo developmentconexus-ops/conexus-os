@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
-import { BuilderRequestError, createFactoryConversation, sendBuilderMessage } from '../builder/api'
-import { applyThreadModel, type ReasoningLevel } from '../builder/mastra-session'
+import { BuilderRequestError, sendBuilderMessage } from '../builder/api'
+import { applyThreadSettings, openConversation, type ReasoningLevel } from '../builder/mastra-session'
 import type { CreateProjectResponse } from '../../generated/project-client'
 import { createProject, ProjectRequestError, projectListQueryKey, projectSummariesQueryKey } from './api'
 
@@ -15,7 +15,7 @@ type Attempt = Readonly<{ fingerprint: string; projectKey: string; conversationI
 function startProjectRefusal(error: unknown): string {
   if (error instanceof ProjectRequestError && error.status === 403) return 'Sua conta não pode criar Projetos neste Workspace.'
   if (error instanceof ProjectRequestError && error.status === 409) return 'A criação ainda não foi confirmada. Envie de novo com os mesmos dados.'
-  if (error instanceof ProjectRequestError && error.status === 503) return 'O GitHub não criou o repositório do Projeto, então nenhum Projeto foi criado. Se o GitHub ainda não está conectado, peça a um administrador da instalação.'
+  if (error instanceof ProjectRequestError && error.status === 503) return 'O Conexus não conseguiu criar o repositório do Projeto, então nenhum Projeto foi criado. Envie de novo.'
   if (error instanceof ProjectRequestError && error.status === null) return 'O servidor não respondeu. Nada foi perdido; envie de novo.'
   return 'O Projeto não foi criado. Envie de novo com os mesmos dados.'
 }
@@ -29,13 +29,13 @@ export function useStartProject(workspaceId: string) {
       const project = await createProject(workspaceId, { name: input.name, sourceBootstrap: { mode: 'NEW' } }, current.projectKey)
       if (!input.description) return { project, firstRequest: 'NONE' }
       try {
-        await createFactoryConversation(project.projectId, current.conversationId)
-        // Best-effort: a model chosen before the Project existed follows the first request onto its
-        // new conversation. Losing this write is not worth losing the Project or the first request
-        // over, so it never turns a started build into a refusal; the run falls back to the
-        // installation's default model instead.
-        if (input.modelId) await applyThreadModel(current.conversationId, input.modelId, input.reasoning ?? null).catch(() => {})
-        await sendBuilderMessage(project.projectId, current.conversationId, input.description, 'BUILD', current.requestKey)
+        await openConversation(project.projectId, current.conversationId)
+        // Best-effort: the model chosen before the Project existed follows the first request onto
+        // its new conversation. Losing these writes is not worth losing the Project or the first
+        // request over, so they never turn a started run into a refusal; the run falls back to
+        // the installation's default model instead.
+        await applyThreadSettings(project.projectId, current.conversationId, { modelId: input.modelId, reasoning: input.reasoning ?? null}).catch(() => {})
+        await sendBuilderMessage(project.projectId, current.conversationId, input.description, current.requestKey)
         return { project, firstRequest: 'SENT' }
       } catch (error) {
         if (error instanceof BuilderRequestError && error.status === 401) throw error

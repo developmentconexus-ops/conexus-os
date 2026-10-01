@@ -2,7 +2,6 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import { ModelAccountsRequestError, modelAccountsQueryKey, removeApiKey, shareWithEveryone, stopSharing } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
 type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
@@ -11,8 +10,13 @@ type Login = Readonly<{ loginId: string; url: string }>
 
 const PROVIDER = 'google-ai-pro'
 const base = `/api/control/model-accounts/${PROVIDER}`
-// Under the accounts key, so every refresh of the accounts list refreshes this card too.
-const connectionQueryKey = [...modelAccountsQueryKey, PROVIDER] as const
+const connectionQueryKey = ['model-accounts', PROVIDER] as const
+
+class ModelAccountsRequestError extends Error {
+  constructor(readonly status: number, readonly expiresAt: string | null) {
+    super(`Model accounts request failed with ${status}`)
+  }
+}
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'Google AI Pro conectado.',
@@ -45,7 +49,7 @@ const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Pr
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { expiresAt?: string } | null
-    throw new ModelAccountsRequestError(response.status, null, null, body?.expiresAt ?? null)
+    throw new ModelAccountsRequestError(response.status, body?.expiresAt ?? null)
   }
   return await response.json() as T
 }
@@ -99,9 +103,9 @@ export function GoogleAiProAccount() {
   const [autoOpened, setAutoOpened] = useState(true)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   const fail = (text: string) => setMessage({ text, failed: true })
-  // Connecting or disconnecting changes which models this person's pickers offer.
+  // Connecting changes which models this person's pickers offer.
   const refresh = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: modelAccountsQueryKey }),
+    queryClient.invalidateQueries({ queryKey: connectionQueryKey }),
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
@@ -126,17 +130,12 @@ export function GoogleAiProAccount() {
     },
     onError: (error) => fail(startFailureText(error)),
   })
-  const act = useMutation({
-    mutationFn: (action: () => Promise<unknown>) => action(),
-    onSuccess: () => { setMessage(null); void refresh() },
-    onError: () => fail('Não foi possível concluir. Tente de novo.'),
-  })
   if (connection.isPending || (connection.isError && statusOf(connection.error) === 404)) return null
   if (connection.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
     <SectionError description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
   </section>
-  const { mine, shared, administrator } = connection.data
+  const { mine, shared } = connection.data
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
     <p className="cxs-hint">Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>
@@ -148,9 +147,6 @@ export function GoogleAiProAccount() {
         <Button type="button" variant={mine ? 'outline' : 'primary'} disabled={start.isPending} onClick={() => start.mutate()}>
           {start.isPending ? 'Preparando a entrada do Google…' : (mine ? 'Reconectar' : 'Conectar com o Google')}
         </Button>
-        {mine && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => removeApiKey(PROVIDER))}>Desconectar</Button>}
-        {administrator && mine && !shared && <Button type="button" disabled={act.isPending} onClick={() => act.mutate(() => shareWithEveryone(PROVIDER))}>Compartilhar com todos</Button>}
-        {administrator && shared && <Button type="button" variant="outline" disabled={act.isPending} onClick={() => act.mutate(() => stopSharing(PROVIDER))}>Parar de compartilhar</Button>}
       </div>}
     {message && <StatusLine tone={message.failed ? 'danger' : 'positive'}>{message.text}</StatusLine>}
   </section>

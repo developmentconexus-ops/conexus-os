@@ -49,9 +49,7 @@
 .cx-rail-badge { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: var(--cx-radius-control); background: var(--cx-surface-4); color: var(--cx-text); font: 600 .7rem/1 var(--cx-font-mono); flex: none; }
 .cx-rail-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-rail-switch-icon { flex: none; color: var(--cx-text-2); }
-/* The library's own Trigger button sets no border/padding, so the app's plain `button` reset
-   (border, .7rem 1rem padding) otherwise wins by default and squeezes its icon out of view. */
-.cx-rail-collapse { border: 0; padding: 0; background: transparent; color: var(--cx-text-2); }
+.cx-rail-collapse { color: var(--cx-text-2); }
 .cx-rail-collapse:hover { background: var(--cx-surface-3); color: var(--cx-text); }
 [data-sidebar-state="collapsed"] .cx-rail-top { flex-direction: column; }
 [data-sidebar-state="collapsed"] .cx-rail-name, [data-sidebar-state="collapsed"] .cx-rail-switch-icon { display: none; }
