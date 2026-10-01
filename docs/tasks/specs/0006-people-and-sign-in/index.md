@@ -11,7 +11,9 @@ before this spec is Accepted.
 
 The installation administrator creates every person from a new **Pessoas** screen in Conexus: name,
 email, and whether the person is from the company (`INTERNAL`) or from outside (`EXTERNAL`). The Hub
-creates the matching user in Keycloak through a service account that can only manage users, stores the
+creates the matching user in Keycloak through a service account whose Keycloak permissions cover
+reading, creating, updating, disabling and inviting users and nothing on roles, groups, clients or the
+realm, stores the
 Conexus account only after Keycloak returns the user's id, and has Keycloak email an invite that
 verifies the address and, when the person needs one, sets a password. Nobody types or sees a password
 in Conexus. The same screen disables a person (in Conexus first, then in Keycloak), re-enables them
@@ -29,14 +31,14 @@ Microsoft proves who the person is and Conexus still decides what they may do.
   Conexus surface at their next request, and I can bring them back with their history intact.
 - As a person from the company, I sign in with my Microsoft 365 account and land in Conexus.
 - As a person from outside, I set my own password from the invite link.
-- As the Conexus operator, I know the Hub's Keycloak credential can manage users of one realm and
-  nothing else, and every use of it is recorded.
+- As the Conexus operator, I know exactly what the Hub's Keycloak credential can do in its one realm,
+  every use of it is recorded, and any use the Pessoas screen never makes is shown to the administrator.
 
 **Out of scope** (named so nobody builds them here): cargos, perfis and their assignment
 ([0005](../0005-app-access-perfis/index.md)); Entra group to cargo sync and SCIM provisioning (later,
 only on a real need); self-registration (roadmap step 10); renaming a person; changing a person's kind;
-deleting a person; a Conexus-branded email theme (Keycloak's own Portuguese text is used); Keycloak
-fine-grained admin permissions v2; back-channel logout.
+deleting a person; a Conexus-branded email theme (Keycloak's own Portuguese text is used); narrowing the
+credential to the users Conexus created (Keycloak permissions per user or group); back-channel logout.
 
 **Acceptance criteria** (each is checked on its own; the proof is named in brackets: a suite under
 `tests/implementation/`, new when absent today, or a live check):
@@ -89,36 +91,54 @@ Disable, enable, email, invite
   Workspace). [`people-provisioning`, `identity-access-postgres`]
 - **AC-11**: EnablePerson enables the Keycloak user, then sets the account active. The account keeps its
   id, Keycloak subject, memberships and administrator role. [`people-provisioning`]
-- **AC-12**: ChangePersonEmail checks the new address is free in Conexus, writes it to Keycloak with
-  `emailVerified: false`, emails a `VERIFY_EMAIL` action, then updates the account. A Keycloak conflict
-  answers `409 email-taken`. [`people-provisioning`]
+- **AC-12**: ChangePersonEmail takes a client-chosen `changeId` and records the target address in
+  `iam.person_email_change` as `PENDING` before any Keycloak call (*Change email*). Then it writes the
+  address to Keycloak with `emailVerified: false`, emails a `VERIFY_EMAIL` action, and settles: the
+  account takes the new address and the change becomes `APPLIED`, or `SEND_FAILED` when only the email
+  failed. A Keycloak conflict settles it `REFUSED` with the account unchanged and answers `409
+  email-taken`. The same `changeId` with the same body resumes the change or returns its result; a
+  different body answers `409 idempotency-conflict`; a second change of one person while one is
+  `PENDING` answers `409 email-change-pending`. [`people-provisioning`]
 - **AC-13**: SendPersonInvite sends the actions of *Invite* to an active person and records the outcome
   as in AC-8. [`people-provisioning`]
 - **AC-14**: Repeating an action whose Keycloak step failed converges to the target state. The people
-  list shows each person's `providerSync` and invite state. [`people-provisioning`]
+  list shows each person's `providerSync`, invite state and open email change. [`people-provisioning`]
+- **AC-24**: An email change survives every stop. The test stops the Hub after the `PENDING` row and
+  before `updateUser`, after `updateUser` and before `sendActions`, and makes `sendActions` fail; in
+  each case the row keeps the target address, the account keeps the old one until the change settles,
+  and a repeat of the same `changeId` ends with Keycloak and the account holding the new address and
+  the change `APPLIED`. A Keycloak user whose email already equals the target is not written again.
+  [`people-provisioning`]
 
 Audit
 - **AC-15**: `iam.access_event` is append only: no role may update or delete it, and only the IAM
   definer functions insert. Each create (adopted or not), invite sent or not sent, disable, enable,
   email change and provider failure appends one row with actor, time, person and change, and no
   secret. The `conexus` realm saves admin events. [`identity-access-postgres`, `keycloak-people-probe`]
+- **AC-25**: Every five minutes the Hub reads the realm's admin events after its cursor and appends one
+  `PROVIDER_ALERT` per event of *Provider alerts*: an operation the adapter never makes, by any actor,
+  or a change to a user by any actor other than the provisioner. The Pessoas screen shows unacknowledged
+  alerts until an administrator acknowledges them. [`people-provisioning`, `keycloak-people-probe`]
 
 The adapter and its credential
 - **AC-16**: `identity-access/keycloak-admin.ts` returns an object with exactly `findUser`, `readUser`,
-  `createUser`, `updateUser`, `logout` and `sendActions`. Every URL comes from a fixed template under
-  the configured issuer's `/admin/realms/<realm>/users`; a user id is parsed as a UUID; `sendActions`
-  takes one of the named action sets of *Invite*. Only `identity-access/people.ts` imports it.
-  [`keycloak-admin-adapter`]
+  `createUser`, `updateUser`, `logout`, `sendActions` and `readAdminEvents`. Every URL comes from a
+  fixed template under the configured issuer's `/admin/realms/<realm>/users` or
+  `/admin/realms/<realm>/admin-events`; a user id is parsed as a UUID; `sendActions` takes one of the
+  named action sets of *Invite*. Only `identity-access/people.ts` imports it. No delete, credential,
+  password, role-mapping, group or impersonation call exists in it. [`keycloak-admin-adapter`]
 - **AC-17**: At start the Hub gets a client-credentials token and refuses to start with
-  `KEYCLOAK_PROVISIONER_ROLES` unless its `realm-management` roles are exactly `manage-users`,
-  `view-users`, `query-users` and `query-groups`. The token stays inside the adapter, is reused until
-  30 seconds before it expires, and is never logged. [`keycloak-admin-adapter`]
+  `KEYCLOAK_PROVISIONER_ROLES` unless its `realm-management` roles are exactly `query-users` and
+  `view-events`. Any other role, `manage-users` and `view-users` included, would bypass the
+  permissions of *Provisioner authority*. The token stays inside the adapter, is reused until 30
+  seconds before it expires, and is never logged. [`keycloak-admin-adapter`]
 
 Realm, bootstrap and Microsoft
-- **AC-18**: `infra/keycloak/configure-realm.sh` converges a running `conexus` realm to *Realm*. A
-  second run changes nothing and says so. It refuses to run without `--smtp-file`, and fails when any
-  user of the realm other than the service account holds a `realm-management` role.
-  [`keycloak-people-probe`, live]
+- **AC-18**: `infra/keycloak/configure-realm.sh` converges a running `conexus` realm to *Realm* and
+  *Provisioner authority*. A second run changes nothing and says so. It refuses to run without
+  `--smtp-file`, and fails when any user of the realm holds a `realm-management` role other than the
+  service account's two, or when any permission or policy of the `admin-permissions` client is not one
+  it created. [`keycloak-people-probe`, live]
 - **AC-19**: `provision.sh --first-admin-email --first-admin-name --hub-env` creates the first person
   with no password typed anywhere, sends the invite and writes `CONEXUS_BOOTSTRAP_SUBJECT`.
   `create-first-user.sh` is deleted. [live check]
@@ -137,17 +157,21 @@ Screen and live proof
   email and resends the invite, each error code shown as a sentence. When active people from the
   company hold no cargo (0005), the screen shows "N pessoas sem cargo" with a filter for them, and
   blocks nothing. [`installation-people-browser`, live check]
-- **AC-23**: `scripts/keycloak-people-probe.mjs` against the local Keycloak with a local mail catcher:
-  create an internal and an external person, adopt a hand-made user, retry an intent, receive the
-  invite with its actions and 14-day link, complete it and sign in to the Hub, change the email,
+- **AC-23**: `scripts/keycloak-people-probe.mjs` against the local Keycloak 26.7.2 with a local mail
+  catcher: create an internal and an external person, adopt a hand-made user, retry an intent, receive
+  the invite with its actions and 14-day link, complete it and sign in to the Hub, change the email,
   disable (the refresh is refused with "User disabled" and the Hub session is ended), re-enable (same
-  subject), and call delete user, reset password, role mapping and realm read with the provisioner
-  token, each answered `403`. [`keycloak-people-probe`, live]
+  subject). With the provisioner token it then checks both sides of *Provisioner authority*: set a
+  password (`PUT .../reset-password`), add a realm role mapping, join a group, impersonate, update
+  the realm and create a client are each answered `403`; on a throwaway user the probe made, deleting a
+  credential and deleting the user are answered `204`, and the next sweep appends a `PROVIDER_ALERT`
+  for each. [`keycloak-people-probe`, live]
 
 ## Decision
 
 **Chosen option**: Option 2 of [rationale.md](rationale.md): the Hub holds a Keycloak service account
-limited to user management of its own realm, people are created through a recorded intent, Conexus is
+whose authority over its own realm is set by Keycloak's admin permissions (v2) and excludes roles,
+groups, password setting and impersonation, people are created through a recorded intent, Conexus is
 switched off first and Keycloak second, and Microsoft sign-in is a Keycloak broker that only links to
 users Conexus created.
 
@@ -167,10 +191,13 @@ Reasoning and options: see [rationale.md](rationale.md).
 | A person: account, kind, email, active | `iam.account` | the people functions; IAM-03 for the bootstrap person |
 | A create in flight | `iam.person_intent` | the people functions |
 | A Keycloak step still owed | `iam.account.provider_sync`, `provider_sync_since` | the people functions |
+| An email change in flight, with its target address | `iam.person_email_change` | the people functions |
+| How far the Hub has read Keycloak's admin events | `iam.provider_event_cursor` (one row) | the people sweep |
 | Invite outcome | `iam.account.invite_state`, `invite_sent_at`, `invite_failure` | the people functions |
 | Audit of people and access changes | `iam.access_event` (append only; 0005 adds its own changes) | IAM definer functions |
 | Proof of identity, password, Microsoft link | the Keycloak user of the `conexus` realm | Keycloak, on the Hub's request or the person's |
 | Keycloak's record of admin calls | Keycloak admin events, 90 days | Keycloak |
+| What the provisioner may do | the `admin-permissions` client of the `conexus` realm | `configure-realm.sh` |
 
 Keycloak holds no Conexus fact. Its user carries a username Conexus chooses (the planned account id, a
 UUID), the email, the first and last name, `enabled` and `emailVerified`, and nothing else.
@@ -185,12 +212,13 @@ type InviteState = 'SENT' | 'NOT_SENT'
 type InviteFailure = 'EMAIL_NOT_SENT' | 'PROVIDER_UNAVAILABLE'
 type CreatedPerson = Readonly<{ person: Person; adopted: boolean; invite: { state: InviteState; reason?: InviteFailure } }>
 export type People = Readonly<{
-  list(actor: AccountId): Promise<Readonly<{ people: readonly Person[]; intents: readonly OpenIntent[] }>>
+  list(actor: AccountId): Promise<Readonly<{ people: readonly Person[]; intents: readonly OpenIntent[]; emailChanges: readonly OpenEmailChange[]; alerts: readonly ProviderAlert[] }>>
   create(actor: AccountId, input: CreatePerson): Promise<CreatedPerson>
   disable(actor: AccountId, account: AccountId): Promise<Person>
   enable(actor: AccountId, account: AccountId): Promise<Person>
-  changeEmail(actor: AccountId, account: AccountId, email: EmailAddress): Promise<Person>
+  changeEmail(actor: AccountId, account: AccountId, change: Readonly<{ changeId: string; email: EmailAddress }>): Promise<Person>
   sendInvite(actor: AccountId, account: AccountId): Promise<Person>
+  acknowledgeAlert(actor: AccountId, eventId: bigint): Promise<void>
 }>
 ```
 
@@ -236,7 +264,7 @@ de e-mail do login não está funcionando; peça ao responsável técnico para c
 Reenviar convite." There is no temporary password fallback: the Hub never sets, shows or emails a
 password.
 
-### Disable, enable, email (AC-10 to AC-12, AC-14)
+### Disable, enable, email (AC-10 to AC-12, AC-14, AC-24)
 
 Disable is Conexus first, because Conexus is what the person reaches: `iam.disable_person(actor,
 account)` sets `active = false`, ends every open `iam.host_session` of the account (Hub, application
@@ -250,9 +278,31 @@ Enable is Keycloak first (`updateUser` with `enabled: true`), then `iam.enable_p
 shows "Ativa" only when both agree. Disabling keeps memberships, the administrator role and, under
 0005, cargo holdings and perfil assignments; an inactive account matches none of them.
 
-Change email: `iam.check_person_email` refuses an address another account holds; `updateUser` writes
-`{ email, emailVerified: false }`; `sendActions(['VERIFY_EMAIL'])`; `iam.change_person_email` stores it
-and appends `PERSON_EMAIL_CHANGED` with the old and new address.
+**Change email.** Conexus records the target before Keycloak hears of it, so no stop loses the address:
+
+1. `iam.request_person_email_change(actor, account, change_id, email, request_digest)` refuses an
+   address held by another account, an open create intent or another open change (`email-taken`), and
+   a second open change of the account (`email-change-pending`). It inserts the change as `PENDING`
+   with the old and new address and appends `PERSON_EMAIL_CHANGE_REQUESTED`. A repeat with the same id
+   returns the stored row; a different digest raises `IDEMPOTENCY_CONFLICT`.
+2. `readUser`; when the Keycloak email is not already the target, `updateUser` writes `{ email,
+   emailVerified: false }`. A `409` goes to step 4 as `REFUSED`.
+3. `sendActions('VERIFY_EMAIL')`.
+4. `iam.settle_person_email_change(actor, change_id, outcome, failure)`, in one transaction: on
+   `APPLIED` or `SEND_FAILED` the account takes the new address and `PERSON_EMAIL_CHANGED` is appended
+   with both addresses; on `REFUSED` the account is unchanged.
+
+| State | Keycloak email | Account email | What a repeat of the `changeId` does |
+|---|---|---|---|
+| `PENDING` | old or new | old | steps 2 to 4 |
+| `SEND_FAILED` | new | new | step 3, then settles `APPLIED` |
+| `APPLIED` | new | new | returns the person |
+| `REFUSED` | old | old | returns `409 email-taken` |
+
+A failed Keycloak write or a stop leaves the change `PENDING` with `last_failure`; the Pessoas screen
+shows "Troca de e-mail pendente" with "Tentar de novo", which repeats the same `changeId`. While a
+change is `PENDING` the person still signs in: the Hub keys the account by Keycloak subject, never by
+email.
 
 `updateUser` reads the user and writes back the whole representation with the changed fields: under
 Keycloak 26's user profile, a partial representation can drop attributes.
@@ -265,6 +315,7 @@ type KeycloakUserId = string & { readonly __brand: 'KeycloakUserId' }
 type KeycloakUser = Readonly<{ id: KeycloakUserId; username: string; email: string | null; firstName: string; lastName: string; enabled: boolean; emailVerified: boolean }>
 type ActionSet = 'INVITE_WITH_PASSWORD' | 'INVITE_VERIFY_ONLY' | 'VERIFY_EMAIL'
 type AdminFailure = Readonly<{ kind: 'CONFLICT' } | { kind: 'NOT_FOUND' } | { kind: 'EMAIL_NOT_SENT' } | { kind: 'UNAVAILABLE' } | { kind: 'REFUSED'; status: number }>
+type AdminEvent = Readonly<{ time: number; operationType: string; resourceType: string; resourcePath: string; authRealm: string; authClientId: string; authUserId: string }>
 export type KeycloakAdmin = Readonly<{
   findUser(by: { username: string } | { email: EmailAddress }): Promise<KeycloakUser | null>
   readUser(id: KeycloakUserId): Promise<KeycloakUser | null>
@@ -272,6 +323,7 @@ export type KeycloakAdmin = Readonly<{
   updateUser(id: KeycloakUserId, change: Partial<Pick<KeycloakUser, 'email' | 'enabled' | 'firstName' | 'lastName'>> & { emailVerified?: false }): Promise<'OK' | AdminFailure>
   logout(id: KeycloakUserId): Promise<'OK' | AdminFailure>
   sendActions(id: KeycloakUserId, actions: ActionSet): Promise<'OK' | AdminFailure>
+  readAdminEvents(after: number, max: number): Promise<readonly AdminEvent[] | AdminFailure>
 }>
 export const createKeycloakAdmin = (input: Readonly<{ issuer: string; clientSecret: string }>): Promise<KeycloakAdmin>
 ```
@@ -280,7 +332,8 @@ The admin base is the issuer's origin plus `/admin/realms/` plus the realm name 
 the token endpoint comes from the issuer's discovery document. The client id is the constant
 `conexus-hub-provisioner`. The adapter reuses the local issuer transport of `oidc.ts` (the WSL loopback
 binding), moved to one shared function. Lookups use `exact=true`. `createUser` reads the id from the
-`Location` header.
+`Location` header. `readAdminEvents` calls `admin-events?dateFrom=<after>&direction=asc&max=<max>`
+(epoch milliseconds, inclusive) and returns no representation.
 
 ### Realm (AC-18, AC-19)
 
@@ -296,11 +349,12 @@ binding), moved to one shared function. Lookups use `exact=true`. `createUser` r
 | `eventsEnabled`, `eventsExpiration`, `enabledEventTypes` | `true`, `7776000`, `LOGIN`, `LOGIN_ERROR`, `IDENTITY_PROVIDER_FIRST_LOGIN`, `IDENTITY_PROVIDER_LOGIN_ERROR`, `EXECUTE_ACTIONS`, `VERIFY_EMAIL`, `UPDATE_PASSWORD` | Sign-in and invite evidence for 90 days. |
 | `adminEventsEnabled`, `adminEventsDetailsEnabled`, attribute `adminEventsExpiration` | `true`, `false`, `7776000` | Every use of the Hub's admin credential is recorded, without user representations. |
 | client `conexus-hub` `baseUrl` | `https://hub.conexus.localhost:3443/` | Where Keycloak's page sends a person after an invite. |
-| client `conexus-hub-provisioner` | confidential, service accounts only: no standard flow, no direct grants, no implicit flow | The Hub's admin credential. Its service account holds `realm-management` `manage-users` and `view-users` only. |
+| client `conexus-hub-provisioner` | confidential, service accounts only: no standard flow, no direct grants, no implicit flow | The Hub's admin credential. Its service account holds `realm-management` `query-users` and `view-events` only; *Provisioner authority* gives it the rest. |
+| `adminPermissionsEnabled` | `true` | Turns on admin permissions v2 for the realm, which *Provisioner authority* configures. |
 
 `configure-realm.sh` applies the same file to a running realm: realm attributes with
 `kcadm update realms/conexus`, missing clients created from the file, the service account's two roles
-added with `kcadm add-roles`, the client secret generated once and written to
+added with `kcadm add-roles`, the permissions of *Provisioner authority*, the client secret generated once and written to
 `--provisioner-secret-file` (mode 600) when that file is absent. It also sets the per-installation
 parts no file in the repository holds: SMTP from `--smtp-file` (JSON with `host`, `port`, `from`,
 `fromDisplayName`, `starttls`, `ssl`, `auth`, `user`, `password`, kept outside the repository, mode
@@ -310,6 +364,67 @@ only, because a realm import that carries `authenticationFlows` replaces Keycloa
 `--hub-env`, which create the first person through `kcadm` exactly as CreatePerson does in Keycloak,
 send `INVITE_WITH_PASSWORD`, and write `CONEXUS_BOOTSTRAP_SUBJECT`. The `conexus` realm has no human
 administrator: operators use the `master` realm's bootstrap admin, as today.
+
+### Provisioner authority (AC-17, AC-18, AC-23)
+
+Keycloak 26.7.2 offers two ways to authorize an admin client, and they do not mix: a
+`realm-management` role such as `manage-users` or `view-users` bypasses every admin permission v2 for
+what it covers. The `manage-users` role lets its holder view, manage (create, update, delete), map
+roles and manage group membership of every user, and view and manage every group; with it the
+provisioner could also give `manage-users` to another user. So the service account holds no such role
+and is authorized by admin permissions v2, which 26.7.2 enables by default (feature
+`admin-fine-grained-authz:v2`, supported since 26.2; the realm switch is `adminPermissionsEnabled`).
+
+`configure-realm.sh` converges these objects in the `admin-permissions` client
+(`/admin/realms/conexus/clients/<its id>/authz/resource-server`), with the service account user
+`service-account-conexus-hub-provisioner`:
+
+| Object | Kind | Settings |
+|---|---|---|
+| `conexus-provisioner` | user policy | `users`: the service account user, `logic` `POSITIVE` |
+| `conexus-nobody` | user policy | `users`: none, `logic` `POSITIVE` (denies everyone) |
+| `conexus-provisioner-users` | scope permission | `resourceType` `Users`, all users, `scopes` `view`, `manage`, `policies` `conexus-provisioner` |
+| `conexus-provisioner-no-password` | scope permission | `resourceType` `Users`, all users, `scopes` `reset-password`, `policies` `conexus-nobody` |
+
+No permission grants `map-roles`, `manage-group-membership` or `impersonate`, and none touches Groups,
+Clients, Roles or Organizations, so those calls are refused. The explicit `reset-password` denial is
+needed because, with no such permission, Keycloak falls back to `manage` for setting a password. It
+denies everyone rather than the service account alone: a `NEGATIVE` policy on the service account would
+grant every other user of the realm the `reset-password` scope, making each one a delegated admin.
+`query-users` lets the account search; `view-events` lets the Hub read admin events and nothing about
+users.
+
+What the credential can do, endpoint by endpoint (26.7.2 checks `manage` for every user write below,
+and `view-events` for the events):
+
+| Can, and the adapter uses | Can, and the adapter never calls | Cannot (`403`) |
+|---|---|---|
+| search, read, create, update (name, email, `enabled`) a user; `execute-actions-email`; `logout`; read admin events | delete a user; delete a credential or disable credential types; unlink a Microsoft identity; revoke a consent; read login events | set a password (`reset-password`); map roles; change group membership; impersonate; any realm, client, group or role change |
+
+The middle column is the residual authority, and Keycloak offers no switch that removes it while
+`manage` remains: v2 ties delete to `manage`. Its sharpest use is a takeover: whoever holds the secret
+can point a person's email at their own mailbox and send `UPDATE_PASSWORD`. *Key invariants and
+security model* lists what contains it.
+
+### Provider alerts (AC-25)
+
+The Hub's people sweep runs every five minutes. It reads admin events after
+`iam.provider_event_cursor`, 100 at a time in time order, and for each event matching a rule below
+calls `iam.record_provider_alert(event)`, which appends `PROVIDER_ALERT` with the operation, resource
+path, acting realm, client and user, and time, and moves the cursor in the same transaction. The cursor
+starts at the Hub's first sweep, so `provision.sh`'s creation of the first person is before it. A
+later `configure-realm.sh` run by the operator also shows as alerts, which the administrator
+acknowledges.
+
+| Rule | Matches |
+|---|---|
+| an operation the adapter never makes | `DELETE` on a user resource; any operation on `users/*/credentials*`, `users/*/reset-password`, `users/*/disable-credential-types`, `users/*/role-mappings*`, `users/*/groups*`, `users/*/federated-identity*`, `users/*/impersonation`; any operation on a resource type other than `USER` |
+| a change to a user by someone else | any event on a user resource whose acting client is not `conexus-hub-provisioner` |
+
+`ListPeople` returns the unacknowledged alerts, and `IAM-20 AcknowledgeProviderAlert` marks one seen
+(`iam.acknowledge_provider_alert`, appending `PROVIDER_ALERT_ACKNOWLEDGED`). The screen shows them in a
+banner: "Alguém mudou o login fora do Conexus" with each change as a sentence. A Keycloak outage only
+delays the sweep; the cursor never skips an event it has not read.
 
 ### Microsoft sign-in (AC-20, AC-21)
 
@@ -349,9 +464,10 @@ Beside `installation-routes.ts`, with its CSRF and administrator checks, in a ne
 | `POST /api/control/installation/people` (`intentId` in the body) | `IAM-15 CreatePerson` |
 | `POST /api/control/installation/people/:accountId/disable` | `IAM-16 DisablePerson` |
 | `POST /api/control/installation/people/:accountId/enable` | `IAM-17 EnablePerson` |
-| `PUT /api/control/installation/people/:accountId/email` | `IAM-18 ChangePersonEmail` |
+| `PUT /api/control/installation/people/:accountId/email` (`changeId`, `email` in the body) | `IAM-18 ChangePersonEmail` |
 | `POST /api/control/installation/people/:accountId/invite` | `IAM-19 SendPersonInvite` |
 | `DELETE /api/control/installation/people/intents/:intentId` | abandon an open intent (part of `IAM-15`) |
+| `POST /api/control/installation/people/alerts/:eventId/acknowledge` | `IAM-20 AcknowledgeProviderAlert` |
 
 The screen is `features/settings/components/people-screen.tsx`, one row in `sections.ts`
 (`installation-people`, "Pessoas", `/settings/installation/people`). 0005 adds a cargos field to the
@@ -363,6 +479,8 @@ same rows.
 |---|---|---|
 | admin base URL, realm | issuer origin and realm | `CONEXUS_OIDC_ISSUER` |
 | admin token | client credentials | `conexus-hub-provisioner` and `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE` |
+| email change target | the typed address | `iam.person_email_change.new_email`, recorded before any Keycloak call |
+| alert cursor, sweep period | last event time, 5 minutes | `iam.provider_event_cursor`, constant in `people.ts` |
 | Keycloak username | planned account id | `iam.person_intent.account_id` |
 | account `external_subject` | Keycloak user id | the `Location` of `createUser`, or the adopted user |
 | invite actions | action set | `kind` and `CONEXUS_INTERNAL_SIGN_IN` (*Invite*) |
@@ -373,21 +491,29 @@ same rows.
 
 ### Data model
 
-`0043_people.sql` (0005's migrations follow as `0044` and `0045`):
+`0044_people.sql` (after PR 382's `0043`; 0005's migrations follow as `0045` and `0046`):
 - `iam.account`: add `kind` (backfilled per AC-1) and drop `origin`; add `provider_sync text NULL CHECK
-  (provider_sync IN ('DISABLE','ENABLE','EMAIL'))`, `provider_sync_since`, `invite_state text NULL
+  (provider_sync IN ('DISABLE','ENABLE'))`, `provider_sync_since`, `invite_state text NULL
   CHECK (invite_state IN ('SENT','NOT_SENT'))`, `invite_sent_at`, `invite_failure`; unique index on
   `lower(email)` where `email IS NOT NULL`. A null `invite_state` is a person from before this spec.
 - `iam.person_intent (intent_id uuid PRIMARY KEY, actor uuid, kind, email, display_name, account_id
   uuid UNIQUE, request_digest bytea, state text CHECK (state IN ('OPEN','DONE','ABANDONED')),
   last_failure text, created_at, updated_at)`.
+- `iam.person_email_change (change_id uuid PRIMARY KEY, account_id uuid NOT NULL, actor uuid, old_email,
+  new_email text NOT NULL, request_digest bytea, state text CHECK (state IN
+  ('PENDING','SEND_FAILED','APPLIED','REFUSED')), last_failure text, created_at, updated_at)`, with
+  unique partial indexes on `account_id` and on `lower(new_email)` where `state = 'PENDING'`.
+  `open_person_intent` also refuses an email of a `PENDING` change (`person-pending`).
+- `iam.provider_event_cursor (singleton boolean PRIMARY KEY CHECK (singleton), after_time bigint NOT
+  NULL)`.
 - `iam.access_event (event_id bigint GENERATED ALWAYS AS IDENTITY, at timestamptz DEFAULT
   clock_timestamp(), actor uuid NOT NULL, account_id uuid, change text NOT NULL, detail jsonb NOT NULL
   DEFAULT '{}')`, owned by `iam_owner`, no `UPDATE` or `DELETE` granted.
 - Functions, `SECURITY DEFINER` with the pinned `search_path`, granted to `hub_iam_runtime`:
   `list_people`, `open_person_intent`, `complete_person_intent`, `abandon_person_intent`,
-  `record_invite`, `disable_person`, `enable_person`, `check_person_email`, `change_person_email`,
-  `settle_provider_sync`, `record_provider_failure`.
+  `record_invite`, `disable_person`, `enable_person`, `request_person_email_change`,
+  `settle_person_email_change`, `settle_provider_sync`, `record_provider_failure`,
+  `record_provider_alert`, `acknowledge_provider_alert`.
 - Rewritten: `account_access_scope` (AC-1), `invite_workspace_member` (AC-5),
   `grant_installation_administrator` and `grant_installation_administrator_by_email` (AC-5).
   Dropped: `provision_application_account`, `email_has_open_invitation`.
@@ -400,9 +526,18 @@ same rows.
 - Conexus decides; Keycloak proves. A disabled account is refused by Conexus before Keycloak is told.
   Nothing in Keycloak (roles, groups, the Microsoft link) grants anything in Conexus (C-015).
 - The Hub's admin credential is a second privileged adapter (*Follow-up*): one client, one realm,
-  `manage-users` and `view-users`. Its residual power is to reset a password or delete any user of the
-  `conexus` realm; the adapter exposes neither, the realm has no human administrator for it to act on,
-  and Keycloak records every call. Its secret file is mode 600 and read only by the Hub.
+  roles `query-users` and `view-events`, and the permissions of *Provisioner authority*. Keycloak
+  refuses it passwords, roles, groups, impersonation and every realm or client change. Its residual
+  authority, which Keycloak 26.7.2 cannot remove while it may update users, is to delete any user of the
+  `conexus` realm, delete or disable their credentials, unlink their Microsoft identity, and redirect
+  their email and send a password action to it. What contains it, and is ours: the adapter has no call
+  for any of these (AC-16); the Hub refuses to start with any other role (AC-17) and
+  `configure-realm.sh` fails on any foreign permission or admin role (AC-18); the realm has no human
+  administrator; Keycloak records every call for 90 days and the Hub shows the administrator every
+  delete, credential, role, group or identity-link operation and every user change made by any other
+  client (AC-25). Not contained: an email redirect made with a stolen secret looks like the Hub's own
+  change in the admin events, so only the person's lost access and the event record reveal it. The
+  secret file is mode 600 and read only by the Hub.
 - No password crosses Conexus. Keycloak sets and checks every password through its own pages.
 - Microsoft sign-in links only to a user Conexus created, in the configured tenant, and never creates
   one. Stated limits: a tenant administrator who sets another user's mail attribute to a person's
@@ -424,9 +559,14 @@ same rows.
    "ssl": "false", "auth": "true", "user", "password" }`. For the local live check, a mail catcher on
    the Keycloak container's network (`host` its container name, `port` 1025, `auth` `"false"`).
 2. **Realm.** Run `infra/keycloak/configure-realm.sh --provisioner-secret-file <path> --smtp-file
-   <path>` against the running `conexus-keycloak`. Check in the Keycloak console (master realm admin):
-   Clients > `conexus-hub-provisioner` > Service account roles shows only `manage-users` and
-   `view-users`; Realm settings > Email shows the sender; Realm settings > Events has admin events on.
+   <path>` against the running `conexus-keycloak` (26.7.2, where admin permissions v2 is on by
+   default; do not start it with `--features=admin-fine-grained-authz:v1`). Check in the Keycloak
+   console (master realm admin): Realm settings > General has Admin Permissions on; Clients >
+   `conexus-hub-provisioner` > Service account roles shows only `query-users` and `view-events`;
+   Permissions lists exactly `conexus-provisioner-users` (Users, all users, view and manage) and
+   `conexus-provisioner-no-password` (Users, all users, reset-password, policy `conexus-nobody`); Realm settings > Email
+   shows the sender; Realm settings > Events has admin events on. Never give the service account
+   `manage-users`, `view-users` or any other admin role: a role switches the permissions off.
 3. **Hub.** Add `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE=<path>` to `hub.env` and restart the Hub.
 4. **Microsoft (company IT).** Send the company's Microsoft 365 administrator the Entra guide with this
    installation's redirect URI, `https://<Keycloak host>/realms/conexus/broker/microsoft/endpoint`,
@@ -445,24 +585,30 @@ the account insert, then a retry (AC-9); `createUser` answering `409` for a user
 intent (AC-7); an email held by a disabled person (`person-exists`, status disabled) (AC-7); Keycloak
 down during disable, then a repeat (AC-10, AC-14); disabling the last owner of a Workspace (AC-10); a
 Workspace invite to an external person (AC-5); an application sign-in by a Keycloak user with no
-account (AC-4); a token carrying `realm-admin` at start (AC-17); `updateUser` keeping an attribute the
-change did not name (AC-12); a Microsoft sign-in for an email the screen never created (AC-21).
+account (AC-4); a token carrying `realm-admin` or `manage-users` at start (AC-17); `updateUser`
+keeping an attribute the change did not name (AC-12); an email change stopped before and after
+`updateUser` and one whose `sendActions` fails, each repeated (AC-24); an email change to an address
+held by another person's open change (AC-12); a sweep that meets a `DELETE` user event and a user
+change by the `admin-cli` client, then a Keycloak outage mid-sweep (AC-25); a Microsoft sign-in for an
+email the screen never created (AC-21).
 
 ## Build plan
 
 Slices 3 to 5 are one release: the migration removes the only other way an account was created, so the
 Pessoas screen must ship with it.
 
-1. Realm: `realm-conexus.json`, `configure-realm.sh`, the `provision.sh` flags, the deletion of
+1. Realm: `realm-conexus.json`, `configure-realm.sh` with *Provisioner authority*, the `provision.sh` flags, the deletion of
    `create-first-user.sh`, the README and `AGENTS.md`. Operator steps 1 and 2. Satisfies **AC-18**,
    **AC-19**.
-2. Adapter: `keycloak-admin.ts`, the shared local issuer transport, the configuration, the start-up role
-   check, and `keycloak-admin-adapter` against a fake Keycloak server. Satisfies **AC-16**, **AC-17**.
-3. IAM: migration `0043`, the store and route changes of AC-4 and AC-5, the catalog snapshot, and the
+2. Adapter: `keycloak-admin.ts` with `readAdminEvents`, the shared local issuer transport, the
+   configuration, the start-up role check, and `keycloak-admin-adapter` against a fake Keycloak
+   server. Satisfies **AC-16**, **AC-17**.
+3. IAM: migration `0044`, the store and route changes of AC-4 and AC-5, the catalog snapshot, and the
    tests that named `origin`, `provision_application_account` or an invited sign-up. Satisfies
    **AC-1** to **AC-5**, **AC-15** (database part).
-4. People: `people.ts`, `people-routes.ts`, operation ledger rows `IAM-14` to `IAM-19`, the product
-   API paths, and `people-provisioning` against the fake Keycloak. Satisfies **AC-6** to **AC-14**.
+4. People: `people.ts`, `people-routes.ts`, operation ledger rows `IAM-14` to `IAM-20`, the product
+   API paths, the people sweep, and `people-provisioning` against the fake Keycloak. Satisfies **AC-6**
+   to **AC-14**, **AC-24**, **AC-25**.
 5. Screen: the Pessoas screen and its section row. Satisfies **AC-3** (rail), **AC-22**.
 6. Local proof: operator step 3, `keycloak-people-probe` with the mail catcher, the screen in the driven
    browser. Satisfies **AC-15** (Keycloak part), **AC-23**.
@@ -489,7 +635,8 @@ Keycloak outage (open intent, retried); SMTP rejected by the provider (invite "N
 - People of the company use their Microsoft 365 account and its MFA.
 
 **Negative / tradeoffs**:
-- The Hub now holds a Keycloak admin credential (scoped, recorded, but real).
+- The Hub now holds a Keycloak admin credential (scoped, recorded, alerted, but real: it can delete
+  users and redirect their email).
 - Invites depend on a working SMTP account; without one, nobody new gets in.
 - A forgotten password needs the administrator to resend the invite.
 - Keycloak's own email text is generic until a Conexus email theme exists.
@@ -519,13 +666,15 @@ Records to amend, each needing the operator's approval before this spec is Accep
       ([single session qualification](../../single-session-qualification.md) section 9), which its STOP
       law sends back to the planner: approved by the operator on 2026-10-01.
 - [ ] Security reference: section 3 lists the second privileged adapter (I&A Keycloak admin adapter →
-      the configured issuer's realm admin API, client `conexus-hub-provisioner`) and the browser path
+      the configured issuer's realm admin API, client `conexus-hub-provisioner`, with its residual
+      authority as in *Key invariants and security model*) and the browser path
       Keycloak → the configured Microsoft tenant; section 4 states `verifyEmail` and the brokered path.
-- [ ] Permission contract section 1.1 and the operation ledger: `IAM-14` to `IAM-19`; `IAM-03` is
+- [ ] Permission contract section 1.1 and the operation ledger: `IAM-14` to `IAM-20`; `IAM-03` is
       bootstrap only; `IAM-05` refuses people who do not exist or are external.
 - [ ] The Entra guide gains the optional `email` claim step and a redirect URI per installation.
 
 Later work:
 - [ ] A Conexus email theme for the invite.
 - [ ] Entra group to cargo sync, only on a real need.
-- [ ] Keycloak fine-grained admin permissions v2, to narrow the credential to Conexus-created users.
+- [ ] Narrow `conexus-provisioner-users` from all users to the users Conexus created (a group they
+      join at creation), once a real need appears.

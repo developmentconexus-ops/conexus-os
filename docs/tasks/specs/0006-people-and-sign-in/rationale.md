@@ -45,8 +45,9 @@ is part of this work, configured per installation; Entra group sync is later.
 
 ### Option 2: A Hub service account with user management only, recorded intents, Conexus first (chosen)
 
-The Hub holds a confidential client of the `conexus` realm whose service account has `manage-users`
-and `view-users`. A create is an intent in Conexus, the Keycloak user, then the account; the invite is
+The Hub holds a confidential client of the `conexus` realm whose service account is authorized by
+Keycloak's admin permissions v2 to view and manage users, and refused passwords, roles, groups and
+impersonation. A create is an intent in Conexus, the Keycloak user, then the account; the invite is
 Keycloak's own action email; disable is Conexus first. Microsoft sign-in is a Keycloak broker with a
 tenant-specific issuer and a first-login flow that only links to existing users.
 
@@ -58,18 +59,28 @@ tenant-specific issuer and a first-login flow that only links to existing users.
   create.
 
 **Cons**:
-- `manage-users` can also reset passwords and delete users of the realm; only the adapter's surface,
-  the realm having no human administrator, and admin events contain it.
+- Managing users in Keycloak 26.7.2 still includes deleting them, deleting their credentials and
+  redirecting their email; no v2 scope separates these from updating. The adapter's surface, the
+  start-up role check, the realm having no human administrator, admin events and the Hub's alerts on
+  them contain it; the spec states it as residual authority.
 - Invites need SMTP.
 
-### Option 3: Option 2 with Keycloak fine-grained admin permissions v2
+### Option 3: Option 2 with the `realm-management` roles `manage-users` and `view-users`
+
+The first draft of this spec. Review of PR 385 (Factory and Codex) showed it promised a narrower
+credential than these roles give.
 
 **Pros**:
-- The credential could be limited to users Conexus created.
+- Two roles to assign; no permission objects to converge.
 
 **Cons**:
-- A second permission model to configure and test on 26.7.2; realm-management roles bypass it, so the
-  two cannot be mixed. Worth it later, not as the first step.
+- `manage-users` also maps roles, manages group membership and groups, and sets passwords. With it the
+  provisioner could give `manage-users` to another user, a second admin the screen never sees.
+- A role bypasses admin permissions v2, so this cannot be narrowed later without removing the roles.
+
+Admin permissions v2 is supported and on by default in the pinned 26.7.2, so Option 2 takes its
+narrower authority now at the cost of four permission objects that `configure-realm.sh` converges and
+the probe checks. Narrowing further, to the users Conexus created, stays later work.
 
 Also rejected: SCIM or Entra provisioning into Keycloak (needs 26.8, and makes Entra the source of
 people, against D3); Keycloak's default first broker login (it creates a user on any first Microsoft
@@ -97,6 +108,10 @@ rewriting the email Conexus set, and `verifyEmail` means a link to a person who 
 mailbox still asks them to. The remaining trust is in the company's own Entra administrators, who can
 set any user's mail attribute; the spec states it as a limit.
 
+An email change records its target in Conexus before Keycloak is written, for the same reason a
+create records its intent first: Keycloak can take the new address and then the email or the Hub can
+fail, and without a stored target nothing could finish the change or explain the difference.
+
 Email by Keycloak, not by the Hub: Keycloak's action token is what lets a person set a password
 without Conexus ever holding it, and one sender means one SMTP setting.
 
@@ -108,6 +123,11 @@ without Conexus ever holding it, and one sender means one SMTP setting.
 - The design arena synthesis, item 5 (the operator's decision to build this now) and R9 (no email
   holder; the account comes first).
 - Interrogation finding A6: an email holder plus a broker that trusts email is a claim-by-email hole.
+- PR 385 review (Factory verdict and two Codex comments, 2026-10-01): the role grant did not support
+  the promised `403`s, and the email change wrote Keycloak before Conexus held the target.
+- Keycloak 26.7.2 source, `UserResource.java` and `UserPermissionsV2.java`: delete, credential
+  removal, `execute-actions-email` and `logout` check `manage`; `reset-password` checks the
+  `reset-password` scope and falls back to `manage`; `manage-users` short-circuits every check.
 - The Entra app registration guide for the company's IT, in the same study notes.
 
 ## References
@@ -130,4 +150,6 @@ without Conexus ever holding it, and one sender means one SMTP setting.
 **Links**:
 - Keycloak Server Administration, identity brokering and first login flows: https://www.keycloak.org/docs/latest/server_admin/#_identity_broker_first_login
 - Keycloak Admin REST API: https://www.keycloak.org/docs-api/latest/rest-api/index.html
+- Keycloak Server Administration, delegating realm administration using permissions (admin permissions v2, scopes of the Users resource type, roles and permission relationship): https://www.keycloak.org/docs/latest/server_admin/#_fine_grained_permissions
+- Keycloak features (`admin-fine-grained-authz:v2` default): https://www.keycloak.org/server/features
 - Microsoft identity platform, OpenID Connect and tenant-specific endpoints: https://learn.microsoft.com/entra/identity-platform/v2-protocols-oidc

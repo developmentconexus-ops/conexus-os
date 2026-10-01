@@ -382,10 +382,10 @@ The `conexus-server` skill teaches the method, not a rule list:
 
 ### Data model
 
-- `0044_cargos_and_perfis.sql` (after 0006's `0043_people.sql`): the tables of *Data* except
+- `0045_cargos_and_perfis.sql` (after 0006's `0044_people.sql`): the tables of *Data* except
   `iam.access_event` (`perfil_assignment` with `CHECK (num_nonnulls(cargo_id, account_id) +
   everyone::int = 1)`), the door, its callers, the screen functions and the drops of AC-6; no copy of
-  grants into a placeholder perfil. `0045`: the template pin, as `0042`. Then `npm run db:catalog:snapshot`. The `conexus` app schema is the runner's.
+  grants into a placeholder perfil. `0046`: the template pin, as `0042`. Then `npm run db:catalog:snapshot`. The `conexus` app schema is the runner's.
 
 ### Key invariants and security model
 
@@ -431,11 +431,11 @@ as one Hub and runner image (the door needs declared perfis and an Access tab to
 2. Principal: `platform/principal.ts` replaces `caller.ts`; `invokeBody`, `WorkerJob`, the invoker,
    `run-operation` and the session resolvers carry `Principal` with empty perfis. Hub and runner in
    one image. Satisfies **AC-10**.
-3. IAM: migration `0044`, the IAM functions and `identity-access` module code, the operation ledger
+3. IAM: migration `0045`, the IAM functions and `identity-access` module code, the operation ledger
    and wire contract rows replacing `IAM-11` to `IAM-13`, the catalog snapshot, and the updated
    tests and proof scripts that named the dropped tables. Satisfies **AC-1** to **AC-9**.
 4. Manifest v2 and generation: `admitManifest` v2, the one normalization, `reg.artifact_access` at
-   admission, `generate-client.mjs`, the template rebuild and migration `0045`, the boot stubs, the
+   admission, `generate-client.mjs`, the template rebuild and migration `0046`, the boot stubs, the
    starter manifest. Satisfies **AC-11**, **AC-12**, **AC-22**, **AC-23**.
 5. Runner enforcement: `authorizeOperation`, narrowing, binding of acting perfis, `policiesFor`,
    converge and census in the migration transaction, quarantine, the default privilege removal, the
