@@ -130,6 +130,10 @@ Q4 closes on this set and nothing smaller:
 The Builder script path through the sandbox relay is not in the closure set. The tool and the
 handler prove the claim, and the relay's only consumer is exploratory scripts.
 
+The Builder that runs items 4 and 5 is qualified by the
+[Builder own harness qualification](stage2-builder-own-harness-qualification.md): the Builder off
+the Mastra Factory, on the app stack v2, if the operator accepts C-032 and C-033.
+
 ### Evidence the verdict needs
 
 - **Positive.** A real Sankhya read through the tool and through a handler, recorded as field names,

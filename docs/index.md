@@ -17,6 +17,7 @@ owns status and the next action. Start there.
 | Why the Factory-centered composition was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |
 | What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
 | How the Builder got faster on 2026-09-20 | [Builder throughput program](tasks/builder-throughput-program.md), historical |
+| The Builder on its own harness: specs 0002 and 0003, the closure set and the ordered work | [Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) |
 
 ## Product
 
@@ -45,6 +46,7 @@ owns status and the next action. Start there.
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 | How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
 | Functionality seen in other products, with a verdict for Conexus | [Functional references](research/functional-references/index.md), reference evidence only |
+| What the Builder studies measured and proposed, behind specs 0002 and 0003 | [Builder research](research/builder/index.md), reference evidence only |
 
 ## Method
 
