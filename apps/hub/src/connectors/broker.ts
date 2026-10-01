@@ -41,12 +41,15 @@ export type FetchDescription = Readonly<{ integrator: ConnectorId | null; servic
 
 const UNDESCRIBED: FetchDescription = Object.freeze({ integrator: null, service: null })
 
+/** `deadlineMs` can only shorten the native deadline: a consumer with less time left than that asks for the time it has. */
+type FetchOptions = Readonly<{ deadlineMs?: number }>
+
 export type Broker = Readonly<{
   /** Never throws. */
   call(consumer: Consumer, operationId: string, input: unknown): Promise<BrokerResult<unknown>>
   /** A native request through one of the consumer's Project bindings. `request` is untrusted JSON; `consumer` is built by Hub code
    * with a Hub-minted scope. Never throws. */
-  fetch(consumer: Consumer, request: unknown): Promise<FetchResult>
+  fetch(consumer: Consumer, request: unknown, options?: FetchOptions): Promise<FetchResult>
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
   /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
@@ -203,9 +206,9 @@ export const createBroker = ({
   }
 
   /** The admitted request on the Connection's token, under one deadline for authentication and request. */
-  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan): Promise<FetchResult> => {
+  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, options: FetchOptions): Promise<FetchResult> => {
     const protocol = connector.definition.native
-    const signal = AbortSignal.timeout(nativeLimits.deadlineMs)
+    const signal = AbortSignal.timeout(Math.min(nativeLimits.deadlineMs, options.deadlineMs ?? Infinity))
     let attempt = 0
     let issued = 0
     let answered: ProviderAnswer = {}
@@ -268,14 +271,14 @@ export const createBroker = ({
     return { ok: true, scope, binding, target: { connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
   }
 
-  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan): Promise<FetchResult> => {
+  const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan, options: FetchOptions): Promise<FetchResult> => {
     const admission = await admitFetch(consumer, request, at)
     if (admission.binding) {
       span.update({ metadata: { connection: admission.binding.name, connector: admission.ok ? admission.target.connector.definition.id : admission.connector?.definition.id ?? null } })
     }
     if (!admission.ok) return admission.refusal
     if (!spendCall(admission.scope)) return refused('CALL_LIMIT')
-    return sendOnToken(admission.target, span)
+    return sendOnToken(admission.target, span, options)
   }
 
   return Object.freeze({
@@ -289,7 +292,7 @@ export const createBroker = ({
         return UNDESCRIBED
       }
     },
-    async fetch(consumer: Consumer, request: unknown): Promise<FetchResult> {
+    async fetch(consumer: Consumer, request: unknown, options: FetchOptions = {}): Promise<FetchResult> {
       const at = now()
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.fetch', metadata: {
         consumer: recordedKind(consumer),
@@ -299,7 +302,7 @@ export const createBroker = ({
       } })
       let result: FetchResult
       try {
-        result = await executeFetch(consumer, request, at, span)
+        result = await executeFetch(consumer, request, at, span, options)
       } catch {
         result = refused('PROVIDER_UNAVAILABLE')
       }

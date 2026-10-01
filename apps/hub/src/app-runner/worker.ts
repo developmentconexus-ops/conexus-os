@@ -26,7 +26,8 @@ const MAX_JOB_BYTES = 8 * 1024 * 1024
 // Where the runner binds the Hub's connector port for this invocation (sandbox.ts binds exactly this).
 const CONNECTOR_SOCKET = '/run/conexus/connector/.s.connector'
 const CONNECTOR_BODY_BYTES = 64 * 1024
-const CONNECTOR_ANSWER_BYTES = 256 * 1024
+// The Hub bounds /v1/fetch to 256 KiB; the legacy /v1/call keeps its 2 MiB until that path is deleted.
+const CONNECTOR_ANSWER_BYTES: Readonly<Record<string, number>> = { '/v1/call': 2 * 1024 * 1024, '/v1/fetch': 256 * 1024 }
 
 type ConnectorAnswer = Readonly<{ ok: boolean; code?: string; [field: string]: unknown }>
 
@@ -34,7 +35,7 @@ const refusal = (code: string): ConnectorAnswer => Object.freeze({ ok: false, co
 const unconfigured = refusal('CONNECTOR_UNCONFIGURED')
 
 // One POST over the bound socket, answered by the Hub. The answer is the Hub's own JSON, passed through
-// untouched: at most 256 KiB, and anything unreadable is the port not being there.
+// untouched: within the route's limit, and anything unreadable is the port not being there.
 const post = (path: string, payload: Buffer): Promise<ConnectorAnswer> => new Promise((resolve) => {
   const outgoing = request({
     socketPath: CONNECTOR_SOCKET, path, method: 'POST',
@@ -43,9 +44,10 @@ const post = (path: string, payload: Buffer): Promise<ConnectorAnswer> => new Pr
     const chunks: Buffer[] = []
     let bytes = 0
     let tooLarge = false
+    const limit = CONNECTOR_ANSWER_BYTES[path] ?? 0
     response.on('data', (chunk: Buffer) => {
       bytes += chunk.byteLength
-      if (bytes > CONNECTOR_ANSWER_BYTES) {
+      if (bytes > limit) {
         tooLarge = true
         response.destroy()
       } else chunks.push(chunk)

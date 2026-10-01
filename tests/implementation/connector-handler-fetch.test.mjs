@@ -130,3 +130,28 @@ test('the bearer never reaches the handler', async (t) => {
   assert.equal(answer.json.ok, true)
   assert.equal(answer.text.includes('fake-token-'), false)
 })
+
+test('a slow vendor ends in PROVIDER_TIMEOUT inside the invocation, and a fetch after the deadline spends no request', async (t) => {
+  const { fake, open } = await setup(t, { limits: { invocationMs: 700, marginMs: 100 } })
+  fake.mode.service = 'stall'
+  const port = await open()
+  const started = Date.now()
+  assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'PROVIDER_TIMEOUT' })
+  const elapsed = Date.now() - started
+  assert.ok(elapsed >= 400 && elapsed < 700, `the fetch ended at ${elapsed} ms, inside the 700 ms invocation and before the 10 s native deadline`)
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  const before = fake.requests.length
+  assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'PROVIDER_TIMEOUT' })
+  assert.equal(fake.requests.length, before)
+})
+
+test('the legacy /v1/call keeps a 2 MiB answer while /v1/fetch stays at 256 KiB', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cx-fetch-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const big = { ok: true, value: 'x'.repeat(300 * 1024) }
+  const broker = { call: async () => big, fetch: async () => ({ ok: true, status: 200, bytes: 0, body: 'x'.repeat(300 * 1024) }) }
+  const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }))
+  t.after(() => port.close())
+  assert.deepEqual((await post(port.socketPath, { operation: 'x', input: {} }, '/v1/call')).json, big)
+  assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'RESPONSE_TOO_LARGE' })
+})

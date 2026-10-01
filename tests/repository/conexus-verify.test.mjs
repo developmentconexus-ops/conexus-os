@@ -201,6 +201,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
   const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
     'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command

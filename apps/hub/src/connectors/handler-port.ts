@@ -14,9 +14,14 @@ import type { ConsumerScope } from './scope.js'
 // One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
 // Nothing on the wire names a Project.
 
-export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number }>
+/** `answerBytes` bounds `/v1/fetch`; `callAnswerBytes` keeps the legacy `/v1/call` allowance until that path is deleted.
+ * `invocationMs` is the runner's invocation timeout (`invokeTimeoutMs` in app-runner/supervisor.ts), and `marginMs` is
+ * what a fetch leaves for the handler to answer before the runner stops it. */
+export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number; callAnswerBytes: number; invocationMs: number; marginMs: number }>
 
-const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({ bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024 })
+const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({
+  bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024, callAnswerBytes: 2 * 1024 * 1024, invocationMs: 5000, marginMs: 250,
+})
 
 type FetchRefusal = Extract<FetchResult, { ok: false }>
 /** What a handler sees of a fetch: the executor's result without the vendor's error body, which only the Builder's model needs. */
@@ -77,13 +82,15 @@ const sweepSocketDirectory = async (directory: string): Promise<void> => {
   }
 }
 
-export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LIMITS }: Readonly<{
+export const createHandlerPorts = ({ directory, broker, limits: overrides }: Readonly<{
   directory: string
   broker: Broker
-  limits?: HandlerPortLimits
+  limits?: Partial<HandlerPortLimits>
 }>): HandlerPorts => Object.freeze({
   sweep: () => sweepSocketDirectory(directory),
   async open(scope: ConsumerScope): Promise<HandlerPort> {
+    const limits: HandlerPortLimits = { ...DEFAULT_PORT_LIMITS, ...overrides }
+    const invocationEnds = Date.now() + limits.invocationMs
     const invocationId = randomUUID()
     // A unix socket path is capped at 107 bytes, so the name stays short.
     const socketPath = join(directory, `${randomBytes(9).toString('base64url')}.s`)
@@ -93,13 +100,24 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
 
     const consumer = { kind: 'handler', invocationId, scope } as const
     // Each verb is one route. Both spend the invocation's one budget and answer with the executor's own result.
-    const routes: Readonly<Record<string, (body: unknown) => Promise<BrokerResult<unknown> | HandlerFetchResult>>> = {
-      '/v1/call': async (body) => {
-        const parsed = callBody.safeParse(body)
-        return parsed.success ? broker.call(consumer, parsed.data.operation, parsed.data.input) : refused('INPUT_REFUSED')
+    const routes: Readonly<Record<string, Readonly<{ answerBytes: number; run: (body: unknown) => Promise<BrokerResult<unknown> | HandlerFetchResult> }>>> = {
+      '/v1/call': {
+        answerBytes: limits.callAnswerBytes,
+        run: async (body) => {
+          const parsed = callBody.safeParse(body)
+          return parsed.success ? broker.call(consumer, parsed.data.operation, parsed.data.input) : refused('INPUT_REFUSED')
+        },
       },
-      // The executor's strict parse of the request is the boundary; the port only carries the JSON.
-      '/v1/fetch': async (body) => forHandler(await broker.fetch(consumer, body)),
+      // The executor's strict parse of the request is the boundary; the port only carries the JSON. The fetch gets
+      // what is left of the invocation, so the executor aborts it and frees its capacity before the runner stops the worker.
+      '/v1/fetch': {
+        answerBytes: limits.answerBytes,
+        run: async (body) => {
+          const deadlineMs = invocationEnds - Date.now() - limits.marginMs
+          if (deadlineMs <= 0) return refused('PROVIDER_TIMEOUT')
+          return forHandler(await broker.fetch(consumer, body, { deadlineMs }))
+        },
+      },
     }
 
     const handle = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
@@ -122,7 +140,7 @@ export const createHandlerPorts = ({ directory, broker, limits = DEFAULT_PORT_LI
         } catch {
           body = undefined
         }
-        answer(response, body === undefined ? refused('INPUT_REFUSED') : await route(body), limits.answerBytes)
+        answer(response, body === undefined ? refused('INPUT_REFUSED') : await route.run(body), route.answerBytes)
       } finally {
         active -= 1
       }
