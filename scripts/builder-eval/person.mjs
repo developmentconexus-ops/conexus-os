@@ -18,7 +18,6 @@ const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'
 
 const SILENT_OPTION = /n[ãa]o sei|tanto faz|qualquer|voc[êe] decide|voc[êe] escolhe/i
-const RECOMMENDED = /recomend/i
 
 const fail = (message) => {
   throw new Error(`builder-eval person: ${message}`)
@@ -92,16 +91,11 @@ const plain = (value) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').t
  */
 
 /**
- * Pure. What the person does when the sheet says nothing: never the option the Builder recommends.
- * An option that says so ("não sei", "tanto faz") wins; otherwise the last option that is neither
- * the first (the recommendation by convention) nor marked as recommended.
+ * Pure. What the person does when the sheet says nothing: an option that says so ("não sei", "tanto
+ * faz"), else "Não sei." in their own words. Never a guess among the Builder's options, which would
+ * read as a choice and open a follow-up the person cannot answer either.
  */
-export function silentOption(options) {
-  const said = options.find((option) => SILENT_OPTION.test(option.label))
-  if (said) return said
-  const others = options.slice(1).filter((option) => !RECOMMENDED.test(`${option.label} ${option.description}`))
-  return others.at(-1) ?? options[0]
-}
+export const silentAnswer = (options) => options.find((option) => SILENT_OPTION.test(option.label))?.label ?? SILENT_TEXT
 
 /**
  * Pure. The person's answer to a question card once the rules it touches are known. On an option
@@ -116,14 +110,15 @@ export function silentOption(options) {
 export function decideAnswer(sheet, card, matchedIds, hinted = []) {
   const rules = matchedIds.flatMap((id) => sheet.rules.filter((rule) => rule.id === id))
   const ruleIds = rules.map((rule) => rule.id)
-  if (card.options.length === 0) {
-    return rules.length === 0 ? { answer: SILENT_TEXT, via: 'silent', ruleIds } : { answer: rules.map((rule) => rule.say).join(' '), via: 'sheet', ruleIds }
-  }
+  const own = rules.map((rule) => rule.say).join(' ')
+  if (card.options.length === 0) return rules.length === 0 ? { answer: SILENT_TEXT, via: 'silent', ruleIds } : { answer: own, via: 'sheet', ruleIds }
   const byWord = card.options.filter((option) => rules.some((rule) => rule.pick.some((word) => plain(option.label).includes(plain(word)))))
   const chosen = byWord.length > 0 || rules.length === 0 ? byWord : card.options.filter((option) => hinted.includes(option.label))
+  const one = (answer) => (card.multi ? [answer] : answer)
   if (chosen.length > 0) return { answer: card.multi ? chosen.map((option) => option.label) : chosen[0].label, via: 'sheet', ruleIds }
-  const fallback = silentOption(card.options).label
-  return { answer: card.multi ? [fallback] : fallback, via: 'silent', ruleIds }
+  // A rule no option says is answered in the person's own words, in the card's free-text field.
+  if (rules.length > 0) return { answer: one(own), via: 'sheet', ruleIds }
+  return { answer: one(silentAnswer(card.options)), via: 'silent', ruleIds }
 }
 
 const matchSchema = z.object({ ruleIds: z.array(z.string()), optionLabels: z.array(z.string()) })

@@ -217,11 +217,11 @@ test('the scripted person says "Não sei." when the sheet is silent, and does no
   })
 })
 
-test('on an option card a silent sheet never clicks the first option, the Builder\'s recommendation', async () => {
+test('on an option card a silent sheet types "Não sei." and clicks no option', async () => {
   await withPage(optionsPage, async (page) => {
     const cards = createCards({ person: scriptedPerson })
     await answerPendingCard(page, cards, null)
-    assert.equal(cards.answers[0].answer, 'Ano-mês-dia')
+    assert.equal(cards.answers[0].answer, 'Não sei.')
     assert.equal(cards.answers[0].via, 'silent')
   })
 })
@@ -246,9 +246,9 @@ test('a card of three questions is answered question by question, each matched t
   await withPage(card, async (page) => {
     const cards = createCards({ person: scriptedPerson, readMessages: async () => threadWith(['ask_user', 'call-3', 'call']) })
     assert.equal(await answerPendingCard(page, cards, null), 'call:call-3')
-    assert.deepEqual(await page.evaluate(() => window.sent), [['Ano-mês-dia', 'Vencido é o título com vencimento antes de hoje e ainda não pago.', ['Total por semana']]])
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Não sei.', 'Vencido é o título com vencimento antes de hoje e ainda não pago.', ['Total por semana']]])
     assert.deepEqual(cards.answers.map(({ kind, toolCallId, title, answer, via, ruleIds }) => ({ kind, toolCallId, title, answer, via, ruleIds })), [
-      { kind: 'QUESTION', toolCallId: 'call-3', title: 'Qual formato de data?', answer: 'Ano-mês-dia', via: 'silent', ruleIds: [] },
+      { kind: 'QUESTION', toolCallId: 'call-3', title: 'Qual formato de data?', answer: 'Não sei.', via: 'silent', ruleIds: [] },
       { kind: 'QUESTION', toolCallId: 'call-3', title: 'Quando um título fica vencido?', answer: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', via: 'sheet', ruleIds: ['vencido'] },
       { kind: 'QUESTION', toolCallId: 'call-3', title: 'O que mais devo incluir por semana?', answer: 'Total por semana', via: 'sheet', ruleIds: ['semana'] },
     ])
