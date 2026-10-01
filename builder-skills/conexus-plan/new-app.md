@@ -10,7 +10,7 @@ Adapt the sections to the app; this shape is the default:
 - O que você vai ver na Prévia: cada tela em uma ou duas linhas, começando pela primeira.
 - O que você pediu: cada item com a origem, ou "não encontrado".
 - Sugestões: o que um bom app deste tipo tem e você não pediu, cada uma com o porquê. Aprovar o plano inclui as sugestões; peça ajustes para tirar alguma.
-- O que eu supus: cada suposição, para confirmar.
+- O que eu supus: cada escolha que fiz sozinho e o que muda se você escolher outra; peça ajustes para mudar alguma.
 - O que fica de fora nesta versão.
 
 ## Para construir
