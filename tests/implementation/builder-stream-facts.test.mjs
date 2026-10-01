@@ -38,10 +38,19 @@ const askingModel = () => {
   }
 }
 
-const startMount = async (t) => {
+// The model memory names a thread with, answering every call with one title.
+const titleModel = () => ({
+  specificationVersion: 'v2', provider: 'anthropic', modelId: 'title-1', supportedUrls: {},
+  async doGenerate() { return { content: [{ type: 'text', text: 'Lista de compras' }], finishReason: 'stop', usage, warnings: [] } },
+  async doStream() {
+    return { stream: streamOf([{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Lista de compras' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]) }
+  },
+})
+
+const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   const storage = new InMemoryStore()
-  const memory = new Memory({ storage, options: { lastMessages: 20, semanticRecall: false } })
-  const controller = createBuilderController({ id: 'conexus-builder', model: askingModel(), storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
+  const memory = new Memory({ storage, options: { lastMessages: 20, semanticRecall: false, ...memoryOptions } })
+  const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
@@ -155,4 +164,31 @@ test("deleting a run's session ends the browser's stream on it, so the browser r
   const ended = await stream.ended(1_000)
   await stream.close()
   assert.equal(ended, true)
+})
+
+test("the title memory gives a conversation reaches the browser's stream on the run's session as thread_title_updated", async (t) => {
+  const { base, session } = await startMount(t, { generateTitle: { model: titleModel() } }, titleModel())
+  const stream = await openStream(base)
+  void session.sendMessage({ content: 'faça uma lista de compras' })
+  const titled = await stream.event((event) => event.type === 'thread_title_updated', 5_000)
+  await stream.close()
+  assert.deepEqual(titled && { threadId: titled.threadId, title: titled.title }, { threadId: conversationId, title: 'Lista de compras' })
+})
+
+// Mastra stores the title of a first turn that parks on the person without telling the stream, so the
+// conversation list reads titles by polling. When this flips, the poll can go.
+test('a first turn that parks on a question stores its title but sends the stream no thread_title_updated', async (t) => {
+  const { base, session } = await startMount(t, { generateTitle: { model: titleModel() } })
+  const stream = await openStream(base)
+  const parked = nextEvent(session, 'agent_end')
+  void session.sendMessage({ content: 'faça uma lista de compras' })
+  await parked
+  const ended = nextEvent(session, 'agent_end')
+  await session.respondToToolSuspension({ toolCallId: 'ask-1', resumeData: ['Azul'] })
+  await ended
+  const titled = await stream.event((event) => event.type === 'thread_title_updated', 1_500)
+  await stream.close()
+  assert.equal(titled, null)
+  const listed = await fetch(`${base}/threads`, { headers }).then((response) => response.json())
+  assert.deepEqual(listed.threads.map((thread) => thread.title), ['Lista de compras'])
 })
