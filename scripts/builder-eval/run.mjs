@@ -45,6 +45,7 @@ const usage = [
   '  --base-url <url>       Hub origin; default: https://hub.conexus.localhost:3443 (any other origin needs CONEXUS_STATE)',
   '  --mask-values          Hide business values in the saved evidence: mask table cells in screenshots and replace digits in previewText',
   '  --headed               Launch a visible browser instead of headless',
+  '  --stop-at-plan         End at the first plan card: record its text and the thread (thread.json), then stop the run with the Hub\'s cancel; nothing is built',
   '  --help                 Show this help',
 ].join('\n')
 
@@ -59,7 +60,7 @@ const valueFor = (argv, index, flag) => {
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
-  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, arm: undefined, repetition: 1, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, help: false }
+  const options = { case: undefined, out: undefined, project: undefined, gradeOnly: false, model: undefined, arm: undefined, repetition: 1, noCorrection: false, hubVersion: null, projectName: undefined, maxRepairs: DEFAULT_MAX_REPAIRS, baseUrl: DEFAULT_BASE_URL, maskValues: false, headed: false, stopAtPlan: false, help: false }
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index]
     switch (flag) {
@@ -87,6 +88,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case '--base-url': options.baseUrl = valueFor(argv, index++, flag); break
       case '--mask-values': options.maskValues = true; break
       case '--headed': options.headed = true; break
+      case '--stop-at-plan': options.stopAtPlan = true; break
       case '--help': options.help = true; break
       default: fail(`unknown option ${flag}`)
     }
@@ -164,6 +166,7 @@ async function pollForSettledRun(page, projectId, excludeRunId, cards) {
     if (cards.answers.length > answered) cards.answers.at(-1).answeredAt = new Date().toISOString()
     session = await readSession(page, projectId)
     const run = session.latestBuilderRun
+    if (cards.stopAtPlan === 'plan-seen' && run) cards.stopAtPlan = await cancelRun(page, projectId, run.builderRunId)
     if (run && run.builderRunId !== excludeRunId && run.state !== 'QUEUED' && run.state !== 'RUNNING') return { session, run }
     await page.waitForTimeout(RUN_POLL_INTERVAL_MS)
   }
@@ -207,9 +210,17 @@ const UNANSWERED = ':not([data-eval-answered])'
 
 /** The cards the driver answers: its record (`answers`, shared with result.answers), the scripted person, the case's scripted
  * request for one change (`adjust`, from case.approval) and the reader of the thread's messages. */
-export function createCards({ person = null, adjust = null, readMessages = async () => [] } = {}) {
-  return { answers: [], claimed: 0, person, adjust: adjust === null ? null : { change: adjust, state: 'pending' }, readMessages }
+export function createCards({ person = null, adjust = null, readMessages = async () => [], stopAtPlan = false } = {}) {
+  return { answers: [], claimed: 0, person, adjust: adjust === null ? null : { change: adjust, state: 'pending' }, readMessages, stopAtPlan }
 }
+
+const cancelRun = (page, projectId, builderRunId) => page.evaluate(async ({ id, run }) => {
+  const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
+  const response = await fetch(`/api/control/projects/${id}/builder-session/runs/${run}/cancel`, {
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-conexus-csrf': decodeURIComponent(csrf ?? '') }, body: '{}',
+  })
+  return response.ok ? 'cancelled' : `cancel-failed-${response.status}`
+}, { id: projectId, run: builderRunId })
 
 /** Pure. The newest `ask_user` or `submit_plan` call of the thread still waiting for the person, by its tool call id; null when the thread shows none. */
 export function pendingCardCall(messages) {
@@ -258,6 +269,11 @@ export async function answerPendingCard(page, cards, answering = null) {
     const title = await card.locator('strong').first().innerText().catch(() => '')
     const shown = await card.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
     const text = await readFullPlan(page, card) ?? shown
+    if (cards.stopAtPlan) {
+      cards.stopAtPlan = 'plan-seen'
+      answers.push({ kind: 'PLAN', ...record, title, text, answer: null })
+      return signature
+    }
     if (cards.adjust?.state === 'pending') {
       cards.adjust.state = 'done'
       await card.getByLabel('O que mudar no plano').fill(cards.adjust.change)
@@ -520,6 +536,11 @@ async function sendAndSettle(page, options, caseFile, result) {
   let settled = await pollForSettledRun(page, result.projectId, previousRunId, cards)
   result.runs.push(recordOf(settled.run, false))
   result.sourceRevisionBefore = settled.run.baseSourceRevision
+  if (options.stopAtPlan) {
+    result.failure = 'STOPPED_AT_PLAN'
+    result.stopAtPlan = cards.stopAtPlan
+    return started.requestSentAt
+  }
   settled = await repairUntilBuilt(page, options, result, settled)
 
   await judgeFinalRun(page, result.projectId, result, result.runs)
@@ -668,7 +689,7 @@ export async function runCase(options) {
   const oracle = typeof rawCase.oracle === 'string' ? loadOracle(rawCase.oracle) : null
   const arm = options.arm ? resolveArm(options.arm) : null
   const modelId = options.model ?? arm?.model
-  const cards = createCards({ person, adjust: caseFile.adjust })
+  const cards = createCards({ person, adjust: caseFile.adjust, stopAtPlan: options.stopAtPlan === true })
   const runOptions = { ...options, cards, model: modelId }
   const sendRequest = sheet ? fillValues(caseFile.request, values) : caseFile.request
   const statePath = options.statePath ?? resolveStatePath(options.baseUrl)
@@ -712,6 +733,7 @@ export async function runCase(options) {
       const messages = await readThreadMessages(page, result.projectId, result.conversationId).catch(() => null)
       if (messages === null) result.lastCheckReportReason = 'thread messages could not be read'
       else {
+        if (options.stopAtPlan) writeFileSync(join(options.out, 'thread.json'), `${JSON.stringify(messages)}\n`, 'utf8')
         if (sheet?.rules.some((rule) => rule.hidden)) {
           const builderText = [...messages.filter((message) => message.role === 'assistant').flatMap((message) => messageParts(message).filter((part) => part.type === 'text').map((part) => part.text)),
             ...result.answers.filter((answer) => answer.kind === 'PLAN' || answer.kind === 'APPROVAL').map((answer) => answer.text)].join('\n')
