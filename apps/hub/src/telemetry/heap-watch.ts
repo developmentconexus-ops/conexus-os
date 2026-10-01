@@ -6,7 +6,7 @@ const INTERVAL_MS = 15_000
 
 const MEGABYTE = 1024 * 1024
 
-/** The last --max-old-space-size (MB) in the arguments, or null when none is set. */
+/** @public Tests import this at runtime from the built module. The last --max-old-space-size (MB) in the arguments, or null when none is set. */
 export const oldSpaceCapBytes = (execArgv: readonly string[], nodeOptions: string | undefined): number | null => {
   const flags = [...execArgv, ...(nodeOptions?.split(/\s+/) ?? [])]
   let megabytes: number | null = null
