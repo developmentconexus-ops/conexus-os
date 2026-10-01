@@ -319,7 +319,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
                       renderPrompt: (entry: PromptEntry) => <PendingCard
-                        key={entry.toolCallId}
                         pending={entry}
                         onAnswer={async (answer) => {
                           await answerPendingCall(projectId, runHere.conversationId, entry, answer)

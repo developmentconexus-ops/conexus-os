@@ -258,7 +258,6 @@ const finishedCallIds = (messages: readonly MastraDBMessage[]): ReadonlySet<stri
   new Set(messages.flatMap((message) => message.content.parts.flatMap((part) =>
     part.type === 'tool-invocation' && isTerminalInvocationState(part.toolInvocation.state) ? [part.toolInvocation.toolCallId] : [])))
 
-// A call the window already holds an answer for is no longer waiting on the person.
 const withoutFinishedPrompts = (state: TranscriptState, messages: readonly MastraDBMessage[]): TranscriptState => {
   const finished = finishedCallIds(messages)
   return state.entries.some((entry) => entry.kind === 'prompt' && finished.has(entry.toolCallId))
@@ -416,7 +415,7 @@ const reconcileToolResults = (state: TranscriptState, messages: readonly MastraD
 
 // Live user signals carry text in data.contents; persisted signals use text parts.
 const withRenderableSignalText = (message: MastraDBMessage): MastraDBMessage => {
-  const parts = message.content.parts ?? []
+  const parts = message.content.parts
   if (parts.some((part) => part.type === 'text' && part.text.trim().length > 0)) return message
   const text = parts.map((part) => part.type === 'data-user-message' && 'data' in part ? signalContentsToText(part.data) : '').filter(Boolean).join('\n')
   if (!text) return message
@@ -441,7 +440,6 @@ const signalType = (message: MastraDBMessage): unknown => {
   return signal && typeof signal === 'object' && !Array.isArray(signal) ? (signal as Record<string, unknown>).type : undefined
 }
 
-// A person's message reaches the thread as a user signal; it is drawn as the person's, with its text.
 const toMessageEntry = (message: MastraDBMessage, options: Readonly<{ streaming?: boolean | undefined; runtimeTools?: MessageEntry['runtimeTools'] | undefined }> = {}): MessageEntry => {
   const userSignal = signalType(message) === 'user' || signalType(message) === 'user-message'
   return {
@@ -558,7 +556,7 @@ const toolCallFromPart = (part: MessagePart | undefined): RuntimeTool | undefine
 
 const toolPart = (tool: RuntimeTool): MessagePart => tool.status === 'running'
   ? { type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args } }
-  // The isError a persisted result invocation carries.
+  // Mastra's part type omits isError, which an errored result carries.
   : { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args, result: tool.result, ...(tool.status === 'error' ? { isError: true } : {}) } as ToolInvocationPart['toolInvocation'] }
 
 const withTool = (state: TranscriptState, toolCallId: string, update: (tool: RuntimeTool) => RuntimeTool, seed?: Partial<RuntimeTool>): TranscriptState => {

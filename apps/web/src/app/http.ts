@@ -2,7 +2,7 @@
 // token it set in its cookie, echoed in a header, so the cookie is read here and nowhere else.
 
 /** The Hub's CSRF token, empty before the Hub has set it. */
-export const csrfToken = (): string =>
+const csrfToken = (): string =>
   decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
 /** `fetch` with the Hub session cookie, and the CSRF header on anything but a read. */

@@ -94,7 +94,7 @@ const readMessages = async (base) => {
   return (await response.json()).messages
 }
 
-// An SSE body read as parsed events; `within` answers null when nothing arrives in time.
+// An SSE body read as parsed events; a wait that times out answers null.
 const openStream = async (base) => {
   const response = await fetch(`${base}/stream?sessionScope=${runScope}`, { headers })
   assert.equal(response.status, 200)

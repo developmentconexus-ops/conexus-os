@@ -15,7 +15,7 @@ import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
 import { humanizeModelName } from '../composer/model-display-name'
 import type { BuilderModel, MastraDBMessage, PromptEntry, TranscriptEntry } from '../mastra-session'
-import type { RuntimeTool } from '../transcript.ts'
+import type { MessageEntry, RuntimeTool } from '../transcript.ts'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
@@ -52,7 +52,7 @@ const callState = (part: ToolInvocationPart, working: boolean): CallState => {
   return working ? 'running' : 'failed'
 }
 
-// What a call reports while it runs, kept beside the entry that draws it.
+// Whether a run works here, and the output the stream reported for each call by its id.
 type Calls = Readonly<{ working: boolean; runtime: ReadonlyMap<string, RuntimeTool> }>
 
 // What the person asked and was answered: the controller words the answer in English, one
@@ -204,7 +204,6 @@ function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | nul
   </div>
 }
 
-type MessageEntry = Extract<TranscriptEntry, { kind: 'message' }>
 
 // One flat sequence of pieces, built once from the transcript and the orphan requests in order, so a
 // run of tool calls groups across whatever message ids the controller split it into.
@@ -329,7 +328,6 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
   const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
   const pieces: Piece[] = []
-  // Whether the agent has said anything since the person last spoke.
   let spokeSinceUser = false
   const requestsBefore = (at: number): void => {
     while (orphans.length && (orphans[0]?.at ?? 0) < at) {

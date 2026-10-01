@@ -17,7 +17,6 @@ type Stream = Readonly<{
 
 type SharedSubscription = {
   state: StreamState
-  // A subscribe attempt is in flight; another must not start.
   connecting: boolean
   eventListeners: Set<(event: AgentControllerEvent) => void>
   stateListeners: Set<(state: StreamState, previous: StreamState) => void>

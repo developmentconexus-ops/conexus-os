@@ -144,5 +144,5 @@ test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails
     'apps/web/src/features/builder/api.ts': `export const a = 1\n${reader}`,
   }))
   assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch or csrfToken from apps/web/src/app/http.ts\n')
+  assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
 })
