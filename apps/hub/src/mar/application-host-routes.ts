@@ -5,8 +5,11 @@ import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
-import { API_BODY_LIMIT, applicationHostContentSecurityPolicy, callerLeft, OPERATION, pathForRequest, SERVER_ROOT } from './preview-routes.js'
+import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
+import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
+import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 
+const ENTRY_PATH = 'index.html'
 const SESSION_COOKIE = '__Host-conexus_app'
 const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
 const SIGN_IN_SECONDS = 600
@@ -175,12 +178,21 @@ export const registerApplicationHostRoutes = async (
       const navigation = request.headers['sec-fetch-mode'] === 'navigate' && request.headers['sec-fetch-dest'] === 'document'
       return navigation ? startSignIn(request, reply, target.slug) : refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
     }
-    const path = pathForRequest(request.url.split('?', 1)[0] ?? '')
-    // The server tree is the runner's; the browser never receives it.
-    if (!path || path.startsWith(SERVER_ROOT)) return reply.code(404).send()
-    const read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path })
+    const pathname = request.url.split('?', 1)[0] ?? ''
+    // The host cannot list the files without a second read, so it asks the classifier as if the path were
+    // declared and, when the read finds nothing, as if it were not.
+    let served = classifyAppPath(request.method, pathname, () => true)
+    if (served.kind === 'not-found') return reply.code(404).send()
+    let requested = served.kind === 'file' ? served.path : ENTRY_PATH
+    let read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
+    if (read.kind === 'NOT_FOUND' && served.kind === 'file') {
+      served = classifyAppPath(request.method, pathname, () => false)
+      if (served.kind !== 'app-shell') return reply.code(404).send()
+      requested = ENTRY_PATH
+      read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
+    }
     if (read.kind === 'NOT_SERVED') return html(reply, 503, NOT_READY)
-    if (read.kind === 'NOT_FOUND' || read.file.path !== path || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
+    if (read.kind === 'NOT_FOUND' || read.file.path !== requested || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
     return reply.type(read.file.mediaType).send(Buffer.from(read.file.bytes))
   }
   app.get('/', serve)
