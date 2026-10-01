@@ -25,11 +25,12 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
 | `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
 | `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
-| `hub_factory` | `factory-storage` | `builder/factory.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
+| `hub_factory` | `factory-storage` | `builder/module.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
+| `hub_model_account` | `model-account` | `builder/module.ts` | `CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE` |
 
-These eight and the six owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner`, `builder_owner` and `connector_owner` are every role the product has. A cluster
-built from `apps/hub/migrations/` holds exactly those fourteen. `0009_remove_model_connections.sql`
+These nine and the seven owner roles `iam_owner`, `workspace_owner`, `project_owner`,
+`registry_owner`, `builder_owner`, `connector_owner` and `model_owner` are every role the product
+has. A cluster built from `apps/hub/migrations/` holds exactly those sixteen. `0009_remove_model_connections.sql`
 dropped `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and
 leaves either one in place while another database on the cluster still grants to it.
 `connector_owner`, added by `0029_connector.sql`, is `NOLOGIN` like every owner role: it owns the
@@ -69,14 +70,13 @@ The exception is bounded in both directions:
 
 - `hub_factory` holds `CREATE` and `USAGE` on `factory`, as its owner, and no grant on any other
   schema, table or Hub function. Like every role, it can name `public`, which is empty.
-- No other role holds any grant on `factory`. The Hub reads a Project's binding to the Factory
-  through `builder.factory_binding`, owned by `builder_owner` like the rest of `builder`, never
-  from Factory tables.
+- No other role holds any grant on `factory`. The Hub never reads Factory tables for a Project:
+  its source is its repository in the Conexus Git, recorded in `builder.project_repository`.
 
 `scripts/hub-catalog.mjs` leaves the objects inside `factory` out of the catalog snapshot, because
 they are the package's, not the migrations'. The `factory` schema line itself stays, with its owner
 and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
-`tests/implementation/builder-factory-binding-postgres.test.mjs` asserts both bounds.
+`tests/implementation/builder-conexus-git-postgres.test.mjs` asserts both bounds.
 
 Its register row is `"optional": true`, so a Hub without `CONEXUS_DB_FACTORY_PASSWORD_FILE` leaves it
 out of the startup census instead of reporting it `unconfigured`. With the file, it is censused like
