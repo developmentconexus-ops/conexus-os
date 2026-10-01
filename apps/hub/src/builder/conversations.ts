@@ -11,10 +11,6 @@ export const projectResourceId = (projectId: string): string => `project:${proje
 export type Conversations = ReturnType<typeof createConversations>
 
 export const createConversations = (memory: () => Promise<MemoryStorage>) => {
-  const threadOf = async (projectId: string, conversationId: string) => {
-    const thread = await (await memory()).getThreadById({ threadId: conversationId })
-    return thread && thread.resourceId === projectResourceId(projectId) ? thread : null
-  }
   return Object.freeze({
     /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
     ownerOf: async (projectId: string, conversationId: string): Promise<'PROJECT' | 'OTHER' | 'NONE'> => {
