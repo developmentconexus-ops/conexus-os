@@ -142,7 +142,10 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
           const reasoning = part.reasoning + event.event.delta
           parts[partIndex] = { ...part, reasoning, details: [{ type: 'text', text: reasoning }] }
         } else {
-          if (mappedIndex !== undefined && partIndex >= parts.length) return state
+          // A tab that was hidden missed the parts before this one. Writing past the end would leave a
+          // hole that the next copy of the array turns into undefined; the window refetch brings the part.
+          if (partIndex > parts.length) return state
+          if (mappedIndex !== undefined && partIndex === parts.length) return state
           parts[partIndex] = event.event.part
         }
       }

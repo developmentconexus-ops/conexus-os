@@ -635,3 +635,12 @@ test('a window copy carries the step boundaries storage adds, and still complete
   assert.deepEqual(ids(state), ['turn-1'])
   assert.deepEqual(partsOf(state.entries[0]), [text('Vou criar.'), toolPart('c1', 'result', { result: 'ok' }), text('Pronto.')])
 })
+
+test('a part delta that skips parts the tab never saw leaves no hole, so the next delta does not crash the page', () => {
+  let state = start(hydrate([]), dbMessage('assistant-1', 'assistant', [text('Hello')]))
+  state = event(state, { type: 'message_update', id: 'assistant-1', event: { type: 'part', index: 3, part: toolPart('tool-9', 'call') } })
+  state = event(state, { type: 'message_update', id: 'assistant-1', event: { type: 'text-delta', delta: ' world' } })
+  assert.deepEqual(partsOf(state.entries[0]), [text('Hello world')])
+  state = merge(state, [dbMessage('assistant-1', 'assistant', [text('Hello world'), toolPart('tool-9', 'result', { result: 'ok' })])])
+  assert.deepEqual(partsOf(state.entries[0]).map((part) => part.type), ['text', 'tool-invocation'])
+})
