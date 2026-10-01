@@ -6,7 +6,7 @@
 
 export const APPROVE_LABEL = 'Aprovar e construir'
 export const ADJUST_LABEL = 'Pedir ajustes'
-export const PLAN_FILE = '.conexus/plan.md'
+const PLAN_FILE = '.conexus/plan.md'
 const LEGACY_PLAN_DIR = '.conexus/plans/'
 const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
 
@@ -25,7 +25,7 @@ export const isApprovalOptions = (labels) => {
 }
 
 /** @returns {'ask_user' | 'submit_plan' | null} how this tool call asked for the approval. */
-export function approvalVia(call) {
+function approvalVia(call) {
   if (call.entityName === 'ask_user') {
     const options = Array.isArray(call.input?.options) ? call.input.options : []
     return isApprovalOptions(options.map((option) => (typeof option === 'string' ? option : option?.label))) ? 'ask_user' : null
@@ -75,7 +75,7 @@ export function flowOf(calls) {
 }
 
 /** Pure. The approval path the driver's own record of answered cards shows, for a run with no trace. */
-export const approvalViaAnswers = (answers) => (answers.some((answer) => answer.kind === 'APPROVAL') ? 'ask_user' : answers.some((answer) => answer.kind === 'PLAN') ? 'submit_plan' : null)
+const approvalViaAnswers = (answers) => (answers.some((answer) => answer.kind === 'APPROVAL') ? 'ask_user' : answers.some((answer) => answer.kind === 'PLAN') ? 'submit_plan' : null)
 
 /** The case's `plan` key: whether the request should get a plan and an approval. */
 export const PLAN_EXPECTATIONS = Object.freeze(['expected', 'notApplicable'])

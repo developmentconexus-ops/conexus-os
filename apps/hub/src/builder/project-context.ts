@@ -17,7 +17,7 @@ const MEMORY_LIMIT_LINES = 200
 export const PROJECT_FILE_READ_LIMIT = 1024 * 1024
 
 /** What `readBlob` answers: null when the path is not there, bytes null when the file is past the read limit. */
-export type ProjectBlob = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
+type ProjectBlob = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
 /** A blob, or undefined when reading it failed. */
 export type ProjectFile = ProjectBlob | undefined
 

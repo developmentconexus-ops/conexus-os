@@ -25,7 +25,7 @@ const promptFile = (path: string): string => {
   return text
 }
 
-export type PromptValues = Readonly<{
+type PromptValues = Readonly<{
   projectName: string
   /** Today, `YYYY-MM-DD`, in the Hub's clock for `America/Sao_Paulo`. */
   date: string
@@ -44,7 +44,10 @@ export type PromptValues = Readonly<{
 // One pass over the template, so text a placeholder brings in is never read as another placeholder.
 const PLACEHOLDER = /^- This app is new: it has only the starter screen\.\n| Your knowledge cutoff: \{cutoff\}\.|^- `\{name\}`: \{integrator\} \(skill `conexus-\{integrator\}`\)$|\{project name\}|\{date\}|\{AGENTS\.md content\}|\{index\}/gm
 
-/** Fills the prompt's placeholders. A placeholder the template has no slot for is an error in the template, never in the values. */
+/**
+ * @public Tests import this at runtime from the built module.
+ * Fills the prompt's placeholders. A placeholder the template has no slot for is an error in the template, never in the values.
+ */
 export const fillPrompt = (template: string, values: PromptValues): string => template.replace(PLACEHOLDER, (slot) => {
   if (slot.startsWith('- This app is new')) return values.isNew ? slot : ''
   if (slot.startsWith(' Your knowledge cutoff')) return values.cutoff ? ` Your knowledge cutoff: ${values.cutoff}.` : ''
