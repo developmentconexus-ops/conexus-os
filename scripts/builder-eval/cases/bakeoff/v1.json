@@ -1,0 +1,70 @@
+{
+  "request": "Quero um app para acompanhar as visitas dos vendedores aos clientes.",
+  "checks": [],
+  "oracle": "v1",
+  "person": {
+    "projectName": "Visitas",
+    "persona": "diretor comercial, que hoje controla as visitas numa planilha e sabe o que quer ver mas não pensa em telas nem em tabelas.",
+    "answers": [
+      {
+        "id": "origem-visitas",
+        "topic": "onde as visitas são registradas hoje, de onde vêm os dados de visita",
+        "say": "Hoje as visitas ficam numa planilha. O vendedor vai passar a registrar direto no app.",
+        "pick": [
+          "planilha",
+          "registrar no app",
+          "no app"
+        ]
+      },
+      {
+        "id": "quem-registra",
+        "topic": "quem registra a visita e o que informa nela (cliente, data, resultado)",
+        "say": "O próprio vendedor registra: o cliente, a data e um resumo do que foi conversado.",
+        "pick": [
+          "vendedor registra",
+          "o vendedor"
+        ]
+      },
+      {
+        "id": "vendedor-ve-so-as-suas",
+        "topic": "se cada vendedor vê só as próprias visitas ou todas",
+        "say": "Cada vendedor deve ver só as suas visitas. Eu, como diretor, vejo todas.",
+        "pick": [
+          "só as próprias",
+          "apenas as suas",
+          "cada vendedor"
+        ],
+        "hidden": true
+      },
+      {
+        "id": "total-semanal",
+        "topic": "totais ou resumo por período para a diretoria, como visitas por semana",
+        "say": "Eu quero ver o total de visitas por semana, por vendedor.",
+        "pick": [
+          "semana",
+          "semanal"
+        ],
+        "hidden": true
+      },
+      {
+        "id": "sem-visita",
+        "topic": "alerta ou destaque para cliente sem visita há muito tempo",
+        "say": "Cliente que ficou 60 dias sem visita é problema, quero ele destacado.",
+        "pick": [
+          "60 dias",
+          "sem visita"
+        ],
+        "hidden": true
+      },
+      {
+        "id": "clientes",
+        "topic": "de onde vem a lista de clientes que o vendedor visita",
+        "say": "Os clientes são os do Sankhya, o vendedor escolhe na lista.",
+        "pick": [
+          "sankhya",
+          "cadastro"
+        ]
+      }
+    ]
+  }
+}

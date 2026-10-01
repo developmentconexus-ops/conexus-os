@@ -10,13 +10,14 @@ const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
 mkdirSync(cacheRoot, { recursive: true })
 
 const {
-  APPLICATION_CHECK_FILES,
-  APPLICATION_CHECK_INSTRUCTION,
-  materializeApplicationCheck,
-  FIXED_APPLICATION_STARTER_FILES,
+  APPLICATION_CHECK_EXCLUDED,
+  APPLICATION_SHAPE_FILES,
+  materializeApplicationShape,
+  fixedApplicationStarterFiles,
   materializeFixedApplicationStarter,
-  removeStaleServerSkill,
 } = await import(hubModuleUrl('builder/application-starter.js'))
+
+const FIXED_APPLICATION_STARTER_FILES = fixedApplicationStarterFiles(repositoryRoot)
 
 const commandResult = (result) => ({
   success: result.status === 0,
@@ -49,8 +50,46 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     assert.equal(result, 'MATERIALIZED')
     assert.deepEqual(FIXED_APPLICATION_STARTER_FILES.map((file) => file.path), [
       'app/index.html',
+      'app/src/components/ui/LICENSE-shadcn-ui.txt',
+      'app/src/components/ui/alert-dialog.tsx',
+      'app/src/components/ui/alert.tsx',
+      'app/src/components/ui/badge.tsx',
+      'app/src/components/ui/breadcrumb.tsx',
+      'app/src/components/ui/button.tsx',
+      'app/src/components/ui/calendar.tsx',
+      'app/src/components/ui/card.tsx',
+      'app/src/components/ui/chart.tsx',
+      'app/src/components/ui/checkbox.tsx',
+      'app/src/components/ui/dialog.tsx',
+      'app/src/components/ui/dropdown-menu.tsx',
+      'app/src/components/ui/empty.tsx',
+      'app/src/components/ui/field.tsx',
+      'app/src/components/ui/input.tsx',
+      'app/src/components/ui/label.tsx',
+      'app/src/components/ui/pagination.tsx',
+      'app/src/components/ui/popover.tsx',
+      'app/src/components/ui/radio-group.tsx',
+      'app/src/components/ui/select.tsx',
+      'app/src/components/ui/separator.tsx',
+      'app/src/components/ui/sheet.tsx',
+      'app/src/components/ui/sidebar.tsx',
+      'app/src/components/ui/skeleton.tsx',
+      'app/src/components/ui/spinner.tsx',
+      'app/src/components/ui/switch.tsx',
+      'app/src/components/ui/table.tsx',
+      'app/src/components/ui/tabs.tsx',
+      'app/src/components/ui/textarea.tsx',
+      'app/src/components/ui/toast.tsx',
+      'app/src/components/ui/tooltip.tsx',
+      'app/src/hooks/use-mobile.ts',
+      'app/src/lib/errors.ts',
+      'app/src/lib/format.ts',
+      'app/src/lib/utils.ts',
+      'app/src/lib/zod.ts',
       'app/src/main.tsx',
-      'app/src/style.css',
+      'app/src/router.tsx',
+      'app/src/routes/home.tsx',
+      'app/src/styles.css',
     ])
     assert.deepEqual(writes, FIXED_APPLICATION_STARTER_FILES.map((file) => join(root, file.path)))
     for (const file of FIXED_APPLICATION_STARTER_FILES) {
@@ -58,10 +97,12 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
     }
     assert.match(readFileSync(join(root, 'app/index.html'), 'utf8'), /<div id="root"><\/div>/)
     assert.match(readFileSync(join(root, 'app/index.html'), 'utf8'), /src="\/src\/main\.tsx"/)
-    assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /createRoot/)
-    assert.match(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /\.\/style\.css/)
-    assert.doesNotMatch(readFileSync(join(root, 'app/src/main.tsx'), 'utf8'), /counter|business|seed/i)
-    assert.match(readFileSync(join(root, 'app/src/style.css'), 'utf8'), /body \{[\s\S]*margin: 0;/)
+    const main = readFileSync(join(root, 'app/src/main.tsx'), 'utf8')
+    for (const part of ['<CSPProvider disableStyleElements>', '<QueryClientProvider client={queryClient}>', '<RouterProvider router={router} />', '<Toaster>', "import './styles.css'"]) {
+      assert.equal(main.includes(part), true, `main.tsx lacks ${part}`)
+    }
+    assert.doesNotMatch(main, /counter|business|seed/i)
+    assert.match(readFileSync(join(root, 'app/src/styles.css'), 'utf8'), /@theme inline \{/)
 
     const beforeSecondRequest = new Map(FIXED_APPLICATION_STARTER_FILES.map((file) => [file.path, readFileSync(join(root, file.path), 'utf8')]))
     assert.equal(await materializeFixedApplicationStarter({
@@ -102,81 +143,58 @@ test('preserves every existing app entry, including a different source filename'
   }
 })
 
-test('the application check builds app/ and then the server half into /tmp/conexus-check-dist', () => {
-  assert.deepEqual(APPLICATION_CHECK_FILES.map((file) => file.path), ['conexus.json', 'conexus/check.sh'])
-  const [manifest, check] = APPLICATION_CHECK_FILES.map((file) => file.content)
-  assert.deepEqual(JSON.parse(manifest), { shape: 'REACT_VITE_V1', check: 'sh conexus/check.sh' })
-  assert.equal(check, [
-    '#!/bin/sh',
-    '# Builds app/ and the conexus/ server half the way Conexus builds them before a Preview. Run it from the repository root.',
-    'set -eu',
-    'root=$(cd "$(dirname "$0")/.." && pwd)',
-    'ln -sfn /opt/conexus/compiler/node_modules "$root/app/node_modules"',
-    'cd "$root/app"',
-    'CONEXUS_COMPILE_ROOT="$root/app" node /opt/conexus/compiler/node_modules/vite/bin/vite.js build --config /opt/conexus/compiler/vite.config.mjs --configLoader native --outDir /tmp/conexus-check-dist --emptyOutDir',
-    'node /opt/conexus/server-build.mjs "$root" /tmp/conexus-check-dist',
-    '',
-  ].join('\n'))
-  assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
+test('the starter carries a shape file and no check script or check field', () => {
+  assert.deepEqual(APPLICATION_SHAPE_FILES.map((file) => file.path), ['conexus.json'])
+  assert.deepEqual(JSON.parse(APPLICATION_SHAPE_FILES[0].content), { shape: 'REACT_VITE_V2' })
+  assert.deepEqual(fixedApplicationStarterFiles().map((file) => file.path).filter((path) => /(^|\/)check\.(sh|mjs)$/.test(path) || path.startsWith('conexus/')), [])
 })
 
-test('the global conexus-server skill matches the check it documents', () => {
-  const guide = readFileSync(resolve(repositoryRoot, 'factory-skills/conexus-server/SKILL.md'), 'utf8')
+test('the candidate pull leaves out the compiler link and every generated file', () => {
+  assert.deepEqual(APPLICATION_CHECK_EXCLUDED, ['app/node_modules', '*.gen.ts'])
+})
+
+test('the starter files give the people an AGENTS.md for their instructions and the Builder an empty memory index', async () => {
+  const { starterProjectFiles } = await import(hubModuleUrl('builder/project-context.js'))
+  const files = starterProjectFiles()
+  assert.deepEqual(files.map((file) => file.path), ['AGENTS.md', '.conexus/memory/MEMORY.md'])
+  assert.equal(files[1].content, '## Regras\n\n## Fontes\n\n## Decisões\n\n## Preferências\n')
+  assert.ok(files[0].content.length < 500, 'the starter AGENTS.md is short')
+  assert.doesNotMatch(files[0].content, /Project knowledge/)
+})
+
+test('the global conexus-server skill matches the check it documents', async () => {
+  const guide = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
-  assert.deepEqual(Object.keys(example.operations), ['listItems'])
-  assert.match(guide, /fetch\('\/__conexus\/api\/listItems'/)
+  assert.deepEqual(Object.keys(example.operations), ['listTickets', 'changeTicketStatus'])
+  const { admitManifest } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+  assert.doesNotThrow(() => admitManifest(example, 'source'))
+  assert.match(guide, /app\/src\/conexus\/api\.gen\.ts/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
   // The handler contract names the caller beside db and tells the Builder never to take it from input.
   assert.match(guide, /type Caller = \{ accountId: string; email: string \| null; displayName: string \}/)
   assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
   assert.match(guide, /never add a name or author field to the input/)
+  assert.doesNotMatch(guide, /conexus\/check\.sh/)
 })
 
-test('writes only the application check files a checkout lacks, and never over a symlink', async () => {
+test('writes only the shape file a checkout lacks, and never over a symlink', async () => {
   const root = mkdtempSync(resolve(cacheRoot, 'starter-check-'))
   try {
-    mkdirSync(join(root, 'conexus'))
-    writeFileSync(join(root, 'conexus/check.sh'), 'echo edited by the agent\n')
     const writes = []
-    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.deepEqual(writes, [join(root, 'conexus.json')])
-    assert.equal(readFileSync(join(root, 'conexus/check.sh'), 'utf8'), 'echo edited by the agent\n')
+    writeFileSync(join(root, 'conexus.json'), '{ "shape": "edited by the agent" }\n')
 
-    await materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) })
+    await materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) })
     assert.equal(writes.length, 1)
+    assert.equal(readFileSync(join(root, 'conexus.json'), 'utf8'), '{ "shape": "edited by the agent" }\n')
 
     rmSync(join(root, 'conexus.json'))
     symlinkSync('/etc/hostname', join(root, 'conexus.json'))
-    await assert.rejects(materializeApplicationCheck({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
+    await assert.rejects(materializeApplicationShape({ repositoryRoot: root, ...localWorkspace(root, writes) }), /BUILDER_STARTER_ENTRY_UNSAFE/)
     assert.equal(writes.length, 1)
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-})
-
-test('removeStaleServerSkill deletes a checkout own copy of the skill the Builder now serves globally', async () => {
-  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-'))
-  try {
-    mkdirSync(join(root, '.agents/skills/conexus-server'), { recursive: true })
-    writeFileSync(join(root, '.agents/skills/conexus-server/SKILL.md'), 'a stale Project copy\n')
-    writeFileSync(join(root, '.agents/skills/conexus-server/extra.txt'), 'leftover\n')
-    const writes = []
-    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.deepEqual(readdirSync(join(root, '.agents/skills')), [])
-    assert.deepEqual(writes, [])
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-})
-
-test('removeStaleServerSkill is a no-op when the checkout never carried the skill', async () => {
-  const root = mkdtempSync(resolve(cacheRoot, 'stale-skill-absent-'))
-  try {
-    const writes = []
-    await removeStaleServerSkill({ repositoryRoot: root, ...localWorkspace(root, writes) })
-    assert.deepEqual(readdirSync(root), [])
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -194,7 +212,7 @@ test('a successful inspection that also wrote to stderr still decides the entry'
     ...scriptedWorkspace({ success: true, exitCode: 0, stdout: 'ABSENT', stderr: 'sh: warning: setlocale: LC_ALL: cannot change locale\n' }, writes),
   })
   assert.equal(result, 'MATERIALIZED')
-  assert.deepEqual(writes, ['/workspace/app/app/index.html', '/workspace/app/app/src/main.tsx', '/workspace/app/app/src/style.css'])
+  assert.deepEqual(writes, FIXED_APPLICATION_STARTER_FILES.map((file) => join('/workspace/app', file.path)))
 })
 
 test('a failed inspection keeps its exit code and a bounded, redacted stderr as the cause', async () => {

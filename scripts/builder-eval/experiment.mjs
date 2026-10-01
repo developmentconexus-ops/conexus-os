@@ -15,7 +15,9 @@ import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers
  * never may, so the digest is the experiment's identity check on resume.
  * @typedef {Readonly<{ baseUrl: string, hubVersion: string, simulatorOrigin: string, maxRepairs: number, model: string }>} Setup
  */
-/** @typedef {Readonly<{ id: string, model: string }>} Arm  id is the file stem; the file admits only "model". */
+/**
+ * @typedef {Readonly<{ id: string, model: string }>} Arm  id is the file stem; the file admits "model" only.
+ */
 /**
  * The dataset item's input. A fixture binds the Project to the simulator serving it; a case with no
  * fixture runs on a Project with no binding at all.

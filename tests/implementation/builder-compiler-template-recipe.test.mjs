@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
@@ -7,7 +7,7 @@ import test from 'node:test'
 const root = resolve(import.meta.dirname, '../..')
 const recipe = resolve(root, 'apps/hub/compiler-template')
 const read = (name) => readFileSync(resolve(recipe, name), 'utf8')
-const runtime = read('../src/builder/application-artifact-runtime.ts')
+const check = read('../src/builder/application-check.ts')
 const manifest = JSON.parse(read('package.json'))
 const lock = JSON.parse(read('package-lock.json'))
 const viteConfig = (await import(pathToFileURL(resolve(recipe, 'vite.config.mjs')).href)).default
@@ -28,8 +28,8 @@ test('the template recipe carries every committed compiler file verbatim and ins
 test('the committed vite config builds the directories the compile step writes and reads', () => {
   assert.equal(viteConfig.root, '/workspace/app')
   assert.equal(viteConfig.build.outDir, '/workspace/dist')
-  assert.match(runtime, /const DEFAULT_WORK_ROOT = '\/workspace'/)
-  assert.match(runtime, /const distRoot = \(place: BuildPlace\): string => `\$\{place\.workRoot\}\/dist`/)
+  assert.match(check, /'--outDir', out, '--emptyOutDir'/)
+  assert.match(check, /CONEXUS_COMPILE_ROOT: appRoot/)
 })
 
 test('the vite root follows CONEXUS_COMPILE_ROOT, so the agent sandbox can build its own checkout', async () => {
@@ -44,8 +44,9 @@ test('the vite root follows CONEXUS_COMPILE_ROOT, so the agent sandbox can build
 })
 
 test('the compile command runs the vite this manifest installs, from where the template puts it', () => {
-  assert.match(runtime, /node \/opt\/conexus\/compiler\/node_modules\/vite\/bin\/vite\.js build --config \/opt\/conexus\/compiler\/vite\.config\.mjs/)
-  assert.match(runtime, /ln -sfn \/opt\/conexus\/compiler\/node_modules \$\{input\.appRoot\}\/node_modules/)
+  assert.match(check, /const compiler = join\(tools, 'compiler'\)/)
+  assert.match(check, /join\(compiler, 'node_modules\/vite\/bin\/vite\.js'\), 'build', '--config', join\(compiler, 'vite\.config\.mjs'\)/)
+  assert.match(check, /symlinkSync\(join\(compiler, 'node_modules'\), join\(appRoot, 'node_modules'\)\)/)
   assert.equal(typeof manifest.dependencies.vite, 'string')
 })
 
@@ -64,12 +65,15 @@ test('the node the compiler installs for is the node the agent template pins', (
 })
 
 test('the application the starter writes only needs what the manifest installs', () => {
-  const starter = read('../src/builder/application-starter.ts')
-  // Everything from this declaration on is the application's own source, not the module's imports.
-  const appSource = starter.slice(starter.indexOf('FIXED_APPLICATION_STARTER_FILES'))
-  const imported = [...appSource.matchAll(/^import .*? from '([^'.][^']*)'$/gm)].map(([, name]) => name)
-  assert.equal(imported.length > 0, true)
-  for (const name of imported) {
+  const files = resolve(recipe, '../starter-template/files')
+  const sources = readdirSync(files, { recursive: true, encoding: 'utf8' }).filter((path) => /\.tsx?$/.test(path))
+  const imported = new Set()
+  for (const path of sources) {
+    for (const [, name] of readFileSync(resolve(files, path), 'utf8').matchAll(/(?:^|\n)\s*(?:import|export)[^'"]*?from\s+['"]([^'"]+)['"]|(?:^|\n)import\s+['"]([^'"]+)['"]/g)) if (name) imported.add(name)
+  }
+  const bare = [...imported].filter((name) => !name.startsWith('.') && !name.startsWith('@/'))
+  assert.equal(bare.includes('react'), true)
+  for (const name of bare) {
     const owner = name.startsWith('@') ? name.split('/').slice(0, 2).join('/') : name.split('/')[0]
     assert.equal(Object.hasOwn(manifest.dependencies, owner), true, `the starter imports ${owner}, which the compiler manifest does not install`)
   }

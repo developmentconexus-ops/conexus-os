@@ -449,7 +449,7 @@ try {
   // redeems, and a token no installation key opens ends the session.
   if (phase === 'verification') {
     if (!statePath.member) throw new Error('--member-state is required for the verification phase')
-    const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
+    const { createFactorySecretEncryption } = await import(new URL('../apps/hub/src/platform/factory-secret-encryption.ts', import.meta.url).href)
     const session = async () => {
       const context = await contextFor(statePath.member)
       await signInToApplication(context, APP)

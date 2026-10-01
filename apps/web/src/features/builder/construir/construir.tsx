@@ -15,7 +15,6 @@ import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectS
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
-import { getProjectRepository, projectRepositoryQueryKey } from '../../project/api'
 import {
   answerPendingCall, type Conversation, type LiveTurn, useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions,
   useProjectConversations, useSessionModel,
@@ -25,6 +24,7 @@ import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
 import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
+import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
 import { clockLabel, isActive, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
@@ -42,7 +42,7 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
+const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
 
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
@@ -54,7 +54,7 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     runId: entry.builderRunId,
     text: entry.requestText,
     createdAt: entry.createdAt,
-    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry.failureCategory) : null,
+    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry) : null,
   }])
 }
 
@@ -147,6 +147,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const history = useBuilderThreadMessages(projectId, conversationId)
   const turn = useBuilderLiveTurn(projectId, run ?? undefined, isActive(run) && run.phase === 'AGENT')
   const conversationTurn = runHere ? turn : noTurn
+  const shownMemory = conversationTurn.status === 'LIVE' && conversationTurn.memory ? conversationTurn.memory : sessionModel.memory
   const pending = Object.values(conversationTurn.waiting)
 
   // A run that settles refreshes what it touched: its session, its messages and the titles.
@@ -165,7 +166,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     mutationFn: (content: string) => {
       const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
       retainedKey.current = { key, content }
-      return sendBuilderMessage(projectId, conversationId, content, 'BUILD', key)
+      return sendBuilderMessage(projectId, conversationId, content, key)
     },
     onSuccess: async (result, content) => {
       retainedKey.current = null
@@ -188,8 +189,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   })
 
   const preview = usePreview(projectId, session.data?.preview)
-  const repository = useQuery({ queryKey: projectRepositoryQueryKey(projectId), queryFn: () => getProjectRepository(projectId) })
-  const blocked = repository.data?.state === 'UNREACHABLE'
   const working = view.kind === 'ACTIVE'
   const now = useNow(working)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
@@ -209,7 +208,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const composerMode: ComposerMode = runHere && isActive(runHere)
     ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
-    : blocked ? { kind: 'BLOCKED' }
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
@@ -228,6 +226,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const resultVersion = runHere ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === runHere.builderRunId) + 1 : 0
   const diffVersion = diffRun ? codeChangingRunsAsc.findIndex((entry) => entry.builderRunId === diffRun.builderRunId) + 1 : 0
   const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
+
+  const wait = view.kind === 'ACTIVE'
+    ? previewWait(view, runHere ? { waiting: pending.length > 0, tasks: conversationTurn.tasks } : { waiting: false, tasks: [] }, now)
+    : null
 
   const stage = <section className="cx-stage" aria-label="Palco">
     <div className="cx-stagebar">
@@ -260,7 +262,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Project…</p></div> : <>
         {/* The Preview stays mounted under the other lenses so its frame never reloads on a lens switch. */}
         <div className="cx-lens-layer" hidden={lens !== 'preview'}>
-          <LensPreview preview={preview} view={view} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
+          <LensPreview preview={preview} view={view} wait={wait} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
         {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} requestText={diffRun?.requestText ?? null} requestTime={diffRun ? clockLabel(diffRun.createdAt) : null} version={diffVersion} />}
@@ -294,11 +296,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failureCategory={runHere?.failureCategory ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
+                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
               {runHere && pending.map((entry) => <PendingCard
                 key={entry.toolCallId}
                 pending={entry}
-                onAnswer={(answer) => answerPendingCall(conversationId, runHere.builderRunId, entry, answer)}
+                onAnswer={(answer) => answerPendingCall(projectId, runHere.conversationId, entry, answer)}
               />)}
               {resultCardShown && runHere && <ResultCard
                 projectId={projectId}
@@ -311,16 +313,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                 <p>Outra conversa mudou o app antes. Nada foi sobrescrito.</p>
                 <Button size="sm" onClick={() => setDraft(runHere.requestText ?? '')}>Enviar de novo sobre a versão atual</Button>
               </div>}
-              {(settledHere?.outcome === 'STOPPED' || settledHere?.outcome === 'DISCARDED') && <p className="cx-note-line">As alterações desta execução não foram aplicadas.</p>}
+              {(settledHere?.outcome === 'STOPPED' || settledHere?.outcome === 'DISCARDED') && <p className="cx-note-line">As alterações desta execução não foram aplicadas, mas os arquivos ficaram guardados nesta conversa e seguem no próximo pedido.</p>}
             </MessageScrollerItem>
           </ChatShell.Column>
         </ChatShell.Content>
         <ChatShell.Dock className="cx-dock">
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
-        {blocked && <div className="cx-note" data-tone="warning" role="alert">
-          <p>O Conexus não consegue alcançar o repositório deste Projeto no GitHub, então novos pedidos ficam parados. A prévia continua na última versão boa. Um administrador da instalação pode reconectar o GitHub em Configurações.</p>
-        </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own
             task_write/task_update/task_check/task_complete calls, never the settled result of a
@@ -344,6 +343,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onModelChange={(modelId) => sessionModel.choose.mutate(modelId)}
           reasoning={sessionModel.reasoning}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
+          memory={shownMemory}
+          memoryFailed={conversationTurn.memoryFailed}
         />
       </ChatShell.Column>
         </ChatShell.Dock>

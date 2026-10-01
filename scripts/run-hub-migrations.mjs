@@ -41,6 +41,17 @@ const claimLockAllOpenGrantsDigest = 'e56b9f08bed9b673ed7db2457e51ff837465b46e18
 const connectorDigest = '1e5afc4d0bb35ec617672212cee135f43ca72f4fe5a67697ca6b719838988553'
 const projectDeletionDigest = 'dcc5c29c3373ba776c772e4d38270dec930009071b102688bf4d53c6668870b6'
 const projectBindingDigest = 'e85f3bbfa5f7b47f51fb1b4d30df12922c7fff4826fc1b0b44c304a65878e59a'
+const conexusGitDigest = '03db7c70c662de2bd0eedaa4916f36b8d53560c64837bd1d0a9edccff7592986'
+const modelAccountDigest = '50d243c98fac0fd74cf47a163ee8deecb1500dfc6b7dd8f7a7f079a65f86616d'
+const runModelAccountDigest = '8b89f15aa1fb81e4eed4a314cc0b314cf5d33916b62df65492bbc10ac06c3a93'
+const modelAccountByIdDigest = '611c746f0734d3300ab53c79804627245f726612bffbd0ef87bb6212ca721ba0'
+const runSettlesByChangeDigest = 'e9ee2861c028cb994dbebb151bb5ea945a2a20866da65a8dac76445a51020581'
+const applicationStackV2Digest = '80bc51c5c305246a5ddc91816e8fa81e8063996ebc7523218ca46cef3d731c0d'
+const runModelAccountsDigest = '1de462f5dd403e811ab560cf91e787e69a2efde610f21cb62a039e345389b8cc'
+const conversationSessionDigest = 'b34c286a9c12f1b21c6a672001dd0cf3d75241fd9c72ffbebca576e431c4acfe'
+const conversationSandboxDigest = '22d9add00f715c6cf681cbea139629045c8b0c44d82c20c4569545f514f4e622'
+const oneModeDigest = 'f3947f61bdcc47936af47c4491a7b9e55e457a80fcb16b10e6766f5f93473aaa'
+const compilerTemplateEnumDigest = '6ede27869772c62a255a970f6cdb92d88db166dd1ba565d0147a031192412f8c'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -74,6 +85,17 @@ const migrationDigests = new Map([
   ['0029_connector.sql', connectorDigest],
   ['0030_project_deletion.sql', projectDeletionDigest],
   ['0031_project_binding.sql', projectBindingDigest],
+  ['0032_conexus_git.sql', conexusGitDigest],
+  ['0033_model_account.sql', modelAccountDigest],
+  ['0034_builder_run_model_account.sql', runModelAccountDigest],
+  ['0035_model_account_by_id.sql', modelAccountByIdDigest],
+  ['0036_builder_run_settles_by_change.sql', runSettlesByChangeDigest],
+  ['0037_application_stack_v2.sql', applicationStackV2Digest],
+  ['0038_builder_run_model_accounts.sql', runModelAccountsDigest],
+  ['0039_builder_conversation_session.sql', conversationSessionDigest],
+  ['0040_builder_conversation_sandbox.sql', conversationSandboxDigest],
+  ['0041_builder_one_mode.sql', oneModeDigest],
+  ['0042_compiler_template_enum.sql', compilerTemplateEnumDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

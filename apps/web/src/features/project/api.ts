@@ -45,12 +45,7 @@ export type ProjectCardSummary = Readonly<{
   hasPreview: boolean
   deleting: boolean
 }>
-export type ProjectRepositoryState =
-  | Readonly<{ state: 'REACHABLE'; fullName: string; url: string }>
-  | Readonly<{ state: 'UNREACHABLE' }>
-
 export const projectSummariesQueryKey = (workspaceId: string) => ['project-summaries', workspaceId] as const
-export const projectRepositoryQueryKey = (projectId: string) => ['project-repository', projectId] as const
 
 const getJson = async <T>(url: string): Promise<T> => {
   const response = await responseFrom(fetch(url, { credentials: 'same-origin' }))
@@ -60,9 +55,6 @@ const getJson = async <T>(url: string): Promise<T> => {
 
 export const listProjectSummaries = async (workspaceId: string): Promise<readonly ProjectCardSummary[]> =>
   (await getJson<{ projects: ProjectCardSummary[] }>(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/project-summaries`)).projects
-
-export const getProjectRepository = (projectId: string): Promise<ProjectRepositoryState> =>
-  getJson(`/api/control/projects/${encodeURIComponent(projectId)}/repository`)
 
 export async function getProject(projectId: string): Promise<ProjectRepresentation> {
   const response = await responseFrom(projectClient.getProject(projectId))

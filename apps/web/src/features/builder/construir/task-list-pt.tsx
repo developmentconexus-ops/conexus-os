@@ -29,7 +29,7 @@ const TaskListPtTitle = ({ title }: { title: ReactNode }) => <span className="fl
 
 // TaskListRow's own children are hardcoded past its ...props spread and it has no aria-label prop
 // for the status icon, so the row is reproduced here instead of reused.
-const TaskListPtRow = ({ task, rowRef }: { task: TaskListItem; rowRef?: Ref<HTMLLIElement> | undefined }) => <li ref={rowRef} className="flex items-start gap-2 py-0.5">
+export const TaskListPtRow = ({ task, rowRef }: { task: TaskListItem; rowRef?: Ref<HTMLLIElement> | undefined }) => <li ref={rowRef} className="flex items-start gap-2 py-0.5">
   <TaskListStatusIcon status={task.status} aria-label={copy.status[task.status]} className="pt-0.5" />
   <span className={`text-ui-sm leading-ui-sm ${textClasses[task.status]}`}>{taskLabel(task)}</span>
 </li>

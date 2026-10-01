@@ -1,5 +1,6 @@
+import type { AgentController } from '@mastra/core/agent-controller'
 import type { Mastra } from '@mastra/core/mastra'
-import type { BuilderAgentController } from './runtime.js'
+import { RequestContext } from '@mastra/core/request-context'
 import { MastraServer } from '@mastra/fastify'
 import { SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
@@ -7,24 +8,26 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
 
-const FACTORY_MASTRA_PREFIX = '/api/mastra-factory'
+const BUILDER_PREFIX = '/api/builder'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const SESSION_BASE = '/agent-controller/:controllerId/sessions/:resourceId'
-const RUN_SCOPE = /^builder:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const PROJECT_RESOURCE = new RegExp(`^project:(${UUID})$`)
+const RUN_SCOPE = new RegExp(`^builder:${UUID}$`)
+const CONVERSATION_SCOPE = new RegExp(`^conversation:(${UUID})$`)
 
 // The run owns every turn: its session exists before its checkout is pinned and its policy set, and
 // its settlement awaits the one turn it sent. So the browser never sends a message here, not even a
-// steer or a follow-up (both open a turn in core); a new message is a new run. Everything that
-// observes or answers a session that already exists is Mastra's own route, unmodified. A
-// conversation is a source-control session row the Hub creates, so the browser may not create or
-// switch threads here either.
+// steer or a follow-up (both open a turn in core); a new message is a new run. Everything else is
+// Mastra's own route, unmodified: a Project's conversations are its threads, listed under the
+// Project's resource, and a conversation is created by opening its session on a thread id the
+// browser chose. The browser may not switch, rename, clone or delete threads here.
+const CREATE_SESSION_ROUTE = 'POST /agent-controller/:controllerId/sessions'
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
-  'GET /agent-controller/:controllerId/models',
-  'GET /agent-controller/:controllerId/modes',
+  CREATE_SESSION_ROUTE,
   `GET ${SESSION_BASE}`,
-  `GET ${SESSION_BASE}/stream`,
   `GET ${SESSION_BASE}/threads`,
-  `PUT ${SESSION_BASE}/threads/:threadId`,
+  `GET ${SESSION_BASE}/stream`,
   `GET ${SESSION_BASE}/threads/:threadId/messages`,
   `POST ${SESSION_BASE}/abort`,
   `POST ${SESSION_BASE}/model`,
@@ -32,6 +35,12 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   `POST ${SESSION_BASE}/tool-suspension`,
   `PUT ${SESSION_BASE}/state`,
 ])
+
+// Routes that read no session: the resource's threads, and a thread's messages read by id and
+// checked against the resource.
+const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([`GET ${SESSION_BASE}/threads`, `GET ${SESSION_BASE}/threads/:threadId/messages`])
+// A conversation's model changes only between runs (AC-12); a run in flight is refused.
+const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([`POST ${SESSION_BASE}/model`])
 
 // The Hub is the single writer of tool policy; the browser may only answer for the one pending
 // tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
@@ -84,27 +93,35 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection): 
   },
 } as ServerRoute)
 
+type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
+
 type GuardedMount = Readonly<{
   mastra: Mastra
-  controller: BuilderAgentController
+  controller: AgentController
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
   origin: string
   resolveCurrentSession: ResolveCurrentSession
-  admitResource(input: Readonly<{ accountId: string; resourceId: string }>): Promise<boolean>
-  // Runs after Mastra has built the request's context, so the Hub has the last word on it.
-  shapeContext?(request: FastifyRequest, accountId: string): void
+  /** Whether the Account may build this Project. */
+  admitProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
+  /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
+  conversationOwner(input: Readonly<{ projectId: string; conversationId: string }>): Promise<'PROJECT' | 'OTHER' | 'NONE'>
+  /** Whether the Project has a run queued or in flight. */
+  projectBusy(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
+  /** The live run's context, which every request the mount serves that run's session carries. */
+  runContext(scope: string): ((requestContext: RequestContext) => void) | undefined
   toolPayloads?: ToolPayloadProjection
 }>
 
-// The one guard every Mastra mount goes through. Mastra's context middleware merges a
+type Admitted = Readonly<{ accountId: string; scope: string | undefined }>
+
+// The one guard the Builder's Mastra mount goes through. Mastra's context middleware merges a
 // requestContext taken from the body or the query into the server's, so a caller could name
 // another user or Project; only the Hub sets it, and a request carrying one is refused.
 const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMount): Promise<void> => {
-  const accounts = new WeakMap<FastifyRequest, string>()
-  const approvalAnswers = new Set(APPROVAL_ANSWER_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
-  const stateRoutes = new Set(STATE_ROUTES.map((route) => route.replace(' ', ` ${mount.prefix}`)))
+  const admitted = new WeakMap<FastifyRequest, Admitted>()
+  const route = (request: FastifyRequest): string => `${request.method} ${request.routeOptions.url?.slice(mount.prefix.length) ?? ''}`
   await app.register(async (scope) => {
     scope.addHook('preHandler', async (request, reply) => {
       const session = await mount.resolveCurrentSession(request)
@@ -119,106 +136,116 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       if ((request.query as Readonly<Record<string, unknown>>).requestContext !== undefined || (typeof body === 'object' && body !== null && 'requestContext' in body)) {
         return sendProblem(reply, 400, 'request-context-refused', 'Request context is set by the server')
       }
-      if (approvalAnswers.has(`${request.method} ${request.routeOptions.url}`) && carriesPolicyChangingAnswer(body)) {
+      const key = route(request)
+      if (APPROVAL_ANSWER_ROUTES.includes(key) && carriesPolicyChangingAnswer(body)) {
         return sendProblem(reply, 400, 'tool-answer-refused', 'Only approve or decline is accepted for a pending tool call')
       }
-      if (stateRoutes.has(`${request.method} ${request.routeOptions.url}`) && !isReasoningLevelOnlyState(body)) {
+      if (STATE_ROUTES.includes(key) && !isReasoningLevelOnlyState(body)) {
         return sendProblem(reply, 400, 'session-state-refused', 'Only the reasoning level may be set')
       }
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
-      // Mastra Code names its own controller; the id the browser addresses is the one this module
-      // registered it under on the Mastra.
       if (params.controllerId !== mount.controllerId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
-      if (params.resourceId !== undefined && !await mount.admitResource({ accountId: session.account.accountId, resourceId: params.resourceId })) {
+      const accountId = session.account.accountId
+      // Opening a session names its resource, scope and thread in the body; every other session
+      // route names them in the path and the query.
+      const creating = key === CREATE_SESSION_ROUTE
+      const opened = creating && typeof body === 'object' && body !== null ? body : {}
+      const resourceId = creating ? (typeof opened.resourceId === 'string' ? opened.resourceId : undefined) : params.resourceId
+      if (resourceId === undefined && !creating) {
+        admitted.set(request, { accountId, scope: undefined })
+        return undefined
+      }
+      // Every conversation of a Project lives under the Project's own resource.
+      const projectId = resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]
+      if (!projectId || !await mount.admitProject({ accountId, projectId })) {
         return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       }
-      // Mastra's session routes get-or-create. A run's session carries that run's sandbox, so a
-      // browser arriving first would create it without one and the run would inherit the empty shell.
-      const { sessionScope } = request.query as Readonly<{ sessionScope?: string }>
-      if (sessionScope !== undefined && params.resourceId !== undefined) {
-        if (!RUN_SCOPE.test(sessionScope)) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
-        if (!await mount.controller.getSessionByResource(params.resourceId, sessionScope)) {
+      const resource = `project:${projectId}`
+      const sessionScope = creating
+        ? (typeof opened.sessionScope === 'string' ? opened.sessionScope : undefined)
+        : (request.query as Readonly<{ sessionScope?: string }>).sessionScope
+      if (SESSIONLESS_ROUTES.has(key)) {
+        admitted.set(request, { accountId, scope: undefined })
+        return undefined
+      }
+      // A conversation starts when the browser opens its session on the thread id it chose; only
+      // a run opens a run's session.
+      if (creating) {
+        const conversationId = sessionScope === undefined ? undefined : CONVERSATION_SCOPE.exec(sessionScope)?.[1]
+        if (!conversationId || opened.threadId !== conversationId) return sendProblem(reply, 400, 'conversation-session-refused', 'A conversation session opens on its own thread')
+        if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
+        admitted.set(request, { accountId, scope: sessionScope })
+        return undefined
+      }
+      // Mastra's session routes get-or-create, so the Hub decides which session a request reaches
+      // before Mastra does: the session the Hub runs a conversation's turns in (builder:<id>), which
+      // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
+      if (sessionScope !== undefined && RUN_SCOPE.test(sessionScope)) {
+        if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
+        if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
           return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
         }
+      } else {
+        const conversationId = sessionScope === undefined ? undefined : CONVERSATION_SCOPE.exec(sessionScope)?.[1]
+        if (!conversationId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
+        if (await mount.conversationOwner({ projectId, conversationId }) !== 'PROJECT') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
+        if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) {
+          return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
+        }
+        await bindConversationSession(mount.controller, resource, sessionScope as string, conversationId)
       }
-      accounts.set(request, session.account.accountId)
+      admitted.set(request, { accountId, scope: sessionScope })
+      return undefined
     })
     const server = new MastraServer({ app: scope, mastra: mount.mastra, prefix: mount.prefix })
     server.registerContextMiddleware()
-    const shapeContext = mount.shapeContext
-    if (shapeContext) {
-      scope.addHook('preHandler', async (request) => {
-        const accountId = accounts.get(request)
-        if (accountId) shapeContext(request, accountId)
-      })
-    }
-    for (const route of SERVER_ROUTES) {
-      const key = `${route.method} ${route.path}`
-      if (!mount.routes.has(key)) continue
-      const served = mount.toolPayloads && PROJECTED_ROUTES.has(key) ? projectedRoute(route, mount.toolPayloads) : route
-      await server.registerRoute(scope, served, { prefix: mount.prefix })
+    // Runs after Mastra has built the request's context, so the Hub has the last word on it.
+    scope.addHook('preHandler', async (request) => {
+      const entry = admitted.get(request)
+      if (!entry || !request.requestContext) return
+      request.requestContext.set('user', { id: entry.accountId })
+      const bind = entry.scope === undefined ? undefined : mount.runContext(entry.scope)
+      bind?.(request.requestContext)
+    })
+    for (const served of SERVER_ROUTES) {
+      const routeKey = `${served.method} ${served.path}`
+      if (!mount.routes.has(routeKey)) continue
+      await server.registerRoute(scope, mount.toolPayloads && PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served, { prefix: mount.prefix })
     }
   })
 }
 
-const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
+// A conversation's session is bound to its thread and reads the thread's settings again on every
+// request, so the model a run changed on the thread is what the browser sees and changes.
+// Its observational-memory progress is read again too: only a run's own session observes, so the
+// conversation's session learns what that run stored from Mastra's own record.
+const bindConversationSession = async (controller: AgentController, resourceId: string, scope: string, conversationId: string): Promise<BuilderSession> => {
+  const session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext: new RequestContext() })
+  await session.thread.loadMetadata()
+  await controller.loadOMProgress(session)
+  return session
+}
 
 /**
- * Serves the Factory's own routes, the ones `routes` names, at their own paths. Each handler names
- * its caller through the Factory's auth provider, which reads the same Hub session; the Hub admits
- * the request first (session, and origin plus CSRF on a write) and serves nothing else the Factory
- * has.
+ * The Builder's native session routes under `/api/builder` (spec 0002, API surface): the ones the
+ * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
+ * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerFactoryApiRoutes = async (app: FastifyInstance, { mastra, routes, origin, resolveCurrentSession, admit }: Readonly<{
-  mastra: Mastra
-  routes: ReadonlySet<string>
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
-  // The Conexus authority a route needs beyond the session, such as building the Project it names.
-  admit?(input: Readonly<{ accountId: string; params: Readonly<Record<string, string>> }>): Promise<boolean>
-}>): Promise<void> => {
-  const served = (mastra.getServer()?.apiRoutes ?? []).filter((route) => routes.has(`${route.method} ${route.path}`))
-  if (served.length !== routes.size) throw new Error('FACTORY_ROUTE_MISSING')
-  await app.register(async (scope) => {
-    scope.addHook('preHandler', async (request, reply) => {
-      if (request.method !== 'GET') {
-        const csrf = header(request.headers['x-conexus-csrf'])
-        if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
-          return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-        }
-      }
-      const session = await resolveCurrentSession(request, request.method !== 'GET')
-      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      const params = request.params as Readonly<Record<string, string>>
-      if (params.provider !== undefined && !PROVIDER.test(params.provider)) return sendProblem(reply, 404, 'model-provider-not-found', 'Model provider not found')
-      if (admit && !await admit({ accountId: session.account.accountId, params })) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
-    })
-    const server = new MastraServer({ app: scope, mastra, customApiRoutes: served })
-    server.registerContextMiddleware()
-    await server.registerCustomApiRoutes()
-  })
-}
-
-export const registerFactoryMastraRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, orgId, resolveCurrentSession, admitConversation, toolPayloads }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads }: Readonly<{
   mastra: Mastra
   controllerId: string
-  controller: BuilderAgentController
+  controller: AgentController
   origin: string
-  orgId: string
   resolveCurrentSession: ResolveCurrentSession
-  // A Factory resourceId is a conversation: its session row names the project repository, and the
-  // binding names the Project whose build authority the Account must hold.
-  admitConversation(input: Readonly<{ accountId: string; conversationId: string }>): Promise<boolean>
+  admitProject: GuardedMount['admitProject']
+  conversationOwner: GuardedMount['conversationOwner']
+  projectBusy: GuardedMount['projectBusy']
+  runContext: GuardedMount['runContext']
   /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
   toolPayloads?: ToolPayloadProjection
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, origin, resolveCurrentSession,
+  mastra, controller, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext,
   ...(toolPayloads ? { toolPayloads } : {}),
-  prefix: FACTORY_MASTRA_PREFIX,
-  controllerId,
+  prefix: BUILDER_PREFIX,
   routes: BROWSER_ROUTES,
-  admitResource: ({ accountId, resourceId }) => admitConversation({ accountId, conversationId: resourceId }),
-  shapeContext: (request, accountId) => {
-    request.requestContext?.set('user', { id: accountId, organizationId: orgId })
-  },
 })

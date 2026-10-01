@@ -30,7 +30,7 @@ Builder's prompt, mode and tools, source admission, application runtime policy, 
 capabilities, Release and Publish. The Mastra Factory and Mastra Code leave the Hub. Spec 0004
 replaces the two modes of C-032 with one. The
 [Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) qualifies this plane.
-Until its Builder pull requests merge, `main` runs the Factory-centered Builder of Stage 1.
+`main` runs it, and the Factory-centered Builder of Stage 1 is gone.
 
 ## Current trunk
 
@@ -119,12 +119,10 @@ Current baseline and challenger state:
 - Novu/Knock: deferred until a real notification requirement;
 - Cloud Run/Fly/Kubernetes/per-Project OCI deployment: future standalone/deployment profile, not Stage 2 prerequisite.
 
-### Accepted target under C-033
+### Accepted under C-033
 
-The operator accepted this app stack under C-033 on 2026-09-29. It is a target, and nothing in the
-table is installed on `main` yet. `main` still builds apps on REACT_VITE_V1. The Builder pull
-requests install the stack in the compiler template, and from then on an app imports only these
-packages. React 19.2.8, Vite 8.2.2 and TypeScript 6.0.2 stay as the V1 compiler template pins them.
+The operator accepted this app stack under C-033 on 2026-09-29. The compiler template installs it,
+and a generated app imports only these packages. React 19.2.8, Vite 8.2.2 and TypeScript 6.0.2 stay as the V1 compiler template pins them.
 
 The pinned list is the *App stack* section of [spec 0003](tasks/specs/0003-app-stack-v2/index.md).
 The alternatives come from [study 17](research/builder/17-app-stack-decision.md), section 2.2. The
@@ -146,10 +144,9 @@ In the table, S17 2.2 and S17 2.3 name those two sections.
 
 ### Accepted under C-032, amended on 2026-10-01
 
-The operator decided the model path on 2026-10-01. `@mastra/code-sdk` 1.8.3 is already a Hub
-dependency on `main`, where the Factory-centered Builder uses it. Under C-032 as amended, the Mastra
-Code product leaves the Hub, and the package stays as a pinned library that the Builder pull requests
-use.
+The operator decided the model path on 2026-10-01. Under C-032 as amended, the Mastra Code product
+and `@mastra/factory` have left the Hub, and `@mastra/code-sdk` 1.8.3 stays as a pinned library that
+the Builder uses.
 
 | Package and exact version | Consumer | Named limitation | Evidence | Alternative, and why not |
 | --- | --- | --- | --- | --- |

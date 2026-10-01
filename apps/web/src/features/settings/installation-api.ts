@@ -39,26 +39,8 @@ const administratorSchema = z.object({
 export type Administrator = z.infer<typeof administratorSchema>
 const administratorsSchema = z.object({ administrators: z.array(administratorSchema) })
 
-const memorySchema = z.object({ model: z.string().nullable() })
-
-const githubRepositorySchema = z.object({
-  slug: z.string(),
-  state: z.enum(['reachable', 'missing', 'identity-changed', 'unknown']),
-})
-const githubStatusSchema = z.object({
-  state: z.enum(['not-connected', 'connected', 'gone', 'unreachable']),
-  organization: z.object({ login: z.string(), type: z.enum(['Organization', 'User']) }).nullable(),
-  installUrl: z.string(),
-  manageUrl: z.string().nullable(),
-  repositories: z.array(githubRepositorySchema),
-})
-export type GithubStatus = z.infer<typeof githubStatusSchema>
-export type GithubRepository = z.infer<typeof githubRepositorySchema>
-
 export const installationQueryKey = ['installation'] as const
 export const administratorsQueryKey = ['installation', 'administrators'] as const
-export const installationMemoryQueryKey = ['installation', 'memory'] as const
-export const installationGithubQueryKey = ['installation', 'github'] as const
 
 export const getInstallationStatus = () => request('GET', '/api/control/installation', installationStatusSchema)
 
@@ -67,9 +49,3 @@ export const grantAdministrator = (email: string) =>
   request('POST', '/api/control/installation/administrators', z.object({ administrator: administratorSchema }), { email })
 export const revokeAdministrator = (accountId: string) =>
   request('DELETE', `/api/control/installation/administrators/${encodeURIComponent(accountId)}`, z.unknown())
-
-export const getMemoryModel = () => request('GET', '/api/control/installation/memory', memorySchema)
-export const saveMemoryModel = (model: string | null) => request('PUT', '/api/control/installation/memory', memorySchema, { model })
-
-export const getGithubStatus = () => request('GET', '/api/control/installation/github', githubStatusSchema)
-export const connectGithub = () => request('POST', '/api/control/installation/github/connect', githubStatusSchema, {})

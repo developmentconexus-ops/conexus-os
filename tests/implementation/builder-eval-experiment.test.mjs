@@ -31,6 +31,14 @@ test('loadArms reads each arm file in the order asked and refuses a key it does 
   assert.throws(() => loadArms(dir, ['flash', 'luna']), { message: 'builder-eval: arms/luna.json has unknown key modle' })
 })
 
+test('an arm names a model and nothing else: the prompt variant key is gone', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'builder-eval-arms-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  writeFileSync(join(dir, 'luna-v2.json'), '{ "model": "m-luna", "promptVariant": "v2" }')
+
+  assert.throws(() => loadArms(dir, ['luna-v2']), { message: 'builder-eval: arms/luna-v2.json has unknown key promptVariant' })
+})
+
 test('two arms, one trial: each experiment runs its case once, is graded and finalizes', async (t) => {
   const { mastra, hub, driver, run } = await experimentHarness(t, new InMemoryStore())
 
@@ -58,7 +66,7 @@ test('two arms, one trial: each experiment runs its case once, is graded and fin
 })
 
 test('a refusal case runs on a Project with no binding and is graded on the unchanged source and the final reply', async (t) => {
-  const refusal = { id: 'sankhya-not-connected', input: { request: 'Mostre o pedido de compra 40118 com os dados do Sankhya.' }, truth: { missingSystem: 'Sankhya' } }
+  const refusal = { id: 'sankhya-not-connected', input: { request: 'Mostre o pedido de compra 12345 com os dados do Sankhya.' }, truth: { missingSystem: 'Sankhya' } }
   const { mastra, hub, driver, run } = await experimentHarness(t, new InMemoryStore(), {
     replies: { 'sankhya-not-connected': 'Não há uma Conexão com o Sankhya neste Projeto. Vincule uma Conexão em Integrações.' },
   })
@@ -68,7 +76,7 @@ test('a refusal case runs on a Project with no binding and is graded on the unch
   assert.deepEqual(summary, [{ ...completed('be:c1:flash:t0'), settled: 2, total: 2 }])
   assert.deepEqual(hub.created.map(({ projectId, name }) => [projectId, name.split('-').slice(4, -1).join('-')]), [['p-1', 'sales-dashboard'], ['p-2', 'sankhya-not-connected']])
   assert.deepEqual(hub.bound, ['p-1'])
-  assert.deepEqual(driver.calls[1].case, { request: 'Mostre o pedido de compra 40118 com os dados do Sankhya.', checks: [], reload: false })
+  assert.deepEqual(driver.calls[1].case, { request: 'Mostre o pedido de compra 12345 com os dados do Sankhya.', checks: [], reload: false })
   const rows = await resultsOf(mastra, 'be:c1:flash:t0')
   assert.deepEqual(rows.map((row) => [row.error, row.output.preview]).sort((a, b) => a[1].kind.localeCompare(b[1].kind)), [
     [null, { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' }],

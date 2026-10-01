@@ -1,0 +1,51 @@
+{
+  "plan": "expected",
+  "request": "Adicione notas de acompanhamento a um pedido de compra. Eu informo o número do pedido, escrevo uma nota e salvo. As notas ficam guardadas para toda a equipe de compras: quem abrir o app, em qualquer computador, vê as mesmas notas, e elas continuam lá depois de recarregar a página. Mantenha a interface simples.",
+  "checks": [
+    {
+      "action": "expectText",
+      "selector": "body",
+      "text": "pedido"
+    }
+  ],
+  "reload": true,
+  "person": {
+    "projectName": "Compras",
+    "persona": "comprador(a) da equipe de compras, que acompanha pedidos de compra e não sabe como o app é feito.",
+    "answers": [
+      {
+        "id": "status",
+        "hidden": true,
+        "topic": "se a nota tem um status e quais",
+        "say": "Cada nota tem um status: Em aberto, Aguardando fornecedor ou Resolvida.",
+        "pick": [
+          "Em aberto",
+          "Resolvida",
+          "status"
+        ]
+      },
+      {
+        "id": "autor",
+        "hidden": true,
+        "topic": "quem pode editar ou apagar uma nota",
+        "say": "Só quem escreveu a nota pode editar ou apagar.",
+        "pick": [
+          "autor",
+          "quem escreveu",
+          "somente o autor"
+        ]
+      },
+      {
+        "id": "tipo",
+        "hidden": true,
+        "topic": "se a nota tem um tipo e quais",
+        "say": "Cada nota tem um tipo: Fornecedor, Entrega ou Financeiro.",
+        "pick": [
+          "Financeiro",
+          "Entrega",
+          "tipo"
+        ]
+      }
+    ]
+  }
+}

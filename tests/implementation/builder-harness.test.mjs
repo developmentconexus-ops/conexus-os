@@ -1,0 +1,341 @@
+import assert from 'node:assert/strict'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
+import test from 'node:test'
+import { RequestContext } from '@mastra/core/request-context'
+import { InMemoryStore } from '@mastra/core/storage'
+import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
+import { hubModuleUrl } from './hub-build.mjs'
+
+const {
+  CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
+} = await import(hubModuleUrl('builder/harness/request-context.js'))
+const { conexusInstructions, fillPrompt, turnDate } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
+
+const repositoryRoot = resolve(import.meta.dirname, '../..')
+
+const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
+
+const PASSING = { ok: true, steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })), facts: { operations: 0, migrations: 0, jsGzipBytes: 1 } }
+
+const PLACEHOLDERS = ['{project name}', '{date}', '{cutoff}', '`{name}`: {integrator}', '{AGENTS.md content}', '{index}']
+
+const template = readFileSync(resolve(repositoryRoot, 'apps/hub/src/builder/harness/prompt/builder.md'), 'utf8')
+const VALUES = {
+  projectName: 'Compras', date: '2026-09-30', cutoff: 'Março 2026', isNew: true,
+  connections: '- `erp`: sankhya (skill `conexus-sankhya`)', instructions: 'Responda sempre em inglês {index}.', memory: '## Regras\n- [Prazo](prazo.md): 30 dias',
+}
+
+test('AC-1: builder.md holds every placeholder once, and filling them leaves none of the template behind', () => {
+  for (const placeholder of PLACEHOLDERS) assert.equal(template.split(placeholder).length - 1, 1, `${placeholder} appears once`)
+  const filled = fillPrompt(template, VALUES)
+  assert.ok(filled.includes('- Project: Compras. Today: 2026-09-30. Your knowledge cutoff: Março 2026.'))
+  assert.ok(filled.includes('- `erp`: sankhya (skill `conexus-sankhya`)\n'))
+  assert.ok(filled.includes('<!-- AGENTS.md -->\nResponda sempre em inglês {index}.\n\n## Project memory'), 'text a placeholder brings in is never read as another placeholder')
+  assert.ok(filled.includes('(this app\'s memory, persists across conversations):\n## Regras\n- [Prazo](prazo.md): 30 dias\n'))
+  for (const placeholder of ['{project name}', '{date}', '{cutoff}', '{name}', '{integrator}', '{AGENTS.md content}']) assert.equal(filled.includes(placeholder), false, `${placeholder} is filled`)
+})
+
+test('AC-1: a model with no cutoff loses the cutoff clause and nothing else', () => {
+  const without = fillPrompt(template, { ...VALUES, cutoff: null })
+  assert.ok(without.includes('- Project: Compras. Today: 2026-09-30.\n'))
+  assert.equal(without.includes('knowledge cutoff'), false)
+  assert.equal(fillPrompt(template, VALUES).replace(' Your knowledge cutoff: Março 2026.', ''), without)
+})
+
+test('AC-1, AC-2: the model input holds the approved text and no word of a mode or of submit_plan', () => {
+  const requestContext = new RequestContext()
+  for (const [key, value] of [
+    [CONEXUS_PROJECT_NAME_KEY, 'Compras'], [CONEXUS_PROJECT_NEW_KEY, 'true'], [CONEXUS_TURN_DATE_KEY, '2026-09-30'], [CONEXUS_CONNECTOR_BRIEF_KEY, VALUES.connections],
+    [CONEXUS_PROJECT_INSTRUCTIONS_KEY, VALUES.instructions], [CONEXUS_PROJECT_MEMORY_KEY, VALUES.memory],
+  ]) requestContext.setRaw(key, value)
+  requestContext.set('controller', { session: { modelId: 'anthropic/known' } })
+  const text = conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext })
+  assert.equal(text, fillPrompt(template, VALUES))
+  assert.doesNotMatch(text, /Planejar|Construir|submit_plan/)
+  assert.ok(text.startsWith('You are the Conexus Builder, running inside Conexus.'))
+  requestContext.set('controller', { session: { modelId: 'anthropic/unknown' } })
+  assert.equal(conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext }).includes('knowledge cutoff'), false)
+})
+
+test('the new-app line is in the Environment of a new Project and absent, with no empty bullet, after a saved version', () => {
+  const line = '- This app is new: it has only the starter screen.\n'
+  const fresh = fillPrompt(template, VALUES)
+  assert.ok(fresh.includes(`Your knowledge cutoff: Março 2026.\n${line}- The sandbox runs Debian 12`))
+  const saved = fillPrompt(template, { ...VALUES, isNew: false })
+  assert.equal(saved.includes('This app is new'), false)
+  assert.ok(saved.includes('Your knowledge cutoff: Março 2026.\n- The sandbox runs Debian 12'))
+  assert.equal(fresh.replace(line, ''), saved)
+})
+
+test('the paths a turn\'s start left in conflict are appended after the filled prompt', () => {
+  const requestContext = new RequestContext()
+  requestContext.setRaw(CONEXUS_TURN_CONFLICTS_KEY, 'app/a.tsx\napp/b.tsx')
+  const text = conexusInstructions()({ requestContext })
+  assert.ok(text.endsWith('resolve them before any other change: `app/a.tsx`, `app/b.tsx`.'))
+})
+
+test('the turn date is the date in America/Sao_Paulo, not in UTC', () => {
+  assert.equal(turnDate(new Date('2026-09-30T02:30:00Z')), '2026-09-29')
+  assert.equal(turnDate(new Date('2026-09-30T12:00:00Z')), '2026-09-30')
+})
+
+test('AC-3: the five skills the prompt and the guard name all ship, and the prompt names only shipped ones', () => {
+  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app', 'conexus-build', 'conexus-plan', 'conexus-sankhya', 'conexus-server'])
+  for (const name of BUILDER_SKILL_NAMES) assert.equal(existsSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md')), true, `${name} exists`)
+  for (const [, name] of template.matchAll(/`(conexus-[a-z-]+)`/g)) if (name !== 'conexus-{integrator}') assert.equal(BUILDER_SKILL_NAMES.includes(name), true, `${name} is a shipped skill`)
+})
+
+test('AC-7: conexus_check runs the run check and says when to run it and what it does not prove', async () => {
+  const { createCheckTool } = await import(hubModuleUrl('builder/harness/tools.js'))
+  let ran = 0
+  const tool = createCheckTool(async () => { ran += 1; return PASSING })
+  assert.deepEqual(await tool.execute({}, { requestContext: new RequestContext() }), PASSING)
+  assert.equal(ran, 1)
+  assert.match(tool.description, /at the end of each step/)
+  assert.match(tool.description, /does not prove/)
+})
+
+test('AC-8: the controller offers conexus_check to a turn whose run has a check, and conexus_run_operation when it can run one', async () => {
+  const runs = { r1: { check: async () => PASSING, runOperation: async () => ({ ok: false, operation: 'x', code: 'NOT_USED' }) }, r3: { check: async () => PASSING } }
+  const controller = createBuilderController({
+    model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
+    runTools: ({ requestContext }) => runs[requestContext.getRaw('conexusBuilderRunId')],
+  })
+  const session = await controller.createSession({ resourceId: 'project:probe-check', scope: 'probe-check' })
+  const agent = controller.getCurrentAgent(session)
+  const names = async (runId) => {
+    const requestContext = new RequestContext()
+    if (runId) requestContext.setRaw('conexusBuilderRunId', runId)
+    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name.startsWith('conexus_')).sort()
+  }
+  assert.deepEqual([await names('r1'), await names('r3'), await names('r2'), await names()], [['conexus_check', 'conexus_run_operation'], ['conexus_check'], [], []])
+})
+
+test('AC-2: the Builder has one mode, build', async () => {
+  const controller = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills') })
+  const session = await controller.createSession({ resourceId: 'project:probe-mode', scope: 'probe-mode' })
+  assert.equal(session.mode.get(), 'build')
+  assert.deepEqual(controller.listModes().map((mode) => mode.id), ['build'])
+})
+
+test('the real builder-skills path resolves from the repository root', () => {
+  assert.equal(defaultBuilderSkillsRoot('/repo'), '/repo/builder-skills')
+})
+
+test('the Builder finds its five skills through its skill listing', async () => {
+  const controller = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore() })
+  const agent = controller.getCurrentAgent(await controller.createSession({ resourceId: 'project:probe-skills', scope: 'probe-skills' }))
+  const skills = await agent.listSkills({ requestContext: new RequestContext() })
+  assert.deepEqual(skills.map((skill) => skill.name).sort(), [...BUILDER_SKILL_NAMES].sort())
+})
+
+test('the model sees each skill by name and never a path on the Hub host, and reads a skill reference through skill_read', async (t) => {
+  const systemTexts = []
+  const toolCalls = [
+    { toolCallId: 's1', toolName: 'skill', input: { name: 'conexus-app' } },
+    { toolCallId: 's2', toolName: 'skill_read', input: { skillName: 'conexus-app', path: 'references/form.tsx' } },
+  ]
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream(options) {
+      const step = systemTexts.length
+      systemTexts.push(options.prompt.filter((message) => message.role === 'system').map((message) => message.content).join('\n'))
+      const call = toolCalls[step]
+      const parts = call
+        ? [{ type: 'tool-call', toolCallId: call.toolCallId, toolName: call.toolName, input: JSON.stringify(call.input) }, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] }, ...parts]) }
+    },
+  }
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills') })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const session = await controller.createSession({ resourceId: 'project:probe-skill-path', scope: 'probe-skill-path' })
+  const toolResults = {}
+  session.subscribe((event) => {
+    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
+    if (event.type === 'tool_end') toolResults[event.toolCallId] = String(event.result)
+  })
+  await session.sendMessage({ content: 'oi' })
+  for (let waited = 0; systemTexts.length < 3 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50))
+
+  const catalog = systemTexts[0].match(/<available_skills>[\s\S]*<\/available_skills>/)?.[0] ?? ''
+  assert.deepEqual([...catalog.matchAll(/<location>(.*?)<\/location>/g)].map((match) => match[1]), [...BUILDER_SKILL_NAMES].sort(), 'each skill is located by its name')
+  assert.equal(systemTexts[0].split('<available_skills>').length - 1, 1, 'the catalog is injected once')
+  assert.equal(systemTexts[0].includes(repositoryRoot), false, 'the system prompt carries no Hub host path')
+  assert.equal(toolResults.s1.includes(repositoryRoot), false, 'the skill tool result carries no Hub host path')
+  assert.match(toolResults.s1, /- references\/form\.tsx/, 'the activation lists the references relative to the skill')
+  assert.equal(toolResults.s2, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app/references/form.tsx'), 'utf8'), 'skill_read returns the reference file')
+})
+
+// A scripted turn: ask_user (suspends) -> resume "azul" -> a workspace command -> text.
+const scriptedModel = () => {
+  const calls = []
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream(options) {
+      const step = calls.length
+      calls.push({ tools: (options.tools ?? []).map((tool) => tool.name).sort() })
+      const parts = {
+        0: [{ type: 'tool-call', toolCallId: 'c1', toolName: 'ask_user', input: JSON.stringify({ question: 'Qual cor?' }) }],
+        1: [{ type: 'tool-call', toolCallId: 'c2', toolName: 'mastra_workspace_execute_command', input: JSON.stringify({ command: 'echo', args: ['hi'] }) }],
+      }[step]
+      const stream = parts
+        ? [{ type: 'stream-start', warnings: [] }, ...parts, { type: 'finish', finishReason: 'tool-calls', usage }]
+        : [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: streamOf(stream) }
+    },
+  }
+  return { model, calls }
+}
+
+test('a Google AI Pro model lists its tools without throwing and has no web_search; a native provider model keeps it', async () => {
+  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  // The exact MastraModelConfig shape module.ts's createModelResolver returns for every run today
+  // (Only Google AI Pro is wired in slice 1): an OpenAICompatibleConfig routed through CLIProxy,
+  // whose provider id Mastra's built-in webSearchTool cannot infer as OpenAI, Anthropic, Google, or xAI.
+  const googleAiProModel = { providerId: 'google-ai-pro', modelId: 'gemini-3.1-pro-low', url: 'http://127.0.0.1:1/v1', apiKey: 'test-key' }
+  const googleController = createBuilderController({ model: googleAiProModel, storage: new InMemoryStore(), skillsPath })
+  const googleSession = await googleController.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
+  const googleTools = await googleController.getCurrentAgent(googleSession).listTools({ requestContext: new RequestContext() })
+  assert.equal('web_search' in googleTools, false, 'a provider Mastra cannot infer gets no web_search tool')
+  assert.equal('web_fetch' in googleTools, true, 'web_fetch stays available regardless of provider')
+
+  const nativeController = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore(), skillsPath })
+  const nativeSession = await nativeController.createSession({ resourceId: 'project:probe-native-search', scope: 'probe-native-search' })
+  const nativeTools = await nativeController.getCurrentAgent(nativeSession).listTools({ requestContext: new RequestContext() })
+  assert.equal('web_search' in nativeTools, true, 'a model on a native-search provider keeps web_search')
+})
+
+test('a ChatGPT subscription model lists its tools without throwing and gets OpenAI\'s Responses web_search: it reports provider openai.responses, which Mastra\'s webSearchTool cannot map', async () => {
+  const { codexModel } = await import('./codex-model.mjs')
+  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  const unused = { access: 'unused', refresh: 'unused', expires: Date.now() + 3_600_000, accountId: 'unused' }
+  // The model module.ts's resolver returns for an `openai/*` selection on a ChatGPT subscription.
+  const model = () => codexModel('gpt-5.6-sol', unused)
+  const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
+  const session = await controller.createSession({ resourceId: 'project:probe-chatgpt', scope: 'probe-chatgpt' })
+  const tools = await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() })
+  assert.deepEqual(['web_search' in tools, 'web_fetch' in tools, (await model()).provider], [true, true, 'openai.responses'])
+  assert.deepEqual(tools.web_search, { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} })
+})
+
+test('both kinds of Anthropic account get web search: Anthropic\'s own web_search tool', async () => {
+  const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
+  const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
+  const skillsPath = resolve(repositoryRoot, 'builder-skills', 'conexus-server')
+  const route = createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } }))
+  const toolsOf = async (account) => {
+    const model = () => route.take(account).model('claude-sonnet-5')
+    const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath })
+    const session = await controller.createSession({ resourceId: `project:probe-${account.kind}`, scope: `probe-${account.kind}` })
+    return { tools: await controller.getCurrentAgent(session).listTools({ requestContext: new RequestContext() }), resolved: await model() }
+  }
+  const key = await toolsOf({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` })
+  const subscription = await toolsOf({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) })
+  const anthropicSearch = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} }
+  assert.deepEqual([key.resolved.id, key.tools.web_search], ['anthropic/claude-sonnet-5', anthropicSearch], 'Mastra maps webSearchTool for a router model id')
+  assert.deepEqual([subscription.resolved.provider, subscription.tools.web_search], ['anthropic.messages', anthropicSearch])
+})
+
+test('connector_fetch reaches a turn whose request context carries a run the Connector module opened, and no other', async () => {
+  const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+  const broker = { fetch: async () => ({ ok: false, code: 'NOT_GRANTED' }), describe: async () => ({ integrator: null, service: null }) }
+  const controller = createBuilderController({
+    model: scriptedModel().model, storage: new InMemoryStore(), connectorFetch: createConnectorFetchTools(broker),
+    skillsPath: resolve(repositoryRoot, 'builder-skills'),
+  })
+  const session = await controller.createSession({ resourceId: 'project:probe-connector', scope: 'probe-connector' })
+  const agent = controller.getCurrentAgent(session)
+  const toolsFor = async (bind) => {
+    const requestContext = new RequestContext()
+    bind?.(requestContext)
+    return Object.keys(await agent.listTools({ requestContext })).filter((name) => name === 'connector_fetch')
+  }
+  const run = await openBuilderRun({ brief: async () => '', projectId: '22222222-2222-4222-8222-222222222222', builderRunId: '11111111-1111-4111-8111-111111111111' })
+  assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
+})
+
+test("a turn lasts through the person's answer on the conversation's session and workspace, ending it keeps the session, and a new conversation starts on the installation default (AC-12, AC-16)", async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'run-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const runContexts = new Map()
+  const conversationWorkspaces = new Map()
+  const { model, calls } = scriptedModel()
+  const { Memory } = await import('@mastra/memory')
+  const storage = new InMemoryStore()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const builderRunId = '11111111-1111-4111-8111-111111111111'
+  const conversationId = '44444444-4444-4444-8444-444444444444'
+  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })
+  const bind = (runId) => (requestContext) => { requestContext.setRaw('conexusBuilderRunId', runId); requestContext.setRaw('conexusBuilderConversationId', conversationId) }
+  // The browser's session, made before the first run the way the route guard makes it.
+  const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
+  assert.equal(conversation.model.hasSelection(), false, 'a new conversation has no model of its own')
+  const run = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
+  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  assert.equal(live.model.get(), 'anthropic/default-model', 'the first turn starts on the installation default')
+  await conversation.thread.loadMetadata()
+  assert.equal(conversation.model.get(), 'anthropic/default-model', 'and keeps it on the thread, where the conversation session reads it')
+  const answered = []
+  live.subscribe((event) => {
+    if (event.type !== 'tool_suspended') return
+    answered.push(event.toolName)
+    setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: 'azul' }) }, 20)
+  })
+  const turn = await run.sendTurn('faça um app')
+  assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
+  assert.equal(typeof turn.userMessageId, 'string')
+  // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
+  for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
+  assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
+  await run.end()
+  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])
+
+  // The person changes the model between messages, through the conversation's session; the next turn runs on it.
+  await conversation.model.switch({ modelId: 'anthropic/chosen-model' })
+  const nextRunId = '55555555-5555-4555-8555-555555555555'
+  const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), live, 'the next turn on the same VM runs in the same session')
+  assert.equal(live.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its session')
+  await next.end()
+  const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const onNewVm = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
+  const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  assert.deepEqual({ same: remade === live, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
+  await onNewVm.discard()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined)
+})
+
+test('a conversation with no model and no installation default fails the run before any turn', async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-nomodel-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const workspace = new Workspace({ id: 'nomodel-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const conversationWorkspaces = new Map()
+  const controller = createBuilderController({
+    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
+  })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const openSession = createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => null })
+  await assert.rejects(() => openSession({
+    projectId: '22222222-2222-4222-8222-222222222222', conversationId: '44444444-4444-4444-8444-444444444444', builderRunId: '11111111-1111-4111-8111-111111111111',
+    workspace, runCheck: async () => PASSING, bindContext: (requestContext) => requestContext.setRaw('conexusBuilderConversationId', '44444444-4444-4444-8444-444444444444'),
+  }), /BUILDER_MODEL_NOT_SELECTED/)
+})

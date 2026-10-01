@@ -50,11 +50,11 @@ export function builderTrace({ traceId, builderRunId, projectId }) {
     }),
     node(`${traceId}-gen`, `${traceId}-root`, 'model_generation', { attributes: { usage: { inputTokens: 1000, inputDetails: { cacheRead: 600 }, outputTokens: 50 } } }),
     node(`${traceId}-step-1`, `${traceId}-gen`, 'model_step'),
-    tool(`${traceId}-t01`, `${traceId}-step-1`, 1000, 'view', { path: 'src/a.ts' }),
-    tool(`${traceId}-t02`, `${traceId}-step-1`, 2000, 'view', { path: './src/a.ts' }),
+    tool(`${traceId}-t01`, `${traceId}-step-1`, 1000, 'mastra_workspace_read_file', { path: 'src/a.ts' }),
+    tool(`${traceId}-t02`, `${traceId}-step-1`, 2000, 'mastra_workspace_read_file', { path: './src/a.ts' }),
     node(`${traceId}-step-2`, `${traceId}-gen`, 'model_step'),
-    tool(`${traceId}-t03`, `${traceId}-step-2`, 3000, 'write_file', { path: 'src/a.ts', content: 'export {}' }),
-    tool(`${traceId}-t04`, `${traceId}-step-2`, 4000, 'view', { path: 'src/a.ts' }),
+    tool(`${traceId}-t03`, `${traceId}-step-2`, 3000, 'mastra_workspace_write_file', { path: 'src/a.ts', content: 'export {}' }),
+    tool(`${traceId}-t04`, `${traceId}-step-2`, 4000, 'mastra_workspace_read_file', { path: 'src/a.ts' }),
     tool(`${traceId}-t05`, `${traceId}-step-2`, 5000, 'skill', { name: 'sankhya' }),
     tool(`${traceId}-t06`, `${traceId}-step-2`, 6000, 'skill', { name: 'sankhya' }),
     node(`${traceId}-step-3`, `${traceId}-gen`, 'model_step'),
@@ -71,7 +71,108 @@ export function builderTrace({ traceId, builderRunId, projectId }) {
     node(`${traceId}-observer`, `${traceId}-memory`, 'agent_run', { name: "agent run: 'observational-memory-observer'" }),
     node(`${traceId}-observer-gen`, `${traceId}-observer`, 'model_generation', { attributes: { usage: { inputTokens: 5000, outputTokens: 5 } } }),
     node(`${traceId}-observer-step`, `${traceId}-observer-gen`, 'model_step'),
-    tool(`${traceId}-observer-view`, `${traceId}-observer-step`, 1500, 'view', { path: 'src/a.ts' }),
+    tool(`${traceId}-observer-view`, `${traceId}-observer-step`, 1500, 'mastra_workspace_read_file', { path: 'src/a.ts' }),
+  ]
+}
+
+/**
+ * A Builder run that stopped for a question and resumed after the answer, as Mastra records it: the
+ * resumed agent_run is nested under the first run's model generation, ends at a later time, and
+ * holds the whole build. Times are seconds after the run row's creation, kept apart from the
+ * person's wait (60 s to 160 s). The observer's agent_run has another entityId and stays out.
+ */
+export function resumedBuilderTrace({ traceId = 'tr-r', builderRunId = 'run-r', projectId = 'p-r' } = {}) {
+  const s = (seconds) => at(seconds * 1000)
+  const node = (spanId, parentSpanId, spanType, fields) => span(traceId, spanId, parentSpanId, spanType, fields)
+  const tool = (spanId, stepId, from, to, entityName, input, fields = {}) => node(spanId, stepId, 'tool_call', {
+    name: `tool: '${entityName}'`, entityType: 'tool', entityName, input, attributes: { success: true }, startedAt: s(from), endedAt: s(to), ...fields,
+  })
+  const step = (spanId, parentSpanId, from, to, usage) => node(spanId, parentSpanId, 'model_step', { startedAt: s(from), endedAt: s(to), attributes: { usage } })
+  const agent = (spanId, parentSpanId, from, to, fields = {}) => node(spanId, parentSpanId, 'agent_run', {
+    entityType: 'agent', entityId: 'code-agent', entityName: 'code-agent', startedAt: s(from), endedAt: s(to), ...fields,
+  })
+  const report = (ok, problemCode) => ({
+    ok,
+    steps: [
+      { step: 'generate', status: 'passed', durationMs: 30 },
+      ok ? { step: 'typecheck', status: 'passed', durationMs: 7000 } : { step: 'typecheck', status: 'failed', durationMs: 7000, problems: [{ code: problemCode, message: 'x' }] },
+    ],
+  })
+  const operation = { name: 'listar', input: {} }
+  return [
+    agent(`${traceId}-root`, null, 5, 60, { metadata: { conexusBuilderRunId: builderRunId, conexusBuilderProjectId: projectId } }),
+    node(`${traceId}-gen-1`, `${traceId}-root`, 'model_generation', { startedAt: s(5), endedAt: s(60), attributes: { usage: { inputTokens: 1000, inputDetails: { cacheRead: 0 }, outputTokens: 100 } } }),
+    node(`${traceId}-chunk-1`, `${traceId}-gen-1`, 'model_chunk', { name: 'chunk: reasoning', startedAt: s(8), endedAt: s(9) }),
+    node(`${traceId}-chunk-2`, `${traceId}-gen-1`, 'model_chunk', { name: 'chunk: text', startedAt: s(12), endedAt: s(13) }),
+    step(`${traceId}-s1`, `${traceId}-gen-1`, 5, 60, { inputTokens: 1000, inputDetails: { cacheRead: 0 }, outputTokens: 100 }),
+    tool(`${traceId}-ask`, `${traceId}-s1`, 15, 60, 'ask_user', { question: 'Qual a regra?' }),
+    agent(`${traceId}-resumed`, `${traceId}-gen-1`, 160, 400),
+    node(`${traceId}-gen-2`, `${traceId}-resumed`, 'model_generation', { startedAt: s(160), endedAt: s(400), attributes: { usage: { inputTokens: 5200, inputDetails: { cacheRead: 2000 }, outputTokens: 920 } } }),
+    step(`${traceId}-s2`, `${traceId}-gen-2`, 160, 200, { inputTokens: 2000, inputDetails: { cacheRead: 1000 }, outputTokens: 200 }),
+    tool(`${traceId}-t1`, `${traceId}-s2`, 175, 180, 'mastra_workspace_read_file', { path: 'app/a.ts' }),
+    tool(`${traceId}-t2`, `${traceId}-s2`, 176, 190, 'conexus_run_operation', operation),
+    step(`${traceId}-s3`, `${traceId}-gen-2`, 200, 240, { inputTokens: 3000, inputDetails: { cacheRead: 1000 }, outputTokens: 700 }),
+    tool(`${traceId}-t3`, `${traceId}-s3`, 205, 215, 'conexus_run_operation', operation),
+    tool(`${traceId}-t4`, `${traceId}-s3`, 230, 231, 'mastra_workspace_edit_file', { path: 'app/a.ts' }),
+    step(`${traceId}-s4`, `${traceId}-gen-2`, 240, 300, { inputTokens: 100, outputTokens: 10 }),
+    tool(`${traceId}-t5`, `${traceId}-s4`, 250, 258, 'conexus_check', {}, { output: report(false, 'TS2304') }),
+    step(`${traceId}-s5`, `${traceId}-gen-2`, 300, 400, { inputTokens: 100, outputTokens: 10 }),
+    tool(`${traceId}-t6`, `${traceId}-s5`, 310, 320, 'conexus_check', {}, { output: report(true) }),
+    tool(`${traceId}-plan`, `${traceId}-s5`, 390, 400, 'submit_plan', { path: '.conexus/plans/x.md' }),
+    node(`${traceId}-memory`, `${traceId}-resumed`, 'memory_operation'),
+    node(`${traceId}-observer`, `${traceId}-memory`, 'agent_run', { entityId: 'observational-memory-observer', startedAt: s(170), endedAt: s(171) }),
+    node(`${traceId}-observer-gen`, `${traceId}-observer`, 'model_generation', { attributes: { usage: { inputTokens: 9000, outputTokens: 9 } } }),
+  ]
+}
+
+const APPROVAL_OPTIONS = [{ label: 'Aprovar e construir', description: 'Começa a construir.' }, { label: 'Pedir ajustes', description: 'Diz o que mudar.' }]
+
+/**
+ * A recorded Builder run that plans, in one of three shapes: `new` (the plan in `.conexus/plan.md`,
+ * approval through `ask_user` with the approval options, after an unrelated question), `legacy`
+ * (today's Builder: `.conexus/plans/lista.md`, approval through `submit_plan`) and `edit` (a small
+ * edit: no plan, no approval, one app file). `appFirst` makes the new flow write an app file before
+ * the approval, the defect the scorers must catch.
+ */
+export function planFlowTrace(shape, { traceId = `tr-${shape}`, builderRunId = `run-${shape}`, projectId = 'p-flow', appFirst = false } = {}) {
+  const node = (spanId, parentSpanId, spanType, fields) => span(traceId, spanId, parentSpanId, spanType, fields)
+  let clock = 1000
+  const step = `${traceId}-step`
+  const tool = (entityName, input, fields = {}) => {
+    clock += 1000
+    return node(`${traceId}-t${clock}`, step, 'tool_call', { name: `tool: '${entityName}'`, entityType: 'tool', entityName, input, attributes: { success: true }, startedAt: at(clock), endedAt: at(clock + 500), ...fields })
+  }
+  const write = (path) => tool('mastra_workspace_write_file', { path, content: 'x' })
+  const check = () => tool('conexus_check', {}, { output: { ok: true, steps: [{ step: 'typecheck', status: 'passed', durationMs: 7000 }] } })
+  const shapes = {
+    new: () => [
+      tool('ask_user', { question: 'Qual o formato da data?', options: [{ label: 'Dia/mês/ano' }, { label: 'Ano-mês-dia' }] }),
+      write('/workspace/repo/.conexus/plan.md'),
+      ...(appFirst ? [write('src/app.tsx')] : []),
+      tool('submit_plan', { path: '.conexus/plan.md' }),
+      write('/workspace/repo/src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
+    ],
+    askUser: () => [
+      write('.conexus/plan.md'),
+      tool('ask_user', { question: 'Posso construir assim?', options: APPROVAL_OPTIONS }),
+      write('src/app.tsx'), write('./src/api.ts'), write('src/app.tsx'), check(), tool('conexus_run_operation', { name: 'listar', input: {} }),
+    ],
+    legacy: () => [
+      write('.conexus/plans/lista.md'),
+      tool('submit_plan', { path: '.conexus/plans/lista.md', title: 'Lista' }),
+      write('src/app.tsx'), write('src/api.ts'), check(),
+    ],
+    edit: () => [tool('mastra_workspace_read_file', { path: 'src/app.tsx' }), tool('mastra_workspace_edit_file', { path: 'src/app.tsx' }), check()],
+  }
+  const calls = shapes[shape]()
+  return [
+    node(`${traceId}-root`, null, 'agent_run', {
+      entityType: 'agent', entityId: 'code-agent', entityName: 'code-agent',
+      metadata: { conexusBuilderRunId: builderRunId, conexusBuilderProjectId: projectId }, startedAt: at(0), endedAt: at(clock + 5000),
+    }),
+    node(`${traceId}-gen`, `${traceId}-root`, 'model_generation', { attributes: { usage: { inputTokens: 100, outputTokens: 10 } } }),
+    node(step, `${traceId}-gen`, 'model_step'),
+    ...calls,
   ]
 }
 

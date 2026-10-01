@@ -8,10 +8,12 @@ export type ApplicationRunnerSupervisor = Readonly<{
   release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
 
-const errorCode = (body: unknown): string | undefined => {
-  const code = (body as Readonly<{ error?: Readonly<{ code?: unknown }> }> | undefined)?.error?.code
-  return typeof code === 'string' ? code : undefined
-}
+const errorOf = (body: unknown): Readonly<{ code?: unknown; detail?: unknown }> | undefined =>
+  (body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | undefined)?.error
+
+// The supervisor writes these two details itself, from the manifest's schema: a JSON pointer and
+// the rule it broke, never a value the handler returned.
+const SCHEMA_REFUSALS: ReadonlySet<string> = new Set(['INPUT_REFUSED', 'HANDLER_OUTPUT_REFUSED'])
 
 export const createApplicationRunnerApp = (input: Readonly<{
   supervisor: ApplicationRunnerSupervisor
@@ -45,11 +47,13 @@ export const createApplicationRunnerApp = (input: Readonly<{
     const result = await input.supervisor.invoke(body.data)
     // Only the error code is logged, never the reply body: a handler's own thrown message can carry
     // a value straight from the external system it just called (an ERP field, a customer name), and
-    // that must never land in a platform log.
-    const code = errorCode(result.body)
+    // that must never land in a platform log. A schema refusal's detail is the runner's own text.
+    const error = errorOf(result.body)
+    const code = typeof error?.code === 'string' ? error.code : undefined
+    const detail = code && SCHEMA_REFUSALS.has(code) && typeof error?.detail === 'string' ? error.detail : undefined
     input.log(JSON.stringify({
       event: 'invoke', projectId: body.data.projectId, operation: body.data.operation, status: result.status,
-      ...(code ? { code } : {}), ms: Math.round(performance.now() - started),
+      ...(code ? { code } : {}), ...(detail ? { detail } : {}), ms: Math.round(performance.now() - started),
     }))
     return reply.code(result.status).send(result.body)
   })

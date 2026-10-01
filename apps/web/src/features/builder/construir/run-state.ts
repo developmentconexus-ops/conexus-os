@@ -59,10 +59,14 @@ const settledLines: Readonly<Record<Exclude<SettledOutcome, 'FAILED'>, string>> 
 }
 
 /** The one short line the header and the Preview status show for a run. */
+export type ActiveRunView = Extract<RunView, { kind: 'ACTIVE' }>
+
+export const activeLine = (view: ActiveRunView): string => view.stopping ? 'Parando' : view.step
+
 export const statusLine = (view: RunView): string | null => {
   if (view.kind === 'IDLE') return null
-  if (view.kind === 'ACTIVE') return view.stopping ? 'Parando' : view.step
-  return view.outcome === 'FAILED' ? failureReason(view.run.failureCategory) : settledLines[view.outcome]
+  if (view.kind === 'ACTIVE') return activeLine(view)
+  return view.outcome === 'FAILED' ? failureReason(view.run) : settledLines[view.outcome]
 }
 
 export const elapsedLabel = (milliseconds: number): string => {

@@ -61,7 +61,6 @@ export type ConnectorDefinition<Cred, S> = Readonly<{
   operations: readonly Operation<any, any, S>[]
   // biome-ignore lint/suspicious/noExplicitAny: design only, no event exists yet
   events: readonly ConnectorEvent<any>[]
-  builderSkill: string
   secretFields: readonly string[]
   native: NativeProtocol
 }>

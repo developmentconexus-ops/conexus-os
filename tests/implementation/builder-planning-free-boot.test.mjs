@@ -32,28 +32,33 @@ const hubEnvironment = (root) => ({
   CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: resolve(root, 's3-read-password'),
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: resolve(root, 'rb-ingress-password'),
   CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: resolve(root, 'rb-executor-password'),
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: resolve(root, 'model-account-password'),
   CONEXUS_BUILDER_E2B_API_KEY_FILE: resolve(root, 'e2b-api-key'),
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
   CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: resolve(root, 'oidc-client-secret'),
-  CONEXUS_FACTORY_ORG_ID: 'conexus-installation',
-  CONEXUS_FACTORY_GITHUB_APP_ID: '5015512',
-  CONEXUS_FACTORY_GITHUB_CLIENT_ID: 'Iv23-client',
-  CONEXUS_FACTORY_GITHUB_APP_SLUG: 'conexus-app',
-  CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: resolve(root, 'factory-app.pem'),
-  CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: resolve(root, 'factory-client-secret'),
-  CONEXUS_FACTORY_STATE_SECRET_FILE: resolve(root, 'factory-state-secret'),
   CONEXUS_FACTORY_SECRET_KEY_FILE: resolve(root, 'factory-secret-key'),
   CONEXUS_DB_FACTORY_PASSWORD_FILE: resolve(root, 'factory-password'),
 })
 
-test('a Builder without the Factory is refused: there is no second agent runtime', async (t) => {
+test('a Builder without its Mastra storage role is refused', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_') || name === 'CONEXUS_FACTORY_SECRET_KEY_FILE'))
   assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
+})
+
+test('a deployment still carrying the Factory GitHub App variables is refused, not silently ignored', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-retired-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const environment = hubEnvironment(root)
+  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
+  assert.deepEqual(readHubConfig(environment).factory, { databasePasswordFile: resolve(root, 'factory-password') })
+  for (const name of ['CONEXUS_FACTORY_ORG_ID', 'CONEXUS_FACTORY_GITHUB_APP_ID', 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE', 'CONEXUS_FACTORY_STATE_SECRET_FILE']) {
+    assert.throws(() => readHubConfig({ ...environment, [name]: 'retired' }), new RegExp(`^Error: RETIRED_CONFIG_${name}$`))
+  }
 })
 
 test('Builder boot needs no deployment model catalog and no pinned admission id', async (t) => {

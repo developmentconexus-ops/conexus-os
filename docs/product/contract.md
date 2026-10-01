@@ -115,9 +115,9 @@ in the conversation and in the source.
 ### 3.6 Builder run
 
 One admitted attempt to answer one request. A Project has at most one active run. A run
-carries an idempotency key, the conversation it speaks in, a fresh scoped Mastra
-Session on that conversation's thread, and a fresh E2B workspace materialized from
-the current working source.
+carries an idempotency key and the conversation it speaks in. The conversation owns one
+scoped Mastra Session on its thread and one E2B sandbox. The sandbox is paused between turns.
+When the sandbox is lost, the Hub rebuilds it from the conversation's mirror in the Conexus Git.
 
 A run settles in one state and, when it succeeded, with one result.
 
@@ -198,8 +198,8 @@ Workspace
 → source and initial access are established in one transaction
 → the person writes a request in the Project's Build conversation
 → a BuilderRun is admitted with an idempotency key and the conversation it speaks in
-→ a fresh Mastra Session on that conversation's thread
-→ a fresh E2B workspace from the current working source
+→ the conversation's Mastra Session on its thread
+→ the conversation's E2B sandbox, resumed, or rebuilt from the mirror when lost
 → the agent reads and edits files
 → Conexus admits the resulting revision and advances the working source
 → compile

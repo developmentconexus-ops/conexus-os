@@ -36,6 +36,9 @@ export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null 
 const upperCaseWords = new Set(['gpt', 'ai'])
 const literalWords = new Set(['o1', 'o3', 'o4'])
 
+// OpenAI dates its snapshots (`gpt-4o-2024-08-06`); the date stays whole instead of merging into a version.
+const datedSnapshotPattern = /-(\d{4}-\d{2}-\d{2})$/
+
 const titleWord = (word: string): string => {
   if (literalWords.has(word)) return word
   if (upperCaseWords.has(word)) return word.toUpperCase()
@@ -63,6 +66,7 @@ const mergeVersionTokens = (tokens: readonly string[]): readonly string[] => {
  */
 export const humanizeModelName = (modelName: string): string => {
   const { base } = parseReasoningSuffix(modelName) ?? { base: modelName }
-  const tokens = mergeVersionTokens(base.split(/[-_]+/).filter(Boolean))
-  return tokens.map(titleWord).join(' ')
+  const dated = datedSnapshotPattern.exec(base)
+  const tokens = mergeVersionTokens((dated ? base.slice(0, dated.index) : base).split(/[-_]+/).filter(Boolean))
+  return [...tokens.map(titleWord), ...(dated ? [dated[1]] : [])].join(' ')
 }

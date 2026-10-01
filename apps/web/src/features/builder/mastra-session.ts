@@ -1,16 +1,11 @@
-import { MastraClient, isKnownAgentControllerEvent } from '@mastra/client-js'
-import type { AgentControllerAvailableModel, AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
+import { MastraClient } from '@mastra/client-js'
+import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { createFactoryConversation, listFactoryConversations } from './api'
+import { type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, idleTurn, reduceTurn } from './live-turn'
 
 export type { MastraDBMessage }
-type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
-export type ActiveTool = DisplayState['activeTools'][string]
-// The AgentController's own task-list snapshot (from @mastra/core's task_write/task_update/
-// task_check/task_complete tools), already carried on every display_state_changed event: the
-// canonical source the checklist reads, not something rebuilt from parsing tool-call args here.
-type TaskSnapshot = DisplayState['tasks'][number]
+export type { ActiveTool, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
 
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
 
@@ -25,12 +20,18 @@ const clientAt = (apiPrefix: string) => new MastraClient({
   }),
 })
 
-// Every Project is developed through the Factory mount. Each conversation is its own session on
-// the Factory's mount, keyed by the conversation id and holding one thread of that id, and the Hub
-// creates and lists those conversations because each is a Factory session row.
-const factoryController = clientAt('/api/mastra-factory').getAgentController('code')
+// The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
+// under /api/builder. A Project's conversations are the threads of its resource; each is opened as
+// its own session (scope conversation:<id>) bound to its thread, and its runs share one session the
+// Hub keeps across them (scope builder:<conversationId>) on the same thread.
+const builderController = clientAt('/api/builder').getAgentController('conexus-builder')
+const projectResource = (projectId: string): string => `project:${projectId}`
+const projectSessions = (projectId: string) => builderController.session(projectResource(projectId))
+const conversationSession = (projectId: string, conversationId: string) =>
+  builderController.session(projectResource(projectId), `conversation:${conversationId}`)
+const runSession = (projectId: string, conversationId: string) =>
+  builderController.session(projectResource(projectId), `builder:${conversationId}`)
 
-const builderRunScope = (builderRunId: string): string => `builder:${builderRunId}`
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
 export type Conversation = Readonly<{ id: string; title?: string | null | undefined }>
@@ -38,13 +39,26 @@ export type Conversation = Readonly<{ id: string; title?: string | null | undefi
 const conversationsKey = (projectId: string) => ['project-conversations', projectId] as const
 const sessionModelKey = (projectId: string) => ['builder-session-model', projectId] as const
 
+/** The Project's conversations, newest first, as its threads. */
+export const listConversations = async (projectId: string): Promise<readonly Conversation[]> =>
+  (await projectSessions(projectId).listThreads()).map((thread) => ({ id: thread.id, title: thread.title ?? null }))
+
+/**
+ * Opens a conversation on the id the browser chose; opening it again answers the same thread, so a
+ * retry after a lost response never makes a second one.
+ */
+export const openConversation = async (projectId: string, conversationId: string): Promise<Conversation> => {
+  await conversationSession(projectId, conversationId).create({ threadId: conversationId })
+  return { id: conversationId, title: null }
+}
+
 /**
  * The Project's conversations. The Hub titles a conversation from its first request once a run has
  * saved it, so while `awaitingTitleOf` has a run working and no title yet, the list is read again.
  */
 export const useProjectConversations = (projectId: string, awaitingTitleOf?: string | null) => useQuery({
   queryKey: conversationsKey(projectId),
-  queryFn: (): Promise<readonly Conversation[]> => listFactoryConversations(projectId),
+  queryFn: () => listConversations(projectId),
   enabled: Boolean(projectId),
   refetchInterval: (query) => awaitingTitleOf && !query.state.data?.find((entry) => entry.id === awaitingTitleOf)?.title?.trim() ? 1_000 : false,
 })
@@ -53,7 +67,7 @@ export const useConversationActions = (projectId: string) => {
   const queryClient = useQueryClient()
   const refresh = () => queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) })
   const create = useMutation({
-    mutationFn: (): Promise<Conversation> => createFactoryConversation(projectId, crypto.randomUUID()),
+    mutationFn: (): Promise<Conversation> => openConversation(projectId, crypto.randomUUID()),
     onSuccess: refresh,
   })
   return { create }
@@ -62,9 +76,8 @@ export const useConversationActions = (projectId: string) => {
 export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'>>
 
 /**
- * The models this person can reach, as the Factory answers for their own credentials and the
- * installation's shared ones. The controller's own list reads only the host's keys, the same for
- * everyone. The product stores neither the list nor the choice.
+ * The models this person can reach with their own model account or the installation's shared one.
+ * The controller's own list reads only the host's keys, the same for everyone, so the Hub answers.
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
@@ -81,13 +94,15 @@ export type ReasoningLevel = typeof reasoningLevels[number]
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   reasoningLevels.find((level) => level === value) ?? null
 
-// The model chosen before a Project exists has nowhere to live yet: the controller only persists a
-// choice on a conversation's own thread. Once the home prompt creates that first conversation, this
-// applies the choice to it, the same write useSessionModel's own mutations make.
-export const applyThreadModel = async (conversationId: string, modelId: string, reasoning: ReasoningLevel | null): Promise<void> => {
-  const session = factoryController.session(conversationId)
-  await session.switchModel(modelId, { scope: 'thread' })
-  if (reasoning) await session.setState({ thinkingLevel: reasoning })
+// The choices made before a Project exists have nowhere to live yet: the controller only persists
+// them on a conversation's own thread. Once the home prompt opens that first conversation, this
+// applies them to it, the same writes useSessionModel's own mutations make.
+export const applyThreadSettings = async (projectId: string, conversationId: string, settings: Readonly<{
+  modelId: string | undefined; reasoning: ReasoningLevel | null
+}>): Promise<void> => {
+  const session = conversationSession(projectId, conversationId)
+  if (settings.modelId) await session.switchModel(settings.modelId)
+  if (settings.reasoning) await session.setState({ thinkingLevel: settings.reasoning })
 }
 
 export const useSessionModel = (projectId: string, conversationId: string | null) => {
@@ -97,8 +112,10 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const state = useQuery({
     queryKey: [...sessionModelKey(projectId), conversationId],
     queryFn: async () => {
-      const current = await factoryController.session(conversationId ?? '').state()
-      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel) }
+      const current = await conversationSession(projectId, conversationId ?? '').state()
+      // The Hub reloads the memory a run of this conversation stored before it answers.
+      const memory: MemoryGauge | null = current.omProgress ? { progress: current.omProgress, bufferingMessages: false, bufferingObservations: false } : null
+      return { modelId: current.modelId, reasoning: asReasoningLevel(current.settings?.thinkingLevel), memory }
     },
     enabled: Boolean(conversationId),
   })
@@ -107,111 +124,27 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   const chooseReasoning = useMutation({
     mutationFn: (level: ReasoningLevel) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return factoryController.session(conversationId).setState({ thinkingLevel: level })
+      return conversationSession(projectId, conversationId).setState({ thinkingLevel: level })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  // Thread scope is the only one the controller persists, and it is the right one: the choice is
-  // saved on the conversation, which is what a run opened from it will read.
+  // The model is the conversation's own, held in its Mastra session. The Hub refuses the change
+  // while a turn is active and the composer disables the control then, so the next turn reads it.
   const choose = useMutation({
     mutationFn: (modelId: string) => {
       if (!conversationId) throw new Error('BUILDER_CONVERSATION_NOT_READY')
-      return factoryController.session(conversationId).switchModel(modelId, { scope: 'thread' })
+      return conversationSession(projectId, conversationId).switchModel(modelId)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) }),
   })
-  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, choose, chooseReasoning }
+  return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, memory: state.data?.memory ?? null, choose, chooseReasoning }
 }
 
 export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
   queryKey: builderThreadMessagesKey(projectId, threadId ?? ''),
-  queryFn: () => factoryController.session(threadId ?? '').listMessages(threadId ?? '', 200),
+  queryFn: () => projectSessions(projectId).listMessages(threadId ?? '', 200),
   enabled: Boolean(threadId),
 })
-
-export type LiveTurn = Readonly<{
-  runId: string | null
-  status: 'CONNECTING' | 'LIVE' | 'ENDED' | 'LOST'
-  messages: readonly MastraDBMessage[]
-  tools: Readonly<Record<string, ActiveTool>>
-  // Tool calls parked on the person, keyed by call id: an approval or a question from the agent.
-  waiting: Readonly<Record<string, PendingAnswer>>
-  // The agent's own task list for this turn, from the AgentController's display state.
-  tasks: readonly TaskSnapshot[]
-  error: string | null
-}>
-
-export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
-
-const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], error: null }
-
-const without = (waiting: LiveTurn['waiting'], toolCallId: string): LiveTurn['waiting'] =>
-  Object.fromEntries(Object.entries(waiting).filter(([id]) => id !== toolCallId))
-
-type TurnAction = Readonly<{ runId: string }> & (
-  | Readonly<{ kind: 'connected' }>
-  | Readonly<{ kind: 'lost' }>
-  | Readonly<{ kind: 'event'; event: AgentControllerEvent }>
-)
-
-const upsertMessage = (messages: readonly MastraDBMessage[], message: MastraDBMessage): readonly MastraDBMessage[] => {
-  const index = messages.findIndex((item) => item.id === message.id)
-  return index === -1 ? [...messages, message] : messages.map((item, position) => position === index ? message : item)
-}
-
-type MessageUpdate = Extract<KnownAgentControllerEvent, { type: 'message_update' }>['event']
-
-// The controller sends a message whole once, then only id-addressed deltas, the way the
-// @mastra/client-js agent controller reference rebuilds it.
-const applyUpdate = (message: MastraDBMessage, update: MessageUpdate): MastraDBMessage => {
-  const parts = [...message.content.parts]
-  if (update.type === 'text-delta') {
-    const index = parts.map((part) => part.type).lastIndexOf('text')
-    const part = parts[index]
-    if (part?.type === 'text') parts[index] = { ...part, text: part.text + update.delta }
-    else parts.push({ type: 'text', text: update.delta })
-  } else if (update.type === 'reasoning-delta') {
-    const part = parts[update.index]
-    const reasoning = part?.type === 'reasoning' ? part.reasoning + update.delta : update.delta
-    parts[update.index] = { ...(part?.type === 'reasoning' ? part : { type: 'reasoning' as const }), reasoning, details: [{ type: 'text', text: reasoning }] }
-  } else {
-    parts[update.index] = update.part
-  }
-  return { ...message, content: { ...message.content, parts } }
-}
-
-// A turn belongs to one run. The first action of another run starts from empty, so a settled run's
-// messages stay on screen until the next run actually speaks.
-const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
-  const turn = previous.runId === action.runId ? previous : { ...idleTurn, runId: action.runId }
-  if (action.kind === 'connected') return { ...turn, status: 'LIVE' }
-  if (action.kind === 'lost') return { ...turn, status: 'LOST' }
-  const event = action.event
-  if (!isKnownAgentControllerEvent(event)) return turn
-  switch (event.type) {
-    case 'message_start':
-      return { ...turn, messages: upsertMessage(turn.messages, event.message) }
-    case 'message_update': {
-      const message = turn.messages.find((item) => item.id === event.id)
-      return message ? { ...turn, messages: upsertMessage(turn.messages, applyUpdate(message, event.event)) } : turn
-    }
-    case 'display_state_changed':
-      return { ...turn, tools: { ...turn.tools, ...event.displayState.activeTools }, tasks: event.displayState.tasks }
-    case 'tool_approval_required':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
-    case 'tool_suspended':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
-    case 'tool_end':
-    case 'tool_suspension_cancelled':
-      return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
-    case 'error':
-      return { ...turn, error: event.error.message }
-    case 'agent_end':
-      return { ...turn, status: 'ENDED', waiting: {} }
-    default:
-      return turn
-  }
-}
 
 /** Follows one run's Mastra session for as long as the agent owns the turn. */
 export const useBuilderLiveTurn = (
@@ -225,7 +158,7 @@ export const useBuilderLiveTurn = (
   const conversationId = run?.conversationId
   useEffect(() => {
     if (!builderRunId || !conversationId || !agentActive) return undefined
-    const session = factoryController.session(conversationId, builderRunScope(builderRunId))
+    const session = runSession(projectId, conversationId)
     let closed = false
     let unsubscribe = () => {}
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -235,7 +168,11 @@ export const useBuilderLiveTurn = (
         const subscription = await session.subscribe({
           onEvent: (event) => {
             dispatch({ runId: builderRunId, kind: 'event', event })
-            if (event.type === 'agent_end') resync()
+            if (event.type === 'agent_end') {
+              resync()
+              // The run stored memory for the conversation; read it again once the run is truly over.
+              if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
+            }
           },
           onReconnect: resync,
           onError: () => dispatch({ runId: builderRunId, kind: 'lost' }),
@@ -259,15 +196,16 @@ export const useBuilderLiveTurn = (
 }
 
 /**
- * Answers a call the run parked on the person. The answer goes to the run's own session, and the
- * Hub refuses anything but approve or decline there, so there is no "always allow" to send.
+ * Answers a call the run parked on the person. The answer goes to the session the Hub runs the
+ * conversation in, and the Hub refuses anything but approve or decline there, so there is no
+ * "always allow" to send.
  */
 // respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
-// from a single-select AskUser question) or a string array (the options chosen from a multi-select
+// from a single-select AskUser question), or a string array (the options chosen from a multi-select
 // question).
-export const answerPendingCall = (conversationId: string, builderRunId: string, pending: PendingAnswer, answer: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>): Promise<void> => {
-  const session = factoryController.session(conversationId, builderRunScope(builderRunId))
-  return 'approved' in answer
-    ? session.approveTool(pending.toolCallId, answer.approved)
-    : session.respondToToolSuspension(pending.toolCallId, answer.text)
+export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
+  const session = runSession(projectId, conversationId)
+  if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
+  if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
+  return session.respondToToolSuspension(pending.toolCallId, answer.text)
 }

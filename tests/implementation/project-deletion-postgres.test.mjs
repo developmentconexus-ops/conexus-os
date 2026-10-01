@@ -88,22 +88,14 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
        VALUES ($1, $2, 'Deletion Project', 'NEW', $3, 'project-revision-1')`,
       [projectId, workspaceId, HEAD],
     )
-    await client.query(
-      `INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1, $2)`,
-      [projectId, HEAD],
-    )
-    await client.query(
-      `INSERT INTO builder.factory_binding(project_id, factory_project_id, project_repository_id, repository_id)
-       VALUES ($1, 'factory-project-501', 'project-repository-501', 'repository-501')`,
-      [projectId],
-    )
+    await client.query('SELECT builder.register_project_repository($1)', [projectId])
 
     // builder.builder_run: settled, so it does not trip the PROJECT_BUSY guard.
     await client.query(
       `INSERT INTO builder.builder_run(
-         builder_run_id, project_id, account_id, idempotency_digest, mode, base_source_revision,
-         expected_working_version, state, request_digest, base_working_version, conversation_id
-       ) VALUES ($1, $2, $3, $4, 'BUILD', $5, 0, 'SUCCEEDED', $6, 0, $7)`,
+         builder_run_id, project_id, account_id, idempotency_digest, base_source_revision,
+         state, request_digest, conversation_id
+       ) VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`,
       [randomUUID(), projectId, accountId, digest('1'), HEAD, digest('2'), `conexus-builder:${projectId}`],
     )
 
@@ -203,7 +195,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     const before = {
       project: await countRows('SELECT count(*)::integer AS count FROM project.project WHERE project_id = $1'),
       workingState: await countRows('SELECT count(*)::integer AS count FROM builder.project_working_state WHERE project_id = $1'),
-      factoryBinding: await countRows('SELECT count(*)::integer AS count FROM builder.factory_binding WHERE project_id = $1'),
+      projectRepository: await countRows('SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1'),
       builderRun: await countRows('SELECT count(*)::integer AS count FROM builder.builder_run WHERE project_id = $1'),
       application: await countRows('SELECT count(*)::integer AS count FROM iam.application WHERE project_id = $1'),
       applicationInvitation: await countRows('SELECT count(*)::integer AS count FROM iam.application_invitation WHERE project_id = $1'),
@@ -218,7 +210,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       handoff: await client.query('SELECT count(*)::integer AS count FROM iam.handoff WHERE preview_id = $1', [previewId]).then((result) => result.rows[0].count),
       projectBinding: await countRows('SELECT count(*)::integer AS count FROM connector.project_binding WHERE project_id = $1'),
     }
-    for (const [label, count] of Object.entries(before)) assert.equal(count, label === 'artifact' || label === 'application' || label === 'factoryBinding' || label === 'workingState' || label === 'project' || label === 'preview' ? 1 : count >= 1 ? count : 0, `seed row missing for ${label}`)
+    for (const [label, count] of Object.entries(before)) assert.equal(count, label === 'artifact' || label === 'application' || label === 'projectRepository' || label === 'workingState' || label === 'project' || label === 'preview' ? 1 : count >= 1 ? count : 0, `seed row missing for ${label}`)
     // The HUB session itself names no Project or Preview directly -- it is a Workspace-level session
     // that merely parents the PREVIEW session -- so only the PREVIEW and APPLICATION rows match here.
     assert.equal(before.hostSession, 2)
@@ -229,7 +221,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       [accountId, projectId, 'Deletion Project'],
     )
     assert.equal(tombstone.rows[0].project_id, projectId)
-    assert.equal(tombstone.rows[0].factory_project_id, 'factory-project-501')
+    assert.deepEqual(Object.keys(tombstone.rows[0]), ['project_id', 'workspace_id', 'name', 'requested_by', 'requested_at', 'completed_at'])
     assert.equal(tombstone.rows[0].completed_at, null)
 
     // A tombstoned Project is refused admission and dropped from visibility for anyone but the
@@ -250,7 +242,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     const after = {
       project: await countRows('SELECT count(*)::integer AS count FROM project.project WHERE project_id = $1'),
       workingState: await countRows('SELECT count(*)::integer AS count FROM builder.project_working_state WHERE project_id = $1'),
-      factoryBinding: await countRows('SELECT count(*)::integer AS count FROM builder.factory_binding WHERE project_id = $1'),
+      projectRepository: await countRows('SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1'),
       builderRun: await countRows('SELECT count(*)::integer AS count FROM builder.builder_run WHERE project_id = $1'),
       application: await countRows('SELECT count(*)::integer AS count FROM iam.application WHERE project_id = $1'),
       applicationInvitation: await countRows('SELECT count(*)::integer AS count FROM iam.application_invitation WHERE project_id = $1'),

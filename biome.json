@@ -10,6 +10,7 @@
     "includes": [
       "apps/**",
       "!apps/keycloak-theme",
+      "!apps/hub/starter-template",
       "packages/**",
       "scripts/**",
       "tests/**",

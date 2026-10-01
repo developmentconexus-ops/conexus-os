@@ -80,35 +80,23 @@ const project = config.project ? createConfiguredProjectModule({
     database: config.database.database,
   },
   project: config.project,
-  // The builder module owns the Factory and is composed below; creation reaches it at request time.
+  // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
   repository: {
-    prepare: async (input) => {
-      const prepare = builder?.prepareProjectRepository
-      if (!prepare) throw new Error('FACTORY_NOT_CONFIGURED')
-      return prepare(input)
+    prepare: async (projectId) => {
+      if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+      return builder.prepareProjectRepository(projectId)
     },
   },
   // Every deletion port reaches a module composed below through the same request-time indirection
   // as repository.prepare above, since the Project module is composed before the Builder module is.
   deletion: {
-    teardownFactoryProject: async (binding) => {
-      const teardown = builder?.teardownFactoryProject
-      if (!teardown) throw new Error('FACTORY_NOT_CONFIGURED')
-      return teardown(binding)
-    },
     releaseApplicationData: async (projectId) => {
       if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
       return applicationRunner.release({ projectId })
     },
-    probeGithubRepositoryDeletable: async (repositoryId) => {
-      const probe = builder?.probeFactoryGithubRepositoryDeletable
-      if (!probe) throw new Error('FACTORY_NOT_CONFIGURED')
-      return probe(repositoryId)
-    },
-    deleteGithubRepository: async (repositoryId) => {
-      const deleteRepository = builder?.deleteFactoryGithubRepository
-      if (!deleteRepository) throw new Error('FACTORY_NOT_CONFIGURED')
-      return deleteRepository(repositoryId)
+    deleteRepository: async (projectId) => {
+      if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+      return builder.deleteProjectRepository(projectId)
     },
   },
   origin: config.origin,
@@ -198,6 +186,7 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.
   ...(applicationRunner ? {
     applicationServer: {
+      invoke: applicationRunner.invoke,
       prepare: (input) => {
         const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
           (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))
@@ -210,9 +199,14 @@ builder = config.builder && config.project && config.factory ? createConfiguredB
   origin: config.origin,
   resolveCurrentSession: identityAccess.resolveCurrentSession,
   isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+  readProjectName: async (input) => {
+    const name = await project?.readProjectName(input)
+    if (!name) throw new Error('BUILDER_PROJECT_NOT_FOUND')
+    return name
+  },
   connectors: {
     openRun: connectors.openBuilderRun,
-    integration: connectors.builderIntegration,
+    tools: connectors.builderTools,
     toolPayloadProjection: connectors.toolPayloadProjection,
   },
   connectorObservability: connectors.observability,
