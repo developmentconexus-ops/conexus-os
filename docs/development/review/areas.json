@@ -182,7 +182,12 @@
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
-      "docs/tasks/specs/0007-telemetry-otel/**"
+      "docs/tasks/specs/0007-telemetry-otel/**",
+      "apps/hub/src/telemetry/**",
+      "infra/telemetry/**",
+      "infra/pilot/**",
+      "tests/implementation/telemetry-*",
+      "tests/implementation/hub-launch-flags.test.mjs"
     ],
     "page": "docs/development/review/platform.md"
   }
