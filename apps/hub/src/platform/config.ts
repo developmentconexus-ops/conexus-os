@@ -38,6 +38,8 @@ export type HubConfig = Readonly<{
      * call's stream is recorded there as one JSONL file (`createModelStreamRecorder`).
      */
     modelStreamRecordDir: string | undefined
+    /** CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: the installation's Context7 key, optional; the Builder reads Context7 anonymously when unset. */
+    context7ApiKeyFile: string | undefined
   }> | undefined
   /**
    * The installation's AES-256 credential key and the keys a rotation retired (decrypt-only). It seals every
@@ -234,6 +236,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
     modelStreamRecordDir: modelStreamRecordDir(environment),
+    context7ApiKeyFile: environment.CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE || undefined,
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
