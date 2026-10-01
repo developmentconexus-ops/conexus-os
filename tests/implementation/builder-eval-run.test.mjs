@@ -23,12 +23,28 @@ const planPage = `<section aria-label="Plano para aprovar">
   <textarea aria-label="O que mudar no plano"></textarea>
   <button onclick="window.sent = 'rejected: ' + this.previousElementSibling.value; this.closest('section').remove()">Pedir ajustes</button>
 </section>`
-const optionsPage = `<div aria-label="Pergunta do agente"><p>Qual formato de data?</p>
-  <label><input type="radio" name="q" onchange="window.sent = this.nextElementSibling.innerText; this.closest('div[aria-label]').remove()"><span><span style="display:block">Dia/mês/ano</span><span style="display:block">Padrão brasileiro</span></span></label>
-  <label><input type="radio" name="q"><span><span>Ano-mês-dia</span></span></label></div>`
-const textPage = `<div aria-label="Pergunta do agente"><label for="a">Qual o nome da empresa?</label>
-  <div><input id="a"><button aria-label="Enviar resposta" onclick="window.sent = document.getElementById('a').value">Enviar resposta</button></div>
-  <script>document.getElementById('a').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.sent = e.target.value })</script></div>`
+// The markup of a question card (ask-user-pt.tsx): one [data-ask-question] per question and one
+// send button. Sending records each question's answer in window.sent (a list of cards, each a list
+// of answers), removes the card and shows the next one of window.next, if any.
+const askQuestion = ({ text, options = [], multi = false }) => options.length === 0
+  ? `<div data-ask-question="${text}"><label>${text}</label><input type="text"></div>`
+  : `<fieldset data-ask-question="${text}"><p>${text}</p>${options.map(([label, description]) => `<label><input type="${multi ? 'checkbox' : 'radio'}" name="${text}"><span><span style="display:block">${label}</span>${description ? `<span style="display:block">${description}</span>` : ''}</span></label>`).join('')}<input type="text" placeholder="Outra resposta"></fieldset>`
+const askCard = (...questions) => `<div aria-label="Pergunta do agente">${questions.map(askQuestion).join('')}<button onclick="window.send(this)">Enviar resposta${questions.length > 1 ? 's' : ''}</button></div>
+<script>window.send = (button) => {
+  const card = button.closest('[aria-label]')
+  const answers = [...card.querySelectorAll('[data-ask-question]')].map((entry) => {
+    const chosen = [...entry.querySelectorAll('input:checked')].map((input) => input.closest('label').innerText.split('\\n')[0].trim())
+    if (entry.querySelector('input[type=checkbox]')) return chosen
+    return chosen[0] ?? entry.querySelector('input[type=text]').value
+  })
+  window.sent = [...(window.sent ?? []), answers]
+  card.remove()
+  document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')
+}</script>`
+const dateQuestion = { text: 'Qual formato de data?', options: [['Dia/mês/ano', 'Padrão brasileiro'], ['Ano-mês-dia']] }
+const nameQuestion = { text: 'Qual o nome da empresa?' }
+const optionsPage = askCard(dateQuestion)
+const textPage = askCard(nameQuestion)
 
 const withPage = async (html, run) => {
   const page = await browser.newPage()
@@ -81,7 +97,7 @@ test('a question with options gets the first option', async () => {
     const cards = createCards()
     await answerPendingCard(page, cards, null)
     assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual formato de data?', text: 'Qual formato de data?', answer: 'Dia/mês/ano' }])
-    assert.equal(await page.evaluate(() => window.sent), 'Dia/mês/ano\nPadrão brasileiro')
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Dia/mês/ano']])
   })
 })
 
@@ -90,7 +106,7 @@ test('a question without options gets the fixed simplest-way answer', async () =
     const cards = createCards()
     await answerPendingCard(page, cards, null)
     assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Pode seguir com o que achar mais simples.' }])
-    assert.equal(await page.evaluate(() => window.sent), 'Pode seguir com o que achar mais simples.')
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Pode seguir com o que achar mais simples.']])
   })
 })
 
@@ -181,14 +197,14 @@ const byTopic = (topics) => createPerson({
 const scriptedPerson = byTopic({ vencido: 'vencido', semana: 'semana' })
 
 test('the scripted person answers a free-text card with the sheet\'s words and records how it decided', async () => {
-  await withPage(textPage.replace('Qual o nome da empresa?', 'Quando um título fica vencido?'), async (page) => {
+  await withPage(askCard({ text: 'Quando um título fica vencido?' }), async (page) => {
     const cards = createCards({ person: scriptedPerson })
     await answerPendingCard(page, cards, null)
     assert.deepEqual(cards.answers, [{
       kind: 'QUESTION', title: 'Quando um título fica vencido?', text: 'Quando um título fica vencido?',
       answer: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', via: 'sheet', ruleIds: ['vencido'],
     }])
-    assert.equal(await page.evaluate(() => window.sent), 'Vencido é o título com vencimento antes de hoje e ainda não pago.')
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Vencido é o título com vencimento antes de hoje e ainda não pago.']])
   })
 })
 
@@ -197,7 +213,7 @@ test('the scripted person says "Não sei." when the sheet is silent, and does no
     const cards = createCards({ person: scriptedPerson })
     await answerPendingCard(page, cards, null)
     assert.deepEqual(cards.answers, [{ kind: 'QUESTION', title: 'Qual o nome da empresa?', text: 'Qual o nome da empresa?', answer: 'Não sei.', via: 'silent', ruleIds: [] }])
-    assert.equal(await page.evaluate(() => window.sent), 'Não sei.')
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Não sei.']])
   })
 })
 
@@ -210,18 +226,33 @@ test('on an option card a silent sheet never clicks the first option, the Builde
   })
 })
 
-const multiPage = `<div aria-label="Pergunta do agente"><p>O que mais devo incluir por semana?</p>
-  <label><input type="checkbox" onchange="window.picked = [...(window.picked ?? []), this.nextElementSibling.innerText.split('\\n')[0]]"><span><span>Total por semana</span></span></label>
-  <label><input type="checkbox" onchange="window.picked = [...(window.picked ?? []), this.nextElementSibling.innerText.split('\\n')[0]]"><span><span>Exportar planilha</span></span></label>
-  <button onclick="window.sent = 'submitted'">Enviar</button></div>`
+const multiPage = askCard({ text: 'O que mais devo incluir por semana?', multi: true, options: [['Total por semana'], ['Exportar planilha']] })
 
 test('a multi-select card gets every option the sheet finds, then the submit button', async () => {
   await withPage(multiPage, async (page) => {
     const cards = createCards({ person: byTopic({ semana: 'semana' }) })
     await answerPendingCard(page, cards, null)
     assert.equal(cards.answers[0].answer, 'Total por semana')
-    assert.deepEqual(await page.evaluate(() => window.picked), ['Total por semana'])
-    assert.equal(await page.evaluate(() => window.sent), 'submitted')
+    assert.deepEqual(await page.evaluate(() => window.sent), [[['Total por semana']]])
+  })
+})
+
+test('a card of three questions is answered question by question, each matched to the sheet, and sent once', async () => {
+  const card = askCard(
+    { text: 'Qual formato de data?', options: [['Dia/mês/ano'], ['Ano-mês-dia']] },
+    { text: 'Quando um título fica vencido?' },
+    { text: 'O que mais devo incluir por semana?', multi: true, options: [['Total por semana'], ['Exportar planilha']] },
+  )
+  await withPage(card, async (page) => {
+    const cards = createCards({ person: scriptedPerson, readMessages: async () => threadWith(['ask_user', 'call-3', 'call']) })
+    assert.equal(await answerPendingCard(page, cards, null), 'call:call-3')
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Ano-mês-dia', 'Vencido é o título com vencimento antes de hoje e ainda não pago.', ['Total por semana']]])
+    assert.deepEqual(cards.answers.map(({ kind, toolCallId, title, answer, via, ruleIds }) => ({ kind, toolCallId, title, answer, via, ruleIds })), [
+      { kind: 'QUESTION', toolCallId: 'call-3', title: 'Qual formato de data?', answer: 'Ano-mês-dia', via: 'silent', ruleIds: [] },
+      { kind: 'QUESTION', toolCallId: 'call-3', title: 'Quando um título fica vencido?', answer: 'Vencido é o título com vencimento antes de hoje e ainda não pago.', via: 'sheet', ruleIds: ['vencido'] },
+      { kind: 'QUESTION', toolCallId: 'call-3', title: 'O que mais devo incluir por semana?', answer: 'Total por semana', via: 'sheet', ruleIds: ['semana'] },
+    ])
+    assert.equal(await answerPendingCard(page, cards, 'call:call-3'), null)
   })
 })
 
@@ -275,11 +306,8 @@ test('the person\'s interventions are counted from the driver\'s record', () => 
 })
 
 // The markup of the new approval card: ask_user with the two approval options (ask-user-pt.tsx).
-const approvalPage = (question = 'Posso construir assim?') => `<div aria-label="Pergunta do agente"><p>${question}</p>
-  <label><input type="radio" name="q" onchange="window.sent = [...(window.sent ?? []), this.nextElementSibling.innerText.split('\\n')[0]]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')"><span><span style="display:block">Aprovar e construir</span><span style="display:block">Começa a construir.</span></span></label>
-  <label><input type="radio" name="q" onchange="window.sent = [...(window.sent ?? []), this.nextElementSibling.innerText.split('\\n')[0]]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')"><span><span>Pedir ajustes</span></span></label></div>`
-const changePage = `<div aria-label="Pergunta do agente"><label for="c">O que você quer mudar?</label>
-  <div><input id="c" onkeydown="if (event.key === 'Enter') { window.sent = [...(window.sent ?? []), this.value]; this.closest('div[aria-label]').remove(); document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '') }"><button aria-label="Enviar resposta">Enviar resposta</button></div></div>`
+const approvalPage = (question = 'Posso construir assim?') => askCard({ text: question, options: [['Aprovar e construir', 'Começa a construir.'], ['Pedir ajustes']] })
+const changePage = askCard({ text: 'O que você quer mudar?' })
 const threadWith = (...calls) => [{ role: 'assistant', createdAt: '2026-09-30T10:00:00Z', content: { parts: calls.map(([toolName, toolCallId, state]) => ({ type: 'tool-invocation', toolInvocation: { toolName, toolCallId, state, args: {} } })) } }]
 
 test('the approval card is recognized by its options and approved, and never reaches the scripted person', async () => {
@@ -288,7 +316,7 @@ test('the approval card is recognized by its options and approved, and never rea
   await withPage(approvalPage(), async (page) => {
     const cards = createCards({ person, readMessages: async () => [...threadWith(['ask_user', 'call-7', 'call']), { role: 'assistant', createdAt: '2026-09-30T10:05:00Z', content: { parts: [{ type: 'text', text: 'O plano: lista e tela.' }] } }] })
     assert.equal(await answerPendingCard(page, cards, null), 'call:call-7')
-    assert.deepEqual(await page.evaluate(() => window.sent), ['Aprovar e construir'])
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Aprovar e construir']])
     assert.deepEqual(cards.answers, [{ kind: 'APPROVAL', toolCallId: 'call-7', title: 'Posso construir assim?', text: 'O plano: lista e tela.', answer: 'Aprovar e construir' }])
     assert.deepEqual(asked, [])
   })
@@ -301,7 +329,7 @@ test('a case that scripts "Pedir ajustes" asks for one change, sends its text, t
     await answerPendingCard(page, cards, null)
     await answerPendingCard(page, cards, 'card')
     await answerPendingCard(page, cards, 'card')
-    assert.deepEqual(await page.evaluate(() => window.sent), ['Pedir ajustes', 'Quero também uma coluna de status.', 'Aprovar e construir'])
+    assert.deepEqual(await page.evaluate(() => window.sent), [['Pedir ajustes'], ['Quero também uma coluna de status.'], ['Aprovar e construir']])
     assert.deepEqual(cards.answers.map(({ kind, answer, via }) => [kind, answer, via]), [
       ['APPROVAL', 'Pedir ajustes', undefined], ['QUESTION', 'Quero também uma coluna de status.', 'case'], ['APPROVAL', 'Aprovar e construir', undefined],
     ])
@@ -323,7 +351,7 @@ test('two card calls with the same question are told apart by their tool call id
 })
 
 test('a card that comes back for the call already answered is not answered again', async () => {
-  await withPage(approvalPage().replace(/this\.closest\('div\[aria-label\]'\)\.remove\(\)/g, ''), async (page) => {
+  await withPage(approvalPage().replace('card.remove()', ''), async (page) => {
     const cards = createCards({ readMessages: async () => threadWith(['ask_user', 'call-1', 'call']) })
     const first = await answerPendingCard(page, cards, null)
     await page.evaluate(() => document.querySelector('[data-eval-answered]').removeAttribute('data-eval-answered'))

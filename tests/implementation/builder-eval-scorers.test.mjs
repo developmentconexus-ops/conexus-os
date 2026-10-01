@@ -94,9 +94,13 @@ test('a small edit has no plan file and no approval, so nothing is counted befor
 })
 
 test('an ask_user without both approval options is not the approval, and a failed write is not a write', () => {
-  const ask = (labels) => ({ entityName: 'ask_user', input: { question: 'q', options: labels.map((label) => ({ label })) } })
+  const ask = (labels) => ({ entityName: 'ask_user', input: { questions: [{ question: 'q', options: labels.map((label) => ({ label })) }] } })
   assert.equal(flowOf([ask(['Aprovar e construir'])]).approval.via, null)
   assert.equal(flowOf([ask(['  aprovar E construir ', 'Pedir ajustes'])]).approval.via, 'ask_user')
+  const twoQuestions = { entityName: 'ask_user', input: { questions: [ask(['Aprovar e construir', 'Pedir ajustes']).input.questions[0], { question: 'r' }] } }
+  assert.equal(flowOf([twoQuestions]).approval.via, null, 'an approval is a card of its own')
+  const earlier = { entityName: 'ask_user', input: { question: 'q', options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }] } }
+  assert.equal(flowOf([earlier]).approval.via, 'ask_user', 'a trace from before `questions` still scores')
   const failedWrite = { entityName: 'mastra_workspace_write_file', input: { path: 'src/a.ts' }, error: { message: 'x' } }
   assert.equal(flowOf([failedWrite, ask(['Aprovar e construir', 'Pedir ajustes'])]).appFilesBeforeApproval, 0)
 })

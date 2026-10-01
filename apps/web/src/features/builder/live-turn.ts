@@ -41,7 +41,7 @@ export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; t
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
 type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
-export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }> | Readonly<{ plan: PlanResume }>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
 export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
 
