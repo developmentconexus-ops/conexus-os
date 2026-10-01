@@ -718,6 +718,68 @@ test('a run that failed before the agent still shows the request and names why i
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
+test('the slider and /raciocinio offer exactly the levels of the selected model, named in Portuguese', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000091'
+  const projectId = '70000000-0000-4000-8000-000000000092'
+  const conversationId = 'conversation-levels'
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const models = [
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+  ]
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models })
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Níveis', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  const chosen = []
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/state*`, (route) => {
+    const level = route.request().postDataJSON()?.state?.thinkingLevel
+    if (level) chosen.push(level)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  const commandLevels = async () => {
+    await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
+    await messageBox(page).fill('/raciocinio ')
+    const options = page.getByRole('option')
+    await options.first().waitFor()
+    const labels = await options.allTextContents()
+    await messageBox(page).fill('')
+    return labels
+  }
+  await openModelPicker(page)
+  const slider = page.getByRole('slider', { name: 'Raciocínio' })
+  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['5', 'Médio', 6])
+  const sliderBox = await slider.boundingBox()
+  await page.mouse.click(sliderBox.x + sliderBox.width - 2, sliderBox.y + sliderBox.height / 2)
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'max'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'max', 'the top stop is Máximo')
+  await page.keyboard.press('Escape')
+  assert.deepEqual(await commandLevels(), ['Desligado', 'Baixo', 'Médio', 'Alto', 'Muito alto', 'Máximo'])
+
+  await chooseModel(page, 'Gemini 3 Flash')
+  assert.deepEqual(await commandLevels(), ['Baixo', 'Médio', 'Alto'])
+  await messageBox(page).fill('/raciocinio high')
+  await messageBox(page).press('Enter')
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'high'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'high')
+
+  await chooseModel(page, 'Gemini Pro Agent')
+  await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
+  await messageBox(page).fill('/raci')
+  assert.equal(await page.getByRole('option').count(), 0, 'a model with no reasoning level has no /raciocinio command')
+})
+
 test('a run notice the Hub signalled into the thread reads as a notice, apart from the Builder\'s own turn', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'

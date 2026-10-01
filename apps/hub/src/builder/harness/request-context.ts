@@ -19,12 +19,8 @@ export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 
 type ControllerContextValue = Readonly<{ session?: Readonly<{ modelId?: unknown }>; getState?: () => Readonly<Record<string, unknown>> }>
 
-/** The thinking levels the composer offers and the session state route admits, lowest first: Mastra Code's levels without `off` and `max`. */
-export const BUILDER_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh'] as const satisfies readonly ThinkingLevelSetting[]
-export type BuilderThinkingLevel = typeof BUILDER_THINKING_LEVELS[number]
-
 /** The level a conversation runs at until the person picks one; the composer shows the same. */
-const DEFAULT_THINKING_LEVEL: BuilderThinkingLevel = 'medium'
+const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = 'medium'
 
 /**
  * The thinking level the conversation's session runs at, read on every call as Mastra Code's

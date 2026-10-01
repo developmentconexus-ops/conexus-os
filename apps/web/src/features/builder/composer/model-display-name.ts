@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_VALUES } from '@mastra/code-sdk/thinking'
 import type { ReasoningLevel } from '../mastra-session'
 
 // Mastra's AvailableModel.modelName is documented as "Model name without provider prefix"
@@ -10,12 +11,7 @@ import type { ReasoningLevel } from '../mastra-session'
 // registry, gateway catalog (`GatewayModel`, gateway-manager.d.ts) or models.dev bundle. So this
 // formatter derives a name from the id; it is the documented fallback, not a field Mastra ships.
 
-// A literal copy of mastra-session's `reasoningLevels`, kept as a `ReasoningLevel` array so the
-// compiler catches drift: this module is imported standalone by a plain node:test run (no bundler),
-// where importing mastra-session's *runtime* export would also drag in its Mastra client/React
-// Query chain, so only its type is imported (erased entirely by TS's type-only import).
-const reasoningLevelIds: readonly ReasoningLevel[] = ['low', 'medium', 'high', 'xhigh']
-const reasoningSuffixPattern = new RegExp(`-(${reasoningLevelIds.join('|')})$`)
+const reasoningSuffixPattern = new RegExp(`-(${THINKING_LEVEL_VALUES.join('|')})$`)
 
 export type ReasoningSuffix = Readonly<{ base: string; level: ReasoningLevel }>
 

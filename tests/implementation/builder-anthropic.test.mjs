@@ -168,11 +168,11 @@ test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with
   const { app, store, share, as } = await createApp(t)
   const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
   assert.deepEqual(await offered(), [])
-  const thinkingLevels = ['low', 'medium', 'high', 'xhigh']
+  // Mastra Code sends Claude 5 every level up to max, and a budget-era Haiku the same budget for xhigh and max.
   const claude = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels, hasApiKey: true },
-    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', thinkingLevels, hasApiKey: true },
-    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', thinkingLevels, hasApiKey: true },
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
+    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
+    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh'], hasApiKey: true },
   ]
   await putKey(app, fakeKey)
   assert.deepEqual(await offered(), claude)

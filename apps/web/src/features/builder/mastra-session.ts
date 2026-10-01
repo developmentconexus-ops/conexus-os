@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -90,10 +91,10 @@ export const useBuilderModels = (scope?: 'installation') => useQuery({
   },
 })
 
-export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
-export type ReasoningLevel = typeof reasoningLevels[number]
+/** Mastra Code's own thinking levels, lowest first; the Hub offers each model the ones it honors. */
+export type ReasoningLevel = ThinkingLevelSetting
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
-  reasoningLevels.find((level) => level === value) ?? null
+  THINKING_LEVEL_VALUES.find((level) => level === value) ?? null
 
 /**
  * The level a model runs at for the conversation's choice (medium until the person picks one): the
@@ -101,8 +102,8 @@ const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
  * (Gemini runs `xhigh` as `high`). Null for a model with no reasoning level.
  */
 export const levelForModel = (levels: readonly ReasoningLevel[], chosen: ReasoningLevel | null): ReasoningLevel | null => {
-  const wanted = reasoningLevels.indexOf(chosen ?? 'medium')
-  return levels.filter((level) => reasoningLevels.indexOf(level) <= wanted).at(-1) ?? levels[0] ?? null
+  const wanted = THINKING_LEVEL_VALUES.indexOf(chosen ?? 'medium')
+  return levels.filter((level) => THINKING_LEVEL_VALUES.indexOf(level) <= wanted).at(-1) ?? levels[0] ?? null
 }
 
 // The choices made before a Project exists have nowhere to live yet: the controller only persists

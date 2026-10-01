@@ -247,12 +247,22 @@ test('a session-state write outside the reasoning level is refused before it rea
   const { app, reachedContexts } = await createBuilderApp(t)
   const stateUrl = `${sessionBase()}/state?${inConversation()}`
   const yolo = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { yolo: true } } })
-  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'max' } } })
+  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'extreme' } } })
   const mixed = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low', yolo: true } } })
   const extraTopLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low' }, extra: 1 } })
   assert.deepEqual([yolo.statusCode, badLevel.statusCode, mixed.statusCode, extraTopLevel.statusCode], [400, 400, 400, 400])
   for (const response of [yolo, badLevel, mixed, extraTopLevel]) assert.equal(response.json().type.endsWith('session-state-refused'), true)
   assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/state')), [])
+})
+
+test("the reasoning level write admits each of Mastra Code's six levels", async (t) => {
+  const { app } = await createBuilderApp(t)
+  const stateUrl = `${sessionBase()}/state?${inConversation()}`
+  const statuses = []
+  for (const thinkingLevel of ['off', 'low', 'medium', 'high', 'xhigh', 'max']) {
+    statuses.push((await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel } } })).statusCode)
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200])
 })
 
 test("deleting a Project's conversations removes its threads and their messages, leaves another Project's, and repeating it converges", async (t) => {
