@@ -23,13 +23,14 @@ const planPage = `<section aria-label="Plano para aprovar">
   <textarea aria-label="O que mudar no plano"></textarea>
   <button onclick="window.sent = 'rejected: ' + this.previousElementSibling.value; this.closest('section').remove()">Pedir ajustes</button>
 </section>`
-// The markup of a question card (ask-user-pt.tsx): one [data-ask-question] per question and one
+// The markup of a question card (ask-user-pt.tsx): one [data-ask-question] per question (a card of several shows one at a time) and one
 // send button. Sending records each question's answer in window.sent (a list of cards, each a list
 // of answers), removes the card and shows the next one of window.next, if any.
 const askQuestion = ({ text, options = [], multi = false }) => options.length === 0
   ? `<div data-ask-question="${text}"><label>${text}</label><input type="text"></div>`
   : `<fieldset data-ask-question="${text}"><p>${text}</p>${options.map(([label, description]) => `<label><input type="${multi ? 'checkbox' : 'radio'}" name="${text}"><span><span style="display:block">${label}</span>${description ? `<span style="display:block">${description}</span>` : ''}</span></label>`).join('')}<input type="text" placeholder="Outra resposta"></fieldset>`
-const askCard = (...questions) => `<div aria-label="Pergunta do agente">${questions.map(askQuestion).join('')}<button onclick="window.send(this)">Enviar resposta${questions.length > 1 ? 's' : ''}</button></div>
+const askCard = (...questions) => questions.length === 1
+  ? `<div aria-label="Pergunta do agente" data-testid="ask-user" data-ask-total="1">${askQuestion(questions[0])}<button onclick="window.send(this)">Enviar resposta</button></div>
 <script>window.send = (button) => {
   const card = button.closest('[aria-label]')
   const answers = [...card.querySelectorAll('[data-ask-question]')].map((entry) => {
@@ -40,6 +41,52 @@ const askCard = (...questions) => `<div aria-label="Pergunta do agente">${questi
   window.sent = [...(window.sent ?? []), answers]
   card.remove()
   document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')
+}</script>`
+  : steppedCard(questions)
+// The stepped card of ask-user-pt.tsx for 2 to 4 questions: a row of tabs ("data-answered"), one
+// visible question with "Próxima", a single choice moving on by itself, then a review with the one send.
+const steppedCard = (questions) => `<div aria-label="Pergunta do agente" data-testid="ask-user" data-ask-total="${questions.length}" id="card">
+  <div role="tablist">${questions.map((question) => `<button role="tab" data-answered="false">${question.text}</button>`).join('')}<button role="tab">Revisar</button></div>
+  <div id="panel"></div>
+</div>
+<script>{
+  const holder = document.createElement('div')
+  const entries = ${JSON.stringify(questions.map(askQuestion))}.map((html) => { holder.innerHTML = html; return holder.firstElementChild })
+  const card = document.getElementById('card')
+  const panel = document.getElementById('panel')
+  const answerOf = (entry) => {
+    const chosen = [...entry.querySelectorAll('input:checked')].map((input) => input.closest('label').innerText.split('\\n')[0].trim())
+    const typed = entry.querySelector('input[type=text]').value.trim()
+    if (entry.querySelector('input[type=checkbox]')) return typed ? [...chosen, typed] : chosen
+    return typed || chosen[0] || null
+  }
+  const answered = (entry) => { const answer = answerOf(entry); return answer !== null && answer.length !== 0 }
+  let step = 0
+  const render = () => {
+    [...card.querySelectorAll('[role=tab]')].forEach((tab, index) => { if (index < entries.length) tab.dataset.answered = String(answered(entries[index])) })
+    panel.replaceChildren()
+    if (step < entries.length) {
+      panel.append(entries[step])
+      const next = document.createElement('button')
+      next.textContent = 'Próxima'
+      next.disabled = !answered(entries[step])
+      next.onclick = () => { step += 1; render() }
+      panel.append(next)
+      return
+    }
+    const send = document.createElement('button')
+    send.textContent = 'Enviar respostas'
+    send.onclick = () => {
+      window.sent = [...(window.sent ?? []), entries.map(answerOf)]
+      card.remove()
+      document.body.insertAdjacentHTML('beforeend', window.next?.shift() ?? '')
+    }
+    panel.append(send)
+  }
+  card.addEventListener('input', () => { const next = panel.querySelector('button'); if (next && step < entries.length) { next.disabled = !answered(entries[step]); card.querySelectorAll('[role=tab]')[step].dataset.answered = String(answered(entries[step])) } })
+  card.addEventListener('change', (event) => { if (event.target.type === 'radio') { step += 1; render() } })
+  card.querySelectorAll('[role=tab]').forEach((tab, index) => { tab.onclick = () => { step = index; render() } })
+  render()
 }</script>`
 const dateQuestion = { text: 'Qual formato de data?', options: [['Dia/mês/ano', 'Padrão brasileiro'], ['Ano-mês-dia']] }
 const nameQuestion = { text: 'Qual o nome da empresa?' }

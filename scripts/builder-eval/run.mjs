@@ -215,6 +215,16 @@ async function typeOwnAnswer(entry, text) {
 const hasAnswer = (entry) => entry.evaluate((node) => node.querySelector('input:checked') !== null
   || [...node.querySelectorAll('input:not([type=radio]):not([type=checkbox]), textarea')].some((field) => field.value.trim() !== ''))
 
+/** True when the card's tab for the question at `index` shows it answered. */
+const tabAnswered = async (card, index) => (await card.getByRole('tab').nth(index).getAttribute('data-answered')) === 'true'
+
+/** Steps a multi-question card on from the question the driver just answered, with "Próxima", unless the card already moved on by itself (a single choice does). */
+async function moveOn(card, text, stepped) {
+  if (!stepped) return
+  const shown = await card.locator('[data-ask-question]').first().getAttribute('data-ask-question', { timeout: 1_000 }).catch(() => null)
+  if (shown === text) await card.getByRole('button', { name: 'Próxima', exact: true }).click()
+}
+
 /** The whole plan, from the reader the card's "Ler plano completo" opens; null when the card has none. */
 async function readFullPlan(page, plan) {
   const open = plan.getByRole('button', { name: 'Ler plano completo' })
@@ -276,8 +286,8 @@ async function claim(card, cards) {
  * The plan card (`section` "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
  * request for one change it first sends that change with "Pedir ajustes", then approves the resubmitted plan.
  * Any other card holds 1 to 4 questions; each is answered by the scripted person or, with none, gets
- * its first (recommended) option or, with no options, a fixed "do the simplest" reply, and one
- * "Enviar" sends them all. Every question is recorded in `answers` on its own, with the card's tool call id.
+ * its first (recommended) option or, with no options, a fixed "do the simplest" reply; the card shows
+ * one question at a time, so the driver steps through it and sends all at the review with one "Enviar". Every question is recorded in `answers` on its own, with the card's tool call id.
  * Each call is told apart by its tool call id, read from the thread, and a card the driver answered
  * is marked on the element, so two calls with the same text are both answered and one is never
  * answered twice. `answering` is the signature returned on the previous tick. Returns the signature
@@ -315,11 +325,11 @@ export async function answerPendingCard(page, cards, answering = null) {
   }
 
   const card = await claim(question.first(), cards)
-  const questions = card.locator('[data-ask-question]')
-  const count = await questions.count()
+  const count = Number(await card.getAttribute('data-ask-total')) || 1
+  const stepped = count > 1
   const records = []
   for (let index = 0; index < count; index += 1) {
-    const entry = questions.nth(index)
+    const entry = card.locator('[data-ask-question]')
     const text = await entry.getAttribute('data-ask-question')
     const { options, multi } = await readOptions(entry)
     const pick = (label) => pickOption(entry, options, label)
@@ -338,6 +348,7 @@ export async function answerPendingCard(page, cards, answering = null) {
       cards.adjust.state = 'done'
       await entry.locator('input').first().fill(cards.adjust.change)
       records.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
+      await moveOn(card, text, stepped)
       continue
     }
 
@@ -352,7 +363,8 @@ export async function answerPendingCard(page, cards, answering = null) {
       const own = labels.filter((label) => !isOption(label))
       if (own.length > 0) await typeOwnAnswer(entry, own.join('. '))
       answer = labels.join(', ')
-      if (!await hasAnswer(entry)) {
+      // A single choice moves the card to the next question, so a stepped card is read from its tab.
+      if (!await (stepped ? tabAnswered(card, index) : hasAnswer(entry))) {
         await pick(options[0].label)
         answer = `${answer} (sem resposta registrada; escolhida a primeira opção: ${options[0].label})`
       }
@@ -361,10 +373,11 @@ export async function answerPendingCard(page, cards, answering = null) {
       await entry.locator('input').first().fill(answer)
     }
     records.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+    await moveOn(card, text, stepped)
   }
   const send = card.getByRole('button', { name: /^Enviar respostas?$/ })
   if (process.env.CONEXUS_EVAL_DEBUG_CARD && await send.isDisabled()) {
-    const state = await card.evaluate((node) => [...node.querySelectorAll('[data-ask-question]')].map((q) => ({ q: q.getAttribute('data-ask-question'), checked: [...q.querySelectorAll('input:checked')].map((i) => i.parentElement?.textContent), text: [...q.querySelectorAll('input:not([type=radio]):not([type=checkbox])')].map((i) => i.value) })))
+    const state = await card.evaluate((node) => [...node.querySelectorAll('[role=tab]')].map((tab) => ({ tab: tab.textContent, answered: tab.getAttribute('data-answered') })))
     console.error('CARD_DEBUG', JSON.stringify({ records, state }))
   }
   await send.click()

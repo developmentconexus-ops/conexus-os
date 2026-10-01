@@ -11,6 +11,10 @@ export const builderCopy = {
     submitMany: 'Enviar respostas',
     other: 'Outra resposta',
     pending: 'Enviando…',
+    next: 'Próxima',
+    review: 'Revisar',
+    steps: 'Perguntas',
+    stepName: (number: number) => `Pergunta ${number}`,
   },
   taskList: {
     listLabel: 'Lista de tarefas',

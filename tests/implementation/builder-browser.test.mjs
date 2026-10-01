@@ -1578,34 +1578,81 @@ test('the approval of a plan is a question with two options, and the chosen labe
   assert.deepEqual(answers, [{ toolCallId: 'approval-1', resumeData: ['Aprovar e construir'] }])
 })
 
-test('a card with three questions shows them together and sends every answer in one reply', async (t) => {
-  const ask = { questions: [
-    { question: 'Qual cor?', header: 'Cor', options: [{ label: 'Azul (recomendado)', description: 'Combina com a marca' }, { label: 'Verde' }] },
-    { question: 'Quais telas?', multiSelect: true, options: [{ label: 'Lista' }, { label: 'Detalhe' }, { label: 'Resumo' }] },
-    { question: 'Algo mais que devo saber?' },
-  ] }
-  const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: 'ask-3', toolName: 'ask_user', args: ask, suspendPayload: ask }])
-  const replies = []
+const threeQuestions = { questions: [
+  { question: 'Qual cor?', header: 'Cor', options: [{ label: 'Azul (recomendado)', description: 'Combina com a marca' }, { label: 'Verde' }] },
+  { question: 'Quais telas?', multiSelect: true, options: [{ label: 'Lista' }, { label: 'Detalhe' }, { label: 'Resumo' }] },
+  { question: 'Algo mais que devo saber?' },
+] }
+
+const openThreeQuestions = async (t, toolCallId, replies) => {
+  const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: threeQuestions, suspendPayload: threeQuestions }])
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     replies.push(route.request().postDataJSON())
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   const card = page.getByLabel('Pergunta do agente')
-  await card.getByText('Algo mais que devo saber?', { exact: true }).waitFor()
-  assert.equal(await card.locator('[data-ask-question]').count(), 3)
-  const send = card.getByRole('button', { name: 'Enviar respostas' })
-  assert.equal(await send.isDisabled(), true, 'nothing is sent until every question has an answer')
+  await card.getByText('Qual cor?', { exact: true }).waitFor()
+  return { page, card }
+}
+
+test('a card with three questions shows one at a time, reviews the answers, and sends them in one reply', async (t) => {
+  const replies = []
+  const { page, card } = await openThreeQuestions(t, 'ask-3', replies)
+  assert.equal(await card.locator('[data-ask-question]').count(), 1)
+  assert.deepEqual(await card.getByRole('tab').allInnerTexts(), ['Cor', 'Pergunta 2', 'Pergunta 3', 'Revisar'])
+  assert.equal(await card.getByRole('tab', { name: 'Revisar' }).isDisabled(), true, 'the review waits for every answer')
+  assert.equal(await card.getByRole('button', { name: 'Enviar respostas' }).count(), 0, 'nothing is sent before the review')
 
   await card.getByRole('radio', { name: /Azul/ }).click()
+  await card.getByText('Quais telas?', { exact: true }).waitFor()
+  assert.equal(await card.getByText('Qual cor?', { exact: true }).count(), 0, 'a single choice moves to the next question')
+  assert.equal(await card.getByRole('tab', { name: /Cor/ }).innerText(), '✓ Cor')
+
+  const next = card.getByRole('button', { name: 'Próxima', exact: true })
+  assert.equal(await next.isDisabled(), true, 'a multi-select question waits for a choice')
   await card.getByRole('checkbox', { name: 'Lista' }).click()
   await card.getByRole('checkbox', { name: 'Resumo' }).click()
-  assert.equal(await send.isDisabled(), true, 'the open question is still unanswered')
-  await card.getByPlaceholder('Digite sua resposta…').fill('Sem pressa')
   await card.getByLabel('Outra resposta: Quais telas?').fill('Calendário')
+  await next.click()
+
+  await card.getByText('Algo mais que devo saber?', { exact: true }).waitFor()
+  assert.equal(await next.isDisabled(), true, 'a typed answer is still missing')
+  await card.getByPlaceholder('Digite sua resposta…').fill('Sem pressa')
+  await next.click()
+
+  await card.locator('[data-ask-review]').waitFor()
+  assert.equal(await card.locator('[data-ask-question]').count(), 0)
+  assert.deepEqual(await card.locator('[data-ask-review] dd').allInnerTexts(), ['Azul (recomendado)', 'Lista, Resumo, Calendário', 'Sem pressa'])
+
+  await card.getByRole('tab', { name: /Cor/ }).click()
+  await card.getByRole('radio', { name: 'Verde' }).click()
+  await card.getByRole('tab', { name: 'Revisar' }).click()
+  assert.deepEqual(await card.locator('[data-ask-review] dd').allInnerTexts(), ['Verde', 'Lista, Resumo, Calendário', 'Sem pressa'], 'an earlier answer can be changed')
   const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
-  await send.click()
+  await card.getByRole('button', { name: 'Enviar respostas' }).click()
   await sent
-  assert.deepEqual(replies, [{ toolCallId: 'ask-3', resumeData: ['Azul (recomendado)', ['Lista', 'Resumo', 'Calendário'], 'Sem pressa'] }])
+  assert.deepEqual(replies, [{ toolCallId: 'ask-3', resumeData: ['Verde', ['Lista', 'Resumo', 'Calendário'], 'Sem pressa'] }])
+})
+
+test('the arrow keys move through the options of a question and Enter confirms the chosen one', async (t) => {
+  const replies = []
+  const { page, card } = await openThreeQuestions(t, 'ask-keys', replies)
+  await card.getByRole('radio', { name: /Azul/ }).focus()
+  await page.keyboard.press('ArrowDown')
+  assert.equal(await card.getByText('Qual cor?', { exact: true }).count(), 1, 'the arrow key only moves the choice')
+  assert.equal(await card.getByRole('radio', { name: 'Verde' }).isChecked(), true)
+  await page.keyboard.press('Enter')
+  await card.getByText('Quais telas?', { exact: true }).waitFor()
+  await page.keyboard.press('Space')
+  await page.keyboard.press('Enter')
+  await card.getByText('Algo mais que devo saber?', { exact: true }).waitFor()
+  await page.keyboard.type('Sim')
+  await page.keyboard.press('Enter')
+  await card.locator('[data-ask-review]').waitFor()
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await page.keyboard.press('Enter')
+  await sent
+  assert.deepEqual(replies, [{ toolCallId: 'ask-keys', resumeData: ['Verde', ['Lista'], 'Sim'] }])
 })
 
 test('a typed answer replaces the chosen option of a single-select question', async (t) => {
