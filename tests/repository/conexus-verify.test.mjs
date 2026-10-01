@@ -63,7 +63,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-openapi-lint', 'wire-openapi-bundle',
   'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
   'wire-project', 'wire-builder', 'wire-connector',
-  'wire-technical-lint', 'wire-technical-ingress',
+  'wire-technical-lint', 'wire-technical-ingress', 'conexus-backup',
   'test-census',
   'only-opt-in-skips',
 ])
