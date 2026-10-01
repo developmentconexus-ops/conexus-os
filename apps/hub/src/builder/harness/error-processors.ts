@@ -22,7 +22,7 @@ const TRANSIENT_CONNECTION_MESSAGE = /econnreset|socket hang up|write epipe|othe
 const TRANSIENT_SERVER_MESSAGE = /internal server|server error|api may be experiencing issues/i
 
 /** Mastra Code's `isTransientConnectionError`. `StreamErrorRetryProcessor` calls a matcher at every level of the error's cause chain. */
-export const isTransientConnectionError = (error: unknown): boolean => {
+const isTransientConnectionError = (error: unknown): boolean => {
   if (!error) return false
   const code = typeof error === 'object' && 'code' in error ? error.code : undefined
   if (typeof code === 'string' && TRANSIENT_CONNECTION_CODES.has(code.toUpperCase())) return true
@@ -30,7 +30,7 @@ export const isTransientConnectionError = (error: unknown): boolean => {
 }
 
 /** Mastra Code's `isTransientServerError`. */
-export const isTransientServerError = (error: unknown): boolean => {
+const isTransientServerError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
   const { status, statusCode } = error as { status?: unknown; statusCode?: unknown }
   if ((typeof status === 'number' && status >= 500 && status < 600) || (typeof statusCode === 'number' && statusCode >= 500 && statusCode < 600)) return true
@@ -38,7 +38,7 @@ export const isTransientServerError = (error: unknown): boolean => {
 }
 
 /** Mastra Code's `getTransientRetryDelay`. */
-export const transientRetryDelayMs = (retryCount: number): number => Math.min(TRANSIENT_INITIAL_DELAY_MS * 2 ** retryCount, TRANSIENT_MAX_DELAY_MS)
+const transientRetryDelayMs = (retryCount: number): number => Math.min(TRANSIENT_INITIAL_DELAY_MS * 2 ** retryCount, TRANSIENT_MAX_DELAY_MS)
 
 type RetryEvent = Extract<AgentControllerEvent, { type: 'error' }>
 
