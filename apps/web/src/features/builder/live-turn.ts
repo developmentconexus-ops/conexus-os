@@ -1,4 +1,5 @@
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
+import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 import type { AgentControllerEvent, AgentControllerOMProgress, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 
@@ -41,7 +42,7 @@ export type LiveTurn = Readonly<{
 export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
-type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
+type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
 export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
 export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
