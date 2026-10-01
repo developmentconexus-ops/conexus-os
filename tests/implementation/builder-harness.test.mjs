@@ -61,6 +61,28 @@ test('AC-1, AC-2: the model input holds the approved text and no word of a mode 
   assert.equal(conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext }).includes('knowledge cutoff'), false)
 })
 
+test('an openai gpt-5.5 or gpt-5.4 conversation gets Mastra Code\'s model prompt after the Conexus prompt, and any other model gets none', () => {
+  const instructionsFor = (modelId, conflicts = '') => {
+    const requestContext = new RequestContext()
+    for (const [key, value] of [
+      [CONEXUS_PROJECT_NAME_KEY, VALUES.projectName], [CONEXUS_TURN_DATE_KEY, VALUES.date], [CONEXUS_PROJECT_NEW_KEY, 'true'],
+      [CONEXUS_CONNECTOR_BRIEF_KEY, VALUES.connections], [CONEXUS_PROJECT_INSTRUCTIONS_KEY, VALUES.instructions], [CONEXUS_PROJECT_MEMORY_KEY, VALUES.memory],
+      [CONEXUS_TURN_CONFLICTS_KEY, conflicts],
+    ]) requestContext.setRaw(key, value)
+    requestContext.set('controller', { session: { modelId } })
+    return conexusInstructions(undefined, {})({ requestContext })
+  }
+  const plain = instructionsFor('anthropic/claude-opus-5-5')
+  const gpt55 = instructionsFor('openai/gpt-5.5')
+  assert.equal(gpt55.startsWith(`${plain.trimEnd()}\n\n<coding_behavior>\nWork outcome-first: infer the user's goal`), true)
+  assert.equal(gpt55.endsWith('and comments that only explain the diff.\n</coding_behavior>'), true)
+  const gpt54 = instructionsFor('openai/gpt-5.4')
+  assert.equal(gpt54.startsWith(`${plain.trimEnd()}\n\n<autonomy_and_persistence>\nPersist until the task is fully handled`), true)
+  assert.equal(instructionsFor('openai/gpt-5.3'), plain)
+  const withConflicts = instructionsFor('openai/gpt-5.5', 'app/a.tsx')
+  assert.equal(withConflicts.endsWith('</coding_behavior>\n\n## Merge conflicts\n\nBringing the Project\'s current main into these files left conflict markers; resolve them before any other change: `app/a.tsx`.'), true)
+})
+
 test('the new-app line is in the Environment of a new Project and absent, with no empty bullet, after a saved version', () => {
   const line = '- This app is new: it has only the starter screen.\n'
   const fresh = fillPrompt(template, VALUES)
