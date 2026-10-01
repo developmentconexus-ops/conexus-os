@@ -293,6 +293,14 @@ components:
         inputTokens: { type: [integer, 'null'], minimum: 0 }
         outputTokens: { type: [integer, 'null'], minimum: 0 }
         totalTokens: { type: [integer, 'null'], minimum: 0 }
+        inputDetails:
+          description: Mastra's InputTokenDetails, present only where the provider reported a breakdown (cache reads and writes, audio, image).
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        outputDetails:
+          description: Mastra's OutputTokenDetails, present only where the provider reported a breakdown (reasoning, text, audio, image).
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
     BuilderTraceSpan:
       type: object
       additionalProperties: false
