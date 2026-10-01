@@ -20,6 +20,8 @@ const TITLE_INSTRUCTIONS = `
 - Não use aspas nem dois-pontos.
 - O texto inteiro que você devolver será o título.`
 
+const OBSERVER_TITLE_INSTRUCTION = 'Escreva o título da conversa em português do Brasil, sobre o que a pessoa quer construir ou mudar no app.'
+
 /**
  * The Builder's `Memory`, observational memory on for every conversation: observations stay in the
  * conversation's thread, and `retrieval` registers Mastra's `recall` tool, which browses the raw
@@ -56,6 +58,8 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
           blockAfter: 2,
           previousObserverTokens: 1_000,
           threadTitle: true,
+          // The Observer's title guidance names no language, so a Portuguese conversation got an English title on the pilot (docs/reference/mastra-boundary.md, item 5).
+          instruction: OBSERVER_TITLE_INSTRUCTION,
         },
         reflection: { model, observationTokens: REFLECTION_THRESHOLD, bufferActivation: 1 / 2, blockAfter: 1.1 },
       },

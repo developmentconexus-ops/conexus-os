@@ -31,7 +31,7 @@ const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delt
 // The Hub's routing over one provider whose accounts are "acct-<person>". Each call names the model
 // it reached and the account that paid for it; the Observer answers with a fixed log, and the main
 // model says what tools it was offered and calls what the script tells it to.
-const probeRouting = (script = []) => {
+const probeRouting = (script = [], onObserverPrompt = () => {}) => {
   const calls = []
   const titled = []
   const recorded = []
@@ -40,10 +40,12 @@ const probeRouting = (script = []) => {
     specificationVersion: 'v2', provider: 'probe', modelId: name, supportedUrls: {},
     async doGenerate(options) {
       ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      onObserverPrompt(options)
       return { content: [{ type: 'text', text: asksForTitle(options) ? TITLE : OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
     },
     async doStream(options) {
       ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      if (name !== 'main') onObserverPrompt(options)
       if (name !== 'main') return { stream: streamOf(textParts(asksForTitle(options) ? TITLE : OBSERVATIONS)) }
       offered.push((options.tools ?? []).map((tool) => tool.name).sort())
       const step = script[offered.length - 1]
@@ -68,11 +70,11 @@ const runContext = () => {
   return requestContext
 }
 
-const builderWithMemory = async (t, script) => {
+const builderWithMemory = async (t, script, onObserverPrompt) => {
   const dir = mkdtempSync(join(tmpdir(), 'builder-memory-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const storage = new LibSQLStore({ id: 'builder-memory', url: `file:${join(dir, 'memory.db')}` })
-  const probe = probeRouting(script)
+  const probe = probeRouting(script, onObserverPrompt)
   const controller = createBuilderController({
     model: probe.routing.resolve,
     storage,
@@ -235,4 +237,13 @@ test('a conversation is titled by Memory generateTitle on the memory model in Po
 
   assert.equal((await memoryStore.getThreadById({ threadId })).title, 'Agenda semanal da equipe')
   assert.deepEqual(titled, [['observer', `acct-${ana}`]], 'one title call, on the memory default and the run\'s account')
+})
+
+test('the Observer is told to title the conversation in Portuguese', async (t) => {
+  const prompts = []
+  const { controller } = await builderWithMemory(t, [], (options) => prompts.push(JSON.stringify(options.prompt)))
+
+  await firstWindows(controller, LONG_REQUEST)
+
+  assert.equal(prompts.some((prompt) => prompt.includes('Escreva o título da conversa em português do Brasil, sobre o que a pessoa quer construir ou mudar no app.')), true)
 })
