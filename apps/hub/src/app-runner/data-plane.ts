@@ -201,6 +201,10 @@ export const releasePreviewAllocation = async (provisioner: Sql, allocation: Pre
   for (const role of [allocation.migrationRole, allocation.runtimeRole]) {
     const { rows } = await provisioner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role])
     if (rows.length === 0) continue
+    // DROP OWNED BY needs the privileges of the role it clears, and the provisioner holds the
+    // migration role with INHERIT FALSE and the runtime role with none, so it takes them for this
+    // last step. Restating the grant on a retry changes nothing.
+    await provisioner.query(`GRANT ${identifier(role)} TO ${identifier(PROVISIONER_ROLE)} WITH INHERIT TRUE, SET TRUE`)
     await provisioner.query(`DROP OWNED BY ${identifier(role)} CASCADE`)
     await provisioner.query(`DROP ROLE ${identifier(role)}`)
   }

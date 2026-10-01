@@ -125,3 +125,18 @@ test('#322 orchestrator skips every port once the tombstone is already complete'
   assert.deepEqual(calls, [])
   assert.equal(commandPool.statements.some((statement) => statement.includes('project.purge_project')), false)
 })
+
+test('a failing step is logged with its real error before it becomes DELETION_INCOMPLETE', async (t) => {
+  const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
+  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const logged = []
+  t.mock.method(console, 'error', (...args) => { logged.push(args) })
+  const commandPool = fakePool()
+  const { ports } = fakePorts(commandPool, { releaseApplicationData: async () => { throw new Error('APPLICATION_RUNNER_RELEASE_REFUSED') } })
+
+  await assert.rejects(createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input),
+    (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
+  assert.equal(logged.length, 1)
+  assert.equal(logged[0][0], `PROJECT_DELETION_INCOMPLETE:${projectId}`)
+  assert.equal(logged[0][1].message, 'APPLICATION_RUNNER_RELEASE_REFUSED')
+})
