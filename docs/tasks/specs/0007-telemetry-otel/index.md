@@ -120,11 +120,12 @@ Logs
 
 Metrics and the heap alarm
 - **AC-16**: The Hub and the runner export the metrics in *Metrics*: heap used and heap limit,
-  `conexus.process.heap.used_ratio`, RSS, event loop delay and utilization, GC duration, and on the
+  `conexus.process.heap.used_ratio` (used heap divided by the old-space cap, see *Metrics*), RSS, event loop delay and utilization, GC duration, and on the
   Hub controller sessions, active runs, open session streams, pool connections by pool and state,
   app invocations in flight and queued. The runner adds sandboxes running. The export interval is
   15 seconds. [`telemetry-metrics`]
-- **AC-17**: When `conexus.process.heap.used_ratio` is above 0.8 on two samples in a row, the
+- **AC-17**: When `conexus.process.heap.used_ratio` (used heap divided by the old-space cap) is
+  above 0.8 on two samples in a row, the
   process logs one `PROCESS_HEAP_HIGH` record at `warn` with the ratio, RSS, sessions, active runs
   and open streams. It logs again only after the ratio fell below 0.7. This works with no Collector.
   [`telemetry-metrics`]
@@ -364,7 +365,7 @@ has no log table, and Mastra's internal logs are out of scope here.
 | Instrument | Kind | Source |
 |---|---|---|
 | `v8js.memory.heap.used`, `v8js.memory.heap.limit` (per space), `v8js.gc.duration`, `nodejs.eventloop.delay.*`, `nodejs.eventloop.utilization` | from `instrumentation-runtime-node` | Hub, runner |
-| `conexus.process.heap.used_ratio` | observable gauge | `v8.getHeapStatistics()`: `used_heap_size / heap_size_limit` |
+| `conexus.process.heap.used_ratio` | observable gauge | `v8.getHeapStatistics().used_heap_size` divided by the old-space cap |
 | `process.memory.usage` (RSS, bytes) | observable gauge | `process.memoryUsage().rss` |
 | `conexus.builder.sessions` | up-down counter | `controller.onSessionCreated` and `onSessionDeleted` (Mastra) |
 | `conexus.builder.runs.active` | observable gauge | `builderActive.size` (`builder/service.ts:87`) |
@@ -374,9 +375,14 @@ has no log table, and Mastra's internal logs are out of scope here.
 | `conexus.runner.sandboxes.running` | observable gauge | the `running` count checked at `app-runner/supervisor.ts:266` |
 | `conexus.telemetry.attributes_dropped` (`key`) | counter | `redactAttributes` |
 
-The heap ratio uses `heap_size_limit`, the number V8 dies at (546 MB under a 512 MB old space cap,
-the figure in the OOM log). The per-space `v8js.memory.heap.limit` does not sum to it. The watch
-in AC-17 samples every 15 seconds.
+The heap ratio divides used heap by the old-space cap, read once at start from the last
+`--max-old-space-size` in `process.execArgv` or `NODE_OPTIONS`, and falls back to
+`heap_size_limit` only when no flag is set. V8 dies when used heap reaches the cap, not
+`heap_size_limit` (the cap plus the young generation): under a 512 MB cap `heap_size_limit` is 738 MB
+on Node 24.20 and the process died at about 0.73 of it, so a ratio over `heap_size_limit` never
+reaches 0.8. The gauge's description names its denominator. The per-space
+`v8js.memory.heap.limit` is deprecated in `instrumentation-runtime-node` and is not exported. The
+watch in AC-17 samples every 15 seconds.
 
 ### Builder metrics through Mastra (AC-21)
 

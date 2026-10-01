@@ -24,3 +24,12 @@ test('a single high sample between lows never fires', () => {
   for (const ratio of [0.9, 0.5, 0.9, 0.5, 0.9]) sample(ratio)
   assert.deepEqual(fired, [])
 })
+
+const { oldSpaceCapBytes } = await import(hubModuleUrl('telemetry/heap-watch.js'))
+
+test('the old-space cap is the last --max-old-space-size of the arguments and NODE_OPTIONS, and null with none', () => {
+  assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], undefined), 512 * 1024 * 1024)
+  assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], '--max-old-space-size=256 --no-warnings'), 256 * 1024 * 1024)
+  assert.equal(oldSpaceCapBytes(['--max-old-space-size=100', '--max_old_space_size=200'], undefined), 200 * 1024 * 1024)
+  assert.equal(oldSpaceCapBytes(['--import', 'x.js'], '--no-warnings'), null)
+})
