@@ -1913,7 +1913,7 @@ const openPlanCard = async (t, answers, plan = PLAN_TEXT) => {
 test('the plan card shows only the person\'s part, with the Markdown rendered, and leaves the technical part for the reader', async (t) => {
   const card = await openPlanCard(t, [])
   await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
-  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
+  assert.equal(await card.locator('[data-slot="plan-content"] strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
   assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
 })
 

@@ -305,7 +305,7 @@ test('a card of three questions is answered question by question, each matched t
 
 const gatePage = (title) => `<section aria-label="Plano para aprovar">
   <p>O agente propõe um plano: <strong>${title}</strong>. Aprovar e construir?</p>
-  <div class="cx-plan-clamp">Só a parte da pessoa</div>
+  <div data-slot="plan-content">Só a parte da pessoa</div>
   <button onclick="document.getElementById('reader').hidden = false">Ler plano completo</button>
   <button onclick="window.approved = [...(window.approved ?? []), '${title}']; this.closest('section').remove(); document.getElementById('reader')?.remove(); document.body.insertAdjacentHTML('beforeend', window.next ?? ''); window.next = ''">Aprovar e construir</button>
 </section>

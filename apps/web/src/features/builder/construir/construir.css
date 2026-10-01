@@ -104,10 +104,9 @@
 .cx-messages .builder-turn-author { color: var(--cx-text); font: 600 .8125rem/1 var(--cx-font-body); }
 .cx-messages .builder-turn-model { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; border-radius: 999px; background: var(--cx-surface-3); color: var(--cx-text-2); font: 400 .6875rem/1.4 var(--cx-font-mono); }
 .cx-messages .builder-turn-body { display: grid; gap: .6rem; }
-.cx-messages .builder-turn-reason, .cx-messages .builder-turn-error { margin: 0; padding: .55rem .8rem; border-radius: 8px; font-size: .875rem; }
+.cx-messages .builder-turn-reason { margin: 0; padding: .55rem .8rem; border-radius: 8px; font-size: .875rem; }
 .cx-messages .builder-turn-reason { background: color-mix(in srgb, var(--cx-warning) 8%, var(--cx-surface)); color: var(--cx-text); }
 .cx-messages .builder-turn-notice { justify-self: start; max-width: 100%; }
-.cx-messages .builder-turn-error { background: color-mix(in srgb, var(--cx-danger) 8%, var(--cx-surface)); color: var(--cx-text); }
 .cx-messages .builder-conversation-empty { margin: 2rem 0 0; color: var(--cx-text-2); text-align: center; }
 
 .cx-pending { display: grid; gap: .6rem; padding: .8rem; border: 1px solid var(--cx-line); border-radius: 10px; background: var(--cx-canvas); }
@@ -117,7 +116,8 @@
 .cx-pending-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .cx-pending-answer { display: grid; gap: .5rem; margin: 0; }
 .cx-pending-answer textarea { width: 100%; padding: .5rem .6rem; border: 1px solid var(--cx-line); border-radius: 8px; resize: vertical; }
-.cx-plan-clamp { max-height: 14rem; overflow: hidden; mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent); }
+.cx-plan-body { display: grid; gap: .6rem; }
+.cx-plan-intro { margin: 0; }
 .cx-plan-read { justify-self: start; }
 .cx-plan-reader { width: min(48rem, calc(100% - 2rem)); max-width: 48rem; max-height: calc(100dvh - 4rem); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 .cx-plan-reader-body { min-height: 0; overflow-y: auto; padding: 0 1rem; }
