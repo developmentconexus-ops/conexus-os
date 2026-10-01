@@ -28,8 +28,20 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
 
 type Caller = Readonly<{ accountId: AccountId }>
 /** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
-type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; thinkingLevels: readonly ThinkingLevelSetting[]; hasApiKey: boolean }>
+type OfferedModel = Readonly<{ id: string; provider: string; providerName: string; modelName: string; thinkingLevels: readonly ThinkingLevelSetting[]; hasApiKey: boolean }>
 type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
+
+/**
+ * The name a person reads for a provider: Mastra's catalog name, except for the providers the Hub
+ * signs in to by subscription, whose catalog name says nothing of how the person pays.
+ */
+const PROVIDER_NAME_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+  [ANTHROPIC_PROVIDER]: 'Anthropic (Claude)',
+  [OPENAI_CODEX_PROVIDER]: 'OpenAI (ChatGPT)',
+  [OPENAI_MODEL_PROVIDER]: 'OpenAI (ChatGPT)',
+  [GOOGLE_AI_PRO_PROVIDER]: 'Google AI Pro',
+})
+const providerNameOf = (provider: string): string => PROVIDER_NAME_OVERRIDES[provider] ?? getProviderConfig(provider)?.name ?? provider
 
 const shapeOf = (option: unknown): string => JSON.stringify(option) ?? 'undefined'
 
@@ -59,7 +71,7 @@ const thinkingLevelsOf = async (modelId: string, optionAt: (level: ThinkingLevel
 // Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
 /** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
 const googleAiProOffer = (): Promise<Offer> => Promise.all(GOOGLE_AI_PRO_MODELS.map(async (model) => Object.freeze({
-  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: model,
+  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, providerName: providerNameOf(GOOGLE_AI_PRO_PROVIDER), modelName: model,
   thinkingLevels: await thinkingLevelsOf(`${GOOGLE_AI_PRO_PROVIDER}/${model}`, (level) => resolveGoogleThinkingConfig(model, level)),
 })))
 
@@ -75,7 +87,7 @@ const chatModelsOf = (provider: string): readonly string[] => {
 
 /** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
 const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_MODEL_PROVIDER).map(async (model) => Object.freeze({
-  id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: model,
+  id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, providerName: providerNameOf(OPENAI_MODEL_PROVIDER), modelName: model,
   thinkingLevels: await thinkingLevelsOf(`${OPENAI_MODEL_PROVIDER}/${model}`, (level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
 })))
 
@@ -89,7 +101,7 @@ const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Pro
 
 /** Both kinds of Anthropic account serve every chat model of Mastra's catalog, by the `anthropic/<model>` id a thread stores and a run resolves. */
 const anthropicOffer = (): Promise<Offer> => Promise.all(chatModelsOf(ANTHROPIC_PROVIDER).map(async (model) => Object.freeze({
-  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model,
+  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, providerName: providerNameOf(ANTHROPIC_PROVIDER), modelName: model,
   thinkingLevels: await thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => anthropicSetting(model, level)),
 })))
 
@@ -99,7 +111,7 @@ const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHRO
 /** The accounts the Settings screen lists, by `model.model_account` provider. */
 const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
 
-type Connection = Readonly<{ provider: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
+type Connection = Readonly<{ provider: string; providerName: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
 
 /**
  * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
@@ -164,7 +176,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
       isInstallationAdministrator(caller.accountId),
       Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
         const { mine, shared } = await modelAccounts.connection(caller.accountId, provider)
-        return { provider, mine: mine !== null, kind: mine, shared }
+        return { provider, providerName: providerNameOf(provider), mine: mine !== null, kind: mine, shared }
       })),
     ])
     return { administrator, accounts }

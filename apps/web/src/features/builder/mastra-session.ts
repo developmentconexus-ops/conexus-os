@@ -75,7 +75,7 @@ export const useConversationActions = (projectId: string) => {
 }
 
 /** A model the person can pick, with the reasoning levels it honors, lowest first; none when it has no reasoning level to choose. */
-export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { thinkingLevels: readonly ReasoningLevel[] }>
+export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ReasoningLevel[] }>
 
 /**
  * The models this person can reach with their own model account or the installation's shared one.

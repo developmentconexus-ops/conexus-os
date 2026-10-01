@@ -12,7 +12,6 @@ import type { ReactNode } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
 import { humanizeModelName } from '../composer/model-display-name'
-import { providerName } from '../../settings/provider-names'
 import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { mergeCalls } from './merge-calls'
@@ -177,7 +176,7 @@ function ModelChip({ model }: Readonly<{ model: BuilderModel | null }>) {
       <Icon width={12} height={12} aria-hidden="true" />
       {humanizeModelName(model.modelName)}
     </TooltipTrigger>
-    <TooltipContent>{`${providerName(model.provider)} · ${model.modelName}`}</TooltipContent>
+    <TooltipContent>{`${model.providerName} · ${model.modelName}`}</TooltipContent>
   </Tooltip>
 }
 

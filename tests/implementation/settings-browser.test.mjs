@@ -11,7 +11,7 @@ const withServer = async (t) => {
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: false, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, shared: false }] }),
   }))
   return { page, origin }
 }
@@ -197,7 +197,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: connected, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: connected, shared: false }] }),
   }))
   await page.route('**/api/control/model-accounts/openai-codex/oauth/**', async (route) => {
     const request = route.request()
@@ -244,8 +244,8 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
   await routeInstallation(page, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [
-      { provider: 'openai-codex', mine: false, kind: null, shared: false },
-      { provider: 'anthropic', mine: kind !== null, kind, shared: false },
+      { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, kind: null, shared: false },
+      { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: kind !== null, kind, shared: false },
     ] }),
   }))
   await page.route('**/api/control/model-accounts/anthropic/**', async (route) => {

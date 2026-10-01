@@ -2,7 +2,7 @@
 // Settings cards call the model account routes. No answer ever carries a key or a token.
 
 type AccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
-type Account = Readonly<{ provider: string; mine: boolean; kind: AccountKind | null; shared: boolean }>
+type Account = Readonly<{ provider: string; providerName: string; mine: boolean; kind: AccountKind | null; shared: boolean }>
 export type Accounts = Readonly<{ administrator: boolean; accounts: readonly Account[] }>
 
 export const accountsQueryKey = ['model-accounts'] as const

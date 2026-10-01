@@ -41,14 +41,14 @@ const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // them from the Builder's controller and holds none. A model with no key is never offered.
 const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
 const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
+  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'groq/llama-4', provider: 'groq', providerName: 'Groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
 ]
 // Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
 const GOOGLE_AI_PRO_MODELS = [
-  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
-  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
 const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
@@ -729,9 +729,9 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
   const models = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
-    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
-    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
   ]
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models })

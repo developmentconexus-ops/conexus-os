@@ -107,8 +107,8 @@ test('a pasted Anthropic key becomes the person\'s own api_key row, and no answe
 
   const listed = await accounts(app)
   assert.deepEqual(listed.json(), { administrator: false, accounts: [
-    { provider: 'openai-codex', mine: false, kind: null, shared: false },
-    { provider: 'anthropic', mine: true, kind: 'api_key', shared: false },
+    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, kind: null, shared: false },
+    { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: true, kind: 'api_key', shared: false },
   ] })
   assert.doesNotMatch(listed.body, /sk-ant-/)
 })
@@ -141,7 +141,7 @@ test('signing in with a Claude subscription takes the pasted code, stores the to
   assert.deepEqual(rowsOf(rows), [{ owner: ana, provider: 'anthropic', kind: 'oauth', sharing: 'just_me' }])
   assert.deepEqual(parseClaudeTokens([...rows.values()][0].secret), tokens('signed-in', 9_999_999_999_999))
   const listed = await accounts(app)
-  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', mine: true, kind: 'oauth', shared: false })
+  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: true, kind: 'oauth', shared: false })
   assert.deepEqual(await completeClaude(app, started.loginId, 'good#verifier-1'), { state: 'expired' }, 'a finished sign-in is gone')
   assert.doesNotMatch(listed.body, /access-|refresh-/)
 })
