@@ -173,7 +173,12 @@ test('the model sees each skill by name and never a path on the Hub host, and re
   assert.equal(toolResults.s2, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app/references/form.tsx'), 'utf8'), 'skill_read returns the reference file')
 })
 
-// A scripted turn: ask_user (suspends) -> resume "azul" -> a workspace command -> text.
+// A scripted turn: ask_user with three questions (suspends) -> resume with three answers -> a workspace command -> text.
+const ASK_QUESTIONS = [
+  { question: 'Qual cor?', options: [{ label: 'Azul (recomendado)' }, { label: 'Verde', description: 'Mais suave' }] },
+  { question: 'Quais telas?', header: 'Telas', multiSelect: true, options: [{ label: 'Lista' }, { label: 'Detalhe' }] },
+  { question: 'Algo mais?' },
+]
 const scriptedModel = () => {
   const calls = []
   const model = {
@@ -181,9 +186,9 @@ const scriptedModel = () => {
     async doGenerate() { throw new Error('doGenerate not used') },
     async doStream(options) {
       const step = calls.length
-      calls.push({ tools: (options.tools ?? []).map((tool) => tool.name).sort() })
+      calls.push({ tools: (options.tools ?? []).map((tool) => tool.name).sort(), prompt: JSON.stringify(options.prompt) })
       const parts = {
-        0: [{ type: 'tool-call', toolCallId: 'c1', toolName: 'ask_user', input: JSON.stringify({ question: 'Qual cor?' }) }],
+        0: [{ type: 'tool-call', toolCallId: 'c1', toolName: 'ask_user', input: JSON.stringify({ questions: ASK_QUESTIONS }) }],
         1: [{ type: 'tool-call', toolCallId: 'c2', toolName: 'mastra_workspace_execute_command', input: JSON.stringify({ command: 'echo', args: ['hi'] }) }],
       }[step]
       const stream = parts
@@ -292,14 +297,18 @@ test("a turn lasts through the person's answer on the conversation's session and
   await conversation.thread.loadMetadata()
   assert.equal(conversation.model.get(), 'anthropic/default-model', 'and keeps it on the thread, where the conversation session reads it')
   const answered = []
+  const payloads = []
   live.subscribe((event) => {
     if (event.type !== 'tool_suspended') return
     answered.push(event.toolName)
-    setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: 'azul' }) }, 20)
+    payloads.push(event.suspendPayload)
+    setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] }) }, 20)
   })
   const turn = await run.sendTurn('faça um app')
   assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
   assert.equal(typeof turn.userMessageId, 'string')
+  assert.deepEqual(payloads, [{ questions: ASK_QUESTIONS }])
+  assert.equal(calls[1].prompt.includes('User answered:\\nQual cor?: Azul (recomendado)\\nQuais telas?: Lista, Detalhe\\nAlgo mais?: Nada'), true, 'the model reads one line per answered question')
   // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
   for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])

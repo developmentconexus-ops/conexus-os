@@ -13,7 +13,7 @@ import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { conexusInstructions } from './prompt.js'
 import { webFetchTool, webSearchTool } from '@mastra/core/tools'
-import { CHECK_TOOL, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
+import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
@@ -162,7 +162,8 @@ export type BuilderControllerDeps = Readonly<{
  * and `web_search` when the run's model has native provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
  * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
- * to suspend with the plan the Hub read, so the plan is approved on its card.
+ * to suspend with the plan the Hub read, so the plan is approved on its card. `ask_user` is ours, taking 1 to 4
+ * questions in one card on the same suspend and resume primitive.
  * No Hub wiring: the caller owns sessions, routes, and where `workspace`, `model`, `storage`, and
  * `connectorFetch` come from.
  */
@@ -200,8 +201,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     workspace: deps.workspace,
     ...(deps.storage ? { storage: deps.storage } : {}),
     ...(deps.memory ? { memory: deps.memory } : {}),
-    disableBuiltinTools: [SUBMIT_PLAN_TOOL],
-    tools: { [SUBMIT_PLAN_TOOL]: createSubmitPlanTool(SANDBOX_CHECKOUT) },
+    disableBuiltinTools: [SUBMIT_PLAN_TOOL, ASK_USER_TOOL],
+    tools: { [SUBMIT_PLAN_TOOL]: createSubmitPlanTool(SANDBOX_CHECKOUT), [ASK_USER_TOOL]: createAskUserTool() },
     modes: [{ id: 'build', name: 'Builder', metadata: { default: true } }],
   })
 }

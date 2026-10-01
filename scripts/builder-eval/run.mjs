@@ -161,7 +161,7 @@ async function pollForSettledRun(page, projectId, excludeRunId, cards) {
   while (Date.now() < deadline) {
     const answered = cards.answers.length
     answering = await answerPendingCard(page, cards, answering)
-    if (cards.answers.length > answered) cards.answers.at(-1).answeredAt = new Date().toISOString()
+    for (const record of cards.answers.slice(answered)) record.answeredAt = new Date().toISOString()
     session = await readSession(page, projectId)
     const run = session.latestBuilderRun
     if (run && run.builderRunId !== excludeRunId && run.state !== 'QUEUED' && run.state !== 'RUNNING') return { session, run }
@@ -237,8 +237,9 @@ async function claim(card, cards) {
  * one round of "Pedir ajustes" (then the free-text question that follows gets the case's change).
  * The plan card (`section` "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
  * request for one change it first sends that change with "Pedir ajustes", then approves the resubmitted plan.
- * Any other question is answered by the scripted person or, with none, gets its first (recommended)
- * option or, with no options, a fixed "do the simplest" reply.
+ * Any other card holds 1 to 4 questions; each is answered by the scripted person or, with none, gets
+ * its first (recommended) option or, with no options, a fixed "do the simplest" reply, and one
+ * "Enviar" sends them all. Every question is recorded in `answers` on its own, with the card's tool call id.
  * Each call is told apart by its tool call id, read from the thread, and a card the driver answered
  * is marked on the element, so two calls with the same text are both answered and one is never
  * answered twice. `answering` is the signature returned on the previous tick. Returns the signature
@@ -271,47 +272,48 @@ export async function answerPendingCard(page, cards, answering = null) {
   }
 
   const card = await claim(question.first(), cards)
-  const text = (await card.innerText()).split('\n')[0].trim()
-  const { options, multi } = await readOptions(card)
-  const inputs = card.locator('input[type=radio], input[type=checkbox]')
-  const pick = (label) => inputs.nth(options.findIndex((option) => foldLabel(option.label) === foldLabel(label))).click({ force: true })
+  const questions = card.locator('[data-ask-question]')
+  const count = await questions.count()
+  const records = []
+  for (let index = 0; index < count; index += 1) {
+    const entry = questions.nth(index)
+    const text = await entry.getAttribute('data-ask-question')
+    const { options, multi } = await readOptions(entry)
+    const inputs = entry.locator('input[type=radio], input[type=checkbox]')
+    const pick = (label) => inputs.nth(options.findIndex((option) => foldLabel(option.label) === foldLabel(label))).click({ force: true })
 
-  if (isApprovalOptions(options.map((option) => option.label))) {
-    const adjusting = cards.adjust?.state === 'pending'
-    const label = adjusting ? ADJUST_LABEL : APPROVE_LABEL
-    const planText = lastAssistantText(await cards.readMessages().catch(() => []))
-    await pick(label)
-    if (cards.adjust) cards.adjust.state = adjusting ? 'asked' : 'done'
-    answers.push({ kind: 'APPROVAL', ...record, title: text, text: planText || text, answer: label })
-    return signature
-  }
+    if (count === 1 && isApprovalOptions(options.map((option) => option.label))) {
+      const adjusting = cards.adjust?.state === 'pending'
+      const label = adjusting ? ADJUST_LABEL : APPROVE_LABEL
+      const planText = lastAssistantText(await cards.readMessages().catch(() => []))
+      await pick(label)
+      if (cards.adjust) cards.adjust.state = adjusting ? 'asked' : 'done'
+      records.push({ kind: 'APPROVAL', ...record, title: text, text: planText || text, answer: label })
+      break
+    }
 
-  if (options.length === 0 && cards.adjust?.state === 'asked') {
-    cards.adjust.state = 'done'
-    await fillAndSend(card, cards.adjust.change)
-    answers.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
-    return signature
-  }
+    if (options.length === 0 && cards.adjust?.state === 'asked') {
+      cards.adjust.state = 'done'
+      await entry.locator('input').first().fill(cards.adjust.change)
+      records.push({ kind: 'QUESTION', ...record, title: text, text, answer: cards.adjust.change, via: 'case', ruleIds: [] })
+      continue
+    }
 
-  const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
-  let answer
-  if (options.length > 0) {
-    const labels = decision ? [decision.answer].flat() : [options[0].label]
-    for (const label of labels) await pick(label)
-    if (multi) await card.locator('button').last().click()
-    answer = labels.join(', ')
-  } else {
-    answer = decision ? decision.answer : FALLBACK_ANSWER
-    await fillAndSend(card, answer)
+    const decision = cards.person ? await cards.person.answer({ question: text, options, multi }) : null
+    let answer
+    if (options.length > 0) {
+      const labels = decision ? [decision.answer].flat() : [options[0].label]
+      for (const label of labels) await pick(label)
+      answer = labels.join(', ')
+    } else {
+      answer = decision ? decision.answer : FALLBACK_ANSWER
+      await entry.locator('input').first().fill(answer)
+    }
+    records.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
   }
-  answers.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
+  await card.getByRole('button', { name: /^Enviar respostas?$/ }).click()
+  answers.push(...records)
   return signature
-}
-
-async function fillAndSend(card, answer) {
-  const input = card.locator('input, textarea').first()
-  await input.fill(answer)
-  await input.press('Enter')
 }
 
 const digitsMasked = (text) => text?.replace(/\d/g, '#') ?? null

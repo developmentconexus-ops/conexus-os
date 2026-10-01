@@ -85,11 +85,12 @@ result was saved outside the browser.
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
   `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
-- `answers`: each card the driver answered while the run waited for a person, as
-  `{ kind, toolCallId, title, text, answer }`. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
+- `answers`: each question the driver answered while the run waited for a person, as
+  `{ kind, toolCallId, title, text, answer }`. A question card holds 1 to 4 questions: each is one record,
+  all with the card's `toolCallId`, and one "Enviar" sends them together. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
   (today's plan card). The driver recognizes the approval card by its options, "Aprovar e construir" and
   "Pedir ajustes", answers "Aprovar e construir" (or the case's scripted "Pedir ajustes"), and never hands it
-  to the scripted person. A question card ("Pergunta do agente") gets the first option, or "Pode seguir com o
+  to the scripted person. Each question of a card ("Pergunta do agente") gets the first option, or "Pode seguir com o
   que achar mais simples." when it has none. `toolCallId` is the id of the `ask_user` call, read from the
   thread's messages; two calls with the same question are two cards, and the element of a card the driver
   answered is marked so it is never answered twice. It is the same click a person makes, which sends

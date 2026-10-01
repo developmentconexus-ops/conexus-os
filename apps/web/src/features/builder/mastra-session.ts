@@ -200,12 +200,12 @@ export const useBuilderLiveTurn = (
  * conversation in, and the Hub refuses anything but approve or decline there, so there is no
  * "always allow" to send.
  */
-// respondToToolSuspension accepts a single string (a free-text answer, or the one option chosen
-// from a single-select AskUser question), or a string array (the options chosen from a multi-select
-// question).
+// A question card resumes the Hub's ask_user with one answer per question, in order: a string (free
+// text, or the option chosen in a single-select question) or a string array (a multi-select one).
 export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
   const session = runSession(projectId, conversationId)
   if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
   if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
-  return session.respondToToolSuspension(pending.toolCallId, answer.text)
+  // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
+  return session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
 }

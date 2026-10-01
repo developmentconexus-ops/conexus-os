@@ -8,6 +8,8 @@ export const builderCopy = {
   askUser: {
     placeholder: 'Digite sua resposta…',
     submit: 'Enviar resposta',
+    submitMany: 'Enviar respostas',
+    other: 'Outra resposta',
     pending: 'Enviando…',
   },
   taskList: {
