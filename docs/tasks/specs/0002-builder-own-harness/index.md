@@ -7,7 +7,7 @@
 
 The Builder stops running inside the Mastra Factory. We build it directly on Mastra's engine
 (`AgentController` and `createCodingAgent`), with a system prompt, two modes (Planejar and Construir)
-and a tool set that are ours. We copy from the Factory and Mastra Code only the code we need, and we
+and a tool set that are ours. We copy only the code we need, we import the subscription sign-ins from `@mastra/code-sdk`, and we
 keep the Hub code that is not Factory code and already works (Preview, the run lock, error messages,
 the E2B protections). Each Project's source moves from GitHub into a Git repository on the Hub's disk,
 whose `main` branch is the approved version, and model accounts move into Conexus tables. The new
@@ -367,13 +367,13 @@ in that slice.
 4. Conversations, memory and recovery. `PostgresStore` in schema `mastra`, observational memory,
    several shared threads per Project, the run lock including waiting runs, restart recovery by
    reading `main`. Satisfies **AC-16** to **AC-19**.
-5. Model accounts, whole. API keys, ChatGPT and Claude subscription sign in and refresh (copied; Leandro
+5. Model accounts, whole. API keys, ChatGPT and Claude subscription sign in and refresh (imported from `@mastra/code-sdk`; Leandro
    signs in to ChatGPT himself when the proof needs it), Google AI Pro write back, sharing rules, the model router catalog, the three
    defaults, the Modelos de IA screen repointed. Satisfies **AC-20** to **AC-23**.
 6. Connectors and web. Port `connector_fetch` and its brief with the refusal rule, add web search and
    page reading, check native search per pilot model and add the common search tool where missing.
    Satisfies **AC-11**, **AC-12**.
-7. Removal. Delete `@mastra/factory` and `@mastra/code-sdk`, the Factory composition, the GitHub App
+7. Removal. Delete `@mastra/factory` (`@mastra/code-sdk` stays pinned), the Factory composition, the GitHub App
    code, routes, screen and variables, model packs and the `fast` role, the `factory` schema and role;
    reshape migrations 0011, 0012, 0013, 0015, 0016 and 0018; update or delete the Factory tests; finish
    the copy list notices; record C-032 and update the docs that state C-022 as current. Satisfies
@@ -398,7 +398,7 @@ chose to start the data from zero, so nothing is migrated.
 4. Merge, restart the Hub with no run active, and run a short smoke check.
 **Rollback**: redeploy the previous `main` and restore the phase 2 dump.
 **Risks**: the switch drops every test Project and conversation; subscription sign in depends on
-copied code the providers may change; native web search may be missing for a pilot model path.
+unofficial flows the providers may change, which reach Conexus as `@mastra/code-sdk` upgrades; native web search may be missing for a pilot model path.
 
 ## Consequences
 
@@ -410,8 +410,8 @@ copied code the providers may change; native web search may be missing for a pil
 - The 17 unguarded `source_control_*` tools disappear with the Factory.
 
 **Negative / tradeoffs**:
-- We own and maintain the prompt, the mode logic, the copied sign in code and the Git store. Mastra
-  fixes to those parts no longer arrive by upgrade.
+- We own and maintain the prompt, the mode logic and the Git store. Mastra fixes to those parts no
+  longer arrive by upgrade. The sign-ins stay in `@mastra/code-sdk`, so their fixes do.
 - `AgentController` and `createCodingAgent` are beta; a Mastra upgrade can break us.
 - The Q4 pilot waits for this work.
 - Losing the Git folder loses Project source; the backup is now critical.
