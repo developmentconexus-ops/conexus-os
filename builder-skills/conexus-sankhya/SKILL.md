@@ -77,7 +77,7 @@ Done when every join has a proven key and the totals match the row counts.
 
 Reconcile your result with a number the person already trusts, such as a report they use, when one exists. Ask for its definition, never for the data.
 
-Ask the person only what the data cannot settle. Each question covers one decision. Write it in their business words, never a table, a field or a code. Build the options from what you found, such as the operation types with their descriptions and counts, and put your recommendation first, with its reason. While planning, put the question on the plan's open decisions list and let the plan's interview ask it. A meaning the person does not give stays open. Never guess it.
+Ask the person only what the data cannot settle. Each question covers one decision. Write it in their business words, never a table, a field or a code. Build the options from what you found, such as the operation types with their descriptions, and put your recommendation first, with its reason. While planning, put the question on the plan's open decisions list and let the plan's interview ask it. A meaning the person does not give stays open. Never guess it.
 
 Done when each meaning is proven by the data, confirmed by the person, or open with what it leaves off.
 
@@ -86,7 +86,7 @@ Done when each meaning is proven by the data, confirmed by the person, or open w
 Save each mapping in the Project memory, `.conexus/memory/`, in the format the system prompt gives. Use `source` for a mapping the data proved and `rule` for one the person confirmed. The memory holds:
 - the concept, in the person's words;
 - the codes and fields it maps to here, such as the operation types that count and the date field;
-- the query that proved it, with the counts it returned and the date you ran it;
+- the query that proved it and the date you ran it, never the rows or counts it returned;
 - for a `rule`, what the person said.
 
 Configuration codes, such as an operation type number, belong in this Project's memory. Data values, such as amounts, names or document numbers, never do.
