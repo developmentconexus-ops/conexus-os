@@ -39,7 +39,7 @@ export type MessageEntry = Readonly<{
   sourcePartIndexes?: readonly number[]
 }>
 
-export type NoticeEntry = Readonly<{ kind: 'notice'; id: string; level: 'info' | 'error'; text: string }>
+type NoticeEntry = Readonly<{ kind: 'notice'; id: string; level: 'info' | 'error'; text: string }>
 
 /** A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve. */
 export type PromptEntry = Readonly<{
@@ -349,7 +349,7 @@ const toolCallIdsOf = (parts: readonly MessagePart[]): string[] => parts.flatMap
   return toolCallId === undefined ? [] : [toolCallId]
 })
 
-export const isTerminalInvocationState = (state: ToolInvocationPart['toolInvocation']['state']): boolean =>
+const isTerminalInvocationState = (state: ToolInvocationPart['toolInvocation']['state']): boolean =>
   state === 'result' || state === 'output-error' || state === 'output-denied'
 
 const adoptCoveringWindowCopies = (state: TranscriptState, anchors: ReadonlyMap<MastraDBMessage, number>): TranscriptState => {

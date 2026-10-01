@@ -166,7 +166,7 @@ const reduceConversation = (state: ConversationState, action: TranscriptAction):
 const startConversation = (conversationId: string): ConversationState => ({ transcript: emptyTranscript(conversationId), runtime: emptyRuntime })
 
 /** The stream of the session a conversation's runs go through, one per conversation on the page. */
-export const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/builder:${conversationId}`
+const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/builder:${conversationId}`
 
 /** Whether the stream of the conversation's runs is open, for the poll to keep its pace. */
 export const useConversationStreamOpen = (projectId: string, conversationId: string): boolean =>
