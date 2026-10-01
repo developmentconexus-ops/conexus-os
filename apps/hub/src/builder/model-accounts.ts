@@ -1,9 +1,14 @@
+import { createAnthropicThinkingMiddleware } from '@mastra/code-sdk/providers/claude-max'
+import { resolveGoogleThinkingConfig } from '@mastra/code-sdk/providers/google-thinking'
+import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@mastra/code-sdk/providers/openai-codex'
+import { getAvailableThinkingLevelsForModel } from '@mastra/code-sdk/thinking'
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_MODELS, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import { BUILDER_THINKING_LEVELS, type BuilderThinkingLevel } from './harness/request-context.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
@@ -23,13 +28,36 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
 }
 
 type Caller = Readonly<{ accountId: AccountId }>
-type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
+/** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
+type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; thinkingLevels: readonly BuilderThinkingLevel[]; hasApiKey: boolean }>
 type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
+
+/**
+ * The levels the composer offers for a model: the composer's levels among Mastra Code's for it
+ * (`getAvailableThinkingLevelsForModel`), each kept only when the provider's Mastra Code mapping
+ * (`optionAt`) writes an option for it that differs from the level below's. Mastra Code's list
+ * alone would offer every level to Gemini's `pro-agent`, which has no thinking, and `xhigh` to
+ * Gemini Flash, which runs it as `high`.
+ */
+const thinkingLevelsOf = (modelId: string, optionAt: (level: BuilderThinkingLevel) => unknown): readonly BuilderThinkingLevel[] => {
+  const available: readonly string[] = getAvailableThinkingLevelsForModel(modelId)
+  const levels: BuilderThinkingLevel[] = []
+  let below: string | undefined
+  for (const level of BUILDER_THINKING_LEVELS.filter((each) => available.includes(each))) {
+    const option = optionAt(level)
+    if (option === undefined) continue
+    const shape = JSON.stringify(option)
+    if (shape !== below) levels.push(level)
+    below = shape
+  }
+  return Object.freeze(levels)
+}
 
 // Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
 /** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
 const GOOGLE_AI_PRO_OFFER: Offer = Object.freeze(GOOGLE_AI_PRO_MODELS.map((model) => Object.freeze({
   id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: model,
+  thinkingLevels: thinkingLevelsOf(`${GOOGLE_AI_PRO_PROVIDER}/${model}`, (level) => resolveGoogleThinkingConfig(model, level)),
 })))
 
 // Mastra's model router catalog lists every OpenAI model, and Mastra Code offers all of them on a
@@ -41,10 +69,15 @@ const retired = new Set(openaiCatalog?.deprecatedModels ?? [])
 /** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
 const OPENAI_CODEX_OFFER: Offer = Object.freeze((openaiCatalog?.models ?? [])
   .filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
-  .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: model })))
+  .map((model) => Object.freeze({
+    id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: model,
+    thinkingLevels: thinkingLevelsOf(`${OPENAI_MODEL_PROVIDER}/${model}`, (level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
+  })))
 
-const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map((model) =>
-  Object.freeze({ id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model })))
+const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map((model) => Object.freeze({
+  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model,
+  thinkingLevels: thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => createAnthropicThinkingMiddleware(model, level) ? level : undefined),
+})))
 
 /** The providers a person connects by pasting a key, and the shape each key must have. */
 const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })

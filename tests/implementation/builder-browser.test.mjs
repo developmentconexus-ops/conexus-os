@@ -27,7 +27,7 @@ test('humanizeModelName turns a bare catalog id into the name a person reads', (
   assert.equal(humanizeModelName('gemini-3.1-pro-low'), 'Gemini 3.1 Pro')
 })
 
-test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into the id, and nothing for everyone else', () => {
+test('parseReasoningSuffix reads the level suffix Google AI Pro ids carry, and nothing for everyone else', () => {
   assert.deepEqual(parseReasoningSuffix('gemini-3.8-flash-high'), { base: 'gemini-3.8-flash', level: 'high' })
   assert.deepEqual(parseReasoningSuffix('gemini-3.1-pro-low'), { base: 'gemini-3.1-pro', level: 'low' })
   assert.equal(parseReasoningSuffix('claude-opus-4-5'), null)
@@ -37,10 +37,16 @@ test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into 
 const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads
 // them from the Builder's controller and holds none. A model with no key is never offered.
+const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
 const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true },
-  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
+  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
+]
+// Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
+const GOOGLE_AI_PRO_MODELS = [
+  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
 const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
@@ -479,7 +485,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const tracedRuns = []
   let compareQuery = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation(conversationId, 'Histórico')]))
+  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Histórico')]), models: [...BUILDER_MODELS, ...GOOGLE_AI_PRO_MODELS] })
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
@@ -513,7 +519,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   await openModelPicker(page)
   await page.getByRole('option', { name: 'Claude Opus 4.5' }).waitFor()
   await page.getByRole('option', { name: 'Claude Sonnet 4.5' }).waitFor()
-  assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
+  assert.equal(await page.getByRole('option').count(), 4, 'a model the controller has no key for is never offered')
 
   // The reasoning slider follows a drag, not only a click, and names each level capitalized.
   const slider = page.getByRole('slider', { name: 'Raciocínio' })
@@ -526,6 +532,21 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   for (let wait = 0; wait < 50 && thinkingLevels.at(-1) !== 'xhigh'; wait += 1) await page.waitForTimeout(100)
   assert.equal(thinkingLevels.at(-1), 'xhigh', `the drag ended at the high end: ${JSON.stringify(thinkingLevels)}`)
   assert.ok(thinkingLevels.includes('low'), `the drag started at the low end: ${JSON.stringify(thinkingLevels)}`)
+  await page.keyboard.press('Escape')
+
+  // Each model offers the levels it honors: Gemini Flash three, and Gemini Pro Agent, which has none, says so.
+  await chooseModel(page, 'Gemini 3 Flash')
+  await openModelPicker(page)
+  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['2', 'Médio', 3])
+  const flashSlider = await slider.boundingBox()
+  await page.mouse.click(flashSlider.x + flashSlider.width - 2, flashSlider.y + flashSlider.height / 2)
+  for (let wait = 0; wait < 50 && thinkingLevels.at(-1) !== 'high'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(thinkingLevels.at(-1), 'high', 'Gemini Flash takes its own top level')
+  await page.keyboard.press('Escape')
+  await chooseModel(page, 'Gemini Pro Agent')
+  await openModelPicker(page)
+  await page.getByText('Este modelo não tem nível de raciocínio para escolher.').waitFor()
+  assert.equal(await page.getByRole('slider', { name: 'Raciocínio' }).count(), 0)
   await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Sobre' }).click()

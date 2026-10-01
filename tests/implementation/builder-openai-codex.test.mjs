@@ -170,7 +170,7 @@ test('the picker offers the ChatGPT models from the model router catalog only to
 
   const mine = await offered()
   const ids = mine.map(({ id }) => id)
-  assert.deepEqual(mine.find(({ id }) => id === 'openai/gpt-5.6-sol'), { id: 'openai/gpt-5.6-sol', provider: 'openai', modelName: 'gpt-5.6-sol', hasApiKey: true })
+  assert.deepEqual(mine.find(({ id }) => id === 'openai/gpt-5.6-sol'), { id: 'openai/gpt-5.6-sol', provider: 'openai', modelName: 'gpt-5.6-sol', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], hasApiKey: true })
   for (const present of ['openai/gpt-5.4-mini', 'openai/gpt-5.3-codex']) assert.equal(ids.includes(present), true, present)
   for (const absent of ['openai/gpt-4', 'openai/o1', 'openai/gpt-image-1', 'openai/gpt-image-2', 'openai/chatgpt-image-latest', 'openai/text-embedding-3-large', 'openai/gpt-realtime-2.1']) {
     assert.equal(ids.includes(absent), false, `${absent} is deprecated or cannot chat`)

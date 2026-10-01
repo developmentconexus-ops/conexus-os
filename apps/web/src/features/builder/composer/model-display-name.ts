@@ -20,9 +20,8 @@ const reasoningSuffixPattern = new RegExp(`-(${reasoningLevelIds.join('|')})$`)
 export type ReasoningSuffix = Readonly<{ base: string; level: ReasoningLevel }>
 
 /**
- * google-ai-pro/CLIProxy ids encode their reasoning level as a trailing suffix
- * (`gemini-3.8-flash-high`) instead of exposing an independent reasoning setting. A model whose raw
- * name ends this way has no free choice of level: the id itself locks it in.
+ * Google AI Pro ids carry Antigravity's variant as a trailing level (`gemini-3.8-flash-high`). The
+ * name the person reads leaves it out: the composer shows the level the conversation runs at.
  */
 export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null => {
   const match = reasoningSuffixPattern.exec(modelName)
@@ -61,8 +60,8 @@ const mergeVersionTokens = (tokens: readonly string[]): readonly string[] => {
 
 /**
  * Turns a bare catalog id ("gemini-3.8-flash-high") into the human name the person reads
- * ("Gemini 3.8 Flash"). The reasoning suffix, if any, is stripped here: the composer renders that
- * level separately (the "· alto" badge, or the locked reasoning control), not as part of the name.
+ * ("Gemini 3.8 Flash"). The level suffix, if any, is stripped here: the composer shows the
+ * conversation's own level next to the name.
  */
 export const humanizeModelName = (modelName: string): string => {
   const { base } = parseReasoningSuffix(modelName) ?? { base: modelName }

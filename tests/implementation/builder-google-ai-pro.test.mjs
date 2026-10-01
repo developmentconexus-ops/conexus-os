@@ -437,7 +437,9 @@ test('the Builder offers the Google AI Pro models only to a person who can use t
   const all = ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map((model) => `google-ai-pro/${model}`)
   assert.deepEqual([await offered(), await offered('?scope=installation')], [all, []])
   const named = (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().models
-  assert.deepEqual(named.slice(0, 3).map(({ modelName }) => modelName), ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high'])
+  assert.deepEqual(named.slice(0, 3).map(({ modelName, thinkingLevels }) => [modelName, thinkingLevels]), [
+    ['gemini-3.1-pro-low', ['low', 'medium', 'high']], ['gemini-pro-agent', []], ['gemini-3.8-flash-high', ['low', 'medium', 'high']],
+  ], "each model offers the levels Mastra Code's Gemini mapping gives it, and none to a model without thinking")
   as(bia)
   assert.deepEqual(await offered(), [], 'another person without an account is offered nothing')
   share(ana)

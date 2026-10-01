@@ -73,7 +73,8 @@ export const useConversationActions = (projectId: string) => {
   return { create }
 }
 
-export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'>>
+/** A model the person can pick, with the reasoning levels it honors, lowest first; none when it has no reasoning level to choose. */
+export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { thinkingLevels: readonly ReasoningLevel[] }>
 
 /**
  * The models this person can reach with their own model account or the installation's shared one.
@@ -93,6 +94,16 @@ export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
 export type ReasoningLevel = typeof reasoningLevels[number]
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
   reasoningLevels.find((level) => level === value) ?? null
+
+/**
+ * The level a model runs at for the conversation's choice (medium until the person picks one): the
+ * choice itself when the model honors it, else the closest level below it that the model honors
+ * (Gemini runs `xhigh` as `high`). Null for a model with no reasoning level.
+ */
+export const levelForModel = (levels: readonly ReasoningLevel[], chosen: ReasoningLevel | null): ReasoningLevel | null => {
+  const wanted = reasoningLevels.indexOf(chosen ?? 'medium')
+  return levels.filter((level) => reasoningLevels.indexOf(level) <= wanted).at(-1) ?? levels[0] ?? null
+}
 
 // The choices made before a Project exists have nowhere to live yet: the controller only persists
 // them on a conversation's own thread. Once the home prompt opens that first conversation, this

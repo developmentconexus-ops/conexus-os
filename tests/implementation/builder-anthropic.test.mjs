@@ -168,10 +168,11 @@ test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with
   const { app, store, share, as } = await createApp(t)
   const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
   assert.deepEqual(await offered(), [])
+  const thinkingLevels = ['low', 'medium', 'high', 'xhigh']
   const claude = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', hasApiKey: true },
-    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', hasApiKey: true },
-    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', hasApiKey: true },
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels, hasApiKey: true },
+    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', thinkingLevels, hasApiKey: true },
+    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', thinkingLevels, hasApiKey: true },
   ]
   await putKey(app, fakeKey)
   assert.deepEqual(await offered(), claude)

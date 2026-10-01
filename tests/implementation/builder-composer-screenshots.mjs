@@ -35,7 +35,7 @@ async function stub(page, running) {
     runHistory: [],
   })))
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill(json({ models: [
-    { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
+    { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], hasApiKey: true },
   ] })))
   await page.route(`${CONTROLLER}/sessions`, (route) => route.fulfill(json({ controllerId: 'conexus-builder', resourceId: `project:${projectId}`, threadId: conversationId })))
   await page.route(`${CONTROLLER}/sessions/*/threads*`, (route) => route.fulfill(json({ threads: [{ id: conversationId, title: 'Agenda semanal', createdAt: '2026-09-29T12:00:00.000Z', updatedAt: '2026-09-29T12:00:00.000Z' }] })))
