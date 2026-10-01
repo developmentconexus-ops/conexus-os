@@ -567,7 +567,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
 /** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
-const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
+export const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
 
 type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 

@@ -42,6 +42,8 @@ export type BuilderRunDependencies = Readonly<{
   conversations: Pick<Conversations, 'ownerOf'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
+  /** Hands the run, as the builder-session read serves it, to a browser following its conversation. */
+  publishRun(run: BuilderRunSummary): Promise<void>
   reconcileEveryMs?: number
 }>
 
@@ -103,6 +105,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     }, runs.reconcileEveryMs ?? 30_000)
     reconcileTimer.unref?.()
   }
+  // A browser that misses a publish still reads the run from the builder-session poll, so a failed
+  // one never stops a run or a stop request.
+  const publishRun = async (run: BuilderRunSummary): Promise<void> => {
+    try { await runs.publishRun(run) } catch { /* the poll still serves the run */ }
+  }
   const failureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
@@ -110,9 +117,16 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
-    // The browser reads run.phase from the builder-session poll; the live turn itself is Mastra's.
+    // A browser following the conversation learns each step from its stream; the builder-session
+    // read stays the record, so a run a newer one replaced, or a failed publish, changes nothing.
+    const publish = async (): Promise<void> => {
+      let latest: BuilderRunSummary | null = null
+      try { latest = await store.readBuilderRun({ accountId: input.accountId, projectId: run.projectId }) } catch { return }
+      if (latest?.builderRunId === run.builderRunId) await publishRun(latest)
+    }
     const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
+      await publish()
     }
     // A run whose agent ran has tool calls in its conversation thread until its source is
     // admitted; if it never is, the thread gets a note that its files are kept for the next turn.
@@ -220,7 +234,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
       }
     })
-      .finally(() => { builderActive.delete(run.builderRunId) })
+      .finally(async () => {
+        await publish()
+        builderActive.delete(run.builderRunId)
+      })
     builderActive.set(run.builderRunId, { controller, work })
   }
   const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
@@ -260,6 +277,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     cancelBuilderRun: async (input) => {
       const result = await store.requestBuilderRunCancellation(input)
       builderActive.get(input.builderRunId)?.controller.abort()
+      await publishRun(result)
       return result
     },
     listSourceTree: async (input) => {

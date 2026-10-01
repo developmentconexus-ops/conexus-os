@@ -7,7 +7,8 @@ import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
 
 // What the browser can count on from the Builder's controller through the Hub's mount, recorded
-// from createBuilderController: the facts the conversation screen is built on.
+// from createBuilderController: the facts the conversation screen is built on. Mastra itself leaves
+// a stream open when its session is deleted; the mount ends it.
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -147,11 +148,11 @@ test("a run's session state written by the Hub reaches the browser's stream thro
   assert.deepEqual(changed?.state.conexusRun, { builderRunId: 'run-1', state: 'RUNNING', phase: 'AGENT' })
 })
 
-test("deleting a run's session leaves the browser's stream on it open and silent", async (t) => {
+test("deleting a run's session ends the browser's stream on it, so the browser reads the run again", async (t) => {
   const { base, controller } = await startMount(t)
   const stream = await openStream(base)
   assert.equal(await controller.deleteSession({ resourceId, scope: runScope }), true)
   const ended = await stream.ended(1_000)
   await stream.close()
-  assert.equal(ended, false)
+  assert.equal(ended, true)
 })
