@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify'
+import { logger } from '../platform/logger.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
 import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
 
@@ -19,7 +20,7 @@ export const createApplicationRunnerApp = (input: Readonly<{
   supervisor: ApplicationRunnerSupervisor
   log: (line: string) => void
 }>): FastifyInstance => {
-  const app = Fastify({ bodyLimit: 16 * 1024 * 1024, logger: false })
+  const app = Fastify({ bodyLimit: 16 * 1024 * 1024, loggerInstance: logger, disableRequestLogging: true })
   app.get('/v1/health', async () => ({ ok: true }))
   app.post('/v1/prepare', async (request, reply) => {
     const body = prepareBody.safeParse(request.body)

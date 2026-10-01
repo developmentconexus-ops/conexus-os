@@ -2,7 +2,8 @@
 # Runs the pilot Hub in the foreground from the checkout that holds this script. README.md says which
 # checkout that is and how to deploy main to it.
 #
-# Env: CONEXUS_PILOT_HUB_ENV (default ~/wt-rmmc/.audit/slice7/hub.env), CONEXUS_PILOT_LOGS (default ~/conexus-pilot-logs).
+# Env: CONEXUS_PILOT_HUB_ENV (default ~/wt-rmmc/.audit/slice7/hub.env), CONEXUS_PILOT_LOGS (default ~/conexus-pilot-logs),
+# CONEXUS_DIAGNOSTIC_DIR (default $CONEXUS_PILOT_LOGS/diagnostics: heap snapshots and fatal reports).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source "$HOME/.nvm/nvm.sh" >/dev/null
@@ -13,4 +14,6 @@ logs="${CONEXUS_PILOT_LOGS:-$HOME/conexus-pilot-logs}"
 mkdir -p "$logs"
 exec > >(tee -a "$logs/hub.log") 2>&1
 echo "hub starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
+export OTEL_RESOURCE_ATTRIBUTES="service.version=$(git rev-parse --short HEAD)${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
+export CONEXUS_DIAGNOSTIC_DIR="${CONEXUS_DIAGNOSTIC_DIR:-$logs/diagnostics}"
 exec node --max-old-space-size=512 --env-file="$env_file" scripts/build-hub-local.mjs

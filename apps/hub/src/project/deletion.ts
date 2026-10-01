@@ -1,5 +1,6 @@
 import type { QueryResultRow } from 'pg'
 import type { PostgresPool } from '../platform/postgres.js'
+import { logger, recordFailure } from '../platform/logger.js'
 import { projectError, projectErrorCode } from './errors.js'
 
 // The application's Preview data and the Project's repository in the Conexus Git, torn down once
@@ -93,7 +94,7 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
     } catch (error) {
       if (projectErrorCode(error) === 'PROJECT_BUSY') throw error
       // The caller only ever sees DELETION_INCOMPLETE, so the step that failed is logged here.
-      console.error(`PROJECT_DELETION_INCOMPLETE:${tombstone.project_id}`, error)
+      recordFailure(logger, `PROJECT_DELETION_INCOMPLETE:${tombstone.project_id}`, error)
       throw projectError('DELETION_INCOMPLETE')
     }
   }

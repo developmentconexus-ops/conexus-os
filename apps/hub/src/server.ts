@@ -8,6 +8,7 @@ import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
+import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
@@ -251,7 +252,7 @@ await builder?.recover()
 // somebody's request.
 reportConnectionCensus(
   await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
-  line => process.stderr.write(line),
+  line => logLine(line),
 )
 
 await app.listen({ host: '127.0.0.1', port: config.port })

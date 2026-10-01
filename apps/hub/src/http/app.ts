@@ -6,6 +6,7 @@ import Fastify from 'fastify'
 import { readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
+import { recordFailure, logger } from '../platform/logger.js'
 import { sendProblem } from './problem.js'
 
 export type HubHttpApp = FastifyInstance & Readonly<{
@@ -31,7 +32,7 @@ export const createHttpApp = async ({
   https?: Readonly<{ cert: Buffer | string; key: Buffer | string }>
   previewCspSource?: string
 }>): Promise<HubHttpApp> => {
-  const app = Fastify({ logger: false, trustProxy: false, ...(https ? { https } : {}) })
+  const app = Fastify({ loggerInstance: logger, disableRequestLogging: true, trustProxy: false, ...(https ? { https } : {}) })
   // A client may label a DELETE with no body as JSON; Fastify refuses that empty body. Any other
   // method still needs a body its route validates.
   const parseJson = app.getDefaultJsonParser('error', 'error')
@@ -41,8 +42,9 @@ export const createHttpApp = async ({
     if (request.method === 'DELETE' && text === '') return done(null, undefined)
     return parseJson(request, text, done)
   })
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     const reportedStatus = errorStatus(error)
+    if (reportedStatus < 400 || reportedStatus >= 500) recordFailure(request.log, 'HTTP_SERVER_ERROR', error)
     // Keycloak could not be asked about a session due for its check: the request waits, nobody is signed out.
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'IDENTITY_PROVIDER_UNAVAILABLE') {
       return sendProblem(reply, 503, 'identity-provider-unavailable', 'Identity provider unavailable')
