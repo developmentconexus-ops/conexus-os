@@ -46,7 +46,7 @@ The request says what the person wants to do. Design the app that does it well, 
 
 1. Say who uses the app, at what moment of their work, and what they need to see first. The first screen answers that.
 2. List what a good app of this kind has that the request does not name: how a record moves (its statuses), what happened to it (history, who and when), how people find their work (search, filters with counts by status), what needs their attention (late, stuck, waiting), and what an empty app says. Keep what serves the person's work. Drop what only fills the screen.
-3. Each addition goes in the person's part of the plan as a suggestion, with its reason in a few words. The person decides it by approving the plan. A value is never a suggestion: no company data, no figures such as a target or a limit, no rules about money.
+3. An addition that changes what a record holds, such as its kinds or its statuses, or who may change it, is a question in the card, with your proposal as the first option. Every other addition goes in the person's part of the plan as a suggestion, with its reason in a few words, and the person decides it by approving the plan. A value is never a suggestion: no company data, no figures such as a target or a limit, no rules about money.
 4. "Simples" in a request means easy to use. Keep the screens few and calm, not the work the app does for the person.
 
 ## Ask
