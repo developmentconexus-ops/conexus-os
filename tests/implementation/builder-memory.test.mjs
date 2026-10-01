@@ -24,6 +24,8 @@ const streamOf = (parts) => new ReadableStream({ start(controller) {
   for (const part of [{ type: 'stream-start', warnings: [] }, ...parts, { type: 'finish', finishReason: parts.some((part) => part.type === 'tool-call') ? 'tool-calls' : 'stop', usage }]) controller.enqueue(part)
   controller.close()
 } })
+const TITLE = 'Agenda semanal da equipe'
+const asksForTitle = (options) => JSON.stringify(options.prompt ?? []).includes('Gere um título')
 const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' }]
 
 // The Hub's routing over one provider whose accounts are "acct-<person>". Each call names the model
@@ -31,17 +33,18 @@ const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delt
 // model says what tools it was offered and calls what the script tells it to.
 const probeRouting = (script = []) => {
   const calls = []
+  const titled = []
   const recorded = []
   const offered = []
   const model = (name, paidBy) => ({
     specificationVersion: 'v2', provider: 'probe', modelId: name, supportedUrls: {},
-    async doGenerate() {
-      calls.push([name, paidBy])
-      return { content: [{ type: 'text', text: OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
+    async doGenerate(options) {
+      ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      return { content: [{ type: 'text', text: asksForTitle(options) ? TITLE : OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
     },
     async doStream(options) {
-      calls.push([name, paidBy])
-      if (name !== 'main') return { stream: streamOf(textParts(OBSERVATIONS)) }
+      ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      if (name !== 'main') return { stream: streamOf(textParts(asksForTitle(options) ? TITLE : OBSERVATIONS)) }
       offered.push((options.tools ?? []).map((tool) => tool.name).sort())
       const step = script[offered.length - 1]
       return { stream: streamOf(step ? [{ type: 'tool-call', toolCallId: `t${offered.length}`, toolName: step.toolName, input: JSON.stringify(step.input) }] : textParts('Certo, vou planejar a agenda.')) }
@@ -54,7 +57,7 @@ const probeRouting = (script = []) => {
     readDefault: async (role) => role === 'memory' ? 'probe/observer' : 'probe/main',
     record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
-  return { routing, calls, recorded, offered }
+  return { routing, calls, titled, recorded, offered }
 }
 
 // What run-runtime.ts binds on every turn of a run.
@@ -218,4 +221,18 @@ test('a request one fifth of the way to the window is observed in the background
   assert.equal(windows[0].messages.threshold, 30_000)
   assert.ok(windows[0].messages.tokens < 30_000, 'under the window: no blocking observation')
   assert.deepEqual(calls.map(([name]) => name).sort(), ['main', 'observer'], 'the Observer ran once, buffered, beside the main call')
+})
+
+test('a conversation is titled by Memory generateTitle on the memory model in Portuguese, from a request longer than the old 80 character cut', async (t) => {
+  const { controller, storage, titled } = await builderWithMemory(t)
+  const threadId = '66666666-6666-4666-8666-666666666666'
+  const request = `Quero uma agenda semanal para a equipe de campo com visitas, responsáveis e prazos. ${'Mais detalhes. '.repeat(10)}`
+  assert.ok(request.length > 80)
+
+  await firstWindows(controller, request, { resourceId: 'project:memory', threadId })
+  const memoryStore = await storage.getStore('memory')
+  for (let attempt = 0; attempt < 50 && !(await memoryStore.getThreadById({ threadId }))?.title; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 100))
+
+  assert.equal((await memoryStore.getThreadById({ threadId })).title, 'Agenda semanal da equipe')
+  assert.deepEqual(titled, [['observer', `acct-${ana}`]], 'one title call, on the memory default and the run\'s account')
 })

@@ -10,6 +10,16 @@ export type MemoryModel = (requestContext: RequestContext) => Promise<MastraMode
 const OBSERVATION_THRESHOLD = 30_000
 const REFLECTION_THRESHOLD = 40_000
 
+/** Mastra's default title instructions (`resolveTitleInstructions` in `@mastra/core`), in Portuguese and about what the person asks of the app. */
+const TITLE_INSTRUCTIONS = `
+- Gere um título curto, em português do Brasil, a partir da conversa entre a pessoa e o assistente.
+- As linhas da conversa começam com "User:" e "Assistant:". Nunca responda nem continue a conversa.
+- Sempre devolva um título, mesmo que a conversa seja só uma saudação.
+- Use no máximo 80 caracteres.
+- O título resume o que a pessoa quer construir ou mudar no app.
+- Não use aspas nem dois-pontos.
+- O texto inteiro que você devolver será o título.`
+
 /**
  * The Builder's `Memory`, observational memory on for every conversation: observations stay in the
  * conversation's thread, and `retrieval` registers Mastra's `recall` tool, which browses the raw
@@ -24,6 +34,8 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
       // Before a conversation's first observation; after it, OM loads every unobserved message.
       lastMessages: 40,
       semanticRecall: false,
+      // Mastra Code names threads the same way (`agents/memory.js`: `generateTitle: { model }`, the memory model); `instructions` is ours, for Portuguese.
+      generateTitle: { model, instructions: TITLE_INSTRUCTIONS },
       observationalMemory: {
         enabled: true,
         scope: 'thread',
