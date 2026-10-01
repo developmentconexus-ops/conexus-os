@@ -1,6 +1,6 @@
 /**
  * The compiler template an application is built on. A build uses `CURRENT_TEMPLATE_PIN`, migration
- * 0037's payload admission accepts only it, and every pin in `READABLE_TEMPLATE_PINS` may still be
+ * 0042's payload admission accepts only it, and every pin in `READABLE_TEMPLATE_PINS` may still be
  * read back from the registry. The recipe hash is the one `scripts/builder-e2b-template.mjs --check`
  * prints for the files in `apps/hub/compiler-template`.
  */
@@ -14,14 +14,20 @@ export type TemplatePin = Readonly<{
 
 export const CURRENT_TEMPLATE_PIN: TemplatePin = Object.freeze({
   profile: 'REACT_VITE_V2',
-  templateRef: '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755',
-  recipeSha256: '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434',
+  templateRef: '537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060',
+  recipeSha256: '4ce6f3a6b1233edb4a3f8741751239c7d43bf70c0b8e75318106ac08543ab05d',
 })
 
-// Applications retained on the React-only template stay readable: the agent user template of
-// migration 0014, and the boot smoke template before it (0007).
+// Applications retained on earlier templates stay readable: the first v2 template of migration 0037,
+// and on the React-only template, the agent user template of migration 0014 and the boot smoke
+// template before it (0007).
 const READABLE_TEMPLATE_PINS: readonly TemplatePin[] = Object.freeze([
   CURRENT_TEMPLATE_PIN,
+  Object.freeze({
+    profile: 'REACT_VITE_V2',
+    templateRef: '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755',
+    recipeSha256: '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434',
+  }),
   Object.freeze({
     profile: 'REACT_VITE_V1',
     templateRef: '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440',

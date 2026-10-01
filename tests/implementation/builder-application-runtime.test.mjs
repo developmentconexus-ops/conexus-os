@@ -46,8 +46,8 @@ const root = '/var/lib/conexus-build/run-1'
 const out = `${root}/dist`
 
 test('the template identity is the current V2 pin', () => {
-  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:3505be5f-f9ab-4d49-837e-af56dea09755')
-  assert.equal(RECIPE_SHA256, '41a3d125df1e6579dd7d1ccc1c2014eb68a5ad321f010d792333dc8053d3c434')
+  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060')
+  assert.equal(RECIPE_SHA256, '4ce6f3a6b1233edb4a3f8741751239c7d43bf70c0b8e75318106ac08543ab05d')
 })
 
 test('the check runs the Hub script as root with the agent identity named, then reads the build as root', async () => {
