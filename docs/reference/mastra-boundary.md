@@ -1,6 +1,6 @@
 # Mastra boundary
 
-Conexus uses the Mastra Factory, Mastra Code, Mastra core and Mastra memory as they ship. Mastra owns
+Conexus uses Mastra core, Mastra memory, the Mastra Code SDK and the Mastra Factory as they ship. Mastra owns
 what Mastra owns. Conexus never forks, patches or reaches into Mastra internals, and it never writes
 Mastra tables or replaces a method on a Mastra object. This page records, for each place where the Hub
 crossed that line, what the installed Mastra offers and what Conexus does instead.
@@ -28,16 +28,16 @@ embedded doc page.
 | 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
 | 3 | Serving the Factory's credential routes | A, after the operator's amendment | Implemented |
 | 4 | Creating a conversation | A for creation, B for visibility | Implemented; visibility waits on mastra-ai/mastra#24689 |
-| 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
+| 5 | Conversation titles in Portuguese | A | Implemented |
 | 6a | Classifying model errors | A | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Implemented |
-| 7 | Mounting the Mastra Code agent controller | A, with four traps | Implemented |
+| 7 | Mounting the Builder's agent controller | A, with four traps | Implemented |
 | 8 | Ending a turn that a processor stopped | B | Implemented; waits on U6 |
 | 9 | Keeping a run's sandbox alive | A, plus B for the timeout | Implemented; waits on U7 |
 | 10 | Starting the agent's shell in the Project checkout | A | Implemented |
 | 11 | Giving the Builder the `connector_fetch` tool | A | Implemented |
 | 12 | Keeping vendor values out of the browser | A for the tool's transforms, B for what they miss | Implemented; waits on U8 and U9 |
-| 13 | Platform rules above the Project's own instructions | B | Waits on U10 |
+| 13 | Platform rules above the Project's own instructions | A | Implemented |
 | 14 | The composer's focus glow | Deliberate override, C-031 | Implemented |
 | 15 | AppShell's frame chrome | Deliberate override, C-031 | Implemented |
 | 16 | MainSidebar's row and icon sizing | Deliberate override, C-031 | Implemented |
@@ -214,41 +214,34 @@ meanwhile.
 
 ## 5. Conversation titles in Portuguese
 
-**Current code.** The conversation list shows the Factory session row's title
-(`apps/hub/src/builder/factory-routes.ts`). #176 renamed the thread from the first request before the
-run's first turn.
+**Current code.** `apps/hub/src/builder/memory.ts` builds the Builder's `Memory` with
+`generateTitle: { model, instructions }` and `observationalMemory.observation.threadTitle: true`
+beside an `observation.instruction` that asks for a Portuguese title. The model is the installation's
+memory default, paid by the run's account, the same one the Observer uses. The conversation list is
+Mastra's own thread list under the Project's resource, so it shows `thread.title` as Mastra wrote it.
+Conexus writes no title.
 
-**What happened on the pilot.** On 2026-09-22 the request "Troque o texto em destaque no topo da
-página para LIVE-MUCS7P6I" produced the title "Page text update". The thread's metadata holds
-`mastra.om.threadTitle = "Page text update"`, and the thread and session row were both written at
-14:43:15, five seconds after the run's last message and two minutes after the request. That is
-Mastra Code's observer, not first-turn title generation.
+**What Mastra offers.** `options.generateTitle` takes `{ model, instructions, minMessages, emitEvent }`
+(`memory/dist/docs/references/reference-memory-memory-class.md:56`). It names a thread after the first
+turn when the thread has no title (`core/dist/agent-BOxKOk3n.js:40684`, `shouldGenerate &&
+!thread.title`), and the controller creates a thread with the title `""`
+(`core/dist/agent-controller-0NjSdCnl.js:1740`). Without `instructions` the default says nothing
+about language (`resolveTitleInstructions` in `core/dist/agent-BOxKOk3n.js`), so a Portuguese
+conversation can get an English title. `observation.threadTitle` lets the Observer retitle a thread
+when its topic changes (`memory/dist/docs/references/reference-memory-observational-memory.md:64`),
+and `observation.instruction` appends text to the Observer's prompt (line 60). Mastra Code turns
+`threadTitle` on unconditionally and passes no title instructions
+(`code-sdk/dist/agents/memory.js:137-167`). The Observer overwrites any differing title unless the
+title is pinned by `Session.thread.rename`.
 
-**What Mastra does.** Mastra Code turns on the observer's thread titles unconditionally
-(`code-sdk/dist/agents/memory.js:157`, `threadTitle: true`). The observer's title guidance is
-English noun phrases with English examples and no language rule
-(`memory/dist/src-DsewkOlu.js:24790`). Its prior-title hint reads only its own metadata, not the
-thread's title (`memory/dist/src-DsewkOlu.js:26025`), so its first observation always proposes a
-title. It then overwrites the thread title whenever its suggestion differs, unless the title is
-pinned (`memory/dist/src-DsewkOlu.js:25942-25947`). The Factory copies that onto the session row
-(`factory/dist/session/thread-title-mirror.js:40`). An explicit `Session.thread.rename` pins the title
-since `@mastra/memory` 1.31.0 (`core/dist/agent-controller-0NjSdCnl.js:1806`); the rename #176 made
-on 1.30.0 was overwritten at the first observation.
+**Why this replaces the first request.** Until the Builder owned its `Memory`, Conexus titled a
+conversation with its first request cut to 80 characters, and an earlier Factory-era plan derived the
+title from the first user message at read time. Both existed because Mastra Code builds its own
+`Memory` and the host could not give it title instructions (upstream proposal U2). The Builder builds
+its `Memory`, so the options are reachable.
 
-**What Mastra offers.** No public option turns the observer's titles off or gives them instructions.
-Mastra Code builds its own `Memory`, and neither `generateTitle.instructions` nor
-`observation.threadTitle` is reachable from the host. The first request itself is public: the
-controller's `queryThreadMessages` reads a thread's messages without starting a session or sandbox
-(`core/dist/agent-controller/agent-controller.d.ts:269`).
-
-**Decision.** B for the title Mastra writes ([mastra-ai/mastra#24688](https://github.com/mastra-ai/mastra/issues/24688)). The thread title and the session row title
-belong to Mastra, and Conexus stops reading them. A for the fact Conexus shows: the title is derived
-from the first request, which the message store already owns, so Conexus stores no second copy.
-
-**Plan, implemented.** The conversation list and the create route read each conversation's first
-user-authored message through `controller.queryThreadMessages` and answer its first line, whitespace
-collapsed, cut to 60 characters on a word. A conversation with no request yet has no title. The
-rename before the first turn is deleted, and the create route no longer takes a title.
+**Decision.** A. Portuguese instructions go to both writers, `generateTitle` and the Observer. The
+Observer's rewrite of a generated title is Mastra Code's behavior and is kept.
 
 ## 6a. Classifying model errors
 
@@ -291,38 +284,36 @@ writes it once. The signal persists without waking the agent, the next turn's mo
 `<notification source="conexus" ...>`, and the web conversation renders a `notification` signal as a
 notice (`builder-turn-notice`) apart from the Builder's turn. The hand-built message is deleted.
 
-## 7. Mounting the Mastra Code agent controller
+## 7. Mounting the Builder's agent controller
 
-**Current code.** `apps/hub/src/builder/factory.ts` builds its own `new Mastra(...)` from the mount's
-arguments, `apps/hub/src/builder/mastra-session-routes.ts` serves the controller's session routes, and
-`apps/hub/src/builder/model-accounts.ts` (`applyModelDefaults`) seeds a model when a thread opens.
+**Current code.** `apps/hub/src/builder/harness/controller.ts` (`createBuilderController`) builds
+`createCodingAgent` from `@mastra/core/coding-agent` and wraps it in an `AgentController` whose id is
+`conexus-builder`. `apps/hub/src/builder/module.ts` registers that controller in `new Mastra({
+agentControllers })`, and `apps/hub/src/builder/mastra-session-routes.ts` serves an allowlisted subset
+of Mastra's own session routes. Conexus does not call `createMastraCode`, so nothing it wires for
+the Mastra Code product reaches the Builder unless Conexus wires it in `controller.ts`, `memory.ts` or
+`prompt.ts`.
 
-**What Mastra offers.** `prepareAgentControllerMount(config)` returns `{ base, mastraArgs, finalize }`
-(`code-sdk/dist/index.js:1044`). A host that needs its own observability builds
-`new Mastra({ ...mastraArgs })` and then awaits `finalize()`. Checked against `@mastra/code-sdk` 1.8.3
-and `@mastra/core` 1.71.0, the mount has four traps:
+**What Mastra offers.** `AgentController` with `createCodingAgent`, the Session API, and the server
+routes in `@mastra/server`. Checked against `@mastra/core` 1.71.0, the mount has four traps:
 
-- **The controller id is not the registry key.** The controller is always built with
-  `id: "mastra-code"` (`code-sdk/dist/index.js:731`). `config.controllerId` is only the key it is
-  registered under (`code-sdk/dist/index.js:1006,1021`). A route guard compares the registry key, as
-  `mastra-session-routes.ts` does with `mount.controllerId`. Passing an existing `mastra` instead of
-  building one registers the controller without putting it in `agentControllers`
-  (`code-sdk/dist/index.js:977`), so the `:controllerId` routes cannot find it.
-- **A mounted session has no model.** `SessionModel` starts with an empty id, so `hasSelection()` is
-  false (`core/dist/agent-controller-0NjSdCnl.js:2486`). The resolved mode defaults are `{}` on a host
-  with no saved Mastra Code settings, and a host that passes its own `modes` gets no model from them.
-  Conexus seeds one with `applyModelDefaults`.
+- **The controller id is the registry key.** The Builder sets both to `conexus-builder`
+  (`BUILDER_CONTROLLER_ID`), so the `:controllerId` routes find it and a route guard can compare either.
+  Mastra Code's `prepareAgentControllerMount` built the controller as `mastra-code` under another key
+  (`code-sdk/dist/index.js:731,1006`); the Builder does not use it.
+- **A session has no model.** `SessionModel` starts with an empty id, so `hasSelection()` is false
+  (`core/dist/agent-controller-0NjSdCnl.js:2486`). `run-runtime.ts` seeds the installation default
+  with `session.model.switch` when a run starts and the conversation has none.
 - **A model choice belongs to one thread.** `session.model.switch()` persists only when `scope` is
   `"thread"` (`core/dist/agent-controller-0NjSdCnl.js:2554`). `scope: "global"` persists nothing.
-  `saveForMode` writes the thread's settings without moving the live session, which also needs
-  `set()` (`core/dist/agent-controller-0NjSdCnl.js:2505`). `thread.switch` loads the new thread's
-  model, but when that thread has none it keeps the previous model in memory
-  (`core/dist/agent-controller-0NjSdCnl.js:1871`). A UI that reads the live session then shows a model
-  the next run will not use.
+  `saveForMode` writes the thread's settings without moving the live session, which also needs `set()`
+  (`core/dist/agent-controller-0NjSdCnl.js:2505`). `thread.switch` loads the new thread's model, but
+  when that thread has none it keeps the previous model in memory
+  (`core/dist/agent-controller-0NjSdCnl.js:1871`).
 - **`thread.getById` is not scoped to the resource.** It returns any resource's thread row
   (`core/dist/agent-controller-0NjSdCnl.js:1576`). `listMessages` checks ownership and throws
-  `Thread not found` (`core/dist/agent-controller-0NjSdCnl.js:1607`). Never expose `getById` on a
-  route that serves more than one resource. No Hub route calls it.
+  `Thread not found` (`core/dist/agent-controller-0NjSdCnl.js:1607`). `mastra-session-routes.ts` serves
+  only the thread list and a thread's messages without a session, and checks the resource on both.
 
 The `agent-controller-*.js` chunk name carries a build hash. After an upgrade, find the same code by
 searching for `hasSelection`, `saveForMode` and `requireOwnedThread`.
@@ -377,17 +368,15 @@ directory set at construction cannot serve as both the checkout's parent and the
 
 ## 11. Giving the Builder the `connector_fetch` tool
 
-**Current code.** `createConnectorFetchIntegration` in `apps/hub/src/connectors/builder-tool.ts` is a
-`FactoryIntegration` whose `sessionTools` returns `connector_fetch` when the request context carries
-the consumer of a Builder run the connector module opened. `composeFactory` passes it beside the
-GitHub integration. The run's session binds the consumer into its `RequestContext` in
-`createMastraFactoryRunPorts`.
+**Current code.** `createConnectorFetchTools` in `apps/hub/src/connectors/builder-tool.ts` returns
+`connector_fetch` when the request context carries the consumer of a Builder run the connector module
+opened, and nothing otherwise. `module.ts` passes it as `connectorFetch` to `createBuilderController`,
+whose `createCodingAgent({ tools })` resolves it per request beside `conexus_check`,
+`conexus_run_operation`, `web_search` and `web_fetch`.
 
-**What Mastra offers.** `FactoryIntegration.sessionTools({ requestContext })` contributes
-"session-scoped tools, resolved synchronously per request" (`factory/dist/integrations/base.d.ts:220`).
-The Factory merges them into Mastra Code's `extraTools` (`factory/dist/factory.js:574-582`), which
-resolves them per agent step with the run's request context (`code-sdk/dist/agents/tools.js:81-126`).
-`MastraFactory` takes no other tool option (`factory/dist/factory.d.ts:50-164`).
+**What Mastra offers.** `tools` on an agent is a function of the request context, so a tool can exist
+for one run and not for another. The connector module's `BuilderConnectorRun.bind` puts the run's
+consumer into the run's `RequestContext`, the only way the tool finds its scope.
 
 **Decision.** A.
 
@@ -417,22 +406,21 @@ until Mastra transforms a streamed input and persists only the transcript projec
 
 ## 13. Platform rules above the Project's own instructions
 
-**Current code.** `factory-runtime.ts` sets the Builder's rules as `pluginInstructions` in session
-state. Mastra Code appends them after the project's `AGENTS.md` and `CLAUDE.md`, with a preamble that
-says they "must not override higher-priority system, developer, repository... instructions"
-(`code-sdk/dist/agents/instructions.js:44-57`).
+**Current code.** The Conexus prompt is the agent's `instructions`, a function of the request context
+(`conexusInstructions` in `apps/hub/src/builder/harness/prompt.ts`). It states the platform rules
+first, then the Project's `AGENTS.md` and `.conexus/memory/MEMORY.md`, which the Hub reads from the
+Conexus Git `main` and places in the prompt under their own markers. For an `openai/gpt-5.4` or
+`openai/gpt-5.5` model it then adds Mastra Code's model-specific prompt, imported from
+`@mastra/code-sdk/agents/prompts/model`.
 
-**What Mastra offers.** `MastraCodeConfig.hostInstructions`, "trusted host instructions resolved
-outside mutable session state" (`code-sdk/dist/index.d.ts:63-65`), is placed right after the base
-prompt and before project instructions (`code-sdk/dist/agents/prompts/index.js:91-101`). The Factory
-sets its own `hostInstructions` and does not let a host pass one (`factory/dist/factory.js:483-500`;
-`factory/dist/factory.d.ts:50-164` has no such option). Session state `untrustedCheckout` without a
-`baseRef` stops the checkout's `AGENTS.md` from loading (`code-sdk/dist/agents/prompts/index.js:73-77`,
-`code-sdk/dist/index.js:487`), but the Factory's own rules also read that flag
-(`factory/dist/rules/binding-context.js`, `factory/dist/rules/start-coordinator.js`), so the Hub does
-not set it without a measurement.
+**What Mastra offers.** `instructions` on `createCodingAgent`, resolved again on every call of a run,
+including a resumed one. Mastra Code's own prompt builder, with its `hostInstructions` and its
+`AGENTS.md` loading, is not part of this path, so the ordering problem it had (platform rules ranked
+below the checkout's `AGENTS.md`) does not arise. The model-specific prompts are exported
+(`code-sdk/dist/agents/prompts/model.js`); the function that adds them to Mastra Code's prompt
+(`buildFullPromptSections`) is not used.
 
-**Decision.** B (U10).
+**Decision.** A. The upstream proposal U10 is not needed.
 
 ## 14. The composer's focus glow
 
@@ -511,6 +499,10 @@ conversation in Portuguese often gets an English title. Mastra Code builds its `
 `generateTitle: { model }` and turns on `observationalMemory.observation.threadTitle`, and it exposes
 neither `generateTitle.instructions` nor an observer title instruction. A host serving non-English
 users cannot fix the language without replacing Mastra Code's memory.
+
+**Status.** The Builder builds its own `Memory`, so it sets `generateTitle.instructions` and
+`observation.instruction` itself (item 5) and no longer needs this proposal. It stays open for hosts
+that mount Mastra Code's `Memory`.
 
 Proposal, two parts.
 
@@ -601,6 +593,9 @@ the current turn's model context, or document that the stored message is raw and
 serving concern.
 
 ### U10 (not opened yet). Let a Factory host pass `hostInstructions`
+
+**Status.** Not needed by the Builder. Its prompt is the agent's own `instructions` (item 13). The
+proposal matters only to a host that runs the Factory's Mastra Code agent.
 
 **Package.** `@mastra/factory` 0.17.2, `dist/factory.js:483` and `dist/factory.d.ts:50-164`.
 
