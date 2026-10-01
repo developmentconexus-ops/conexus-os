@@ -14,6 +14,9 @@ import type { Workspace } from '@mastra/core/workspace'
 import { conexusInstructions } from './prompt.js'
 import { createTool, webFetchTool, webSearchTool } from '@mastra/core/tools'
 import { z } from 'zod'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
 import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
@@ -50,15 +53,6 @@ const resolveModelProviderId = (model: MastraModelConfig): string | undefined =>
   return undefined
 }
 
-/**
- * The provider-defined tool `webSearchTool` resolves to for each family
- * (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the model executes
- * server-side, as Mastra Code does (`mastracode/sdk/src/agents/tools.ts`).
- */
-const OPENAI_WEB_SEARCH = { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} } as const
-const ANTHROPIC_WEB_SEARCH = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} } as const
-const GOOGLE_SEARCH = { type: 'provider-defined', id: 'google.google_search', name: 'google_search', args: {} } as const
-
 const WEB_SEARCH_DESCRIPTION = 'Searches the web for one query and returns what it found, with the address of each source. Call it once per question.'
 
 /**
@@ -73,7 +67,7 @@ const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
     name: 'Conexus web search',
     instructions: 'Search the web for the query and answer it from what you find. Keep each fact next to the source it came from.',
     model,
-    tools: { google_search: GOOGLE_SEARCH },
+    tools: { google_search: createGoogleGenerativeAI({}).tools.googleSearch({}) as ToolsInput[string] },
   })
   return createTool({
     id: 'web_search',
@@ -90,15 +84,19 @@ const searchOnlyWebSearch = (model: MastraModelConfig): ToolsInput[string] => {
 }
 
 /**
- * The `web_search` of a model `webSearchTool` cannot map, by the provider id the model reports:
- * the ChatGPT subscription's (`openaiCodexModel`) and Mastra Code's Claude provider take their
- * family's own tool (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix),
- * and Mastra's Google provider takes the search-only agent. Whether each subscription backend
- * accepts its tool is proven only by a live run.
+ * The `web_search` of each model the Hub builds, by the provider id it reports. Every one is an
+ * AI SDK model, which names its provider `<family>.<api>`, and `webSearchTool` accepts only the bare
+ * family or a `family/model` router string (`normalizeWebSearchProvider` in `@mastra/core`), so it
+ * throws `WEB_SEARCH_UNSUPPORTED_PROVIDER` on all of these. Each family's own provider tool from
+ * its `@ai-sdk/*` package is what Mastra Code gives the same models
+ * (`mastracode/sdk/src/agents/tools.ts`) and what `webSearchTool` itself resolves to. Google's takes
+ * the search-only agent. Whether each subscription backend accepts its tool is proven only by a
+ * live run.
  */
 const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig) => ToolsInput[string]>> = Object.freeze({
-  'openai.responses': () => OPENAI_WEB_SEARCH,
-  'anthropic.messages': () => ANTHROPIC_WEB_SEARCH,
+  // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
+  'openai.responses': () => createOpenAI({}).tools.webSearch() as ToolsInput[string],
+  'anthropic.messages': () => createAnthropic({}).tools.webSearch_20250305() as ToolsInput[string],
   'google.generative-ai': searchOnlyWebSearch,
 })
 

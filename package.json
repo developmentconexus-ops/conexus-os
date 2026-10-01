@@ -77,6 +77,9 @@
     "verify": "npm run conexus:verify -- --scope candidate"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "3.0.118",
+    "@ai-sdk/google": "2.0.97",
+    "@ai-sdk/openai": "3.0.114",
     "@codemirror/language": "6.12.4",
     "@codemirror/language-data": "6.5.2",
     "@codemirror/state": "6.7.5",
