@@ -740,35 +740,72 @@ const nextAgentEnd = (session: Awaited<ReturnType<AgentController['createSession
 
 /**
  * The production sandboxes: one E2B VM per conversation, with the agent's workspace on its checkout.
- * The same instance serves every turn of the conversation in this process, so its session keeps its
- * workspace, and `start()` after a pause resumes the VM. A killed one is forgotten, and the next turn
- * gets a new instance and a new VM.
+ * While a conversation has a run, or a pause still pending, that run's instance is the one every
+ * run of it gets, so the next `start()` waits for the pause. Once the VM is paused the Hub drops
+ * the instance, with the workspace and the process handles it holds (Mastra's Factory does the
+ * same when it retires a session): the paused VM stays at E2B, and the next run builds an instance
+ * that resumes it by the provider id the Hub recorded. A workspace is never destroyed on a pause,
+ * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
+ * gets a new one.
  */
-export const e2bConversationSandboxes = ({ apiKey, templateId }: Readonly<{ apiKey: string; templateId: string }>): BuilderRunPorts['openSandbox'] => {
-  const open = new Map<string, RunSandbox>()
-  return ({ conversationId, providerSandboxId }) => {
-    const kept = open.get(conversationId)
-    if (kept) return kept
-    const sandbox = createConversationSandbox({ apiKey, templateId, conversationId, providerSandboxId })
+export const e2bConversationSandboxes = ({ apiKey, templateId, create = createConversationSandbox, log = () => undefined }: Readonly<{
+  apiKey: string
+  templateId: string
+  create?: typeof createConversationSandbox
+  log?: (line: string) => void
+}>): Readonly<{
+  open: BuilderRunPorts['openSandbox']
+  /** The conversations are gone for good: their instances are dropped, and the VMs they hold are killed. */
+  destroy(conversationIds: readonly string[]): Promise<void>
+}> => {
+  // `opened` counts the runs that took the instance, so a pause that finishes after a later run took it drops nothing.
+  const kept = new Map<string, { readonly sandbox: RunSandbox; opened: number }>()
+  const open: BuilderRunPorts['openSandbox'] = ({ conversationId, providerSandboxId }) => {
+    const held = kept.get(conversationId)
+    if (held) {
+      held.opened += 1
+      return held.sandbox
+    }
+    const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId })
     const workspace = createRunWorkspace(sandbox)
-    const opened: RunSandbox = Object.freeze({
-      get sandboxId() { return sandbox.sandboxId },
-      workspace,
-      start: async () => { await sandbox.start() },
-      executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
-      writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-      runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-      writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
-      readAgentFile: (path: string) => sandbox.readAgentFile(path),
-      runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
-      holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-      pause: () => sandbox.pause(),
-      kill: async () => {
-        open.delete(conversationId)
-        await sandbox.kill()
-      },
-    })
-    open.set(conversationId, opened)
-    return opened
+    const entry: { sandbox: RunSandbox; opened: number } = {
+      opened: 1,
+      sandbox: Object.freeze({
+        get sandboxId() { return sandbox.sandboxId },
+        workspace,
+        start: async () => { await sandbox.start() },
+        executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
+        writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+        runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
+        writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
+        readAgentFile: (path: string) => sandbox.readAgentFile(path),
+        runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+        holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
+        pause: async () => {
+          const opened = entry.opened
+          try {
+            await sandbox.pause()
+          } finally {
+            if (kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
+          }
+        },
+        kill: async () => {
+          if (kept.get(conversationId) === entry) kept.delete(conversationId)
+          await sandbox.kill()
+        },
+      }),
+    }
+    kept.set(conversationId, entry)
+    return entry.sandbox
   }
+  return Object.freeze({
+    open,
+    destroy: async (conversationIds) => {
+      for (const conversationId of conversationIds) {
+        await kept.get(conversationId)?.sandbox.kill().catch((error: unknown) => {
+          log(`BUILDER_SANDBOX_KILL_FAILED:${conversationId}:${error instanceof Error ? error.message : String(error)}`)
+        })
+      }
+    },
+  })
 }

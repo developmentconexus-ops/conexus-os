@@ -369,8 +369,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
+  const sandboxes = e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
   const runtime = createBuilderRunRuntime({
-    openSandbox: e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId }),
+    openSandbox: sandboxes.open,
     openSession: async (input) => {
       await ready
       return openSession(input)
@@ -459,7 +460,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
-      await sessions.drop(projectResourceId(projectId), await conversations.deleteAll(projectId))
+      const conversationIds = await conversations.deleteAll(projectId)
+      await sessions.drop(projectResourceId(projectId), conversationIds)
+      await sandboxes.destroy(conversationIds)
       await git.deleteRepository(projectId)
     },
     readApplicationFileBySource: service.readApplicationFileBySource,

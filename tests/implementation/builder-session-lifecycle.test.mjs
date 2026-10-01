@@ -9,7 +9,8 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions, e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createConversationSandbox } = await import(hubModuleUrl('builder/sandbox.js'))
 const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -225,4 +226,70 @@ test('BUILDER_ANSWER_TIMEOUT reaches the person as an internal category with its
     failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_ANSWER_TIMEOUT' }),
     'A pergunta do Builder ficou sem resposta por 25 minutos, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
   )
+})
+
+// The production sandbox cache with E2B stubbed out: every instance it builds records its pause and its kill.
+const sandboxCache = () => {
+  const built = []
+  const log = []
+  const cache = e2bConversationSandboxes({
+    apiKey: 'test-key', templateId: 'conexus:template', log: (line) => log.push(line),
+    create: (input) => {
+      const sandbox = createConversationSandbox(input)
+      const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, paused: 0, killed: 0, finishPause: null }
+      sandbox.pause = () => { entry.paused += 1; return entry.finishPause ? new Promise((done) => { entry.finishPause = done }) : Promise.resolve() }
+      sandbox.kill = async () => { entry.killed += 1 }
+      built.push(entry)
+      return sandbox
+    },
+  })
+  return { ...cache, built, log }
+}
+
+test("a conversation's sandbox instance is dropped once its VM is paused, and the next run builds one that resumes it by the recorded id", async () => {
+  const { open, built } = sandboxCache()
+  const turn = async (conversationId, providerSandboxId) => {
+    const sandbox = open({ conversationId, providerSandboxId })
+    await sandbox.pause()
+    return sandbox
+  }
+  const first = await turn(conversation(1), null)
+  const second = await turn(conversation(1), 'sbx-1')
+  assert.notEqual(first, second, 'the paused instance was dropped')
+  assert.deepEqual(built.map(({ conversationId, providerSandboxId, paused }) => [conversationId, providerSandboxId, paused]), [[conversation(1), null, 1], [conversation(1), 'sbx-1', 1]])
+  for (let n = 0; n < 50; n += 1) await turn(conversation(2), 'sbx-2')
+  assert.equal(built.length, 52, 'fifty paused turns built fifty instances, none of them kept')
+  const kept = open({ conversationId: conversation(3), providerSandboxId: null })
+  assert.equal(open({ conversationId: conversation(3), providerSandboxId: null }), kept, 'until its pause, every run of the conversation gets the one instance')
+  assert.equal(built.length, 53)
+})
+
+test('a pause that finishes after the next run took the instance drops nothing, and a workspace is never destroyed on a pause', async () => {
+  const { open, built } = sandboxCache()
+  const run1 = open({ conversationId: conversation(1), providerSandboxId: null })
+  let destroyed = 0
+  run1.workspace.destroy = async () => { destroyed += 1 }
+  built[0].finishPause = () => {}
+  const pausing = run1.pause()
+  const run2 = open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' })
+  assert.equal(run2, run1, 'the next run waits on the same instance while the pause is pending')
+  built[0].finishPause()
+  await pausing
+  assert.equal(open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' }), run1, 'it is still held for the run that took it')
+  built[0].finishPause = null
+  await run1.pause()
+  assert.notEqual(open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' }), run1, 'the last run to take it dropped it on its pause')
+  assert.equal(destroyed, 0, 'Mastra destroys the VM with the workspace, so the paused VM is only left to E2B')
+})
+
+test('a killed VM is forgotten, and a Project deletion kills the VMs its conversations still hold in memory and no others', async () => {
+  const { open, built, destroy } = sandboxCache()
+  const doomed = open({ conversationId: conversation(1), providerSandboxId: null })
+  await doomed.kill()
+  assert.notEqual(open({ conversationId: conversation(1), providerSandboxId: null }), doomed, 'the next run gets a new instance')
+  open({ conversationId: conversation(2), providerSandboxId: null })
+  open({ conversationId: conversation(3), providerSandboxId: null })
+  await destroy([conversation(1), conversation(2), conversation(4)])
+  assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 1], ['1', 1], ['2', 1], ['3', 0]])
+  assert.equal(built.length, 4, 'one instance per open, none rebuilt for the conversations that were not asked for')
 })
