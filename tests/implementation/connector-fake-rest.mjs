@@ -66,7 +66,7 @@ export const restDefinition = Object.freeze({
   credential: z.strictObject({ clientId: z.string().min(1), clientSecret: z.string().min(1) }),
   operations: Object.freeze([]),
   events: Object.freeze([]),
-  builderSkill: '',
+ 
   secretFields: Object.freeze(['clientId', 'clientSecret']),
   native: Object.freeze({
     services: Object.freeze(['rest.get']),

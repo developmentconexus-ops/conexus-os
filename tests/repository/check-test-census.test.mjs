@@ -68,6 +68,6 @@ test('checkTestCensus reports any committed test not in candidate graph or exemp
 
 test('live suites remain exempt in EXEMPT_TESTS', () => {
   assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-e2b-live.test.mjs'))
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-factory-e2b-live.test.mjs'))
+  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-sandbox-e2b-live.test.mjs'))
   assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-production-composed-live.test.mjs'))
 })

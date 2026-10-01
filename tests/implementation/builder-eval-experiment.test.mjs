@@ -31,6 +31,14 @@ test('loadArms reads each arm file in the order asked and refuses a key it does 
   assert.throws(() => loadArms(dir, ['flash', 'luna']), { message: 'builder-eval: arms/luna.json has unknown key modle' })
 })
 
+test('an arm names a model and nothing else: the prompt variant key is gone', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'builder-eval-arms-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  writeFileSync(join(dir, 'luna-v2.json'), '{ "model": "m-luna", "promptVariant": "v2" }')
+
+  assert.throws(() => loadArms(dir, ['luna-v2']), { message: 'builder-eval: arms/luna-v2.json has unknown key promptVariant' })
+})
+
 test('two arms, one trial: each experiment runs its case once, is graded and finalizes', async (t) => {
   const { mastra, hub, driver, run } = await experimentHarness(t, new InMemoryStore())
 

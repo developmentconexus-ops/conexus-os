@@ -30,7 +30,7 @@ test('S3-P5 preserves generated PRJ-03 inside the bounded S3 projection', () => 
   assert.doesNotMatch(source, /workspace-client/)
 })
 
-test('S3-P5 store prepares the repository after the reservation and creates the Project bound to it in one transaction', async () => {
+test('S3-P5 store prepares the repository after the reservation and creates the Project with it in one transaction', async () => {
   const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
   const projectId = '30000000-0000-8000-8000-000000000061'
   const projectRevision = '50000000-0000-8000-8000-000000000061'
@@ -49,15 +49,11 @@ test('S3-P5 store prepares the repository after the reservation and creates the 
     },
     release() {},
   }
-  const binding = {
-    projectId, factoryProjectId: 'factory-project-61', projectRepositoryId: 'project-repository-61', repositoryId: 'repository-61',
-    repositoryExternalId: 700061, repositorySlug: 'acme-org/project-p5-30000000', defaultBranch: 'main', headRevision: '1'.repeat(40),
-  }
   const prepared = []
   const identities = [projectId, projectRevision]
   const store = createProjectStore({
     commandPool: { connect: async () => client },
-    repository: { prepare: async (input) => { prepared.push({ input, statementsBefore: statements.length }); return binding } },
+    repository: { prepare: async (input) => { prepared.push({ input, statementsBefore: statements.length }); return '1'.repeat(40) } },
     mintIdentity: () => identities.shift(),
   })
   assert.deepEqual(await store.createProject({
@@ -73,16 +69,15 @@ test('S3-P5 store prepares the repository after the reservation and creates the 
     archived: false,
     replayed: false,
   })
-  assert.deepEqual(prepared.map(({ input }) => input), [{ projectId, projectName: 'Project P5' }])
+  assert.deepEqual(prepared.map(({ input }) => input), [projectId])
   assert.deepEqual(statements.slice(0, prepared[0].statementsBefore).map(({ statement }) => statement.trim().split('(')[0]), [
     'BEGIN', 'SELECT * FROM project.reserve_or_replay_create_project', 'COMMIT',
   ])
   const created = statements.find(({ statement }) => statement.includes('create_project_with_repository'))
   assert.deepEqual(created.values, [
     '10000000-0000-4000-8000-000000000061', '20000000-0000-4000-8000-000000000061', created.values[2], created.values[3], projectId,
-    'Project P5', projectRevision, 'factory-project-61', 'project-repository-61', 'repository-61', '1'.repeat(40),
+    'Project P5', projectRevision, '1'.repeat(40),
   ])
-  assert.equal(statements.some(({ statement }) => statement.includes('create_project_with_source')), false)
   // Creating a Project no longer manufactures a grant: membership in the Workspace is the whole
   // of the creator's access.
   assert.equal(statements.some(({ statement }) => statement.includes('iam.')), false)
@@ -100,11 +95,7 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
     idempotencyKey: 'failure-key',
     body: { name: 'Failure Matrix', sourceBootstrap: { mode: 'NEW' } },
   }
-  const binding = {
-    projectId, factoryProjectId: 'factory-project-65', projectRepositoryId: 'project-repository-65', repositoryId: 'repository-65',
-    repositoryExternalId: 700065, repositorySlug: 'acme-org/failure-matrix-30000000', defaultBranch: 'main', headRevision: '1'.repeat(40),
-  }
-  const scenario = async ({ reservationState = 'RESERVED', prepare = async () => binding, settlementFailure = null, body = input.body }, expected) => {
+  const scenario = async ({ reservationState = 'RESERVED', prepare = async () => '1'.repeat(40), settlementFailure = null, body = input.body }, expected) => {
     const statements = []
     const client = {
       async query(statement, values = []) {
@@ -132,12 +123,8 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
   await scenario({ reservationState: 'CONFLICT' }, { code: 'IDEMPOTENCY_CONFLICT' })
   const imported = await scenario({ body: { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } } }, { code: 'SOURCE_INPUT_REFUSED' })
   assert.deepEqual(imported, [])
-  await scenario({ prepare: async () => { throw new Error('FACTORY_GITHUB_REQUEST_FAILED:502') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_GITHUB_REQUEST_FAILED:502' })
-  await scenario({ prepare: async () => { throw new Error('FACTORY_INSTALLATION_ORGANIZATION_REQUIRED: GitHub does not let an App create repositories in a personal account.') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED' })
-  await scenario({ prepare: async () => { throw new Error('connect ECONNREFUSED 10.0.0.1:443 token=ghs_secret') } }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_REPOSITORY_FAILED' })
-  await scenario({ prepare: async () => ({ ...binding, projectId: '30000000-0000-8000-8000-000000000066' }) }, { code: 'OUTCOME_UNKNOWN' })
-  const bound = await scenario({ settlementFailure: new Error('FACTORY_BINDING_REPOSITORY_BOUND') }, { code: 'REPOSITORY_REFUSED', reason: 'FACTORY_BINDING_REPOSITORY_BOUND' })
-  assert.equal(bound.includes('ROLLBACK'), true)
+  await scenario({ prepare: async () => { throw new Error('CONEXUS_GIT_MAIN_MISSING') } }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_MAIN_MISSING' })
+  await scenario({ prepare: async () => { throw new Error('spawn git ENOENT /var/lib/conexus/git/secret') } }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_FAILED' })
   const settlement = await scenario({ settlementFailure: new Error('SYNTHETIC_SETTLEMENT_FAILURE') }, /SYNTHETIC_SETTLEMENT_FAILURE/)
   assert.equal(settlement.includes('ROLLBACK'), true)
 })

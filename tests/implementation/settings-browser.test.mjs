@@ -3,12 +3,6 @@ import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { startWebServer } from './web-dev-server.mjs'
 
-const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true, useCount: 0 },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true, useCount: 0 },
-  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false, useCount: 0 },
-]
-
 const withServer = async (t) => {
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
@@ -16,9 +10,8 @@ const withServer = async (t) => {
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
-  // No provider recommended packs unless a test says otherwise.
-  await page.route('**/web/config/model-packs', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ packs: [], activePackId: null }),
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: false, shared: false }] }),
   }))
   return { page, origin }
 }
@@ -27,10 +20,6 @@ const routeAccessContext = (page, account) =>
   page.route('**/api/control/access-context', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ account, workspaces: [], projects: [] }),
   }))
-
-const routeBuilderModels = (page) =>
-  page.route(/\/api\/control\/model-accounts\/models(\?.*)?$/, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
 
 const routeInstallation = (page, administrator) =>
   page.route('**/api/control/installation', (route) => route.fulfill({
@@ -47,401 +36,21 @@ test('/settings redirects to Minha conta, and a member sees no Instalação grou
   await page.waitForURL(`${origin}/settings/account`)
   await page.getByRole('heading', { name: 'Minha conta' }).waitFor()
   await page.getByRole('link', { name: 'Minhas contas de modelo' }).waitFor()
-  assert.equal(await page.getByRole('link', { name: 'GitHub' }).count(), 0)
   assert.equal(await page.getByRole('link', { name: 'Administradores' }).count(), 0)
 
-  await page.goto(`${origin}/settings/installation/github`)
+  await page.goto(`${origin}/settings/installation/admins`)
   await page.getByText('Esta seção é só para administradores da instalação.').waitFor()
 })
 
-test('an administrator sees all three installation items in the rail', async (t) => {
+test('an administrator sees Administradores as the one installation item in the rail, and the retired ones are gone', async (t) => {
   const { page, origin } = await withServer(t)
   await routeAccessContext(page, { accountId: 'a2', displayName: 'Administradora', email: 'admin@example.com' })
   await routeInstallation(page, true)
   await page.goto(`${origin}/settings/account`)
-  for (const label of ['GitHub', 'Modelos da empresa', 'Administradores']) {
-    await page.getByRole('link', { name: label }).waitFor()
+  await page.getByRole('link', { name: 'Administradores' }).waitFor()
+  for (const label of ['GitHub', 'Modelos da empresa', 'Memória']) {
+    assert.equal(await page.getByRole('link', { name: label, exact: true }).count(), 0, `${label} is not a settings item`)
   }
-})
-
-test('Minhas contas de modelo connects by API key, and by device code', async (t) => {
-  const { page, origin } = await withServer(t)
-  const writes = []
-  const providers = [
-    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
-    { provider: 'google', source: 'none' },
-  ]
-  await routeAccessContext(page, { accountId: 'a3', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  let polls = 0
-  await page.route('**/web/config/providers/*/key', (route) => {
-    writes.push(['PUT', route.request().postDataJSON()])
-    providers[1] = { ...providers[1], source: 'stored-user', userCredential: 'api_key' }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-  })
-  await page.route('**/web/config/providers/*/oauth/start', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-1', kind: 'device-code', url: 'https://provider.example/device', userCode: 'ABCD-1234', nextPollMs: 50 }) }))
-  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
-    polls += 1
-    if (polls < 2) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 50 }) })
-    providers[0] = { ...providers[0], source: 'stored-user', userCredential: 'oauth' }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'complete' }) })
-  })
-
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  await page.getByText('Nenhuma conta conectada').waitFor()
-  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
-  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
-  await page.getByText('ABCD-1234').waitFor()
-  await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
-  assert.equal(await page.locator('.cxs-spinner').count(), 0)
-  await page.getByRole('listitem').filter({ hasText: 'Anthropic (Claude)' }).getByText('Conectada').waitFor({ timeout: 5000 })
-
-  await page.getByRole('button', { name: 'Conectar conta' }).click()
-  await page.getByRole('button', { name: 'Google (Gemini)' }).click()
-  await page.getByLabel('Chave de API').fill('AIza-my-key')
-  await page.getByRole('button', { name: 'Salvar chave' }).click()
-  await page.getByText('Conta conectada.').waitFor()
-  assert.deepEqual(writes.at(-1), ['PUT', { key: 'AIza-my-key' }])
-  await page.getByRole('listitem').filter({ hasText: 'Google (Gemini)' }).getByText('Conectada').waitFor()
-})
-
-test('Minhas contas de modelo device-code wait mark has no phone overflow and holds still under reduced motion', async (t) => {
-  const { page, origin } = await withServer(t)
-  const providers = [
-    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
-  ]
-  await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  await page.route('**/web/config/providers/*/oauth/start', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-9', kind: 'device-code', url: 'https://provider.example/device', userCode: 'PHNE-0001', nextPollMs: 60_000 }) }))
-  await page.route('**/web/config/providers/*/oauth/poll', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60_000 }) }))
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
-  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
-  await page.getByText('PHNE-0001').waitFor()
-  const mark = page.locator('.cx-mark--working')
-  await mark.waitFor()
-
-  // 390px width, no zoom: the wait mark and its surrounding step must not force a horizontal scrollbar.
-  const overflowAtPhoneWidth = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  assert.ok(overflowAtPhoneWidth <= 1, `expected no horizontal overflow at 390px, got ${overflowAtPhoneWidth}px`)
-
-  // Same layout at 200% zoom. Chromium's non-standard `style.zoom` does not reproduce real
-  // browser zoom here: the app shell picks its desktop/mobile layout from `matchMedia`, which
-  // `style.zoom` leaves keyed to the unzoomed width, so it can pick the wrong layout for the
-  // zoomed viewport. A real 200% zoom instead halves the effective CSS viewport that both layout
-  // and matchMedia see, so we reproduce that directly by shrinking the viewport.
-  await page.setViewportSize({ width: 195, height: 422 })
-  const overflowAtZoom = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  assert.ok(overflowAtZoom <= 1, `expected no horizontal overflow at 200% zoom, got ${overflowAtZoom}px`)
-  await page.setViewportSize({ width: 390, height: 844 })
-
-  const animationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
-  assert.notEqual(animationName, 'none')
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  const stillAnimationName = await mark.locator('.cx-mark-a').evaluate((element) => getComputedStyle(element).animationName)
-  assert.equal(stillAnimationName, 'none')
-})
-
-test('Minhas contas de modelo shows a warning for an account that needs to sign in again, and restarts the flow', async (t) => {
-  const { page, origin } = await withServer(t)
-  const providers = [
-    { provider: 'anthropic', source: 'stored-user', userCredential: 'oauth', health: 'needs-reconnect', oauth: { supported: true, modes: ['device-code'] } },
-  ]
-  await routeAccessContext(page, { accountId: 'a5', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  let polls = 0
-  await page.route('**/web/config/providers/*/oauth/start', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-2', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-9876', nextPollMs: 50 }) }))
-  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
-    polls += 1
-    if (polls < 2) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 50 }) })
-    providers[0] = { ...providers[0], health: 'ok' }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'complete' }) })
-  })
-
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  const row = page.getByRole('listitem').filter({ hasText: 'Anthropic (Claude)' })
-  await row.getByText('Precisa entrar de novo').waitFor()
-  await row.getByRole('button', { name: 'Entrar de novo' }).click()
-  await page.getByText('WXYZ-9876').waitFor()
-  await page.getByText('Aguardando você concluir a entrada na outra aba').waitFor()
-  await row.getByText('Conectada').waitFor({ timeout: 5000 })
-  assert.equal(await row.getByText('Precisa entrar de novo').count(), 0)
-})
-
-test('Minhas contas de modelo recovers from transient poll failures, and shows the technical detail when the device code fails for good', async (t) => {
-  const { page, origin } = await withServer(t)
-  const providers = [
-    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
-  ]
-  await routeAccessContext(page, { accountId: 'a7', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString()
-  await page.route('**/web/config/providers/*/oauth/start', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 'session-3', kind: 'device-code', url: 'https://provider.example/device', userCode: 'WXYZ-9876', nextPollMs: 30, expiresAt }) }))
-  let polls = 0
-  await page.route('**/web/config/providers/*/oauth/poll', (route) => {
-    polls += 1
-    if (polls <= 2) return route.fulfill({ status: 503 })
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'failed', error: 'device_code_expired' }) })
-  })
-
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
-  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
-  await page.getByText('WXYZ-9876').waitFor()
-  await page.getByText(/Expira em \d:\d\d/).waitFor()
-  // Two transient poll failures are absorbed silently; the third failed poll surfaces the error.
-  await page.getByRole('alert').waitFor({ timeout: 5000 })
-  await page.getByText('Detalhe técnico').click()
-  await page.getByText('device_code_expired').waitFor()
-})
-
-test('Minhas contas de modelo lets a person generate another device code once it expires', async (t) => {
-  const { page, origin } = await withServer(t)
-  const providers = [
-    { provider: 'anthropic', source: 'none', oauth: { supported: true, modes: ['device-code'] } },
-  ]
-  await routeAccessContext(page, { accountId: 'a8', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers, orgKeyAdmin: false }) }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
-  let starts = 0
-  await page.route('**/web/config/providers/*/oauth/start', (route) => {
-    starts += 1
-    const expiresAt = new Date(Date.now() + (starts === 1 ? 1_000 : 5 * 60_000)).toISOString()
-    return route.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({ sessionId: `session-expire-${starts}`, kind: 'device-code', url: 'https://provider.example/device', userCode: `CODE-${starts}`, nextPollMs: 60_000, expiresAt }),
-    })
-  })
-  await page.route('**/web/config/providers/*/oauth/poll', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'pending', nextPollMs: 60_000 }) }))
-
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  await page.getByRole('button', { name: 'Anthropic (Claude)' }).click()
-  await page.getByRole('button', { name: 'Entrar com a assinatura' }).click()
-  await page.getByText('CODE-1').waitFor()
-  await page.getByText('O código expirou.').waitFor({ timeout: 5000 })
-  await page.getByRole('button', { name: 'Gerar outro código' }).click()
-  await page.getByText('CODE-2').waitFor()
-})
-
-test('Meus padrões offers the company defaults, a provider pack and a custom choice', async (t) => {
-  const { page, origin } = await withServer(t)
-  let mine = null
-  const pack = {
-    id: 'anthropic-pack', name: 'Anthropic recomendado', description: 'Pacote recomendado pela Anthropic',
-    models: { build: BUILDER_MODELS[1].id, fast: BUILDER_MODELS[0].id }, custom: false, active: false,
-  }
-  await routeAccessContext(page, { accountId: 'a4', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ providers: [{ provider: 'anthropic', source: 'stored-user', userCredential: 'api_key' }], orgKeyAdmin: false }),
-  }))
-  await page.route('**/web/config/model-packs', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ packs: [pack], activePackId: null }),
-  }))
-  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ installation: { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id }, mine, administrator: false }),
-  }))
-  await page.route('**/api/control/model-defaults/mine', (route) => {
-    if (route.request().method() === 'DELETE') { mine = null; return route.fulfill({ status: 204 }) }
-    mine = route.request().postDataJSON()
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mine) })
-  })
-
-  await page.goto(`${origin}/settings/models`)
-  await page.getByRole('heading', { name: 'Meus padrões', exact: false }).waitFor()
-  await page.getByText(/\(da empresa\)/).waitFor()
-  await page.getByRole('radio', { name: 'Usar os padrões da empresa' }).waitFor()
-
-  await page.getByRole('radio', { name: 'Usar o pacote recomendado: Anthropic recomendado' }).click()
-  await page.getByText('Padrões salvos.').waitFor()
-  assert.deepEqual(mine, pack.models)
-
-  await page.getByRole('radio', { name: 'Escolher o modelo' }).click()
-  await page.getByRole('combobox', { name: 'Construção' }).click()
-  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
-  await page.getByRole('listbox').waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Salvar meus padrões' }).click()
-  await page.getByText('Padrões salvos.').waitFor()
-  assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[0].id })
-
-  await page.getByRole('button', { name: 'Mais opções' }).click()
-  await page.getByRole('combobox', { name: 'Rápido' }).click()
-  await page.getByRole('option', { name: /claude-sonnet-4-5/ }).click()
-  await page.getByRole('listbox').waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Salvar meus padrões' }).click()
-  await page.getByText('Padrões salvos.').waitFor()
-  assert.deepEqual(mine, { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id })
-
-  await page.getByRole('radio', { name: 'Usar os padrões da empresa' }).click()
-  await page.getByText('Voltou a usar os padrões da empresa.').waitFor()
-  assert.equal(mine, null)
-})
-
-test('Memória shows a danger alert when saving the model fails', async (t) => {
-  const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
-  await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }),
-  }))
-  await page.route('**/web/config/providers', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [], orgKeyAdmin: false }),
-  }))
-  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: true }),
-  }))
-  await page.route('**/api/control/installation/memory', (route) => {
-    if (route.request().method() === 'PUT') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }) })
-  })
-
-  await page.goto(`${origin}/settings/installation/memory`)
-  await page.waitForURL(`${origin}/settings/installation/models`)
-  await page.getByRole('heading', { name: 'Memória' }).waitFor()
-  await page.getByText('Valor atual: Padrão do Conexus').waitFor()
-  assert.equal(await page.getByText('gemini-3.5-flash').count(), 0)
-  await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
-  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
-  await page.getByRole('button', { name: 'Salvar', exact: true }).click()
-  const alert = page.getByRole('alert')
-  await alert.getByText('Não foi possível salvar.').waitFor()
-  assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
-  assert.equal(await page.getByRole('status').count(), 0)
-})
-
-test('Modelos da empresa queries builder models with scope=installation and saves company defaults and memory', async (t) => {
-  const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a7b', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
-
-  const scopesRequested = []
-  await page.route(/\/api\/control\/model-accounts\/models(\?.*)?$/, (route) => {
-    const url = new URL(route.request().url())
-    scopesRequested.push(url.searchParams.get('scope'))
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) })
-  })
-
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({
-      providers: [
-        {
-          provider: 'anthropic',
-          source: 'stored-shared',
-          userCredential: 'oauth',
-          sharedWithEveryone: true,
-          sharedBy: { accountId: 'a7b', displayName: 'Administradora' },
-        },
-      ],
-      orgKeyAdmin: false,
-    }),
-  }))
-
-  let savedDefaults = null
-  await page.route('**/api/control/model-defaults/installation', (route) => {
-    if (route.request().method() === 'PUT') {
-      savedDefaults = route.request().postDataJSON()
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(savedDefaults) })
-    }
-    return route.fulfill({ status: 404 })
-  })
-  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ installation: { build: BUILDER_MODELS[0].id, fast: BUILDER_MODELS[1].id }, mine: null, administrator: true }),
-  }))
-
-  let savedMemory = null
-  await page.route('**/api/control/installation/memory', (route) => {
-    if (route.request().method() === 'PUT') {
-      savedMemory = route.request().postDataJSON()
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ model: savedMemory.model }) })
-    }
-    return route.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({ model: null }),
-    })
-  })
-
-  await page.goto(`${origin}/settings/installation/models`)
-  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
-  await page.getByRole('heading', { name: 'Contas compartilhadas' }).waitFor()
-  await page.getByRole('heading', { name: 'Modelos padrão' }).waitFor()
-  await page.getByRole('heading', { name: 'Memória' }).waitFor()
-
-  // Verify that the page queried builder models with scope=installation
-  assert.ok(scopesRequested.includes('installation'), `Expected models query with scope=installation, got ${JSON.stringify(scopesRequested)}`)
-
-  // Save company defaults
-  await page.getByRole('combobox', { name: 'Construção' }).click()
-  await page.getByRole('option', { name: /claude-sonnet-4-5/ }).click()
-  await page.getByRole('listbox').waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Salvar padrões' }).click()
-  await page.getByText('Padrões salvos.').waitFor()
-  assert.deepEqual(savedDefaults, { build: BUILDER_MODELS[1].id, fast: BUILDER_MODELS[1].id })
-
-  // Save memory model
-  await page.getByRole('combobox', { name: 'Modelo de memória' }).click()
-  await page.getByRole('option', { name: /claude-opus-4-5/ }).click()
-  await page.getByRole('listbox').waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Salvar', exact: true }).click()
-  await page.getByText('Padrão salvo.').waitFor()
-  assert.deepEqual(savedMemory, { model: BUILDER_MODELS[0].id })
-})
-
-test('GitHub shows the removed-app notice with Projetos vocabulary', async (t) => {
-  const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a9', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
-  await page.route('**/api/control/installation/github', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({
-      state: 'gone', organization: { login: 'acme-org', type: 'Organization' },
-      installUrl: 'https://github.com/apps/conexus/installations/new', manageUrl: null, repositories: [],
-    }),
-  }))
-
-  await page.goto(`${origin}/settings/installation/github`)
-  await page.getByRole('heading', { name: 'GitHub' }).waitFor()
-  await page.getByText('Os Projetos não aceitam pedidos').waitFor()
 })
 
 test('Administradores shows a danger alert when granting fails', async (t) => {
@@ -463,22 +72,6 @@ test('Administradores shows a danger alert when granting fails', async (t) => {
   const alert = page.getByRole('alert')
   await alert.waitFor()
   assert.equal(await alert.evaluate((element) => element.className), 'cxs-alert')
-})
-
-test('GitHub connect shows the sentence for a personal account', async (t) => {
-  const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a5', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
-  await page.route('**/api/control/installation/github', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ state: 'not-connected', organization: null, installUrl: 'https://github.com/apps/conexus/installations/new', manageUrl: null, repositories: [] }),
-  }))
-  await page.route('**/api/control/installation/github/connect', (route) => route.fulfill(problem('github-organization-required')))
-
-  await page.goto(`${origin}/settings/installation/github`)
-  await page.getByRole('heading', { name: 'GitHub' }).waitFor()
-  await page.getByRole('button', { name: 'Verificar conexão' }).click()
-  await page.getByText('Precisa ser uma organização do GitHub. Contas pessoais não servem.').waitFor()
 })
 
 test('Administradores refuses to revoke the last administrator and to grant an unknown e-mail', async (t) => {
@@ -506,30 +99,6 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await page.getByText('Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.').waitFor()
 })
 
-test('retired installation routes redirect to Modelos da empresa', async (t) => {
-  const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a7', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
-  await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ providers: [] }),
-  }))
-  await page.route('**/api/control/model-defaults', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: true }),
-  }))
-  await page.route('**/api/control/installation/memory', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ model: null }),
-  }))
-
-  await page.goto(`${origin}/settings/installation/model-defaults`)
-  await page.waitForURL(`${origin}/settings/installation/models`)
-  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
-
-  await page.goto(`${origin}/settings/installation/memory`)
-  await page.waitForURL(`${origin}/settings/installation/models`)
-  await page.getByRole('heading', { name: 'Modelos da empresa' }).waitFor()
-})
-
 test('Minhas contas de modelo signs a person in to Google AI Pro through a pasted Google address, and hides the card where the Hub runs no CLIProxyAPI', async (t) => {
   const { page, origin } = await withServer(t)
   const loginId = '0f0f0f0f-0000-4000-8000-000000000001'
@@ -539,13 +108,6 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   const writes = []
   await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/web/config/providers', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }, { provider: 'google', source: 'none' }], orgKeyAdmin: false }),
-  }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
   await page.route('**/api/control/model-accounts/google-ai-pro/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
@@ -568,9 +130,6 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
 
   await page.goto(`${origin}/settings/models`)
   await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
-  const generic = page.getByRole('region', { name: 'Conectar uma conta' })
-  await generic.getByRole('button', { name: 'Google (Gemini)' }).waitFor()
-  assert.equal(await generic.getByRole('button', { name: 'Google AI Pro' }).count(), 0)
 
   const [popup] = await Promise.all([
     page.context().waitForEvent('page'),
@@ -594,12 +153,10 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
     ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
   ])
-  await page.getByRole('button', { name: 'Desconectar' }).waitFor()
 
   enabled = false
   await page.reload()
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
-  await page.getByRole('heading', { name: 'Meus padrões' }).waitFor()
   assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
 })
 
@@ -609,13 +166,6 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   const signIn = 'https://accounts.google.com/o/oauth2/v2/auth?state=blocked-state'
   await routeAccessContext(page, { accountId: 'a10', displayName: 'Pessoa Bloqueada', email: 'bloqueada@example.com' })
   await routeInstallation(page, false)
-  await routeBuilderModels(page)
-  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ providers: [{ provider: 'google-ai-pro', source: 'none' }], orgKeyAdmin: false }),
-  }))
-  await page.route('**/api/control/model-defaults', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ installation: null, mine: null, administrator: false }) }))
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -635,4 +185,110 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   assert.equal(await link.getAttribute('href'), signIn)
   assert.equal(await link.getAttribute('data-variant'), 'primary')
   await page.getByText('Não conseguimos abrir a aba automaticamente', { exact: false }).waitFor()
+})
+
+test('Minhas contas de modelo signs a person in to ChatGPT with a device code, and the page never holds a token', async (t) => {
+  const { page, origin } = await withServer(t)
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000002'
+  const deviceUrl = 'https://auth.openai.com/codex/device'
+  let connected = false
+  let polls = 0
+  const calls = []
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', mine: connected, shared: false }] }),
+  }))
+  await page.route('**/api/control/model-accounts/openai-codex/oauth/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    calls.push([request.method(), url.pathname.replace('/api/control/model-accounts/openai-codex/oauth', ''), 'x-conexus-csrf' in request.headers()])
+    if (url.pathname.endsWith('/start')) return json({ loginId, url: deviceUrl, userCode: 'ABCD-1234', intervalMs: 0, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString() })
+    if (url.pathname.endsWith('/poll')) {
+      assert.equal(url.searchParams.get('loginId'), loginId)
+      polls += 1
+      if (polls < 2) return json({ state: 'waiting' })
+      connected = true
+      return json({ state: 'succeeded' })
+    }
+    return route.fulfill({ status: 404 })
+  })
+  await page.context().route('https://auth.openai.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'ChatGPT' }).waitFor()
+  await page.getByRole('button', { name: 'Conectar com o ChatGPT' }).click()
+  await page.getByText('ABCD-1234').waitFor()
+  await page.getByText('O código expira em', { exact: false }).waitFor()
+  assert.equal(await page.getByRole('link', { name: 'abra a página de entrada da OpenAI' }).getAttribute('href'), deviceUrl)
+  const [popup] = await Promise.all([
+    page.context().waitForEvent('page'),
+    page.getByRole('button', { name: 'Copiar código e abrir o ChatGPT' }).click(),
+  ])
+  await popup.waitForURL(deviceUrl)
+  await page.getByText('ChatGPT conectado.').waitFor()
+  await page.getByText('Conectado com a sua conta do ChatGPT.').waitFor()
+  assert.deepEqual(calls.filter(([method]) => method === 'POST'), [['POST', '/start', true]])
+  assert.equal(await page.evaluate(() => document.body.innerText.includes('access')), false)
+})
+
+test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude subscription by pasted code, and the page never shows the key again', async (t) => {
+  const { page, origin } = await withServer(t)
+  const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000003'
+  const authorizeUrl = 'https://claude.ai/oauth/authorize?attempt=1'
+  let kind = null
+  const calls = []
+  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [
+      { provider: 'openai-codex', mine: false, kind: null, shared: false },
+      { provider: 'anthropic', mine: kind !== null, kind, shared: false },
+    ] }),
+  }))
+  await page.route('**/api/control/model-accounts/anthropic/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/anthropic', '')
+    const body = request.postDataJSON()
+    calls.push([request.method(), path, 'x-conexus-csrf' in request.headers(), body])
+    const json = (value) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
+    if (path === '/api-key') { kind = 'api_key'; return route.fulfill({ status: 204 }) }
+    if (path === '/oauth/start') return json({ loginId, url: authorizeUrl, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() })
+    if (path === '/oauth/complete') {
+      if (body.code !== 'good#verifier-1') return json({ state: 'failed' })
+      kind = 'oauth'
+      return json({ state: 'succeeded' })
+    }
+    return route.fulfill({ status: 404 })
+  })
+
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Chave de API da Anthropic (Claude)' }).waitFor()
+  await page.getByLabel('Chave de API', { exact: true }).fill(fakeKey)
+  await page.getByRole('button', { name: 'Salvar a chave' }).click()
+  await page.getByText('Chave salva.', { exact: false }).waitFor()
+  await page.getByText('Conectado com a sua chave.').waitFor()
+  assert.equal(await page.getByLabel('Chave de API', { exact: true }).inputValue(), '', 'the field is cleared once the key is saved')
+
+  await page.getByRole('heading', { name: 'Assinatura Claude' }).waitFor()
+  await page.getByText('Entrar com a assinatura substitui a chave de API da Anthropic que você salvou.').waitFor()
+  await page.getByRole('button', { name: 'Entrar com a assinatura Claude' }).click()
+  assert.equal(await page.getByRole('link', { name: 'Abrir a página da Claude' }).getAttribute('href'), authorizeUrl)
+  await page.getByLabel('Código da Claude').fill('typo#verifier-1')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('A Anthropic recusou esse código.', { exact: false }).waitFor()
+  await page.getByLabel('Código da Claude').fill('good#verifier-1')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+  await page.getByText('Assinatura Claude conectada.').waitFor()
+  await page.getByText('Conectado com a sua assinatura Claude.').waitFor()
+
+  assert.deepEqual(calls, [
+    ['PUT', '/api-key', true, { key: fakeKey }],
+    ['POST', '/oauth/start', true, {}],
+    ['POST', '/oauth/complete', true, { loginId, code: 'typo#verifier-1' }],
+    ['POST', '/oauth/complete', true, { loginId, code: 'good#verifier-1' }],
+  ])
+  assert.equal(await page.evaluate(() => document.body.innerText.includes('sk-ant-')), false)
 })

@@ -50,28 +50,31 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   await query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [account, workspace])
   await query(`INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
     VALUES ($1, $2, 'Project P', 'NEW', $3, 'p-revision'), ($4, $2, 'Project Q', 'NEW', $5, 'q-revision')`, [project, workspace, baseline, otherProject, qWorking])
-  await query(`INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision,
+  await query(`INSERT INTO builder.project_working_state(project_id, last_preview_source_revision,
     last_preview_artifact_revision_id, last_preview_artifact_digest)
-    VALUES ($1, $2, $3, $4, $5), ($6, $7, NULL, NULL, NULL)`, [project, working, preview, '83000000-0000-4000-8000-000000000001', '1'.repeat(64), otherProject, qWorking])
+    VALUES ($1, $2, $3, $4), ($5, NULL, NULL, NULL)`, [project, preview, '83000000-0000-4000-8000-000000000001', '1'.repeat(64), otherProject])
   const insertRun = async (id, revision, kind, createdAt, base) => query(`INSERT INTO builder.builder_run(
     builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
-    base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind, created_at
-  ) VALUES ($1, $2, $3, $10, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, $8, $9)`, [id, project, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt, `conversa-${project}`])
+    base_source_revision, state, result_source_revision, result_kind, created_at
+  ) VALUES ($1, $2, $3, $10, $4, $5, $5, 'BUILD', $6, 'SUCCEEDED', $7, $8, $9)`, [id, project, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt, `conversa-${project}`])
   await insertRun(runOne, runOneResult, 'SOURCE_CHANGED', '2026-09-14T10:00:00Z', olderRunOnly)
   await insertRun(runTwo, working, 'SOURCE_CHANGED_BUILD_FAILED', '2026-09-14T11:00:00Z', runOneResult)
   await insertRun(responseOnly, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', working)
   await query(`INSERT INTO builder.builder_run(
     builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
-    base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
-  ) VALUES ($1, $2, $3, $8, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult, `conversa-${otherProject}`])
+    base_source_revision, state, result_source_revision, result_kind
+  ) VALUES ($1, $2, $3, $8, $4, $5, $5, 'BUILD', $6, 'SUCCEEDED', $7, 'SOURCE_CHANGED')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, otherResult, `conversa-${otherProject}`])
   const ingress = { ...current, user: 'hub_builder_ingress', password: 'source-inspection-ingress' }
   await query("ALTER ROLE hub_builder_ingress PASSWORD 'source-inspection-ingress'")
-  const admit = async (revision, subject = project, actor = account) => {
+  // `main` is read by the Hub from the Conexus Git and passed in; here it holds run two's result.
+  const admit = async (revision, subject = project, actor = account, main = working) => {
     const client = await connect(ingress)
-    try { return (await client.query('SELECT builder.admit_source_revision($1, $2, $3) AS admitted', [actor, subject, revision])).rows[0].admitted } finally { await client.end() }
+    try { return (await client.query('SELECT builder.admit_source_revision($1, $2, $3, $4) AS admitted', [actor, subject, revision, main])).rows[0].admitted } finally { await client.end() }
   }
   for (const revision of [working, preview, runOneResult]) assert.equal(await admit(revision), true, revision)
   for (const revision of [baseline, olderRunOnly, unrelated, otherResult]) assert.equal(await admit(revision), false, revision)
+  assert.equal(await admit(baseline, project, account, baseline), true)
+  assert.equal(await admit(olderRunOnly, project, account, null), false)
   assert.equal(await admit('not-an-oid'), false)
   assert.equal(await admit(working, project, unauthorized), false)
 
@@ -82,7 +85,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   await query('DELETE FROM builder.builder_run WHERE project_id = $1', [otherProject])
   await query(`INSERT INTO builder.builder_run(
     builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, mode,
-    base_source_revision, expected_working_version, base_working_version, state, result_source_revision, result_kind
-  ) VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 0, 0, 'SUCCEEDED', NULL, 'RESPONSE_ONLY')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, `conversa-${otherProject}`])
+    base_source_revision, state, result_source_revision, result_kind
+  ) VALUES ($1, $2, $3, $7, $4, $5, $5, 'BUILD', $6, 'SUCCEEDED', NULL, 'RESPONSE_ONLY')`, [otherRun, otherProject, account, otherRun, otherRun.replaceAll('-', '').padEnd(64, '0'), qWorking, `conversa-${otherProject}`])
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, otherProject])).rows[0].value, null)
 })

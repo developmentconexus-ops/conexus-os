@@ -995,8 +995,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await client.query("INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'caderno', $2)", [artifactId, projectId])
     await client.query("INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, $5, 'AVAILABLE')",
       [revisionId, artifactId, 'e'.repeat(40), 'f'.repeat(64), payload])
-    await client.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
-      VALUES ($1, $2, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
+    await client.query(`INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
+      VALUES ($1, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
 
     const served = await reader.readServedFile({ accountId: owner, projectId, path: 'assets/app.js' })
     assert.deepEqual({ ...served, file: { ...served.file, bytes: Buffer.from(served.file.bytes).toString() } }, {

@@ -68,14 +68,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.fail_builder_run': 'hub_builder_executor',
     'builder.interrupt_builder_run': 'hub_builder_executor',
     'builder.recover_builder_runs': 'hub_builder_executor',
-    'builder.read_factory_binding': 'hub_builder_ingress',
-    'builder.resolve_factory_project': 'hub_builder_ingress',
-    'builder.read_factory_binding_for_run': 'hub_builder_executor',
-    'builder.list_factory_admission_runs': 'hub_builder_executor',
-  }),
-  'builder/factory-provisioning.ts': Object.freeze({
-    'builder.bind_factory_project': 'hub_builder_executor',
-    'builder.read_factory_binding_for_project': 'hub_builder_executor',
+    'builder.lock_project_for_run': 'hub_builder_ingress',
+    'builder.list_admission_runs': 'hub_builder_executor',
   }),
   'identity-access/application-access.ts': Object.freeze({
     'iam.list_application_access': 'hub_iam_runtime',
@@ -121,7 +115,6 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'workspace.list_visible_workspace_summaries': 'hub_workspace_read',
   }),
   'project/deletion.ts': Object.freeze({
-    'project.plan_project_deletion': 'hub_project_command',
     'project.begin_project_deletion': 'hub_project_command',
     'project.purge_project': 'hub_project_command',
     'project.complete_project_deletion': 'hub_project_command',

@@ -122,15 +122,9 @@ const configEnvironment = {
 const builderEnvironment = {
   CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/builder-ingress',
   CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/builder-executor',
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
-  CONEXUS_FACTORY_ORG_ID: 'conexus-installation',
-  CONEXUS_FACTORY_GITHUB_APP_ID: '5015512',
-  CONEXUS_FACTORY_GITHUB_CLIENT_ID: 'Iv23-client',
-  CONEXUS_FACTORY_GITHUB_APP_SLUG: 'conexus-app',
-  CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE: '/secrets/factory.pem',
-  CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE: '/secrets/factory-client',
-  CONEXUS_FACTORY_STATE_SECRET_FILE: '/secrets/factory-state',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
 }
@@ -433,4 +427,22 @@ test('an unrecognized reason value falls back to the plain no-access page', asyn
   const response = await app.inject({ method: 'GET', url: '/__conexus/no-access?reason=<script>', headers: { host: HOST_A } })
   assert.equal(response.statusCode, 403)
   assert.match(response.body, /Você não tem acesso a este aplicativo/)
+})
+
+test('the application host answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
+  const { app, reads } = await harness(t)
+  const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })
+  for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
+    const answer = await app.inject({ method, url, headers: { host: HOST_A }, ...signedIn })
+    assert.equal(answer.statusCode, 200, `${method} ${url}`)
+    assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8', `${method} ${url}`)
+    assert.equal(answer.headers['content-security-policy'], index.headers['content-security-policy'], `${method} ${url}`)
+    assert.match(answer.headers['content-security-policy'], /frame-ancestors 'none'$/, `${method} ${url}`)
+    if (method === 'GET') assert.equal(answer.body, files['index.html'].text, url)
+  }
+  reads.length = 0
+  for (const url of ['/x.js', '/x.js/', '/conexus-server/nope', '/conexus-server', '/__conexus/other']) {
+    assert.equal((await app.inject({ method: 'GET', url, headers: { host: HOST_A }, ...signedIn })).statusCode, 404, url)
+  }
+  assert.deepEqual(reads, ['readServedFile x.js', 'readServedFile x.js'])
 })

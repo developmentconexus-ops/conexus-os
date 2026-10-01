@@ -5,20 +5,17 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
 const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
-// A minimal FactoryRunDependencies fixture: every run is bound and dispatched through
-// factory.runtime.execute, so each test only overrides the pieces it exercises.
-const makeBinding = (projectId) => Object.freeze({
-  projectId, factoryProjectId: 'factory-project', projectRepositoryId: 'project-repository', repositoryId: 'repository-row',
-  boundAt: '2026-09-21T12:00:00.000Z',
-})
-
-const makeFactory = ({ binding, execute, appendDiagnostic }) => ({
+// A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
+// so each test only overrides the pieces it exercises.
+// A conversation is the Project's when its thread is; these tests name the missing one through the conversation id.
+const makeRuns = ({ execute, appendDiagnostic }) => ({
   runtime: { execute },
-  readBindingForRun: async () => binding,
-  readSourceHead: async () => 'a'.repeat(40),
-  readConversationRepository: async () => binding.projectRepositoryId,
+  conversations: {
+    ownerOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? 'NONE' : 'PROJECT'),
+    titleFromRequest: async () => {},
+  },
+  git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
   appendDiagnostic: appendDiagnostic ?? (async () => {}),
-  recoverAdmissions: async () => [],
   source: {
     listSourceTree: async () => { throw new Error('not reached') },
     readSourceFile: async () => { throw new Error('not reached') },
@@ -30,25 +27,24 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
   const projectId = '22222222-2222-4222-8222-222222222222'
   const accountId = '33333333-3333-4333-8333-333333333333'
   const sourceRevision = 'a'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
   const store = {
-    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
-    readFactoryBinding: async () => binding,
-    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, state: 'RUNNING', phase: 'PREPARING', mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
+    createBuilderRun: async () => ({ builderRunId: runId, projectId, state: 'QUEUED', phase: null, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }),
+    claimBuilderRun: async () => { calls.push('claim'); return { builderRunId: runId, projectId, conversationId: 'conv-plan', state: 'RUNNING', phase: 'PREPARING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null } },
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
     bindBuilderRunMessage: async (_id, messageId) => calls.push(['message', messageId]),
     bindBuilderRunSandbox: async (_id, sandboxId) => calls.push(['sandbox', sandboxId]),
+    readConversationSandbox: async (input) => { calls.push(['read-conversation-sandbox', input]); return 'vm-before' },
+    recordConversationSandbox: async (input) => calls.push(['conversation-sandbox', input]),
     settleBuilderRun: async (input) => calls.push(['settle', input.resultKind]),
     failBuilderRun: async () => calls.push('fail'),
     close: async () => {},
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async (input) => {
-        calls.push(['execute', input.mode, input.intent])
+        calls.push(['execute', input.intent, input.providerSandboxId])
         await input.bindPhysicalSandbox('physical-sandbox')
         await input.bindMessage('mastra-message')
         return { projectId, executionId: runId, sandboxId: 'physical-sandbox', baseSourceRevision: sourceRevision, summary: 'Resposta', kind: 'RESPONSE_ONLY' }
@@ -56,65 +52,34 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
     }),
     applicationArtifacts: {},
   })
-  const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
+  const result = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', conversationId: 'conv-plan' })
   await service.close()
   assert.equal(result.builderRunId, runId)
-  assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['execute', 'PLAN', 'Explique o app'], ['sandbox', 'physical-sandbox'], ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY']])
+  assert.deepEqual(calls, [
+    'claim', ['phase', 'PREPARING'], ['read-conversation-sandbox', { projectId, conversationId: 'conv-plan' }], ['execute', 'Explique o app', 'vm-before'],
+    ['sandbox', 'physical-sandbox'], ['conversation-sandbox', { projectId, conversationId: 'conv-plan', providerSandboxId: 'physical-sandbox' }],
+    ['message', 'mastra-message'], ['phase', 'FINALIZING'], ['settle', 'RESPONSE_ONLY'],
+  ])
 })
 
-test('createBuilderRun refuses an unbound Project before a run is created or dispatched', async () => {
+test('createBuilderRun hands the store a base read from main in the Conexus Git', async () => {
   const projectId = '22222222-2222-4222-8222-222222222222'
   const accountId = '33333333-3333-4333-8333-333333333333'
+  const main = '9'.repeat(40)
+  const reads = []
   const store = {
-    createBuilderRun: async () => { throw new Error('must not create a run for an unbound Project') },
-    readFactoryBinding: async () => null,
-    claimBuilderRun: async () => { throw new Error('must not claim') },
+    createBuilderRun: async (input) => {
+      const base = await input.readBase()
+      return { builderRunId: '11111111-1111-4111-8111-111111111112', projectId, state: 'SUCCEEDED', phase: null, baseSourceRevision: base, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null }
+    },
     close: async () => {},
   }
-  const service = createBuilderService({
-    store,
-    factory: makeFactory({
-      binding: makeBinding(projectId),
-      execute: async () => { throw new Error('must not execute') },
-    }),
-    applicationArtifacts: {},
-  })
-  await assert.rejects(
-    service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' }),
-    /^Error: BUILDER_FACTORY_PROJECT_UNBOUND$/,
-  )
+  const runs = { ...makeRuns({ execute: async () => { throw new Error('must not execute a settled run') } }), git: { readMain: async (id) => { reads.push(id); return main }, mainContains: async () => false } }
+  const service = createBuilderService({ store, runs, applicationArtifacts: {} })
+  const run = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', conversationId: 'conv-plan' })
   await service.close()
-})
-
-test('a run whose binding disappeared between create and claim fails outright with BUILDER_FACTORY_PROJECT_UNBOUND', async () => {
-  const runId = '11111111-1111-4111-8111-111111111113'
-  const projectId = '22222222-2222-4222-8222-222222222222'
-  const accountId = '33333333-3333-4333-8333-333333333333'
-  const sourceRevision = 'a'.repeat(40)
-  const binding = makeBinding(projectId)
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', phase: null, mode: 'PLAN', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
-  const calls = []
-  const store = {
-    createBuilderRun: async () => run,
-    // create-time binding lookup still finds the Project bound; the claim-time lookup below is
-    // the one that comes back null, as if the binding were removed while the run sat queued.
-    readFactoryBinding: async () => binding,
-    claimBuilderRun: async () => { calls.push('claim'); return { ...run, state: 'RUNNING' } },
-    failBuilderRun: async (_id, code) => calls.push(['fail', code]),
-    close: async () => {},
-  }
-  const factory = {
-    runtime: { execute: async () => { throw new Error('must not execute once claim finds no binding') } },
-    readBindingForRun: async () => null,
-    readSourceHead: async () => sourceRevision,
-    readConversationRepository: async () => binding.projectRepositoryId,
-    appendDiagnostic: async () => {},
-    recoverAdmissions: async () => [],
-  }
-  const service = createBuilderService({ store, factory, applicationArtifacts: {} })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'Explique o app', mode: 'PLAN' })
-  await service.close()
-  assert.deepEqual(calls, ['claim', ['fail', 'BUILDER_FACTORY_PROJECT_UNBOUND']])
+  assert.equal(run.baseSourceRevision, main)
+  assert.deepEqual(reads, [projectId])
 })
 
 test('a failure before the agent keeps the operator request on the run and names a public category', async () => {
@@ -122,39 +87,37 @@ test('a failure before the agent keeps the operator request on the run and names
   const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccd'
   const accountId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const sourceRevision = 'a'.repeat(40)
-  const binding = makeBinding(projectId)
   const createdAt = '2026-09-20T12:00:00.000Z'
   let stored = null
   let failed = null
   const row = (state, failureCode) => ({
-    builderRunId: runId, projectId, state, phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
+    builderRunId: runId, projectId, state, phase: null, baseSourceRevision: sourceRevision,
     resultSourceRevision: null, resultKind: null, failureCode, requestText: stored, createdAt,
   })
   const store = {
     createBuilderRun: async (input) => { stored = input.content; return row('QUEUED', null) },
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => row('RUNNING', null),
     setBuilderRunPhase: async () => {},
+    readConversationSandbox: async () => null,
     failBuilderRun: async (_id, code) => { failed = code },
     close: async () => {},
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       // Materializing the base revision on the Factory's mirror still fails before the agent
       // is ever opened, the same shape the local pipeline's pre-agent failure once took.
       execute: async () => { throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED') },
     }),
     applicationArtifacts: {},
   })
-  const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', mode: 'BUILD' })
+  const accepted = await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'preagent', content: 'Crie um contador', conversationId: 'conv-build' })
   await service.close()
   assert.equal(stored, 'Crie um contador')
   assert.equal(accepted.requestText, 'Crie um contador')
   assert.equal(failed, 'BUILDER_SOURCE_MATERIALIZATION_REFUSED')
   assert.deepEqual(projectBuilderRun(row('FAILED', failed)), {
-    builderRunId: runId, projectId, state: 'FAILED', phase: null, mode: 'BUILD', baseSourceRevision: sourceRevision,
+    builderRunId: runId, projectId, state: 'FAILED', phase: null, baseSourceRevision: sourceRevision,
     resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED',
     failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt,
   })
@@ -165,24 +128,21 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   const projectId = '99999999-9999-4999-8999-999999999999'
   const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   const sourceRevision = 'a'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
   let started
   const startedPromise = new Promise((resolve) => { started = resolve })
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     requestBuilderRunCancellation: async () => { calls.push('request-cancellation'); return { ...run, state: 'RUNNING', cancellationRequested: true } },
     interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async (input) => {
         started()
         await new Promise((_resolve, reject) => {
@@ -194,7 +154,7 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-key', content: 'pare', conversationId: 'conv-build' })
   await startedPromise
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
   await service.close()
@@ -206,23 +166,20 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
   const runId = '88888888-8888-4888-8888-888888888889'
   const projectId = '99999999-9999-4999-8999-999999999999'
   const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-  const binding = makeBinding(projectId)
   const calls = []
   let started
   const startedPromise = new Promise((resolve) => { started = resolve })
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
   const service = createBuilderService({
     store: {
       createBuilderRun: async () => run,
-      readFactoryBinding: async () => binding,
       claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
       setBuilderRunPhase: async () => {},
       requestBuilderRunCancellation: async () => ({ ...run, state: 'RUNNING', cancellationRequested: true }),
       interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
-      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     },
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async (input) => {
         started()
         await new Promise((resolve) => input.signal?.addEventListener('abort', resolve, { once: true }))
@@ -231,7 +188,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'cancel-mid-phase', content: 'pare', conversationId: 'conv-build' })
   await startedPromise
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
   await service.close()
@@ -244,22 +201,19 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async input => calls.push(['build-settle', input.artifactRevisionId, input.artifactDigest]),
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       // The Factory's own compare-and-swap admits the source; the sandbox that ran the agent
       // also compiles, so the runtime owns the COMPILING phase.
       execute: async (input) => {
@@ -273,7 +227,7 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
     }),
     applicationArtifacts: { retainApplication: async (input) => { calls.push(['retain', input.compiled]); return { artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) } } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['phase', 'PREPARING'], ['phase', 'COMPILING'],
@@ -290,15 +244,13 @@ test('a build or smoke failure still admits and advances the source, and settles
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async (_id, phase) => calls.push(['phase', phase]),
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
@@ -306,8 +258,7 @@ test('a build or smoke failure still admits and advances the source, and settles
   // sandbox reports a build or smoke failure, only the code that names it.
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async (input) => {
         await input.setPhase('COMPILING')
         return {
@@ -319,7 +270,7 @@ test('a build or smoke failure still admits and advances the source, and settles
     }),
     applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['phase', 'PREPARING'], ['phase', 'COMPILING'],
@@ -334,15 +285,13 @@ test('a runtime failure that is not a build or smoke failure still fails the run
   const projectId = '55555555-5555-4555-8555-555555555555'
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]),
     close: async () => {},
     advanceBuilderRunSource: async () => { throw new Error('must not admit: the runtime never returned a result') },
@@ -350,13 +299,12 @@ test('a runtime failure that is not a build or smoke failure still fails the run
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async () => { throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED') },
     }),
     applicationArtifacts: {},
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [['fail', 'APPLICATION_COMPILER_WORKSPACE_REFUSED']])
 })
@@ -372,23 +320,20 @@ test('a source-shape refusal from the application server settles with the runner
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-1' }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-1' }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async () => ({
         projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_ADMITTED',
         resultSourceRevision: resultRevision,
@@ -399,7 +344,7 @@ test('a source-shape refusal from the application server settles with the runner
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
     applicationServer: { prepare: async () => { throw new Error('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['advance', resultRevision],
@@ -415,23 +360,20 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
   const accountId = '66666666-6666-4666-8666-666666666666'
   const base = 'b'.repeat(40)
   const resultRevision = 'c'.repeat(40)
-  const binding = makeBinding(projectId)
   const calls = []
-  const run = { builderRunId: runId, projectId, state: 'QUEUED', mode: 'BUILD', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-2' }
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, conversationId: 'conv-2' }
   const store = {
     createBuilderRun: async () => run,
-    readFactoryBinding: async () => binding,
     claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
     setBuilderRunPhase: async () => {},
-    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
   const service = createBuilderService({
     store,
-    factory: makeFactory({
-      binding,
+    runs: makeRuns({
       execute: async () => ({
         projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_ADMITTED',
         resultSourceRevision: resultRevision,
@@ -442,7 +384,7 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
     applicationServer: { prepare: async () => { throw new Error('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
   })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', mode: 'BUILD' })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
   assert.deepEqual(calls, [
     ['advance', resultRevision],
@@ -450,4 +392,18 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
     ['fail', 'APPLICATION_SERVER_REFUSED'],
   ])
+})
+
+test("a conversation that is not the Project's is refused before a run exists", async () => {
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const created = []
+  const store = {
+    createBuilderRun: async (input) => { created.push(input.conversationId); throw new Error('STOP_AFTER_CREATE') },
+    close: async () => {},
+  }
+  const service = createBuilderService({ store, runs: makeRuns({ execute: async () => { throw new Error('not reached') } }), applicationArtifacts: {} })
+  const attempt = (conversationId) => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: conversationId, content: 'altere', conversationId }).catch((error) => error.message)
+  assert.deepEqual([await attempt('conv-plan'), await attempt('conv-build'), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'STOP_AFTER_CREATE', 'BUILDER_CONVERSATION_NOT_FOUND'])
+  assert.deepEqual(created, ['conv-plan', 'conv-build'])
+  await service.close()
 })

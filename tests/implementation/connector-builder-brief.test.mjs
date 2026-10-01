@@ -24,46 +24,31 @@ const briefOf = (store, record = connectorRecord()) => createConnectorBrief({ co
 // entity and field names are the native request format the integrator's Skill teaches (C-030).
 const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-token', 'Bearer', ...SANKHYA_GATEWAY_ORIGINS]
 
-const BINDING_LINE = (names) => `Connections bound to this Project, each named by the Project-local name a request passes as \`connection\`: ${names}.`
+const line = (name, connectorId) => `- \`${name}\`: ${connectorId} (skill \`conexus-${connectorId}\`)`
+const readSkill = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const sankhyaSkill = readSkill('../../builder-skills/conexus-sankhya/SKILL.md')
 
-test('a Project with no binding is told to change nothing and ask for a Conexão; every binding a Project has is named with its integrator', async () => {
+test('a Project with no binding is told to change nothing and say a Conexão can be added; every binding is listed with its integrator skill', async () => {
   assert.equal(await briefOf(storeOf([]))(scope), CONNECTOR_BRIEF_UNBOUND)
-  assert.equal(CONNECTOR_BRIEF_UNBOUND, 'This Project has no Connection bound to it, so it reads no external system. When a request needs data from one, '
-    + 'change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.')
+  assert.equal(CONNECTOR_BRIEF_UNBOUND, 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
+    + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.')
   const other = await briefOf(storeOf([bound('crm', 'synthetic-rest')]))(scope)
-  assert.ok(other.startsWith(BINDING_LINE('`crm` (integrator synthetic-rest)')), other)
-  assert.equal(other.includes(READ) || other.includes(sankhyaDefinition.builderSkill), false, 'an unregistered integrator reaches no operation and no Skill')
-
-  const two = await briefOf(storeOf([bound('erp'), bound('filial', 'sankhya', '55555555-5555-4555-8555-555555555555')]))(scope)
-  assert.ok(two.startsWith(BINDING_LINE('`erp` (integrator sankhya), `filial` (integrator sankhya)')), two)
-  assert.ok(two.includes('connector_fetch') && two.includes(sankhyaDefinition.builderSkill), 'two Sankhya bindings get the tool and the Skill')
-  assert.equal(two.includes(READ), false, 'the operation path needs exactly one Sankhya binding')
+  assert.ok(other.startsWith(line('crm', 'synthetic-rest')), other)
+  assert.equal(other.includes(READ), false)
 
   const mixed = await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)
-  assert.ok(mixed.startsWith(BINDING_LINE('`erp` (integrator sankhya), `crm` (integrator synthetic-rest)')), mixed)
+  assert.ok(mixed.startsWith(`${line('erp', 'sankhya')}\n${line('crm', 'synthetic-rest')}\n`), mixed)
   assert.equal(mixed.includes(READ), false, 'no binding mix names the operation path to the Builder')
 })
 
-test('a Project with a binding is never told it has none, and is told to ask for a Conexão only for a system none of its bindings reaches', async () => {
+test('the brief carries the runtime cases in one place: too large, call limit, a vendor refusal, any other code, and a system no Conexão reaches', async () => {
   const text = await briefOf(storeOf([bound('erp')]))(scope)
-  assert.equal(text.includes(CONNECTOR_BRIEF_UNBOUND) || text.includes('has no Connection'), false)
-  assert.ok(text.includes('When a request needs a system none of these Connections reaches, change no files: reply naming the system, tell the person to bind a Conexão for it to this Project in Integrações, and stop.'))
-})
-
-test('the brief tells the Builder to narrow a read that answers RESPONSE_TOO_LARGE', async () => {
-  const text = await briefOf(storeOf([bound('erp')]))(scope)
-  assert.ok(text.includes('When a read answers RESPONSE_TOO_LARGE, narrow it before you read again: ask for fewer fields, filter it further, or read one page at a time.'))
-  assert.ok(sankhyaDefinition.builderSkill.includes('Se a leitura responder `RESPONSE_TOO_LARGE`'))
-})
-
-test('a Project bound as erp is taught connector_fetch and connectors.fetch, and never the operation path', async () => {
-  const text = await briefOf(storeOf([bound('erp')]))(scope)
-  assert.ok(text.includes('connector_fetch'))
-  assert.ok(text.includes('connectors.fetch'))
-  assert.ok(text.includes(sankhyaDefinition.builderSkill))
+  for (const part of ['RESPONSE_TOO_LARGE, narrow it', 'CALL_LIMIT', 'PROVIDER_ERROR with a vendorStatus', 'without the code unless they ask', 'none of these Conexões reaches', 'can be added in Integrações']) {
+    assert.ok(text.includes(part), part)
+  }
+  assert.equal(text.includes(CONNECTOR_BRIEF_UNBOUND), false)
   assert.equal(text.includes('connectors.call'), false)
-  assert.equal(text.includes(READ), false)
-  assert.equal(text.includes('Connector operations granted'), false)
+  assert.equal(sankhyaSkill.includes('RESPONSE_TOO_LARGE'), false)
 })
 
 test('the unavailable notice names connectors.fetch, not connectors.call', () => {
@@ -71,18 +56,21 @@ test('the unavailable notice names connectors.fetch, not connectors.call', () =>
   assert.equal(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.call'), false)
 })
 
-test('the Builder guidance never teaches connectors.call: the conexus-server skill and the Sankhya Skill teach fetch', () => {
-  const serverSkill = readFileSync(new URL('../../factory-skills/conexus-server/SKILL.md', import.meta.url), 'utf8')
-  assert.equal(serverSkill.includes('connectors.call'), false)
-  assert.equal(sankhyaDefinition.builderSkill.includes('connectors.call'), false)
+test('the Builder guidance never teaches connectors.call: the server skill, the prompt and the Sankhya skill teach fetch', () => {
+  const serverSkill = readSkill('../../builder-skills/conexus-server/SKILL.md')
+  const prompt = readSkill('../../apps/hub/src/builder/harness/prompt/builder.md')
+  for (const text of [serverSkill, prompt, sankhyaSkill]) {
+    assert.equal(text.includes('connectors.call'), false)
+    assert.equal(text.includes('purchase-order'), false)
+  }
   assert.ok(serverSkill.includes('connectors.fetch'))
-  assert.ok(sankhyaDefinition.builderSkill.includes('connectors.fetch'))
+  assert.ok(sankhyaSkill.includes('connectors.fetch'))
 })
 
 test('an unbound Connection leaves the Project told it has none', async () => {
   const bindings = [bound('erp')]
   const brief = briefOf({ listBindings: async () => bindings })
-  assert.ok((await brief(scope)).includes('`erp` (integrator sankhya)'))
+  assert.ok((await brief(scope)).includes(line('erp', 'sankhya')))
   bindings.pop()
   assert.equal(await brief(scope), CONNECTOR_BRIEF_UNBOUND)
 })
@@ -94,7 +82,7 @@ test('an unreadable store answers the fixed notice, records a code with no store
   assert.equal(text, CONNECTOR_BRIEF_UNAVAILABLE)
   assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId: PROJECT, result: 'STORE_UNAVAILABLE' }])
   assert.equal(JSON.stringify(record.exporter.events).includes('STORE_DETAIL_MARKER') || record.lines.join('').includes('STORE_DETAIL_MARKER'), false, 'no store detail is recorded')
-  for (const term of [READ, 'STORE_DETAIL_MARKER', sankhyaDefinition.builderSkill, ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
+  for (const term of [READ, 'STORE_DETAIL_MARKER', ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
 
   const sinkFails = briefOf({ listBindings: async () => { throw new Error('down') } }, connectorRecord({ log: () => { throw new Error('sink down') } }))
   assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)
@@ -110,7 +98,7 @@ test('the brief and the Skill carry no credential material and no gateway origin
   const text = await brief(scope)
   for (const term of FORBIDDEN) {
     assert.equal(text.includes(term), false, `brief must not contain ${term}`)
-    assert.equal(sankhyaDefinition.builderSkill.includes(term), false, `Skill must not contain ${term}`)
+    assert.equal(sankhyaSkill.includes(term), false, `Skill must not contain ${term}`)
   }
 })
 
@@ -125,4 +113,12 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
     log: () => {},
   })
   await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), /^Error: CONNECTOR_SCOPE_REFUSED$/)
+})
+
+test('the Sankhya guide teaches how to find any data, and carries no one-app recipe or real value', () => {
+  const guide = sankhyaSkill
+  for (const method of ['TDDCAM', 'USER_TAB_COLUMNS', 'hasMoreResult', 'https://developer.sankhya.com.br/reference']) assert.ok(guide.includes(method), method)
+  assert.equal(guide.includes('`total` conta as linhas desta página, não da lista inteira'), true, 'total is the page count')
+  for (const recipe of ['pedidos de compra', 'TIPMOV', 'acompanhamento']) assert.equal(guide.includes(recipe), false, recipe)
+  assert.equal(/(=|\$:) ?'?\d/.test(guide), false, 'no example value is a real number')
 })

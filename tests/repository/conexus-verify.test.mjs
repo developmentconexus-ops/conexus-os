@@ -41,22 +41,24 @@ const packageScripts = Object.freeze({
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-hub-typecheck',
   'hub-baseline',
+  'secrets-envelope-interop',
   'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
   'hub-call-site-privileges',
   'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief', 'connector-builder-tool',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
+  'builder-harness',
+  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'conexus-git-postgres', 'factory-dependency-tree', 'builder-composition', 'model-account-postgres', 'google-ai-pro', 'openai-codex', 'run-runtime', 'run-recovery-postgres', 'builder-session-routes', 'conexus-git',
   'application-data-postgres', 'application-runner-sandbox', 'app-runner-http', 'application-server', 'application-host',
   'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
   'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
-  'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
+  'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-compiler-v2', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'hub-postgres-pool', 'db-role-register', 'db-role-provision-postgres',
   'hub-build-shared',
   'repository-check', 'repository-import-law', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
   'repository-contract-checks', 'knip', 'biome',
-  'brand-wordmark-csp', 'builder-tool-sentences', 'factory-skills-guard', 'settings-provider-groups', 'conexus-preflight',
+  'brand-wordmark-csp', 'builder-tool-sentences', 'builder-skills-guard', 'builder-guidance-neutral', 'conexus-preflight',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
-  'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'builder-factory-github-deletion', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
+  'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'builder-eval', 'builder-eval-postgres',
   'protected-cluster-coverage',
@@ -156,7 +158,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     },
   })
   assert.equal(result.exitCode, 1)
-  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'c020-migration-selection'])
+  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'secrets-envelope-interop'])
   assert.equal(seen[0][1], null)
   assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
@@ -216,9 +218,20 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
-  const factoryRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'factory-runtime').command
-  assert.equal(factoryRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
-    'the tripwire test runs with the Factory runtime suites')
+  const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
+  assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
+    'the tripwire test runs with the run runtime suites')
+
+  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
+  assert.equal(builderBrowser.command.includes('tests/implementation/builder-live-turn.test.mjs'), true)
+  const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
+  assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
+  assert.equal(builderEval.environmentClass, 'browser')
+  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-compiler-runtime')
+  assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
+  assert.equal(appCheck.environmentClass, 'browser')
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'conexus-backup').command.includes('tests/implementation/conexus-backup.test.mjs'), true)
 
   const result = runVerification({
     processEnvironment: {},

@@ -37,11 +37,10 @@ test('the installed tree holds exactly one physical @mastra/code-sdk, at 1.8.3',
   assert.deepEqual(copiesOf('@mastra/code-sdk'), [{ version: '1.8.3', path: 'node_modules/@mastra/code-sdk' }])
 })
 
-test('the Factory, its Postgres storage and GitHub App auth are exact direct dependencies with one copy each', () => {
+test('the Factory and the Postgres storage are exact direct dependencies with one copy each, and the GitHub App auth is gone', () => {
   assert.equal(manifest.dependencies['@mastra/factory'], '0.17.2')
   assert.equal(manifest.dependencies['@mastra/pg'], '1.27.1')
-  assert.equal(manifest.dependencies['@octokit/auth-app'], '8.3.1')
+  assert.equal(manifest.dependencies['@octokit/auth-app'], undefined)
   assert.deepEqual(copiesOf('@mastra/factory'), [{ version: '0.17.2', path: 'node_modules/@mastra/factory' }])
   assert.deepEqual(copiesOf('@mastra/pg'), [{ version: '1.27.1', path: 'node_modules/@mastra/pg' }])
-  assert.deepEqual(copiesOf('@octokit/auth-app'), [{ version: '8.3.1', path: 'node_modules/@octokit/auth-app' }])
 })
