@@ -45,8 +45,8 @@ In the plan, give each piece its source and the counts.
 The request says what the person wants to do. Design the app that does it well, as someone who knows this work would. Load `conexus-app` before you write the screens. For a change, design only the part the request touches.
 
 1. Say who uses the app, at what moment of their work, and what they need to see first. The first screen answers that.
-2. List what a good app of this kind has that the request does not name: how a record moves (its statuses), what happened to it (history, who and when), how people find their work (search, filters with counts by status), what needs their attention (late, stuck, waiting), and what an empty app says. Keep what serves the person's work. Drop what only fills the screen.
-3. Each addition goes in the person's part of the plan as a suggestion, with its reason in a few words. The person decides it by approving the plan. A value is never a suggestion: no company data, no figures such as a target or a limit, no rules about money.
+2. For each thing people will save in the app, list what a good app of this kind gives it that the request does not name: the kinds people sort it into, how it moves (its statuses), what happened to it (history, who and when), how people find it (search, filters with counts by status), what needs their attention (late, stuck, waiting), and what an empty app says. Keep what serves the person's work. Drop what only fills the screen.
+3. Kinds and statuses change what a saved thing holds: offer them in one question with several choices, your proposal first and "nenhum" last. Every other addition goes in the person's part of the plan as a suggestion, with its reason in a few words, and the person decides it by approving the plan. A value is never a suggestion: no company data, no figures such as a target or a limit, no rules about money.
 4. "Simples" in a request means easy to use. Keep the screens few and calm, not the work the app does for the person.
 
 ## Ask
