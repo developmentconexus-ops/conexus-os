@@ -2,6 +2,7 @@ import { createAnthropicThinkingMiddleware } from '@mastra/code-sdk/providers/cl
 import { resolveGoogleThinkingConfig } from '@mastra/code-sdk/providers/google-thinking'
 import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@mastra/code-sdk/providers/openai-codex'
 import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import type { AvailableModel } from '@mastra/core/agent-controller'
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
@@ -29,7 +30,7 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
 
 type Caller = Readonly<{ accountId: AccountId }>
 /** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
-type OfferedModel = Readonly<{ id: string; provider: string; providerName: string; modelName: string; thinkingLevels: readonly ThinkingLevelSetting[]; hasApiKey: boolean }>
+type OfferedModel = Readonly<Pick<AvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ThinkingLevelSetting[] }>
 type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
 
 /**
