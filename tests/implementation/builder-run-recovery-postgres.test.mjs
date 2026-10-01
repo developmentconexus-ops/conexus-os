@@ -29,6 +29,7 @@ const recoveryHarness = async (t, name, crashes) => {
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://recovery.test', $2, 'Owner')", [owner, owner])
   await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Recovery')", [workspaceId])
+  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
   const ingressPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
   const store = createBuilderStore({ ingressPool, executorPool })
@@ -88,7 +89,7 @@ const recoveryHarness = async (t, name, crashes) => {
     return { ...settled, result_source_revision: settled.result_source_revision === result ? 'RESULT' : settled.result_source_revision }
   }
   const rows = async () => Object.fromEntries(await Promise.all(runs.map(async (entry) => [entry.name, await row(entry)])))
-  return { service, runs, rows, outage }
+  return { service, runs, rows, outage, store, connectionString }
 }
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART' }
@@ -105,6 +106,7 @@ test('recovery settles every unsettled run by whether main holds its candidate, 
     { name: 'stopped-after-landing', phase: 'SOURCE_ADMISSION', candidate: true, main: 'RESULT', stopped: true, expected: admitted },
     { name: 'advanced', phase: 'SOURCE_ADMISSION', candidate: true, main: 'RESULT', advanced: true, expected: admitted },
     { name: 'finalizing', phase: 'FINALIZING', candidate: true, main: 'RESULT', advanced: true, expected: admitted },
+    { name: 'parked-on-a-question', phase: 'PARKED', candidate: false, main: 'BASE', expected: pending },
   ]
   const { service, runs, rows } = await recoveryHarness(t, 'conexus_run_recovery', crashes)
   await service.recover()
@@ -159,4 +161,29 @@ test('a run that started in Planejar and built after the plan approval records, 
   assert.deepEqual({ admitted: admitted.value, ...row }, {
     admitted: true, state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
   })
+})
+
+test('a parked run survives recovery, one answer takes it out of PARKED, and a stop on a parked run interrupts it with no worker to tell', async (t) => {
+  const crashes = [
+    { name: 'answered', phase: 'PARKED', candidate: false, main: 'BASE' },
+    { name: 'stopped', phase: 'PARKED', candidate: false, main: 'BASE' },
+    { name: 'working', phase: 'AGENT', candidate: false, main: 'BASE' },
+  ]
+  const { service, runs, rows, store, connectionString } = await recoveryHarness(t, 'conexus_run_parked', crashes)
+  await service.recover()
+  const [answered, stopped, working] = runs
+  assert.deepEqual(await rows(), { answered: pending, stopped: pending, working: interrupted }, 'a restart interrupts the run that was working and leaves the parked ones')
+  const phase = async ({ builderRunId }) => (await query(connectionString, 'SELECT state, phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
+
+  const [first, second] = await Promise.all([store.resumeBuilderRun(answered.builderRunId), store.resumeBuilderRun(answered.builderRunId)])
+  assert.deepEqual([first === null, second === null].sort(), [false, true], 'of two answers, one takes the run back to work')
+  assert.deepEqual(await phase(answered), { state: 'RUNNING', phase: 'PREPARING' })
+  assert.equal(await store.resumeBuilderRun(answered.builderRunId), null, 'a run that is working is not resumed again')
+
+  const [{ account_id: accountId }] = (await query(connectionString, 'SELECT account_id FROM builder.builder_run WHERE builder_run_id = $1', [stopped.builderRunId])).rows
+  const cancelled = await store.requestBuilderRunCancellation({ accountId, projectId: stopped.projectId, builderRunId: stopped.builderRunId })
+  assert.equal(cancelled.state, 'INTERRUPTED')
+  assert.deepEqual(await phase(stopped), { state: 'INTERRUPTED', phase: null })
+  assert.equal(await store.resumeBuilderRun(stopped.builderRunId), null, 'a stopped run is not answered')
+  assert.equal(working.name, 'working')
 })

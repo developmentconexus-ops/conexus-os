@@ -26,7 +26,7 @@ import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
-import { createBuilderRunRuntime, createControllerRunSessions, e2bConversationSandboxes } from './run-runtime.js'
+import { createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
@@ -369,12 +369,17 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
+  const discardParked = createParkedDiscard({ controller })
   const sandboxes = e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
   const runtime = createBuilderRunRuntime({
     openSandbox: sandboxes.open,
     openSession: async (input) => {
       await ready
       return openSession(input)
+    },
+    discardParked: async (input) => {
+      await ready
+      return discardParked(input)
     },
     checkModel: modelRouting.check,
     readProjectName,
@@ -444,6 +449,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           return latest?.state === 'QUEUED' || latest?.state === 'RUNNING'
         },
         runContext: (scope) => runContexts.get(scope),
+        answerParked: async ({ accountId, projectId, conversationId, toolCallId, resumeData }) => {
+          const latest = await store.readBuilderRun({ accountId, projectId })
+          if (latest?.conversationId !== conversationId) throw new Error('BUILDER_RUN_NOT_FOUND')
+          await service.answerBuilderRun({ accountId, projectId, builderRunId: latest.builderRunId, toolCallId, resumeData })
+        },
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
       })
       const googleAiProPool = (await googleAiProReady)?.pool
