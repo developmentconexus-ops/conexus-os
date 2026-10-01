@@ -278,7 +278,9 @@ remain after the verdict:
 - Done on 2026-09-29: `docs/roadmap.md` records the stack v2 and ChatGPT model path as accepted.
 - The documents that state C-022 as current, as slice 7 of spec 0002 requires (`0002:376-380`).
 - `docs/reference/builder-c020-mastra-native.md`, which names the REACT_VITE_V1 profile at line 184.
-- The Q4 task's closure item 4, which says "a real Factory session" (`S21:92`).
+- Done on 2026-10-01: the Q4 task's closure item 4 says "a real Builder conversation", not "a real
+  Factory session" (`S21:92`). Its closure item 2 waits on no Project calling `connectors.call`,
+  because the data reset removes the Q3 notebook application.
 
 ## 10. Direction: the ordered work
 

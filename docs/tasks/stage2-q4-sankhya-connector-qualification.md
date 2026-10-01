@@ -115,9 +115,11 @@ Q4 closes on this set and nothing smaller:
    from `connector.project_grant` to Project bindings, `connectors.fetch` for handlers and the
    `connector_fetch` Builder tool land as pull requests built from `main`. Spike branches never
    merge. The per-operation path (`connectors.call`, `/v1/call` and `sankhya.purchase-order.read`)
-   is deleted in the same wave, once the Q3 notebook application calls `connectors.fetch`.
+   is deleted in the same wave, once no Project calls `connectors.call`. Restated by the operator
+   on 2026-10-01: the data reset of the [Builder own harness qualification](stage2-builder-own-harness-qualification.md)
+   removes the Q3 notebook application, and the application of item 5 takes its role.
 3. **The pilot on `main`.** The pilot Hub and runner run the merged head.
-4. **One autonomous investigation.** In a real Factory session, the Builder reads the vendor's
+4. **One autonomous investigation.** In a real Builder conversation, the Builder reads the vendor's
    documentation and makes two materially different reads through the tool before it builds
    anything.
 5. **One useful application and one later change.** The Builder builds an application whose
