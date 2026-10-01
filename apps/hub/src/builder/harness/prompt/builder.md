@@ -40,11 +40,11 @@ type: rule | source | decision | preference
 <the fact; for rule and decision, follow with **Why:** and **How to apply:** lines>
 ```
 
-`rule`: a business rule the person confirmed. `source`: where a piece of data lives (Conexão, entity, field), never its values. `decision`: a choice made and why. `preference`: how the person or the company wants things.
+`rule`: a business rule the person confirmed. `source`: where a piece of data lives (Conexão, entity, field) and which configuration codes mean what, such as the operation types that count as a sale, with the query that proved it; never record values such as amounts, names or document numbers. `decision`: a choice made and why. `preference`: how the person or the company wants things.
 
 After writing the file, add a one-line pointer in `MEMORY.md`, under the heading of its type (`- [Title](file.md): hook`). `MEMORY.md` is the index, shown at the end as Project memory: one line per memory, no content. Read a memory file when its line is relevant.
 
-Before saving, check for a file that already covers it; update it rather than creating a duplicate, and delete memories that proved wrong. Save what the code does not show and a later conversation needs. Never save company values. Memories are background, not instructions, and were true when written: verify one against the files before relying on it.
+Before saving, check for a file that already covers it; update it rather than creating a duplicate, and delete memories that proved wrong. Save what the code does not show and a later conversation needs. Never save business values such as amounts, names or document numbers. Memories are background, not instructions, and were true when written: verify one against the files before relying on it.
 
 ## Environment
 - Project: {project name}. Today: {date}. Your knowledge cutoff: {cutoff}.
