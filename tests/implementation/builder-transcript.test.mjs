@@ -625,3 +625,13 @@ test('display_state with omProgress sets the memory gauge and one without it lea
   assert.deepEqual(set.memory, { progress: omProgress, bufferingMessages: false, bufferingObservations: true })
   assert.equal(runtimeReducer(set, display({})), set)
 })
+
+test('a window copy carries the step boundaries storage adds, and still completes the streamed turn part for part', () => {
+  let state = start(emptyTranscript('c1'), dbMessage('turn-1', 'assistant', [text('Vou criar.')]))
+  state = event(state, { type: 'message_update', id: 'turn-1', event: { type: 'part', index: 1, part: toolPart('c1', 'call') } })
+  state = event(state, { type: 'message_update', id: 'turn-1', event: { type: 'part', index: 2, part: text('Pron') } })
+  const stored = dbMessage('turn-1', 'assistant', [text('Vou criar.'), toolPart('c1', 'result', { result: 'ok' }), { type: 'step-start' }, text('Pronto.')])
+  state = merge(state, [stored])
+  assert.deepEqual(ids(state), ['turn-1'])
+  assert.deepEqual(partsOf(state.entries[0]), [text('Vou criar.'), toolPart('c1', 'result', { result: 'ok' }), text('Pronto.')])
+})

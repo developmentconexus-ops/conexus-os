@@ -12,7 +12,8 @@ import type { ReactNode } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
 import { humanizeModelName } from '../composer/model-display-name'
-import type { ActiveTool, BuilderModel, LiveTurn, MastraDBMessage } from '../mastra-session'
+import type { BuilderModel, MastraDBMessage, PromptEntry, TranscriptEntry } from '../mastra-session'
+import type { RuntimeTool } from '../transcript.ts'
 import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
@@ -37,18 +38,20 @@ const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 
 
 type CallState = 'running' | 'failed' | 'done'
 
-// The result the thread records is the truth about a call that has one: a call parked for the person
-// and stopped with the run reads "error" in the controller's display state (agent_end marks every
-// tool still running that way), yet the person's answer is the call's ordinary result.
 const isErrorResult = (result: unknown): boolean =>
   typeof result === 'object' && result !== null && 'isError' in result && result.isError === true
 
-const callState = (part: ToolInvocationPart, live: ActiveTool | undefined): CallState => {
-  const { state, result } = part.toolInvocation
-  if (state === 'result') return isErrorResult(result) || live?.isError === true ? 'failed' : 'done'
-  if (live?.isError === true || live?.status === 'error') return 'failed'
-  return live?.status === 'completed' ? 'done' : 'running'
+// The part the thread holds is the truth about a call. One still open when no run works here was
+// cut short with its run.
+const callState = (part: ToolInvocationPart, working: boolean): CallState => {
+  const { state } = part.toolInvocation
+  if (state === 'output-error' || state === 'output-denied') return 'failed'
+  if (state === 'result') return isErrorResult(part.toolInvocation.result) || ('isError' in part.toolInvocation && part.toolInvocation.isError === true) ? 'failed' : 'done'
+  return working ? 'running' : 'failed'
 }
+
+// What a call reports while it runs, kept beside the entry that draws it.
+type Calls = Readonly<{ working: boolean; runtime: ReadonlyMap<string, RuntimeTool> }>
 
 // What the person asked and was answered: the controller words the answer in English, one
 // "question: answer" line per question.
@@ -77,14 +80,16 @@ function AskedAndAnswered({ asked }: Readonly<{ asked: readonly Readonly<{ quest
 // A row is one line, opened on click. An edit opens to its diff and a command to the command with
 // its output; any other call opens to its arguments. Only a failure adds the result to a row that
 // would not show it.
-function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; live: ActiveTool | undefined }>) {
+function ToolInvocation({ part, calls }: Readonly<{ part: ToolInvocationPart; calls: Calls }>) {
   const { toolName, args } = part.toolInvocation
-  const state = callState(part, live)
+  const state = callState(part, calls.working)
+  const live = calls.runtime.get(part.toolInvocation.toolCallId)
   const result = part.toolInvocation.state === 'result' ? part.toolInvocation.result : live?.result
   const presentation = presentTool(toolName, args)
   const edit = toolEdit(toolName, args)
   const resultText = result === undefined ? '' : stringifyToolValue(result)
-  const output = presentation.command ? (state === 'running' ? live?.shellOutput ?? live?.partialResult ?? '' : resultText) : state === 'failed' ? resultText : ''
+  const running = live?.output || (typeof live?.result === 'string' ? live.result : '')
+  const output = presentation.command ? (state === 'running' ? running : resultText) : state === 'failed' ? resultText : ''
   return <ToolCall status={state === 'done' ? 'idle' : state === 'failed' ? 'error' : 'running'}>
     <ToolCallTrigger>
       <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, state === 'running')} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
@@ -100,9 +105,6 @@ function ToolInvocation({ part, live }: Readonly<{ part: ToolInvocationPart; liv
 
 // While the agent thinks the thread says so; a thought that settled is a collapsed row that opens to
 // the provider's own words, the way a tool call opens to its arguments.
-const retryNotice = ({ attempt, maxRetries }: NonNullable<LiveTurn['retrying']>): string =>
-  `O modelo não respondeu. Tentando de novo (${attempt}${maxRetries === null ? '' : ` de ${maxRetries}`}).`
-
 function Thinking() {
   return <p className="cx-thinking" role="status"><Shimmer active>Pensando…</Shimmer></p>
 }
@@ -120,10 +122,6 @@ function Thought({ text }: Readonly<{ text: string }>) {
 
 const userText = (message: MastraDBMessage): string =>
   message.content.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('')
-
-/** An assistant message's own text, empty for anything else (a tool-only step has none to match on). */
-const assistantReplyText = (message: MastraDBMessage): string =>
-  message.role === 'assistant' ? userText(message) : ''
 
 const messageTime = (message: MastraDBMessage): number => {
   const at = new Date(message.createdAt).getTime()
@@ -147,8 +145,8 @@ function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
 // Three or more calls in a row fold into one line. Closed, it names the call running now and how many
 // are done; settled, it says what the calls did. Opened, the rows scroll in a fixed height and follow
 // the newest while the agent works.
-function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPart[]; tools: LiveTurn['tools'] }>) {
-  const states = parts.map((part) => callState(part, tools[part.toolInvocation.toolCallId]))
+function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPart[]; calls: Calls }>) {
+  const states = parts.map((part) => callState(part, calls.working))
   const runningIndex = states.lastIndexOf('running')
   const current = runningIndex === -1 ? undefined : parts[runningIndex]
   const presentation = current && presentTool(current.toolInvocation.toolName, current.toolInvocation.args)
@@ -166,7 +164,7 @@ function ToolGroup({ parts, tools }: Readonly<{ parts: readonly ToolInvocationPa
     </ToolCallTrigger>
     <ToolCallContent>
       <ScrollArea maxHeight="18rem" autoScroll={current !== undefined}>
-        {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}
+        {parts.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} calls={calls} />)}
       </ScrollArea>
     </ToolCallContent>
   </ToolCall>
@@ -195,49 +193,50 @@ function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | nul
   </div>
 }
 
-// One flat sequence of pieces, built once from settled history, orphan requests and the live turn
-// in order, so a run of tool calls groups across whatever message ids the Factory split it into.
+// One flat sequence of pieces, built once from the transcript and the orphan requests in order, so a
+// run of tool calls groups across whatever message ids the controller split it into.
 type Piece =
   | Readonly<{ kind: 'user'; key: string; text: string; at: number | null }>
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
   | Readonly<{ kind: 'notice'; key: string; text: string }>
+  | Readonly<{ kind: 'status'; key: string; level: 'info' | 'error'; text: string }>
+  | Readonly<{ kind: 'prompt'; key: string; prompt: PromptEntry }>
   | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
   | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
   | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'thought'; key: string; text: string }>
   | Readonly<{ kind: 'error'; key: string; text: string }>
 
-const flattenMessage = (message: MastraDBMessage, streamingId: string | undefined, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
+const flattenMessage = (message: MastraDBMessage, key: string, streaming: boolean, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
   if (isUserAuthored(message)) {
     const text = userText(message)
-    return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
+    return text ? [{ kind: 'user', key, text, at: messageTime(message) || null }] : []
   }
   if (isNotice(message)) {
     const text = userText(message)
-    return text ? [{ kind: 'notice', key: message.id, text }] : []
+    return text ? [{ kind: 'notice', key, text }] : []
   }
   if (message.role !== 'assistant') return []
   const parts = message.content.parts
-  const streaming = message.id === streamingId
   return parts.flatMap((part, index): Piece[] => {
-    const key = `${message.id}-${index}`
+    const partKey = `${key}-${index}`
     const last = streaming && index === parts.length - 1
     // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
     // display state), not a conversation row: rendering it here too would repeat what the
     // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
-    // A call parked for the person is answered on its card below the thread, so it has no row yet.
-    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key, part }]
-    if (part.type === 'text') return part.text ? [{ kind: 'text', key, text: part.text, streaming: last }] : []
+    // A call parked for the person is answered on its card, so it has no row yet.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key: partKey, part }]
+    if (part.type === 'text') return part.text ? [{ kind: 'text', key: partKey, text: part.text, streaming: last }] : []
     // The part still streaming says the agent is thinking; a settled one is a row that opens to its text.
-    if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key }] : part.reasoning.trim() ? [{ kind: 'thought', key, text: part.reasoning }] : []
+    if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key: partKey }] : part.reasoning.trim() ? [{ kind: 'thought', key: partKey, text: part.reasoning }] : []
     // The provider's own words name sandboxes, ids and stack frames. The category is what the
     // operator is told.
-    if (part.type === 'error') return [{ kind: 'error', key, text: reason }]
+    if (part.type === 'error') return [{ kind: 'error', key: partKey, text: reason }]
     return []
   })
 }
 
-function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model: BuilderModel | null): ReactNode[] {
+function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderModel | null, renderPrompt: (prompt: PromptEntry) => ReactNode): ReactNode[] {
   const out: ReactNode[] = []
   let turnBuffer: ReactNode[] = []
   let toolBuffer: ToolInvocationPart[] = []
@@ -246,8 +245,8 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
     if (!toolBuffer.length) return
     const key = `${turnKey}-tools-${turnBuffer.length}`
     turnBuffer.push(toolBuffer.length >= TOOL_GROUP_MIN
-      ? <ToolGroup key={key} parts={toolBuffer} tools={tools} />
-      : <div key={key} className="cx-tool-rows">{toolBuffer.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} live={tools[part.toolInvocation.toolCallId]} />)}</div>)
+      ? <ToolGroup key={key} parts={toolBuffer} calls={calls} />
+      : <div key={key} className="cx-tool-rows">{toolBuffer.map((part) => <ToolInvocation key={part.toolInvocation.toolCallId} part={part} calls={calls} />)}</div>)
     toolBuffer = []
   }
   const flushTurn = () => {
@@ -259,6 +258,14 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
     if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
     if (piece.kind === 'notice') { flushTurn(); out.push(<p key={piece.key} className="builder-turn-reason builder-turn-notice" role="note">{piece.text}</p>); continue }
+    if (piece.kind === 'prompt') { flushTurn(); out.push(<div key={piece.key}>{renderPrompt(piece.prompt)}</div>); continue }
+    if (piece.kind === 'status') {
+      flushTurn()
+      out.push(piece.level === 'error'
+        ? <p key={piece.key} className="builder-turn-error" role="alert">{piece.text}</p>
+        : <p key={piece.key} className="builder-turn-reason" role="status">{piece.text}</p>)
+      continue
+    }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
     if (piece.kind === 'tool' && !UNGROUPED_TOOL_NAMES.has(piece.part.toolInvocation.toolName)) { toolBuffer.push(piece.part); continue }
     flushTools()
@@ -272,56 +279,58 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
   return out
 }
 
-export function BuilderConversation({ history, turn, pendingRequest, persistedRequests, failure, model, working }: Readonly<{
-  history: readonly MastraDBMessage[]
-  turn: LiveTurn
-  pendingRequest: string | null
+type MessageEntry = Extract<TranscriptEntry, { kind: 'message' }>
+
+export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
+  entries: readonly TranscriptEntry[]
   persistedRequests: readonly PersistedRequest[]
   failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
   model: BuilderModel | null
-  // The run is in its agent step: until its first part arrives the thread already says it is thinking.
+  // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
+  // Draws a call the run here parked on the person; absent while no run here is active.
+  renderPrompt?: (prompt: PromptEntry) => ReactNode
 }>) {
-  const liveIds = new Set(turn.messages.map((message) => message.id))
-  const settled = history.filter((message) => !liveIds.has(message.id))
-  // Once a run's turn has ended, the Factory may have finalized its reply under a different message
-  // id than the one the live stream used (it can persist the whole tool loop under its own id, with
-  // more tool steps than the live copy had captured). Id matching alone then misses the duplicate,
-  // so a live assistant reply whose own text already showed up in the settled history is dropped
-  // too: the settled copy is the authoritative, complete one.
-  const settledReplies = new Set(settled.map(assistantReplyText).filter(Boolean))
-  const liveMessages = turn.status !== 'ENDED' ? turn.messages
-    : turn.messages.filter((message) => {
-      const text = assistantReplyText(message)
-      return !text || !settledReplies.has(text)
-    })
-  const calls = mergeCalls([...settled, ...liveMessages])
-  const spoken = new Set([...settled, ...liveMessages].filter(isUserAuthored).map(userText))
-  const requestVisible = pendingRequest !== null && spoken.has(pendingRequest)
-  const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text) && entry.text !== pendingRequest)
-  const timeline = [
-    ...calls.slice(0, settled.length).map((message) => ({ at: messageTime(message), key: message.id, message, entry: null as PersistedRequest | null })),
-    ...orphans.map((entry) => ({ at: new Date(entry.createdAt).getTime(), key: `request-${entry.runId}`, message: null, entry })),
-  ].sort((left, right) => left.at - right.at)
+  const messages = entries.filter((entry): entry is MessageEntry => entry.kind === 'message')
+  const merged = new Map(mergeCalls(messages.map((entry) => entry.message)).map((message, index) => [messages[index]?.id ?? '', message]))
+  const spoken = new Set(messages.map((entry) => entry.message).filter(isUserAuthored).map(userText))
+  const orphans = persistedRequests.filter((entry) => !spoken.has(entry.text)).map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry }))
+    .sort((left, right) => left.at - right.at)
   const reason = failureReason(failure)
-  const parked = new Set(Object.keys(turn.waiting))
-  const streamingId = turn.status === 'LIVE' ? turn.messages.at(-1)?.id : undefined
+  const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
+  const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
+  const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
   const pieces: Piece[] = []
-  for (const item of timeline) {
-    if (item.entry) pieces.push({ kind: 'request', key: item.key, entry: item.entry })
-    else if (item.message) pieces.push(...flattenMessage(item.message, undefined, reason, parked))
+  // Whether the agent has said anything since the person last spoke.
+  let spokeSinceUser = false
+  const requestsBefore = (at: number): void => {
+    while (orphans.length && (orphans[0]?.at ?? 0) < at) {
+      const next = orphans.shift()
+      if (next) pieces.push({ kind: 'request', key: `request-${next.entry.runId}`, entry: next.entry })
+    }
   }
-  if (pendingRequest !== null && !requestVisible) pieces.push({ kind: 'user', key: 'pending-request', text: pendingRequest, at: null })
-  const livePieces = calls.slice(settled.length).flatMap((message) => flattenMessage(message, streamingId, reason, parked))
-  pieces.push(...livePieces)
-  if (working && parked.size === 0 && livePieces.every((piece) => piece.kind === 'user')) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
+  for (const entry of entries) {
+    if (entry.kind === 'prompt') {
+      if (renderPrompt) pieces.push({ kind: 'prompt', key: entry.id, prompt: entry })
+      continue
+    }
+    if (entry.kind === 'notice') {
+      pieces.push({ kind: 'status', key: entry.id, level: entry.level, text: entry.text })
+      continue
+    }
+    const message = merged.get(entry.id) ?? entry.message
+    requestsBefore(messageTime(message))
+    const flat = flattenMessage(message, entry.id, working && entry.streaming === true, reason, parked)
+    for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true
+    pieces.push(...flat)
+  }
+  requestsBefore(Number.POSITIVE_INFINITY)
+  if (working && prompts.length === 0 && !spokeSinceUser) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
-  const rendered = renderPieces(pieces, turn.tools, model)
+  const rendered = renderPieces(pieces, { working, runtime }, model, renderPrompt ?? (() => null))
   return <>
     {rendered}
-    {turn.retrying && <p className="builder-turn-reason" role="status">{retryNotice(turn.retrying)}</p>}
-    {turn.error && <p className="builder-turn-error" role="alert">{reason}</p>}
     {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}
   </>
 }

@@ -16,9 +16,10 @@ import { BuilderConversation, type PersistedRequest } from '../components/builde
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
 import {
-  answerPendingCall, type Conversation, type LiveTurn, useBuilderLiveTurn, useBuilderModels, useBuilderThreadMessages, useConversationActions,
+  answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
+import { localMessageId, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
@@ -42,8 +43,6 @@ const lensTabs: readonly Readonly<{ lens: Lens; label: string }>[] = [
 
 const conversationTitle = (conversation: Conversation): string => conversation.title?.trim() || 'Conversa sem título'
 
-const noTurn: LiveTurn = { runId: null, status: 'ENDED', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null, retrying: null }
-
 // runHistory arrives newest first; the conversation reads oldest first, and latestBuilderRun is the
 // fresher copy of whichever run it repeats.
 const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun | null): readonly PersistedRequest[] => {
@@ -60,7 +59,7 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
 
 // "Tarefas" alone while the agent has not written a count yet (TaskList's own default title),
 // "n de m" once it has: the same counter Claude Code and Codex show above their own composer.
-const taskListTitle = (tasks: LiveTurn['tasks']): string => {
+const taskListTitle = (tasks: readonly TaskSnapshot[]): string => {
   if (!tasks.length) return 'Tarefas'
   const completed = tasks.filter((task) => task.status === 'completed').length
   return `Tarefas · ${completed} de ${tasks.length}`
@@ -106,7 +105,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const [pane, setPane] = useState<'stage' | 'chat'>('chat')
   const [draft, setDraft] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
-  const [liveRequest, setLiveRequest] = useState<Readonly<{ runId: string; text: string }> | null>(null)
+  // The message this page sent for the run it started, until the thread shows it back.
+  const [localSend, setLocalSend] = useState<Readonly<{ runId: string; localId: string }> | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const layout = useDefaultLayout({ id: `conexus-construir:${accountId}`, storage: guardedStorage, onlySaveAfterUserInteractions: true })
 
@@ -144,11 +144,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     enabled: Boolean(diffBasis),
   })
 
-  const history = useBuilderThreadMessages(projectId, conversationId)
-  const turn = useBuilderLiveTurn(projectId, run ?? undefined, isActive(run) && run.phase === 'AGENT')
-  const conversationTurn = runHere ? turn : noTurn
-  const shownMemory = conversationTurn.status === 'LIVE' && conversationTurn.memory ? conversationTurn.memory : sessionModel.memory
-  const pending = Object.values(conversationTurn.waiting)
+  const thread = useBuilderConversation(projectId, conversationId, runHere && isActive(runHere) && runHere.phase === 'AGENT' ? runHere : null)
+  const { history, transcript, runtime } = thread
+  const shownMemory = thread.live && runtime.memory ? runtime.memory : sessionModel.memory
+  // A call stays parked on the person only while the run that parked it is still going.
+  const pending = runHere && isActive(runHere) ? transcript.entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
 
   // A run that settles refreshes what it touched: its session, its messages and the titles.
   const previousState = useRef<string | undefined>(undefined)
@@ -156,23 +156,39 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     const wasActive = previousState.current === 'QUEUED' || previousState.current === 'RUNNING'
     previousState.current = run?.state
     if (!run || !wasActive || isActive(run)) return
-    void Promise.all([session.refetch(), history.refetch(), conversations.refetch()]).finally(() => setLiveRequest(null))
+    void Promise.all([session.refetch(), history.refetch(), conversations.refetch()])
   }, [conversations, history, run, session])
+
+  // The message this page sent waits for the thread to show it back. Once its run settled and the
+  // thread was read again, one never shown belongs to a run that stopped before its agent, and the
+  // run's own request row says so instead.
+  const localRun = localSend ? runsById.get(localSend.runId) : undefined
+  const localSettled = Boolean(localRun && !isActive(localRun))
+  const { refetch: refetchHistory } = history
+  const { dispatch } = thread
+  useEffect(() => {
+    if (!localSend || !localSettled) return
+    void refetchHistory().finally(() => {
+      dispatch({ type: 'dropLocalUser', id: localSend.localId })
+      setLocalSend(null)
+    })
+  }, [dispatch, localSend, localSettled, refetchHistory])
 
   // A send whose outcome is unknown keeps its key, so an identical retry lands on the run the first
   // attempt may have created; a clean refusal took no effect and its key is dropped.
   const retainedKey = useRef<Readonly<{ key: string; content: string }> | null>(null)
   const send = useMutation({
-    mutationFn: (content: string) => {
+    mutationFn: async (content: string) => {
       const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
       retainedKey.current = { key, content }
-      return sendBuilderMessage(projectId, conversationId, content, key)
+      return { accepted: await sendBuilderMessage(projectId, conversationId, content, key), key }
     },
-    onSuccess: async (result, content) => {
+    onSuccess: async ({ accepted, key }, content) => {
       retainedKey.current = null
       setSendError(null)
       setDraft((current) => current === content ? '' : current)
-      setLiveRequest({ runId: result.builderRun.builderRunId, text: content })
+      dispatch({ type: 'localUser', id: localMessageId(key), text: content })
+      setLocalSend({ runId: accepted.builderRun.builderRunId, localId: localMessageId(key) })
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
     onError: (error) => {
@@ -217,7 +233,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     : statusLine(hereView)
   const settledHere = hereView.kind === 'SETTLED' ? hereView : null
   const persisted = persistedRequestsOf((session.data?.runHistory ?? []).filter((entry) => entry.conversationId === conversationId), runHere)
-  const pendingRequest = runHere && isActive(runHere) && liveRequest?.runId === runHere.builderRunId ? liveRequest.text : null
   const preview_ = session.data?.preview
   const sourceAhead = Boolean(preview_?.lastGoodSourceRevision && preview_.workingSourceRevision && preview_.workingSourceRevision !== preview_.lastGoodSourceRevision)
   // "Versão N" counts the Project's own code-changing runs, oldest first, regardless of which
@@ -228,7 +243,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const resultCardShown = Boolean(settledHere && runHere && showsResultCard(runHere))
 
   const wait = view.kind === 'ACTIVE'
-    ? previewWait(view, runHere ? { waiting: pending.length > 0, tasks: conversationTurn.tasks } : { waiting: false, tasks: [] }, now)
+    ? previewWait(view, runHere ? { waiting: pending.length > 0, tasks: transcript.tasks } : { waiting: false, tasks: [] }, now)
     : null
 
   const stage = <section className="cx-stage" aria-label="Palco">
@@ -296,12 +311,23 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
-                  : <BuilderConversation history={history.data ?? []} turn={conversationTurn} pendingRequest={pendingRequest} persistedRequests={persisted} failure={runHere ?? null} working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')} model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null} />}
-              {runHere && pending.map((entry) => <PendingCard
-                key={entry.toolCallId}
-                pending={entry}
-                onAnswer={(answer) => answerPendingCall(projectId, runHere.conversationId, entry, answer)}
-              />)}
+                  : <BuilderConversation
+                    entries={transcript.entries}
+                    persistedRequests={persisted}
+                    failure={runHere ?? null}
+                    working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
+                    model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
+                    {...(runHere && isActive(runHere) ? {
+                      renderPrompt: (entry: PromptEntry) => <PendingCard
+                        key={entry.toolCallId}
+                        pending={entry}
+                        onAnswer={async (answer) => {
+                          await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
+                        }}
+                      />,
+                    } : {})}
+                  />}
               {resultCardShown && runHere && <ResultCard
                 projectId={projectId}
                 run={runHere}
@@ -325,7 +351,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
             task_write/task_update/task_check/task_complete calls, never the settled result of a
             run that has ended (hideWhenComplete, the primitive's own default) or a run with no
             list yet (hideWhenEmpty). */}
-        {runHere && <TaskListPt className="cx-task-list" tasks={[...conversationTurn.tasks]} title={taskListTitle(conversationTurn.tasks)} />}
+        {runHere && <TaskListPt className="cx-task-list" tasks={[...transcript.tasks]} title={taskListTitle(transcript.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
         {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
@@ -344,7 +370,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           reasoning={sessionModel.reasoning ?? models.data?.defaultThinkingLevel ?? null}
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           memory={shownMemory}
-          memoryFailed={conversationTurn.memoryFailed}
+          memoryFailed={runtime.memoryFailed}
         />
       </ChatShell.Column>
         </ChatShell.Dock>

@@ -5,13 +5,13 @@ import type { AskUserAnswer, AskUserOption } from '@mastra/playground-ui/compone
 import { AskUserPt, type AskUserQuestionData } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { type ReactNode, useState } from 'react'
-import type { PendingAnswer, PendingReply } from '../mastra-session'
+import type { PendingReply, PromptEntry } from '../mastra-session'
 import { personPart } from './plan-sections'
 import { toolRequest } from './tool-sentences'
 
 // submit_plan's suspend payload carries the plan it points at; like ask_user's, it is untrusted
 // wire data, so only a string field is shown.
-const planField = (pending: PendingAnswer, name: 'title' | 'plan'): string | null => {
+const planField = (pending: PromptEntry, name: 'title' | 'plan'): string | null => {
   for (const source of [pending.prompt, pending.args]) {
     if (source && typeof source === 'object' && name in source) {
       const value = (source as Record<string, unknown>)[name]
@@ -42,7 +42,7 @@ const FALLBACK_QUESTION: AskUserQuestionData = { question: 'O agente precisa de 
 // ask_user's suspend payload is untrusted wire data (unknown on the wire type), so it is parsed
 // here rather than cast: a malformed question is dropped, and a payload with none left degrades to
 // a plain free-text question (still answerable) instead of passing bad shapes into the card.
-const askUserQuestions = (pending: PendingAnswer): AskUserQuestionData[] => {
+const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
   for (const source of [pending.prompt, pending.args]) {
     const list = source && typeof source === 'object' ? (source as Record<string, unknown>).questions : undefined
     const questions = Array.isArray(list) ? list.map(parseQuestion).filter((entry): entry is AskUserQuestionData => entry !== null) : []
@@ -77,7 +77,7 @@ function PlanReply({ feedback, onFeedback, sending, failed, onAnswer, children }
  * agent's options as radio/checkbox controls, with one send for all of its 1 to 4 questions).
  */
 export function PendingCard({ pending, onAnswer }: Readonly<{
-  pending: PendingAnswer
+  pending: PromptEntry
   onAnswer: (answer: PendingReply) => Promise<void>
 }>) {
   const [state, setState] = useState<'OPEN' | 'SENDING' | 'FAILED'>('OPEN')
@@ -91,7 +91,7 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
   const detail = presentTool(pending.toolName, pending.args).detail
   const technical = stringifyToolValue(pending.args)
 
-  if (pending.kind === 'PLAN') {
+  if (pending.ask === 'PLAN') {
     const title = planField(pending, 'title')
     const plan = planField(pending, 'plan')
     const person = personPart(plan ?? '')
@@ -118,7 +118,7 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
     </section>
   }
 
-  if (pending.kind === 'QUESTION') {
+  if (pending.ask === 'QUESTION') {
     const submit = (value: AskUserAnswer[]) => answer({ answers: value })
     return <AskUserPt
       aria-label="Pergunta do agente"

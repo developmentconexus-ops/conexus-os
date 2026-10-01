@@ -2,8 +2,8 @@
 // https://github.com/mastra-ai/mastra), licensed under the Apache License, Version 2.0
 // (http://www.apache.org/licenses/LICENSE-2.0); see the repository's LICENSE.md. The window merge,
 // the tool reconciliation, the message updates and the persisted suspension prompts are Mastra's.
-// Changed: a conversation owns the transcript; a local message is keyed by its send's idempotency
-// key; a prompt also closes on tool_end, on a cancelled suspension and on a finished part in a merged
+// Changed: a conversation owns the transcript; a window drops the step-start parts the stream never
+// sends; a local message is keyed by its send's idempotency key; a prompt also closes on tool_end, on a cancelled suspension and on a finished part in a merged
 // window; errors become notices in Conexus's own words; the task list comes from the display state;
 // subagents, goals, steering, files, authorship, notifications and thread events are left out.
 
@@ -104,7 +104,7 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
     case 'resolvePrompt':
       return withoutPrompt(state, action.toolCallId)
     case 'mergeWindow':
-      return mergeServerWindow(state, action.messages)
+      return mergeServerWindow(state, action.messages.map(withoutStepStarts))
     case 'event':
       return applyEvent(state, action.event)
   }
@@ -204,6 +204,12 @@ const upsertNotice = (state: TranscriptState, notice: NoticeEntry): TranscriptSt
   const index = state.entries.findIndex((entry) => entry.id === notice.id)
   return { ...state, entries: index === -1 ? [...state.entries, notice] : state.entries.map((entry, position) => position === index ? notice : entry) }
 }
+
+// Storage marks each step's start with a part the stream never sends, so a window copy is lined up
+// with the streamed one, part for part, without it.
+const withoutStepStarts = (message: MastraDBMessage): MastraDBMessage => message.content.parts.some((part) => part.type === 'step-start')
+  ? { ...message, content: { ...message.content, parts: message.content.parts.filter((part) => part.type !== 'step-start') } }
+  : message
 
 const messagesToEntries = (messages: readonly MastraDBMessage[]): TranscriptEntry[] =>
   messages.flatMap((message) => [toMessageEntry(message, { streaming: false }), ...persistedSuspensionPrompts(message)])

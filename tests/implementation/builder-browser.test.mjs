@@ -1125,7 +1125,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a reply the controller finalizes under a different id than its live stream is not shown twice', async (t) => {
+test('a turn the stream delivered only in part is completed from the thread, and drawn once', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000101'
   const projectId = '70000000-0000-4000-8000-000000000102'
   const runId = '70000000-0000-4000-8000-000000000103'
@@ -1137,25 +1137,16 @@ test('a reply the controller finalizes under a different id than its live stream
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
-  // The live stream and the persisted thread can name the same reply under different message ids
-  // (the controller finalizes the tool loop under its own id once the run settles), and the persisted
-  // copy carries the run's full tool history, not just what the live stream had captured so far.
+  // The controller stores a turn under the message and call ids its stream used, with a step-start
+  // part at each step the stream never sends. The stream here ends after three calls; the thread
+  // holds the whole turn: three more calls and the reply.
   const finalText = 'Concluído: atualizei o texto em destaque.'
   const toolPart = (id, toolName) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: 'result', args: {}, result: 'ok' } })
-  const liveReply = {
-    id: 'live-1', role: 'assistant', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [
-      toolPart('live-tool-0', 'read_file'), toolPart('live-tool-1', 'edit_file'), toolPart('live-tool-2', 'execute_command'),
-      { type: 'text', text: finalText },
-    ] },
-  }
+  const tools = ['read_file', 'edit_file', 'execute_command', 'read_file', 'edit_file', 'execute_command'].map((name, index) => toolPart(`tool-${index}`, name))
+  const liveReply = { id: 'turn-1', role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: tools.slice(0, 3) } }
   const persistedReply = {
-    id: 'persisted-1', role: 'assistant', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [
-      toolPart('persisted-tool-0', 'read_file'), toolPart('persisted-tool-1', 'edit_file'), toolPart('persisted-tool-2', 'execute_command'),
-      toolPart('persisted-tool-3', 'read_file'), toolPart('persisted-tool-4', 'edit_file'), toolPart('persisted-tool-5', 'execute_command'),
-      { type: 'text', text: finalText },
-    ] },
+    id: 'turn-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [...tools.slice(0, 3), { type: 'step-start' }, ...tools.slice(3), { type: 'step-start' }, { type: 'text', text: finalText }] },
   }
 
   let runFinished = false
@@ -1196,11 +1187,56 @@ test('a reply the controller finalizes under a different id than its live stream
   await page.waitForTimeout(600)
 
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
-    'the persisted reply renders once, not once per message id it happened to carry')
+    'the reply the stream never delivered is drawn once, from the thread')
   assert.equal(await page.locator('.builder-turn-body button').count(), 1,
-    'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
+    'the streamed calls and the stored ones are one turn, not a second copy of it')
   await page.getByRole('button', { name: 'Leu 2 arquivos, editou 2 arquivos, executou 2 comandos', exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('a page opened while the run waits on the person shows the question card from the thread alone', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000301'
+  const projectId = '70000000-0000-4000-8000-000000000302'
+  const runId = '70000000-0000-4000-8000-000000000303'
+  const conversationId = 'conversation-parked-reload'
+  const sourceRevision = 'a'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const question = 'Qual status um pedido pode ter?'
+  const ask = { questions: [{ question, options: [{ label: 'Aberto' }, { label: 'Pago' }] }] }
+  // The thread as Mastra stores it while parked: the open call, and its suspension in the metadata.
+  const asking = {
+    id: 'asking-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [{ type: 'text', text: 'Preciso saber uma coisa.' }, { type: 'tool-invocation', toolInvocation: { toolCallId: 'ask-1', toolName: 'ask_user', state: 'call', args: ask } }],
+      metadata: { suspendedTools: { ask_user: { toolCallId: 'ask-1', toolName: 'ask_user', args: ask, suspendPayload: ask, runId: 'agent-run-1' } } } },
+  }
+  const state = builderState([conversation(conversationId, 'Pedidos')], { [conversationId]: [userMessage('user-1', 'Crie um controle de pedidos'), asking] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pedidos', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  // The stream sends nothing on subscribe, the way Mastra's does.
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse()))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText(question, { exact: true }).waitFor()
+  await page.getByRole('radio', { name: 'Pago' }).waitFor()
+  assert.equal(await page.getByText(question, { exact: true }).count(), 1, 'one card for the question')
+  assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'no tool row for the call the card answers')
+  await page.locator('.cx-chat-step', { hasText: 'Aguardando você' }).waitFor()
 })
 
 // Regression for two problems the operator hit in the same real run: an ask_user suspension
