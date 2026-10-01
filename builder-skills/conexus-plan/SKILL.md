@@ -53,8 +53,6 @@ The request says what the person wants to do. Design the app that does it well, 
 
 Ask only what the person alone can answer. A fact you can learn by reading the files or the data, or by running something, is yours to find. A rule that decides which records count, how a number is computed, or who may see or change a record is the person's, even when every answer gives the same screens: ask it. Choose how the app looks and works yourself, and record those choices as assumptions.
 
-Before you ask, list every decision you would otherwise make by guessing: what each business word of the request means in the records (which records count, from which date, which amount), what you would leave out, and who may see or change what. Each one that is a business or money rule becomes a question. Only the rest go in "O que eu supus".
-
 Write each question in the person's words: business terms, never a table, a field or where something is stored. Give 2 to 4 options, each saying in a few words what the app will do if chosen, your recommendation first.
 
 An unanswered question, or "tanto faz", takes your recommendation as an assumption. "Pode fazer" takes every recommendation, each marked as an assumption.
