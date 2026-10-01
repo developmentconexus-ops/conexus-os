@@ -5,6 +5,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { MastraServer } from '@mastra/fastify'
 import { SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { ServerResponse } from 'node:http'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
@@ -53,6 +54,7 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
 
 // Routes that read no session: the resource's threads, and a thread's messages read by id and
 // checked against the resource.
+const STREAM_ROUTE_KEY = sessionRoute('GET', '/stream')
 const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/threads'), sessionRoute('GET', '/threads/:threadId/messages')])
 // A conversation's model changes only between runs (AC-12); a run in flight is refused.
 const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/model')])
@@ -86,6 +88,23 @@ const isReasoningLevelOnlyState = (body: unknown): boolean => {
   return isThinkingLevelSetting(level)
 }
 
+/**
+ * Mastra's session stream enqueues every event whatever the client has read, and the Fastify adapter
+ * writes each frame to the response without waiting for `drain`, so a client that stops reading
+ * (a hidden tab, a stalled proxy) makes the response's write buffer grow with every whole-state
+ * snapshot. A stream whose unsent bytes pass the limit is closed: Mastra's own cancel then
+ * unsubscribes it, and the browser opens it again and reads the thread.
+ */
+const STREAM_BACKLOG_LIMIT_BYTES = 4 * 1024 * 1024
+const STREAM_BACKLOG_CHECK_MS = 1_000
+type StreamBacklog = Readonly<{ limitBytes: number; checkMs: number }>
+
+const closeWhenBehind = (response: ServerResponse, { limitBytes, checkMs }: StreamBacklog): void => {
+  const timer = setInterval(() => { if (response.writableLength > limitBytes) response.destroy() }, checkMs)
+  timer.unref()
+  response.once('close', () => clearInterval(timer))
+}
+
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
 /** A projection the Hub applies to what a session route serves: one value, or each event of one stream. */
@@ -112,6 +131,7 @@ type GuardedMount = Readonly<{
   controller: AgentController
   /** Who deletes a conversation's session once the browser stops using it. */
   sessions: ConversationSessions
+  streamBacklog?: StreamBacklog
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
@@ -210,6 +230,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         await bindConversationSession(mount.controller, mount.sessions, resource, conversationId)
       }
       admitted.set(request, { accountId, scope: sessionScope })
+      if (key === STREAM_ROUTE_KEY) closeWhenBehind(reply.raw, mount.streamBacklog ?? { limitBytes: STREAM_BACKLOG_LIMIT_BYTES, checkMs: STREAM_BACKLOG_CHECK_MS })
       return undefined
     })
     const server = new MastraServer({ app: scope, mastra: mount.mastra, prefix: mount.prefix })
@@ -246,7 +267,7 @@ const bindConversationSession = async (controller: AgentController, sessions: Co
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
@@ -259,9 +280,12 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   runContext: GuardedMount['runContext']
   /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
   toolPayloads?: ToolPayloadProjection
+  /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
+  streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
   mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext,
   ...(toolPayloads ? { toolPayloads } : {}),
+  ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,
   routes: BROWSER_ROUTES,
 })
