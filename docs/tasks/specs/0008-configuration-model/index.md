@@ -228,7 +228,7 @@ Slice 3: sign-in source and email sender (with 0006)
 - **AC-25**: `mail.smtp` (`{ host, port, from, fromDisplayName, starttls, ssl, auth, user }`, editor
   `operator`, enforced by `keycloak`) holds the sender; its password is a file in the operator
   secrets directory. In the pilot every installation uses one Conexus email account (decision 3).
-  `apply keycloak` refuses to run with `mail.smtp` unset. Replacing the password file shows as
+  `apply keycloak` refuses to run with `mail.smtp` unset from slice 3 on. Replacing the password file shows as
   `drifted` by fingerprint and the next `apply` converges. `--smtp-file` is deleted.
   [`settings-reconcile-keycloak`, live check]
 - **AC-26**: The Keycloak client `redirectUris` and `baseUrl` of `conexus-hub` are derived from
@@ -264,7 +264,8 @@ Slice 4: telemetry settings (with 0007)
 Fresh install (slice 1)
 - **AC-32**: On an empty Keycloak volume and a new database, the steps of *Fresh install order* run
   in that order give a working Hub sign-in with session max 1 hour, `--check-accounts` passing and
-  every `settings.enforcement` row `in_sync`. Running `apply keycloak --init` and `apply keycloak` a
+  every `settings.enforcement` row `in_sync`. With 0006 and from slice 3 on, steps 4 and 6 are part
+  of the run and the first person's invite is sent. Running `apply keycloak --init` and `apply keycloak` a
   second time changes nothing and says so. `infra/keycloak/README.md` and `infra/pilot/README.md`
   list the order. [live check, in the slice's pull request]
 
@@ -448,7 +449,9 @@ and adds a role to the checked set only if a probe shows it is needed.
    file. The bootstrap password stays in the container's definition but signs in to nothing. Run
    again, `--init` finds both accounts and prints `nada a aplicar`.
 3. `apply keycloak --init --rotate`, signed in as the break-glass account, sets a new break-glass
-   password and a new service account secret and replaces both files.
+   password, a new service account secret and, once 0006 is in, a new provisioner client secret, and
+   replaces the three files. The Hub reads the provisioner file at start, so it restarts after a
+   rotation.
 4. If the break-glass password is lost, the operator runs Keycloak's `bootstrap-admin` command on
    the host, then `--init --rotate`.
 
@@ -457,9 +460,20 @@ and adds a role to the checked set only if a probe shows it is needed.
 1. `infra/keycloak/provision.sh`.
 2. Hub migrations and database role provisioning (`settings_operator` included).
 3. `npm run conexus:settings -- apply keycloak --init`.
-4. `npm run conexus:settings -- apply keycloak`. With 0006, this also creates the provisioner client
-   secret the Hub needs, so the Hub cannot start before it.
-5. Start `infra/pilot/hub.sh`, `infra/pilot/runner.sh` and `infra/pilot/settings-check.sh`.
+4. From slice 3 on: write `smtp-password` to the operator secrets directory and run
+   `conexus-settings set mail.smtp`; for a brokered installation also `set identity.source`. Both
+   come before step 5 because `apply keycloak` refuses without `mail.smtp` from slice 3 on.
+5. `npm run conexus:settings -- apply keycloak`. With 0006, this also creates the provisioner client
+   secret the Hub needs and writes it to `keycloak-provisioner`, so the Hub cannot start before it.
+6. With 0006: `conexus-settings first-person --email <email> --name <name> --hub-env <path>`. It
+   signs in as the provisioner client with `keycloak-provisioner` (the narrowest account that can
+   create a person and send the invite), not as the bootstrap or break-glass account, creates the
+   first person, sends the invite and writes `CONEXUS_BOOTSTRAP_SUBJECT` to the Hub env file. It
+   cannot run earlier: SMTP is configured in step 4 and `--init` deletes the bootstrap admin in
+   step 3. It is a `conexus-settings` subcommand, not a `provision.sh` flag, so the operator has one
+   tool after `provision.sh`.
+7. Start `infra/pilot/hub.sh`, `infra/pilot/runner.sh` and `infra/pilot/settings-check.sh`, then the
+   first person signs in to the Hub.
 
 ### CLI output
 
@@ -475,6 +489,9 @@ and adds a role to the checked set only if a probe shows it is needed.
 | `apply --check`, an enforcer could not be observed | `não verificado: <enforcer>: <motivo>` | 2 |
 | `--check-accounts`, accounts as AC-13 | `contas em ordem` | 0 |
 | `--check-accounts`, any other account or role set | `conta fora do esperado: <conta>: <motivo>` | 2 |
+| `apply keycloak`, first apply writes `keycloak-provisioner` (0006) | `aplicado: keycloak segredo do provisionador criado` | 0 |
+| `first-person`, person created and invite sent (0006) | `primeira pessoa criada: <email>` | 0 |
+| `first-person`, the provisioner secret is missing or a person already exists | `recusado: <motivo>` | 1 |
 
 Drift exits 0 because the row and the `SETTING_DRIFT` log are the signal; `settings-check.sh` logs
 any non-zero code and keeps looping.
@@ -528,7 +545,7 @@ duplicate emails, verify email, reset password, theme, locale, events) stay code
 | Hub and provisioner client secrets | Secret | generated once into files, as today |
 | SMTP host, port, from, display name, TLS, user; SMTP password | Setting, `operator`; secret | `mail.smtp`; password in the operator secrets directory |
 | Provisioner roles and permissions | Code constant enforced by Keycloak | `apply keycloak`, with 0006's refusals |
-| `KEYCLOAK_PROVISIONER_SECRET_FILE` | Secret | env path, as 0006 says |
+| `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE` | Secret | env path to `keycloak-provisioner` in the operator secrets directory, written by `apply keycloak` |
 | `INTERNAL_SIGN_IN`, Entra tenant and client id; Entra client secret | Setting, `operator`; secret | `identity.source`; secret in the operator secrets directory, its expiry in `identity.source.secretExpiresOn` |
 | Admission | Hard rule, `SCREEN` only (decision 6) | 0006 AC-4; a setting when a second value exists |
 | SCIM | Not yet | joins `identity.source` when an installation needs it |
@@ -558,6 +575,7 @@ only "definido em <data>" and the fingerprint's first 8 hex characters.
 | `keycloak-bootstrap-password` | the temporary bootstrap admin password | `provision.sh`; deleted by `--init` | 1 |
 | `keycloak-break-glass-password` | the break-glass account password | `apply keycloak --init` | 1 |
 | `keycloak-settings-client-secret` | the `conexus-settings` client secret | `apply keycloak --init` | 1 |
+| `keycloak-provisioner` | the `conexus-hub-provisioner` client secret; the Hub's `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE` points at it | `apply keycloak`, on first apply (mode 600); replaced by `--init --rotate` | 1 (with 0006) |
 | `smtp-password` | the Conexus email account password | the operator | 3 |
 | `entra-client-secret` | the company's Entra app secret | the operator | 3 |
 | `telegram-bot-token` | the alert bot token | the operator | 4 |
@@ -738,7 +756,7 @@ Each change is made in that spec's own pull request, before it is Accepted.
 
 **0006 (people and sign-in)**:
 - *Configuration required*: delete `CONEXUS_INTERNAL_SIGN_IN`. Keep
-  `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE`.
+  `CONEXUS_KEYCLOAK_PROVISIONER_SECRET_FILE`, pointing at `keycloak-provisioner`.
 - *Invite* table: the column `CONEXUS_INTERNAL_SIGN_IN` becomes `identity.source.kind` with values
   `LOCAL` and `BROKERED`; `MICROSOFT` leaves the table and any row that records the mode (AC-24 here).
 - AC-8, AC-13: the lifespan comes from `INVITE_LIFETIME` (AC-28 here); the action set from `kind`
@@ -751,7 +769,12 @@ Each change is made in that spec's own pull request, before it is Accepted.
 - *Depends on*: 0006's realm slice (its slice 1) depends on this spec's slice 1, which delivers
   `apply keycloak`. The direction is one way: this spec's slice 1 does not depend on 0006.
 - *Operator steps*: a fresh install follows *Fresh install order* here. The provisioner secret of
-  AC-17 is created by `apply keycloak`, so the Hub starts after it, not after `configure-realm.sh`.
+  AC-17 is created by `apply keycloak` into `keycloak-provisioner`, so the Hub starts after it, not
+  after `configure-realm.sh`. There is no `--provisioner-secret-file` flag: the path is fixed by the
+  operator secrets directory, and tests point `CONEXUS_OPERATOR_SECRETS_DIR` at a temporary one.
+- AC-19: `provision.sh --first-admin-*` and `create-first-user.sh` go. The first person is created by
+  `conexus-settings first-person` (step 6 of *Fresh install order*), signed in as the provisioner
+  client.
 - AC-20: drop `--entra-file`. `apply keycloak` creates the identity provider from `identity.source`
   with the alias from the setting, not the literal `microsoft`.
 - *Realm* table: the `ssoSession*` rows say "derived from `identity.session`" (this spec, AC-19)
