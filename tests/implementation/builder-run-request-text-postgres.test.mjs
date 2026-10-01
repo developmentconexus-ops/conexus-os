@@ -69,8 +69,8 @@ test('the accepted request text is stored on the run, bounded, and part of the i
 
   ingressClient = await connect({ ...current, user: 'hub_builder_ingress', password: 'request-text-ingress' })
   const create = async (key, text, id = randomUUID()) => (await ingressClient.query(
-    'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS value',
-    [accountId, projectId, `conversa-${projectId}`, key, '2'.repeat(64), text, null, 'BUILD', id, source],
+    'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
+    [accountId, projectId, `conversa-${projectId}`, key, '2'.repeat(64), text, null, id, source],
   )).rows[0].value
 
   const first = await create('1'.repeat(64), 'Crie um contador até 100')
@@ -81,11 +81,11 @@ test('the accepted request text is stored on the run, bounded, and part of the i
   assert.equal(replayed.builderRunId, first.builderRunId)
   assert.equal(replayed.requestText, 'Crie um contador até 100')
 
-  assert.match(await refusal(ingressClient, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [accountId, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'Outro pedido', null, 'BUILD', randomUUID(), source]), /IDEMPOTENCY_CONFLICT/)
+  assert.match(await refusal(ingressClient, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [accountId, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'Outro pedido', null, randomUUID(), source]), /IDEMPOTENCY_CONFLICT/)
 
-  assert.match(await refusal(ingressClient, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [accountId, projectId, `conversa-${projectId}`, '3'.repeat(64), '2'.repeat(64), 'x'.repeat(20_001), null, 'BUILD', randomUUID(), source]), /BUILDER_RUN_INPUT_REFUSED/)
+  assert.match(await refusal(ingressClient, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [accountId, projectId, `conversa-${projectId}`, '3'.repeat(64), '2'.repeat(64), 'x'.repeat(20_001), null, randomUUID(), source]), /BUILDER_RUN_INPUT_REFUSED/)
 
   // Runs written before the column existed keep NULL, and both read projections say so.
   await adminClient.query('UPDATE builder.builder_run SET request_text = NULL, state = $2 WHERE builder_run_id = $1', [first.builderRunId, 'FAILED'])

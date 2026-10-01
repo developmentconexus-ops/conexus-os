@@ -93,9 +93,9 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     // builder.builder_run: settled, so it does not trip the PROJECT_BUSY guard.
     await client.query(
       `INSERT INTO builder.builder_run(
-         builder_run_id, project_id, account_id, idempotency_digest, mode, base_source_revision,
+         builder_run_id, project_id, account_id, idempotency_digest, base_source_revision,
          state, request_digest, conversation_id
-       ) VALUES ($1, $2, $3, $4, 'BUILD', $5, 'SUCCEEDED', $6, $7)`,
+       ) VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`,
       [randomUUID(), projectId, accountId, digest('1'), HEAD, digest('2'), `conexus-builder:${projectId}`],
     )
 

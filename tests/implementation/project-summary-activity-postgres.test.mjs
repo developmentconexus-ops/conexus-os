@@ -98,12 +98,12 @@ test('real PostgreSQL proves project-summaries activity ordering, fallback, and 
     ($1, NULL, NULL, NULL), ($2, $3, $4, $5)`,
   [runningProjectId, readyProjectId, head, randomUUID(), 'b'.repeat(64)])
   await query(fresh, `INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, mode, base_source_revision,
+    builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision,
     state, result_kind, result_source_revision, created_at
   ) VALUES
-    ($1, $4, $5, $12, $7, $10, 'BUILD', $11, 'RUNNING', NULL, NULL, TIMESTAMPTZ '2026-02-01T00:00:00Z'),
-    ($2, $6, $5, $13, $8, $10, 'BUILD', $11, 'SUCCEEDED', 'SOURCE_CHANGED', $11, TIMESTAMPTZ '2026-02-02T00:00:00Z'),
-    ($3, $6, $5, $13, $9, $10, 'BUILD', $11, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', NULL, TIMESTAMPTZ '2026-02-03T00:00:00Z')`,
+    ($1, $4, $5, $12, $7, $10, $11, 'RUNNING', NULL, NULL, TIMESTAMPTZ '2026-02-01T00:00:00Z'),
+    ($2, $6, $5, $13, $8, $10, $11, 'SUCCEEDED', 'SOURCE_CHANGED', $11, TIMESTAMPTZ '2026-02-02T00:00:00Z'),
+    ($3, $6, $5, $13, $9, $10, $11, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', NULL, TIMESTAMPTZ '2026-02-03T00:00:00Z')`,
   [randomUUID(), randomUUID(), randomUUID(), runningProjectId, accountId, readyProjectId, '7'.repeat(64), '8'.repeat(64), '9'.repeat(64), 'c'.repeat(64), head,
     `conexus-builder:${runningProjectId}`, `conexus-builder:${readyProjectId}`])
 
