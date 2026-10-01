@@ -99,8 +99,6 @@ const askQuestionSchema = z.object({
   multiSelect: z.boolean().optional(),
 })
 
-type AskQuestion = z.infer<typeof askQuestionSchema>
-
 const askInputSchema = z.object({ questions: z.array(askQuestionSchema).min(1).max(MAX_QUESTIONS) })
 
 const askResumeSchema = z.array(z.union([z.string(), z.array(z.string())]))
