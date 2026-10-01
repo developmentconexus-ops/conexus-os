@@ -216,6 +216,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/builder-runaway-step.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-turn-stall.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [['builder-eval', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
