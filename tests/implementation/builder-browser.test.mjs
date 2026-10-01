@@ -1254,7 +1254,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a page opened while the run waits on the person shows the question card from the thread alone', async (t) => {
+test('a page opened while the run is parked shows the question card once from the thread alone, and answering takes the run out of PARKED', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000301'
   const projectId = '70000000-0000-4000-8000-000000000302'
   const runId = '70000000-0000-4000-8000-000000000303'
@@ -1277,10 +1277,11 @@ test('a page opened while the run waits on the person shows the question card fr
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pedidos', projectRevision: 'revision', archived: false }) }))
+  let answered = false
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'PARKED',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, failureCategory: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     },
@@ -1290,6 +1291,12 @@ test('a page opened while the run waits on the person shows the question card fr
   }) }))
   // The stream sends nothing on subscribe, the way Mastra's does.
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse()))
+  const answers = []
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    answers.push(route.request().postDataJSON())
+    answered = true
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
 
   await page.goto(`${origin}/projects/${projectId}/build`)
   await page.getByText(question, { exact: true }).waitFor()
@@ -1297,6 +1304,13 @@ test('a page opened while the run waits on the person shows the question card fr
   assert.equal(await page.getByText(question, { exact: true }).count(), 1, 'one card for the question')
   assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'no tool row for the call the card answers')
   await page.locator('.cx-chat-step', { hasText: 'Aguardando você' }).waitFor()
+  await page.getByText('Esperando a sua resposta').first().waitFor()
+  const sent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await page.getByRole('radio', { name: 'Pago' }).click()
+  await page.getByRole('button', { name: 'Enviar resposta' }).click()
+  await sent
+  assert.deepEqual(answers, [{ toolCallId: 'ask-1', resumeData: ['Pago'] }])
+  await page.waitForFunction(() => !document.body.innerText.includes('Esperando a sua resposta'), null, { timeout: 15000 })
 })
 
 // Regression for two problems the operator hit in the same real run: an ask_user suspension

@@ -34,7 +34,7 @@ export type BuilderRun = Readonly<{
   builderRunId: string
   projectId: string
   state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
-  phase: 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING' | null
+  phase: 'PREPARING' | 'AGENT' | 'PARKED' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING' | null
   baseSourceRevision: string
   resultSourceRevision: string | null
   resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null

@@ -448,3 +448,42 @@ test("a conversation that is not the Project's is refused before a run exists", 
   assert.deepEqual(created, ['conv-plan', 'conv-build'])
   await service.close()
 })
+
+test('a run publishes the state it parks in, and the state it ends in, before its session is closed', async () => {
+  const projectId = '99999999-9999-4999-8999-999999999999'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const drive = async (runId, result) => {
+    const row = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', phase: null, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+    const events = []
+    const store = {
+      createBuilderRun: async () => ({ ...row }),
+      claimBuilderRun: async () => Object.assign(row, { state: 'RUNNING' }),
+      readBuilderRun: async () => ({ ...row }),
+      setBuilderRunPhase: async (_id, phase) => { Object.assign(row, { phase }) },
+      settleBuilderRun: async () => { Object.assign(row, { state: 'SETTLED', phase: null, resultKind: 'RESPONSE_ONLY' }) },
+      failBuilderRun: async () => { Object.assign(row, { state: 'FAILED', phase: null }) },
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, close: async () => {},
+    }
+    const service = createBuilderService({
+      store,
+      runs: makeRuns({
+        publishRun: async (run) => { events.push(`publish:${run.state}:${run.phase}`) },
+        execute: async (input) => {
+          input.holdSession(async () => { events.push('close-session') })
+          return result(input)
+        },
+      }),
+      applicationArtifacts: {},
+    })
+    await service.createBuilderRun({ accountId, projectId, idempotencyKey: `key-${runId}`, content: 'faça', conversationId: 'conv-build' })
+    await service.close()
+    return events
+  }
+  const parkedId = '88888888-8888-4888-8888-88888888888b'
+  const parked = await drive(parkedId, () => ({ kind: 'PARKED', projectId, executionId: parkedId, baseSourceRevision: 'a'.repeat(40) }))
+  assert.deepEqual(parked.filter((event) => event !== 'publish:RUNNING:PREPARING').slice(0, 2), ['publish:RUNNING:PARKED', 'close-session'])
+  const endedId = '88888888-8888-4888-8888-88888888888c'
+  const ended = await drive(endedId, () => ({ kind: 'RESPONSE_ONLY', projectId, executionId: endedId, baseSourceRevision: 'a'.repeat(40) }))
+  assert.deepEqual(ended.slice(-2), ['publish:SETTLED:null', 'close-session'])
+  assert.equal(ended.filter((event) => event === 'close-session').length, 1)
+})

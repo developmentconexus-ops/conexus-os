@@ -515,6 +515,14 @@ test('a later window where the call has a result part removes the prompt', () =>
   assert.deepEqual(partsOf(next.entries[0]), answered.content.parts)
 })
 
+test('a window where the parked call was denied by a stop removes its prompt', () => {
+  const asked = hydrate([askMessage()])
+  const denied = dbMessage('assistant-ask', 'assistant', [toolPart('q1', 'output-denied', { toolName: 'ask_user', errorText: 'denied' })])
+  const next = merge(asked, [denied])
+  assert.deepEqual(next.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask']])
+  assert.deepEqual(partsOf(next.entries[0]), denied.content.parts)
+})
+
 test('a prompt pushed by tool_suspended is removed by tool_end', () => {
   let state = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'x' } })
   assert.deepEqual(state.entries.filter((entry) => entry.kind === 'prompt').map((entry) => [entry.id, entry.ask, entry.prompt]), [['prompt-q1', 'QUESTION', { question: 'x' }]])

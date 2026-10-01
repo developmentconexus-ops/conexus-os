@@ -385,13 +385,21 @@ test("a turn lasts through the person's answer on the conversation's session and
   assert.equal(conversation.model.get(), 'anthropic/default-model', 'and keeps it on the thread, where the conversation session reads it')
   const answered = []
   const payloads = []
+  let askedCallId = ''
   live.subscribe((event) => {
     if (event.type !== 'tool_suspended') return
     answered.push(event.toolName)
     payloads.push(event.suspendPayload)
-    setTimeout(() => { void live.respondToToolSuspension({ toolCallId: event.toolCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] }) }, 20)
+    askedCallId = event.toolCallId
   })
-  const turn = await run.sendTurn('faça um app')
+  const asked = await run.sendTurn('faça um app')
+  assert.equal(asked.reason, 'suspended', 'the turn ends at the question')
+  assert.equal(typeof asked.userMessageId, 'string')
+  await run.park()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'a run parked on the question holds no session')
+  // The answer opens the run's session again and resumes the call the question left in storage.
+  const answering = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
+  const turn = await answering.resumeTurn({ toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] })
   assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
   assert.equal(typeof turn.userMessageId, 'string')
   assert.deepEqual(payloads, [{ questions: ASK_QUESTIONS }])
@@ -399,9 +407,10 @@ test("a turn lasts through the person's answer on the conversation's session and
   // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
   for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
-  await run.end()
-  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live], [0, 0, true])
-  await run.release()
+  const answeringLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  await answering.end()
+  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === answeringLive], [0, 0, true])
+  await answering.release()
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'the run deletes its session when it is over')
 
   // The person changes the model between messages, through the conversation's session; the next turn runs on it.
@@ -409,7 +418,7 @@ test("a turn lasts through the person's answer on the conversation's session and
   const nextRunId = '55555555-5555-4555-8555-555555555555'
   const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
   const nextLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.notEqual(nextLive, live, 'the next run makes its own session, since the last run deleted its own')
+  assert.notEqual(nextLive, answeringLive, 'the next run makes its own session, since the last run deleted its own')
   assert.equal(nextLive.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its thread')
   await next.end()
   const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })

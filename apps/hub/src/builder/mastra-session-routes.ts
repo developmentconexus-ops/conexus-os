@@ -29,7 +29,7 @@ const SESSIONS_PATH = '/agent-controller/:controllerId/sessions'
 const SESSION_BASE = `${SESSIONS_PATH}/:resourceId`
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const PROJECT_RESOURCE = new RegExp(`^project:(${UUID})$`)
-const RUN_SCOPE = new RegExp(`^builder:${UUID}$`)
+const RUN_SCOPE = new RegExp(`^builder:(${UUID})$`)
 const CONVERSATION_SCOPE = new RegExp(`^conversation:(${UUID})$`)
 
 // The run owns every turn: its session exists before its checkout is pinned and its policy set, and
@@ -64,7 +64,8 @@ const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/mo
 // and the third literal grants the tool's whole category for the rest of the session, so it is a
 // policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
-const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), sessionRoute('POST', '/tool-suspension')]
+const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
+const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), TOOL_SUSPENSION_KEY]
 const POLICY_CHANGING_DECISION = 'always_allow_category'
 const carriesPolicyChangingAnswer = (value: unknown): boolean => {
   if (typeof value === 'string') return value === POLICY_CHANGING_DECISION
@@ -194,6 +195,8 @@ type GuardedMount = Readonly<{
   projectBusy(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
   /** The live run's context, which every request the mount serves that run's session carries. */
   runContext(scope: string): ((requestContext: RequestContext) => void) | undefined
+  /** The person's answer to the call the conversation's parked run waits on; resumes the run. A second answer to the same call changes nothing. */
+  answerParked(input: Readonly<{ accountId: string; projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): Promise<void>
   toolPayloads?: ToolPayloadProjection
 }>
 
@@ -269,7 +272,22 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // Mastra's session routes get-or-create, so the Hub decides which session a request reaches
       // before Mastra does: the session the Hub runs a conversation's turns in (builder:<id>), which
       // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
-      if (sessionScope !== undefined && RUN_SCOPE.test(sessionScope)) {
+      const runConversation = sessionScope === undefined ? undefined : RUN_SCOPE.exec(sessionScope)?.[1]
+      if (runConversation !== undefined) {
+        // A run waiting on the person holds no session, so its answer is not Mastra's to take: the
+        // Hub resumes the run from the answer, whenever it comes and whichever process asked.
+        if (key === TOOL_SUSPENSION_KEY) {
+          const answer = typeof body === 'object' && body !== null ? body : {}
+          if (typeof answer.toolCallId !== 'string' || answer.toolCallId.length === 0 || answer.toolCallId.length > 200 || !('resumeData' in answer)) {
+            return sendProblem(reply, 400, 'tool-answer-refused', 'An answer names its call and carries its data')
+          }
+          try {
+            await mount.answerParked({ accountId, projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
+          } catch {
+            return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
+          }
+          return reply.send({ ok: true })
+        }
         if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
           return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
@@ -322,7 +340,7 @@ const bindConversationSession = async (controller: AgentController, sessions: Co
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerParked, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
@@ -333,12 +351,13 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
   runContext: GuardedMount['runContext']
+  answerParked: GuardedMount['answerParked']
   /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
   toolPayloads?: ToolPayloadProjection
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext,
+  mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerParked,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,
