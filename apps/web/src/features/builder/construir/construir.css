@@ -96,6 +96,8 @@
 .cx-messages .builder-turn-user-row { display: grid; justify-items: end; gap: .2rem; }
 .cx-messages .builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: 14px 14px 4px 14px; background: var(--cx-surface-3); }
 .cx-messages .builder-turn-time { color: var(--cx-text-2); font: 400 .6875rem/1 var(--cx-font-mono); }
+.cx-messages .builder-turn-unsent { color: var(--cx-danger); font: 500 .6875rem/1 var(--cx-font-body); }
+.cx-messages .builder-turn-status { margin: 0; }
 .cx-messages > * { display: grid; gap: 1rem; }
 .cx-messages .builder-turn-assistant { gap: .5rem; }
 .cx-messages .builder-turn-head { display: flex; align-items: center; gap: .4rem; }

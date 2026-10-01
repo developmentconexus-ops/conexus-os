@@ -1,4 +1,5 @@
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
+import { Notice } from '@mastra/playground-ui/components/Notice'
 import { ScrollArea } from '@mastra/playground-ui/components/ScrollArea'
 import { Shimmer } from '@mastra/playground-ui/components/Shimmer'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
@@ -128,10 +129,19 @@ const messageTime = (message: MastraDBMessage): number => {
   return Number.isNaN(at) ? 0 : at
 }
 
-function UserBubble({ text, at }: Readonly<{ text: string; at: number | null }>) {
+// A message this page sent that never reached the Hub keeps its place and its words, marked unsent.
+function UserBubble({ text, at, unsent = false }: Readonly<{ text: string; at: number | null; unsent?: boolean }>) {
   return <div className="builder-turn builder-turn-user-row">
     <div className="builder-turn builder-turn-user"><MarkdownRenderer>{text}</MarkdownRenderer></div>
-    {at !== null && <span className="builder-turn-time">{clockLabel(new Date(at).toISOString())}</span>}
+    {unsent ? <span className="builder-turn-unsent">Não enviado</span>
+      : at !== null && <span className="builder-turn-time">{clockLabel(new Date(at).toISOString())}</span>}
+  </div>
+}
+
+// What the thread says about the model in Conexus's words: a retry going on, or the model stopping.
+function TurnNotice({ level, text }: Readonly<{ level: 'info' | 'error'; text: string }>) {
+  return <div className="builder-turn-status" role={level === 'error' ? 'alert' : 'status'}>
+    <Notice variant={level === 'error' ? 'destructive' : 'info'}><Notice.Message>{text}</Notice.Message></Notice>
   </div>
 }
 
@@ -193,10 +203,12 @@ function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | nul
   </div>
 }
 
+type MessageEntry = Extract<TranscriptEntry, { kind: 'message' }>
+
 // One flat sequence of pieces, built once from the transcript and the orphan requests in order, so a
 // run of tool calls groups across whatever message ids the controller split it into.
 type Piece =
-  | Readonly<{ kind: 'user'; key: string; text: string; at: number | null }>
+  | Readonly<{ kind: 'user'; key: string; text: string; at: number | null; unsent: boolean }>
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
   | Readonly<{ kind: 'notice'; key: string; text: string }>
   | Readonly<{ kind: 'status'; key: string; level: 'info' | 'error'; text: string }>
@@ -207,10 +219,11 @@ type Piece =
   | Readonly<{ kind: 'thought'; key: string; text: string }>
   | Readonly<{ kind: 'error'; key: string; text: string }>
 
-const flattenMessage = (message: MastraDBMessage, key: string, streaming: boolean, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
+const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
+  const key = entry.id
   if (isUserAuthored(message)) {
     const text = userText(message)
-    return text ? [{ kind: 'user', key, text, at: messageTime(message) || null }] : []
+    return text ? [{ kind: 'user', key, text, at: messageTime(message) || null, unsent: entry.delivery === 'failed' }] : []
   }
   if (isNotice(message)) {
     const text = userText(message)
@@ -255,17 +268,11 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
     turnBuffer = []
   }
   for (const piece of pieces) {
-    if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} />); continue }
+    if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} unsent={piece.unsent} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
     if (piece.kind === 'notice') { flushTurn(); out.push(<p key={piece.key} className="builder-turn-reason builder-turn-notice" role="note">{piece.text}</p>); continue }
     if (piece.kind === 'prompt') { flushTurn(); out.push(<div key={piece.key}>{renderPrompt(piece.prompt)}</div>); continue }
-    if (piece.kind === 'status') {
-      flushTurn()
-      out.push(piece.level === 'error'
-        ? <p key={piece.key} className="builder-turn-error" role="alert">{piece.text}</p>
-        : <p key={piece.key} className="builder-turn-reason" role="status">{piece.text}</p>)
-      continue
-    }
+    if (piece.kind === 'status') { flushTurn(); out.push(<TurnNotice key={piece.key} level={piece.level} text={piece.text} />); continue }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
     if (piece.kind === 'tool' && !UNGROUPED_TOOL_NAMES.has(piece.part.toolInvocation.toolName)) { toolBuffer.push(piece.part); continue }
     flushTools()
@@ -278,8 +285,6 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
   flushTurn()
   return out
 }
-
-type MessageEntry = Extract<TranscriptEntry, { kind: 'message' }>
 
 export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
   entries: readonly TranscriptEntry[]
@@ -321,7 +326,7 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
     }
     const message = merged.get(entry.id) ?? entry.message
     requestsBefore(messageTime(message))
-    const flat = flattenMessage(message, entry.id, working && entry.streaming === true, reason, parked)
+    const flat = flattenMessage(entry, message, working && entry.streaming === true, reason, parked)
     for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true
     pieces.push(...flat)
   }

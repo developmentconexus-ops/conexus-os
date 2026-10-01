@@ -600,11 +600,17 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  const user = page.locator('.cx-messages .builder-turn-user-row')
+  await user.getByText('Não enviado', { exact: true }).waitFor()
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the unsent message keeps its place and its words')
+  assert.equal(await messageBox(page).inputValue(), 'Crie um contador', 'the words go back to the composer')
   const retry = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByRole('button', { name: 'Enviar' }).click()
   await retry
   assert.equal(keys.length, 2)
   assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
+  await user.getByText('Não enviado', { exact: true }).waitFor({ state: 'detached' })
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the resend is the same message, not a second one')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
@@ -1425,6 +1431,12 @@ test('a model call the controller is retrying reads as a retry in progress, not 
   await recovered.locator('.cx-messages').getByText('Voltei.', { exact: true }).waitFor()
   assert.equal(await recovered.getByText('Tentando de novo', { exact: false }).count(), 0)
   assert.equal(await recovered.getByRole('alert').count(), 0)
+})
+
+test("a model error the controller gives up on is a notice in Conexus's words, never the provider's", async (t) => {
+  const page = await openLiveTurn(t, [{ type: 'error', error: { message: 'sandbox sbx-42: upstream 500 at frame 7' }, retryable: false }])
+  await page.getByRole('alert').getByText('O modelo parou com um erro. Seu pedido continua nesta conversa.', { exact: true }).waitFor()
+  assert.equal(await page.getByText('sbx-42', { exact: false }).count(), 0)
 })
 
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }

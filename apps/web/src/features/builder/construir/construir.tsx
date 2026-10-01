@@ -166,27 +166,38 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // A send whose outcome is unknown keeps its key, so an identical retry lands on the run the first
   // attempt may have created; a clean refusal took no effect and its key is dropped.
   const retainedKey = useRef<Readonly<{ key: string; content: string }> | null>(null)
+  // The message of the last send that failed, shown unsent until the person sends again.
+  const unsent = useRef<string | null>(null)
   const send = useMutation({
-    mutationFn: async (content: string) => {
-      const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
-      retainedKey.current = { key, content }
-      return { accepted: await sendBuilderMessage(projectId, conversationId, content, key), key }
-    },
-    onSuccess: async ({ accepted, key }, content) => {
+    mutationFn: ({ content, key }: Readonly<{ content: string; key: string }>) => sendBuilderMessage(projectId, conversationId, content, key),
+    onSuccess: async (accepted, { key }) => {
       retainedKey.current = null
+      unsent.current = null
       setSendError(null)
-      setDraft((current) => current === content ? '' : current)
-      dispatch({ type: 'localUser', id: localMessageId(key), text: content })
       setLocalSend({ runId: accepted.builderRun.builderRunId, localId: localMessageId(key) })
       await queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] })
     },
-    onError: (error) => {
+    onError: (error, { content, key }) => {
+      dispatch({ type: 'failLocalUser', id: localMessageId(key) })
+      unsent.current = localMessageId(key)
+      // The words go back to the composer, so sending again is one click.
+      setDraft((current) => current === '' ? content : current)
       if (!(error instanceof BuilderRequestError && error.status === null)) retainedKey.current = null
       if (error instanceof BuilderRequestError && error.status === 409) setSendError('O Project está ocupado ou recebeu outra alteração. Aguarde e envie de novo.')
       else if (error instanceof BuilderRequestError && error.status === 403) setSendError('Você não tem permissão para construir neste Project.')
       else setSendError('Não foi possível enviar o pedido. Tente de novo.')
     },
   })
+  // The message joins the thread the moment it is sent; the thread confirms it once the Hub has it.
+  const sendMessage = (content: string): void => {
+    const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
+    retainedKey.current = { key, content }
+    if (unsent.current && unsent.current !== localMessageId(key)) dispatch({ type: 'dropLocalUser', id: unsent.current })
+    unsent.current = null
+    dispatch({ type: 'localUser', id: localMessageId(key), text: content })
+    setDraft((current) => current === content ? '' : current)
+    send.mutate({ content, key })
+  }
   const cancel = useMutation({
     mutationFn: () => runHere ? cancelBuilderRun(projectId, runHere.builderRunId) : Promise.reject(new Error('BUILDER_RUN_NOT_READY')),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }),
@@ -347,7 +358,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}
-          onSend={(text) => send.mutate(text)}
+          onSend={sendMessage}
           onStop={() => { if (!cancel.isPending) cancel.mutate() }}
           onNewConversation={newConversation}
           mode={composerMode}
