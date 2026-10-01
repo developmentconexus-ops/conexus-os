@@ -19,11 +19,12 @@ export const createConversations = (memory: () => Promise<MemoryStorage>) => {
       return thread.resourceId === projectResourceId(projectId) ? 'PROJECT' : 'OTHER'
     },
 
-    /** Deletes every conversation of a Project, with their messages; repeating it converges. */
-    deleteAll: async (projectId: string): Promise<void> => {
+    /** Deletes every conversation of a Project, with their messages, and answers their ids; repeating it converges. */
+    deleteAll: async (projectId: string): Promise<readonly string[]> => {
       const store = await memory()
       const { threads } = await store.listThreads({ filter: { resourceId: projectResourceId(projectId) }, perPage: false })
       for (const thread of threads) await store.deleteThread({ threadId: thread.id })
+      return threads.map((thread) => thread.id)
     },
   })
 }

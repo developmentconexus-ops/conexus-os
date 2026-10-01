@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
+import type { ConversationSessions } from './conversation-sessions.js'
 
 type ServerRoute = typeof SERVER_ROUTES[number]
 
@@ -109,6 +110,8 @@ type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
 type GuardedMount = Readonly<{
   mastra: Mastra
   controller: AgentController
+  /** Who deletes a conversation's session once the browser stops using it. */
+  sessions: ConversationSessions
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
@@ -185,6 +188,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         const conversationId = sessionScope === undefined ? undefined : CONVERSATION_SCOPE.exec(sessionScope)?.[1]
         if (!conversationId || opened.threadId !== conversationId) return sendProblem(reply, 400, 'conversation-session-refused', 'A conversation session opens on its own thread')
         if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
+        mount.sessions.touch(resource, conversationId)
         admitted.set(request, { accountId, scope: sessionScope })
         return undefined
       }
@@ -203,7 +207,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) {
           return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
         }
-        await bindConversationSession(mount.controller, resource, sessionScope as string, conversationId)
+        await bindConversationSession(mount.controller, mount.sessions, resource, conversationId)
       }
       admitted.set(request, { accountId, scope: sessionScope })
       return undefined
@@ -230,8 +234,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 // request, so the model a run changed on the thread is what the browser sees and changes.
 // Its observational-memory progress is read again too: only a run's own session observes, so the
 // conversation's session learns what that run stored from Mastra's own record.
-const bindConversationSession = async (controller: AgentController, resourceId: string, scope: string, conversationId: string): Promise<BuilderSession> => {
-  const session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext: new RequestContext() })
+const bindConversationSession = async (controller: AgentController, sessions: ConversationSessions, resourceId: string, conversationId: string): Promise<BuilderSession> => {
+  const session = await sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
   await session.thread.loadMetadata()
   await controller.loadOMProgress(session)
   return session
@@ -242,10 +246,11 @@ const bindConversationSession = async (controller: AgentController, resourceId: 
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, toolPayloads }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
+  sessions: ConversationSessions
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   admitProject: GuardedMount['admitProject']
@@ -255,7 +260,7 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
   toolPayloads?: ToolPayloadProjection
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext,
+  mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext,
   ...(toolPayloads ? { toolPayloads } : {}),
   prefix: BUILDER_PREFIX,
   routes: BROWSER_ROUTES,

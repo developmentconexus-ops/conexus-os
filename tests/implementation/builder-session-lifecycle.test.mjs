@@ -3,16 +3,19 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { RequestContext } from '@mastra/core/request-context'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
+const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const projectId = '22222222-2222-4222-8222-222222222222'
 const resourceId = `project:${projectId}`
 const conversation = (n) => `44444444-4444-4444-8444-44444444444${n}`
@@ -82,4 +85,42 @@ test('releasing twice, or after the session is already gone, is not an error', a
   await controller.deleteSession({ resourceId, scope: `builder:${conversation(1)}` })
   await second.release()
   assert.equal(await live(conversation(1)), undefined)
+})
+
+test("a Project's deletion deletes both sessions of each of its conversations and no other Project's, and closing deletes the conversation sessions in use", async (t) => {
+  const { controller, open } = await runner(t)
+  const sessions = createConversationSessions({ controller, sweepEveryMs: 3_600_000 })
+  t.after(() => sessions.close())
+  const other = 'project:55555555-5555-4555-8555-555555555555'
+  const holds = async () => {
+    const found = []
+    for (const [resource, scope] of [[resourceId, `conversation:${conversation(1)}`], [resourceId, `builder:${conversation(1)}`], [resourceId, `conversation:${conversation(2)}`], [other, `conversation:${conversation(3)}`]]) {
+      if (await controller.getSessionByResource(resource, scope)) found.push(`${resource === other ? 'other' : 'project'}/${scope.split(':')[0]}/${scope.at(-1)}`)
+    }
+    return found
+  }
+  await sessions.open({ resourceId, conversationId: conversation(1), requestContext: new RequestContext() })
+  await sessions.open({ resourceId, conversationId: conversation(2), requestContext: new RequestContext() })
+  await sessions.open({ resourceId: other, conversationId: conversation(3), requestContext: new RequestContext() })
+  await open(conversation(1), runId(1))
+  assert.deepEqual(await holds(), ['project/conversation/1', 'project/builder/1', 'project/conversation/2', 'other/conversation/3'])
+  await sessions.drop(resourceId, [conversation(1), conversation(2)])
+  assert.deepEqual(await holds(), ['other/conversation/3'])
+  await sessions.close()
+  assert.deepEqual(await holds(), [])
+})
+
+test("the idle sweep deletes a conversation's session after the limit and never a run's own session, which a run may keep open longer", async (t) => {
+  const { controller, open, live } = await runner(t)
+  const clock = { now: 0 }
+  const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
+  t.after(() => sessions.close())
+  const IDLE = CONVERSATION_SESSION_IDLE_MS
+  await sessions.open({ resourceId, conversationId: conversation(1), requestContext: new RequestContext() })
+  const run = await open(conversation(1), runId(1))
+  clock.now += 2 * IDLE
+  await sessions.sweep()
+  assert.equal(await controller.getSessionByResource(resourceId, `conversation:${conversation(1)}`), undefined)
+  assert.notEqual(await live(conversation(1)), undefined, 'the run still holds its own')
+  await run.release()
 })

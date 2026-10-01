@@ -14,6 +14,7 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
+const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
 const { createModelRouting, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } = await import(built('builder/model-routing.js'))
 
@@ -152,7 +153,7 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, origin,
+        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
         resolveCurrentSession: async () => ({ account: { accountId: ana, displayName: 'Ana' }, issuer: 'https://issuer.test', subject: 'ana' }),
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
