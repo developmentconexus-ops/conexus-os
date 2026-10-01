@@ -31,12 +31,21 @@ trap cleanup EXIT
 
 while read -r sha bytes name; do
   case "$sha" in '#'*|rows) continue ;; esac
+  if [ ! -f "$backup/$name" ]; then
+    failures+=("missing file $name")
+    continue
+  fi
   actual="$(sha256sum "$backup/$name" | cut -d' ' -f1)"
   [ "$actual" = "$sha" ] || failures+=("checksum differs for $name")
 done < "$backup/manifest.txt"
 
-port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')"
-docker run --rm -d --name "$scratch_name" -e POSTGRES_PASSWORD=scratch -p "127.0.0.1:$port:5432" postgres:17.10-bookworm >/dev/null
+if [ ${#failures[@]} -gt 0 ]; then
+  echo "FAIL"
+  printf '%s\n' "${failures[@]}"
+  exit 1
+fi
+
+docker run --rm -d --name "$scratch_name" -e POSTGRES_PASSWORD=scratch postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$scratch_name" pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1 && break
   sleep 1

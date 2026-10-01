@@ -3,6 +3,7 @@
 # Read-only against the database. The dump and the per-table row counts in manifest.txt
 # share one exported snapshot, so they describe the same point in time.
 set -euo pipefail
+umask 077
 
 usage() {
   echo "usage: conexus-backup.sh --container NAME --database NAME --git-root DIR --out-root DIR [--user postgres] [--password-file FILE]" >&2
