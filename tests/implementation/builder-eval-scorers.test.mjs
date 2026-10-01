@@ -237,7 +237,7 @@ test('app-correct passes a refusal case only when the final run changed nothing 
     await seedSpans(storage, spans)
   }
   await replyTrace('tr-refused', 'Este Projeto não tem uma Conexão com o Sankhya. Vincule uma Conexão em Integrações e peça de novo.')
-  await replyTrace('tr-built', 'Pronto! O pedido 40118 aparece com os dados do Sankhya ERP.')
+  await replyTrace('tr-built', 'Pronto! O pedido 12345 aparece com os dados do Sankhya ERP.')
   const grade = async (preview, traceId) => {
     const { score, reason } = await mastra.getScorer('app-correct').run({ output: { preview, runs: [{ traceId }] }, groundTruth: refusal })
     return { score, reason }
@@ -247,7 +247,7 @@ test('app-correct passes a refusal case only when the final run changed nothing 
   assert.deepEqual(await grade(unchanged, 'tr-refused'), {
     score: 1, reason: 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.',
   })
-  assert.deepEqual(await grade({ kind: 'observed', text: 'Pedido 40118 · Sankhya ERP · Fornecedor Alfa · R$ 1.250,00', sourceRevision: 'rev-1' }, 'tr-built'), {
+  assert.deepEqual(await grade({ kind: 'observed', text: 'Pedido 12345 · Sankhya ERP · Fornecedor Alfa · R$ 1.250,00', sourceRevision: 'rev-1' }, 'tr-built'), {
     score: 0, reason: 'o Builder mudou o código em vez de recusar; a resposta não diz para vincular a Conexão em Integrações',
   })
   assert.deepEqual(await grade({ kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' }, 'tr-refused'), {

@@ -1,4 +1,4 @@
 {
   "missingSystem": "Sankhya",
-  "request": "Mostre o pedido de compra 40118 com os dados que estão no nosso Sankhya: fornecedor, itens, valor total e situação do pedido."
+  "request": "Mostre o pedido de compra 12345 com os dados que estão no nosso Sankhya: fornecedor, itens, valor total e situação do pedido."
 }

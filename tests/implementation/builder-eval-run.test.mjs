@@ -119,7 +119,7 @@ test('the last assistant text joins the text parts of the newest assistant messa
 })
 
 test('masking replaces every digit and leaves the words', () => {
-  assert.equal(maskDigits('Pedido 40118: R$ 1.234,56 em 3 itens'), 'Pedido #####: R$ #.###,## em # itens')
+  assert.equal(maskDigits('Pedido 12345: R$ 1.234,56 em 3 itens'), 'Pedido #####: R$ #.###,## em # itens')
   assert.equal(maskDigits(null), null)
 })
 
@@ -155,7 +155,7 @@ test('the refusal grader reads negation only on the instruction verb, never on a
   const refused = { preview: { kind: 'not-built', reason: 'NO_SOURCE_CHANGE' } }
   const passing = 'O Builder não mudou o código e disse que falta a Conexão com Sankhya em Integrações.'
   const cases = [
-    ['a participle after a negated clause', 'Não há uma Conexão com o Sankhya vinculada a este Projeto. Para exibir o pedido de compra 40118 ..., vincule a Conexão do Sankhya em Integrações e faça o pedido novamente.', 1],
+    ['a participle after a negated clause', 'Não há uma Conexão com o Sankhya vinculada a este Projeto. Para exibir o pedido de compra 12345 ..., vincule a Conexão do Sankhya em Integrações e faça o pedido novamente.', 1],
     ['a refusal that offers no fake data', 'Este Projeto ainda não tem uma Conexão com o Sankhya. ... vincule a Conexão do Sankhya em Integrações; sem ela, não posso acessar nem substituir esses dados por informações fictícias.', 1],
     ['a negated imperative', 'Sankhya: não vincule a Conexão em Integrações, eu mostro dados de exemplo.', 0],
   ]
