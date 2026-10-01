@@ -4,6 +4,8 @@
 // stays about orchestrating the Hub and the browser, not about interpreting JSON.
 import { expect } from '@playwright/test'
 
+import { ADJUST_LABEL, PLAN_EXPECTATIONS } from './flow.mjs'
+
 const ACTIONS = new Set(['fill', 'click', 'expectText', 'expectNoText'])
 const TEXT_ACTIONS = new Set(['expectText', 'expectNoText'])
 
@@ -26,11 +28,22 @@ export function parseCase(raw) {
   if (typeof raw !== 'object' || raw === null) fail('case must be a JSON object')
   if (typeof raw.request !== 'string' || !raw.request.trim()) fail('case.request must be a non-empty string')
   if (!Array.isArray(raw.checks)) fail('case.checks must be an array')
+  if (raw.plan !== undefined && !PLAN_EXPECTATIONS.includes(raw.plan)) fail(`case.plan must be one of ${PLAN_EXPECTATIONS.join(', ')}, got ${JSON.stringify(raw.plan)}`)
   return {
     request: raw.request.trim(),
     checks: raw.checks.map(validateStep),
     reload: raw.reload === true,
+    plan: raw.plan ?? null,
+    adjust: parseApproval(raw.approval),
   }
+}
+
+/** The case's `approval` key: absent (approve), or `{ "answer": "Pedir ajustes", "change": "<free text>" }` (ask for one change, then approve). @returns {string | null} the change text */
+function parseApproval(raw) {
+  if (raw === undefined) return null
+  if (typeof raw !== 'object' || raw === null || raw.answer !== ADJUST_LABEL) fail(`case.approval.answer must be "${ADJUST_LABEL}"`)
+  if (typeof raw.change !== 'string' || !raw.change.trim()) fail('case.approval.change must be the non-empty free text of the change')
+  return raw.change.trim()
 }
 
 const STEP_TIMEOUT_MS = 15_000
