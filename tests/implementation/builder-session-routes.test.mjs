@@ -76,7 +76,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, controller, conversations, reachedContexts }
+  return { app, controller, conversations, memory, reachedContexts }
 }
 
 const authentic = {
@@ -266,12 +266,12 @@ test("the reasoning level write admits each of Mastra Code's six levels", async 
 })
 
 test("deleting a Project's conversations removes its threads and their messages, leaves another Project's, and repeating it converges", async (t) => {
-  const { app, controller, conversations } = await createBuilderApp(t)
+  const { app, controller, conversations, memory } = await createBuilderApp(t)
   const elsewhere = randomUUID()
   await controller.createSession({ resourceId: `project:${projectB}`, scope: `conversation:${elsewhere}`, threadId: elsewhere })
   const second = randomUUID()
   assert.equal((await openConversation(app, projectA, second)).statusCode, 200)
-  await conversations.appendMessage({ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } })
+  await memory.saveMessages({ messages: [{ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } }] })
   await conversations.deleteAll(projectA)
   await conversations.deleteAll(projectA)
   assert.deepEqual(await listConversations(app), [])

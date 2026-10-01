@@ -1,4 +1,3 @@
-import type { MastraDBMessage } from '@mastra/core/agent'
 import type { MemoryStorage } from '@mastra/core/storage'
 
 /**
@@ -22,11 +21,6 @@ export const createConversations = (memory: () => Promise<MemoryStorage>) => {
       const thread = await (await memory()).getThreadById({ threadId: conversationId })
       if (!thread) return 'NONE'
       return thread.resourceId === projectResourceId(projectId) ? 'PROJECT' : 'OTHER'
-    },
-
-    /** Writes one message into a conversation, keyed by its id so a retry writes it once. */
-    appendMessage: async (message: MastraDBMessage): Promise<void> => {
-      await (await memory()).saveMessages({ messages: [message] })
     },
 
     /** Deletes every conversation of a Project, with their messages; repeating it converges. */
