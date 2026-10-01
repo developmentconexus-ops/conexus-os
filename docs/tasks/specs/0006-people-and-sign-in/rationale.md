@@ -79,8 +79,8 @@ credential than these roles give.
 - A role bypasses admin permissions v2, so this cannot be narrowed later without removing the roles.
 
 Admin permissions v2 is supported and on by default in the pinned 26.7.2, so Option 2 takes its
-narrower authority now at the cost of four permission objects that `configure-realm.sh` converges and
-the probe checks. Narrowing further, to the users Conexus created, stays later work.
+narrower authority now at the cost of four permission objects that `apply keycloak` (0008) converges
+and the probe checks. Narrowing further, to the users Conexus created, stays later work.
 
 Also rejected: SCIM or Entra provisioning into Keycloak (needs 26.8, and makes Entra the source of
 people, against D3); Keycloak's default first broker login (it creates a user on any first Microsoft

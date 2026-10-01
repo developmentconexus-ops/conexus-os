@@ -6,7 +6,9 @@
 `boot` stubs); the `conexus-server` Builder skill. The records it reopens are listed under
 *Follow-up* and need the operator's approval before this spec is Accepted.
 **Depends on**: [0006](../0006-people-and-sign-in/index.md), which creates every account this spec
-maps (internal and external people) and the `iam.access_event` table.
+maps (internal and external people) and the `iam.access_event` table; and
+[0008](../0008-configuration-model/index.md) slice 1, which lands first and leaves the session
+functions this spec rewrites with the `p_absolute` parameter (0008 AC-16).
 
 ## Summary
 
@@ -36,7 +38,8 @@ the Preview as any perfil.
 
 **Out of scope** (named so nobody builds them here): creating, disabling and inviting people, and
 Microsoft sign-in ([0006](../0006-people-and-sign-in/index.md)); Entra group to cargo sync (later,
-only on a real need); personal versus installation settings; row scoping of `connectors.fetch` (a stated limit,
+only on a real need); personal versus installation settings, which
+[0008](../0008-configuration-model/index.md) owns; row scoping of `connectors.fetch` (a stated limit,
 see *Security model*); an environment axis that separates Preview data from live data.
 
 **Acceptance criteria** (each is checked on its own; the proof is named in brackets: a suite under
@@ -76,7 +79,10 @@ The door and the principal
   ends at the next request, as today. [`application-perfis-postgres`, `application-host`]
 - **AC-9**: `iam.resolve_application_session` returns the account, the served revision and its
   perfis from that one call. The app host invokes and serves files of that revision, never of a
-  second `served` read. [`application-host`]
+  second `served` read. This spec's rewrite of `resolve_application_session` and `redeem_handoff`
+  starts from the functions 0008's slice 1 leaves: the application session's absolute end stays the
+  `p_absolute` parameter, which handoff redemption sets from `identity.session.max` (0008 AC-16,
+  AC-17), and no literal `interval '8 hours'` comes back. [`application-host`]
 - **AC-10**: The Hub and the runner carry one `Principal` (`account { id, email, displayName }`,
   `perfis`). `platform/caller.ts` and `callerSchema` are deleted; `invokeBody` requires `principal`
   in place of `caller`. Hub and runner ship in one image. [`app-runner-http`, `application-invoker`]
@@ -314,9 +320,10 @@ clears it.
 (`0023_application_session.sql:341`) and the declared perfis through a definer
 `reg.declared_perfis(revision)`; `iam_owner` is granted both. `iam.has_application_access`
 (`0023_application_session.sql:31`) becomes `cardinality(perfis) > 0`. Its callers, each reviewed in
-the migration: `mint_application_handoff` (`0026_single_session.sql:270`), `redeem_handoff`
-(`0026:331`), `resolve_application_session` (`0026:376`, which also returns revision and perfis, so
-its `RETURNS TABLE` is dropped and recreated with its grants), `reg.read_served_application_file`
+the migration as 0008's slice 1 left them (session lengths as parameters, AC-9):
+`mint_application_handoff` (`0026_single_session.sql:270`), `redeem_handoff` (`0026:331`),
+`resolve_application_session` (`0026:376`, which also returns revision and perfis, so its
+`RETURNS TABLE` is dropped and recreated with its grants), `reg.read_served_application_file`
 (`0024_application_access_review.sql:265`), and `reg.get_served_application`
 (`0023:365`). `revoke_application_grant` (`0026:460`) is dropped; its session ending
 moves into `iam.unassign_perfil`. The app host route stops its second read at
@@ -385,7 +392,9 @@ The `conexus-server` skill teaches the method, not a rule list:
 - `0045_cargos_and_perfis.sql` (after 0006's `0044_people.sql`): the tables of *Data* except
   `iam.access_event` (`perfil_assignment` with `CHECK (num_nonnulls(cargo_id, account_id) +
   everyone::int = 1)`), the door, its callers, the screen functions and the drops of AC-6; no copy of
-  grants into a placeholder perfil. `0046`: the template pin, as `0042`. Then `npm run db:catalog:snapshot`. The `conexus` app schema is the runner's.
+  grants into a placeholder perfil. `0046`: the template pin, as `0042`. Then `npm run db:catalog:snapshot`.
+  Each migration takes the next free number at merge, after 0008's slice 1 migration, and reruns the
+  snapshot after the rebase. The `conexus` app schema is the runner's.
 
 ### Key invariants and security model
 
@@ -400,13 +409,23 @@ The `conexus-server` skill teaches the method, not a rule list:
   recorded in `iam.access_event`. Builder runs and view-as write into Preview data, which is the live
   data until an environment axis exists. Catalog row counts and unique or foreign key errors still
   reveal that rows exist, as today.
-- No Mastra RBAC or FGA: the guarded surface is the runner socket, not a Mastra route, and those
-  features need an Enterprise license.
+- `reg.artifact_access` is derived: written only from the manifest when the Hub admits an artifact
+  revision, with no human write path. Perfis and `allow` change by a commit to the app.
+- No Mastra RBAC or FGA (0008 decision 5). Both need Mastra's Enterprise licence in production: the
+  installed `@mastra/server` 1.71.0 throws at start when either is configured without a licence
+  outside development (`validateEELicense`,
+  `node_modules/@mastra/server/dist/server/server-adapter/index.js:923-942`). Both guard Mastra's own
+  resources (agents, workflows, tools, threads, Studio routes), not app operations or app rows: the
+  guarded surfaces here are the runner socket, the app host and the app database. Evidence: HQ study
+  `~/conexus-study/2026-10-01/mastra-auth/` (`mastra-surface.md`, `conexus-surfaces.md`) and 0008's
+  rationale, *Mastra RBAC and FGA*.
 
 ### Configuration required
 
-None. No new environment variables. The provisioning script gains one grant, run once per
-application cluster by the operator.
+None. No new environment variables and no setting
+([0008](../0008-configuration-model/index.md)): cargos and assignments are domain data, and the
+manifest is app code. The provisioning script gains one grant, run once per application cluster by
+the operator.
 
 ### Critical test scenarios
 
@@ -421,7 +440,7 @@ matrix (AC-26).
 
 ## Build plan
 
-0006 lands before slice 3. Slices 1 and 2 land first. Slices 3 to 6 are one release: they merge as one pull request and deploy
+0006 lands before slice 3, and 0008's slice 1 before slice 3's migration. Slices 1 and 2 land first. Slices 3 to 6 are one release: they merge as one pull request and deploy
 as one Hub and runner image (the door needs declared perfis and an Access tab to map them).
 
 1. Binding, inert: the provisioning grant, `ensureBindingSchema`, the four functions, the relay gate
