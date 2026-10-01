@@ -30,7 +30,7 @@ embedded doc page.
 | 4 | Creating a conversation | A for creation, B for visibility | Implemented; visibility waits on mastra-ai/mastra#24689 |
 | 5 | Conversation titles in Portuguese | B for the title Mastra writes, A for the one Conexus shows | Implemented |
 | 6a | Classifying model errors | A | Implemented |
-| 6b | Writing run diagnostics into a conversation | A, experimental API | Planned |
+| 6b | Writing run diagnostics into a conversation | A, experimental API | Implemented |
 | 7 | Mounting the Mastra Code agent controller | A, with four traps | Implemented |
 | 8 | Ending a turn that a processor stopped | B | Implemented; waits on U6 |
 | 9 | Keeping a run's sandbox alive | A, plus B for the timeout | Implemented; waits on U7 |
@@ -285,11 +285,11 @@ subscribers receive it as an event. Signals are marked experimental
 
 **Decision.** A.
 
-**Plan.** In its own change, because it changes what the person sees and needs a pilot check. The run
-that produced the note sends it with `sendSignalToThread` as a `notification` signal, persisted
-without waking the agent. The web conversation renders notification signals as run notes. The hand-built
-message and the storage write are deleted. Retries rely on the signal id. Until then, the storage write
-stays.
+**Plan, implemented.** The Hub sends each note with `sendSignalToThread` as a `notification` signal
+with `source="conexus"`, `outcome` and `run` attributes, and a deterministic signal id, so a retry
+writes it once. The signal persists without waking the agent, the next turn's model reads it as
+`<notification source="conexus" ...>`, and the web conversation renders a `notification` signal as a
+notice (`builder-turn-notice`) apart from the Builder's turn. The hand-built message is deleted.
 
 ## 7. Mounting the Mastra Code agent controller
 

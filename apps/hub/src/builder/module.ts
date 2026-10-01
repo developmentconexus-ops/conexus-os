@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { createHash } from 'node:crypto'
+import type { AgentController } from '@mastra/core/agent-controller'
 import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
@@ -135,15 +136,28 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
 
-const noteMessage = (note: RunNote) => ({
-  id: diagnosticMessageId(note.builderRunId, note.code), role: 'assistant' as const, createdAt: new Date(), threadId: note.conversationId,
-  resourceId: projectResourceId(note.projectId),
-  content: { format: 2 as const, parts: [{ type: 'text' as const, text: NOTE_TEXT[note.outcome](note) }] },
+type NoteSession = Pick<Awaited<ReturnType<AgentController['createSession']>>, 'sendSignalToThread'>
+
+/**
+ * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as
+ * 6b in docs/reference/mastra-boundary.md): the next turn's model reads it as
+ * `<notification source="conexus" ...>` context, and the thread stores it as a `signal` row the
+ * browser renders as a notice, never as the Builder speaking. Its id is deterministic, so a retry
+ * writes it once.
+ */
+const noteSignal = (note: RunNote) => ({
+  id: diagnosticMessageId(note.builderRunId, note.code),
+  type: 'notification' as const,
+  contents: NOTE_TEXT[note.outcome](note),
+  attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
 /** @public Tests import this at runtime from the built module. */
-export const createDiagnosticAppender = (conversations: Pick<ReturnType<typeof createConversations>, 'appendMessage'>) =>
-  (note: RunNote): Promise<void> => conversations.appendMessage(noteMessage(note))
+export const createDiagnosticAppender = (openSession: (target: Readonly<{ resourceId: string; threadId: string }>) => Promise<NoteSession>) =>
+  async (note: RunNote): Promise<void> => {
+    const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
+    await (await openSession(target)).sendSignalToThread(noteSignal(note), target).accepted
+  }
 
 /** @public Tests import this at runtime from the built module. */
 export const compactProcessorRunPayloads: SpanOutputProcessor = {
@@ -335,12 +349,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
+  const conversationSession = async (resourceId: string, conversationId: string) => {
+    await ready
+    return controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext() })
+  }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
   const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
-    await ready
-    const session = await controller.createSession({
-      resourceId: projectResourceId(projectId), scope: `conversation:${conversationId}`, threadId: conversationId, requestContext: new RequestContext(),
-    })
+    const session = await conversationSession(projectResourceId(projectId), conversationId)
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
@@ -370,7 +385,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     git,
     conversations,
     source: createProjectSourceReads({ git }),
-    appendDiagnostic: createDiagnosticAppender(conversations),
+    appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,

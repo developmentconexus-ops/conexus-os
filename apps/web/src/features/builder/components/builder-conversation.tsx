@@ -22,13 +22,17 @@ export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt
 type MessagePart = MastraDBMessage['content']['parts'][number]
 type ToolInvocationPart = Extract<MessagePart, { type: 'tool-invocation' }>
 
-const isUserAuthored = (message: MastraDBMessage): boolean => {
-  if (message.role === 'user') return true
-  if (message.role !== 'signal') return false
+const signalType = (message: MastraDBMessage): unknown => {
   const signal = message.content.metadata?.signal
-  const type = typeof signal === 'object' && signal !== null && 'type' in signal ? signal.type : undefined
-  return type === 'user' || type === 'user-message'
+  return message.role === 'signal' && typeof signal === 'object' && signal !== null && 'type' in signal ? signal.type : undefined
 }
+
+const isUserAuthored = (message: MastraDBMessage): boolean =>
+  message.role === 'user' || signalType(message) === 'user' || signalType(message) === 'user-message'
+
+// The Hub tells the thread what happened to a run with a Mastra `notification` signal. The model reads it
+// as context; the person reads it as a notice, never as something the Builder said.
+const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification'
 
 type CallState = 'running' | 'failed' | 'done'
 
@@ -200,6 +204,7 @@ function AssistantTurn({ model, children }: Readonly<{ model: BuilderModel | nul
 type Piece =
   | Readonly<{ kind: 'user'; key: string; text: string; at: number | null }>
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
+  | Readonly<{ kind: 'notice'; key: string; text: string }>
   | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
   | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
   | Readonly<{ kind: 'thinking'; key: string }>
@@ -209,6 +214,10 @@ const flattenMessage = (message: MastraDBMessage, streamingId: string | undefine
   if (isUserAuthored(message)) {
     const text = userText(message)
     return text ? [{ kind: 'user', key: message.id, text, at: messageTime(message) || null }] : []
+  }
+  if (isNotice(message)) {
+    const text = userText(message)
+    return text ? [{ kind: 'notice', key: message.id, text }] : []
   }
   if (message.role !== 'assistant') return []
   const parts = mergeCalls(message.content.parts)
@@ -252,6 +261,7 @@ function renderPieces(pieces: readonly Piece[], tools: LiveTurn['tools'], model:
   for (const piece of pieces) {
     if (piece.kind === 'user') { flushTurn(); out.push(<UserBubble key={piece.key} text={piece.text} at={piece.at} />); continue }
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
+    if (piece.kind === 'notice') { flushTurn(); out.push(<p key={piece.key} className="builder-turn-reason builder-turn-notice" role="note">{piece.text}</p>); continue }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
     if (piece.kind === 'tool' && !UNGROUPED_TOOL_NAMES.has(piece.part.toolInvocation.toolName)) { toolBuffer.push(piece.part); continue }
     flushTools()

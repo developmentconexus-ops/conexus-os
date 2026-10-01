@@ -718,6 +718,36 @@ test('a run that failed before the agent still shows the request and names why i
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
+test('a run notice the Hub signalled into the thread reads as a notice, apart from the Builder\'s own turn', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000081'
+  const projectId = '70000000-0000-4000-8000-000000000082'
+  const conversationId = 'conversation-run-notice'
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const notice = {
+    id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
+  }
+  const state = builderState([conversation(conversationId, 'Conversa')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Comecei pela lista.'), notice] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  const shown = page.locator('.cx-messages .builder-turn-notice')
+  await shown.waitFor()
+  assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
+  assert.equal(await shown.getAttribute('role'), 'note')
+  assert.deepEqual(await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body').allTextContents(), ['Comecei pela lista.'],
+    'the notice is not inside the Builder\'s turn')
+})
+
 test('an agent that spoke once and then works in silence still reads as working, with its elapsed time and a way to stop', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000071'
   const projectId = '70000000-0000-4000-8000-000000000072'
