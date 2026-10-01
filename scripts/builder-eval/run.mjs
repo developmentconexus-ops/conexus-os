@@ -319,7 +319,11 @@ export async function answerPendingCard(page, cards, answering = null) {
     let answer
     if (options.length > 0) {
       const labels = decision ? [decision.answer].flat() : [options[0].label]
-      for (const label of labels) await pick(label)
+      const isOption = (label) => options.some((option) => foldLabel(option.label) === foldLabel(label))
+      for (const label of labels.filter(isOption)) await pick(label)
+      // The person's own words, when they match no option, go in the card's free-text answer.
+      const own = labels.filter((label) => !isOption(label))
+      if (own.length > 0) await entry.locator('input[type=text], input:not([type]), textarea').first().fill(own.join('. '))
       answer = labels.join(', ')
     } else {
       answer = decision ? decision.answer : FALLBACK_ANSWER
