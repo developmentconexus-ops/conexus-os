@@ -83,8 +83,8 @@ test('the turn date is the date in America/Sao_Paulo, not in UTC', () => {
   assert.equal(turnDate(new Date('2026-09-30T12:00:00Z')), '2026-09-30')
 })
 
-test('AC-3: the five skills the prompt and the guard name all ship, and the prompt names only shipped ones', () => {
-  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app', 'conexus-build', 'conexus-plan', 'conexus-sankhya', 'conexus-server'])
+test('AC-3: the six skills the prompt and the guard name all ship, and the prompt names only shipped ones', () => {
+  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app', 'conexus-build', 'conexus-plan-change', 'conexus-plan-new', 'conexus-sankhya', 'conexus-server'])
   for (const name of BUILDER_SKILL_NAMES) assert.equal(existsSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md')), true, `${name} exists`)
   for (const [, name] of template.matchAll(/`(conexus-[a-z-]+)`/g)) if (name !== 'conexus-{integrator}') assert.equal(BUILDER_SKILL_NAMES.includes(name), true, `${name} is a shipped skill`)
 })
@@ -126,7 +126,7 @@ test('the real builder-skills path resolves from the repository root', () => {
   assert.equal(defaultBuilderSkillsRoot('/repo'), '/repo/builder-skills')
 })
 
-test('the Builder finds its five skills through its skill listing', async () => {
+test('the Builder finds its six skills through its skill listing', async () => {
   const controller = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore() })
   const agent = controller.getCurrentAgent(await controller.createSession({ resourceId: 'project:probe-skills', scope: 'probe-skills' }))
   const skills = await agent.listSkills({ requestContext: new RequestContext() })

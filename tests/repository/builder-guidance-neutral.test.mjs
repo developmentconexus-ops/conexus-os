@@ -60,7 +60,8 @@ const findLeaks = (files) =>
 test('the list of Builder texts covers the guide, the prompt, the skills, the starter and the tool descriptions', () => {
   for (const expected of [
     'builder-skills/conexus-sankhya/SKILL.md',
-    'builder-skills/conexus-plan/SKILL.md',
+    'builder-skills/conexus-plan-new/SKILL.md',
+    'builder-skills/conexus-plan-change/SKILL.md',
     'builder-skills/conexus-build/SKILL.md',
     'apps/hub/src/builder/handler-kit/sankhya.ts',
     'apps/hub/src/builder/harness/prompt/builder.md',

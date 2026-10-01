@@ -19,7 +19,7 @@ import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
 
 /** The skills the Builder loads, one folder each under the skills root. */
-export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app', 'conexus-plan', 'conexus-build', 'conexus-sankhya'] as const
+export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app', 'conexus-plan-new', 'conexus-plan-change', 'conexus-build', 'conexus-sankhya'] as const
 
 /** The Hub's own copy of the shared agent skills, `builder-skills/` at the repository root (AC-10). Mastra scans each subfolder holding a SKILL.md. */
 export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string => resolve(cwd, 'builder-skills')
