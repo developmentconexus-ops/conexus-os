@@ -86,7 +86,8 @@ and an idempotent reconciler converges the other system and reports drift (patte
 **Cons**:
 - We build and own a registry, three tables, a CLI and one reconciler per external system.
 - Drift in Keycloak is possible and must be watched, because the console still exists.
-- A reconciler needs a `master` realm credential on the installation host.
+- A reconciler needs a `master` realm credential on the installation host, and the role that writes
+  session values (`manage-realm`) is realm wide.
 
 ### Option 4: configuration as code in Git, applied by a pipeline
 
@@ -167,8 +168,9 @@ The principles that shaped the choices:
   `--entra-file`, the SQL literals, the redirect literal, two invitation constants and
   `model.installation_default` in the same slices that add the three tables.
 - **Laziness Protocol.** One `scope` value, two editors, no cache, no locks, no cascading scopes, no
-  feature flag system: each waits for a real second case. The CLI uses the database credential the
-  operator already holds.
+  feature flag system, and no generic `Reconciler<S>` or `Diff<S>` until a second reconciler
+  exists: each waits for a real second case. The CLI gets one new login role that can only call the
+  definer functions, not a new credential store.
 - **Model the Domain.** A registry of definitions replaces rules spread over `config.ts`, SQL and
   shell; `identity.source` is a union, so a brokered source without a tenant cannot be stored.
 - **Boundary Discipline.** Values are parsed at the boundary, on write and on read; derived Keycloak
@@ -186,18 +188,46 @@ Choices settled while writing, each with the runner-up:
   Keycloak's admin events. Runner-up: reuse the operator's admin, one credential less.
 - The drift alarm reaches Telegram through a Hub gauge read from `settings.enforcement`, so the
   check needs no telemetry of its own and the Hub needs no Keycloak read role. Runner-up: the CLI
-  posts to Telegram directly, a second alert path beside 0007.
+  posts to Telegram directly, a second alert path beside 0007. Slice 1 therefore delivers detection,
+  the log and `explain`, and no notice; a stopgap `curl` to the bot was rejected because it is a
+  second alert path that would only be deleted in slice 4.
 - `infra/pilot/settings-check.sh` is a loop beside `hub.sh` and `runner.sh`, the way the pilot
-  already runs processes. Runner-up: a systemd timer, which the WSL pilot may not run.
+  already runs processes. Runner-up: a systemd timer, which the WSL pilot may not run. A loop can
+  die silently, so a row older than 30 minutes counts as not in sync.
 - Keycloak's idle is the smaller of Hub idle plus 10 minutes and max, keeping today's 10 minute margin
   (40 against 30) and never above max. Runner-up: Keycloak idle equal to max.
 - The CLI lives in the Hub source so it imports the registry and ships with the Hub build.
   Runner-up: a script under `scripts/`, which cannot import the TypeScript registry.
+- The CLI connects as a new `settings_operator` role that can only call the definer functions, and
+  `settings.write` derives the channel from the calling role. Runner-up: the migration credential the
+  operator already holds, which can edit the tables directly and leaves AC-2 nothing to test.
+- The Hub session stores its idle length on the row when it opens, and each request slides by that
+  value. Runner-up: resolve `identity.session.idle` on every request, one more database read per
+  request and an open session that changes length mid-way.
+- An invalid row of a security setting fails closed. Runner-up: the registry default for every
+  setting, which for `identity.source` would turn `BROKERED` into `LOCAL` and open a password sign-in
+  path. For other settings the default stays, because a wrong default model is an inconvenience, not
+  an open door.
+- `conexus-settings` holds `manage-realm` and `view-realm`, stated as realm wide. No narrower
+  `realm-management` role writes realm session attributes (the slice 1 probe confirms it), so the
+  spec names the guards (admin events,
+  drift check, role-set check) instead of claiming least privilege. Runner-up: route routine applies
+  through the break-glass account, which hides emergencies among routine writes.
+- Slice 1 lands before 0005 rewrites the session functions, so 0005 starts from `p_absolute`.
+  Runner-up: 0005 first and 0008 edits its output, which makes 0008 depend on an unbuilt spec.
+  Migration numbers are taken at merge; the second pull request renumbers.
+- Slice 1 keeps the tracer bullet through every layer. Smaller alternative: keep `provision.sh` and
+  add one `kcadm update realms/conexus` call derived from the setting, with no CLI reconciler until
+  slice 3. It was not taken because drift detection, the role-set check and `explain` need the
+  observe half anyway. What the alternative gets right is kept: slice 1 writes three plain Keycloak
+  functions and no generic reconciler type.
 - The silent re-login for company people (decision 2) needs the Hub to send `kc_idp_hint`; 0006
   shows the Keycloak sign-in page, so without the hint the re-login is one click, not silent. Slice 3
   adds the hint for `INTERNAL` accounts of a brokered installation. Runner-up: Keycloak's identity
   provider redirector for the whole realm, which would also send outside people to the company's
-  provider.
+  provider. The account is unknown at the redirect, so the Hub sets a short-lived, non-secret
+  `conexus_last_kind` cookie when it ends an `INTERNAL` session. Runner-up: no hint in the first
+  release, which makes the re-login one click, not silent.
 
 ## References
 
@@ -325,9 +355,10 @@ image (AC-13, AC-14).
 ### Claims carried from the inputs that remain UNVERIFIED
 
 - SigNoz v0.144.0 sets retention through its API (slice 4 checks).
-- The smallest `conexus-realm` client role set in `master` that lets the reconciler write sessions,
-  then identity providers, SMTP and clients (slices 1 and 3 probe).
-- Keycloak applies a lowered SSO max to sessions already open (AC-22 records it).
+- Whether `manage-realm` and `view-realm` also cover identity providers, SMTP and clients (slice 3
+  probes). For slice 1 the set is chosen, and a probe shows `view-realm` alone cannot write sessions.
+- Keycloak applies a lowered SSO max to sessions already open (AC-22 records it, and the README
+  states what was seen).
 - Keycloak can hold a different session max per client or flow (follow-up test).
 - Silent re-login through the Hub with `kc_idp_hint` against the real Entra tenant (AC-27).
 - Camunda 8.7 keeps users in Keycloak or the company provider (search snippet only).
