@@ -31,5 +31,5 @@ In "Para construir":
 - Tabelas do app: what people save, with fields, links between tables, and change history when it matters.
 - Operações: each `conexus/` operation with its input, output, who may call it, and the source of each value it returns.
 - Regras e acesso: each business rule and where it applies; who sees what.
-- Verificações: for each thing the person asked, a check you can run that shows it works.
+- Verificações: for each thing the person asked, one check written as an example: where the person starts in the Prévia, what they do, and what they must see, naming the record by its shape (the first row of the list, a record just saved), never by its values; then the run that proves it. A check that only names an operation, or only says it works, is not a check.
 - Ordem: first one thin path end to end (one screen, one operation, one Conexão read, passing the check), then one slice at a time, each ending in a passing check.
