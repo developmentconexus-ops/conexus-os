@@ -1017,8 +1017,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   })
 })
 
-test('the installed Factory seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
+test('the Hub seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createFactorySecretEncryption } = await import(hubModuleUrl('platform/factory-secret-encryption.js'))
   const { client } = await applicationDatabase(t, 'envelope')
   const sealed = await createFactorySecretEncryption({ primary: { id: 'installation', key: Buffer.alloc(32, 7) } }).encrypt('a refresh token')
   const checks = (await client.query(`
@@ -1027,6 +1027,6 @@ test('the installed Factory seals in the envelope the database CHECK constraints
   assert.deepEqual(checks.map((check) => check.relation), ['connector.connection', 'iam.handoff', 'iam.host_session'])
   for (const { relation, definition } of checks) {
     const prefix = /'(mastra:factory-secret:[^%']*)%'/.exec(definition)?.[1]
-    assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Factory seals ${sealed.slice(0, 32)}…: reopen when the Factory changes its envelope`)
+    assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Hub seals ${sealed.slice(0, 32)}…`)
   }
 })

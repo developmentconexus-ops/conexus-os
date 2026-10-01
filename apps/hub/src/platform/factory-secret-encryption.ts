@@ -5,9 +5,7 @@
 // envelope prefix are unchanged byte for byte (spec 0002, Security model): every stored secret
 // carries `mastra:factory-secret:v1:`, five database CHECK constraints require it, and this
 // module's `parseEnvelope` still slices exactly that prefix's length. Only the file's home becomes
-// Conexus's. `platform/secrets.ts` is the only caller; `platform/secrets-envelope-interop.test.mjs`
-// is the only place the original package is still imported, to prove this copy and the package
-// open each other's output, and slice 7 deletes both when @mastra/factory is removed.
+// Conexus's. `platform/secrets.ts` is the only caller. The package itself is no longer installed.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 
 const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
