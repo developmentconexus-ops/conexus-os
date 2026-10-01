@@ -1,25 +1,15 @@
-import type { InputTokenDetails, OutputTokenDetails, UsageStats } from '@mastra/core/observability'
+import type { ScoreRowData } from '@mastra/core/evals'
+import { type InputTokenDetails, type OutputTokenDetails, SpanType, type UsageStats } from '@mastra/core/observability'
+import type { SpanRecord } from '@mastra/core/storage'
 import type { BuilderTraceScore, BuilderTraceSpan, BuilderTraceSummary, BuilderTraceUsage } from './routes.js'
 
-// A structural subset of Mastra's stored span/score records: independent of the SDK's exact
-// class hierarchy, so the mapping below is testable with plain objects.
-export type ObservabilitySpanRecord = Readonly<{
-  spanId: string
-  parentSpanId?: string | null | undefined
-  spanType: string
-  name: string
-  startedAt: Date
-  endedAt?: Date | null | undefined
-  error?: unknown
-  attributes?: Readonly<Record<string, unknown>> | null | undefined
-}>
-export type ObservabilityScoreRecord = Readonly<{ scorerId: string; score: number; reason?: string | null | undefined }>
+// The fields of Mastra's stored span and score records this summary reads, so a plain object with
+// those fields maps the same as a stored record.
+export type ObservabilitySpanRecord = Readonly<Pick<SpanRecord, 'spanId' | 'parentSpanId' | 'spanType' | 'name' | 'startedAt' | 'endedAt' | 'error' | 'attributes'>>
+export type ObservabilityScoreRecord = Readonly<Pick<ScoreRowData, 'scorerId' | 'score' | 'reason'>>
 
-// Mastra span-type strings (@mastra/core/observability SpanType). A model call is one
-// MODEL_GENERATION span; a tool call is one TOOL_CALL span. Client/provider/MCP tool spans are
-// their own distinct native mechanisms (docs-observability), not counted here.
-const MODEL_GENERATION_SPAN_TYPE = 'model_generation'
-const TOOL_CALL_SPAN_TYPE = 'tool_call'
+// A model call is one MODEL_GENERATION span; a tool call is one TOOL_CALL span. Client, provider
+// and MCP tool spans are their own native mechanisms (docs-observability), not counted here.
 
 const finiteOrNull = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 
@@ -56,7 +46,7 @@ const usageOf = (inputTokens: number | null, outputTokens: number | null, inputD
 
 /** Token usage recorded on a MODEL_GENERATION span's attributes, or null when absent or zero-value. */
 const spanUsage = (span: ObservabilitySpanRecord): BuilderTraceUsage | null => {
-  if (span.spanType !== MODEL_GENERATION_SPAN_TYPE) return null
+  if (span.spanType !== SpanType.MODEL_GENERATION) return null
   const usage = (span.attributes as Readonly<{ usage?: UsageStats }> | null | undefined)?.usage
   if (!usage) return null
   const inputTokens = finiteOrNull(usage.inputTokens)
@@ -66,7 +56,7 @@ const spanUsage = (span: ObservabilitySpanRecord): BuilderTraceUsage | null => {
 }
 
 const spanModel = (span: ObservabilitySpanRecord): string | null => {
-  if (span.spanType !== MODEL_GENERATION_SPAN_TYPE) return null
+  if (span.spanType !== SpanType.MODEL_GENERATION) return null
   const model = (span.attributes as Readonly<{ model?: unknown }> | null | undefined)?.model
   return typeof model === 'string' ? model : null
 }
@@ -122,8 +112,8 @@ export const buildTraceSummary = ({ traceId, spans, scores }: Readonly<{
   traceId,
   spans: Object.freeze(spans.map(summarizeSpan)),
   usage: summarizeRunUsage(spans),
-  modelCalls: spans.filter((span) => span.spanType === MODEL_GENERATION_SPAN_TYPE).length,
-  toolCalls: spans.filter((span) => span.spanType === TOOL_CALL_SPAN_TYPE).length,
+  modelCalls: spans.filter((span) => span.spanType === SpanType.MODEL_GENERATION).length,
+  toolCalls: spans.filter((span) => span.spanType === SpanType.TOOL_CALL).length,
   scores: Object.freeze(scores.map(summarizeScore)),
 })
 
