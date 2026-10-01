@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
+import { BUILDER_THINKING_LEVELS } from './harness/request-context.js'
 
 const BUILDER_PREFIX = '/api/builder'
 const CSRF_COOKIE = '__Host-conexus_csrf'
@@ -59,7 +60,7 @@ const carriesPolicyChangingAnswer = (value: unknown): boolean => {
 // The browser's only session-state write is its own reasoning level; yolo, notifications, and
 // smartEditing stay under the Hub's or the operator's own settings surface, never this route.
 const STATE_ROUTES: readonly string[] = [`PUT ${SESSION_BASE}/state`]
-const ALLOWED_THINKING_LEVELS: ReadonlySet<string> = new Set(['low', 'medium', 'high', 'xhigh'])
+const ALLOWED_THINKING_LEVELS: ReadonlySet<string> = new Set(BUILDER_THINKING_LEVELS)
 const isReasoningLevelOnlyState = (body: unknown): boolean => {
   if (typeof body !== 'object' || body === null) return false
   const bodyKeys = Object.keys(body as Readonly<Record<string, unknown>>)

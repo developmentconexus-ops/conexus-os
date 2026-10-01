@@ -229,15 +229,32 @@ const recordUpstream = (t) => {
 }
 const prompt = [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }]
 
-test('an Anthropic key pays through the model router with the caller\'s key, and the run records the row', async () => {
+// Records each request an Anthropic key model sends upstream, and refuses it.
+const recordKeyUpstream = (t) => {
+  const seen = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), apiKey: new Headers(init?.headers).get('x-api-key'), model: JSON.parse(init.body).model })
+    return new Response('upstream refused', { status: 418 })
+  }
+  t.after(() => { globalThis.fetch = original })
+  return seen
+}
+
+test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and the run records the row', async (t) => {
   const { store, rows, share } = fakeStore()
   await store.write(ana, 'anthropic', 'api_key', fakeKey)
+  const seen = recordKeyUpstream(t)
   const { call, recorded } = routingOver({ store })
-  assert.deepEqual(await call('run-1', ana, 'anthropic/claude-sonnet-5'), { id: 'anthropic/claude-sonnet-5', apiKey: fakeKey })
+  await assert.rejects((await call('run-1', ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
   assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:anthropic`).id]])
   await assert.rejects(call('run-2', bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
   share(ana, 'anthropic')
-  assert.deepEqual(await call('run-2', bia, 'anthropic/claude-haiku-4-5'), { id: 'anthropic/claude-haiku-4-5', apiKey: fakeKey })
+  await assert.rejects((await call('run-2', bia, 'anthropic/claude-haiku-4-5')).doStream({ prompt }))
+  assert.deepEqual(seen, [
+    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' },
+    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-haiku-4-5' },
+  ])
 })
 
 test('a Claude subscription pays with its bearer on the Messages endpoint, with the betas and identity message Mastra Code sends and no key header', async (t) => {

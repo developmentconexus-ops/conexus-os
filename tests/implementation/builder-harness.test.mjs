@@ -245,7 +245,7 @@ test('both kinds of Anthropic account get web search: Anthropic\'s own web_searc
   const key = await toolsOf({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` })
   const subscription = await toolsOf({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) })
   const anthropicSearch = { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} }
-  assert.deepEqual([key.resolved.id, key.tools.web_search], ['anthropic/claude-sonnet-5', anthropicSearch], 'Mastra maps webSearchTool for a router model id')
+  assert.deepEqual([key.resolved.provider, key.tools.web_search], ['anthropic.messages', anthropicSearch])
   assert.deepEqual([subscription.resolved.provider, subscription.tools.web_search], ['anthropic.messages', anthropicSearch])
 })
 

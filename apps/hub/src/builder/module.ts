@@ -36,7 +36,8 @@ import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
 import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
-import { GOOGLE_AI_PRO_PROVIDER, parseKey } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import { createGoogleAiProRoute } from './google-ai-pro/route.js'
 import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
@@ -296,23 +297,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   googleAiProReady.catch(() => undefined)
 
   const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
-    // Called through the Hub's Google AI Pro router, which exists only when the Hub runs CLIProxyAPI.
-    [GOOGLE_AI_PRO_PROVIDER]: {
-      accountProvider: GOOGLE_AI_PRO_PROVIDER,
-      take: (account) => {
-        const key = parseKey(account.secret)
-        if (!key) throw new Error('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
-        googleWriteBack.track(key, account.modelAccountId)
-        return {
-          modelProvider: GOOGLE_AI_PRO_PROVIDER,
-          model: async (modelName) => {
-            const url = (await googleAiProReady.catch(() => undefined))?.url
-            if (!url) throw new Error('BUILDER_MODEL_NOT_SELECTED')
-            return { providerId: GOOGLE_AI_PRO_PROVIDER, modelId: modelName, url: `${url}/v1`, apiKey: key }
-          },
-        }
-      },
-    },
+    [GOOGLE_AI_PRO_PROVIDER]: createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
     [OPENAI_MODEL_PROVIDER]: createOpenAICodexRoute(createCodexHolds({ store: modelAccounts }), builder.modelStreamRecordDir),
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
     [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),

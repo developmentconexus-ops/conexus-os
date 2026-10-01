@@ -1,5 +1,6 @@
 import { openaiCodexProvider } from '@mastra/code-sdk/providers/openai-codex'
 import { OPENAI_PREFIX, remapOpenAIModelForCodexOAuth } from '@mastra/code-sdk/providers/model-ids'
+import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { createModelStreamRecorder } from '../model-stream-recorder.js'
@@ -33,12 +34,15 @@ const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
 
 /**
  * An `openai/*` model on a ChatGPT subscription: Mastra Code's Codex provider over the person's own
- * held row, the Codex id remap Mastra Code applies, and with `streamRecordDir` each call's stream recorded.
+ * held row, at the call's thinking level as its `reasoningEffort` (Mastra Code's own mapping, which
+ * reads no level as medium), the Codex id remap Mastra Code applies, and with `streamRecordDir`
+ * each call's stream recorded.
  */
-const openaiCodexModel = (modelName: string, tokens: CodexTokens, current: () => Promise<CodexTokens>, streamRecordDir?: string) =>
+const openaiCodexModel = (modelName: string, thinkingLevel: ThinkingLevelSetting | undefined, tokens: CodexTokens, current: () => Promise<CodexTokens>, streamRecordDir?: string) =>
   wrapLanguageModel({
     model: languageModelOf(openaiCodexProvider(remapOpenAIModelForCodexOAuth(`${OPENAI_PREFIX}${modelName}`).substring(OPENAI_PREFIX.length), {
       authStorage: heldCodexCredentials(tokens, current),
+      ...thinkingLevel ? { thinkingLevel } : {},
     })),
     middleware: [builderCodexOptions, ...streamRecordDir ? [createModelStreamRecorder(streamRecordDir)] : []],
   })
@@ -49,6 +53,6 @@ export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>, streamRec
   take: (account) => {
     const tokens = parseCodexTokens(account.secret)
     const current = holds.hold(account.modelAccountId, tokens)
-    return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName) => openaiCodexModel(modelName, tokens, current, streamRecordDir) }
+    return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current, streamRecordDir) }
   },
 })
