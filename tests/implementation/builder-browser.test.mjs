@@ -216,6 +216,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const streamScopes = []
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
+    // The conversation is followed from the moment it opens; until a run made its session the Hub refuses.
+    if (!run || runFinished) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'builder-session-not-ready' }) })
     setTimeout(() => {
       threadMessages.push(assistantMessage('assistant-live-1', 'Aplicando a alteração'), assistantMessage(`assistant-final-${threadMessages.length}`, 'Build concluído'))
       runFinished = true
@@ -598,11 +600,17 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  const user = page.locator('.cx-messages .builder-turn-user-row')
+  await user.getByText('Não enviado', { exact: true }).waitFor()
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the unsent message keeps its place and its words')
+  assert.equal(await messageBox(page).inputValue(), 'Crie um contador', 'the words go back to the composer')
   const retry = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByRole('button', { name: 'Enviar' }).click()
   await retry
   assert.equal(keys.length, 2)
   assert.equal(keys[0], keys[1], `a resend of the same text issued a second key: ${keys.join(' vs ')}`)
+  await user.getByText('Não enviado', { exact: true }).waitFor({ state: 'detached' })
+  assert.deepEqual(await user.locator('.builder-turn-user').allTextContents(), ['Crie um contador'], 'the resend is the same message, not a second one')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
@@ -1125,7 +1133,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a reply the controller finalizes under a different id than its live stream is not shown twice', async (t) => {
+test('a turn the stream delivered only in part is completed from the thread, and drawn once', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000101'
   const projectId = '70000000-0000-4000-8000-000000000102'
   const runId = '70000000-0000-4000-8000-000000000103'
@@ -1137,25 +1145,16 @@ test('a reply the controller finalizes under a different id than its live stream
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
-  // The live stream and the persisted thread can name the same reply under different message ids
-  // (the controller finalizes the tool loop under its own id once the run settles), and the persisted
-  // copy carries the run's full tool history, not just what the live stream had captured so far.
+  // The controller stores a turn under the message and call ids its stream used, with a step-start
+  // part at each step the stream never sends. The stream here ends after three calls; the thread
+  // holds the whole turn: three more calls and the reply.
   const finalText = 'Concluído: atualizei o texto em destaque.'
   const toolPart = (id, toolName) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: 'result', args: {}, result: 'ok' } })
-  const liveReply = {
-    id: 'live-1', role: 'assistant', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [
-      toolPart('live-tool-0', 'read_file'), toolPart('live-tool-1', 'edit_file'), toolPart('live-tool-2', 'execute_command'),
-      { type: 'text', text: finalText },
-    ] },
-  }
+  const tools = ['read_file', 'edit_file', 'execute_command', 'read_file', 'edit_file', 'execute_command'].map((name, index) => toolPart(`tool-${index}`, name))
+  const liveReply = { id: 'turn-1', role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: tools.slice(0, 3) } }
   const persistedReply = {
-    id: 'persisted-1', role: 'assistant', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [
-      toolPart('persisted-tool-0', 'read_file'), toolPart('persisted-tool-1', 'edit_file'), toolPart('persisted-tool-2', 'execute_command'),
-      toolPart('persisted-tool-3', 'read_file'), toolPart('persisted-tool-4', 'edit_file'), toolPart('persisted-tool-5', 'execute_command'),
-      { type: 'text', text: finalText },
-    ] },
+    id: 'turn-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [...tools.slice(0, 3), { type: 'step-start' }, ...tools.slice(3), { type: 'step-start' }, { type: 'text', text: finalText }] },
   }
 
   let runFinished = false
@@ -1178,7 +1177,11 @@ test('a reply the controller finalizes under a different id than its live stream
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId: 'artifact', artifactDigest: 'd'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString() }) }))
   await page.route(`${origin}/preview-entry`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>app</title><main>ok</main>' }))
   await page.route(`**/api/control/projects/${projectId}/source/compare*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, files: [{ path: 'app/main.tsx', status: 'MODIFIED', previousPath: null }] }) }))
+  // A stream replays nothing: the events reach the first subscription only.
+  let streamed = false
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
+    if (streamed) return route.fulfill(sse())
+    streamed = true
     setTimeout(() => {
       threadMessages.length = 1
       threadMessages.push(persistedReply)
@@ -1195,12 +1198,58 @@ test('a reply the controller finalizes under a different id than its live stream
   await page.getByTitle('Prévia do aplicativo').waitFor()
   await page.waitForTimeout(600)
 
+  await page.locator('.cx-messages').getByText(finalText, { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages').getByText(finalText, { exact: true }).count(), 1,
-    'the persisted reply renders once, not once per message id it happened to carry')
+    'the reply the stream never delivered is drawn once, from the thread')
   assert.equal(await page.locator('.builder-turn-body button').count(), 1,
-    'the stale live-stream copy of the reply is dropped once the persisted, fuller copy of the same reply arrives')
+    'the streamed calls and the stored ones are one turn, not a second copy of it')
   await page.getByRole('button', { name: 'Leu 2 arquivos, editou 2 arquivos, executou 2 comandos', exact: true }).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('a page opened while the run waits on the person shows the question card from the thread alone', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000301'
+  const projectId = '70000000-0000-4000-8000-000000000302'
+  const runId = '70000000-0000-4000-8000-000000000303'
+  const conversationId = 'conversation-parked-reload'
+  const sourceRevision = 'a'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const question = 'Qual status um pedido pode ter?'
+  const ask = { questions: [{ question, options: [{ label: 'Aberto' }, { label: 'Pago' }] }] }
+  // The thread as Mastra stores it while parked: the open call, and its suspension in the metadata.
+  const asking = {
+    id: 'asking-1', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [{ type: 'text', text: 'Preciso saber uma coisa.' }, { type: 'tool-invocation', toolInvocation: { toolCallId: 'ask-1', toolName: 'ask_user', state: 'call', args: ask } }],
+      metadata: { suspendedTools: { ask_user: { toolCallId: 'ask-1', toolName: 'ask_user', args: ask, suspendPayload: ask, runId: 'agent-run-1' } } } },
+  }
+  const state = builderState([conversation(conversationId, 'Pedidos')], { [conversationId]: [userMessage('user-1', 'Crie um controle de pedidos'), asking] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pedidos', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  // The stream sends nothing on subscribe, the way Mastra's does.
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse()))
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText(question, { exact: true }).waitFor()
+  await page.getByRole('radio', { name: 'Pago' }).waitFor()
+  assert.equal(await page.getByText(question, { exact: true }).count(), 1, 'one card for the question')
+  assert.equal(await page.locator('.builder-turn-body button').count(), 0, 'no tool row for the call the card answers')
+  await page.locator('.cx-chat-step', { hasText: 'Aguardando você' }).waitFor()
 })
 
 // Regression for two problems the operator hit in the same real run: an ask_user suspension
@@ -1325,6 +1374,42 @@ const openLiveTurn = async (t, events) => {
   return page
 }
 
+test('the run the Hub publishes into the stream moves the status line without another builder-session read', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000311'
+  const projectId = '70000000-0000-4000-8000-000000000312'
+  const runId = '70000000-0000-4000-8000-000000000313'
+  const conversationId = 'conversation-streamed-phase'
+  const sourceRevision = 'b'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const run = {
+    builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+    failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+  }
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude o título')] }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
+  // Only the first read is answered: whatever the screen learns after it comes from the stream.
+  let reads = 0
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    reads += 1
+    if (reads > 1) return undefined
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      runHistory: [],
+    }) })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'state_changed', state: { yolo: true, conexusRun: { ...run, phase: 'COMPILING' } }, changedKeys: ['conexusRun'] },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.locator('.cx-chat-step', { hasText: 'Verificando o app' }).waitFor()
+})
+
 test('a live reply streamed as deltas renders whole while the run is still working', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-delta-1', 'Vou trocar') },
@@ -1338,6 +1423,16 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
+test('a long reply that arrives at once is laid down word by word, and ends whole', async (t) => {
+  const reply = Array.from({ length: 80 }, (_, index) => `palavra${index}`).join(' ')
+  const page = await openLiveTurn(t, [{ type: 'message_start', message: assistantMessage('live-reveal-1', reply) }])
+  const shown = page.locator('.cx-messages').getByText(/palavra0/)
+  await shown.waitFor()
+  const first = (await shown.innerText()).split(/\s+/).length
+  assert.ok(first < 80, `the reply starts partly laid down, not whole (${first} of 80 words)`)
+  await page.locator('.cx-messages').getByText(reply, { exact: true }).waitFor({ timeout: 15_000 })
+})
+
 test('a model call the controller is retrying reads as a retry in progress, not as a failure, and the next reply clears it', async (t) => {
   const retryError = { type: 'error', error: { message: 'Service Unavailable' }, retryable: true, retryAttempt: 2, maxRetries: 10 }
   const retrying = await openLiveTurn(t, [retryError])
@@ -1347,6 +1442,12 @@ test('a model call the controller is retrying reads as a retry in progress, not 
   await recovered.locator('.cx-messages').getByText('Voltei.', { exact: true }).waitFor()
   assert.equal(await recovered.getByText('Tentando de novo', { exact: false }).count(), 0)
   assert.equal(await recovered.getByRole('alert').count(), 0)
+})
+
+test("a model error the controller gives up on is a notice in Conexus's words, never the provider's", async (t) => {
+  const page = await openLiveTurn(t, [{ type: 'error', error: { message: 'sandbox sbx-42: upstream 500 at frame 7' }, retryable: false }])
+  await page.getByRole('alert').getByText('O modelo parou com um erro. Seu pedido continua nesta conversa.', { exact: true }).waitFor()
+  assert.equal(await page.getByText('sbx-42', { exact: false }).count(), 0)
 })
 
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
@@ -1823,7 +1924,7 @@ const openPlanCard = async (t, answers, plan = PLAN_TEXT) => {
 test('the plan card shows only the person\'s part, with the Markdown rendered, and leaves the technical part for the reader', async (t) => {
   const card = await openPlanCard(t, [])
   await card.getByRole('heading', { name: 'Para a pessoa' }).waitFor()
-  assert.equal(await card.locator('.cx-plan-clamp strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
+  assert.equal(await card.locator('[data-slot="plan-content"] strong', { hasText: 'Compras' }).count(), 1, 'the bold marks render instead of showing as asterisks')
   assert.equal(await card.getByText('listarPedidos').count(), 0, 'the technical part is not on the card')
 })
 

@@ -106,6 +106,55 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection): 
 
 type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
 
+const STREAM_ROUTE = sessionRoute('GET', '/stream')
+
+// Mastra's stream stays open, and silent, when the controller deletes the session it follows, and
+// the Hub replaces a run's session when the conversation's sandbox changes. Ending the stream is how
+// the browser learns to read the run again and follow the session that replaced it.
+const closableStream = (served: ReadableStream<unknown>, follow: (close: () => void) => () => void): ReadableStream<unknown> => {
+  const reader = served.getReader()
+  let unfollow = (): void => {}
+  return new ReadableStream({
+    start(controller) {
+      unfollow = follow(() => {
+        unfollow()
+        void reader.cancel().catch(() => undefined)
+        try { controller.close() } catch { /* the browser already left */ }
+      })
+    },
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (!done) return controller.enqueue(value)
+      unfollow()
+      try { controller.close() } catch { /* closed by the session's deletion */ }
+    },
+    cancel(reason) {
+      unfollow()
+      return reader.cancel(reason)
+    },
+  })
+}
+
+const followedRoute = (route: ServerRoute, controller: AgentController, following: WeakMap<BuilderSession, Set<() => void>>): ServerRoute => ({
+  ...route,
+  handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
+    const served: unknown = await route.handler(params)
+    if (!(served instanceof ReadableStream)) return served
+    const { resourceId, sessionScope } = params as Readonly<{ resourceId?: string; sessionScope?: string }>
+    const session = resourceId === undefined ? undefined : await controller.getSessionByResource(resourceId, sessionScope)
+    return closableStream(served, (close) => {
+      if (!session) {
+        close()
+        return () => {}
+      }
+      const closers = following.get(session) ?? new Set()
+      following.set(session, closers)
+      closers.add(close)
+      return () => { closers.delete(close) }
+    })
+  },
+} as ServerRoute)
+
 type GuardedMount = Readonly<{
   mastra: Mastra
   controller: AgentController
@@ -134,6 +183,11 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
   const admitted = new WeakMap<FastifyRequest, Admitted>()
   const route = (request: FastifyRequest): string => `${request.method} ${request.routeOptions.url?.slice(mount.prefix.length) ?? ''}`
   await app.register(async (scope) => {
+    const following = new WeakMap<BuilderSession, Set<() => void>>()
+    const unwatch = mount.controller.onSessionDeleted((session) => {
+      for (const close of [...following.get(session) ?? []]) close()
+    })
+    scope.addHook('onClose', async () => { unwatch() })
     scope.addHook('preHandler', async (request, reply) => {
       const session = await mount.resolveCurrentSession(request)
       if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -221,7 +275,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
     for (const served of SERVER_ROUTES) {
       const routeKey = `${served.method} ${served.path}`
       if (!mount.routes.has(routeKey)) continue
-      await server.registerRoute(scope, mount.toolPayloads && PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served, { prefix: mount.prefix })
+      const projected = mount.toolPayloads && PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served
+      await server.registerRoute(scope, routeKey === STREAM_ROUTE ? followedRoute(projected, mount.controller, following) : projected, { prefix: mount.prefix })
     }
   })
 }

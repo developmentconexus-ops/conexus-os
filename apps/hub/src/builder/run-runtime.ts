@@ -577,7 +577,7 @@ const TURN_SILENCE_MS = 10 * 60_000
 const STALLED_SESSION_DELETE_MS = 5_000
 
 /** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
-const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
+export const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
 
 type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 

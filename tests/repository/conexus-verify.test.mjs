@@ -242,7 +242,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'the tripwire test runs with the run runtime suites')
 
   const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
-  assert.equal(builderBrowser.command.includes('tests/implementation/builder-live-turn.test.mjs'), true)
+  assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
   const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
   assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
   assert.equal(builderEval.environmentClass, 'browser')

@@ -1,24 +1,26 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
+import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { type LiveTurn, type MemoryGauge, type PendingAnswer, type PendingReply, idleTurn, reduceTurn } from './live-turn'
+import { hubFetch } from '../../app/http'
+import { parseRunState } from './api'
+import { builderSessionKey, writeStreamedRun } from './builder-session'
+import { type StreamState, useSessionStream, useStreamState } from './connection'
+import { type MemoryGauge, type RuntimeState, emptyRuntime, runtimeReducer } from './runtime'
+import { type PromptEntry, type TranscriptAction, type TranscriptState, emptyTranscript, transcriptReducer } from './transcript'
 
 export type { MastraDBMessage }
-export type { ActiveTool, LiveTurn, MemoryGauge, MemoryOperation, PendingAnswer, PendingReply } from './live-turn'
-
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
+export type { MemoryGauge, MemoryOperation } from './runtime'
+export type { PromptEntry, TranscriptEntry } from './transcript'
 
 const clientAt = (apiPrefix: string) => new MastraClient({
   baseUrl: window.location.origin,
   apiPrefix,
   credentials: 'same-origin',
   retries: 0,
-  fetch: (input, init) => fetch(input, {
-    ...init,
-    headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), ...((init?.method ?? 'GET').toUpperCase() === 'GET' ? {} : { 'x-conexus-csrf': csrf() }) },
-  }),
+  fetch: hubFetch,
 })
 
 // The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
@@ -85,7 +87,7 @@ export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
   queryFn: async (): Promise<Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>> => {
     const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
-    const response = await fetch(url, { credentials: 'same-origin' })
+    const response = await hubFetch(url)
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
     return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
   },
@@ -152,60 +154,85 @@ export const useSessionModel = (projectId: string, conversationId: string | null
   return { state, modelId: state.data?.modelId ?? '', reasoning: state.data?.reasoning ?? null, memory: state.data?.memory ?? null, choose, chooseReasoning }
 }
 
-export const useBuilderThreadMessages = (projectId: string, threadId: string | undefined) => useQuery({
-  queryKey: builderThreadMessagesKey(projectId, threadId ?? ''),
-  queryFn: () => projectSessions(projectId).listMessages(threadId ?? '', 200),
-  enabled: Boolean(threadId),
+// A conversation's thread on screen: its transcript, which the message window and the run's stream
+// both feed, and the run's memory. Both belong to the conversation and start over with another one.
+type ConversationState = Readonly<{ transcript: TranscriptState; runtime: RuntimeState }>
+
+const reduceConversation = (state: ConversationState, action: TranscriptAction): ConversationState => ({
+  transcript: transcriptReducer(state.transcript, action),
+  runtime: action.type === 'reset' ? emptyRuntime : action.type === 'event' ? runtimeReducer(state.runtime, action.event) : state.runtime,
 })
 
-/** Follows one run's Mastra session for as long as the agent owns the turn. */
-export const useBuilderLiveTurn = (
-  projectId: string,
-  run: Readonly<{ builderRunId: string; conversationId: string }> | undefined,
-  agentActive: boolean,
-): LiveTurn => {
-  const [turn, dispatch] = useReducer(reduceTurn, idleTurn)
+const startConversation = (conversationId: string): ConversationState => ({ transcript: emptyTranscript(conversationId), runtime: emptyRuntime })
+
+/** The stream of the session a conversation's runs go through, one per conversation on the page. */
+export const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/builder:${conversationId}`
+
+/** Whether the stream of the conversation's runs is open, for the poll to keep its pace. */
+export const useConversationStreamOpen = (projectId: string, conversationId: string): boolean =>
+  useStreamState(conversationStreamKey(projectId, conversationId)) === 'connected'
+
+/**
+ * The conversation's thread: the message window read from its Mastra thread, merged with the events
+ * of the session its runs go through. The stream is followed whenever the conversation is on screen;
+ * before a run made that session the Hub refuses it, and each new `epoch` (a builder-session read)
+ * tries again.
+ */
+export const useBuilderConversation = (projectId: string, conversationId: string, epoch: number) => {
+  const [state, dispatch] = useReducer(reduceConversation, conversationId, startConversation)
+  if (state.transcript.conversationId !== conversationId) dispatch({ type: 'reset', conversationId })
   const queryClient = useQueryClient()
-  const builderRunId = run?.builderRunId
-  const conversationId = run?.conversationId
+  const streamKey = conversationStreamKey(projectId, conversationId)
+  const history = useQuery({
+    queryKey: builderThreadMessagesKey(projectId, conversationId),
+    queryFn: () => projectSessions(projectId).listMessages(conversationId, 200),
+    enabled: Boolean(conversationId),
+  })
   useEffect(() => {
-    if (!builderRunId || !conversationId || !agentActive) return undefined
-    const session = runSession(projectId, conversationId)
-    let closed = false
-    let unsubscribe = () => {}
-    let retry: ReturnType<typeof setTimeout> | undefined
-    const resync = (): void => { void queryClient.invalidateQueries({ queryKey: ['builder-thread-messages', projectId] }) }
-    const connect = async (): Promise<void> => {
-      try {
-        const subscription = await session.subscribe({
-          onEvent: (event) => {
-            dispatch({ runId: builderRunId, kind: 'event', event })
-            if (event.type === 'agent_end') {
-              resync()
-              // The run stored memory for the conversation; read it again once the run is truly over.
-              if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
-            }
-          },
-          onReconnect: resync,
-          onError: () => dispatch({ runId: builderRunId, kind: 'lost' }),
-          reconnect: { maxRetries: 8 },
-        })
-        if (closed) return subscription.unsubscribe()
-        unsubscribe = subscription.unsubscribe
-        dispatch({ runId: builderRunId, kind: 'connected' })
-      } catch {
-        if (!closed) retry = setTimeout(() => { void connect() }, 1_000)
+    if (history.data) dispatch({ type: 'mergeWindow', messages: history.data })
+  }, [history.data])
+
+  const rereadThread = (): void => { void queryClient.invalidateQueries({ queryKey: builderThreadMessagesKey(projectId, conversationId) }) }
+  const rereadSession = (): void => { void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) }) }
+  useSessionStream({
+    key: streamKey,
+    open: () => runSession(projectId, conversationId),
+    // A window merges what it does not hold after what is on screen, so the stream waits for the
+    // thread's first read: the history has to be there before anything streamed lands after it.
+    epoch: history.data ? epoch : 0,
+    onEvent: (event) => {
+      dispatch({ type: 'event', event })
+      if (event.type === 'state_changed' && typeof event.state === 'object' && event.state !== null && 'conexusRun' in event.state) {
+        const run = parseRunState(event.state.conexusRun)
+        if (run) writeStreamedRun(queryClient, projectId, run)
       }
-    }
-    void connect()
-    return () => {
-      closed = true
-      if (retry) clearTimeout(retry)
-      unsubscribe()
-    }
-  }, [agentActive, builderRunId, conversationId, projectId, queryClient])
-  return turn.runId === builderRunId ? turn : idleTurn
+      if (event.type === 'agent_end') {
+        rereadThread()
+        // The run stored memory for the conversation; read it again once the run is truly over.
+        if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
+      }
+    },
+    // The stream sends nothing on subscribe and replays nothing after a gap, so opening it reads the
+    // thread again, and reopening it reads the run too. While it is down the poll keeps the run.
+    onStateChange: (next: StreamState, previous: StreamState) => {
+      if (next !== 'connected') return
+      rereadThread()
+      if (previous === 'dropped') rereadSession()
+    },
+  })
+
+  return {
+    history,
+    transcript: state.transcript.conversationId === conversationId ? state.transcript : emptyTranscript(conversationId),
+    runtime: state.transcript.conversationId === conversationId ? state.runtime : emptyRuntime,
+    dispatch,
+  }
 }
+
+// submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
+// person's feedback back to the model.
+type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
+export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
 /**
  * Answers a call the run parked on the person. The answer goes to the session the Hub runs the
@@ -214,7 +241,7 @@ export const useBuilderLiveTurn = (
  */
 // A question card resumes the Hub's ask_user with one answer per question, in order: a string (free
 // text, or the option chosen in a single-select question) or a string array (a multi-select one).
-export const answerPendingCall = (projectId: string, conversationId: string, pending: PendingAnswer, answer: PendingReply): Promise<void> => {
+export const answerPendingCall = (projectId: string, conversationId: string, pending: PromptEntry, answer: PendingReply): Promise<void> => {
   const session = runSession(projectId, conversationId)
   if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
   if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
