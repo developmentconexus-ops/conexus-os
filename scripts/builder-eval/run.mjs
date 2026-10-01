@@ -188,6 +188,33 @@ async function readOptions(question) {
   return { options, multi: options.length > 0 && (await inputs.first().getAttribute('type')) === 'checkbox' }
 }
 
+const RECOMMENDED_SUFFIX = /\s*\(recomendad[oa]\)\s*$/i
+const optionKey = (label) => foldLabel(String(label ?? '').replace(RECOMMENDED_SUFFIX, ''))
+const optionIndex = (options, label) => options.findIndex((option) => optionKey(option.label) === optionKey(label))
+
+/** Clicks the option's own label, the way a person does, so the card's React state sees the change. */
+async function pickOption(entry, options, label) {
+  const row = entry.locator('label').filter({ has: entry.page().locator('input[type=radio], input[type=checkbox]') }).nth(optionIndex(options, label))
+  const input = row.locator('input')
+  if (await input.isChecked()) return
+  await row.click()
+}
+
+/** Types the person's own words into the question's "Outra resposta" input (or the lone text input of a free-text question). */
+async function typeOwnAnswer(entry, text) {
+  const field = entry.getByPlaceholder('Outra resposta').or(entry.locator('input[type=text], input:not([type]), textarea')).first()
+  await field.click()
+  await field.fill(text)
+  if (await field.inputValue() !== text) {
+    await field.fill('')
+    await field.pressSequentially(text)
+  }
+}
+
+/** True when the question shows an answer: a checked option or a non-empty text input. */
+const hasAnswer = (entry) => entry.evaluate((node) => node.querySelector('input:checked') !== null
+  || [...node.querySelectorAll('input:not([type=radio]):not([type=checkbox]), textarea')].some((field) => field.value.trim() !== ''))
+
 /** The whole plan, from the reader the card's "Ler plano completo" opens; null when the card has none. */
 async function readFullPlan(page, plan) {
   const open = plan.getByRole('button', { name: 'Ler plano completo' })
@@ -295,8 +322,7 @@ export async function answerPendingCard(page, cards, answering = null) {
     const entry = questions.nth(index)
     const text = await entry.getAttribute('data-ask-question')
     const { options, multi } = await readOptions(entry)
-    const inputs = entry.locator('input[type=radio], input[type=checkbox]')
-    const pick = (label) => inputs.nth(options.findIndex((option) => foldLabel(option.label) === foldLabel(label))).click({ force: true })
+    const pick = (label) => pickOption(entry, options, label)
 
     if (count === 1 && isApprovalOptions(options.map((option) => option.label))) {
       const adjusting = cards.adjust?.state === 'pending'
@@ -320,19 +346,28 @@ export async function answerPendingCard(page, cards, answering = null) {
     if (options.length > 0) {
       const labels = decision ? [decision.answer].flat().filter((label) => String(label).trim()) : []
       if (labels.length === 0) labels.push(options[0].label)
-      const isOption = (label) => options.some((option) => foldLabel(option.label) === foldLabel(label))
+      const isOption = (label) => optionIndex(options, label) >= 0
       for (const label of labels.filter(isOption)) await pick(label)
       // The person's own words, when they match no option, go in the card's free-text answer.
       const own = labels.filter((label) => !isOption(label))
-      if (own.length > 0) await entry.locator('input[type=text], input:not([type]), textarea').first().fill(own.join('. '))
+      if (own.length > 0) await typeOwnAnswer(entry, own.join('. '))
       answer = labels.join(', ')
+      if (!await hasAnswer(entry)) {
+        await pick(options[0].label)
+        answer = `${answer} (sem resposta registrada; escolhida a primeira opção: ${options[0].label})`
+      }
     } else {
       answer = decision ? decision.answer : FALLBACK_ANSWER
       await entry.locator('input').first().fill(answer)
     }
     records.push({ kind: 'QUESTION', ...record, title: text, text, answer, ...(decision ? { via: decision.via, ruleIds: decision.ruleIds } : {}) })
   }
-  await card.getByRole('button', { name: /^Enviar respostas?$/ }).click()
+  const send = card.getByRole('button', { name: /^Enviar respostas?$/ })
+  if (process.env.CONEXUS_EVAL_DEBUG_CARD && await send.isDisabled()) {
+    const state = await card.evaluate((node) => [...node.querySelectorAll('[data-ask-question]')].map((q) => ({ q: q.getAttribute('data-ask-question'), checked: [...q.querySelectorAll('input:checked')].map((i) => i.parentElement?.textContent), text: [...q.querySelectorAll('input:not([type=radio]):not([type=checkbox])')].map((i) => i.value) })))
+    console.error('CARD_DEBUG', JSON.stringify({ records, state }))
+  }
+  await send.click()
   answers.push(...records)
   return signature
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { startWebServer } from './web-dev-server.mjs'
+import { answerPendingCard, createCards } from '../../scripts/builder-eval/run.mjs'
 import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
 
 // The formatter has no Mastra field to read a display name from (see model-display-name.ts's own
@@ -1372,6 +1373,71 @@ test('text streamed after a tool call renders after it, not appended to the text
   await body.getByText('Depois', { exact: true }).waitFor()
   assert.deepEqual(await body.evaluate((node) => [...node.children].map((child) => child.matches('.cx-tool-rows') ? 'tool' : child.textContent.trim())),
     ['Antes', 'tool', 'Depois'])
+})
+
+// The eval driver answers the real multi-question card: a pick by option label (also one spelled without
+// the "(recomendado)" suffix the agent adds), an own answer typed into "Outra resposta", and a fallback to
+// the first option when the person's answer matches nothing usable.
+test('the eval driver answers every question of the real multi-question ask_user card', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000231'
+  const projectId = '70000000-0000-4000-8000-000000000232'
+  const runId = '70000000-0000-4000-8000-000000000233'
+  const conversationId = 'conversation-ask-user-many'
+  const sourceRevision = 'd'.repeat(40)
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+
+  const questions = [
+    { question: 'Contar provisórios?', multiSelect: false, options: [{ label: 'Sim, contar também os provisórios', description: 'Inclui rascunhos' }, { label: 'Não' }] },
+    { question: 'O que excluir?', multiSelect: true, options: [{ label: 'Cancelados' }, { label: 'Estornados' }] },
+    { question: 'Qual período?', multiSelect: false, options: [{ label: 'Mês atual' }, { label: 'Ano' }] },
+    { question: 'Qual valor usar?', multiSelect: false, options: [{ label: 'Valor original do título (recomendado)', description: 'Sem juros' }, { label: 'Valor líquido' }] },
+  ]
+  const suspensionRequests = []
+  const state = builderState([conversation(conversationId, 'Cartão')], { [conversationId]: [userMessage('user-1', 'Crie um painel')] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Cartão', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId,
+    latestBuilderRun: {
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: null, failureCategory: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
+    },
+    latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
+    suspensionRequests.push(route.request().postDataJSON())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
+    { type: 'tool_suspended', toolCallId: 'tool-ask-many', toolName: 'ask_user', args: { questions }, suspendPayload: { questions } },
+  )))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Contar provisórios?', { exact: true }).waitFor()
+
+  const scripted = {
+    'Contar provisórios?': ['Sim, contar também os provisórios'],
+    'O que excluir?': ['Excluir cartão e marketplace'],
+    'Qual período?': ['Mês atual'],
+    'Qual valor usar?': ['Valor original do título'],
+  }
+  const person = { answer: async ({ question }) => ({ answer: scripted[question], via: 'case', ruleIds: [] }) }
+  const cards = createCards({ person })
+  const suspensionSent = page.waitForResponse((response) => response.url().includes('/tool-suspension'))
+  await answerPendingCard(page, cards, null)
+  await suspensionSent
+  assert.deepEqual(suspensionRequests, [{ toolCallId: 'tool-ask-many', resumeData: [
+    'Sim, contar também os provisórios',
+    ['Excluir cartão e marketplace'],
+    'Mês atual',
+    'Valor original do título (recomendado)',
+  ] }])
 })
 
 // A free-text ask_user (no options on the suspend payload) drives AskUserPt's other branch: the
