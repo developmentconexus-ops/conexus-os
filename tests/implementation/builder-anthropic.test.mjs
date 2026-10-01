@@ -164,18 +164,29 @@ test('a Claude sign-in belongs to the person who started it, and needs the CSRF 
   assert.deepEqual(await completeClaude(app, again.loginId, 'good#verifier-2'), { state: 'succeeded' })
 })
 
-test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with either kind of Anthropic account, own or shared', async (t) => {
+// What Mastra's model router catalog lists for anthropic, in its order. It lists claude-fable-5-1 and no claude-sonnet-5-5.
+const CATALOG_MODELS = [
+  'claude-fable-5', 'claude-fable-5-1', 'claude-haiku-4-5', 'claude-haiku-4-5-20251001', 'claude-opus-4-5', 'claude-opus-4-5-20251101', 'claude-opus-4-6', 'claude-opus-4-7',
+  'claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-4-5', 'claude-sonnet-4-5-20250929', 'claude-sonnet-4-6', 'claude-sonnet-5',
+]
+
+test("the picker offers every chat model of Mastra's catalog to a person with either kind of Anthropic account, own or shared, each with the levels Mastra Code sends it", async (t) => {
   const { app, store, share, as } = await createApp(t)
   const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
   assert.deepEqual(await offered(), [])
-  // Mastra Code sends Claude 5 every level up to max, and a budget-era Haiku the same budget for xhigh and max.
-  const claude = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
-    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
-    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh'], hasApiKey: true },
-  ]
   await putKey(app, fakeKey)
-  assert.deepEqual(await offered(), claude)
+  const claude = await offered()
+  assert.deepEqual(claude.map(({ modelName }) => modelName), CATALOG_MODELS)
+  const levelsOf = (models) => Object.fromEntries(models.map(({ modelName, thinkingLevels }) => [modelName, thinkingLevels.join(' ')]))
+  // Claude 5 and Opus 4.7 and 4.8 take every level; Opus 4.6 and Sonnet 4.6 run xhigh as high, so they skip it; the budget-era models give xhigh and max the same budget, so they skip max.
+  assert.deepEqual(levelsOf(claude.filter(({ modelName }) => ['claude-opus-5-5', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-5'].includes(modelName))), {
+    'claude-haiku-4-5': 'off low medium high xhigh',
+    'claude-opus-4-5': 'off low medium high xhigh',
+    'claude-opus-4-6': 'off low medium high max',
+    'claude-opus-4-7': 'off low medium high xhigh max',
+    'claude-opus-5-5': 'off low medium high xhigh max',
+    'claude-sonnet-4-6': 'off low medium high max',
+  })
   await store.write(ana, 'anthropic', 'oauth', serializeClaudeTokens(tokens('signed-in', 1)))
   assert.deepEqual(await offered(), claude)
   assert.deepEqual(await offered('?scope=installation'), [])
@@ -183,14 +194,6 @@ test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with
   assert.deepEqual(await offered(), [])
   share(ana, 'anthropic')
   assert.deepEqual([await offered(), await offered('?scope=installation')], [claude, claude])
-})
-
-test('every offered Claude model is in the model router catalog', async () => {
-  const { getProviderConfig } = await import('@mastra/core/llm')
-  const catalog = getProviderConfig('anthropic').models
-  const { ANTHROPIC_MODELS } = await import(built('builder/anthropic/credential.js'))
-  assert.deepEqual(ANTHROPIC_MODELS.map((model) => catalog.includes(model)), [true, true, true])
-  assert.equal(catalog.includes('claude-sonnet-5-5'), false, 'Sonnet 5.5 is not in the catalog, so it is not offered')
 })
 
 const routingOver = ({ store, holds = createClaudeHolds({ store }) }) => {

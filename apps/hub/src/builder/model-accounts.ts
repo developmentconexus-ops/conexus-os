@@ -5,7 +5,7 @@ import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type Thinkin
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
-import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_MODELS, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
+import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
@@ -87,8 +87,8 @@ const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Pro
   return (await middleware.transformParams(call)).providerOptions?.anthropic
 }
 
-/** The models both kinds of Anthropic account serve, by the `anthropic/<model>` id a thread stores and a run resolves. */
-const anthropicOffer = (): Promise<Offer> => Promise.all(ANTHROPIC_MODELS.map(async (model) => Object.freeze({
+/** Both kinds of Anthropic account serve every chat model of Mastra's catalog, by the `anthropic/<model>` id a thread stores and a run resolves. */
+const anthropicOffer = (): Promise<Offer> => Promise.all(chatModelsOf(ANTHROPIC_PROVIDER).map(async (model) => Object.freeze({
   id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model,
   thinkingLevels: await thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => anthropicSetting(model, level)),
 })))

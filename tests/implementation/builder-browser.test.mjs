@@ -18,6 +18,8 @@ test('humanizeModelName turns a bare catalog id into the name a person reads', (
   assert.equal(humanizeModelName('claude-sonnet-5'), 'Claude Sonnet 5')
   assert.equal(humanizeModelName('gpt-5.3-codex'), 'GPT 5.3 Codex')
   assert.equal(humanizeModelName('gpt-4o-2024-08-06'), 'GPT 4o 2024-08-06')
+  assert.equal(humanizeModelName('claude-haiku-4-5-20251001'), 'Claude Haiku 4.5 2025-10-01')
+  assert.equal(humanizeModelName('claude-fable-5-1'), 'Claude Fable 5.1')
   assert.equal(humanizeModelName('gpt-5.1'), 'GPT 5.1')
   assert.equal(humanizeModelName('o1'), 'o1')
   assert.equal(humanizeModelName('gemini-3-flash'), 'Gemini 3 Flash')

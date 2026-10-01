@@ -31,8 +31,8 @@ export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null 
 const upperCaseWords = new Set(['gpt', 'ai'])
 const literalWords = new Set(['o1', 'o3', 'o4'])
 
-// OpenAI dates its snapshots (`gpt-4o-2024-08-06`); the date stays whole instead of merging into a version.
-const datedSnapshotPattern = /-(\d{4}-\d{2}-\d{2})$/
+// OpenAI dates its snapshots (`gpt-4o-2024-08-06`) and Anthropic does too (`claude-haiku-4-5-20251001`); the date stays whole instead of merging into a version, written as year-month-day.
+const datedSnapshotPattern = /-(\d{4}-\d{2}-\d{2}|\d{8})$/
 
 const titleWord = (word: string): string => {
   if (literalWords.has(word)) return word
@@ -63,5 +63,5 @@ export const humanizeModelName = (modelName: string): string => {
   const { base } = parseReasoningSuffix(modelName) ?? { base: modelName }
   const dated = datedSnapshotPattern.exec(base)
   const tokens = mergeVersionTokens((dated ? base.slice(0, dated.index) : base).split(/[-_]+/).filter(Boolean))
-  return [...tokens.map(titleWord), ...(dated ? [dated[1]] : [])].join(' ')
+  return [...tokens.map(titleWord), ...(dated?.[1] ? [dated[1].replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')] : [])].join(' ')
 }
