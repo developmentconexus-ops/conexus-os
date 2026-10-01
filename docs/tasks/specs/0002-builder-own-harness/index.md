@@ -123,12 +123,12 @@ Model accounts
   "connect a model" message as today.
 
 Removal
-- **AC-24**: `@mastra/factory` and `@mastra/code-sdk` are gone from the Hub's dependencies. The
-  `factory` Postgres schema and the `hub_factory` role are dropped. The GitHub App routes, settings
-  screen, provisioning code and the five `CONEXUS_FACTORY_GITHUB_*` variables are deleted. Model
-  packs and the `fast` model role are gone.
-- **AC-25**: Every copied file carries the Apache 2.0 notice and names its source file and package
-  version (see *Copy list*).
+- **AC-24**: `@mastra/factory` is gone from the Hub's dependencies, and `@mastra/code-sdk` stays as a
+  pinned library (amendment of 2026-10-01). The `factory` Postgres schema and the `hub_factory` role
+  are dropped. The GitHub App routes, settings screen, provisioning code and the five
+  `CONEXUS_FACTORY_GITHUB_*` variables are deleted. Model packs and the `fast` model role are gone.
+- **AC-25**: Every file the Hub still copies carries the Apache 2.0 notice and names its source file
+  and package version (see *Copy list*). What it uses from `@mastra/code-sdk` is imported.
 - **AC-26**: Decision C-032 is recorded in `docs/decisions/index.md`. It supersedes C-022 and C-025
   and amends C-027 (Google AI Pro stays, its credential moves to a Conexus table).
 
@@ -302,10 +302,10 @@ Removed: `/api/control/installation/github`, `/api/control/installation/github/c
 
 From `@mastra/factory` 0.17.2: `dist/secret-encryption.js` (the envelope, used by every Conexus
 secret today), the sharing rules of `dist/routes/provider-credentials.js`. From `@mastra/code-sdk`
-1.8.3: `dist/auth/*` (PKCE, device code, provider sign in and storage interfaces) and the Anthropic
-and OpenAI subscription providers, `dist/agents/credential-resolver.js`, the parts of
-`dist/agents/model.js` that resolve subscription accounts, and the observational memory settings of
-`dist/agents/memory.js`. Each copied file keeps its license notice and records source and version;
+1.8.3: the title and body split of `dist/utils/plans.js`, and the observational memory settings of
+`dist/agents/memory.js`. Since the amendment of 2026-10-01, the subscription sign-ins and providers,
+the sandbox filesystem and the error classification come from `@mastra/code-sdk` as a library and
+are not copied. Each copied file keeps its license notice and records source and version;
 anything that ends up unused is deleted before the switch.
 
 ### Configuration required
@@ -511,3 +511,30 @@ sees (study 23, lines 383-400).
 
 B0, the retry of a transient storage or network failure within the same turn, needed no amendment
 and is built on `feat/builder-own-harness` (`0ecb20a4`).
+
+## Amendment, 2026-10-01: `@mastra/code-sdk` stays as a library
+
+**Status**: decided by the operator on 2026-10-01. C-032 records it.
+
+The Mastra Code product (its agent, its TUI and its own modes) leaves the Hub, as C-032 says.
+`@mastra/code-sdk` stays as a library dependency, pinned to an exact version and covered by tests.
+The Builder uses it for:
+
+- the Claude subscription: sign-in, refresh and model;
+- the ChatGPT subscription: device-code sign-in, refresh and model;
+- the sandbox filesystem (`SandboxFilesystem`);
+- error classification (`parseError`);
+- the eval's Claude login.
+
+Conexus does not copy that code. Mastra maintains these unofficial subscription flows for its own
+product, so a provider's change reaches Conexus as an upgrade. Credentials stay in Conexus's sealed
+`model.model_account` table, and the Hub keeps its own refresh coordinator. Reopen when
+`@mastra/code-sdk` moves or removes an import Conexus uses, or when its upgrade path breaks.
+
+### Criteria this amendment changes
+
+| Criterion | Before | Amended |
+| --- | --- | --- |
+| AC-24 | `@mastra/factory` and `@mastra/code-sdk` are gone from the Hub's dependencies | Only `@mastra/factory` is gone. `@mastra/code-sdk` stays, pinned to an exact version |
+| AC-25 | Every copied file, the sign-in code included, carries the notice | Only the files the Hub still copies carry it. What the Hub uses from `@mastra/code-sdk` is imported |
+| Copy list | `dist/auth/*`, the subscription providers, `dist/agents/credential-resolver.js` and the subscription parts of `dist/agents/model.js` are copied | They are imported from `@mastra/code-sdk`. Still copied: the secret envelope, the sharing rules, the plan file's title and body split, and the observational memory settings |

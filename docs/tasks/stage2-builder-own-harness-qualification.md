@@ -174,12 +174,12 @@ shows it. "Partly" names the missing piece. "Not proven" means a live proof that
 | AC-17 | A run that fails or outlives a Hub restart ends failed, or admitted if `main` holds its candidate (`0002:99-102`) | met | `builder-run-recovery-postgres:99`, `builder-run-recovery-postgres:116` |
 | AC-18 | Several shared conversations per Project, stored in Postgres, listed by title or first message and last activity (`0002:105-107`) | partly | `builder-session-routes:133`. Storage is still schema `factory` (`apps/hub/src/builder/module.ts:188-189`). The list shows no first message and no last activity |
 | AC-19 | Observational memory with Mastra Code's settings, on the installation's memory model (`0002:108-109`) | not built | `apps/hub/src/builder/module.ts:342` is `lastMessages: 40` with no observational memory |
-| AC-20 | API key, ChatGPT subscription, Claude subscription and Google AI Pro, from Modelos de IA (`0002:112-113`) | partly | ChatGPT: `builder-openai-codex:93`. Google AI Pro: `builder-google-ai-pro:344`. API keys and the Claude subscription are not built (`apps/hub/src/builder/model-accounts.ts:42-45`) |
+| AC-20 | API key, ChatGPT subscription, Claude subscription and Google AI Pro, from Modelos de IA (`0002:112-113`) | met at `8337926d` | ChatGPT: `builder-openai-codex:93`. Google AI Pro: `builder-google-ai-pro:344`. Claude subscription: `builder-anthropic:130`. API key: `builder-anthropic:101`, for Anthropic, the one provider with a key shape in `model-accounts.ts`. Built after `40d9671d` ([section 10](#10-direction-the-ordered-work), item 13) |
 | AC-21 | Two sharing levels. Only an installation administrator sets `everyone`. One account per person per provider, one shared per provider (`0002:114-116`) | partly | Database rule: `model-account-postgres:47`. No sharing route and no 403 or 409 test |
 | AC-22 | Secrets are sealed before storage, never reach the browser or the sandbox, and a refreshed token is written back first (`0002:117-119`) | met | `secrets-envelope-interop:20`, `builder-openai-codex:180`, `model-account-postgres:113`. The sandbox half waits on AC-15 |
 | AC-23 | Three installation defaults, the model router catalog, a per-conversation pick, and the connect-a-model message (`0002:120-123`) | partly | `builder-openai-codex:272`, `model-account-postgres:165`, `builder-session-routes:174`. No route or screen for the defaults |
-| AC-24 | `@mastra/factory`, `@mastra/code-sdk`, the `factory` schema, the `hub_factory` role, the GitHub App code and model packs are gone (`0002:126-129`) | not built | `package.json` still lists both packages. `/settings/installation/github` is still routed (`apps/hub/src/http/app.ts:120`) |
-| AC-25 | Every copied file carries the Apache 2.0 notice and names its source and version (`0002:130-131`) | partly | Notices in the copied files (the ChatGPT copies `openai-codex/oauth.ts` and `model.ts` are gone: `@mastra/code-sdk` is imported). Complete when AC-24 finishes the copy list |
+| AC-24 | `@mastra/factory`, `@mastra/code-sdk`, the `factory` schema, the `hub_factory` role, the GitHub App code and model packs are gone (`0002:126-129`) | not built | `package.json` still lists `@mastra/factory`. `@mastra/code-sdk` stays under the amendment of 2026-10-01. `/settings/installation/github` is still routed (`apps/hub/src/http/app.ts:120`) |
+| AC-25 | Every copied file carries the Apache 2.0 notice and names its source and version (`0002:130-131`) | partly | Notices in the copied files. The ChatGPT and Claude sign-ins are imported from `@mastra/code-sdk`, as the amendment of 2026-10-01 decides. Complete when AC-24 finishes the copy list |
 | AC-26 | C-032 is recorded, superseding C-022 and C-025 and amending C-027 (`0002:132-133`) | met | The operator accepted C-032 on 2026-09-29. The [register](../decisions/index.md#decided-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033) records it as current |
 | AC-27 | The eval passes `todo-reload`, `erp/sankhya-not-connected` and `erp/sales-dashboard`, one run each and one rerun per failed case (`0002:136-141`) | not proven | Declared in section 6. `erp/sales-dashboard` is blocked (section 7, limit 1) |
 | AC-28 | Driving Chromium as a person: create a Project, ask for an app, approve the plan, see the app in the Preview (`0002:142-143`) | not proven | Declared in section 6. The run is in progress |
@@ -280,9 +280,10 @@ remain after the verdict:
   and records that spec 0004 replaces the two modes of C-032 with one.
 - Done on 2026-10-01: `docs/roadmap.md` shows the development plane of C-032 with the one mode of
   spec 0004, and its technology baseline records the stack v2 of C-033 as an accepted target.
-- The ChatGPT model path in the roadmap's technology baseline. The branch code signs in, refreshes
-  and calls Codex through `@mastra/code-sdk` 1.8.3 (`124d314f`), and C-032 says Mastra Code leaves
-  the Hub. The operator settles which holds before the baseline records the path.
+- Done on 2026-10-01, decided by the operator: the ChatGPT model path. The Mastra Code product leaves
+  the Hub, and `@mastra/code-sdk` stays as a pinned library for the subscription sign-ins, the
+  sandbox filesystem, error classification and the eval's Claude login. C-032, spec 0002 (AC-24,
+  AC-25, the copy list and the amendment of 2026-10-01) and the roadmap's technology baseline record it.
 - The documents that state C-022 as current, as slice 7 of spec 0002 requires (`0002:376-380`).
 - `docs/reference/builder-c020-mastra-native.md`, which names the REACT_VITE_V1 profile at line 184.
 - Done on 2026-10-01: the Q4 task's closure item 4 says "a real Builder conversation", not "a real

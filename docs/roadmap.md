@@ -144,6 +144,17 @@ In the table, S17 2.2 and S17 2.3 name those two sections.
 | `date-fns` 4.4.0, `react-day-picker` 9.x | pt-BR dates, and the date picker. `react-day-picker` is the 9.x version that the pinned shadcn `calendar.tsx` requires | V1 has no date formatting or date picker | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | `Intl` only, with no date picker |
 | `lucide-react` 1.47.0 | The icons of the starter components | The shadcn components import their icons from it | [S17 2.2](research/builder/17-app-stack-decision.md#22-the-picks) | None. The Hub web app uses the same package |
 
+### Accepted under C-032, amended on 2026-10-01
+
+The operator decided the model path on 2026-10-01. `@mastra/code-sdk` 1.8.3 is already a Hub
+dependency on `main`, where the Factory-centered Builder uses it. Under C-032 as amended, the Mastra
+Code product leaves the Hub, and the package stays as a pinned library that the Builder pull requests
+use.
+
+| Package and exact version | Consumer | Named limitation | Evidence | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `@mastra/code-sdk` 1.8.3 | The Claude subscription and the ChatGPT subscription (sign-in, refresh and model), the sandbox filesystem (`SandboxFilesystem`), error classification (`parseError`) and the eval's Claude login | The subscription flows are unofficial, and Mastra maintains them for its own product. A provider's change must reach the Hub | [C-032](decisions/index.md#in-force) and the [spec 0002 amendment](tasks/specs/0002-builder-own-harness/index.md#amendment-2026-10-01-mastracode-sdk-stays-as-a-library) | Copy the code into the Hub, as C-032 first planned. A provider's change would then need a port by hand instead of an upgrade |
+
 Every application-architecture gate follows the
 [Builder proof rule](development/delivery.md#builder-proof-rule).
 
