@@ -65,7 +65,7 @@ test('the list of Builder texts covers the guide, the prompt, the skills, the st
     'apps/hub/src/builder/handler-kit/sankhya.ts',
     'apps/hub/src/builder/harness/prompt/builder.md',
     'builder-skills/conexus-server/SKILL.md',
-    'builder-skills/conexus-app-code/references/router.tsx',
+    'builder-skills/conexus-app/references/shell.tsx',
     'apps/hub/src/builder/starter/AGENTS.md',
     'apps/hub/starter-template/files/app/src/routes/home.tsx',
   ]) assert.ok(BUILDER_TEXTS.includes(expected), expected)

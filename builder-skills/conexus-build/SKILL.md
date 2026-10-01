@@ -1,6 +1,6 @@
 ---
 name: conexus-build
-description: Use before you change the code of an app, to build an approved plan or a small change with nothing left to decide. Covers working step by step, proving each step with the check and real operations, what to do when a step fails or the work leaves the plan, keeping the code clean, and finishing.
+description: Builds an approved plan, or a small change with nothing left to decide, in small steps proved by the check and real operations. Covers what to do when a step fails or the work leaves the plan, keeping the code clean, and finishing. Use before changing an app's code.
 ---
 
 # Building
@@ -44,6 +44,7 @@ Build in small steps and prove each one before the next. A step is done when you
 ## Finish
 
 1. Read the plan again, or the request without one, and check each item against what you proved. Mark done only what you proved.
-2. Make the plan match what you built.
-3. Save what lasts to the app's memory: decisions with why, rules the person confirmed, and where each piece of data lives.
-4. Write the final message in a few short sentences: first what failed or was not proven, then what is ready and what to try in the Prévia (it updates once Conexus saves this version), then the decisions you made and the assumptions for the person to confirm. Say what ran as facts, such as "o app compilou e abriu; 3 operações conferidas". Do not end by offering more help.
+2. Read the app as the person will meet it, screen by screen, from the first one, against the plan's part for the person. If a screen would read as a bare form or an empty table to someone opening it for the first time, or a suggestion the person approved is missing, fix it before you finish.
+3. Make the plan match what you built.
+4. Save what lasts to the app's memory: decisions with why, rules the person confirmed, and where each piece of data lives.
+5. Write the final message in a few short sentences: first what failed or was not proven, then what is ready and what to try in the Prévia (it updates once Conexus saves this version), then the decisions you made and the assumptions for the person to confirm. Say what ran as facts, such as "o app compilou e abriu; 3 operações conferidas". Do not end by offering more help.

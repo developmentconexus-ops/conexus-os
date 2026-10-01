@@ -125,7 +125,7 @@ Eval and proof
 | AC-9 | Construir updates `AGENTS.md`; the Hub refuses a bad one | AC-10, and memory in AC-9 |
 | AC-23 | Three default models: Planejar, Construir, memory | AC-12 |
 
-Unchanged: AC-10 (skills from `builder-skills/`, now six), AC-11 to AC-22, AC-24 to AC-31, and the
+Unchanged: AC-10 (skills from `builder-skills/`, now five), AC-11 to AC-22, AC-24 to AC-31, and the
 2026-09-29 amendment.
 
 ## Decision
@@ -172,7 +172,7 @@ The cutoff table holds the models the installation offers today with their publi
 ### Tool contract
 
 Today's Construir list without `submit_plan`, plus Mastra's recall tool from `retrieval: true`. The
-skills processor lists `conexus-server`, `conexus-app-ui`, `conexus-app-code`, `conexus-plan`,
+skills processor lists `conexus-server`, `conexus-app`, `conexus-plan`,
 `conexus-build` and `conexus-sankhya`. The mode guard keeps its sandbox and write root checks; the
 plan only rule goes.
 

@@ -10,10 +10,10 @@ mkdirSync(cacheRoot, { recursive: true })
 
 const { assertBuilderSkillsAvailable } = await import(hubModuleUrl('builder/skills-guard.js'))
 
-test('starts when the skills folder carries the six builder skills', () => {
+test('starts when the skills folder carries the five builder skills', () => {
   const root = mkdtempSync(resolve(cacheRoot, 'builder-skills-present-'))
   try {
-    for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
+    for (const name of ['conexus-server', 'conexus-app', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
       mkdirSync(join(root, name))
       writeFileSync(join(root, name, 'SKILL.md'), `---\nname: ${name}\n---\nguide\n`)
     }
@@ -28,19 +28,19 @@ test('refuses to start when the skills folder lacks a builder skill, and names i
   try {
     mkdirSync(join(root, 'conexus-server'))
     writeFileSync(join(root, 'conexus-server', 'SKILL.md'), '---\nname: conexus-server\n---\nguide\n')
-    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app-ui, conexus-app-code, conexus-plan, conexus-build, conexus-sankhya; /)
+    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app, conexus-plan, conexus-build, conexus-sankhya; /)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-test('the repository ships the six builder skills where the Hub looks for them', () => {
+test('the repository ships the five builder skills where the Hub looks for them', () => {
   assert.doesNotThrow(() => assertBuilderSkillsAvailable(resolve(repositoryRoot, 'builder-skills')))
 })
 
 const skillText = (name) => readFileSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md'), 'utf8')
 
-for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
+for (const name of ['conexus-server', 'conexus-app', 'conexus-plan', 'conexus-build', 'conexus-sankhya']) {
   test(`builder-skills/${name} is a skill named after its folder whose cited references exist`, () => {
     const text = skillText(name)
     assert.equal(/^---\nname: (.+)\n/.exec(text)?.[1], name)
@@ -49,24 +49,30 @@ for (const name of ['conexus-server', 'conexus-app-ui', 'conexus-app-code', 'con
   })
 }
 
-test('the conexus-app-code skill cites every reference file it ships', () => {
-  const text = skillText('conexus-app-code')
-  const shipped = readdirSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references'))
-  assert.deepEqual(shipped.sort(), ['router.tsx', 'ticket-form.tsx', 'visits-screen.tsx', 'visits-table.tsx'])
+test('the conexus-app skill cites every reference page it ships', () => {
+  const text = skillText('conexus-app')
+  const shipped = readdirSync(resolve(repositoryRoot, 'builder-skills/conexus-app/references'))
+  assert.deepEqual(shipped.sort(), ['dashboard.tsx', 'form.tsx', 'list.tsx', 'record.tsx', 'shell.tsx', 'ticket-status.tsx'])
   for (const file of shipped) {
     assert.ok(text.includes(`references/${file}`), `SKILL.md does not cite ${file}`)
   }
 })
 
-test('the conexus-app-ui skill names the source and licence of the passages it adapts', () => {
-  const text = skillText('conexus-app-ui')
+test('the conexus-app skill names the source and licence of the passages it adapts', () => {
+  const text = skillText('conexus-app')
   assert.match(text, /skills\/frontend-design\/SKILL\.md/)
   assert.match(text, /Apache License, Version 2\.0/)
 })
 
-test('the conexus-server skill sends the browser through the generated client and does not claim the check runs operations', () => {
+test('the conexus-app skill sends the browser through the generated client and never through fetch', () => {
+  const text = skillText('conexus-app')
+  assert.match(text, /`api` from `@\/conexus\/api\.gen`, never with `fetch`/)
+})
+
+test('the conexus-server skill leaves browser calls to conexus-app and does not claim the check runs operations', () => {
   const text = skillText('conexus-server')
-  assert.match(text, /@\/conexus\/api\.gen/)
+  assert.doesNotMatch(text, /import \{ api \} from/)
+  assert.match(text, /`conexus-app`/)
   assert.doesNotMatch(text, /fetch\('\/__conexus/)
   assert.doesNotMatch(text, /check\.sh/)
   assert.doesNotMatch(text, /answers every operation/)

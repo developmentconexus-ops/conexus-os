@@ -83,8 +83,8 @@ test('the turn date is the date in America/Sao_Paulo, not in UTC', () => {
   assert.equal(turnDate(new Date('2026-09-30T12:00:00Z')), '2026-09-30')
 })
 
-test('AC-3: the six skills the prompt and the guard name all ship, and the prompt names only shipped ones', () => {
-  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app-code', 'conexus-app-ui', 'conexus-build', 'conexus-plan', 'conexus-sankhya', 'conexus-server'])
+test('AC-3: the five skills the prompt and the guard name all ship, and the prompt names only shipped ones', () => {
+  assert.deepEqual([...BUILDER_SKILL_NAMES].sort(), ['conexus-app', 'conexus-build', 'conexus-plan', 'conexus-sankhya', 'conexus-server'])
   for (const name of BUILDER_SKILL_NAMES) assert.equal(existsSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md')), true, `${name} exists`)
   for (const [, name] of template.matchAll(/`(conexus-[a-z-]+)`/g)) if (name !== 'conexus-{integrator}') assert.equal(BUILDER_SKILL_NAMES.includes(name), true, `${name} is a shipped skill`)
 })
@@ -126,7 +126,7 @@ test('the real builder-skills path resolves from the repository root', () => {
   assert.equal(defaultBuilderSkillsRoot('/repo'), '/repo/builder-skills')
 })
 
-test('the Builder finds its six skills through its skill listing', async () => {
+test('the Builder finds its five skills through its skill listing', async () => {
   const controller = createBuilderController({ model: scriptedModel().model, storage: new InMemoryStore() })
   const agent = controller.getCurrentAgent(await controller.createSession({ resourceId: 'project:probe-skills', scope: 'probe-skills' }))
   const skills = await agent.listSkills({ requestContext: new RequestContext() })
@@ -136,8 +136,8 @@ test('the Builder finds its six skills through its skill listing', async () => {
 test('the model sees each skill by name and never a path on the Hub host, and reads a skill reference through skill_read', async (t) => {
   const systemTexts = []
   const toolCalls = [
-    { toolCallId: 's1', toolName: 'skill', input: { name: 'conexus-app-code' } },
-    { toolCallId: 's2', toolName: 'skill_read', input: { skillName: 'conexus-app-code', path: 'references/ticket-form.tsx' } },
+    { toolCallId: 's1', toolName: 'skill', input: { name: 'conexus-app' } },
+    { toolCallId: 's2', toolName: 'skill_read', input: { skillName: 'conexus-app', path: 'references/form.tsx' } },
   ]
   const model = {
     specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
@@ -169,8 +169,8 @@ test('the model sees each skill by name and never a path on the Hub host, and re
   assert.equal(systemTexts[0].split('<available_skills>').length - 1, 1, 'the catalog is injected once')
   assert.equal(systemTexts[0].includes(repositoryRoot), false, 'the system prompt carries no Hub host path')
   assert.equal(toolResults.s1.includes(repositoryRoot), false, 'the skill tool result carries no Hub host path')
-  assert.match(toolResults.s1, /- references\/ticket-form\.tsx/, 'the activation lists the references relative to the skill')
-  assert.equal(toolResults.s2, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/ticket-form.tsx'), 'utf8'), 'skill_read returns the reference file')
+  assert.match(toolResults.s1, /- references\/form\.tsx/, 'the activation lists the references relative to the skill')
+  assert.equal(toolResults.s2, readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app/references/form.tsx'), 'utf8'), 'skill_read returns the reference file')
 })
 
 // A scripted turn: ask_user (suspends) -> resume "azul" -> a workspace command -> text.

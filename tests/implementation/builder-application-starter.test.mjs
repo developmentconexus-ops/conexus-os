@@ -162,14 +162,14 @@ test('the starter files give the people an AGENTS.md for their instructions and 
   assert.doesNotMatch(files[0].content, /Project knowledge/)
 })
 
-test('the global conexus-server skill matches the check it documents', () => {
+test('the global conexus-server skill matches the check it documents', async () => {
   const guide = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
-  assert.deepEqual(Object.keys(example.operations), ['listItems', 'addItem'])
-  assert.match(guide, /import \{ api \} from '@\/conexus\/api\.gen'/)
-  assert.match(guide, /api\.listItems\(/)
-  assert.match(guide, /never call an operation with `fetch`/)
+  assert.deepEqual(Object.keys(example.operations), ['listTickets', 'changeTicketStatus'])
+  const { admitManifest } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+  assert.doesNotThrow(() => admitManifest(example, 'source'))
+  assert.match(guide, /app\/src\/conexus\/api\.gen\.ts/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)
   // The handler contract names the caller beside db and tells the Builder never to take it from input.

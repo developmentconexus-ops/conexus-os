@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -14,33 +14,59 @@ const { generateClient, API_GEN_PATH } = await import(join(compilerRoot, 'genera
 const { fixedApplicationStarterFiles } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false })
-const operation = (input, output) => ({ handler: 'handlers/visits.ts', export: 'handle', input, output })
+const operation = (input, output) => ({ handler: 'handlers/tickets.ts', export: 'handle', input, output })
+const status = { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done'] }
+const ticketRow = object({ id: { type: 'integer' }, subject: { type: 'string' }, status, requesterName: { type: 'string' }, openedAt: { type: 'string' } })
+const historyEntry = object({ id: { type: 'integer' }, status, note: { type: 'string' }, byName: { type: 'string' }, at: { type: 'string' } })
 
-// The operations the examples call, as a Project's manifest would declare them.
+// The operations the reference pages call, as a Project's manifest would declare them.
 const MANIFEST = {
   operations: {
-    listVisits: operation(
+    listTickets: operation(
+      object({ status, search: { type: 'string', maxLength: 80 } }, []),
+      { type: 'array', maxItems: 500, items: ticketRow },
+    ),
+    countTickets: operation(
       object({ search: { type: 'string', maxLength: 80 } }, []),
-      { type: 'array', items: object({ customer: { type: 'string' }, status: { type: 'string' }, minutes: { type: 'number' }, scheduledAt: { type: 'string' } }) },
+      { type: 'array', maxItems: 10, items: object({ status, total: { type: 'integer' } }) },
+    ),
+    getTicket: operation(
+      object({ id: { type: 'integer', minimum: 1 } }),
+      object({
+        ticket: object({
+          id: { type: 'integer' }, subject: { type: 'string' }, description: { type: 'string' }, status,
+          requesterName: { type: 'string' }, openedAt: { type: 'string' }, history: { type: 'array', maxItems: 200, items: historyEntry },
+        }),
+      }, []),
+    ),
+    changeTicketStatus: operation(
+      object({ id: { type: 'integer', minimum: 1 }, status, note: { type: 'string', maxLength: 500 } }),
+      object({ id: { type: 'integer' } }),
     ),
     createTicket: operation(
-      object({ subject: { type: 'string', minLength: 1, maxLength: 80 }, affectedUsers: { type: 'integer', minimum: 0 } }),
-      object({ id: { type: 'string' } }),
+      object({ subject: { type: 'string', minLength: 1, maxLength: 120 }, description: { type: 'string', maxLength: 2000 }, priority: { type: 'string', enum: ['low', 'normal', 'high'] } }),
+      object({ id: { type: 'integer' } }),
+    ),
+    ticketSummary: operation(
+      object({}),
+      object({ open: { type: 'integer' }, waiting: { type: 'integer' }, resolvedLastWeek: { type: 'integer' } }),
     ),
     ticketsByWeek: operation(
       object({ weeks: { type: 'integer', minimum: 1, maximum: 52 } }),
-      { type: 'array', items: object({ week: { type: 'string' }, total: { type: 'number' } }) },
+      { type: 'array', maxItems: 52, items: object({ week: { type: 'string' }, total: { type: 'integer' } }) },
     ),
   },
 }
 
-// Where a Project puts each example, as the two skills tell the Builder to.
+// Where a Project puts each reference page, as the conexus-app skill tells the Builder to.
+const REFERENCES = 'builder-skills/conexus-app/references'
 const PLACEMENT = {
-  'builder-skills/conexus-app-code/references/ticket-form.tsx': 'app/src/routes/ticket-form.tsx',
-  'builder-skills/conexus-app-code/references/visits-screen.tsx': 'app/src/routes/visits-screen.tsx',
-  'builder-skills/conexus-app-code/references/visits-table.tsx': 'app/src/routes/visits-table.tsx',
-  'builder-skills/conexus-app-code/references/router.tsx': 'app/src/router.tsx',
-  'builder-skills/conexus-app-ui/references/tickets-chart.tsx': 'app/src/routes/tickets.lazy.tsx',
+  [`${REFERENCES}/shell.tsx`]: 'app/src/router.tsx',
+  [`${REFERENCES}/ticket-status.tsx`]: 'app/src/components/ticket-status.tsx',
+  [`${REFERENCES}/list.tsx`]: 'app/src/routes/tickets.tsx',
+  [`${REFERENCES}/record.tsx`]: 'app/src/routes/ticket.tsx',
+  [`${REFERENCES}/form.tsx`]: 'app/src/routes/new-ticket.tsx',
+  [`${REFERENCES}/dashboard.tsx`]: 'app/src/routes/dashboard.lazy.tsx',
 }
 
 const typecheck = (extraFiles = {}) => {
@@ -64,15 +90,19 @@ const typecheck = (extraFiles = {}) => {
   }
 }
 
-test('every skill example typechecks against the starter components, the generated client and the compiler app project', () => {
+test('every conexus-app reference page typechecks against the starter components, the generated client and the compiler app project', () => {
   assert.deepEqual(typecheck(), { status: 0, output: '' })
 })
 
-test('the guard bites: an example that calls an operation the manifest does not declare fails the same typecheck', () => {
-  const screen = readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-app-code/references/visits-screen.tsx'), 'utf8')
-  const result = typecheck({ 'app/src/routes/visits-screen.tsx': screen.replace('api.listVisits(input)', 'api.listVisitz(input)') })
+test('the guard bites: a page that calls an operation the manifest does not declare fails the same typecheck', () => {
+  const screen = readFileSync(resolve(repositoryRoot, REFERENCES, 'list.tsx'), 'utf8')
+  const result = typecheck({ 'app/src/routes/tickets.tsx': screen.replace('api.listTickets(listInput)', 'api.listTicketz(listInput)') })
   assert.equal(result.status, 2)
-  assert.match(result.output, /^app\/src\/routes\/visits-screen\.tsx\(\d+,\d+\): error TS2551: Property 'listVisitz' does not exist/m)
+  assert.match(result.output, /^app\/src\/routes\/tickets\.tsx\(\d+,\d+\): error TS2551: Property 'listTicketz' does not exist/m)
+})
+
+test('every file in the conexus-app references is placed and typechecked', () => {
+  assert.deepEqual(readdirSync(resolve(repositoryRoot, REFERENCES)).sort(), Object.keys(PLACEMENT).map((path) => path.slice(REFERENCES.length + 1)).sort())
 })
 
 const serverGuide = () => readFileSync(resolve(repositoryRoot, 'builder-skills/conexus-server/SKILL.md'), 'utf8')
@@ -88,7 +118,7 @@ const typecheckServerExample = (edit = (handler) => handler) => {
     mkdirSync(join(root, 'conexus/handlers'), { recursive: true })
     writeFileSync(join(root, 'conexus/manifest.json'), JSON.stringify(manifest))
     writeFileSync(join(root, 'conexus/types.gen.ts'), generateClient(manifest).typesGen)
-    writeFileSync(join(root, 'conexus/handlers/items.ts'), edit(handler))
+    writeFileSync(join(root, 'conexus/handlers/tickets.ts'), edit(handler))
     const config = join(root, 'tsconfig.server.json')
     writeFileSync(config, JSON.stringify(typescriptProjects({ compilerRoot, root }).server))
     const result = spawnSync(process.execPath, [join(compilerRoot, 'node_modules/typescript/bin/tsc'), '-p', config, '--pretty', 'false'], { encoding: 'utf8', cwd: root })
@@ -103,7 +133,7 @@ test('the conexus-server handler example typechecks against the types its own ma
 })
 
 test('the typed handler contract bites: returning a field the manifest does not declare fails the same typecheck', () => {
-  const result = typecheckServerExample((handler) => handler.replace('return { id: rows[0].id }', 'return { id: rows[0].id, items: [] }'))
+  const result = typecheckServerExample((handler) => handler.replace('return { id: rows[0]?.id }', 'return { id: rows[0]?.id, tickets: [] }'))
   assert.equal(result.status, 2)
-  assert.match(result.output, /^conexus\/handlers\/items\.ts\(\d+,\d+\): error TS2353: Object literal may only specify known properties, and 'items' does not exist/m)
+  assert.match(result.output, /^conexus\/handlers\/tickets\.ts\(\d+,\d+\): error TS2353: Object literal may only specify known properties, and 'tickets' does not exist/m)
 })

@@ -1,13 +1,11 @@
 ---
 name: conexus-server
-description: Use when an app needs server logic, saved data, or browser calls to Project operations.
+description: How an app saves data and runs logic under `conexus/`. Covers operations in `manifest.json`, handlers, reading a Conexão with `connectors.fetch`, tables and migrations, and failures. Use before designing an app's tables or changing anything in `conexus/`.
 ---
 
 # Server logic and saved data
 
-Read this only when the app must save data or run logic on the server. The browser app stays in `app/`.
-
-Everything server-side lives under `conexus/`:
+Everything server-side lives under `conexus/`; the browser app stays in `app/`.
 
 - `manifest.json` declares each operation the browser may call.
 - `handlers/*.ts` implement them.
@@ -20,17 +18,17 @@ Everything server-side lives under `conexus/`:
 ```json
 {
   "operations": {
-    "listItems": {
-      "handler": "handlers/items.ts",
-      "export": "listItems",
-      "input": { "type": "object", "properties": { "category": { "type": "string", "maxLength": 80 } }, "required": ["category"], "additionalProperties": false },
-      "output": { "type": "array", "maxItems": 500, "items": { "type": "object", "properties": { "id": { "type": "integer" }, "name": { "type": "string" } }, "required": ["id", "name"], "additionalProperties": false } }
+    "listTickets": {
+      "handler": "handlers/tickets.ts",
+      "export": "listTickets",
+      "input": { "type": "object", "properties": { "status": { "type": "string", "enum": ["open", "waiting", "done"] } }, "required": ["status"], "additionalProperties": false },
+      "output": { "type": "array", "maxItems": 500, "items": { "type": "object", "properties": { "id": { "type": "integer" }, "subject": { "type": "string" }, "openedAt": { "type": "string" } }, "required": ["id", "subject", "openedAt"], "additionalProperties": false } }
     },
-    "addItem": {
-      "handler": "handlers/items.ts",
-      "export": "addItem",
-      "input": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 80 } }, "required": ["name"], "additionalProperties": false },
-      "output": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": ["id"], "additionalProperties": false }
+    "changeTicketStatus": {
+      "handler": "handlers/tickets.ts",
+      "export": "changeTicketStatus",
+      "input": { "type": "object", "properties": { "id": { "type": "integer", "minimum": 1 }, "status": { "type": "string", "enum": ["open", "waiting", "done"] }, "note": { "type": "string", "maxLength": 500 } }, "required": ["id", "status", "note"], "additionalProperties": false },
+      "output": { "type": "object", "properties": { "id": { "type": "integer" } }, "required": [], "additionalProperties": false }
     }
   }
 }
@@ -73,16 +71,21 @@ type Db = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> }
 type Caller = { accountId: string; email: string | null; displayName: string }
 type Connectors = { fetch(request: { connection: string; method: string; path: string; query?: Record<string, string>; body?: unknown }): Promise<{ ok: true; status: number; bytes: number; body: any } | { ok: false; code: string; issues?: string[]; status?: number; vendorStatus?: string }> }
 
-export async function listItems(input: Input<'listItems'>, { db }: { db: Db }): Promise<Output<'listItems'>> {
-  const { rows } = await db.query('SELECT id, name FROM item WHERE category = $1 ORDER BY id', [input.category])
+export async function listTickets(input: Input<'listTickets'>, { db }: { db: Db }): Promise<Output<'listTickets'>> {
+  const { rows } = await db.query(
+    'SELECT id, subject, opened_at AS "openedAt" FROM ticket WHERE status = $1 ORDER BY opened_at DESC LIMIT 500',
+    [input.status])
   return rows
 }
 
-export async function addItem(input: Input<'addItem'>, { db, caller }: { db: Db; caller: Caller }): Promise<Output<'addItem'>> {
+// The change and its history row are one statement, so neither is saved without the other.
+export async function changeTicketStatus(input: Input<'changeTicketStatus'>, { db, caller }: { db: Db; caller: Caller }): Promise<Output<'changeTicketStatus'>> {
   const { rows } = await db.query(
-    'INSERT INTO item (name, created_by_account_id, created_by_name) VALUES ($1, $2, $3) RETURNING id',
-    [input.name, caller.accountId, caller.displayName])
-  return { id: rows[0].id }
+    `WITH changed AS (UPDATE ticket SET status = $2 WHERE id = $1 RETURNING id)
+     INSERT INTO ticket_history (ticket_id, status, note, by_account_id, by_name)
+     SELECT id, $2, $3, $4, $5 FROM changed RETURNING ticket_id AS id`,
+    [input.id, input.status, input.note, caller.accountId, caller.displayName])
+  return { id: rows[0]?.id }
 }
 ```
 
@@ -118,32 +121,35 @@ and the person sees only a generic message.
 
 ## Migrations
 
-`conexus/migrations/001_create_item.sql`:
+A record that moves through statuses keeps its history in a table of its own: one row per change,
+with who made it and when. `conexus/migrations/001_create_ticket.sql`:
 
 ```sql
-CREATE TABLE item (
+CREATE TABLE ticket (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name text NOT NULL,
-  created_by_account_id uuid NOT NULL,
-  created_by_name text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
+  subject text NOT NULL,
+  status text NOT NULL DEFAULT 'open',
+  opened_by_account_id uuid NOT NULL,
+  opened_by_name text NOT NULL,
+  opened_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE ticket_history (
+  id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ticket_id integer NOT NULL REFERENCES ticket (id),
+  status text NOT NULL,
+  note text NOT NULL,
+  by_account_id uuid NOT NULL,
+  by_name text NOT NULL,
+  at timestamptz NOT NULL DEFAULT now()
 );
 ```
 
 A migration may create and alter tables, indexes, constraints and views in this Project's schema
 only: no functions, procedures, triggers, DO blocks, extensions, roles, grants or other schemas.
 
-## Calling an operation from the browser
+## The browser side
 
-Conexus generates a typed client from `manifest.json` into `app/src/conexus/api.gen.ts` on every
-check. Never write or edit it, and never call an operation with `fetch`. Screens use it like this:
-
-```ts
-import { api } from '@/conexus/api.gen'
-
-const items = await api.listItems({ category: 'a' }) // typed from the manifest
-// a failure throws ConexusError { code, detail }; the screen shows a message and keeps rendering
-```
-
-Add or rename a field in the manifest and the type check names every screen and handler that no
-longer matches. How a screen reads, writes and shows errors is in the `conexus-app-code` skill.
+Conexus generates the browser's typed client from `manifest.json` into `app/src/conexus/api.gen.ts`
+on every check. Add or rename a field in the manifest and the type check names every screen and
+handler that no longer matches. How a screen calls an operation is in the `conexus-app` skill.

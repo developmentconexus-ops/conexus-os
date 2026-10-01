@@ -1,6 +1,6 @@
 ---
 name: conexus-plan
-description: Use before you change anything for a new app or a request that leaves open what the app must do, even one that sounds small and clear, such as adding a record, a field or a status. Explores the app and the Conexões, asks what is missing, writes the plan to `.conexus/plan.md` and gets the person's approval before you build.
+description: Designs an app with the person before any code. Explores the app and the Conexões, finds where each value comes from, designs the screens around the person's work, proposes what a good app of this kind has as suggestions, writes the plan to `.conexus/plan.md` and gets approval with `submit_plan`. Use for a new app, or for a request that leaves open what the app must do, even one that sounds small, such as adding a record, a field or a status.
 ---
 
 # Planning
@@ -40,11 +40,20 @@ For each thing the person asked for:
 
 In the plan, give each piece its source and the counts.
 
+## Design the app
+
+The request says what the person wants to do. Design the app that does it well, as someone who knows this work would. Load `conexus-app` before you write the screens. For a change, design only the part the request touches.
+
+1. Say who uses the app, at what moment of their work, and what they need to see first. The first screen answers that.
+2. List what a good app of this kind has that the request does not name: how a record moves (its statuses), what happened to it (history, who and when), how people find their work (search, filters with counts by status), what needs their attention (late, stuck, waiting), and what an empty app says. Keep what serves the person's work. Drop what only fills the screen.
+3. Each addition goes in the person's part of the plan as a suggestion, with its reason in a few words. The person decides it by approving the plan. A value is never a suggestion: no company data, no figures such as a target or a limit, no rules about money.
+4. "Simples" in a request means easy to use. Keep the screens few and calm, not the work the app does for the person.
+
 ## Ask
 
 Ask only what the person alone can answer and what changes what you build. A fact you can learn by reading the files or the data, or by running something, is yours to find. When every answer gives the same app, choose, and record it as an assumption.
 
-Write each question in the person's words: business terms, never a table, a field or where something is stored. Give 2 to 4 options, each saying in a few words what the app will do if chosen, your recommendation first. Put what you would add beyond the request in one question, "Posso incluir também?", with several choices allowed and "(recomendado)" on those you advise.
+Write each question in the person's words: business terms, never a table, a field or where something is stored. Give 2 to 4 options, each saying in a few words what the app will do if chosen, your recommendation first.
 
 An unanswered question, or "tanto faz", takes your recommendation as an assumption. "Pode fazer" takes every recommendation, each marked as an assumption.
 
@@ -59,4 +68,4 @@ Write `.conexus/plan.md`, replacing any earlier plan, with no code in it. For a 
 
 ## Approval
 
-Show the person's part of the plan in your message, then ask with `ask_user`: "Posso construir assim?", with the options "Aprovar e construir" and "Pedir ajustes". Change nothing in the app before they approve. When they choose "Pedir ajustes", ask with `ask_user`, as free text, what to change, then edit the parts of the plan their words touch, show the person's part again, and ask again. Once approved, build from the plan.
+Show the person's part of the plan in your message, in their words, with the suggestions marked. Then call `submit_plan` with `.conexus/plan.md`. The person sees the plan in a card, with "Aprovar e construir" and "Pedir ajustes". Change nothing in the app before they approve. When they ask for changes, edit the parts of the plan their feedback touches, show the person's part again, and call `submit_plan` again; editing the file alone does not resubmit it. Once approved, build from the plan.
