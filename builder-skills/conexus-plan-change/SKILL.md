@@ -1,6 +1,6 @@
 ---
 name: conexus-plan-change
-description: Plans a change to a working app with the person before any code. Traces the request through the app as it is, finds what depends on it and which saved data is at risk, designs the change, interviews the person on what the change leaves open, writes the plan to `.conexus/plan.md` and gets approval with `submit_plan`. Use for a change to an app that already has its own screens when the request leaves open what the app must do, even a small one such as adding a field, a status or a kind of record.
+description: Plans a change to a working app with the person before any code. Traces the request through the app as it is, finds what depends on it and which saved data is at risk, designs the change, interviews the person on what the change leaves open, writes the plan to `.conexus/plan.md` and gets approval with `submit_plan`. Use for any change to an existing app, one that already has screens of its own even if it is unfinished or broken, including a new feature inside it, when the request leaves open what the app must do, even a small one such as adding a field, a status or a kind of record.
 ---
 
 # Planning a change
@@ -18,11 +18,13 @@ Read the code; never judge it by file names. Follow the request through the app:
 4. Note what makes the code harder than it needs to be: dead code, a duplicate, a second way of doing one thing, flags or branches that stand in for a missing structure. The plan removes or reshapes these first.
 5. Read the memory files about this part: the rules the person confirmed and the decisions made before.
 
+When the part is unfinished or broken, say what works and what does not, as you read it. For a new feature with no flow of its own yet, trace what it will sit next to instead: where people will reach it, the saved things and Conexões it will read or extend, and the shell it joins.
+
 Done when you can say, without guessing, how the part you will touch works, what depends on it and which saved data it holds, and you have named what you could not trace.
 
 ## 2. Find each piece of data
 
-Each new value the change shows or computes needs a named source: a Conexão field, a table of the app, or a rule the person confirmed. For a value from a company system, find where it lives and prove it with a sample of real use, as the integrator's skill says. A field that exists but comes back empty is not a source. When the request is about a record the person knows, ask for one real example in the interview and read it before you write the plan.
+Each new value the change shows or computes needs a named source: a Conexão field, a table of the app, or a rule the person confirmed. For a value from a company system, find where it lives and prove it with a sample of real use, as the integrator's skill says. A field that exists but comes back empty is not a source. When the request is about a record the person knows and the data cannot show which one or what it looks like, ask for one real example in the interview and read it before you write the plan.
 
 Done when each new value has a source with its counts, or is on the open decisions list.
 
@@ -30,14 +32,23 @@ Done when each new value has a source with its counts, or is on the open decisio
 
 Load `conexus-app` before you design a screen and `conexus-server` before you change a table or `conexus/`.
 
-1. Design the app as it would be if this request had existed from the start, and what that deletes. Fixing in place is often right. Redesign when the request would otherwise need a patch: an extra branch, a second flag kept in step with the first, a second way of doing one thing.
-2. Settle the data shape before the logic. For each saved thing that changes: what it holds now, what it will hold, and what the records saved before the change will hold.
-3. For the part the change touches, what a good app gives it: its kinds, its statuses, who did what and when, how people find it, what needs their attention, what it says when empty. Keep what serves the person's work; drop what only fills the screen.
-4. Each rule the change adds or alters: which records count, how a number is computed, who may see or change what.
+1. For a new feature: who uses it, at what moment of their work, and what they need to see first.
+2. Design the app as it would be if this request had existed from the start, and what that deletes. Fixing in place is often right. Redesign when the request would otherwise need a patch: an extra branch, a second flag kept in step with the first, a second way of doing one thing.
+3. Settle the data shape before the logic. For each saved thing that changes: what it holds now, what it will hold, and what the records saved before the change will hold.
+4. For the part the change touches, what a good app usually gives it: its kinds, its statuses, who did what and when, how people find it, what needs their attention, what it says when empty. These are ideas to weigh, not features to add: keep what serves the person's work and drop what only fills the screen.
+5. Each rule the change adds or alters: which records count, how a number is computed, who may see or change what.
 
-Put each part of the design that came from you, and not from the request, the app or the data, on the open decisions list.
+Before the interview, check what the change covers. Walk each of these for the part the change touches and mark it settled, open or not applicable:
+- The goal: what the person must get done that the app does not do today, and how they will know it does.
+- Who uses the changed part, and who else its records affect.
+- Their flows: what each person does, step by step, including when something is missing or goes wrong.
+- The data: for each thing people save that the change touches, what it holds and how it changes over time, and what the records saved before the change will hold; for each new value from a company system, its source.
+- The rules: which records count and how each number is computed.
+- The access: who may see or change what.
 
-Done when you can describe what changes on each screen, in each table and in each rule, and every part that came from you is on the list.
+An item is settled when the request, the app, its memory, the data or the person decided it. Each open item is an open decision. The open decisions come from this walk, not from the list of what a good app usually gives.
+
+Done when you can describe what changes on each screen, in each table and in each rule, and every item of the walk is marked.
 
 ## 4. Interview the person
 
@@ -50,16 +61,18 @@ Sort each open decision into one of three kinds:
 
 A small change often leaves one or two of the person's decisions: ask those and nothing else. When none is the person's, skip the card.
 
-Ask the person's decisions together in one `ask_user` card:
+Ask the person's decisions in `ask_user` cards of up to four questions, the most costly to get wrong first, with related questions in the same card:
 - Write each question about their work, in their words: business terms, never a table, a field or where something is stored. It reads alone and says what the answer changes.
 - Give 2 to 4 options, each saying in a few words what the app will do, with your recommendation first. Base it on the request, what the app already does, the data and what this kind of work usually needs. Leave the options out only when you cannot guess the likely answers.
-- When more than four decisions are the person's, ask the four that are hardest to undo: what is saved, what happens to saved records, and who may see or change them come before how something is shown. Take your recommendation for the rest and list it in the plan as an assumption, where the person reviews it.
+- What is saved, what happens to saved records, and who may see or change them come before how something is shown.
 
-Read the answers. When one opens a decision you did not have, or contradicts what you found in the app or the data, ask about that alone in one more card. Otherwise stop: the plan shows the rest for review.
+Read the answers before the next card. Another card exists only because a decision is still the person's: one not asked yet, one an answer opened, or an answer that contradicts what you found in the app or the data. Never ask again what an answer settled. Continue until each of the person's decisions is answered, or left open in the plan with what it leaves off.
 
-An unanswered question, or "tanto faz", takes your recommendation as an assumption. "Pode fazer" takes every recommendation, each marked as an assumption. Unless the app or the person already decided otherwise, everyone with access to the app sees everything in it, and the app only reads its Conexões. Writing back, sending anything outside the app and rules about money are never assumed: until the person answers, they stay open in the plan and off in the app.
+Silence is not an answer: a question the person skips leaves its decision open. When the person hands a decision to you, with words such as "tanto faz", "pode fazer" or "você decide", take your recommendation and record it in the plan as an assumption, with what it changes in the app. A business rule left open keeps the behavior that depends on it off in the app, and the plan says what stays off.
 
-Done when each open decision is found, chosen and recorded, or answered, and no answer left a new one.
+Some things are never yours to decide, even when the person hands them to you. Never infer a company fact; it stays open until the person gives it. Until the person chooses otherwise, the app keeps who may see or change what as it does today, a part with no such rule lets everyone with access to the app see everything in it, and the app only reads its Conexões. Writing back, sending anything outside the app and rules about money are never assumed: until the person answers, they stay open in the plan and off in the app.
+
+Done when each of the person's decisions is answered, handed to you and recorded, or left open with what it leaves off, and no answer left a new one.
 
 ## 5. Write the plan
 

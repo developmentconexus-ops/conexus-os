@@ -32,4 +32,4 @@ In "Para construir":
 - Operações: each `conexus/` operation with its input, output, who may call it, and the source of each value it returns.
 - Regras e acesso: each business rule and where it applies; who sees what.
 - Verificações: for each thing the person asked, a check you can run that shows it works.
-- Ordem: first one thin path end to end (one screen, one operation, one Conexão read, passing the check), then one slice at a time, each ending in a passing check.
+- Ordem: first one thin path end to end (one screen, one operation and the source it reads, a Conexão or the app's own table, passing the check), then one slice at a time, each ending in a passing check.
