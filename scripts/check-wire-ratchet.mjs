@@ -8,7 +8,12 @@ import ts from 'typescript'
 // code no longer has, so a pull request that closes a gap deletes its line.
 //
 // The routes are read with the TypeScript compiler, not with patterns over lines. Anything the
-// reader cannot resolve to a string stops the check instead of being skipped.
+// reader cannot resolve to a string stops the check instead of being skipped. Fastify itself would
+// report every route through its onRoute hook, but that needs the built Hub, a Mastra controller
+// and its storage, and every model, OAuth and connector dependency stubbed, and the Mastra mount
+// registers Mastra's whole table rather than the BROWSER_ROUTES subset. That is far more than a
+// static check should cost, so the reader follows every Fastify receiver instead: a parameter typed
+// FastifyInstance, and the parameter of a plugin passed to <receiver>.register(...).
 const root = process.env.CONEXUS_WIRE_RATCHET_ROOT ?? '.'
 const ratchetFile = 'contracts/technical/wire-ratchet.json'
 const VERBS = new Set(['get', 'post', 'put', 'delete', 'patch'])
@@ -66,13 +71,45 @@ const builderRoutes = ({ file, text }) => {
   }
   const isRouteCall = (node) => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ROUTE_HELPERS.has(node.expression.text)
 
+  const receivers = new Set()
+  const findReceivers = (node) => {
+    if (ts.isParameter(node) && ts.isIdentifier(node.name) && node.type?.getText() === 'FastifyInstance') receivers.add(node.name.text)
+    if (ts.isCallExpression(node) && isOn(node, 'register')) {
+      const plugin = node.arguments[0]
+      const first = plugin && (ts.isArrowFunction(plugin) || ts.isFunctionExpression(plugin)) ? plugin.parameters[0] : undefined
+      if (first && ts.isIdentifier(first.name)) receivers.add(first.name.text)
+    }
+    ts.forEachChild(node, findReceivers)
+  }
+  const isOn = (call, ...names) => ts.isPropertyAccessExpression(call.expression) && ts.isIdentifier(call.expression.expression)
+    && receivers.has(call.expression.expression.text) && names.includes(call.expression.name.text)
+  let known = -1
+  while (known !== receivers.size) { known = receivers.size; findReceivers(source) }
+
+  const routeOptions = (call) => {
+    const options = call.arguments[0]
+    if (!options || !ts.isObjectLiteralExpression(options)) throw shape(file, call, 'a route() registration')
+    const field = (name) => options.properties.find((property) => ts.isPropertyAssignment(property) && property.name.getText() === name)?.initializer
+    const method = field('method')
+    const url = field('url') ?? field('path')
+    if (!method || !url) throw shape(file, call, 'a route() registration')
+    const methods = ts.isArrayLiteralExpression(method) ? method.elements : [method]
+    return methods.map((one) => `${file} ${text_(one).toUpperCase()} ${text_(url)}`)
+  }
+
   const routes = []
   const browserSets = []
   const visit = (node) => {
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
-      && node.expression.expression.text === 'app' && VERBS.has(node.expression.name.text)) {
-      if (node.arguments.length === 0) throw shape(file, node, 'a registration')
-      routes.push(`${file} ${node.expression.name.text.toUpperCase()} ${text_(node.arguments[0])}`)
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const name = node.expression.name.text
+      if (isOn(node, ...VERBS)) {
+        if (node.arguments.length === 0) throw shape(file, node, 'a registration')
+        routes.push(`${file} ${name.toUpperCase()} ${text_(node.arguments[0])}`)
+      } else if (isOn(node, 'route')) routes.push(...routeOptions(node))
+      else if (isOn(node, 'register') && node.arguments[1] && /\bprefix\b/.test(node.arguments[1].getText())) throw shape(file, node, 'a register() with a prefix')
+      else if ((VERBS.has(name) || name === 'route') && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) && node.arguments[0].text.startsWith('/')) {
+        throw shape(file, node, 'a route on a receiver that is not a Fastify instance')
+      }
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === 'BROWSER_ROUTES') browserSets.push(node)
     ts.forEachChild(node, visit)

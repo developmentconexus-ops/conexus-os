@@ -16,7 +16,7 @@ ${named.map(({ name }) => `  ${name},`).join('\n')}
   sessionRoute('GET'),
   sessionRoute('POST', '/abort'),
 ${browserExtra}])
-export const register = (app) => {
+export const register = (app: FastifyInstance) => {
 ${routes.map((route) => `  app.get<{ Params: { id: string } }>('${route}', async () => ({}))`).join('\n')}
 }
 `
@@ -80,12 +80,28 @@ test('reads a browser route split over two lines', (t) => {
 })
 
 test('reads a registration whose path is a local constant', (t) => {
-  const result = run(fixture(t, { top: "const PROBE_PATH = '/api/control/probe'\nexport const more = (app) => app.post(PROBE_PATH, async () => ({}))" }))
+  const result = run(fixture(t, { top: "const PROBE_PATH = '/api/control/probe'\nexport const more = (app: FastifyInstance) => app.post(PROBE_PATH, async () => ({}))" }))
   assert.equal(errorLines(result), 'Error: builderRoutes: new gap apps/hub/src/builder/routes.ts POST /api/control/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
 })
 
+test('reads a route registered on a plugin scope inside app.register', (t) => {
+  const result = run(fixture(t, { top: "export const more = (app: FastifyInstance) => app.register(async (scope) => { scope.post('/api/control/probe', async () => ({})) })" }))
+  assert.equal(errorLines(result), 'Error: builderRoutes: new gap apps/hub/src/builder/routes.ts POST /api/control/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+})
+
+test('reads a route registered with app.route', (t) => {
+  const result = run(fixture(t, { top: "export const more = (app: FastifyInstance) => app.route({ method: ['GET', 'POST'], url: '/api/control/probe', handler: async () => ({}) })" }))
+  assert.equal(errorLines(result), `Error: builderRoutes: new gap apps/hub/src/builder/routes.ts GET /api/control/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json
+builderRoutes: new gap apps/hub/src/builder/routes.ts POST /api/control/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json`)
+})
+
+test('stops on a route registered on a receiver it cannot tie to Fastify', (t) => {
+  const result = run(fixture(t, { top: "export const more = (server) => server.post('/api/control/probe', async () => ({}))" }))
+  assert.equal(errorLines(result), "Error: apps/hub/src/builder/routes.ts: cannot read a route on a receiver that is not a Fastify instance `server.post('/api/control/probe', async () => ({}))`; the ratchet does not understand its shape")
+})
+
 test('stops on a registration whose path cannot be resolved', (t) => {
-  const result = run(fixture(t, { top: 'export const more = (app) => app.post(importedPath, async () => ({}))' }))
+  const result = run(fixture(t, { top: 'export const more = (app: FastifyInstance) => app.post(importedPath, async () => ({}))' }))
   assert.equal(errorLines(result), 'Error: apps/hub/src/builder/routes.ts: cannot read a path `importedPath`; the ratchet does not understand its shape')
 })
 
@@ -97,7 +113,7 @@ test('stops on a BROWSER_ROUTES entry it cannot read', (t) => {
 test('keys routes by repository path so same-named files do not collide', (t) => {
   const root = fixture(t)
   mkdirSync(resolve(root, 'apps/hub/src/builder/other'), { recursive: true })
-  writeFileSync(resolve(root, 'apps/hub/src/builder/other/routes.ts'), "export const r = (app) => app.get('/a', async () => ({}))")
+  writeFileSync(resolve(root, 'apps/hub/src/builder/other/routes.ts'), "export const r = (app: FastifyInstance) => app.get('/a', async () => ({}))")
   assert.equal(errorLines(run(root)), 'Error: builderRoutes: new gap apps/hub/src/builder/other/routes.ts GET /a; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
 })
 
