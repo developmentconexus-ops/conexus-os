@@ -9,6 +9,8 @@ The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/tech
 - The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run r1:s1:generate`, `npm run r1:s2:generate` and `npm run r1:s3:p5:generate`.
 - `technical/hub-catalog-snapshot.json` is written only by `npm run db:catalog:snapshot`. `technical/hub-database-roles.json` is the one role register. After you change it, run `npm run db:roles:generate`.
 
+- `technical/wire-ratchet.json` counts the Builder routes outside the generated tables and the problem types the web compares by hand. `npm run wire:ratchet` fails when a count rises, and when one falls and the file is not lowered. A pull request that closes a gap lowers the number.
+
 ## Verify
 
 ```bash

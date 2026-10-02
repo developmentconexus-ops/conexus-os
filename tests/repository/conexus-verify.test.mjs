@@ -72,6 +72,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-identity-workspace',
   'wire-project',
   'wire-builder',
+  'wire-ratchet',
   'wire-connector',
   'wire-technical-lint',
   'wire-technical-ingress',
