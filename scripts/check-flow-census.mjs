@@ -5,10 +5,10 @@ import { EXEMPT_TESTS, collectReachableTests } from './check-test-census.mjs'
 
 // A live flow is declared in its test file as liveFlow({ id: '<area>.<flow>', nome: '...' }, ...)
 // (tests/live/harness.mjs). The census reads that literal; it never imports the test.
-const DECLARATION = /\bliveFlow\(\s*\{\s*id:\s*(['"])([^'"]+)\1/g
+const DECLARATION = /\bliveFlow\(\s*\{\s*id:\s*(['"])([^'"]+)\1\s*,\s*nome:\s*(['"])(.*?)\3/g
 const LIVE_TESTS = 'tests/live/*.test.mjs'
 
-export const declaredFlowIds = (source) => [...source.matchAll(DECLARATION)].map((match) => match[2])
+export const declaredFlows = (source) => [...source.matchAll(DECLARATION)].map((match) => ({ id: match[2], nome: match[4] }))
 
 function listLiveTests(root) {
   const output = execFileSync('git', ['ls-files', LIVE_TESTS], { cwd: root, encoding: 'utf8' })
@@ -24,11 +24,11 @@ export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, l
 
   const declaredIn = new Map()
   for (const path of live) {
-    const ids = declaredFlowIds(read(path))
-    if (ids.length === 0) problems.push(`${path} declares no flow: wrap each scenario in liveFlow({ id, nome }, ...)`)
-    declaredIn.set(path, new Set(ids))
+    const flows = declaredFlows(read(path))
+    if (flows.length === 0) problems.push(`${path} declares no flow: wrap each scenario in liveFlow({ id, nome }, ...)`)
+    declaredIn.set(path, new Map(flows.map((declared) => [declared.id, declared.nome])))
   }
-  const allDeclared = new Set([...declaredIn.values()].flatMap((ids) => [...ids]))
+  const allDeclared = new Set([...declaredIn.values()].flatMap((names) => [...names.keys()]))
 
   const registered = new Map()
   for (const area of areas) {
@@ -49,6 +49,7 @@ export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, l
       registered.set(id, area.area)
       if (!declaredIn.has(test)) problems.push(`flow ${id} names ${test}, which is not a committed live test (${LIVE_TESTS})`)
       else if (!declaredIn.get(test).has(id)) problems.push(`flow ${id} names ${test}, which does not declare that flow`)
+      else if (declaredIn.get(test).get(id) !== nome) problems.push(`flow ${id} is named "${nome}" in areas.json but "${declaredIn.get(test).get(id)}" in ${test}`)
       else if (!reachable.has(test) || exempt.has(test)) problems.push(`flow ${id} names ${test}, which is not run by the required graph`)
     }
   }

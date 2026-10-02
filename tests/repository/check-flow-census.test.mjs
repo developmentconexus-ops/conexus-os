@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkFlowCensus, declaredFlowIds } from '../../scripts/check-flow-census.mjs'
+import { checkFlowCensus, declaredFlows } from '../../scripts/check-flow-census.mjs'
 
 const LIVE = 'tests/live/builder-send-and-reply.test.mjs'
 const SOURCES = { [LIVE]: "liveFlow({ id: 'builder.send-and-reply', nome: 'Enviar' }, async () => {})" }
@@ -17,8 +17,17 @@ const run = ({ areas, sources = SOURCES, graph = GRAPH } = {}) =>
     readSource: (path) => sources[path],
   })
 
-test('declaredFlowIds reads every liveFlow id literal', () => {
-  assert.deepEqual(declaredFlowIds("liveFlow({ id: 'a.b', nome: 'x' }, f)\nliveFlow(\n{ id: \"c.d\", nome: 'y' }, f)"), ['a.b', 'c.d'])
+test('declaredFlows reads every liveFlow id and nome literal', () => {
+  assert.deepEqual(declaredFlows("liveFlow({ id: 'a.b', nome: 'x' }, f)\nliveFlow(\n{ id: \"c.d\", nome: 'y' }, f)"), [
+    { id: 'a.b', nome: 'x' },
+    { id: 'c.d', nome: 'y' },
+  ])
+})
+
+test('a registered flow whose nome differs from its test declaration fails', () => {
+  const { problems } = run({ areas: [{ area: 'a', flows: [flow({ nome: 'Um nome totalmente diferente' })] }] })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /builder\.send-and-reply is named "Um nome totalmente diferente" in areas\.json but "Enviar"/)
 })
 
 test('a registered flow with a declaring, reachable live test passes', () => {
