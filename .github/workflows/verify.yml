@@ -38,6 +38,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
+        id: node
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -49,10 +50,44 @@ jobs:
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
         run: node scripts/ci-change-scope.mjs ${BASE_REF:+--base "origin/$BASE_REF"}
-      - run: npm ci
-      - name: Install Playwright Chromium
+      # node_modules is restored whole and keyed on everything that decides its content: the lockfile,
+      # package.json, the Node version and the runner OS and architecture. On a hit npm ci is skipped.
+      # On a miss it runs, and the result is saved right away, before verification adds build output
+      # under node_modules/.cache that must not enter the cache.
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: node scripts/ci-install.mjs
+      - name: Save node_modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: ${{ steps.modules.outputs.cache-primary-key }}
+      # The browser download is cached on the installed Playwright version. The OS libraries it needs
+      # live outside the cache, so they are installed on every run.
+      - name: Playwright version
+        id: playwright
         if: steps.scope.outputs.docs_only != 'true'
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browser
+        id: browser
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: Install Playwright Chromium
+        if: steps.scope.outputs.docs_only != 'true' && steps.browser.outputs.cache-hit != 'true'
         run: npx --no-install playwright install --with-deps chromium
+      - name: Install Playwright OS dependencies
+        if: steps.scope.outputs.docs_only != 'true' && steps.browser.outputs.cache-hit == 'true'
+        run: npx --no-install playwright install-deps chromium
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
       - name: Rootless sandbox for the application runner suite
