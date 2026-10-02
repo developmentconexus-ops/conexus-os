@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testPool } from './hub-database.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
@@ -205,7 +206,7 @@ test('upgrading a database at 0025 with open sessions ends every Hub and applica
 test('the Hub reads a Project as having an application only once its application exists, and none is created while it relies on the answer', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_presence')
-  const pool = new pg.Pool({ ...connection, max: 3 })
+  const pool = testPool({ ...connection, max: 3 })
   closeFirst(() => pool.end())
   const store = createApplicationAccessStore({ pool })
   const presence = (projectId) => store.withApplicationPresence(projectId, async (hasApplication) => hasApplication)
@@ -242,7 +243,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
-  const pool = new pg.Pool({ ...connection, max: 4 })
+  const pool = testPool({ ...connection, max: 4 })
   closeFirst(() => pool.end())
   const accessStore = createApplicationAccessStore({ pool })
   const refreshes = []

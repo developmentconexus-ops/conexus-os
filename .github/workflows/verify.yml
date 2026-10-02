@@ -15,7 +15,14 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  # The graph runs as four groups, each on its own runner with its own PostgreSQL and CPU, so no
+  # step shares a machine resource with a step of another group (see VERIFY_GROUPS in
+  # scripts/conexus-verify.mjs). The first group to fail cancels the others.
+  group:
+    name: verify (${{ matrix.group }})
+    strategy:
+      matrix:
+        group: [builder-ui, browser, postgres, rest]
     # A draft is work in progress: its author runs the touched suites locally and pushes as often as
     # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -73,20 +80,20 @@ jobs:
       # live outside the cache, so they are installed on every run.
       - name: Playwright version
         id: playwright
-        if: steps.scope.outputs.docs_only != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui')
         run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the Playwright browser
         id: browser
-        if: steps.scope.outputs.docs_only != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui')
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
       - name: Install Playwright Chromium
-        if: steps.scope.outputs.docs_only != 'true' && steps.browser.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui') && steps.browser.outputs.cache-hit != 'true'
         run: npx --no-install playwright install --with-deps chromium
       - name: Install Playwright OS dependencies
-        if: steps.scope.outputs.docs_only != 'true' && steps.browser.outputs.cache-hit == 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui') && steps.browser.outputs.cache-hit == 'true'
         run: npx --no-install playwright install-deps chromium
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
@@ -101,7 +108,7 @@ jobs:
       # passwordless sudo, so the test Applications cluster gets the same dedicated, mounted
       # filesystem an installation gets, at a fraction of the size, instead of an ordinary directory.
       - name: Start the Applications PostgreSQL test cluster
-        if: steps.scope.outputs.docs_only != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: |
           sudo bash scripts/mount-application-cluster-storage.sh install "$RUNNER_TEMP/conexus-apps.img" 1024 "$RUNNER_TEMP/conexus-apps"
           printf '%s' s6-ci-test-only > "$RUNNER_TEMP/conexus-apps-password"
@@ -111,12 +118,13 @@ jobs:
       # Project roles log in only with the application runner's certificate. The test cluster gets the
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
-        if: steps.scope.outputs.docs_only != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
       - name: Verify the documentation checks only
-        if: steps.scope.outputs.docs_only == 'true'
+        if: steps.scope.outputs.docs_only == 'true' && matrix.group == 'rest'
         run: npm run verify:docs
-      - run: npm run verify
+      - name: Verify the ${{ matrix.group }} group
+        run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}
         if: steps.scope.outputs.docs_only != 'true'
         env:
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
@@ -135,3 +143,18 @@ jobs:
             git diff --stat
             exit 1
           fi
+
+  # The one required check. It reports success only when every group did, so branch protection keeps
+  # a single name, `verify`, and a group that fails or is cancelled fails it.
+  verify:
+    name: verify
+    needs: group
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every group passed
+        env:
+          GROUPS_RESULT: ${{ needs.group.result }}
+        run: |
+          echo "groups: $GROUPS_RESULT"
+          test "$GROUPS_RESULT" = success
