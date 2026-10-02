@@ -77,6 +77,15 @@ in the sandbox.
 `web_fetch` is Mastra's `webFetchTool`. It takes any http or https URL the model writes and
 sends no credential, so data the model holds can leave in the URL. C-023, as amended on
 2026-10-02, puts a guard on it and an allowlist on the sandbox before Q5.
+The sandbox's destinations are logged, not blocked. At the end of every turn the Hub logs one
+`BUILDER_SANDBOX_EGRESS` line per distinct host, port and protocol the sandbox reached since the
+last turn, with the run id, conversation id, first-seen time and a count, then a
+`BUILDER_SANDBOX_EGRESS_SUMMARY` line saying whether the list is complete, partial or failed.
+Two root-run recorders in the guest produce it: a DNS forwarder on `127.0.0.1:53` that names
+addresses, and a poller of `/proc/net/tcp` every 10 seconds, `TIME_WAIT` included. A connection
+shorter than the poll that never lingers can be missed, so an empty list is not proof of no
+egress. Paths, query strings and payloads are never recorded. A recorder or collection failure
+is logged and never fails the run. The list is what the Q5 allowlist starts from.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 

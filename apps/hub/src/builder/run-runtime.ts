@@ -17,6 +17,7 @@ import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_
 import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
+import { collectEgress, ensureEgressLog } from './egress-log.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
@@ -381,6 +382,11 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path) }
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
+      // Recording which hosts the sandbox reaches is evidence, never a gate: a recorder that will not
+      // start is logged and the turn goes on.
+      await ensureEgressLog({ asRoot, writeRootFile }).catch((error: unknown) => {
+        ports.log(`BUILDER_SANDBOX_EGRESS_START_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+      })
 
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
@@ -580,6 +586,17 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (live) {
         await sandbox.executeCommand('sh', ['-c', 'kill -KILL -1 2>/dev/null; true'], { timeout: 30_000, cwd: '/', env: {} }).catch((error: unknown) => {
           ports.log(`BUILDER_AGENT_PROCESSES_KILL_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+        })
+        live = sandbox.sandboxId === incarnation
+      }
+      if (live) {
+        await collectEgress({
+          asRoot: (script) => sandbox.runAsRoot(script, {}),
+          writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes),
+          readAgentFile: (path) => sandbox.readAgentFile(path),
+          log: ports.log,
+          executionId: input.executionId,
+          conversationId: input.conversationId,
         })
         live = sandbox.sandboxId === incarnation
       }
