@@ -16,6 +16,8 @@ apps/hub/*-build-*/
 .DS_Store
 # Claude Code keeps local state here (launch.json, locks, worktrees).
 .claude/*
+# Except project skills: each is a link to its source in .agents/skills.
+!.claude/skills/
 .artifacts/
 
 # Scratch static builds a browser test writes under apps/web
