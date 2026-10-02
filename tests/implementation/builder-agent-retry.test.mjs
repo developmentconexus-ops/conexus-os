@@ -9,6 +9,9 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
+const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
+const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))
 const { builderFailureCategory } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -34,7 +37,7 @@ const answering = (failModelWith, failTimes = Infinity) => {
 }
 
 // Each message reads storage twice; the second read is the loop step's run, where the log's failure was thrown.
-const openRun = async (t, { model, failsRead }) => {
+const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
   const root = mkdtempSync(resolve(tmpdir(), 'builder-agent-retry-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(root, { recursive: true })
@@ -62,7 +65,7 @@ const openRun = async (t, { model, failsRead }) => {
   const run = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces: runWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })({
     projectId, conversationId, builderRunId, workspace,
     runCheck: async () => { throw new Error('not used') },
-    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId); bindExtra(requestContext) },
   })
   return { run, storageCalls, controller }
 }
@@ -137,4 +140,91 @@ test('a rate limit is retried by Mastra twice, then fails as rate limited, with 
   const { run } = await openRun(t, { model, failsRead: () => false })
   assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
   assert.equal(calls.length, 3)
+})
+
+// The real installed Anthropic provider, reached through the Hub's model routing, with a local stand-in for the upstream.
+const apiKey = `sk-ant-api03-${'k'.repeat(40)}`
+const accountId = '55555555-5555-4555-8555-555555555555'
+const routing = createModelRouting({
+  routes: { anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })) },
+  modelAccounts: { usable: async () => ({ modelAccountId: 'row-anthropic', kind: 'api_key', secret: apiKey }) },
+  conversationModel: async () => null,
+  readDefault: async () => null,
+  record: async () => {},
+})
+const bindAccount = (requestContext) => requestContext.setRaw('conexusBuilderAccountId', accountId)
+
+const anthropicError = (status, type, message) => () => new Response(JSON.stringify({ type: 'error', error: { type, message } }), { status, headers: { 'content-type': 'application/json' } })
+const anthropicAnswer = () => new Response([
+  ['message_start', { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'm', content: [], usage: { input_tokens: 1, output_tokens: 1 } } }],
+  ['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }],
+  ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Pronto.' } }],
+  ['content_block_stop', { type: 'content_block_stop', index: 0 }],
+  ['message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 2 } }],
+  ['message_stop', { type: 'message_stop' }],
+].map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join(''), { status: 200, headers: { 'content-type': 'text/event-stream' } })
+
+// Serves the upstream's replies in order, the last one for every call after; anything outside api.anthropic.com is refused.
+const upstreamReplying = (t, replies) => {
+  const original = globalThis.fetch
+  const calls = []
+  globalThis.fetch = async (input, init) => {
+    const url = new Request(input, init).url
+    if (!url.startsWith('https://api.anthropic.com/')) throw new Error(`unexpected request to ${url}`)
+    calls.push(url)
+    return replies[Math.min(calls.length - 1, replies.length - 1)]()
+  }
+  t.after(() => { globalThis.fetch = original })
+  return calls
+}
+
+const runOnUpstream = async (t, replies) => {
+  const calls = upstreamReplying(t, replies)
+  const { run, controller } = await openRun(t, { model: (ctx) => routing.resolve(ctx), failsRead: () => false, bindExtra: bindAccount })
+  const notices = []
+  const everything = []
+  const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  session.subscribe((event) => {
+    everything.push(event.type === 'error' ? { ...event, error: { message: event.error?.message, statusCode: event.error?.statusCode, responseBody: event.error?.responseBody } } : event)
+    if (event.type === 'error' && event.retryable) notices.push([event.retryable, event.retryAttempt, event.maxRetries])
+  })
+  const outcome = await settle(run.sendTurn('Faça o app.'))
+  const exposed = JSON.stringify({ outcome, everything }).includes(apiKey)
+  return { calls: calls.length, notices, outcome, exposed, outcomeExposed: JSON.stringify(outcome).includes(apiKey) }
+}
+
+const transient = [['503', 503, 'api_error', 'Service Unavailable'], ['529', 529, 'overloaded_error', 'Overloaded']]
+for (const [label, status, type, message] of transient) {
+  test(`an Anthropic ${label} response, decoded by the real provider, is retried with a notice each time and the turn completes without exposing the key`, async (t) => {
+    const r = await runOnUpstream(t, [anthropicError(status, type, message), anthropicError(status, type, message), anthropicAnswer])
+    assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, outcomeExposed: false })
+  })
+}
+
+test('an Anthropic 503 that never clears is retried ten times, then ends as a refused model request without exposing the key', async (t) => {
+  const r = await runOnUpstream(t, [anthropicError(503, 'api_error', 'Service Unavailable')])
+  assert.deepEqual(r.outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' })
+  assert.deepEqual({ calls: r.calls, notices: r.notices.length, exposed: r.exposed }, { calls: 11, notices: 10, exposed: false })
+})
+
+test('an Anthropic 429 is retried twice, then ends as rate limited, without exposing the key', async (t) => {
+  const r = await runOnUpstream(t, [anthropicError(429, 'rate_limit_error', 'This request would exceed your rate limit')])
+  assert.deepEqual(r.outcome, { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
+  assert.deepEqual({ calls: r.calls, exposed: r.exposed }, { calls: 3, exposed: false })
+})
+
+test('an Anthropic 401 ends the run as a refused credential at once, with no retry and no notice, and the key is in no event', async (t) => {
+  const r = await runOnUpstream(t, [anthropicError(401, 'authentication_error', 'invalid x-api-key')])
+  assert.deepEqual(r.outcome, { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' })
+  assert.deepEqual({ calls: r.calls, notices: r.notices, category: builderFailureCategory(r.outcome.code), exposed: r.exposed }, { calls: 1, notices: [], category: 'MODEL_CREDENTIAL_REFUSED', exposed: false })
+})
+
+test('an upstream that echoes the key in its 401 body still ends the run as a bare failure code, with the key nowhere in what the turn settles with', async (t) => {
+  const r = await runOnUpstream(t, [anthropicError(401, 'authentication_error', `invalid x-api-key ${apiKey}`)])
+  assert.deepEqual({ outcome: r.outcome, outcomeExposed: r.outcomeExposed }, { outcome: { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' }, outcomeExposed: false })
+})
+
+test('an Anthropic 400 is not a transient failure: it is retried at most once and ends as a refused model request', async (t) => {
+  const r = await runOnUpstream(t, [anthropicError(400, 'invalid_request_error', 'messages: text content blocks must be non-empty')])
+  assert.deepEqual({ outcome: r.outcome, calls: r.calls, exposed: r.exposed }, { outcome: { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' }, calls: 2, exposed: false })
 })
