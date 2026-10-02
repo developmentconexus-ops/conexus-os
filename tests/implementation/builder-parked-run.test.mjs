@@ -125,6 +125,9 @@ test('a call the thread does not hold is refused, and a stop settles the parked 
   await wrong.release()
   await createParkedDiscard({ controller: hub.controller })({ projectId, conversationId })
   assert.deepEqual((await storedToolResult(hub)).map(({ state }) => state), ['output-denied'])
+  const reader = await hub.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
+  assert.equal(await parkedCallStanding(reader, 'c1'), 'ABSENT', 'a call a stop denied waits on no answer')
+  await hub.controller.deleteSession({ resourceId, scope: 'reader' })
 })
 
 const summary = (state, phase) => ({ builderRunId: runId, projectId, conversationId, state, phase, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'faça um app', createdAt: '2026-10-01T00:00:00.000Z', cancellationRequested: false })
@@ -158,6 +161,7 @@ const parkedStore = () => {
 }
 const runsOver = (execute) => ({
   runtime: { execute, discardParked: async () => {} },
+  findParkedCall: async () => 'PARKED',
   conversations: { ownerOf: async () => 'PROJECT' },
   git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
   appendDiagnostic: async () => {},
@@ -183,9 +187,8 @@ test('the same answer sent twice resumes the run once, one sent while the run is
   await new Promise((wake) => { setTimeout(wake, 20) })
   assert.deepEqual(calls, [], 'nothing resumed while the first leg still holds its session')
   release()
-  const resumed = await early
-  assert.equal(resumed?.phase, 'PREPARING')
-  assert.equal(await service.answerBuilderRun(answer), null, 'the second answer to the same call changes nothing')
+  assert.equal(await early, 'RESUMED')
+  assert.equal(await service.answerBuilderRun(answer), 'ALREADY_ANSWERED', 'the second answer to the same call changes nothing')
   await service.close()
   assert.deepEqual(legs, [null, { toolCallId: 'c1', resumeData: ['Azul'] }])
   assert.deepEqual(calls, ['resume', 'settle'])
@@ -225,7 +228,7 @@ const serviceOverThread = async (t) => {
   })
   const service = createBuilderService({
     store, applicationArtifacts: {},
-    runs: { ...runs, runtime: { ...runs.runtime, findParkedCall: ({ toolCallId }) => parkedCallStanding(browser, toolCallId) } },
+    runs: { ...runs, findParkedCall: ({ toolCallId }) => parkedCallStanding(browser, toolCallId) },
   })
   const answer = (toolCallId) => service.answerBuilderRun({ accountId, projectId, builderRunId: runId, toolCallId, resumeData: ['Azul'] })
   return { service, row, calls, prompts, answer }

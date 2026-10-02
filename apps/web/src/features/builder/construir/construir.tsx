@@ -326,9 +326,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                       renderPrompt: (entry: PromptEntry) => <PendingCard
                         pending={entry}
                         onAnswer={async (answer) => {
-                          await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          const outcome = await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          if (outcome !== 'RESUMED') return outcome
                           void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
                           dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
+                          return outcome
                         }}
                       />,
                     } : {})}
