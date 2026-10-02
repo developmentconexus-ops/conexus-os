@@ -531,9 +531,9 @@ test('a run publishes the state it parks in, and the state it ends in, before it
   assert.equal(cancelled.filter((event) => event === 'discard').length, 1)
 })
 
-// A leg that fails with `code`, a store whose failBuilderRun throws `failures` times before it writes,
-// and the lines the Hub logged. `orphans` is what the store lists as running with no leg.
-const settleHarness = async ({ failures, orphans = () => [], reconcileEveryMs = 5 }) => {
+// A leg that fails, a store whose failBuilderRun throws `failures` times before it writes, and the
+// lines the Hub logged. The store's lease takes the run over once no leg beats for it.
+const settleHarness = async ({ failures }) => {
   const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
   const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const lines = []
@@ -551,18 +551,20 @@ const settleHarness = async ({ failures, orphans = () => [], reconcileEveryMs = 
       if (refused < failures) { refused += 1; throw new Error('BUILDER_RUN_FAILURE_REFUSED') }
       written.push(code)
     },
-    listAdmissionRuns: async () => [],
-    listUnownedRunCandidates: async () => orphans(written),
+    heartbeatBuilderRuns: async (_owner, ids) => { beating = ids.includes(runId) },
+    takeOverStaleBuilderRuns: async (owner) => (beating || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId: 'conv-build', started: true, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
     close: async () => {},
   }
+  let beating = true
   const service = createBuilderService({
     store,
-    runs: { ...makeRuns({ execute: async () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } }), reconcileEveryMs, settleRetryMs: 1 },
+    runs: { ...makeRuns({ execute: async () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } }), settleRetryMs: 1 },
     applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', projectId, idempotencyKey: 'k', content: 'construa', conversationId: 'conv-build' })
   const until = async (done) => { for (let i = 0; i < 400 && !done(); i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
-  return { service, written, lines, projectId, runId, until, restore: () => { logger.error = originalError } }
+  // A beat lasts until the next pass: what no leg refreshes goes stale.
+  return { service, written, lines, projectId, runId, until, quiet: () => { beating = false }, restore: () => { logger.error = originalError } }
 }
 
 test('a failed run whose settle write fails once ends settled after the retry, with nothing logged', async () => {
@@ -574,12 +576,15 @@ test('a failed run whose settle write fails once ends settled after the retry, w
   assert.deepEqual(h.lines, [])
 })
 
-test('a settle write that keeps failing is logged with a code, and the next timer pass settles the row', async () => {
-  const h = await settleHarness({
-    failures: 3,
-    orphans: (written) => (written.length ? [] : [{ builderRunId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', projectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', conversationId: 'conv-build' }]),
-  })
-  await h.until(() => h.written.length > 0)
+test('a settle write that keeps failing is logged with a code, and once the leg stops beating a sweep settles the row', async () => {
+  const h = await settleHarness({ failures: 3 })
+  await h.until(() => h.lines.length > 0)
+  for (let pass = 0; pass < 100 && h.written.length === 0; pass++) {
+    h.quiet()
+    await h.service.heartbeat()
+    await h.service.sweep()
+    await new Promise((wake) => { setTimeout(wake, 5) })
+  }
   await h.service.close()
   h.restore()
   assert.deepEqual(h.lines, [`BUILDER_RUN_SETTLE_FAILED:${h.runId}:BUILDER_RUN_FAILURE_REFUSED`])

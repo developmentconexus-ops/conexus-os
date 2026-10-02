@@ -34,18 +34,18 @@ type BuilderPreview = Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-/** A run a restart interrupted after it had started. */
-type RestartedRun = Readonly<{ builderRunId: string; projectId: string; conversationId: string }>
-
-/** A run left running with a candidate; `main` in the Conexus Git says whether it was admitted. */
-type AdmissionRun = Readonly<{
+/** A queued or working run a sweep took over from an owner that went quiet. */
+export type TakenOverRun = Readonly<{
   builderRunId: string
   projectId: string
   conversationId: string
-  baseSourceRevision: string
-  candidateRevision: string
+  /** Claimed by a leg, so its agent may have left a question on the thread. */
+  started: boolean
+  /** Offered before `main` moved; `main` in the Conexus Git says whether it was admitted. */
+  candidateRevision: string | null
   // Equal to the candidate once the advance is recorded.
   resultSourceRevision: string | null
+  previousOwnerId: string | null
 }>
 
 export type BuilderStore = Readonly<{
@@ -55,9 +55,10 @@ export type BuilderStore = Readonly<{
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
-  claimBuilderRun(builderRunId: string): Promise<BuilderRunSummary>
-  // Takes a PARKED run back to PREPARING for the answer; null when the run is not parked, which is how a second answer is told.
-  resumeBuilderRun(builderRunId: string): Promise<BuilderRunSummary | null>
+  // Starts a queued run under its owner, the Hub process whose leg works it.
+  claimBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary>
+  // Takes a PARKED run back to PREPARING under its owner for the answer; null when the run is not parked, which is how a second answer is told.
+  resumeBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary | null>
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
   // Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested.
   recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
@@ -73,11 +74,9 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
   // mainRevision is `main` as the Hub just read it from the Conexus Git.
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
-  // Interrupts what a restart left running and answers the runs that had started, so the Hub can settle what each left open.
-  recoverBuilderRuns(): Promise<readonly RestartedRun[]>
-  listAdmissionRuns(): Promise<readonly AdmissionRun[]>
-  // Runs running with no candidate and not parked; the ones no leg owns lost their ending to a failed write.
-  listUnownedRunCandidates(): Promise<readonly RestartedRun[]>
+  heartbeatBuilderRuns(ownerId: string, builderRunIds: readonly string[]): Promise<void>
+  // Takes over the queued and working runs whose owner's heartbeat is older than the limit; a parked run has no owner and is never taken.
+  takeOverStaleBuilderRuns(ownerId: string, staleAfterMs: number): Promise<readonly TakenOverRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
@@ -137,11 +136,11 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.value ?? null
   },
-  claimBuilderRun: async (builderRunId) => {
+  claimBuilderRun: async (builderRunId, ownerId) => {
     // A claim asks for authority the run's author may no longer hold. That is terminal. The outer
     // dispatch catch fails the run, and no retry can recover an access that was taken away.
     const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.claim_builder_run($1) AS value', [builderRunId],
+      'SELECT builder.claim_builder_run($1,$2) AS value', [builderRunId, ownerId],
     ).catch((error: unknown) => {
       if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') {
         throw new Error('BUILDER_RUN_NOT_ADMITTED')
@@ -152,9 +151,9 @@ export const createBuilderStore = ({
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
     return value
   },
-  resumeBuilderRun: async (builderRunId) => {
+  resumeBuilderRun: async (builderRunId, ownerId) => {
     const result = await executorPool.query<JsonRow<BuilderRunSummary | null>>(
-      'SELECT builder.resume_builder_run($1) AS value', [builderRunId],
+      'SELECT builder.resume_builder_run($1,$2) AS value', [builderRunId, ownerId],
     )
     return result.rows[0]?.value ?? null
   },
@@ -239,16 +238,11 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.admitted === true
   },
-  recoverBuilderRuns: async () => {
-    const result = await executorPool.query<JsonRow<readonly RestartedRun[]>>('SELECT builder.recover_builder_runs() AS value')
-    return result.rows[0]?.value ?? []
+  heartbeatBuilderRuns: async (ownerId, builderRunIds) => {
+    await executorPool.query('SELECT builder.heartbeat_builder_runs($1,$2)', [ownerId, builderRunIds])
   },
-  listAdmissionRuns: async () => {
-    const result = await executorPool.query<JsonRow<readonly AdmissionRun[]>>('SELECT builder.list_admission_runs() AS value')
-    return result.rows[0]?.value ?? []
-  },
-  listUnownedRunCandidates: async () => {
-    const result = await executorPool.query<JsonRow<readonly RestartedRun[]>>('SELECT builder.list_unowned_run_candidates() AS value')
+  takeOverStaleBuilderRuns: async (ownerId, staleAfterMs) => {
+    const result = await executorPool.query<JsonRow<readonly TakenOverRun[]>>('SELECT builder.take_over_stale_builder_runs($1,$2) AS value', [ownerId, staleAfterMs])
     return result.rows[0]?.value ?? []
   },
   recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {

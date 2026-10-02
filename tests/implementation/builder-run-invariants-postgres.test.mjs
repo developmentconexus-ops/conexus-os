@@ -52,7 +52,7 @@ test('C-020 preserves state invariants and separates response settlement from bu
 
   ingressClient = await connect(ingress); executorClient = await connect(executor)
   const create = async (client, id, key = randomUUID(), request = randomUUID()) => (await client.query('SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value', [accountId, projectId, `conversa-${projectId}`, key.replaceAll('-', '').padEnd(64, '0'), request.replaceAll('-', '').padEnd(64, '1'), 'pedido', null, id, source])).rows[0].value
-  const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1) AS value', [id])).rows[0].value
+  const claim = async (id) => (await executorClient.query('SELECT builder.claim_builder_run($1, gen_random_uuid()) AS value', [id])).rows[0].value
 
   const planId = randomUUID(); await create(ingressClient, planId)
   assert.equal((await claim(planId)).state, 'RUNNING')
