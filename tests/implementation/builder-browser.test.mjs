@@ -2085,25 +2085,37 @@ const stubSessionReads = async (page, accountId, projectId, answer) => {
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: 'revision', archived: false }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+  let answered
+  const firstRead = new Promise((resolve) => { answered = resolve })
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, async (route) => {
     const status = answer()
-    return route.fulfill(status === 200
+    await route.fulfill(status === 200
       ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
       : { status, contentType: 'application/json', body: '{}' })
+    answered()
   })
+  return { firstRead }
 }
-// The session is polled again whenever the page regains focus, which makes a poll deterministic.
-const pollNow = (page) => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+// The session is polled again whenever the page regains focus, which makes a poll deterministic. The
+// event bubbles, as the browser's does: the query client listens on the window, so an event that stops
+// at the document would leave the test waiting for the 10 s interval.
+const pollNow = (page) => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })))
+// A poll that fires while the first session read is in flight joins it and never asks again, so a test
+// must see that read answered before it changes what the stub says.
+const openAfterFirstSessionRead = async (page, origin, projectId, firstRead) => {
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await firstRead
+  await messageBox(page).waitFor()
+}
 
 test('failed background polls keep the chat and show a note until a poll succeeds', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000071'
   const projectId = '70000000-0000-4000-8000-000000000072'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   let status = 200
-  await stubSessionReads(page, accountId, projectId, () => status)
+  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  await messageBox(page).waitFor()
+  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
   const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
   assert.equal(await note.count(), 0)
 
@@ -2124,15 +2136,14 @@ test('a 403 poll after a good load shows the denied screen', async (t) => {
   const projectId = '70000000-0000-4000-8000-000000000076'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   let status = 200
-  await stubSessionReads(page, accountId, projectId, () => status)
+  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  await messageBox(page).waitFor()
+  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
 
   status = 403
   await pollNow(page)
   await page.getByText('Você não pode construir neste Project').waitFor()
-  assert.equal(await messageBox(page).count(), 0)
+  await messageBox(page).waitFor({ state: 'detached' })
 })
 
 test('a 401 poll after a good load signs the user out', async (t) => {
@@ -2140,15 +2151,14 @@ test('a 401 poll after a good load signs the user out', async (t) => {
   const projectId = '70000000-0000-4000-8000-000000000078'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   let status = 200
-  await stubSessionReads(page, accountId, projectId, () => status)
+  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
-  await messageBox(page).waitFor()
+  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
 
   status = 401
   await pollNow(page)
   await page.getByText('Sessão encerrada').waitFor()
-  assert.equal(await messageBox(page).count(), 0)
+  await messageBox(page).waitFor({ state: 'detached' })
 })
 
 test('a first load that fails still shows the error page', async (t) => {

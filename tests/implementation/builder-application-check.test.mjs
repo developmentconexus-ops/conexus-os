@@ -385,6 +385,13 @@ await fetch('/conexus-server/manifest.json')
   ])
 })
 
+test('a page that draws after the load event, once a request settles, still passes boot', (t) => {
+  const { report } = check(t, withMain(`setTimeout(() => document.getElementById('root')!.append(document.createElement('p')), 1200)
+`))
+  assert.equal(report.ok, true, JSON.stringify(report.steps))
+  assert.deepEqual(stepsOf(report).at(-1), ['boot', 'passed'])
+})
+
 test('boot answers a declared operation with the lower bound of its output schema', (t) => {
   const { report } = check(t, {
     ...STARTER,
