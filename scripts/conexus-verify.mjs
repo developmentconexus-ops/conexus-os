@@ -213,13 +213,14 @@ export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
 export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
 
 // A change that touches only documentation runs these steps: every step that reads a Markdown file,
-// plus the census and the skip check that close every run. The path test lives in
+// plus the OpenAPI bundle the bijection check reads, the census and the skip check that close every run. The path test lives in
 // scripts/ci-change-scope.mjs.
 export const DOCS_CHECK_SCOPES = Object.freeze([
   'repository-check',
   'repository-agent-context',
   'repository-contract-checks',
   'conexus-preflight',
+  'wire-openapi-bundle',
   'wire-bijection',
   'wire-bijection-gate',
   'test-census',
