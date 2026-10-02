@@ -604,14 +604,15 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
     assert.equal(scopes[0], 'c020-hub-typecheck', group)
     assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
   }
-  assert.equal(graphForGroup(CANDIDATE_GRAPH, 'browser').some(entry => entry.environmentClass === 'postgres'), false)
+  for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['c020-hub-typecheck', 'c020-browser', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
 })
 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
   assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
-  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest/)
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

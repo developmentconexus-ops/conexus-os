@@ -215,16 +215,22 @@ export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
 
 export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
 
-// CI runs the graph as three jobs, each on its own machine with its own PostgreSQL and CPU, so no
+// CI runs the graph as four jobs, each on its own machine with its own PostgreSQL and CPU, so no
 // step shares a host resource with a step of another group. A step's group follows from what it
-// needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. Two steps belong to
-// every group: the Hub build, which publishes the compiled Hub the suites import, and the skip
-// check, which reads the ledger of the job it runs in.
-export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest'])
+// needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. The Builder screen
+// suite alone takes about 150 s, so it is a group of its own and the other browser suites share
+// the fourth, which keeps the groups close in length. Two steps belong to every group: the Hub
+// build, which publishes the compiled Hub the suites import, and the skip check, which reads the
+// ledger of the job it runs in.
+export const VERIFY_GROUPS = Object.freeze(['builder-ui', 'browser', 'postgres', 'rest'])
 const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest' })
+const BUILDER_UI_STEPS = new Set(['c020-browser'])
 const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
 
-export const groupsOf = (step) => EVERY_GROUP.has(step.scope) ? VERIFY_GROUPS : [GROUP_OF_CLASS[step.environmentClass]]
+export const groupsOf = (step) => {
+  if (EVERY_GROUP.has(step.scope)) return VERIFY_GROUPS
+  return [BUILDER_UI_STEPS.has(step.scope) ? 'builder-ui' : GROUP_OF_CLASS[step.environmentClass]]
+}
 export const graphForGroup = (graph, group) => graph.filter(step => groupsOf(step).includes(group))
 
 // A change that touches only documentation runs these steps: every step that reads a Markdown file,
@@ -565,7 +571,7 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group browser|postgres|rest] [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group builder-ui|browser|postgres|rest] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',

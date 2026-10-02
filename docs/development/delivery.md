@@ -109,7 +109,7 @@ operator dictating filenames or implementation.
   output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
   The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
   `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.
-  CI runs the graph as three jobs, `browser`, `postgres` and `rest` (`--group`), each on its own runner so no step shares
+  CI runs the graph as four jobs, `builder-ui`, `browser`, `postgres` and `rest` (`--group`), each on its own runner so no step shares
   a machine resource with a step of another group; the `verify` job is the one required check and fails if any group does.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
