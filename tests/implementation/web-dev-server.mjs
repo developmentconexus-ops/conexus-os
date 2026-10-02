@@ -19,6 +19,7 @@ export const startWebServer = async (t, options = {}) => {
     configFile: resolve(repositoryRoot, 'apps/web/vite.config.mjs'),
     root: resolve(repositoryRoot, 'apps/web'),
     cacheDir: viteCacheDir,
+    logLevel: 'info',
     ...options,
     server: { host: '127.0.0.1', port: 0 },
   })
