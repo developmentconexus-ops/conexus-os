@@ -1,6 +1,7 @@
 import pg from 'pg'
 import type { Pool, PoolConfig } from 'pg'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
+import { logLine } from './logger.js'
 
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
@@ -27,7 +28,7 @@ const DEFAULT_CONNECT_TIMEOUT_MS = 5000
 
 export const createPostgresPool = (
   connection: PostgresConnection,
-  write: (line: string) => void = (line) => { process.stderr.write(line) },
+  write: (line: string) => void = (line) => logLine(line),
 ): PostgresPool => {
   const capability = capabilityFor(connection.user)
   const pool = new pg.Pool({

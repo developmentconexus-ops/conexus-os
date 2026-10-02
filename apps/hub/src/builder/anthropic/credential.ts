@@ -10,9 +10,6 @@ import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
  */
 export const ANTHROPIC_PROVIDER = 'anthropic'
 
-/** The models both kinds serve, by the `anthropic/<model>` id a thread stores and a run resolves; each id is in Mastra's model router catalog. */
-export const ANTHROPIC_MODELS: readonly string[] = Object.freeze(['claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5'])
-
 /** An Anthropic Console key as the Console issues it; anything else never reaches the row. */
 export const ANTHROPIC_KEY_SHAPE = /^sk-ant-[A-Za-z0-9_-]{20,200}$/
 

@@ -20,6 +20,7 @@ type SettledOutcome =
 const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
   PREPARING: 'Preparando o ambiente',
   AGENT: 'Agente trabalhando',
+  PARKED: 'Esperando a sua resposta',
   SOURCE_ADMISSION: 'Aplicando a alteração',
   COMPILING: 'Verificando o app',
   FINALIZING: 'Gerando a prévia',

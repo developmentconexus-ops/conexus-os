@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD } from '@mastra/code-sdk/constants'
 import { Mastra } from '@mastra/core/mastra'
 import { RequestContext } from '@mastra/core/request-context'
 import { LibSQLStore } from '@mastra/libsql'
@@ -13,6 +14,7 @@ const { createHttpApp } = await import(built('http/app.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
+const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
 const { createModelRouting, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } = await import(built('builder/model-routing.js'))
 
@@ -24,24 +26,29 @@ const streamOf = (parts) => new ReadableStream({ start(controller) {
   for (const part of [{ type: 'stream-start', warnings: [] }, ...parts, { type: 'finish', finishReason: parts.some((part) => part.type === 'tool-call') ? 'tool-calls' : 'stop', usage }]) controller.enqueue(part)
   controller.close()
 } })
+const TITLE = 'Agenda semanal da equipe'
+const asksForTitle = (options) => JSON.stringify(options.prompt ?? []).includes('Gere um título')
 const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' }]
 
 // The Hub's routing over one provider whose accounts are "acct-<person>". Each call names the model
 // it reached and the account that paid for it; the Observer answers with a fixed log, and the main
 // model says what tools it was offered and calls what the script tells it to.
-const probeRouting = (script = []) => {
+const probeRouting = (script = [], onObserverPrompt = () => {}) => {
   const calls = []
+  const titled = []
   const recorded = []
   const offered = []
   const model = (name, paidBy) => ({
     specificationVersion: 'v2', provider: 'probe', modelId: name, supportedUrls: {},
-    async doGenerate() {
-      calls.push([name, paidBy])
-      return { content: [{ type: 'text', text: OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
+    async doGenerate(options) {
+      ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      onObserverPrompt(options)
+      return { content: [{ type: 'text', text: asksForTitle(options) ? TITLE : OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
     },
     async doStream(options) {
-      calls.push([name, paidBy])
-      if (name !== 'main') return { stream: streamOf(textParts(OBSERVATIONS)) }
+      ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
+      if (name !== 'main') onObserverPrompt(options)
+      if (name !== 'main') return { stream: streamOf(textParts(asksForTitle(options) ? TITLE : OBSERVATIONS)) }
       offered.push((options.tools ?? []).map((tool) => tool.name).sort())
       const step = script[offered.length - 1]
       return { stream: streamOf(step ? [{ type: 'tool-call', toolCallId: `t${offered.length}`, toolName: step.toolName, input: JSON.stringify(step.input) }] : textParts('Certo, vou planejar a agenda.')) }
@@ -54,7 +61,7 @@ const probeRouting = (script = []) => {
     readDefault: async (role) => role === 'memory' ? 'probe/observer' : 'probe/main',
     record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
-  return { routing, calls, recorded, offered }
+  return { routing, calls, titled, recorded, offered }
 }
 
 // What run-runtime.ts binds on every turn of a run.
@@ -65,11 +72,11 @@ const runContext = () => {
   return requestContext
 }
 
-const builderWithMemory = async (t, script) => {
+const builderWithMemory = async (t, script, onObserverPrompt) => {
   const dir = mkdtempSync(join(tmpdir(), 'builder-memory-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const storage = new LibSQLStore({ id: 'builder-memory', url: `file:${join(dir, 'memory.db')}` })
-  const probe = probeRouting(script)
+  const probe = probeRouting(script, onObserverPrompt)
   const controller = createBuilderController({
     model: probe.routing.resolve,
     storage,
@@ -103,7 +110,7 @@ test('a run observes its conversation on the installation memory model, paid by 
 
   const { windows } = await firstWindows(controller, LONG_REQUEST)
 
-  assert.deepEqual([windows[0].messages.threshold, windows[0].observations.threshold], [30_000, 40_000])
+  assert.deepEqual([windows[0].messages.threshold, windows[0].observations.threshold], [DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD], "the windows are Mastra Code's own thresholds")
   assert.ok(windows[0].observations.tokens > 0, 'the request was observed before the first answer')
   const payer = `acct-${ana}`
   assert.deepEqual(calls, [['observer', payer], ['main', payer]], 'the Observer ran inside the run, on the memory default and the run\'s account')
@@ -146,7 +153,7 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, origin,
+        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
         resolveCurrentSession: async () => ({ account: { accountId: ana, displayName: 'Ana' }, issuer: 'https://issuer.test', subject: 'ana' }),
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
@@ -184,4 +191,61 @@ test('a run refuses to start when the installation has no memory default, and no
   })
   await assert.rejects(unset.check({ accountId: ana, projectId: 'p', conversationId: 'c' }), /^Error: BUILDER_MODEL_NOT_SELECTED$/)
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: 'p', conversationId: 'c' }))
+})
+
+test('a message that follows a ninety-minute gap in a conversation is preceded by a temporal-gap marker, as in Mastra Code', async (t) => {
+  const { controller, storage } = await builderWithMemory(t)
+  const memoryStore = await storage.getStore('memory')
+  const threadId = '55555555-5555-4555-8555-555555555555'
+  const resourceId = 'project:memory'
+  const lastAnswer = new Date(Date.now() - 90.5 * 60 * 1000)
+  await memoryStore.saveThread({ thread: { id: threadId, resourceId, title: 'Agenda', createdAt: lastAnswer, updatedAt: lastAnswer, metadata: {} } })
+  const message = (id, role, text, createdAt) => ({ id, role, createdAt, threadId, resourceId, content: { format: 2, parts: [{ type: 'text', text }] } })
+  await memoryStore.saveMessages({ messages: [
+    message('older-user', 'user', 'Quero uma agenda semanal.', new Date(lastAnswer.getTime() - 1000)),
+    message('older-assistant', 'assistant', 'Certo.', lastAnswer),
+  ] })
+
+  await firstWindows(controller, 'Volte à agenda.', { resourceId, threadId })
+
+  const { messages } = await memoryStore.listMessages({ threadId, perPage: false, includeSystemReminders: true })
+  const markers = messages.flatMap((stored) => {
+    const attributes = stored.content?.metadata?.signal?.attributes
+    return attributes?.type === 'temporal-gap' ? [attributes.gapText] : []
+  })
+  assert.deepEqual(markers, ['1 hour 30 minutes later'])
+})
+
+test('a request one fifth of the way to the window is observed in the background, as Mastra Code buffers it', async (t) => {
+  const { controller, calls } = await builderWithMemory(t)
+
+  const { windows } = await firstWindows(controller, `Quero uma agenda semanal. ${'Detalhes da agenda. '.repeat(1800)}`)
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  assert.equal(windows[0].messages.threshold, 30_000)
+  assert.ok(windows[0].messages.tokens < 30_000, 'under the window: no blocking observation')
+  assert.deepEqual(calls.map(([name]) => name).sort(), ['main', 'observer'], 'the Observer ran once, buffered, beside the main call')
+})
+
+test('a conversation is titled by Memory generateTitle on the memory model in Portuguese, from a request longer than the old 80 character cut', async (t) => {
+  const { controller, storage, titled } = await builderWithMemory(t)
+  const threadId = '66666666-6666-4666-8666-666666666666'
+  const request = `Quero uma agenda semanal para a equipe de campo com visitas, responsáveis e prazos. ${'Mais detalhes. '.repeat(10)}`
+  assert.ok(request.length > 80)
+
+  await firstWindows(controller, request, { resourceId: 'project:memory', threadId })
+  const memoryStore = await storage.getStore('memory')
+  for (let attempt = 0; attempt < 50 && !(await memoryStore.getThreadById({ threadId }))?.title; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 100))
+
+  assert.equal((await memoryStore.getThreadById({ threadId })).title, 'Agenda semanal da equipe')
+  assert.deepEqual(titled, [['observer', `acct-${ana}`]], 'one title call, on the memory default and the run\'s account')
+})
+
+test('the Observer is told to title the conversation in Portuguese', async (t) => {
+  const prompts = []
+  const { controller } = await builderWithMemory(t, [], (options) => prompts.push(JSON.stringify(options.prompt)))
+
+  await firstWindows(controller, LONG_REQUEST)
+
+  assert.equal(prompts.some((prompt) => prompt.includes('Escreva o título da conversa em português do Brasil, sobre o que a pessoa quer construir ou mudar no app.')), true)
 })

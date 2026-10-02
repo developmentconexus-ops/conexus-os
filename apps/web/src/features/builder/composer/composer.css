@@ -117,7 +117,6 @@
 .cx-model-option { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .45rem .5rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); font: 500 .8125rem/1.2 var(--cx-font-body); text-align: left; }
 .cx-model-option svg:first-child { flex: none; color: var(--cx-text-2); }
 .cx-model-option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-model-option-level { flex: none; color: var(--cx-text-2); font: 400 .6875rem/1 var(--cx-font-mono); text-transform: uppercase; letter-spacing: .02em; }
 .cx-model-option[data-active], .cx-model-option:hover { background: var(--cx-accent-soft); color: var(--cx-accent-text); }
 .cx-model-option[aria-selected="true"] svg:last-child { color: var(--cx-accent-text); }
 .cx-model-empty-search { margin: .5rem; color: var(--cx-text-2); font-size: .8125rem; }
@@ -138,7 +137,7 @@
 .cx-effort-slider[aria-disabled="true"] { cursor: not-allowed; }
 .cx-effort-slider[aria-disabled="true"] .cx-effort-fill { opacity: .45; }
 .cx-effort-slider[aria-disabled="true"] .cx-effort-thumb { box-shadow: none; }
-.cx-effort-locked { margin: 0; color: var(--cx-text-2); font-size: .75rem; }
+.cx-effort-none { margin: 0; justify-self: start; color: var(--cx-text-2); font-size: .75rem; }
 
 /* Under the composer: the conversation's memory on the left, the keys on the right. */
 .cx-composer-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .25rem .75rem; min-width: 0; }

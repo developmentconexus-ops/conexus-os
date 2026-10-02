@@ -1,0 +1,22 @@
+# Dev backend: Grafana's single-container otel-lgtm (Grafana, Tempo, Loki, Prometheus) and the
+# installation's Collector. Grafana is on http://127.0.0.1:3000 (admin / admin).
+# Start: docker compose -f infra/telemetry/compose.dev.yaml up -d
+# Stop:  docker compose -f infra/telemetry/compose.dev.yaml stop
+services:
+  backend:
+    image: grafana/otel-lgtm:0.34.0
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4319:4318"
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.162.0-amd64  # the unsuffixed 0.162.0 tag is not published
+    # Host networking keeps the receiver on 127.0.0.1:4318, the one address the Hub and the runner know.
+    network_mode: host
+    command: ["--config=/etc/otelcol/collector.yaml"]
+    environment:
+      CONEXUS_INSTALLATION: dev
+      CONEXUS_TELEMETRY_BACKEND: http://127.0.0.1:4319
+    volumes:
+      - ./collector.yaml:/etc/otelcol/collector.yaml:ro
+    depends_on:
+      - backend

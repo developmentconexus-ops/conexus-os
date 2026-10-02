@@ -3,6 +3,8 @@ import { createScorer } from '@mastra/core/evals'
 import { PostgresStore } from '@mastra/pg'
 import { flowOf } from './flow.mjs'
 import { SIMULATOR_REFUSAL_MARKER } from './sankhya-sim.mjs'
+import { EDIT_FILE_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL } from './tool-names.mjs'
+import { SpanType } from '@mastra/core/observability'
 
 /** Integer cents; never a float. @typedef {number} Cents */
 /** @typedef {Readonly<{ cents: Cents, label: string }>} LabeledAmount */
@@ -94,7 +96,7 @@ const canonical = (value) => {
 }
 
 const finishedRoot = (spans) => {
-  const root = spans.find((span) => !span.parentSpanId && span.spanType === 'agent_run')
+  const root = spans.find((span) => !span.parentSpanId && span.spanType === SpanType.AGENT_RUN)
   if (!root) throw new Error('trace sem agent_run raiz')
   if (!root.endedAt) throw new Error('trace ainda em execução')
   return root
@@ -117,7 +119,7 @@ function finalReply(spans) {
  */
 export function mainAgentRuns(spans) {
   const root = finishedRoot(spans)
-  return spans.filter((span) => span.spanType === 'agent_run' && span.entityId === root.entityId)
+  return spans.filter((span) => span.spanType === SpanType.AGENT_RUN && span.entityId === root.entityId)
 }
 
 /**
@@ -129,21 +131,21 @@ export function mainAgentScope(spans) {
   const byId = new Map(spans.map((span) => [span.spanId, span]))
   const ownerOf = (span) => {
     let ancestor = byId.get(span.parentSpanId)
-    while (ancestor && ancestor.spanType !== 'agent_run') ancestor = byId.get(ancestor.parentSpanId)
+    while (ancestor && ancestor.spanType !== SpanType.AGENT_RUN) ancestor = byId.get(ancestor.parentSpanId)
     return ancestor
   }
   return spans.filter((span) => runs.has(ownerOf(span)))
 }
 
-const READ_TOOL = 'mastra_workspace_read_file'
+const READ_TOOL = READ_FILE_TOOL
 const OPERATION_TOOL = 'conexus_run_operation'
 const CHECK_TOOL = 'conexus_check'
-const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
+const WRITE_TOOLS = new Set([WRITE_FILE_TOOL, EDIT_FILE_TOOL])
 
 /** Pure. The main agent's tool calls, resumed runs included, in start order. */
 export function mainToolCalls(spans) {
   return mainAgentScope(spans)
-    .filter((span) => span.spanType === 'tool_call')
+    .filter((span) => span.spanType === SpanType.TOOL_CALL)
     .sort((a, b) => timeOf(a.startedAt) - timeOf(b.startedAt) || (a.spanId < b.spanId ? -1 : 1))
 }
 
@@ -209,7 +211,7 @@ export function traceMetrics(spans) {
     }
   }
 
-  const usages = mainScope.filter((span) => span.spanType === 'model_generation').map((span) => span.attributes?.usage ?? {})
+  const usages = mainScope.filter((span) => span.spanType === SpanType.MODEL_GENERATION).map((span) => span.attributes?.usage ?? {})
   const total = (read) => usages.reduce((sum, usage) => sum + finite(read(usage)), 0)
   return {
     traces: 1,

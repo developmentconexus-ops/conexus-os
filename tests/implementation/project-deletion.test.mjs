@@ -129,14 +129,23 @@ test('#322 orchestrator skips every port once the tombstone is already complete'
 test('a failing step is logged with its real error before it becomes DELETION_INCOMPLETE', async (t) => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
   const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
   const logged = []
-  t.mock.method(console, 'error', (...args) => { logged.push(args) })
+  t.mock.method(logger, 'error', (...args) => { logged.push(args) })
   const commandPool = fakePool()
   const { ports } = fakePorts(commandPool, { releaseApplicationData: async () => { throw new Error('APPLICATION_RUNNER_RELEASE_REFUSED') } })
 
   await assert.rejects(createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input),
     (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
   assert.equal(logged.length, 1)
-  assert.equal(logged[0][0], `PROJECT_DELETION_INCOMPLETE:${projectId}`)
-  assert.equal(logged[0][1].message, 'APPLICATION_RUNNER_RELEASE_REFUSED')
+  const [fields, message] = logged[0]
+  assert.equal(message, 'PROJECT_DELETION_INCOMPLETE')
+  assert.match(fields['exception.stacktrace'], /^Error: APPLICATION_RUNNER_RELEASE_REFUSED\n\s+at /)
+  assert.deepEqual({ ...fields, 'exception.stacktrace': 'checked above' }, {
+    'conexus.project_id': projectId,
+    'error.type': 'Error',
+    'exception.type': 'Error',
+    'exception.message': 'APPLICATION_RUNNER_RELEASE_REFUSED',
+    'exception.stacktrace': 'checked above',
+  })
 })

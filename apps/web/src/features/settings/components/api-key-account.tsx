@@ -3,7 +3,6 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
 import { accountsQueryKey, accountsUrl, callModelAccounts, ModelAccountsRequestError, type Accounts } from '../model-accounts-api'
-import { providerName } from '../provider-names'
 import { Chip, SectionError, StatusLine } from './states'
 
 /** The providers a person connects by pasting a key, with where the key comes from. */
@@ -16,9 +15,9 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
   const queryClient = useQueryClient()
   const titleId = useId()
   const keyId = useId()
-  const name = providerName(provider)
   const { console: consoleUrl, placeholder } = API_KEY_PROVIDERS[provider]
   const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => callModelAccounts<Accounts>('GET', accountsUrl), retry: false })
+  const name = accounts.data?.accounts.find((item) => item.provider === provider)?.providerName ?? provider
   const [key, setKey] = useState('')
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   const save = useMutation({

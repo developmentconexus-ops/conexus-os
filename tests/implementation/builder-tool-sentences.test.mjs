@@ -154,3 +154,12 @@ test('submit_plan has its own pt-BR sentence and stays a row of its own', () => 
   assert.equal(toolSentence('submit_plan', false), 'Enviou o plano')
   assert.equal(toolRequest('submit_plan'), 'enviar o plano')
 })
+
+test('every Mastra workspace tool the Builder reads, prefixed as it reaches the conversation, has its own sentence, and none falls to the generic one', async () => {
+  const { WORKSPACE_TOOLS } = await import('@mastra/core/workspace')
+  const reaching = [WORKSPACE_TOOLS.FILESYSTEM, WORKSPACE_TOOLS.SANDBOX, WORKSPACE_TOOLS.SEARCH, WORKSPACE_TOOLS.LSP].flatMap((group) => Object.values(group))
+  assert.deepEqual(reaching.filter((name) => toolSentence(name, false) === 'Usou uma ferramenta'), [])
+  assert.equal(toolSentence(WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND, false), 'Executou um comando')
+  assert.equal(toolSentence(WORKSPACE_TOOLS.FILESYSTEM.MKDIR, true), 'Criando uma pasta')
+  assert.equal(toolSentence(WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT, true), 'Consultando um arquivo')
+})

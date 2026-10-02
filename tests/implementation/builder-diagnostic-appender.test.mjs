@@ -20,54 +20,72 @@ const bundle = (relativeSourcePath) => {
 }
 
 const { createDiagnosticAppender } = await bundle('apps/hub/src/builder/module.ts')
-const { createConversations } = await bundle('apps/hub/src/builder/conversations.ts')
+const { createBuilderController } = await bundle('apps/hub/src/builder/harness/controller.ts')
+const { createBuilderMemory } = await bundle('apps/hub/src/builder/memory.ts')
 
 const projectId = '44444444-4444-4444-8444-444444444444'
 // A diagnostic belongs to the conversation the run was asked in, which is a thread of the Project's
 // Mastra session and not a name the Builder derives.
 const conversationId = '77777777-7777-4777-8777-777777777777'
 const runId = '55555555-5555-4555-8555-555555555555'
+const resourceId = `project:${projectId}`
+const usage = { inputTokens: { total: 1, noCache: 1 }, outputTokens: { total: 1, text: 1 } }
 
-const conversationThread = async () => {
+// The Builder's own controller on a real storage, and a model that records every prompt it is sent.
+const conversationThread = async (t) => {
   const storage = new LibSQLStore({ id: 'builder-diagnostic-appender-test', url: ':memory:' })
   await storage.init()
   const memory = await storage.getStore('memory')
-  const now = new Date()
-  await memory.saveThread({ thread: { id: conversationId, resourceId: `project:${projectId}`, title: '', createdAt: now, updatedAt: now } })
-  const appendDiagnostic = createDiagnosticAppender(createConversations(async () => memory))
-  const texts = async () => {
-    const { messages } = await memory.listMessages({ threadId: conversationId, resourceId: `project:${projectId}` })
-    return messages.map((message) => [message.role, message.content.parts.map((part) => part.text).join('')])
+  const prompts = []
+  const model = {
+    specificationVersion: 'v3', provider: 'anthropic.messages', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream(options) {
+      prompts.push(JSON.stringify(options.prompt))
+      const parts = [{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'ok' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]
+      return { stream: new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } }) }
+    },
   }
-  return { appendDiagnostic, texts }
+  const controller = createBuilderController({ model, storage, memory: createBuilderMemory({ storage, memoryModel: async () => model }), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
+  await controller.init()
+  t.after(() => controller.destroy?.())
+  const session = await controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId })
+  const appendDiagnostic = createDiagnosticAppender(async () => session)
+  const rows = async () => {
+    const { messages } = await memory.listMessages({ threadId: conversationId, resourceId })
+    return messages.map((message) => [message.role, message.content.metadata?.signal?.type, message.content.parts.map((part) => part.text).join('')])
+  }
+  const nextTurnPrompt = async () => {
+    await session.sendMessage({ content: 'continue' })
+    for (let waited = 0; prompts.length === 0 && waited < 5000; waited += 50) await new Promise((wake) => { setTimeout(wake, 50) })
+    return prompts[0]
+  }
+  return { appendDiagnostic, rows, nextTurnPrompt }
 }
 
-test('a run that kept its files unadmitted leaves exactly one note in its conversation, and a retried append does not add a second', async () => {
-  const { appendDiagnostic, texts } = await conversationThread()
+test('a run that kept its files unadmitted leaves exactly one notice signal in its conversation, and a retried append does not add a second', async (t) => {
+  const { appendDiagnostic, rows } = await conversationThread(t)
   const note = { projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: 'd'.repeat(40) }
   await appendDiagnostic(note)
   await appendDiagnostic(note)
-  assert.deepEqual(await texts(), [['assistant',
+  assert.deepEqual(await rows(), [['signal', 'notification',
     `A execução ${runId} não terminou e nada dela foi aplicado. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_MODEL_INCOMPLETE.`]])
 })
 
-test('a run that lost the compare-and-swap says its files are kept and the next request joins them with the current source', async () => {
-  const { appendDiagnostic, texts } = await conversationThread()
-  await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: 'd'.repeat(40) })
-  assert.deepEqual(await texts(), [['assistant',
-    `A execução ${runId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_SOURCE_BASE_MOVED. Envie o pedido novamente: ele juntará os arquivos desta conversa com a versão atual da fonte.`]])
-})
-
-test("a refused candidate's note says why, so the next turn in the conversation can fix it (AC-9)", async () => {
-  const { appendDiagnostic, texts } = await conversationThread()
+test("a refused candidate's notice reaches the next turn's model as a notification, so it can fix it (AC-9)", async (t) => {
+  const { appendDiagnostic, nextTurnPrompt } = await conversationThread(t)
   await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_CHECK_FAILED', outcome: 'CANDIDATE_REFUSED', sourceRevision: 'd'.repeat(40), detail: 'typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b.' })
-  assert.deepEqual(await texts(), [['assistant',
-    `A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_CHECK_FAILED. Motivo: typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b. Corrija isso na próxima execução.`]])
+  const prompt = JSON.parse(await nextTurnPrompt())
+  const userTexts = prompt.filter((message) => message.role === 'user').map((message) => message.content.map((part) => part.text).join('')).filter((text) => !text.startsWith('<system-reminder>'))
+  assert.deepEqual(userTexts, [
+    `<notification source="conexus" outcome="CANDIDATE_REFUSED" run="${runId}">A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_CHECK_FAILED. Motivo: typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b. Corrija isso na próxima execução.</notification>`,
+    'continue',
+  ])
 })
 
-test('boot problems in an admitted app tell the next turn what the page did, and that the Preview is up', async () => {
-  const { appendDiagnostic, texts } = await conversationThread()
+test('boot problems in an admitted app are stored as a notice and say that the Preview is up', async (t) => {
+  const { appendDiagnostic, rows } = await conversationThread(t)
   await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'APPLICATION_BOOT_PROBLEMS', outcome: 'BOOT_PROBLEMS', sourceRevision: 'd'.repeat(40), detail: 'boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes' })
-  assert.deepEqual(await texts(), [['assistant',
+  assert.deepEqual(await rows(), [['signal', 'notification',
     `A execução ${runId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas. Detalhe: boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes Corrija isso na próxima execução.`]])
 })

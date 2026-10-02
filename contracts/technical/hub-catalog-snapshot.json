@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0042",
+ "head": "0043",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -278,7 +278,7 @@
    "constraint builder.builder_run.builder_run_candidate_revision_check CHECK (((candidate_revision IS NULL) OR (candidate_revision ~ '^[0-9a-f]{40}$'::text)))",
    "constraint builder.builder_run.builder_run_conversation_id_check CHECK (((length(btrim(conversation_id)) >= 1) AND (length(btrim(conversation_id)) <= 200)))",
    "constraint builder.builder_run.builder_run_idempotency_digest_check CHECK ((idempotency_digest ~ '^[0-9a-f]{64}$'::text))",
-   "constraint builder.builder_run.builder_run_phase_check CHECK (((phase IS NULL) OR ((state = 'RUNNING'::text) AND (cancellation_requested_at IS NULL) AND (phase = ANY (ARRAY['PREPARING'::text, 'AGENT'::text, 'SOURCE_ADMISSION'::text, 'COMPILING'::text, 'FINALIZING'::text])))))",
+   "constraint builder.builder_run.builder_run_phase_check CHECK (((phase IS NULL) OR ((state = 'RUNNING'::text) AND (cancellation_requested_at IS NULL) AND (phase = ANY (ARRAY['PREPARING'::text, 'AGENT'::text, 'PARKED'::text, 'SOURCE_ADMISSION'::text, 'COMPILING'::text, 'FINALIZING'::text])))))",
    "constraint builder.builder_run.builder_run_pkey PRIMARY KEY (builder_run_id)",
    "constraint builder.builder_run.builder_run_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id) ON DELETE RESTRICT",
    "constraint builder.builder_run.builder_run_request_digest_check CHECK ((request_digest ~ '^[0-9a-f]{64}$'::text))",
@@ -536,11 +536,12 @@
    "function builder.record_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=8f5efd83107057badd560987f46f871c",
    "function builder.record_conversation_sandbox(p_project_id uuid, p_conversation_id uuid, p_provider_sandbox_id text) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=98380b577eb8e7ccfee830a21168dfc4",
    "function builder.record_conversation_session(p_project_id uuid, p_conversation_id uuid, p_mirror_head text, p_synced_main text, p_turn_ended boolean) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=5828f0805cd7c3e7394e39ea1d79d13d",
-   "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=263f94a5196b117a7362fc096a5a1265",
+   "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=e5ea44ecaf17eacbf6537e1bb32a7420",
    "function builder.register_project_repository(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=fd5090601b26022f638bbf723909ca90",
-   "function builder.request_builder_run_cancellation(p_account_id uuid, p_project_id uuid, p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=884471b8c7b3809d37b7cc3cc0370b44",
+   "function builder.request_builder_run_cancellation(p_account_id uuid, p_project_id uuid, p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=2498f7c0f539a7b0176ca63be39a7252",
+   "function builder.resume_builder_run(p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=55a6b1a694a0bcae853a96543aa690a7",
    "function builder.served_preview_revision(p_project_id uuid) returns TABLE(source_revision text, artifact_revision_id uuid, artifact_digest text) kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,registry_owner:EXECUTE:false body=4cce61b9d7aedf5ae3f773cbd1e5ceda",
-   "function builder.set_builder_run_phase(p_builder_run_id uuid, p_phase text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=22dd8e7b2ebb16e9a00efbe0e1f52d2a",
+   "function builder.set_builder_run_phase(p_builder_run_id uuid, p_phase text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=a517c4a2a18a90a6471c5f8acb9b83ef",
    "function builder.settle_builder_run(p_builder_run_id uuid, p_result_source_revision text, p_result_kind text, p_failure_code text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=68b29ef053a3fcd7d7df593784c6e9be",
    "function builder.settle_builder_run_build(p_builder_run_id uuid, p_source_revision text, p_artifact_revision_id uuid, p_artifact_digest text, p_failure_code text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=46c9f37b557d755984477480deaa4111",
    "function connector.admit_installation_administrator(p_actor uuid) returns void kind=f owner=connector_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=connector_owner:EXECUTE:false body=7b5f93d1bc293e63ea2eed7f43bc33aa",

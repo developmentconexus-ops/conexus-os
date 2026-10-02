@@ -1,0 +1,40 @@
+# One OpenTelemetry Collector per installation. The Hub and the runner know only this endpoint
+# (OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318). The backend is named by the deployment:
+# the dev backend of compose.dev.yaml on a developer machine, SigNoz's ingestion endpoint on a pilot.
+#
+# Env: CONEXUS_INSTALLATION (the installation's name), CONEXUS_TELEMETRY_BACKEND (the backend's OTLP/HTTP base URL).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  resource:
+    attributes:
+      - key: conexus.installation
+        value: ${env:CONEXUS_INSTALLATION}
+        action: upsert
+  batch: {}
+
+exporters:
+  otlphttp:
+    endpoint: ${env:CONEXUS_TELEMETRY_BACKEND}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp]

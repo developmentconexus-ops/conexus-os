@@ -7,12 +7,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/c
 import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, levelForModel } from '../mastra-session'
 import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
-import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
+import { parseThinkCommand } from '@mastra/code-sdk/thinking'
+import { humanizeModelName } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 export type ComposerMode =
@@ -23,9 +24,11 @@ export type ComposerMode =
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
 
-const commands: readonly ComposerCommand[] = [
+// `/raciocinio` offers exactly the levels the selected model honors, the ones the slider shows, and
+// none for a model with no reasoning level.
+const commandsFor = (levels: readonly ReasoningLevel[]): readonly ComposerCommand[] => [
   { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
-  { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
+  ...levels.length ? [{ name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: levels.map((level) => ({ value: level, label: reasoningLabels[level] })) }] : [],
 ]
 
 const modelName = (model: BuilderModel | undefined): string => model ? humanizeModelName(model.modelName) : 'Escolha um modelo'
@@ -76,14 +79,16 @@ export function BuilderComposer({
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
   )
+  const selected = models.find((model) => model.id === modelId)
+  const levels = selected?.thinkingLevels ?? []
   const runCommand = (text: string): boolean => {
-    const [name, argument] = text.trim().slice(1).split(/\s+/)
+    const [name, ...argument] = text.trim().slice(1).split(/\s+/)
     if (!text.startsWith('/')) return false
     if (name === 'nova') onNewConversation()
     else if (name === 'raciocinio') {
-      const level = reasoningLevels.find((candidate) => candidate === argument)
-      if (!level) return false
-      onReasoningChange(level)
+      const command = parseThinkCommand(argument.join(' '), levels)
+      if (command.kind !== 'set') return false
+      onReasoningChange(command.level)
     } else return false
     onDraftChange('')
     return true
@@ -94,7 +99,7 @@ export function BuilderComposer({
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
-  const slash = useComposerCommands({ commands, value: draft, onValueChange: onDraftChange, onSubmit: submit, inputRef })
+  const slash = useComposerCommands({ commands: commandsFor(levels), value: draft, onValueChange: onDraftChange, onSubmit: submit, inputRef })
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
@@ -105,11 +110,7 @@ export function BuilderComposer({
     if (mode.kind === 'RUNNING') onStop()
     else submit(draft)
   }
-  const selected = models.find((model) => model.id === modelId)
-  // google-ai-pro/CLIProxy models bake the reasoning level into the id itself (`-low`/`-high`); such
-  // a model has no independent reasoning setting, so its own level wins over any stored choice.
-  const lockedReasoning = selected ? parseReasoningSuffix(selected.modelName) : null
-  const level = lockedReasoning?.level ?? reasoning ?? 'medium'
+  const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
@@ -137,10 +138,10 @@ export function BuilderComposer({
           </div>
           <div className="cx-composer-tools">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}, raciocínio ${reasoningLabels[level]}`} />}>
+              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}${level ? `, raciocínio ${reasoningLabels[level]}` : ''}`} />}>
                 {selected && (() => { const Icon = providerIcon(selected.provider); return <Icon width={14} height={14} aria-hidden="true" /> })()}
                 <span className="cx-model-name">{modelName(selected)}</span>
-                {selected && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
+                {selected && level && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
                 <ChevronDown size={14} aria-hidden="true" />
               </PopoverTrigger>
               {/* p-0 matches PopoverContent's own padding-utility check, so it skips its default px-3
@@ -151,10 +152,10 @@ export function BuilderComposer({
                   modelId={selected ? modelId : ''}
                   onModelChange={(next) => { onModelChange(next); setPickerOpen(false) }}
                   disabled={modelsPending || modelLocked}
+                  levels={levels}
                   reasoning={level}
                   onReasoningChange={onReasoningChange}
-                  reasoningDisabled={!selected || modelLocked || Boolean(lockedReasoning)}
-                  reasoningLocked={Boolean(lockedReasoning)}
+                  reasoningDisabled={!selected || modelLocked}
                 />
               </PopoverContent>
             </Popover>

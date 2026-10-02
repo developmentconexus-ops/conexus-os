@@ -1,13 +1,29 @@
-import type { MastraModelConfig } from '@mastra/core/llm'
+import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import { type GatewayLanguageModel, type MastraModelConfig, parseModelString } from '@mastra/core/llm'
 import type { RequestContext } from '@mastra/core/request-context'
-import { readSessionModelId } from './harness/request-context.js'
+import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
+import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import type { HeldModelAccount, ModelAccountStore } from './model-account-store.js'
 
-/** How a model call pays for and reaches one provider's models: the `model.model_account` provider, and a call built on that row. */
+/**
+ * How a model call pays for and reaches one provider's models: the `model.model_account` provider,
+ * and a call built on that row. A Builder call carries the conversation's thinking level, which the
+ * route hands to its provider's own Mastra option; a memory call carries none.
+ */
 export type ModelRoute = Readonly<{
   accountProvider: string
-  take(account: HeldModelAccount): Readonly<{ modelProvider: string; model(modelName: string): Promise<MastraModelConfig> }>
+  take(account: HeldModelAccount): Readonly<{ modelProvider: string; model(modelName: string, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> }>
 }>
+
+/**
+ * A model Mastra's models.dev gateway built, under the Mastra Code middleware its route adds, in
+ * order. Mastra Code gives no thinking middleware for a model or level without thinking.
+ */
+export const wrapGatewayModel = (model: GatewayLanguageModel, middleware: readonly (LanguageModelMiddleware | undefined)[]): MastraModelConfig => {
+  if (model.specificationVersion !== 'v3') throw new Error('BUILDER_GATEWAY_MODEL_REFUSED')
+  const applied = middleware.filter((each) => each !== undefined)
+  return applied.length ? wrapLanguageModel({ model, middleware: applied }) : model
+}
 
 /** The installation's two default models: the Builder's, for a conversation with none of its own, and the memory's. */
 export type ModelRole = 'build' | 'memory'
@@ -18,7 +34,7 @@ export const RUN_ACCOUNT_ID_KEY = 'conexusBuilderAccountId'
 /** Where a turn's request context carries its conversation, whose workspace a new session resolves. */
 export const CONVERSATION_ID_KEY = 'conexusBuilderConversationId'
 
-const providerOfModel = (modelId: string): string => modelId.slice(0, Math.max(0, modelId.indexOf('/')))
+const providerOfModel = (modelId: string): string => parseModelString(modelId).provider ?? ''
 
 /**
  * Which model a call uses and which account pays for it (spec 0002, Value sourcing). A Builder call
@@ -44,14 +60,14 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
     if (!modelId || !route || !account) throw new Error('BUILDER_MODEL_NOT_SELECTED')
     return { route, account, modelId }
   }
-  const call = async (requestContext: RequestContext, modelId: string | null): Promise<MastraModelConfig> => {
+  const call = async (requestContext: RequestContext, modelId: string | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
     const runId = requestContext.getRaw(RUN_ID_KEY)
     const payer = requestContext.getRaw(RUN_ACCOUNT_ID_KEY)
     if (typeof runId !== 'string' || typeof payer !== 'string') throw new Error('BUILDER_MODEL_NOT_SELECTED')
     const { route, account, modelId: selected } = await accountFor(payer, modelId)
     await record(runId, account.modelAccountId)
     const held = route.take(account)
-    return held.model(selected.slice(held.modelProvider.length + 1))
+    return held.model(parseModelString(selected).modelId, thinkingLevel)
   }
   return Object.freeze({
     /** Refuses a run before it starts when the model it starts on, or the memory's, has no usable account. */
@@ -61,7 +77,7 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
     },
     /** The Builder's model for a call; the controller's `model` resolver. */
     resolve: ({ requestContext }: Readonly<{ requestContext: RequestContext }>): Promise<MastraModelConfig> =>
-      call(requestContext, readSessionModelId(requestContext) ?? null),
+      call(requestContext, readSessionModelId(requestContext) ?? null, readSessionThinkingLevel(requestContext)),
     /** The model both observational-memory roles call. */
     resolveMemory: async (requestContext: RequestContext): Promise<MastraModelConfig> => call(requestContext, await readDefault('memory')),
   })
