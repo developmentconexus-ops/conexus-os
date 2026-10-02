@@ -143,6 +143,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-settings-deletion-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-deletion-browser.test.mjs', 'browser'),
   candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
+  candidateStep('web-dev-server', 'node --test tests/implementation/web-dev-server.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs && node --test tests/repository/web-style.test.mjs'),
   candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),

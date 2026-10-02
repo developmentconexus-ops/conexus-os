@@ -57,7 +57,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'repository-contract-checks', 'knip', 'biome',
   'brand-wordmark-csp', 'builder-tool-sentences', 'builder-skills-guard', 'builder-guidance-neutral', 'conexus-preflight',
   'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
-  'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
+  'project-command-postgres', 'project-deletion', 'project-deletion-postgres', 'project-browser', 'project-settings-deletion-browser', 'project-name', 'shell-browser-boundary', 'web-dev-server', 'brand-tokens', 'web-style', 'preview-form-policy',
   'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
   'builder-eval', 'builder-eval-postgres',
   'protected-cluster-coverage',
