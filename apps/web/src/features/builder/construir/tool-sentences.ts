@@ -127,7 +127,7 @@ export const toolSentence = (toolName: string, running: boolean): string => {
   if (sentence) return running ? sentence.running : sentence.done
   if (!loggedUnmapped.has(toolName)) {
     loggedUnmapped.add(toolName)
-    // eslint-disable-next-line no-console -- deliberate: the only record of which real tool id has no sentence yet.
+    // biome-ignore lint/suspicious/noConsole: deliberate, the only record of which real tool id has no sentence yet.
     console.debug(`[construir] no pt-BR sentence for tool "${toolName}"; add it to tool-sentences.ts`)
   }
   return running ? 'Usando uma ferramenta' : 'Usou uma ferramenta'
