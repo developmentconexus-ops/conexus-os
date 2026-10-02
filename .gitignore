@@ -19,5 +19,3 @@ apps/hub/*-build-*/
 # Except project skills: each is a link to its source in .agents/skills.
 !.claude/skills/
 .artifacts/
-
-# Scratch static builds a browser test writes under apps/web

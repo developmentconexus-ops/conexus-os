@@ -642,13 +642,13 @@ test('every step that needs PostgreSQL holds the one cluster lock, and no other 
   }
 })
 
-test('browser steps share a load budget of two, and no other step spends it', async () => {
+test('browser steps run one at a time, and no other step takes that turn', async () => {
   for (const entry of CANDIDATE_GRAPH) {
     const browser = entry.environmentClass === 'browser' || entry.environmentClass === 'browser-postgres'
     assert.equal(locksOf(entry).includes(BROWSER_LOAD), browser, entry.scope)
   }
   const { peak } = await scheduleOf(['a', 'b', 'c', 'd', 'e'].map(scope => step(scope, { locks: [BROWSER_LOAD] })), { concurrency: 4 })
-  assert.equal(peak, 2)
+  assert.equal(peak, 1)
 })
 
 test('a step runs after what it reads, and the Hub build publisher runs before everything', async () => {

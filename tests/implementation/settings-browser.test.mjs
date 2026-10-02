@@ -1,20 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { chromium } from '@playwright/test'
-import { startWebServer } from './web-dev-server.mjs'
+import { shareWebBrowser } from './web-dev-server.mjs'
+
+const web = shareWebBrowser()
 
 const withServer = async (t) => {
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
-  const stamp = () => new Date().toISOString()
-  page.on('console', (m) => console.log(`DBG ${stamp()} console ${m.type()} ${m.text().slice(0, 200)}`))
-  page.on('pageerror', (e) => console.log(`DBG ${stamp()} pageerror ${String(e).slice(0, 200)}`))
-  page.on('requestfailed', (r) => console.log(`DBG ${stamp()} requestfailed ${r.url()} ${r.failure()?.errorText}`))
-  page.on('response', (r) => { if (r.status() >= 400) console.log(`DBG ${stamp()} response ${r.status()} ${r.url()}`) })
-  page.on('framenavigated', (f) => console.log(`DBG ${stamp()} navigated ${f.url()}`))
-  page.on('crash', () => console.log(`DBG ${stamp()} PAGE CRASH`))
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
