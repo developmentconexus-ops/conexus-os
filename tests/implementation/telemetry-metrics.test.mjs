@@ -26,7 +26,7 @@ test('a single high sample between lows never fires', () => {
   assert.deepEqual(fired, [])
 })
 
-const { oldSpaceCapBytes } = await import(hubModuleUrl('telemetry/heap-watch.js'))
+const { oldSpaceCapBytes } = await import(hubModuleUrl('platform/heap.js'))
 
 test('the old-space cap is the command line flag over NODE_OPTIONS, the last within each, and null with none', () => {
   assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], undefined), 512 * 1024 * 1024)
@@ -42,7 +42,7 @@ test('a process launched with a NODE_OPTIONS cap and a command line cap divides 
   for (const nodeOptions of ['--max-old-space-size=1024', '--max-old-space-size=256']) {
     const result = spawnSync(process.execPath, ['--max-old-space-size=512', '--input-type=module', '-e', `
 const { getHeapStatistics } = await import('node:v8')
-const { oldSpaceCapBytes } = await import(${JSON.stringify(hubModuleUrl('telemetry/heap-watch.js'))})
+const { oldSpaceCapBytes } = await import(${JSON.stringify(hubModuleUrl('platform/heap.js'))})
 console.log(JSON.stringify({ cap: oldSpaceCapBytes(process.execArgv, process.env.NODE_OPTIONS), limit: getHeapStatistics().heap_size_limit }))
 `], { env: { ...process.env, NODE_OPTIONS: nodeOptions }, encoding: 'utf8' })
     assert.equal(result.status, 0, result.stderr)

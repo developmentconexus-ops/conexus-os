@@ -1,5 +1,5 @@
 import { metrics } from '@opentelemetry/api'
-import { heapUsedRatio } from './heap-watch.js'
+import { heapUsedRatio } from '../platform/heap.js'
 
 export const registerProcessMetrics = (): void => {
   const meter = metrics.getMeter('conexus-process')

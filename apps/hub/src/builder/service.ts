@@ -11,7 +11,7 @@ import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from '
 import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { logLine } from '../platform/logger.js'
-import { heapUsedRatio } from '../telemetry/heap-watch.js'
+import { heapUsedRatio } from '../platform/heap.js'
 
 /** What became of a person's answer to a parked run. Only `RESUMED` took the run out of PARKED. */
 export type BuilderAnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED'
