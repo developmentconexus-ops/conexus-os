@@ -41,7 +41,7 @@ const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 
 type CallState = 'running' | 'failed' | 'done'
 
 const isErrorResult = (result: unknown): boolean =>
-  typeof result === 'object' && result !== null && 'isError' in result && result.isError === true
+  typeof result === 'object' && result !== null && (('isError' in result && result.isError === true) || ('error' in result && result.error === true))
 
 // The part the thread holds is the truth about a call. One still open when no run works here was
 // cut short with its run.

@@ -496,6 +496,23 @@ test('a window message with a suspended ask_user call is followed by a QUESTION 
   })
 })
 
+test('a window that holds the open call after an earlier window held the same message without it draws the card once', () => {
+  const part = toolPart('q1', 'call', { toolName: 'ask_user', args: { question: 'Which database?' } })
+  const before = dbMessage('assistant-ask', 'assistant', [part])
+  const state = merge(hydrate([before]), [askMessage()])
+  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask'], ['prompt', 'prompt-q1']])
+  assert.deepEqual(ids(merge(state, [askMessage()])), ['assistant-ask', 'prompt-q1'])
+})
+
+test('the question a resumed run asks in the message its first leg wrote is drawn, and the answered call is not', () => {
+  const asked = (id, state, extra = {}) => toolPart(id, state, { toolName: 'ask_user', args: { question: id }, ...extra })
+  const answered = asked('q1', 'result', { result: { content: 'User answered: a', isError: false } })
+  const firstLeg = dbMessage('assistant-run', 'assistant', [asked('q1', 'call')], { suspendedTools: { a: { toolCallId: 'q1', toolName: 'ask_user', args: { question: 'q1' }, suspendPayload: { question: 'q1' } } } })
+  const secondLeg = dbMessage('assistant-run', 'assistant', [answered, asked('q2', 'call')], { suspendedTools: { b: { toolCallId: 'q2', toolName: 'ask_user', args: { question: 'q2' }, suspendPayload: { question: 'q2' } } } })
+  const state = merge(hydrate([firstLeg]), [secondLeg])
+  assert.deepEqual(state.entries.filter((entry) => entry.kind === 'prompt').map((entry) => entry.id), ['prompt-q2'])
+})
+
 test('a suspended submit_plan call is a PLAN prompt', () => {
   const state = hydrate([askMessage('submit_plan')])
   assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id, entry.ask]), [['message', 'assistant-ask', undefined], ['prompt', 'prompt-q1', 'PLAN']])

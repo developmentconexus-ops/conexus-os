@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
-import { useBuilderSession } from '../builder-session'
+import { builderSessionKey, useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
@@ -28,7 +28,7 @@ import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
 import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
-import { clockLabel, isActive, statusLine, viewRun } from './run-state'
+import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
 
@@ -141,7 +141,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     enabled: Boolean(diffBasis),
   })
 
-  const thread = useBuilderConversation(projectId, conversationId, session.dataUpdatedAt)
+  const thread = useBuilderConversation(projectId, conversationId, isParked(runHere) ? 0 : session.dataUpdatedAt)
   const { history, transcript, runtime } = thread
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
@@ -209,7 +209,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const preview = usePreview(projectId, session.data?.preview)
   const working = view.kind === 'ACTIVE'
-  const now = useNow(working)
+  const parked = isParked(runHere)
+  const now = useNow(working && !parked)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
   // model chosen in one conversation stays with that conversation.
   const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
@@ -326,6 +327,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                         pending={entry}
                         onAnswer={async (answer) => {
                           await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
                           dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
                         }}
                       />,
@@ -357,7 +359,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         {runHere && <TaskListPt className="cx-task-list" tasks={[...transcript.tasks]} title={taskListTitle(transcript.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
-        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run ? now - new Date(run.createdAt).getTime() : null} />}
+        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run && !parked ? now - new Date(run.createdAt).getTime() : null} />}
         <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}

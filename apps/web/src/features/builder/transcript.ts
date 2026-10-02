@@ -241,7 +241,7 @@ const mergeServerWindow = (state: TranscriptState, messages: readonly MastraDBMe
   const onScreenIndex = claimOnScreenEntries(state.entries, messages)
   const confirmed = confirmPendingUserMessages(state, onScreenIndex)
   const reconciled = withoutFinishedPrompts(reconcileToolResults(adoptCoveringWindowCopies(confirmed, onScreenIndex), messages), messages)
-  if (messages.every((message) => onScreenIndex.has(message))) return reconciled
+  if (messages.every((message) => onScreenIndex.has(message))) return withPersistedPrompts(reconciled, messages)
 
   const drawnPrompts = new Set(reconciled.entries.flatMap((entry) => entry.kind === 'prompt' ? [entry.id] : []))
   const added = (missing: readonly MastraDBMessage[]): TranscriptEntry[] =>
@@ -261,7 +261,16 @@ const mergeServerWindow = (state: TranscriptState, messages: readonly MastraDBMe
     cursor = anchorIndex
   }
   entries.push(...reconciled.entries.slice(cursor), ...added(missing))
-  return { ...reconciled, entries }
+  return withPersistedPrompts({ ...reconciled, entries }, messages)
+}
+
+// A message already on screen can gain its suspension after it was drawn: a resumed run asks again in
+// the message the first leg wrote. Every window message is read for its open calls, once per call.
+const withPersistedPrompts = (state: TranscriptState, messages: readonly MastraDBMessage[]): TranscriptState => {
+  const finished = finishedCallIds(messages)
+  return messages.flatMap(persistedSuspensionPrompts)
+    .filter((prompt) => !finished.has(prompt.toolCallId))
+    .reduce(pushPrompt, state)
 }
 
 const finishedCallIds = (messages: readonly MastraDBMessage[]): ReadonlySet<string> =>

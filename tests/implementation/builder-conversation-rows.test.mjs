@@ -139,3 +139,12 @@ test('a thread message covers one stored request, so a repeated request still sh
   const html = render({ entries: thread.entries, persistedRequests: [persistedRun, { ...persistedRun, runId: 'run-2', createdAt: '2026-10-01T15:00:00.000Z' }] })
   assert.equal(count(html, 'Crie um contador'), 2)
 })
+
+test('a tool call whose stored result is {error: true, message} stays a failed row after a reload, as it was live', () => {
+  const message = 'Tool input validation failed for ask_user'
+  const stored = (result) => assistant('failed-1', [{ type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: 'f1', toolName: 'ask_user', args: { questions: [{ question: 'Qual cor?' }] }, result } }])
+  const shown = (result) => render({ entries: reduce([{ type: 'mergeWindow', messages: [stored(result)] }]).entries })
+  const failedLive = shown({ isError: true, message })
+  assert.notEqual(failedLive, shown({ isError: false, message }), 'a failed row does not read as a finished one')
+  assert.equal(shown({ error: true, message }), failedLive)
+})

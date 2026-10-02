@@ -36,28 +36,14 @@ test('parseReasoningSuffix reads the level suffix Google AI Pro ids carry, and n
   assert.equal(parseReasoningSuffix('gemini-pro-agent'), null)
 })
 
-const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
-// The model and a conversation's own state are the controller's, so the screen reads
-// them from the Builder's controller and holds none. A model with no key is never offered.
-const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
-const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'groq/llama-4', provider: 'groq', providerName: 'Groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
-]
+import { BUILDER_CONTROLLER, BUILDER_MODELS, SELECTED_MODEL, assistantMessage, builderState, conversation, conversationOf, routeBuilder, sse, userMessage } from './builder-browser-fixtures.mjs'
+
 // Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
 const GOOGLE_AI_PRO_MODELS = [
   { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
   { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
 ]
-const SELECTED_MODEL = BUILDER_MODELS[0].id
 const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
-// A Project's conversations are its threads, as the native threads route lists them.
-const conversation = (id, title, createdAt = '2026-09-20T12:00:00.000Z') => ({ id, title, createdAt, updatedAt: createdAt })
-
-const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
-const scopeOf = (url) => new URL(url).searchParams.get('sessionScope') ?? ''
-const conversationOf = (url) => scopeOf(url).replace(/^conversation:/, '')
 
 // The retired mounts: the Conexus one and the Factory's.
 const trackLegacyRequests = (page) => {
@@ -65,44 +51,6 @@ const trackLegacyRequests = (page) => {
   page.on('request', (request) => { if (/^\/api\/mastra(?:-factory)?\//.test(new URL(request.url()).pathname)) legacyRequests.push(request.url()) })
   return legacyRequests
 }
-
-// Every Project is developed through the Builder's controller: its conversations are the threads
-// of its resource, project:<id>, and each conversation is its own session (conversation:<id>) bound
-// to the thread of that id; its runs share the session the Hub keeps for it (builder:<conversationId>)
-// on the same thread.
-const routeBuilder = async (page, state) => {
-  await page.route(`${BUILDER_CONTROLLER}/sessions`, (route) => {
-    const { resourceId, sessionScope, threadId } = route.request().postDataJSON()
-    state.opened.push([resourceId, sessionScope, threadId])
-    if (!state.conversations.some((entry) => entry.id === threadId)) state.conversations = [conversation(threadId, null, new Date().toISOString()), ...state.conversations]
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ controllerId: 'conexus-builder', resourceId, threadId }) })
-  })
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads*`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: state.conversations }) }))
-  await page.route('**/api/control/model-accounts/models', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS, defaultThinkingLevel: state.defaultThinkingLevel ?? 'medium' }) }))
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
-    state.modelId = route.request().postDataJSON().modelId
-    state.modelSwitches.push(state.modelId)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-  })
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads/*/messages*`, (route) => {
-    const id = threadIdOf(route.request().url(), -2)
-    state.messageReads.push(id)
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: state.messages[id] ?? [] }) })
-  })
-}
-
-const builderState = (conversations, messages = {}, modelId = SELECTED_MODEL) =>
-  ({ conversations, messages, modelId, modelSwitches: [], messageReads: [], opened: [] })
-const assistantMessage = (id, text) => ({ id, role: 'assistant', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
-const userMessage = (id, text) => ({ id, role: 'user', createdAt: new Date().toISOString(), content: { format: 2, parts: [{ type: 'text', text }] } })
-const sse = (...events) => ({
-  status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' },
-  body: events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
-})
 
 // The composer names the chosen model on a button whose accessible name starts with "Modelo ",
 // which opens a single popover holding the search field and the provider-grouped list directly

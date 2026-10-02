@@ -154,7 +154,7 @@ export const getBuilderRunTrace =async (projectId: string, builderRunId: string)
 }
 
 const RUN_STATES: ReadonlySet<unknown> = new Set(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'])
-const RUN_PHASES: ReadonlySet<unknown> = new Set(['PREPARING', 'AGENT', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', null])
+const RUN_PHASES: ReadonlySet<unknown> = new Set(['PREPARING', 'AGENT', 'PARKED', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', null])
 const RESULT_KINDS: ReadonlySet<unknown> = new Set(['RESPONSE_ONLY', 'SOURCE_CHANGED', 'SOURCE_CHANGED_BUILD_FAILED', null])
 const isText = (value: unknown): value is string => typeof value === 'string'
 const isTextOrNull = (value: unknown): boolean => value === null || typeof value === 'string'
