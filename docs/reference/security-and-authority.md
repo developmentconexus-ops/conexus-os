@@ -82,6 +82,17 @@ like an email or a long number, and a host holding a long number. The host name 
 because it leaves in the DNS lookup before any request. The guard narrows what can leave in the
 URL; it cannot prove a URL is free of company data, so a short path or host label of company
 words still passes. C-023 keeps the sandbox allowlist before Q5.
+The sandbox's destinations are logged, not blocked. At the end of every turn the Hub logs one
+`BUILDER_SANDBOX_EGRESS` line per distinct host, port and protocol the sandbox reached since the
+last turn, with the run id, conversation id, first-seen time and a count, then a
+`BUILDER_SANDBOX_EGRESS_SUMMARY` line saying whether the list is complete, partial or failed.
+Two root-run recorders in the guest produce it: a DNS forwarder on `127.0.0.1:53` that names
+addresses (upstream: the VM's own resolver, kept as the fallback), and a poller of `/proc/net/tcp`
+every 10 seconds, `TIME_WAIT` included, which skips connections the sandbox accepted. A log that
+reaches its size cap is truncated and the summary reads partial. A connection
+shorter than the poll that never lingers can be missed, so an empty list is not proof of no
+egress. Paths, query strings and payloads are never recorded. A recorder or collection failure
+is logged and never fails the run. The list is what the Q5 allowlist starts from.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
