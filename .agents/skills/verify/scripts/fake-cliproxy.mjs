@@ -5,7 +5,7 @@
 // sign-in and readiness routes only. The Hub calls models on Gemini's /v1beta API, which this does not
 // answer, and no turn reaches a model while E2B is closed. With CONEXUS_FAKE_MODEL_URL set (tests/live
 // does, through a wrapper, because the Hub spawns this with a scrubbed environment) it forwards
-// `streamGenerateContent` there, so a scripted model answers as Gemini would.
+// `streamGenerateContent` and `generateContent` there, so a scripted model answers as Gemini would.
 import { randomBytes } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, request as forward } from 'node:http'
@@ -55,7 +55,7 @@ createServer(async (request, response) => {
     }
     return json(response, 404, { error: 'not found' })
   }
-  if (modelUrl && /^\/v1beta\/models\/[^:/]+:streamGenerateContent$/.test(url.pathname)) {
+  if (modelUrl && /^\/v1beta\/models\/[^:/]+:(?:stream)?[gG]enerateContent$/.test(url.pathname)) {
     if (request.headers['x-goog-api-key'] !== apiKey) return json(response, 401, { error: { code: 401, message: 'Invalid API key', status: 'UNAUTHENTICATED' } })
     const outgoing = forward({ hostname: modelUrl.hostname, port: modelUrl.port, method: request.method, path: request.url, headers: { ...request.headers, host: modelUrl.host } }, (answer) => {
       response.writeHead(answer.statusCode ?? 502, answer.headers)

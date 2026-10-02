@@ -154,6 +154,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-first-operational-delivery',
   'builder-planning-free-boot',
   'builder-eval',
+  'live-builder',
   'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
@@ -396,7 +397,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'live', 'postgres', 'static'])
 
   const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
   const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
@@ -608,12 +609,13 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
   for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
   assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['c020-hub-typecheck', 'c020-browser', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['c020-hub-typecheck', 'live-builder', 'only-opt-in-skips'])
 })
 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
   assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
-  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest/)
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest, live/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

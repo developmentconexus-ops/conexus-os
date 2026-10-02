@@ -15,14 +15,14 @@ permissions:
   contents: read
 
 jobs:
-  # The graph runs as four groups, each on its own runner with its own PostgreSQL and CPU, so no
+  # The graph runs as five groups, each on its own runner with its own PostgreSQL and CPU, so no
   # step shares a machine resource with a step of another group (see VERIFY_GROUPS in
   # scripts/conexus-verify.mjs). The first group to fail cancels the others.
   group:
     name: verify (${{ matrix.group }})
     strategy:
       matrix:
-        group: [builder-ui, browser, postgres, rest]
+        group: [builder-ui, browser, postgres, rest, live]
     # A draft is work in progress: its author runs the touched suites locally and pushes as often as
     # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -80,20 +80,20 @@ jobs:
       # live outside the cache, so they are installed on every run.
       - name: Playwright version
         id: playwright
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui')
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui' || matrix.group == 'live')
         run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the Playwright browser
         id: browser
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui')
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui' || matrix.group == 'live')
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
       - name: Install Playwright Chromium
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui') && steps.browser.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui' || matrix.group == 'live') && steps.browser.outputs.cache-hit != 'true'
         run: npx --no-install playwright install --with-deps chromium
       - name: Install Playwright OS dependencies
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui') && steps.browser.outputs.cache-hit == 'true'
+        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'builder-ui' || matrix.group == 'live') && steps.browser.outputs.cache-hit == 'true'
         run: npx --no-install playwright install-deps chromium
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
@@ -127,12 +127,22 @@ jobs:
         run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}
         if: steps.scope.outputs.docs_only != 'true'
         env:
+          # The live group's evidence (screenshots, the page console, the Hub's log) is kept on failure, below.
+          CONEXUS_VERIFY_EVIDENCE: ${{ runner.temp }}/conexus-verify-evidence
+          CONEXUS_VERIFY_STATE: ${{ runner.temp }}/conexus-verify-state
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
           CONEXUS_TEST_APP_TLS_DIR: ${{ runner.temp }}/conexus-app-tls
           CONEXUS_TEST_APP_DB_HOST: 127.0.0.1
           CONEXUS_TEST_APP_DB_PORT: '5434'
           CONEXUS_TEST_APP_DB_USER: postgres
           CONEXUS_TEST_APP_DB_PASSWORD: s6-ci-test-only
+      - name: Keep the live group's evidence
+        if: failure() && matrix.group == 'live'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-evidence
+          path: ${{ runner.temp }}/conexus-verify-evidence
+          if-no-files-found: ignore
       - run: git diff --check
       # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
       - name: The working tree is unchanged by verification

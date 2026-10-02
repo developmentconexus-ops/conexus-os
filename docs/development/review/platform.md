@@ -16,7 +16,8 @@ root configuration.
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
       runs once. Owner: [Proof and verification](../delivery.md#proof-and-verification).
 - [ ] A leaf that drives a real browser is tagged `browser` (or `browser-postgres`) so its
-      environment wiring and record output are correct.
+      environment wiring and record output are correct. A leaf that boots a whole Conexus of its
+      own (`tests/live`) is tagged `live`.
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger
       coverage stay equivalent.
 - [ ] Expected output is regenerated only with the explicit generation command, never by hand to

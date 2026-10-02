@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "npm run verify",
+    "test:live": "node --test --test-isolation=none --test-global-setup=tests/live/harness.mjs tests/live/builder-send-and-reply.test.mjs",
     "test:repository": "node --test --test-concurrency=1 tests/repository/*.test.mjs",
     "conexus:preflight": "node scripts/conexus-preflight.mjs",
     "conexus:verify": "node scripts/conexus-verify.mjs",
