@@ -129,7 +129,7 @@ function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
     <p className="cx-preview-wait-title" role="status">{wait.title}</p>
     {current !== -1 && <p>Tarefa {current + 1} de {tasks.length}: {tasks[current]?.activeForm}</p>}
     {tasks.length > 0 && <ul className="cx-preview-wait-tasks">{tasks.map((task) => <TaskListPtRow key={task.id} task={task} />)}</ul>}
-    <p className="cx-preview-wait-time">Há {elapsedLabel(wait.elapsedMs)} · a prévia aparece quando a primeira versão compilar</p>
+    <p className="cx-preview-wait-time">{wait.elapsedMs === null ? 'A' : `Há ${elapsedLabel(wait.elapsedMs)} · a`} prévia aparece quando a primeira versão compilar</p>
   </div>
 }
 

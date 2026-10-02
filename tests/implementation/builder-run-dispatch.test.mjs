@@ -8,8 +8,9 @@ const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabul
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
 // so each test only overrides the pieces it exercises.
 // A conversation is the Project's when its thread is; these tests name the missing one through the conversation id.
-const makeRuns = ({ execute, appendDiagnostic }) => ({
+const makeRuns = ({ execute, appendDiagnostic, publishRun }) => ({
   runtime: { execute },
+  publishRun: publishRun ?? (async () => {}),
   conversations: {
     ownerOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? 'NONE' : 'PROJECT'),
   },
@@ -159,6 +160,47 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   await service.close()
   assert.equal(calls[0], 'request-cancellation')
   assert.deepEqual(calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+})
+
+test("a browser following the conversation is handed the run as the builder-session read serves it: at each phase, at a stop request, and once settled", async () => {
+  const runId = '88888888-8888-4888-8888-88888888888a'
+  const projectId = '99999999-9999-4999-8999-999999999999'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const row = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', phase: null, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+  const published = []
+  let started
+  const startedPromise = new Promise((resolve) => { started = resolve })
+  const store = {
+    createBuilderRun: async () => ({ ...row }),
+    claimBuilderRun: async () => Object.assign(row, { state: 'RUNNING' }),
+    readBuilderRun: async (input) => input.accountId === accountId && input.projectId === projectId ? { ...row } : null,
+    setBuilderRunPhase: async (_id, phase) => { row.phase = phase },
+    requestBuilderRunCancellation: async () => Object.assign(row, { cancellationRequested: true }),
+    interruptBuilderRun: async () => { Object.assign(row, { state: 'INTERRUPTED', phase: null, failureCode: 'USER_CANCELLED' }) },
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => {}, close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    runs: makeRuns({
+      publishRun: async (run) => { published.push([run.state, run.phase, run.cancellationRequested === true]) },
+      execute: async (input) => {
+        await input.setPhase('AGENT')
+        started()
+        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true }))
+      },
+    }),
+    applicationArtifacts: {},
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'publish-key', content: 'faça', conversationId: 'conv-build' })
+  await startedPromise
+  await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  await service.close()
+  assert.deepEqual(published, [
+    ['RUNNING', 'PREPARING', false],
+    ['RUNNING', 'AGENT', false],
+    ['RUNNING', 'AGENT', true],
+    ['INTERRUPTED', null, true],
+  ])
 })
 
 test('a run cancelled mid phase change is interrupted, not failed, whatever error the abort surfaces', async () => {
@@ -405,4 +447,43 @@ test("a conversation that is not the Project's is refused before a run exists", 
   assert.deepEqual([await attempt('conv-plan'), await attempt('conv-build'), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'STOP_AFTER_CREATE', 'BUILDER_CONVERSATION_NOT_FOUND'])
   assert.deepEqual(created, ['conv-plan', 'conv-build'])
   await service.close()
+})
+
+test('a run publishes the state it parks in, and the state it ends in, before its session is closed', async () => {
+  const projectId = '99999999-9999-4999-8999-999999999999'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const drive = async (runId, result) => {
+    const row = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', phase: null, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+    const events = []
+    const store = {
+      createBuilderRun: async () => ({ ...row }),
+      claimBuilderRun: async () => Object.assign(row, { state: 'RUNNING' }),
+      readBuilderRun: async () => ({ ...row }),
+      setBuilderRunPhase: async (_id, phase) => { Object.assign(row, { phase }) },
+      settleBuilderRun: async () => { Object.assign(row, { state: 'SETTLED', phase: null, resultKind: 'RESPONSE_ONLY' }) },
+      failBuilderRun: async () => { Object.assign(row, { state: 'FAILED', phase: null }) },
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, close: async () => {},
+    }
+    const service = createBuilderService({
+      store,
+      runs: makeRuns({
+        publishRun: async (run) => { events.push(`publish:${run.state}:${run.phase}`) },
+        execute: async (input) => {
+          input.holdSession(async () => { events.push('close-session') })
+          return result(input)
+        },
+      }),
+      applicationArtifacts: {},
+    })
+    await service.createBuilderRun({ accountId, projectId, idempotencyKey: `key-${runId}`, content: 'faça', conversationId: 'conv-build' })
+    await service.close()
+    return events
+  }
+  const parkedId = '88888888-8888-4888-8888-88888888888b'
+  const parked = await drive(parkedId, () => ({ kind: 'PARKED', projectId, executionId: parkedId, baseSourceRevision: 'a'.repeat(40) }))
+  assert.deepEqual(parked.filter((event) => event !== 'publish:RUNNING:PREPARING').slice(0, 2), ['publish:RUNNING:PARKED', 'close-session'])
+  const endedId = '88888888-8888-4888-8888-88888888888c'
+  const ended = await drive(endedId, () => ({ kind: 'RESPONSE_ONLY', projectId, executionId: endedId, baseSourceRevision: 'a'.repeat(40) }))
+  assert.deepEqual(ended.slice(-2), ['publish:SETTLED:null', 'close-session'])
+  assert.equal(ended.filter((event) => event === 'close-session').length, 1)
 })
