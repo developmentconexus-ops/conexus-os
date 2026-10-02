@@ -1,0 +1,13 @@
+[Unit]
+Description=Conexus daily backup with restore check
+After=docker.service
+
+[Service]
+Type=oneshot
+# Check every path and name below against the pilot before enabling. See docs/reference/backup.md.
+ExecStart=%h/conexus-os/scripts/conexus-backup-run.sh \
+  --container conexus-branch-postgres --database conexus_branch \
+  --git-root %h/conexus-branch-state/git --out-root %h/conexus-branch-state/backups \
+  --password-file %h/conexus-branch-state/secrets/postgres-superuser \
+  --key-file %h/conexus-branch-state/secrets/CHANGE-ME-sealing-key \
+  --keycloak-container CHANGE-ME-keycloak --keycloak-realm conexus
