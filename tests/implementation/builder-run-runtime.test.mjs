@@ -1313,10 +1313,10 @@ test('a mirror write in flight when the sandbox dies lands before the run ends',
   let held = 0
   const run = await harness(t, {
     beforeAcceptSnapshot: () => new Promise((release) => { held += 1; setTimeout(release, 150) }),
-    onCommand: (sandbox, line) => { if (line.includes('conexus-mirror-index')) sandbox.sandboxId = 'sbx-2' },
-    turn: async ({ write }) => {
+    turn: async ({ sandbox, write }) => {
       await write('app/a.ts', 'export const a = 1\n')
       await until(() => held > 0, 'the mirror write reached its accept')
+      sandbox.sandboxId = 'sbx-2'
       return completed()
     },
   })

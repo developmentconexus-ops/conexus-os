@@ -215,7 +215,8 @@ export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
 // Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
 // `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
 // waits for the store's own init, which creates the tables a fresh installation does not have yet.
-type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
+// `close()` stops the timer and settles after the prune in flight, so the pool it uses can end after it.
+type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
 
 /** @public Tests import this at runtime from the built module. */
 export const scheduleRetentionPrune = (
@@ -223,17 +224,32 @@ export const scheduleRetentionPrune = (
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
-  const tick = async (): Promise<void> => {
+  const inFlight = new Set<Promise<void>>()
+  const run = async (): Promise<void> => {
     await storage.init()
     for (const result of await storage.prune()) {
       log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }
-  tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`))
-  const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
+  const tick = (): Promise<void> => {
+    const pass = run()
+    inFlight.add(pass)
+    const settled = (): void => { inFlight.delete(pass) }
+    pass.then(settled, settled)
+    return pass
+  }
+  const tickLogged = (): void => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }
+  tickLogged()
+  const timer = setInterval(tickLogged, intervalMs)
   timer.unref()
-  return Object.freeze({ tick, close: () => clearInterval(timer) })
+  return Object.freeze({
+    tick,
+    close: async () => {
+      clearInterval(timer)
+      await Promise.allSettled([...inFlight])
+    },
+  })
 }
 
 // Kills what a crashed Hub left running before the router takes calls.
@@ -502,8 +518,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,
     close: async () => {
-      retentionPrune.close()
-      idleMachineSweep.close()
+      await Promise.all([retentionPrune.close(), idleMachineSweep.close()])
       try {
         service.stopLegs()
         await service.close()

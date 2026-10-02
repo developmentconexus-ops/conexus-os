@@ -176,8 +176,8 @@ type TurnMirror = Readonly<{
   schedule(): void
   /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout. Answers the mirror's head. */
   end(candidate: string | null): Promise<string | null>
-  /** Ends the turn's mirror without writing, for a sandbox that is gone. */
-  abandon(): void
+  /** Ends the turn's mirror without a new write, for a sandbox that is gone. Settles once the write in flight has. */
+  abandon(): Promise<void>
 }>
 
 /**
@@ -244,7 +244,8 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
     },
     abandon: () => {
       stop()
-      ended ??= Promise.resolve(expected)
+      ended ??= chain.then(() => expected)
+      return ended.then(() => undefined)
     },
   })
 }
@@ -604,8 +605,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         })
         live = sandbox.sandboxId === incarnation
       }
-      if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
-      else mirror?.abandon()
+      const mirrorSettled = live ? endMirror(null) : mirror?.abandon()
+      await Promise.race([mirrorSettled, new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       const failed = (code: string) => (error: unknown): void => {
         ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       }

@@ -41,17 +41,33 @@ export const sweepIdleMachines = async ({ listPaused, openRunConversations, kill
 
 const IDLE_MACHINE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
 
-/** Sweeps once at boot and then every hour; a failed pass is logged and the next one tries again. */
+/**
+ * Sweeps once at boot and then every hour; a failed pass is logged and the next one tries again.
+ * `close()` stops the timer and settles after the pass in flight, so the pool it reads can end after it.
+ */
 export const scheduleIdleMachineSweep = (
   ports: IdleMachineSweepPorts,
   intervalMs = IDLE_MACHINE_SWEEP_INTERVAL_MS,
-): Readonly<{ tick(): Promise<number>; close(): void }> => {
-  const tick = (): Promise<number> => sweepIdleMachines(ports)
+): Readonly<{ tick(): Promise<number>; close(): Promise<void> }> => {
+  const inFlight = new Set<Promise<number>>()
+  const tick = (): Promise<number> => {
+    const pass = sweepIdleMachines(ports)
+    inFlight.add(pass)
+    const settled = (): void => { inFlight.delete(pass) }
+    pass.then(settled, settled)
+    return pass
+  }
   const tickLogged = (): void => {
     tick().catch((error: unknown) => ports.log(`BUILDER_IDLE_MACHINE_SWEEP_FAILED:${error instanceof Error ? error.message : String(error)}`))
   }
   tickLogged()
   const timer = setInterval(tickLogged, intervalMs)
   timer.unref()
-  return Object.freeze({ tick, close: () => clearInterval(timer) })
+  return Object.freeze({
+    tick,
+    close: async () => {
+      clearInterval(timer)
+      await Promise.allSettled([...inFlight])
+    },
+  })
 }
