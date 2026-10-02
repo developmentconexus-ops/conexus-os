@@ -549,10 +549,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
 test('a send the Hub refused reads Não enviado and takes a fresh key on a resend', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   const keys = []
@@ -1162,10 +1159,7 @@ test('a page opened while the run is parked shows the question card once from th
   const runId = '70000000-0000-4000-8000-000000000303'
   const conversationId = 'conversation-parked-reload'
   const sourceRevision = 'a'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const question = 'Qual status um pedido pode ter?'
   const ask = { questions: [{ question, options: [{ label: 'Aberto' }, { label: 'Pago' }] }] }
@@ -1337,10 +1331,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   const runId = '70000000-0000-4000-8000-000000000313'
   const conversationId = 'conversation-streamed-phase'
   const sourceRevision = 'b'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const run = {
     builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
