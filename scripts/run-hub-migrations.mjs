@@ -55,6 +55,7 @@ const compilerTemplateEnumDigest = '6ede27869772c62a255a970f6cdb92d88db166dd1ba5
 const runParkedDigest = 'fd6a7fb76d8f738ad4fcebb8b4b16ba87907821a98e009b5c5ab755190496c2e'
 const modelAccountSharingHistoryDigest = 'c01d71477794fcbe974b1a239ec0e90d65e11cc4ecf4b83079d7f3036ec04f4f'
 const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba798fceb05a77dbcf4'
+const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -102,6 +103,7 @@ const migrationDigests = new Map([
   ['0043_builder_run_parked.sql', runParkedDigest],
   ['0044_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
   ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
+  ['0046_builder_open_run_conversations.sql', openRunConversationsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
