@@ -28,5 +28,5 @@ Preconditions:
 ## Gotchas
 
 - The sign-in page is Keycloak's own theme, because the run does not build the Conexus theme jar. Don't judge the sign-in page's look from this run. `apps/keycloak-theme` has its own check.
-- `browser.log` holds three `401` console errors on `/setup` during the first sign-in, while the session has no account yet. They are expected. Any other console error is a finding.
+- `browser.log` holds `401` console errors on `/` before sign-in and on `/setup` during the first sign-in, while the session has no account yet. They are expected. Any other console error is a finding.
 - A second `sign-in` in the same run skips `/setup` and lands wherever the entry route sends the person.

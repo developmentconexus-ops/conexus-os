@@ -180,14 +180,19 @@ const hubEnvironment = (state, secrets) => {
 const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER', 'SHELL', 'TZ'].filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
 
 // The repository's own local build (web app, then the Hub into a fresh directory it names), then its
-// server.js run as scripts/build-hub-local.mjs runs it. The run records that directory by name and
-// deletes only it.
+// server run with the same node arguments scripts/build-hub-local.mjs uses. The run records that
+// directory by name and deletes only it.
 const startHub = async (state, environment) => {
-  const { buildHubLocal } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
-  state.hubBuildDir = await buildHubLocal()
+  const { buildHubLocal, hubNodeArguments } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
+  state.hubBuildDir = await buildHubLocal().catch((error) => {
+    writeFileSync(evidence(state, 'hub.log'), `HUB_BUILD_FAILED\n${error.message}\n`)
+    fatal('HUB_BUILD_FAILED: see hub.log')
+  })
   saveState(state)
   const out = openSync(evidence(state, 'hub.log'), 'a')
-  const hub = spawn(process.execPath, ['--max-old-space-size=512', join(state.hubBuildDir, 'server.js')],
+  const diagnosticDir = join(state.evidenceDir, 'diagnostics')
+  mkdirSync(diagnosticDir, { recursive: true })
+  const hub = spawn(process.execPath, hubNodeArguments({ buildRoot: state.hubBuildDir, diagnosticDir }),
     { cwd: REPO, env: { ...baseEnvironment(), ...environment }, detached: true, stdio: ['ignore', out, out] })
   hub.unref()
   state.pids.hub = hub.pid
