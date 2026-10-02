@@ -27,6 +27,8 @@ export type BuilderService = Readonly<{
   getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   recover(): Promise<void>
+  /** Aborts every running leg for a Hub that is stopping; each settles its run INTERRUPTED HUB_RESTART. */
+  stopLegs(): void
   close(): Promise<void>
 }>
 
@@ -89,7 +91,12 @@ const recoverAdmissions = async ({ store, git, active }: Readonly<{
   return unsettled
 }
 
+// How a run ended, for the settle of its open question.
+type SettleTerminal = 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART'
+
 // Only these end a run with a recorded candidate knowing its source is not on main.
+// The abort reason of a leg the Hub stops: it settles INTERRUPTED HUB_RESTART, not as the operator's stop.
+const HUB_STOPPING = 'HUB_STOPPING'
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
 export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs }: Readonly<{
@@ -139,7 +146,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   // settles the open calls as denied; with none open it only reads the thread, so every ending
   // calls this and a second call changes nothing. A failed discard is logged, never thrown, since the
   // run's own ending must not depend on it.
-  const settleRun = async (run: Readonly<{ builderRunId: string; projectId: string; conversationId: string }>, terminal: 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART'): Promise<void> => {
+  const settleRun = async (run: Readonly<{ builderRunId: string; projectId: string; conversationId: string }>, terminal: SettleTerminal): Promise<void> => {
     try {
       await runs.runtime.discardParked({ projectId: run.projectId, conversationId: run.conversationId })
     } catch {
@@ -166,6 +173,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     // admitted; if it never is, the thread gets a note that its files are kept for the next turn.
     let unadmittedAgentRun: BuilderRunSummary | null = null
     let candidateRecorded = false
+    // The catch publishes how the run ended before it closes the session; the finally then has nothing to add.
+    let endPublished = false
     // The run's session stays open until its last state is published to the stream that follows it.
     let closeHeldSession: (() => Promise<void>) | undefined
     const closeSession = async (): Promise<void> => {
@@ -278,19 +287,27 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           sourceRevision: unadmitted.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
         }).catch(() => undefined)
       }
-      // The leg's session lets go of the thread before its open calls are settled.
-      await closeSession()
-      await settleRun(run, controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' ? 'USER_CANCELLED' : 'FAILED')
-      // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
+      // The operator's cancellation or the Hub's own stop aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
-      if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
+      const hubStopping = controller.signal.reason === HUB_STOPPING
+      const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED'
+      const terminal: SettleTerminal = hubStopping ? 'HUB_RESTART' : cancelled ? 'USER_CANCELLED' : 'FAILED'
+      if (terminal === 'HUB_RESTART') {
+        await store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART').catch(() => undefined)
+      } else if (terminal === 'USER_CANCELLED') {
         await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
       } else {
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
       }
+      // The stream that follows the run hears how it ended before its session is closed; the session
+      // then lets go of the thread, and only then are the run's open calls settled.
+      await publish()
+      endPublished = true
+      await closeSession()
+      await settleRun(run, terminal)
     })
       .finally(async () => {
-        await publish()
+        if (!endPublished) await publish()
         await closeSession()
         if (builderActive.get(run.builderRunId)?.controller === controller) builderActive.delete(run.builderRunId)
         endParking(false)
@@ -384,6 +401,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if ((await recover(new Set())).length) reconcileSoon()
       for (const run of await store.recoverBuilderRuns()) await settleRun(run, 'HUB_RESTART')
     },
+    stopLegs: () => { for (const { controller } of builderActive.values()) controller.abort(HUB_STOPPING) },
     close,
   })
 }

@@ -495,6 +495,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     close: async () => {
       retentionPrune.close()
       try {
+        service.stopLegs()
         await service.close()
       } finally {
         try {

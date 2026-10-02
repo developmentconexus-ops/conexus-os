@@ -103,7 +103,7 @@ const migrationDigests = new Map([
   ['0043_builder_run_parked.sql', runParkedDigest],
   ['0044_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
   ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
-  ['0046_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
+  ['0047_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -86,6 +86,26 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   const logs = []
   // The run's BUILDER_RUN_TIMING lines, kept apart from the lines that say what happened.
   const timings = []
+  // The BUILDER_SANDBOX_EGRESS* lines, and the VM's two recorders: `pending` holds what the
+  // processes would have written since the last poll, and the files are what the Hub reads back.
+  const egressLogs = []
+  const egress = { running: false, installs: 0, starts: 0, pollError: false, pollHangs: false, pending: { tcp: [], dns: [] }, files: new Map() }
+  const egressAppend = (name, rows) => {
+    if (rows.length === 0) return
+    const path = `/var/log/conexus-egress/${name}.jsonl`
+    egress.files.set(path, Buffer.concat([egress.files.get(path) ?? Buffer.alloc(0), Buffer.from(rows.map((row) => `${typeof row === 'string' ? row : JSON.stringify(row)}\n`).join(''))]))
+  }
+  const egressRoot = async (script) => {
+    if (script.includes('--once')) {
+      if (egress.pollHangs) return new Promise(() => {})
+      if (egress.pollError) return { exitCode: 1, success: false, stdout: '', stderr: 'poller failed' }
+      egressAppend('tcp', egress.pending.tcp.splice(0))
+      egressAppend('dns', egress.pending.dns.splice(0))
+      return { exitCode: 0, success: true, stdout: '', stderr: '' }
+    }
+    if (script.includes('setsid')) { egress.starts += 1; egress.running = true; return { exitCode: 0, success: true, stdout: '', stderr: '' } }
+    return { exitCode: egress.running ? 0 : 1, success: egress.running, stdout: '', stderr: '' }
+  }
   const invocations = []
   const rootInvocations = []
   const builtFrom = []
@@ -112,6 +132,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     start: async () => { events.push('start'); onStart?.(sandbox) },
     writeFiles: async () => {},
     runAsRoot: async (script, env) => {
+      if (script.includes('conexus-egress')) return egressRoot(script)
       events.push(['root', script])
       rootInvocations.push({ script, env })
       const mapped = local(script)
@@ -119,11 +140,18 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       return shell('sh', ['-c', mapped], vm)
     },
     writeRootFile: async (path, bytes) => {
+      if (path.startsWith('/usr/local/lib/conexus-egress/')) { egress.installs += 1; return }
+      if (path.startsWith('/var/log/conexus-egress/')) { egress.files.set(path, Buffer.from(bytes)); return }
       events.push(['rootFile', path])
       mkdirSync(dirname(local(path)), { recursive: true })
       writeFileSync(local(path), corruptSeed && path.endsWith('.bundle') ? Buffer.from('not a bundle') : bytes)
     },
-    readAgentFile: async (path) => readFileSync(local(path)),
+    readAgentFile: async (path) => {
+      if (!path.startsWith('/var/log/conexus-egress/')) return readFileSync(local(path))
+      const held = egress.files.get(path)
+      if (!held) throw new Error(`ENOENT: ${path}`)
+      return held
+    },
     executeCommand: async (command, args = [], options = {}) => {
       const line = [command, ...args].join(' ')
       onCommand?.(sandbox, line)
@@ -184,7 +212,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
     readProjectName: async () => 'Compras',
-    log: (line) => { (line.startsWith('BUILDER_RUN_TIMING:') ? timings : logs).push(line) },
+    log: (line) => { (line.startsWith('BUILDER_RUN_TIMING:') ? timings : line.startsWith('BUILDER_SANDBOX_EGRESS') ? egressLogs : logs).push(line) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   // The one run's row as the database holds it.
@@ -268,7 +296,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
+  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -1476,4 +1504,37 @@ test("a local edit that main also changed makes the resumed checkout seed again 
   await run.service.close()
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')).at(-1), `BUILDER_TURN_CHECKOUT:${runId}:RESEEDED:sbx-1`)
   assert.deepEqual(seen, [{ knowledge, a: 'export const a = 1\n' }])
+})
+
+test("a turn's end logs the hosts its sandbox reached, and the recorders start once per sandbox", async (t) => {
+  const run = await harness(t, { turn: async () => completed() })
+  run.egress.pending.dns.push({ t: 1000, name: 'registry.npmjs.org', ips: ['104.16.0.1'] })
+  run.egress.pending.tcp.push({ t: 2000, ip: '104.16.0.1', port: 443 }, { t: 3000, ip: '104.16.0.1', port: 443 })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  assert.equal(run.egress.starts, 1)
+  assert.equal(run.egress.installs, 2)
+  assert.deepEqual(run.egressLogs.filter((line) => line.startsWith('BUILDER_SANDBOX_EGRESS:')), [
+    `BUILDER_SANDBOX_EGRESS:${runId}:${conversationId}:registry.npmjs.org:443:tcp:${new Date(2000).toISOString()}:2`,
+  ])
+  assert.match(run.egressLogs.at(-1), new RegExp(`^BUILDER_SANDBOX_EGRESS_SUMMARY:${runId}:(complete|partial):1$`))
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(run.egress.starts, 1)
+})
+
+test('a poll that fails is logged and the run still completes', async (t) => {
+  const run = await harness(t, { turn: async () => completed() })
+  run.egress.pollError = true
+  const original = run.egress
+  original.running = false
+  const start = original.starts
+  await run.start()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.equal(original.starts, start + 1)
+  assert.ok(run.egressLogs.some((line) => line.startsWith(`BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:${runId}:`)))
+  assert.ok(run.egressLogs.includes(`BUILDER_SANDBOX_EGRESS_SUMMARY:${runId}:failed:0`))
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_SANDBOX_EGRESS')), [])
 })
