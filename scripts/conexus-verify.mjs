@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, readFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
-import { tmpdir } from 'node:os'
+import { spawn as spawnProcess } from 'node:child_process'
+import { availableParallelism, tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,12 +28,35 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
 // A class names what a step needs: PostgreSQL, a browser, or both.
 const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
 
-const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
+// What a step shares with the others decides when it may run beside them:
+//   locks  names of exclusive resources. Two steps that hold the same lock never overlap.
+//   after  scopes that must have succeeded first, because this step reads what they write.
+//          AFTER_ALL waits for every other step of the run.
+// A step with none of these, and a class that needs no cluster, runs whenever a slot is free.
+export const AFTER_ALL = 'all'
+
+// Roles belong to the PostgreSQL instance, not to a database. The suites give the hub_* roles
+// passwords of their own (ALTER ROLE hub_builder_ingress PASSWORD ...) and the baseline creates
+// them with CREATE ROLE, so two suites on one instance overwrite each other's credentials even
+// though every suite builds a database of its own. One lock stands for that instance, and every
+// step whose class needs PostgreSQL holds it. Separating them would take an instance per step.
+export const HUB_CLUSTER_LOCK = 'hub-postgres-cluster'
+
+// `npx --yes @redocly/cli` installs into the shared ~/.npm/_npx cache on first use.
+const NPX_CACHE_LOCK = 'npx-cache'
+
+// The wire checks read /tmp/conexus-product-openapi.bundle.json, which wire-openapi-bundle writes.
+const AFTER_BUNDLE = Object.freeze({ after: Object.freeze(['wire-openapi-bundle']) })
+
+const candidateStep = (scope, command, environmentClass = 'static', sharing = {}) => Object.freeze({
   scope,
   command,
   environmentClass,
   graph: 'candidate',
+  ...sharing,
 })
+
+export const locksOf = (step) => [...(step.locks ?? []), ...(POSTGRES_CLASSES.has(step.environmentClass) ? [HUB_CLUSTER_LOCK] : [])]
 
 const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
 
@@ -153,21 +176,21 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
-  candidateStep('wire-openapi-lint', 'npm run wire:lint'),
-  candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
-  candidateStep('wire-bijection', 'npm run wire:bijection'),
-  candidateStep('wire-bijection-gate', 'node --test tests/repository/wire-bijection-gate.test.mjs'),
-  candidateStep('wire-carriers', 'npm run wire:carriers'),
-  candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
-  candidateStep('wire-project', 'npm run wire:project'),
-  candidateStep('wire-builder', 'npm run wire:builder'),
-  candidateStep('wire-connector', 'npm run wire:connector'),
-  candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
-  candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
+  candidateStep('wire-openapi-lint', 'npm run wire:lint', 'static', { locks: Object.freeze([NPX_CACHE_LOCK]) }),
+  candidateStep('wire-openapi-bundle', 'npm run wire:bundle', 'static', { locks: Object.freeze([NPX_CACHE_LOCK]) }),
+  candidateStep('wire-bijection', 'npm run wire:bijection', 'static', AFTER_BUNDLE),
+  candidateStep('wire-bijection-gate', 'node --test tests/repository/wire-bijection-gate.test.mjs', 'static', AFTER_BUNDLE),
+  candidateStep('wire-carriers', 'npm run wire:carriers', 'static', AFTER_BUNDLE),
+  candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace', 'static', AFTER_BUNDLE),
+  candidateStep('wire-project', 'npm run wire:project', 'static', AFTER_BUNDLE),
+  candidateStep('wire-builder', 'npm run wire:builder', 'static', AFTER_BUNDLE),
+  candidateStep('wire-connector', 'npm run wire:connector', 'static', AFTER_BUNDLE),
+  candidateStep('wire-technical-lint', 'npm run wire:technical-lint', 'static', { locks: Object.freeze([NPX_CACHE_LOCK]) }),
+  candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress', 'static', AFTER_BUNDLE),
   candidateStep('conexus-backup', 'node --test tests/implementation/conexus-backup.test.mjs'),
 
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
-  candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
+  candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs', 'static', { after: AFTER_ALL }),
 ])
 
 // The cheap static checks (typechecks, lint, repository and agent-context checks, contract
@@ -438,15 +461,58 @@ function defaultClock() {
 // few minutes.
 export const STEP_TIMEOUT_MS = 10 * 60 * 1000
 
-export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnSync, processEnvironment = process.env, testLedger = null } = {}) {
+// Runs one child in its own process group, buffers its output and resolves, never rejects, with
+// the shape spawnSync returned. The group is what a timeout and a cancellation kill, so a step's
+// browsers and servers die with it.
+export function spawnBuffered(file, args, { cwd, env, timeout, killSignal = 'SIGKILL', signal, windowsHide }) {
+  return new Promise((resolveResult) => {
+    const chunks = { stdout: [], stderr: [] }
+    let child
+    let timer
+    let timedOutAfter = false
+    let cancelled = false
+    let settled = false
+    const kill = () => {
+      try { process.kill(-child.pid, killSignal) } catch { try { child.kill(killSignal) } catch { /* already gone */ } }
+    }
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      resolveResult({ ...result, stdout: Buffer.concat(chunks.stdout).toString('utf8'), stderr: Buffer.concat(chunks.stderr).toString('utf8') })
+    }
+    const onAbort = () => { cancelled = true; kill() }
+    try {
+      child = spawnProcess(file, args, { cwd, env, windowsHide, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (error) {
+      finish({ status: null, error })
+      return
+    }
+    child.stdout.on('data', chunk => chunks.stdout.push(chunk))
+    child.stderr.on('data', chunk => chunks.stderr.push(chunk))
+    child.on('error', error => finish({ status: null, error }))
+    child.on('close', (status, exitSignal) => {
+      if (timedOutAfter) finish({ status: null, signal: exitSignal ?? killSignal, error: Object.assign(new Error(`${file} ETIMEDOUT`), { code: 'ETIMEDOUT' }) })
+      else finish({ status, signal: exitSignal ?? undefined, ...(cancelled ? { cancelled: true } : {}) })
+    })
+    if (timeout) timer = setTimeout(() => { timedOutAfter = true; kill() }, timeout)
+    if (signal) {
+      if (signal.aborted) onAbort()
+      else signal.addEventListener('abort', onAbort, { once: true })
+    }
+  })
+}
+
+export function runNpmScript(entry, { root = repositoryRoot, spawn = spawnBuffered, processEnvironment = process.env, testLedger = null, signal } = {}) {
   const args = commandArguments(entry)
   const executable = entry.command ? (process.platform === 'win32' ? 'bash.exe' : 'bash') : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
   return spawn(executable, args, {
     cwd: root,
     windowsHide: true,
-    stdio: ['ignore', 'inherit', 'inherit'],
     timeout: STEP_TIMEOUT_MS,
     killSignal: 'SIGKILL',
+    ...(signal ? { signal } : {}),
     env: executionEnvironment(entry, processEnvironment, testLedger),
   })
 }
@@ -469,11 +535,48 @@ function errorMessage(result) {
   return result.error instanceof Error ? result.error.message : String(result.error)
 }
 
+// Steps run up to this many at once. CONEXUS_VERIFY_CONCURRENCY overrides the CPU count, and 1
+// restores the old strictly serial run.
+export function verificationConcurrency(processEnvironment = process.env, cpus = availableParallelism()) {
+  const requested = Number(processEnvironment.CONEXUS_VERIFY_CONCURRENCY)
+  return Number.isInteger(requested) && requested >= 1 ? requested : Math.max(1, cpus)
+}
+
+// A step may start when every earlier publisher is done, what it reads is written, and nothing
+// running holds a lock it needs. Steps are offered in graph order, so the fast static checks start
+// first and a step blocked on a lock does not hold back the ones behind it.
+function isReady(entries, index, { finished, heldLocks }) {
+  const entry = entries[index]
+  for (let earlier = 0; earlier < index; earlier += 1) {
+    if (entries[earlier].publishes && !finished.has(earlier)) return false
+  }
+  if (entry.after === AFTER_ALL) {
+    if (finished.size < entries.length - 1) return false
+  } else {
+    for (const scope of entry.after ?? []) {
+      const target = entries.findIndex(other => other.scope === scope)
+      if (target !== -1 && !finished.has(target)) return false
+    }
+  }
+  return locksOf(entry).every(lock => !heldLocks.has(lock))
+}
+
+function formatOutput(entry, record, result, processEnvironment) {
+  const out = `${result?.stdout ?? ''}${result?.stderr ?? ''}`
+  const grouped = Boolean(processEnvironment.GITHUB_ACTIONS)
+  const title = `${record.status}: ${entry.scope} (${(record.durationMs / 1000).toFixed(1)} s)`
+  if (!out && !grouped) return `${title}\n`
+  const body = out.endsWith('\n') || out === '' ? out : `${out}\n`
+  return grouped ? `::group::${title}\n${body}::endgroup::\n` : `=== ${title}\n${body}`
+}
+
 /**
- * Run already-resolved npm commands in input order.  The injected runner is
- * intentionally synchronous so a caller cannot accidentally overlap checks.
+ * Run the resolved steps up to `concurrency` at a time, honouring what each step declares it
+ * shares (see the comment above AFTER_ALL). The first failure stops new steps and cancels the
+ * running ones. Each step's output is printed whole when the step ends. Records come back in graph
+ * order. `runCommand` may return its result or a promise of it.
  */
-export function runVerification({
+export async function runVerification({
   scopes,
   packageScripts,
   root = repositoryRoot,
@@ -482,61 +585,99 @@ export function runVerification({
   runCommand = runNpmScript,
   clock = defaultClock,
   processEnvironment = process.env,
+  concurrency = verificationConcurrency(processEnvironment),
+  graphOverride = null,
+  write = text => process.stdout.write(text),
   } = {}) {
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
-  const entries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
-  const records = []
+  const entries = graphOverride ?? requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const recordsByIndex = new Map()
   const published = {}
   const testLedger = newTestLedger(root)
 
-  for (const entry of entries) {
-    const command = formatCommand(entry)
-    if (dryRun) {
-      records.push({
-        scope: entry.scope,
-        command,
-        ...(entry.environmentClass ? { environmentClass: entry.environmentClass } : {}),
-        status: 'dry-run',
-        exitCode: null,
-        durationMs: 0,
-      })
-      continue
-    }
+  if (dryRun) {
+    const records = entries.map(entry => ({
+      scope: entry.scope,
+      command: formatCommand(entry),
+      ...(entry.environmentClass ? { environmentClass: entry.environmentClass } : {}),
+      status: 'dry-run',
+      exitCode: null,
+      durationMs: 0,
+    }))
+    return { scopes: entries.map(entry => entry.scope), records, stopped: false, exitCode: 0, wallMs: 0, concurrency }
+  }
 
+  const startedRun = clock()
+  const abort = new AbortController()
+  const state = { finished: new Set(), running: new Map(), heldLocks: new Set() }
+  const waiting = new Set(entries.keys())
+  let firstFailure = null
+
+  const runStep = async (index) => {
+    const entry = entries[index]
+    const command = formatCommand(entry)
     const startedAt = clock()
     let result
     try {
-      result = runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, testLedger })
+      result = await runCommand(entry, { root, command, args: commandArguments(entry), processEnvironment: { ...processEnvironment, ...published }, testLedger, signal: abort.signal })
     } catch (error) {
       result = { status: null, error }
     }
     const durationMs = Math.max(0, Math.round(clock() - startedAt))
     const exitCode = normalizeExitCode(result)
+    const cancelled = exitCode !== 0 && firstFailure !== null
     const record = {
       scope: entry.scope,
       command,
       ...(entry.environmentClass ? { environmentClass: entry.environmentClass } : {}),
-      status: exitCode === 0 ? 'succeeded' : 'failed',
+      status: exitCode === 0 ? 'succeeded' : cancelled ? 'cancelled' : 'failed',
       exitCode,
       durationMs,
     }
-    const detail = errorMessage(result)
+    const detail = cancelled ? undefined : errorMessage(result)
     if (detail) record.error = detail
     if (result?.signal) record.signal = result.signal
-    records.push(record)
+    recordsByIndex.set(index, record)
+    if (typeof result?.stdout === 'string') write(formatOutput(entry, record, result, processEnvironment))
 
-    if (exitCode !== 0) break
-    for (const [name, path] of Object.entries(entry.publishes ?? {})) published[name] = resolve(root, path)
+    if (record.status === 'failed') {
+      firstFailure = record
+      abort.abort()
+    } else if (exitCode === 0) {
+      for (const [name, path] of Object.entries(entry.publishes ?? {})) published[name] = resolve(root, path)
+      state.finished.add(index)
+    }
+    for (const lock of locksOf(entry)) state.heldLocks.delete(lock)
+    state.running.delete(index)
   }
 
-  const failed = records.find(record => record.status === 'failed')
+  while (true) {
+    if (firstFailure === null) {
+      for (const index of [...waiting]) {
+        if (state.running.size >= concurrency) break
+        if (!isReady(entries, index, state)) continue
+        waiting.delete(index)
+        for (const lock of locksOf(entries[index])) state.heldLocks.add(lock)
+        state.running.set(index, runStep(index))
+      }
+    }
+    if (state.running.size === 0) {
+      if (waiting.size > 0 && firstFailure === null) throw new Error(`verification graph deadlock: ${[...waiting].map(index => entries[index].scope).join(', ')}`)
+      break
+    }
+    await Promise.race(state.running.values())
+  }
+
+  const records = [...recordsByIndex.entries()].sort(([a], [b]) => a - b).map(([, record]) => record)
   return {
     scopes: entries.map(entry => entry.scope),
     records,
-    stopped: Boolean(failed),
-    exitCode: failed ? (Number.isInteger(failed.exitCode) ? failed.exitCode : 1) : 0,
+    stopped: Boolean(firstFailure),
+    exitCode: firstFailure ? (Number.isInteger(firstFailure.exitCode) ? firstFailure.exitCode : 1) : 0,
+    wallMs: Math.max(0, Math.round(clock() - startedRun)),
+    concurrency,
   }
 }
 
@@ -549,7 +690,7 @@ function helpText() {
   ].join('\n')
 }
 
-export function renderStepSummary(records) {
+export function renderStepSummary(records, wallMs = null) {
   const total = records.reduce((sum, record) => sum + record.durationMs, 0)
   const rows = [...records]
     .sort((a, b) => b.durationMs - a.durationMs)
@@ -557,10 +698,13 @@ export function renderStepSummary(records) {
       const share = total === 0 ? 0 : (record.durationMs / total) * 100
       return `| ${record.scope} | ${record.status} | ${(record.durationMs / 1000).toFixed(1)} | ${share.toFixed(1)}% |`
     })
+  const timing = wallMs === null
+    ? `${records.length} steps, ${(total / 1000).toFixed(1)} s in total, slowest first.`
+    : `${records.length} steps, ${(wallMs / 1000).toFixed(1)} s wall time, ${(total / 1000).toFixed(1)} s of step time added up (${total === 0 ? '0.0' : (total / Math.max(wallMs, 1)).toFixed(1)}x), slowest first.`
   return [
     '### Verification step timings',
     '',
-    `${records.length} steps, ${(total / 1000).toFixed(1)} s in total, slowest first.`,
+    timing,
     '',
     '| Step | Status | Seconds | Share |',
     '| --- | --- | ---: | ---: |',
@@ -571,7 +715,7 @@ export function renderStepSummary(records) {
 
 function writeStepSummary(result, env = process.env) {
   if (!env.GITHUB_STEP_SUMMARY || result.records.length === 0) return
-  appendFileSync(env.GITHUB_STEP_SUMMARY, `${renderStepSummary(result.records)}\n`)
+  appendFileSync(env.GITHUB_STEP_SUMMARY, `${renderStepSummary(result.records, result.wallMs)}\n`)
 }
 
 function printResult(result, json) {
@@ -587,10 +731,13 @@ function printResult(result, json) {
     const exitCode = record.exitCode === null ? 'n/a' : String(record.exitCode)
     console.log(`${record.status}: ${record.command} (exit=${exitCode}, durationMs=${record.durationMs})`)
   }
+  if (!result.records.some(record => record.status === 'dry-run')) {
+    console.log(`wall time ${(result.wallMs / 1000).toFixed(1)} s, up to ${result.concurrency} steps at once`)
+  }
   if (result.stopped) console.error('verification stopped after the first failed command')
 }
 
-export function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2)) {
   try {
     const options = parseArguments(argv)
     if (options.help) {
@@ -614,7 +761,7 @@ export function main(argv = process.argv.slice(2)) {
       return 0
     }
 
-    const result = runVerification({
+    const result = await runVerification({
       scopes: options.scopes,
       packageScripts,
       dryRun: options.dryRun,
@@ -631,5 +778,5 @@ export function main(argv = process.argv.slice(2)) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(scriptFile)) {
-  process.exitCode = main()
+  process.exitCode = await main()
 }

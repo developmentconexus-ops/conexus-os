@@ -5,6 +5,10 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
+  AFTER_ALL,
+  HUB_CLUSTER_LOCK,
+  locksOf,
+  verificationConcurrency,
   CANDIDATE_GRAPH,
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
@@ -25,7 +29,7 @@ import {
   timedOut,
 } from '../../scripts/conexus-verify.mjs'
 
-test('every test file the candidate graph names exists on disk', () => {
+test('every test file the candidate graph names exists on disk', async () => {
   const named = CANDIDATE_GRAPH.flatMap(entry => entry.command.match(/\S+\.test\.mjs/g) ?? [])
   assert.ok(named.length > 0)
   const missing = named.filter(path => !existsSync(resolve(repositoryRoot, path)))
@@ -155,7 +159,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'only-opt-in-skips',
 ])
 
-test('manifest exposes only the three bounded aliases and exact npm routing', () => {
+test('manifest exposes only the three bounded aliases and exact npm routing', async () => {
   assert.deepEqual(ALLOWED_ALIASES, ['preflight', 'repository', 'final'])
   assert.deepEqual(SCOPE_MANIFEST.preflight, { npmScript: 'conexus:preflight', npmArgs: ['--no-network'] })
   assert.deepEqual(resolveScope('preflight', packageScripts), {
@@ -170,7 +174,7 @@ test('manifest exposes only the three bounded aliases and exact npm routing', ()
   assert.throws(() => resolveScope('r1:s1:receipt:record', packageScripts), /not permitted as a verification scope/)
 })
 
-test('--list is deterministic and includes aliases plus explicit npm scripts', () => {
+test('--list is deterministic and includes aliases plus explicit npm scripts', async () => {
   const available = listScopes(packageScripts)
   assert.deepEqual(available.aliases.map(alias => alias.scope), ['preflight', 'repository', 'final'])
   assert.deepEqual(available.scripts, ['conexus:preflight', 'r1:history:foundation-pins', 'repository:check', 'test:one', 'test:two', 'verify'])
@@ -179,7 +183,7 @@ test('--list is deterministic and includes aliases plus explicit npm scripts', (
   assert.ok(available.scopes.includes('test:one'))
 })
 
-test('--scope parsing supports repeated and comma-separated values without network or execution', () => {
+test('--scope parsing supports repeated and comma-separated values without network or execution', async () => {
   assert.deepEqual(parseArguments(['--scope', 'repository,final', '--scope=test:one', '--dry-run', '--json']), {
     scopes: ['repository', 'final', 'test:one'],
     list: false,
@@ -189,7 +193,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
   })
 
   const calls = []
-  const result = runVerification({
+  const result = await runVerification({
     processEnvironment: {},
     scopes: ['repository', 'final', 'test:one'],
     packageScripts,
@@ -203,13 +207,14 @@ test('--scope parsing supports repeated and comma-separated values without netwo
   assert.equal(result.exitCode, 0)
 })
 
-test('execution is sequential and stops at the first failed npm command', () => {
+test('with one slot execution is sequential and stops at the first failed npm command', async () => {
   const calls = []
   let ticks = 0
-  const result = runVerification({
+  const result = await runVerification({
     processEnvironment: {},
     scopes: ['test:one', 'test:two', 'verify'],
     packageScripts,
+    concurrency: 1,
     clock: () => ++ticks,
     runCommand: entry => {
       calls.push(entry.npmScript)
@@ -230,13 +235,14 @@ test('execution is sequential and stops at the first failed npm command', () => 
   })
 })
 
-test('the hub build step publishes its directory to the steps after it, and only after it succeeds', () => {
+test('the hub build step publishes its directory to the steps after it, and only after it succeeds', async () => {
   const seen = []
-  const result = runVerification({
+  const result = await runVerification({
     processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
+    concurrency: 1,
     runCommand: (entry, { processEnvironment }) => {
       seen.push([entry.scope, processEnvironment.CONEXUS_HUB_BUILD ?? null])
       return { status: seen.length <= 2 ? 0 : 1 }
@@ -249,11 +255,12 @@ test('the hub build step publishes its directory to the steps after it, and only
   assert.equal(seen[2][1], seen[1][1])
 
   const failedBuild = []
-  runVerification({
+  await runVerification({
     processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
     platform: 'linux',
+    concurrency: 1,
     runCommand: (_entry, { processEnvironment }) => {
       failedBuild.push(processEnvironment.CONEXUS_HUB_BUILD ?? null)
       return { status: 1 }
@@ -262,7 +269,7 @@ test('the hub build step publishes its directory to the steps after it, and only
   assert.deepEqual(failedBuild, [null])
 })
 
-test('final proof refuses a real Windows execution but remains inspectable as dry-run', () => {
+test('final proof refuses a real Windows execution but remains inspectable as dry-run', async () => {
   const finalEntry = [resolveScope('final', packageScripts)]
   assert.throws(
     () => assertExecutionEnvironment(finalEntry, { platform: 'win32', dryRun: false }),
@@ -272,7 +279,7 @@ test('final proof refuses a real Windows execution but remains inspectable as dr
   assert.doesNotThrow(() => assertExecutionEnvironment(finalEntry, { platform: 'linux', dryRun: false }))
 })
 
-test('candidate graph flattens equivalent leaves while preserving distinct proof selections', () => {
+test('candidate graph flattens equivalent leaves while preserving distinct proof selections', async () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
 
@@ -338,7 +345,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
   assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'conexus-backup').command.includes('tests/implementation/conexus-backup.test.mjs'), true)
 
-  const result = runVerification({
+  const result = await runVerification({
     processEnvironment: {},
     scopes: ['candidate'],
     packageScripts,
@@ -351,13 +358,13 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(result.records.every(record => record.status === 'dry-run'), true)
 })
 
-test('candidate graph does not reference the deleted Change-era source-state test', () => {
+test('candidate graph does not reference the deleted Change-era source-state test', async () => {
   assert.equal(CANDIDATE_GRAPH.some(({ command }) => command.includes('builder-working-source-state.test.mjs')), false)
 })
 
-test('a step that never exits is killed and reported by name', () => {
+test('a step that never exits is killed and reported by name', async () => {
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
-  const result = runVerification({
+  const result = await runVerification({
     processEnvironment: {},
     scopes: ['test:one'],
     packageScripts,
@@ -373,9 +380,8 @@ test('a step that never exits is killed and reported by name', () => {
   assert.equal(timedOut({ status: 1 }), false)
   assert.equal(STEP_TIMEOUT_MS, 600000)
 
-  // No step inherits stdin, so a child that waits for input reads end-of-file instead of hanging.
   let observed
-  runNpmScript(candidate, {
+  await runNpmScript(candidate, {
     root: '/tmp/conexus-verify-test',
     processEnvironment: { PATH: '/fixture/bin' },
     spawn: (_file, _args, options) => {
@@ -383,12 +389,11 @@ test('a step that never exits is killed and reported by name', () => {
       return { status: 0 }
     },
   })
-  assert.deepEqual(observed.stdio, ['ignore', 'inherit', 'inherit'])
   assert.equal(observed.timeout, STEP_TIMEOUT_MS)
   assert.equal(observed.killSignal, 'SIGKILL')
 })
 
-test('candidate graph labels execution environments and passes shell argv correctly', () => {
+test('candidate graph labels execution environments and passes shell argv correctly', async () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
   assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
 
@@ -399,7 +404,7 @@ test('candidate graph labels execution environments and passes shell argv correc
 
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   let observed
-  runNpmScript(candidate, {
+  await runNpmScript(candidate, {
     root: '/tmp/conexus-verify-test',
     processEnvironment: { PATH: '/fixture/bin' },
     spawn: (file, args, options) => {
@@ -413,7 +418,6 @@ test('candidate graph labels execution environments and passes shell argv correc
     options: {
       cwd: '/tmp/conexus-verify-test',
       windowsHide: true,
-      stdio: ['ignore', 'inherit', 'inherit'],
       timeout: STEP_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       env: { PATH: '/fixture/bin' },
@@ -448,7 +452,7 @@ test('candidate graph labels execution environments and passes shell argv correc
 
 const REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')} --test-reporter-destination=stdout`
 
-test('every step records its skips into one fresh ledger per run', () => {
+test('every step records its skips into one fresh ledger per run', async () => {
   const ledger = { root: '/work/conexus-os', file: '/tmp/conexus-test-ledger-fixture.jsonl' }
   const staticStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   const postgresStep = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'postgres')
@@ -489,9 +493,9 @@ test('every step records its skips into one fresh ledger per run', () => {
   })
   assert.deepEqual(observed, { PATH: '/fixture/bin', ...instrumentation, NODE_OPTIONS: REPORTER_OPTIONS })
 
-  const runLedgers = () => {
+  const runLedgers = async () => {
     const seen = []
-    runVerification({
+    await runVerification({
       scopes: ['candidate'],
       packageScripts,
       platform: 'linux',
@@ -500,8 +504,8 @@ test('every step records its skips into one fresh ledger per run', () => {
     })
     return seen
   }
-  const first = runLedgers()
-  const second = runLedgers()
+  const first = await runLedgers()
+  const second = await runLedgers()
   assert.equal(first.length, CANDIDATE_GRAPH.length)
   assert.equal(new Set(first).size, 1)
   assert.equal(first[0].root, repositoryRoot)
@@ -512,16 +516,17 @@ test('every step records its skips into one fresh ledger per run', () => {
   assert.equal(newTestLedger('/work/conexus-os').root, '/work/conexus-os')
 })
 
-test('the opt-in skip check runs last', () => {
+test('the opt-in skip check runs last', async () => {
   assert.deepEqual(CANDIDATE_GRAPH.at(-1), {
     scope: 'only-opt-in-skips',
     command: 'node scripts/check-test-skips.mjs',
     environmentClass: 'static',
     graph: 'candidate',
+    after: AFTER_ALL,
   })
 })
 
-test('the cheap static checks run before every browser and PostgreSQL suite, and the Hub build stays first', () => {
+test('the cheap static checks run before every browser and PostgreSQL suite, and the Hub build stays first', async () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
   assert.equal(scopes[0], 'c020-hub-typecheck')
   const fast = new Set(FAST_CHECK_SCOPES)
@@ -537,24 +542,24 @@ test('the cheap static checks run before every browser and PostgreSQL suite, and
   }
 })
 
-test('failFastOrder moves the named scopes up in graph order and keeps every step', () => {
+test('failFastOrder moves the named scopes up in graph order and keeps every step', async () => {
   const steps = ['a', 'b', 'c', 'd', 'e'].map(scope => ({ scope }))
   assert.deepEqual(failFastOrder(steps, ['d', 'b']).map(step => step.scope), ['b', 'd', 'a', 'c', 'e'])
   assert.deepEqual(failFastOrder(steps, []).map(step => step.scope), ['a', 'b', 'c', 'd', 'e'])
 })
 
-test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
+test('the docs graph is the docs checks, in graph order, and still ends with the skip check', async () => {
   assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), [
     'repository-check', 'repository-agent-context', 'repository-contract-checks', 'conexus-preflight',
     'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'only-opt-in-skips',
   ])
   assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
-  const result = runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })
+  const result = await runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
 })
 
-test('step summary is a markdown table sorted slowest first with each share of the total', () => {
+test('step summary is a markdown table sorted slowest first with each share of the total', async () => {
   const summary = renderStepSummary([
     { scope: 'quick', status: 'succeeded', durationMs: 1000 },
     { scope: 'slow', status: 'succeeded', durationMs: 7500 },
@@ -574,9 +579,107 @@ test('step summary is a markdown table sorted slowest first with each share of t
   ].join('\n'))
 })
 
-test('the CI helper tests run in the graph, so the census and the checks see them', () => {
+test('the CI helper tests run in the graph, so the census and the checks see them', async () => {
   const agentContext = CANDIDATE_GRAPH.find(entry => entry.scope === 'repository-agent-context')
   for (const file of ['tests/repository/ci-change-scope.test.mjs', 'tests/repository/ci-install.test.mjs']) {
     assert.equal(agentContext.command.split(' ').includes(file), true, file)
   }
+})
+
+const sleep = (ms) => new Promise(resolveSleep => setTimeout(resolveSleep, ms))
+const step = (scope, extra = {}) => ({ scope, command: scope, environmentClass: 'static', graph: 'candidate', ...extra })
+
+// A runner that records which steps overlap, so a test reads the schedule instead of the clock.
+const scheduleOf = async (steps, { concurrency, fail = null } = {}) => {
+  const active = new Set()
+  const overlaps = []
+  const order = []
+  let peak = 0
+  const result = await runVerification({
+    processEnvironment: {},
+    scopes: ['candidate'],
+    packageScripts,
+    platform: 'linux',
+    concurrency,
+    graphOverride: steps,
+    runCommand: async (entry) => {
+      for (const other of active) overlaps.push([other, entry.scope])
+      active.add(entry.scope)
+      order.push(`start ${entry.scope}`)
+      peak = Math.max(peak, active.size)
+      await sleep(entry.scope === fail ? 5 : 20)
+      active.delete(entry.scope)
+      order.push(`end ${entry.scope}`)
+      return { status: entry.scope === fail ? 3 : 0 }
+    },
+  })
+  return { result, overlaps, order, peak }
+}
+
+test('independent steps overlap up to the concurrency limit and no further', async () => {
+  const { peak, result } = await scheduleOf([step('a'), step('b'), step('c'), step('d'), step('e')], { concurrency: 3 })
+  assert.equal(peak, 3)
+  assert.equal(result.exitCode, 0)
+  assert.deepEqual(result.records.map(record => record.scope), ['a', 'b', 'c', 'd', 'e'])
+})
+
+test('steps that hold the same lock never overlap, and a blocked step does not hold back the ones behind it', async () => {
+  const { overlaps, order } = await scheduleOf([
+    step('x1', { locks: ['shared'] }),
+    step('x2', { locks: ['shared'] }),
+    step('free'),
+  ], { concurrency: 3 })
+  assert.deepEqual(overlaps.filter(pair => pair.includes('x1') && pair.includes('x2')), [])
+  assert.ok(order.indexOf('start free') < order.indexOf('end x1'), 'the free step started while x1 held the lock')
+  assert.ok(order.indexOf('start x2') > order.indexOf('end x1'))
+})
+
+test('every step that needs PostgreSQL holds the one cluster lock, and no other step does', () => {
+  for (const entry of CANDIDATE_GRAPH) {
+    const needsPostgres = entry.environmentClass === 'postgres' || entry.environmentClass === 'browser-postgres'
+    assert.equal(locksOf(entry).includes(HUB_CLUSTER_LOCK), needsPostgres, entry.scope)
+  }
+})
+
+test('a step runs after what it reads, and the Hub build publisher runs before everything', async () => {
+  const { order } = await scheduleOf([
+    step('build', { publishes: { X: 'y' } }),
+    step('bundle'),
+    step('reader', { after: ['bundle'] }),
+    step('other'),
+  ], { concurrency: 4 })
+  assert.deepEqual(order.slice(0, 2), ['start build', 'end build'])
+  assert.ok(order.indexOf('start reader') > order.indexOf('end bundle'))
+})
+
+test('a step after all runs alone at the end', async () => {
+  const { order } = await scheduleOf([step('a'), step('b'), step('last', { after: AFTER_ALL })], { concurrency: 4 })
+  assert.deepEqual(order.slice(-2), ['start last', 'end last'])
+})
+
+test('the first failure starts nothing new, cancels the running steps and reports its own exit code', async () => {
+  const { result, order } = await scheduleOf([step('slow1'), step('boom'), step('slow2'), step('never')], { concurrency: 3, fail: 'boom' })
+  assert.equal(result.exitCode, 3)
+  assert.equal(result.stopped, true)
+  assert.equal(order.includes('start never'), false)
+  assert.deepEqual(result.records.map(record => [record.scope, record.status]), [['slow1', 'succeeded'], ['boom', 'failed'], ['slow2', 'succeeded']])
+})
+
+test('concurrency comes from the CPU count unless the environment says otherwise', () => {
+  assert.equal(verificationConcurrency({}, 4), 4)
+  assert.equal(verificationConcurrency({ CONEXUS_VERIFY_CONCURRENCY: '1' }, 4), 1)
+  assert.equal(verificationConcurrency({ CONEXUS_VERIFY_CONCURRENCY: 'many' }, 4), 4)
+})
+
+test('the wire checks that read the OpenAPI bundle run after the step that writes it', () => {
+  const readers = ['wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace', 'wire-project', 'wire-builder', 'wire-connector', 'wire-technical-ingress']
+  for (const scope of readers) assert.deepEqual(CANDIDATE_GRAPH.find(entry => entry.scope === scope).after, ['wire-openapi-bundle'], scope)
+})
+
+test('the step summary reports wall time beside the added-up step time', () => {
+  const summary = renderStepSummary([
+    { scope: 'a', status: 'succeeded', durationMs: 6000 },
+    { scope: 'b', status: 'succeeded', durationMs: 6000 },
+  ], 7000)
+  assert.match(summary, /2 steps, 7\.0 s wall time, 12\.0 s of step time added up \(1\.7x\), slowest first\./)
 })
