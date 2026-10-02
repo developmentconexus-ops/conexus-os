@@ -75,7 +75,8 @@
     "wire:verify": "npm run wire:lint && npm run wire:bundle && npm run wire:bijection && npm run wire:carriers && npm run wire:identity-workspace && npm run wire:project && npm run wire:builder && npm run wire:connector && npm run wire:technical-lint && npm run wire:technical-ingress",
     "repository:check:local": "npm run repository:check",
     "verify:local": "npm run verify",
-    "verify": "npm run conexus:verify -- --scope candidate"
+    "verify": "npm run conexus:verify -- --scope candidate",
+    "verify:docs": "npm run conexus:verify -- --scope candidate-docs"
   },
   "dependencies": {
     "@codemirror/language": "6.12.4",

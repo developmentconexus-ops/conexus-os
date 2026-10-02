@@ -107,6 +107,8 @@ operator dictating filenames or implementation.
   repository gate never implies it.
 - Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected
   output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
+  The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
+  `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
 - In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
