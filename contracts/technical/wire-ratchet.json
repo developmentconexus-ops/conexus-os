@@ -1,1 +1,39 @@
-{ "offTableBuilderRoutes": 28, "handComparedProblemTypes": 4 }
+{
+  "builderRoutes": [
+    "mastra GET /agent-controller/:controllerId/sessions/:resourceId",
+    "mastra GET /agent-controller/:controllerId/sessions/:resourceId/stream",
+    "mastra GET /agent-controller/:controllerId/sessions/:resourceId/threads",
+    "mastra GET /agent-controller/:controllerId/sessions/:resourceId/threads/:threadId/messages",
+    "mastra POST /agent-controller/:controllerId/sessions",
+    "mastra POST /agent-controller/:controllerId/sessions/:resourceId/abort",
+    "mastra POST /agent-controller/:controllerId/sessions/:resourceId/model",
+    "mastra POST /agent-controller/:controllerId/sessions/:resourceId/tool-approval",
+    "mastra POST /agent-controller/:controllerId/sessions/:resourceId/tool-suspension",
+    "mastra PUT /agent-controller/:controllerId/sessions/:resourceId/state",
+    "model-accounts.ts GET ${base}/:loginId",
+    "model-accounts.ts GET ${codexBase}/poll",
+    "model-accounts.ts GET /api/control/model-accounts",
+    "model-accounts.ts GET /api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection",
+    "model-accounts.ts GET /api/control/model-accounts/models",
+    "model-accounts.ts POST ${base}/complete",
+    "model-accounts.ts POST ${base}/start",
+    "model-accounts.ts POST ${claudeBase}/complete",
+    "model-accounts.ts POST ${claudeBase}/start",
+    "model-accounts.ts POST ${codexBase}/start",
+    "model-accounts.ts PUT /api/control/model-accounts/:provider/api-key",
+    "routes.ts GET /api/control/projects/:projectId/builder-session",
+    "routes.ts GET /api/control/projects/:projectId/builder-session/runs/:builderRunId/trace",
+    "routes.ts GET /api/control/projects/:projectId/source/compare",
+    "routes.ts GET /api/control/projects/:projectId/source/file",
+    "routes.ts GET /api/control/projects/:projectId/source/tree",
+    "routes.ts POST /api/control/projects/:projectId/builder-session/messages",
+    "routes.ts POST /api/control/projects/:projectId/builder-session/preview",
+    "routes.ts POST /api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel"
+  ],
+  "problemTypes": [
+    "urn:conexus:problem:parked-call-not-found",
+    "urn:conexus:problem:project-busy",
+    "urn:conexus:problem:project-name-mismatch",
+    "urn:conexus:problem:tool-answer-already-given"
+  ]
+}
