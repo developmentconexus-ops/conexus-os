@@ -815,6 +815,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   await shown.waitFor()
   assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
   assert.equal(await shown.getAttribute('role'), 'note')
+  await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body', { hasText: 'Comecei pela lista.' }).waitFor()
   assert.deepEqual(await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body').allTextContents(), ['Comecei pela lista.'],
     'the notice is not inside the Builder\'s turn')
 })

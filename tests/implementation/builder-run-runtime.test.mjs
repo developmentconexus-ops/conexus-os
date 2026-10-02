@@ -1013,7 +1013,7 @@ test("a run checks its start model once, names its payer in every turn's context
     assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1'], killed: [] })
     const processesKilled = run.events.lastIndexOf('sh -c kill -KILL -1 2>/dev/null; true')
     assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
-    assert.equal(run.events.at(-1), 'pause')
+    assert.equal(run.events.filter((event) => event !== 'session-release').at(-1), 'pause', 'the pause is the last step of the run itself; only the held session closes after it')
   }
 })
 
@@ -1035,7 +1035,7 @@ test('a run deletes the session it opened, once, after the agent and its admissi
   for (const run of [failedTurn, thrown, stopped]) assert.deepEqual(run.events.filter((event) => event === 'session-release'), ['session-release'])
   for (const run of [completedRun, failedTurn, thrown, stopped]) {
     assert.ok(run.events.indexOf('session-release') > run.events.indexOf('turn'), 'the session outlives the agent turn')
-    assert.ok(run.events.indexOf('session-release') < run.events.indexOf('pause'), 'and is gone before the VM pauses')
+    assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM pauses')
   }
   assert.ok(completedRun.events.indexOf('build') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the build in the session')
 })
