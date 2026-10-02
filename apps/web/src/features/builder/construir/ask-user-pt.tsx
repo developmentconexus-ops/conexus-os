@@ -97,7 +97,7 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
       disabled={isSubmitting}
       size="sm"
     />
-    const header = !stepped && entry.header ? <span className="text-neutral4 mb-1 block text-xs">{entry.header}</span> : null
+    const header = !stepped && entry.header ? <span className="text-neutral4 mb-1 block truncate text-xs">{entry.header}</span> : null
     if (entry.options.length === 0) {
       return <div data-ask-question={entry.question}>
         {header}
@@ -141,7 +141,7 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
             data-answered={answered}
             disabled={isSubmitting}
             onClick={() => setStep(index)}
-            className={`rounded-full border px-3 py-1 text-xs ${step === index ? 'border-accent1 text-neutral6' : 'border-border1 text-neutral4'}`}
+            className={`max-w-full truncate rounded-full border px-3 py-1 text-xs ${step === index ? 'border-accent1 text-neutral6' : 'border-border1 text-neutral4'}`}
           >{answered ? '✓ ' : ''}{item.header || copy.stepName(index + 1)}</button>
         })}
         <button

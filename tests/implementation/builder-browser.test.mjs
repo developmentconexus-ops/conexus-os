@@ -1787,6 +1787,29 @@ test('the arrow keys move through the options of a question and Enter confirms t
   assert.deepEqual(replies, [{ toolCallId: 'ask-keys', resumeData: ['Verde', ['Lista'], 'Sim'] }])
 })
 
+test('a header longer than twelve characters stays on one line inside the card, alone and as a step tab', async (t) => {
+  const header = 'Um cabeçalho bem mais comprido do que o cartão tem de largura para mostrar inteiro'
+  const asks = [
+    { questions: [{ question: 'Qual o próximo passo?', header, options: [{ label: 'Seguir' }, { label: 'Parar' }] }] },
+    { questions: [{ question: 'Qual cor?', header, options: [{ label: 'Azul' }, { label: 'Verde' }] }, { question: 'Algo mais?' }] },
+  ]
+  for (const [index, ask] of asks.entries()) {
+    const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: `ask-long-${index}`, toolName: 'ask_user', args: ask, suspendPayload: ask }])
+    const card = page.getByLabel('Pergunta do agente')
+    await card.getByText(ask.questions[0].question, { exact: true }).waitFor()
+    const shown = card.getByText(header, { exact: true }).first()
+    await shown.waitFor()
+    const fits = await shown.evaluate((node) => {
+      const box = node.getBoundingClientRect()
+      const parent = node.parentElement.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      const oneLine = box.height <= parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth) + 1
+      return { oneLine, inside: box.right <= parent.right + 1 }
+    })
+    assert.deepEqual(fits, { oneLine: true, inside: true }, `the long header fits the card (${index})`)
+  }
+})
+
 test('a typed answer replaces the chosen option of a single-select question', async (t) => {
   const ask = { questions: [{ question: 'Qual cor?', options: [{ label: 'Azul' }, { label: 'Verde' }] }] }
   const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: 'ask-own', toolName: 'ask_user', args: ask, suspendPayload: ask }])
