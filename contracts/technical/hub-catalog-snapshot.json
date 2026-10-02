@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0052",
+ "head": "0053",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -552,6 +552,7 @@
    "function builder.claim_builder_run(p_builder_run_id uuid, p_owner_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=3d6c7f9abdbf0b02f7456f7296590737",
    "function builder.clear_builder_run_phase() returns trigger kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false body=fc9424126844c87a9aa52843ccbffde9",
    "function builder.create_builder_run(p_account_id uuid, p_project_id uuid, p_conversation_id text, p_idempotency_digest text, p_request_digest text, p_request_text text, p_trigger_message_id text, p_builder_run_id uuid, p_base_source_revision text) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=96e1bf288ffdc488b0dcf460cc4dbacf",
+   "function builder.expire_parked_builder_runs(p_idle_ms integer) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=325856bde61694a9421e5705bb61c0ac",
    "function builder.fail_builder_run(p_builder_run_id uuid, p_failure_code text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=ca5e7d171ef3748e9901cb5286ad7fa9",
    "function builder.heartbeat_builder_runs(p_owner_id uuid, p_builder_run_ids uuid[]) returns integer kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=49bd4d49482977d7def15cb1bced224a",
    "function builder.interrupt_builder_run(p_builder_run_id uuid, p_reason text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=65a324405a851b23d903f50aee29440a",

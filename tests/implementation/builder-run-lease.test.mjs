@@ -91,6 +91,7 @@ test('a run this Hub took over and could not settle is taken again and settled a
         settled = true
       },
       failBuilderRun: async (_id, code) => { calls.push(['fail', code]); settled = true },
+      expireParkedBuilderRuns: async () => [],
       close: async () => {},
     },
     applicationArtifacts: {},

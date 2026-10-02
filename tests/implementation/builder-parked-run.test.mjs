@@ -411,7 +411,7 @@ test('a Hub that crashes while a resumed leg waits on a second question settles 
   // The next Hub's sweep takes the run over once the dead Hub's heartbeat is stale.
   const stale = [{ builderRunId: runId, projectId, conversationId, started: true, candidateRevision: null, resultSourceRevision: null, previousOwnerId: 'the-dead-hub' }]
   const restarted = createBuilderService({
-    store: { ...store, takeOverStaleBuilderRuns: async () => stale },
+    store: { ...store, takeOverStaleBuilderRuns: async () => stale, expireParkedBuilderRuns: async () => [] },
     applicationArtifacts: {},
     runs: { ...runsOver(async () => { throw new Error('not used') }), runtime: { execute: async () => { throw new Error('not used') }, discardParked: createParkedDiscard({ controller: after.controller }) } },
   })
@@ -461,6 +461,29 @@ test('a failed discard never fails the stop that asked for it', async (t) => {
     runtime: { execute: async () => { throw new Error('not used') }, discardParked: async () => { throw new Error('thread unreachable') } },
   })
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+})
+
+test('a sweep interrupts a run parked for 7 idle days, tells the stream that follows it, and settles its question as denied, once', async (t) => {
+  const { hub, store, row, open, serviceOver } = await endingOverThread(t)
+  const asked = await hub.open()
+  await asked.sendTurn('faça um app')
+  await asked.end()
+  Object.assign(row, { state: 'RUNNING', phase: 'PARKED' })
+  const idle = []
+  store.takeOverStaleBuilderRuns = async () => []
+  store.expireParkedBuilderRuns = async (idleMs) => {
+    idle.push(idleMs)
+    if (row.phase !== 'PARKED') return []
+    Object.assign(row, { state: 'INTERRUPTED', phase: null })
+    return [{ ...summary('INTERRUPTED', null), failureCode: 'BUILDER_RUN_PARKED_EXPIRED' }]
+  }
+  const published = []
+  const service = serviceOver(async () => { throw new Error('not reached') }, { publishRun: async (run) => { published.push(`${run.state}:${run.failureCode}`) } })
+  await service.sweep()
+  await service.sweep()
+  await service.close()
+  assert.deepEqual({ idle, published }, { idle: [604_800_000, 604_800_000], published: ['INTERRUPTED:BUILDER_RUN_PARKED_EXPIRED'] })
+  assert.deepEqual(await open(), { open: [], results: ['c1:output-denied'] })
 })
 
 test('a stop that lands once the park is written, while the leg still lets go, settles the question as denied', async (t) => {

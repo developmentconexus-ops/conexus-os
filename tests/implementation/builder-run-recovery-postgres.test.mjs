@@ -68,11 +68,13 @@ const recoveryHarness = async (t, name, crashes) => {
   }
 
   const outage = { active: false }
+  // The conversations whose open calls a settle discarded.
+  const discarded = []
   const service = createBuilderService({
     store,
     applicationArtifacts: {},
     runs: {
-      runtime: { execute: async () => { throw new Error('not reached') } },
+      runtime: { execute: async () => { throw new Error('not reached') }, discardParked: async ({ conversationId }) => { discarded.push(conversationId) } },
       git: {
         readMain: git.readMain,
         mainContains: async (projectId, revision) => {
@@ -92,7 +94,7 @@ const recoveryHarness = async (t, name, crashes) => {
     return { ...settled, result_source_revision: settled.result_source_revision === result ? 'RESULT' : settled.result_source_revision }
   }
   const rows = async () => Object.fromEntries(await Promise.all(runs.map(async (entry) => [entry.name, await row(entry)])))
-  return { service, runs, rows, outage, store, connectionString }
+  return { service, runs, rows, outage, store, connectionString, discarded, owner }
 }
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART' }
@@ -207,4 +209,31 @@ test('a heartbeat keeps its runs from every sweep, a parked run is never taken, 
   const [one, other] = await Promise.all([store.takeOverStaleBuilderRuns(SWEEPER, 30_000), store.takeOverStaleBuilderRuns('0f000000-0000-4000-8000-000000000004', 30_000)])
   const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
   assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b'])
+})
+
+test('a run parked for 7 idle days is interrupted with its own code and its question settled, a younger one is untouched, and an answer racing the expiry either resumes the run or finds it closed', async (t) => {
+  const crashes = [
+    { name: 'expired', phase: 'PARKED', candidate: false, main: 'BASE' },
+    { name: 'young', phase: 'PARKED', candidate: false, main: 'BASE' },
+    { name: 'racing', phase: 'PARKED', candidate: false, main: 'BASE' },
+  ]
+  const { service, runs, rows, store, connectionString, discarded, owner } = await recoveryHarness(t, 'conexus_run_parked_expiry', crashes)
+  const [expired, young, racing] = runs
+  const parkedAgo = async ({ builderRunId }, interval) => query(connectionString, `UPDATE builder.builder_run SET parked_at = clock_timestamp() - interval '${interval}' WHERE builder_run_id = $1`, [builderRunId])
+  await parkedAgo(expired, '7 days 1 minute')
+  await parkedAgo(young, '6 days 23 hours')
+  await parkedAgo(racing, '8 days')
+  const conversation = async ({ builderRunId }) => (await query(connectionString, 'SELECT conversation_id FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0].conversation_id
+
+  const [answer] = await Promise.all([store.resumeBuilderRun(racing.builderRunId, '0f000000-0000-4000-8000-000000000005'), service.sweep()])
+  const parkedExpired = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'BUILDER_RUN_PARKED_EXPIRED' }
+  const settled = await rows()
+  assert.deepEqual({ expired: settled.expired, young: settled.young }, { expired: parkedExpired, young: pending })
+  assert.deepEqual(settled.racing, answer ? pending : parkedExpired, 'the answer resumed the run, or found it closed, never both')
+  assert.deepEqual(discarded.sort(), (answer ? [await conversation(expired)] : [await conversation(expired), await conversation(racing)]).sort(), 'only the expired runs had their open call settled')
+
+  assert.deepEqual(await store.expireParkedBuilderRuns(7 * 24 * 60 * 60_000), [], 'a second pass expires nothing')
+  assert.deepEqual(await rows(), settled)
+  const next = await store.createBuilderRun({ accountId: owner, projectId: expired.projectId, conversationId: await conversation(expired), idempotencyKey: 'after-expiry', content: 'de novo', readBase: async () => (await query(connectionString, 'SELECT base_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [expired.builderRunId])).rows[0].base_source_revision })
+  assert.equal(next.state, 'QUEUED', 'the Project accepts a new run')
 })

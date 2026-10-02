@@ -94,10 +94,12 @@ test('no code outside the table reaches the wire', () => {
   assert.equal(projectBuilderRun(run('SUCCEEDED', null)).failureCategory, null)
 })
 
-test('an interrupted run is a cancellation unless the Hub restart interrupted it', () => {
+test('an interrupted run is a cancellation unless the Hub interrupted it, on a restart or a question unanswered for 7 days', () => {
   assert.equal(projectBuilderRun(run('INTERRUPTED', 'USER_CANCELLED')).failureCategory, 'RUN_CANCELLED')
   assert.equal(projectBuilderRun(run('INTERRUPTED', 'HUB_RESTART')).failureCategory, 'RUN_INTERRUPTED')
   assert.equal(projectBuilderRun(run('INTERRUPTED', 'HUB_RESTART')).failureCode, 'HUB_RESTART')
+  const expired = projectBuilderRun(run('INTERRUPTED', 'BUILDER_RUN_PARKED_EXPIRED'))
+  assert.deepEqual([expired.failureCategory, expired.failureCode], ['RUN_INTERRUPTED', 'BUILDER_RUN_PARKED_EXPIRED'])
 })
 
 test('the projection keeps the request text and the creation instant it was handed', () => {
@@ -109,4 +111,12 @@ test('the projection keeps the request text and the creation instant it was hand
     failureCode: 'BUILDER_MODEL_RATE_LIMITED', failureCategory: 'MODEL_RATE_LIMITED',
     requestText: 'Crie um contador', createdAt: '2026-09-20T12:00:00.000Z',
   })
+})
+
+test('the person reads why a run whose question went unanswered for 7 days ended, apart from a restart', async () => {
+  const { failureReason } = await import('../../apps/web/src/features/builder/failure-reasons.ts')
+  assert.deepEqual([failureReason(projectBuilderRun(run('INTERRUPTED', 'BUILDER_RUN_PARKED_EXPIRED'))), failureReason(projectBuilderRun(run('INTERRUPTED', 'HUB_RESTART')))], [
+    'A pergunta do agente ficou 7 dias sem resposta, então a execução foi encerrada e o Project ficou livre. Envie o pedido novamente.',
+    'O Conexus reiniciou durante a execução. Envie o pedido novamente.',
+  ])
 })

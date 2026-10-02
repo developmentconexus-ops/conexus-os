@@ -448,6 +448,10 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
 
+  failRun = new Error('BUILDER_HEAP_PRESSURE')
+  const full = await send({ content: 'altere', conversationId: conversationA })
+  assert.deepEqual([full.statusCode, full.json().type, logs.filter((r) => r.msg === 'BUILDER_RUN_START_FAILED').length], [503, 'urn:conexus:problem:builder-capacity-full', 0], 'a refusal under heap pressure is no failure to log')
+
   failRun = new Error('STORE_UNAVAILABLE')
   const unavailable = await send({ content: 'altere', conversationId: conversationA })
   assert.equal(unavailable.statusCode, 503)
