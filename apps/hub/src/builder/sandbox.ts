@@ -2,7 +2,7 @@ import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspac
 import { Workspace, WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
-import { Sandbox } from 'e2b'
+import { FileNotFoundError, Sandbox } from 'e2b'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
@@ -107,6 +107,11 @@ export class ConexusRunSandbox extends E2BSandbox {
   // With the agent user's own permissions, so a link it planted reaches only what it could read.
   async readAgentFile(path: string): Promise<Uint8Array> {
     return this.e2b.files.read(path, { format: 'bytes', user: SANDBOX_AGENT_USER })
+  }
+
+  // Null only when the file is not there; any other failure still throws.
+  async readAgentFileIfPresent(path: string): Promise<Uint8Array | null> {
+    try { return await this.readAgentFile(path) } catch (error) { if (error instanceof FileNotFoundError) return null; throw error }
   }
 
   async readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
