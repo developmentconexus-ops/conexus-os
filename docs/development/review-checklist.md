@@ -98,5 +98,5 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
   `{ "test": "<file>:<test name>", "issue": <number>, "until": "YYYY-MM-DD" }` (the file ships empty). The `test-quarantine` step
   fails when an entry is past `until`, more than 14 days ahead, has no issue number, or names a test that does not exist. The runner
   cannot run a quarantined test without blocking, so quarantine by hand: add the entry, open the tracking issue, and mark the test
-  `{ skip: 'opt-in: quarantined, see #<issue>' }`, the one skip `only-opt-in-skips` accepts. When the date passes the check fails
+  `{ skip: 'opt-in: quarantined, see #<issue>' }`, the one skip `only-opt-in-skips` accepts. The check binds both ways: a quarantined skip without an entry fails, and so does an entry whose test is not skipped. When the date passes the check fails
   until the test is fixed and the entry removed.

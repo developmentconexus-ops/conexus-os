@@ -1,11 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { OPT_IN } from './test-skip-reasons.mjs'
 
 // Inside `npm run verify` a test may skip, or be a todo, only when it declares an opt-in live
 // authority. Any other unexecuted test, a PostgreSQL suite in a step without a database for example,
 // passes silently and proves nothing, so it fails the graph here.
 
 // A bodyless test.todo reports as a pass with todo: true, so a todo is recorded like a skip.
-const OPT_IN = 'opt-in:'
 const unexecuted = (records) => records.flatMap(({ file, name, skip, todo }) => [
   ...(skip !== undefined ? [{ file, name, kind: 'skip', reason: skip }] : []),
   ...(todo !== undefined ? [{ file, name, kind: 'todo', reason: todo }] : []),

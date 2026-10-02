@@ -18,7 +18,10 @@ const GENERATED = /(^|\/)generated\/|\.generated\.[a-z]+$/
 
 export const isCounted = (file) => PRODUCTION_SOURCE.test(file) && !GENERATED.test(file)
 
-export const isFixSubject = (subject) => /^fix(\(|:)/.test(subject)
+// One pattern for the pull request title and for the commit subjects, so the gate and the count agree.
+const FIX_PATTERN = /^fix(\(|:)/i
+
+export const isFixSubject = (subject) => FIX_PATTERN.test(subject)
 
 // `git log --format=%x01%s --name-only` output: each commit starts with \x01 and its subject, then its files.
 export const parseLog = (output) => output.split('\x01').filter((chunk) => chunk.trim() !== '').map((chunk) => {
@@ -38,7 +41,7 @@ export const findHotFiles = ({ commits, changedFiles, threshold = HOT_THRESHOLD 
 
 // The guard runs only for a pull request whose title starts with fix, and the label turns it off.
 export const checkPatchChurn = ({ title, labels, commits, changedFiles }) => {
-  if (!/^fix/.test(title)) return { ok: true, hot: [], message: 'not a fix pull request, no patch churn check' }
+  if (!isFixSubject(title)) return { ok: true, hot: [], message: 'not a fix pull request, no patch churn check' }
   if (labels.includes(ESCAPE_LABEL)) return { ok: true, hot: [], message: `the label ${ESCAPE_LABEL} is set, no patch churn check` }
   const hot = findHotFiles({ commits, changedFiles })
   if (hot.length === 0) return { ok: true, hot, message: 'no file of this fix has repeated fixes' }

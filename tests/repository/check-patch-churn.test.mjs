@@ -58,3 +58,11 @@ test('a fix touching only the test graph and a test file passes, a fix on a hot 
   const source = checkPatchChurn({ title: 'fix: again', labels: [], commits, changedFiles: ['scripts/conexus-verify.mjs', 'apps/hub/src/builder/module.ts'] })
   assert.deepEqual([source.ok, source.hot.map(({ file, count }) => [file, count])], [false, [['apps/hub/src/builder/module.ts', 3]]])
 })
+
+test('the title gate and the commit count share one pattern: Fix(builder) is a fix, fixture and fixup are not', () => {
+  const commits = ['Fix(builder): a', 'FIX: b', 'fixture: c', 'fixup: d'].map((subject) => ({ subject, files: ['apps/hub/src/e.ts'] }))
+  assert.equal(findHotFiles({ commits, changedFiles: ['apps/hub/src/e.ts'], threshold: 2 })[0].count, 2)
+  const hot = [1, 2, 3].map((n) => fixOn('apps/hub/src/e.ts', n))
+  const titled = (title) => checkPatchChurn({ title, labels: [], commits: hot, changedFiles: ['apps/hub/src/e.ts'] }).ok
+  assert.deepEqual(['Fix(builder): again', 'fixture: new data', 'fixup: squash'].map(titled), [false, true, true])
+})
