@@ -77,6 +77,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'flow-census',
   'hub-baseline',
   'c020-migration-selection',
   'c020-migration-postgres',
@@ -541,7 +542,7 @@ test('the cheap static checks run before every browser and PostgreSQL suite, and
   assert.deepEqual([...new Set(environments)], ['static'])
   const slowStart = CANDIDATE_GRAPH.findIndex(entry => !fast.has(entry.scope))
   assert.equal(CANDIDATE_GRAPH.slice(slowStart).some(entry => fast.has(entry.scope)), false)
-  for (const scope of ['biome', 'knip', 'c020-web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census']) {
+  for (const scope of ['biome', 'knip', 'c020-web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census', 'flow-census']) {
     assert.ok(scopes.indexOf(scope) < scopes.indexOf('hub-baseline'), `${scope} runs before the first PostgreSQL suite`)
     assert.ok(scopes.indexOf(scope) < scopes.indexOf('c020-browser'), `${scope} runs before the first browser suite`)
   }
@@ -556,7 +557,7 @@ test('failFastOrder moves the named scopes up in graph order and keeps every ste
 test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
   assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), [
     'repository-check', 'repository-agent-context', 'repository-contract-checks', 'conexus-preflight',
-    'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'only-opt-in-skips',
+    'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'flow-census', 'only-opt-in-skips',
   ])
   assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)

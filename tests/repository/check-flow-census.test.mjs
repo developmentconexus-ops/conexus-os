@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { checkFlowCensus, declaredFlowIds } from '../../scripts/check-flow-census.mjs'
+
+const LIVE = 'tests/live/builder-send-and-reply.test.mjs'
+const SOURCES = { [LIVE]: "liveFlow({ id: 'builder.send-and-reply', nome: 'Enviar' }, async () => {})" }
+const GRAPH = [{ command: `node --test ${LIVE}` }]
+const flow = (overrides = {}) => ({ id: 'builder.send-and-reply', nome: 'Enviar', test: LIVE, ...overrides })
+
+const run = ({ areas, sources = SOURCES, graph = GRAPH } = {}) =>
+  checkFlowCensus({
+    root: '.',
+    areas: areas ?? [{ area: 'builder-factory', flows: [flow()] }],
+    candidateGraph: graph,
+    packageScripts: {},
+    liveTests: Object.keys(sources),
+    readSource: (path) => sources[path],
+  })
+
+test('declaredFlowIds reads every liveFlow id literal', () => {
+  assert.deepEqual(declaredFlowIds("liveFlow({ id: 'a.b', nome: 'x' }, f)\nliveFlow(\n{ id: \"c.d\", nome: 'y' }, f)"), ['a.b', 'c.d'])
+})
+
+test('a registered flow with a declaring, reachable live test passes', () => {
+  assert.deepEqual(run().problems, [])
+})
+
+test('registering a flow with no test file fails', () => {
+  const { problems } = run({ areas: [{ area: 'a', flows: [flow(), flow({ id: 'builder.other', test: 'tests/live/missing.test.mjs' })] }] })
+  assert.equal(problems.length, 1)
+  assert.match(problems[0], /builder\.other .*not a committed live test/)
+})
+
+test('a live test naming an unregistered flow fails', () => {
+  const { problems } = run({ areas: [{ area: 'a', flows: [] }] })
+  assert.match(problems.join('\n'), /live flow builder\.send-and-reply is not registered/)
+})
+
+test('a registered flow whose test does not declare it fails', () => {
+  const { problems } = run({ areas: [{ area: 'a', flows: [flow(), flow({ id: 'builder.ghost' })] }] })
+  assert.match(problems.join('\n'), /builder\.ghost .* does not declare that flow/)
+})
+
+test('a registered flow whose test the graph does not run fails', () => {
+  const { problems } = run({ graph: [] })
+  assert.match(problems.join('\n'), /not run by the required graph/)
+})
+
+test('a live test file with no flow declaration fails', () => {
+  const sources = { ...SOURCES, 'tests/live/bare.test.mjs': 'test("x", () => {})' }
+  assert.match(run({ sources }).problems.join('\n'), /bare\.test\.mjs declares no flow/)
+})
+
+test('a duplicate id, a malformed flow and a missing flows array fail', () => {
+  const { problems } = run({
+    areas: [
+      { area: 'a', flows: [flow()] },
+      { area: 'b', flows: [flow(), { id: 'x.y' }] },
+      { area: 'c' },
+    ],
+  })
+  const text = problems.join('\n')
+  assert.match(text, /registered twice/)
+  assert.match(text, /without id, nome and test/)
+  assert.match(text, /area c has no "flows" array/)
+})
