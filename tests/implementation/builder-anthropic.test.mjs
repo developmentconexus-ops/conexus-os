@@ -107,8 +107,8 @@ test('a pasted Anthropic key becomes the person\'s own api_key row, and no answe
 
   const listed = await accounts(app)
   assert.deepEqual(listed.json(), { administrator: false, accounts: [
-    { provider: 'openai-codex', mine: false, kind: null, shared: false },
-    { provider: 'anthropic', mine: true, kind: 'api_key', shared: false },
+    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, kind: null, shared: false },
+    { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: true, kind: 'api_key', shared: false },
   ] })
   assert.doesNotMatch(listed.body, /sk-ant-/)
 })
@@ -141,7 +141,7 @@ test('signing in with a Claude subscription takes the pasted code, stores the to
   assert.deepEqual(rowsOf(rows), [{ owner: ana, provider: 'anthropic', kind: 'oauth', sharing: 'just_me' }])
   assert.deepEqual(parseClaudeTokens([...rows.values()][0].secret), tokens('signed-in', 9_999_999_999_999))
   const listed = await accounts(app)
-  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', mine: true, kind: 'oauth', shared: false })
+  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: true, kind: 'oauth', shared: false })
   assert.deepEqual(await completeClaude(app, started.loginId, 'good#verifier-1'), { state: 'expired' }, 'a finished sign-in is gone')
   assert.doesNotMatch(listed.body, /access-|refresh-/)
 })
@@ -164,17 +164,29 @@ test('a Claude sign-in belongs to the person who started it, and needs the CSRF 
   assert.deepEqual(await completeClaude(app, again.loginId, 'good#verifier-2'), { state: 'succeeded' })
 })
 
-test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with either kind of Anthropic account, own or shared', async (t) => {
+// What Mastra's model router catalog lists for anthropic, in its order. It lists claude-fable-5-1 and no claude-sonnet-5-5.
+const CATALOG_MODELS = [
+  'claude-fable-5', 'claude-fable-5-1', 'claude-haiku-4-5', 'claude-haiku-4-5-20251001', 'claude-opus-4-5', 'claude-opus-4-5-20251101', 'claude-opus-4-6', 'claude-opus-4-7',
+  'claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-4-5', 'claude-sonnet-4-5-20250929', 'claude-sonnet-4-6', 'claude-sonnet-5',
+]
+
+test("the picker offers every chat model of Mastra's catalog to a person with either kind of Anthropic account, own or shared, each with the levels Mastra Code sends it", async (t) => {
   const { app, store, share, as } = await createApp(t)
   const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
   assert.deepEqual(await offered(), [])
-  const claude = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', modelName: 'claude-opus-5-5', hasApiKey: true },
-    { id: 'anthropic/claude-sonnet-5', provider: 'anthropic', modelName: 'claude-sonnet-5', hasApiKey: true },
-    { id: 'anthropic/claude-haiku-4-5', provider: 'anthropic', modelName: 'claude-haiku-4-5', hasApiKey: true },
-  ]
   await putKey(app, fakeKey)
-  assert.deepEqual(await offered(), claude)
+  const claude = await offered()
+  assert.deepEqual(claude.map(({ modelName }) => modelName), CATALOG_MODELS)
+  const levelsOf = (models) => Object.fromEntries(models.map(({ modelName, thinkingLevels }) => [modelName, thinkingLevels.join(' ')]))
+  // Claude 5 and Opus 4.7 and 4.8 take every level; Opus 4.6 and Sonnet 4.6 run xhigh as high, so they skip it; the budget-era models give xhigh and max the same budget, so they skip max.
+  assert.deepEqual(levelsOf(claude.filter(({ modelName }) => ['claude-opus-5-5', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-5'].includes(modelName))), {
+    'claude-haiku-4-5': 'off low medium high xhigh',
+    'claude-opus-4-5': 'off low medium high xhigh',
+    'claude-opus-4-6': 'off low medium high max',
+    'claude-opus-4-7': 'off low medium high xhigh max',
+    'claude-opus-5-5': 'off low medium high xhigh max',
+    'claude-sonnet-4-6': 'off low medium high max',
+  })
   await store.write(ana, 'anthropic', 'oauth', serializeClaudeTokens(tokens('signed-in', 1)))
   assert.deepEqual(await offered(), claude)
   assert.deepEqual(await offered('?scope=installation'), [])
@@ -182,14 +194,6 @@ test('the picker offers Claude Opus 5.5, Sonnet 5 and Haiku 4.5 to a person with
   assert.deepEqual(await offered(), [])
   share(ana, 'anthropic')
   assert.deepEqual([await offered(), await offered('?scope=installation')], [claude, claude])
-})
-
-test('every offered Claude model is in the model router catalog', async () => {
-  const { getProviderConfig } = await import('@mastra/core/llm')
-  const catalog = getProviderConfig('anthropic').models
-  const { ANTHROPIC_MODELS } = await import(built('builder/anthropic/credential.js'))
-  assert.deepEqual(ANTHROPIC_MODELS.map((model) => catalog.includes(model)), [true, true, true])
-  assert.equal(catalog.includes('claude-sonnet-5-5'), false, 'Sonnet 5.5 is not in the catalog, so it is not offered')
 })
 
 const routingOver = ({ store, holds = createClaudeHolds({ store }) }) => {
@@ -229,15 +233,32 @@ const recordUpstream = (t) => {
 }
 const prompt = [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }]
 
-test('an Anthropic key pays through the model router with the caller\'s key, and the run records the row', async () => {
+// Records each request an Anthropic key model sends upstream, and refuses it.
+const recordKeyUpstream = (t) => {
+  const seen = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), apiKey: new Headers(init?.headers).get('x-api-key'), model: JSON.parse(init.body).model })
+    return new Response('upstream refused', { status: 418 })
+  }
+  t.after(() => { globalThis.fetch = original })
+  return seen
+}
+
+test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and the run records the row', async (t) => {
   const { store, rows, share } = fakeStore()
   await store.write(ana, 'anthropic', 'api_key', fakeKey)
+  const seen = recordKeyUpstream(t)
   const { call, recorded } = routingOver({ store })
-  assert.deepEqual(await call('run-1', ana, 'anthropic/claude-sonnet-5'), { id: 'anthropic/claude-sonnet-5', apiKey: fakeKey })
+  await assert.rejects((await call('run-1', ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
   assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:anthropic`).id]])
   await assert.rejects(call('run-2', bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
   share(ana, 'anthropic')
-  assert.deepEqual(await call('run-2', bia, 'anthropic/claude-haiku-4-5'), { id: 'anthropic/claude-haiku-4-5', apiKey: fakeKey })
+  await assert.rejects((await call('run-2', bia, 'anthropic/claude-haiku-4-5')).doStream({ prompt }))
+  assert.deepEqual(seen, [
+    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' },
+    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-haiku-4-5' },
+  ])
 })
 
 test('a Claude subscription pays with its bearer on the Messages endpoint, with the betas and identity message Mastra Code sends and no key header', async (t) => {

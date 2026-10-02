@@ -4,11 +4,13 @@
 // approval, so a run of the earlier Builder scores on the same terms. The baseline's `.conexus/plans/<file>`
 // is read too; delete that branch (marked "legacy") once the comparison is written.
 
+import { ASK_USER_TOOL, EDIT_FILE_TOOL, SUBMIT_PLAN_TOOL, WRITE_FILE_TOOL } from './tool-names.mjs'
+
 export const APPROVE_LABEL = 'Aprovar e construir'
 export const ADJUST_LABEL = 'Pedir ajustes'
 const PLAN_FILE = '.conexus/plan.md'
 const LEGACY_PLAN_DIR = '.conexus/plans/'
-const WRITE_TOOLS = new Set(['mastra_workspace_write_file', 'mastra_workspace_edit_file'])
+const WRITE_TOOLS = new Set([WRITE_FILE_TOOL, EDIT_FILE_TOOL])
 
 export const foldLabel = (value) => String(value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
 const CHECKOUT = '/workspace/repo/'
@@ -26,13 +28,13 @@ export const isApprovalOptions = (labels) => {
 
 /** @returns {'ask_user' | 'submit_plan' | null} how this tool call asked for the approval. */
 function approvalVia(call) {
-  if (call.entityName === 'ask_user') {
+  if (call.entityName === ASK_USER_TOOL) {
     // The one-question call is the approval; a trace from before `questions` carried `options` on the input itself.
     const questions = Array.isArray(call.input?.questions) ? call.input.questions : null
     const options = (questions ? (questions.length === 1 ? questions[0]?.options : null) : call.input?.options) ?? []
     return Array.isArray(options) && isApprovalOptions(options.map((option) => (typeof option === 'string' ? option : option?.label))) ? 'ask_user' : null
   }
-  return call.entityName === 'submit_plan' ? 'submit_plan' : null
+  return call.entityName === SUBMIT_PLAN_TOOL ? 'submit_plan' : null
 }
 
 const planFileOf = (path) => (path === PLAN_FILE ? 'plan' : path.startsWith(LEGACY_PLAN_DIR) ? 'legacy-plan' : null)

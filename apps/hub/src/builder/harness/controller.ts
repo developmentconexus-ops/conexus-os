@@ -1,19 +1,24 @@
 import { resolve } from 'node:path'
 import { AgentController } from '@mastra/core/agent-controller'
 import { createCodingAgent } from '@mastra/core/coding-agent'
-import { isMastraTimeoutError } from '@mastra/core/loop'
-import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, SkillsProcessor, StreamErrorRetryProcessor } from '@mastra/core/processors'
+import { SkillsProcessor } from '@mastra/core/processors'
 import { resolveAgentSkills } from '@mastra/core/skills'
-import type { ToolsInput } from '@mastra/core/agent'
-import type { MastraModelConfig } from '@mastra/core/llm'
+import { Agent, type ToolsInput } from '@mastra/core/agent'
+import { type MastraModelConfig, parseModelString } from '@mastra/core/llm'
 import type { MastraMemory } from '@mastra/core/memory'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraCompositeStore } from '@mastra/core/storage'
 import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
+import { builderErrorProcessors, BUILDER_MAX_PROCESSOR_RETRIES } from './error-processors.js'
 import { conexusInstructions } from './prompt.js'
-import { webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { createTool, webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { z } from 'zod'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
 import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
+import type { DocsTools } from './context7.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
@@ -29,54 +34,85 @@ export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string =>
  * (`normalizeWebSearchProvider` in `@mastra/core/tools`'s `tools-*.js`, not part of that package's
  * public `./tools` export surface, so the Hub cannot call it directly and duplicates the set here,
  * once). Offering `web_search` for any other provider throws `WEB_SEARCH_UNSUPPORTED_PROVIDER`
- * before the first model call (spec 0002 AC-11): a model without native search gets no `web_search`
- * tool at all here, in slice 1; a common search tool for such models is slice 6's owed decision.
+ * before the first model call (spec 0002 AC-11), so a model none of these searches for gets no
+ * `web_search` tool at all.
  */
 const NATIVE_WEB_SEARCH_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'google', 'xai'])
 
 /** The provider id embedded in a `provider/model` string, or the whole string when it carries none. */
-const providerOf = (modelString: string): string => {
-  const slash = modelString.indexOf('/')
-  return slash > 0 ? modelString.slice(0, slash) : modelString
-}
+const providerOf = (modelString: string): string => parseModelString(modelString).provider ?? modelString
 
-/**
- * The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model`
- * router string, either `OpenAICompatibleConfig` shape (module.ts's `createModelResolver` returns
- * the `providerId` one for Google AI Pro today), or an already-resolved language model instance.
- */
+/** The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model` router string or config, or an already-built language model. */
 const resolveModelProviderId = (model: MastraModelConfig): string | undefined => {
   if (typeof model === 'string') return providerOf(model)
   if (typeof model !== 'object' || model === null) return undefined
-  if ('providerId' in model && typeof model.providerId === 'string') return model.providerId
   if ('id' in model && typeof model.id === 'string') return providerOf(model.id)
   if ('provider' in model && typeof model.provider === 'string') return model.provider
   return undefined
 }
 
+const WEB_SEARCH_DESCRIPTION = 'Searches the web for one query and returns what it found, with the address of each source. Call it once per question.'
+
 /**
- * The provider ids a subscription model reports: `openaiCodexModel` (ChatGPT) and Mastra Code's
- * Claude provider (`anthropic.messages`). `webSearchTool` cannot map them
- * (`normalizeWebSearchProvider` accepts only the bare id or a `provider/` prefix), so each gets the
- * provider-defined tool `webSearchTool` itself resolves to for its family
- * (`createWebSearchProviderTool` in `@mastra/core`, not exported), which the model executes
- * server-side, as Mastra Code does (`mastracode/sdk/src/agents/tools.ts`). Whether each
- * subscription backend accepts its tool is proven only by a live run.
+ * `web_search` for a model on Gemini's own API, which Google AI Pro reaches through Antigravity:
+ * Antigravity answers 400 to `googleSearch` beside function tools, so Google's search never sits in
+ * the Builder's own tool set. The Builder's `web_search` asks an agent on the same model whose only
+ * tool is Google's search, in one model call per query, and returns its answer and sources.
  */
-const SUBSCRIPTION_WEB_SEARCH: Readonly<Record<string, ToolsInput[string]>> = Object.freeze({
-  'openai.responses': { type: 'provider-defined', id: 'openai.web_search', name: 'web_search', args: {} },
-  'anthropic.messages': { type: 'provider-defined', id: 'anthropic.web_search_20250305', name: 'web_search', args: {} },
+const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[string] => {
+  const searcher = new Agent({
+    id: 'conexus-web-search',
+    name: 'Conexus web search',
+    instructions: 'Search the web for the query and answer it from what you find. Keep each fact next to the source it came from.',
+    model,
+    tools: { google_search: createGoogleGenerativeAI({}).tools.googleSearch({}) as ToolsInput[string] },
+  })
+  return createTool({
+    id: 'web_search',
+    description: WEB_SEARCH_DESCRIPTION,
+    inputSchema: z.strictObject({ query: z.string().min(1) }),
+    execute: async ({ query }, context) => {
+      const result = await searcher.generate(query, {
+        maxSteps: 1,
+        // The searcher is built once and resolves its model for each search, from the run's own request context.
+        ...context?.requestContext ? { requestContext: context.requestContext } : {},
+        ...context?.abortSignal ? { abortSignal: context.abortSignal } : {},
+      })
+      return {
+        text: result.text,
+        sources: result.sources.flatMap(({ payload }) => payload.url ? [{ title: payload.title, url: payload.url }] : []),
+      }
+    },
+  })
+}
+
+/**
+ * The `web_search` of each model the Hub builds, by the provider id it reports. Every one is an
+ * AI SDK model, which names its provider `<family>.<api>`, and `webSearchTool` accepts only the bare
+ * family or a `family/model` router string (`normalizeWebSearchProvider` in `@mastra/core`), so it
+ * throws `WEB_SEARCH_UNSUPPORTED_PROVIDER` on all of these. Each family's own provider tool from
+ * its `@ai-sdk/*` package is what Mastra Code gives the same models
+ * (`mastracode/sdk/src/agents/tools.ts`) and what `webSearchTool` itself resolves to. Google's takes
+ * the search-only agent. Whether each subscription backend accepts its tool is proven only by a
+ * live run.
+ */
+const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig, searchOnly: () => ToolsInput[string]) => ToolsInput[string]>> = Object.freeze({
+  // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
+  'openai.responses': () => createOpenAI({}).tools.webSearch() as ToolsInput[string],
+  'anthropic.messages': () => createAnthropic({}).tools.webSearch_20250305() as ToolsInput[string],
+  'google.generative-ai': (_model, searchOnly) => searchOnly(),
 })
 
-/** The run's `web_search` tool, or none when its model has no provider-native search in Mastra (spec 0002 AC-11, Tool contract). */
+/** The run's `web_search` tool, or none when its model has no provider search in Mastra (spec 0002 AC-11, Tool contract). */
 const webSearchFor = async (
   model: BuilderControllerDeps['model'],
+  searchOnly: () => ToolsInput[string],
   ctx: { requestContext: RequestContext },
 ): Promise<ToolsInput> => {
   const resolved = typeof model === 'function' ? await model(ctx) : model
   const providerId = resolveModelProviderId(resolved)
-  const subscriptionSearch = providerId !== undefined && Object.hasOwn(SUBSCRIPTION_WEB_SEARCH, providerId) ? SUBSCRIPTION_WEB_SEARCH[providerId] : undefined
-  if (subscriptionSearch) return { web_search: subscriptionSearch }
+  const providerSearch = providerId !== undefined && Object.hasOwn(PROVIDER_WEB_SEARCH, providerId) ? PROVIDER_WEB_SEARCH[providerId] : undefined
+  if (providerSearch) return { web_search: providerSearch(resolved, searchOnly) }
   if (providerId !== undefined && NATIVE_WEB_SEARCH_PROVIDERS.has(providerId)) return { web_search: webSearchTool }
   return {}
 }
@@ -103,33 +139,6 @@ const TOOL_CALL_CONCURRENCY = { limit: 4, strategy: 'called' } as const
 const BUILDER_MAX_OUTPUT_TOKENS = 32_000
 const BUILDER_MODEL_STEP_TIMEOUT_MS = 5 * 60_000
 
-const isConnectionReset = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && (
-    ('code' in error && typeof error.code === 'string' && error.code.toUpperCase() === 'ECONNRESET')
-    || (error instanceof Error && /econnreset|socket hang up/i.test(error.message))
-  )
-
-/**
- * Mastra Code's `defaultErrorProcessors` (`createCodingAgent` in `@mastra/core/coding-agent`) with
- * one matcher added: a call that ran past `BUILDER_MODEL_STEP_TIMEOUT_MS` is not retried. Retrying
- * replays the same request, and a step that ran away once would run away again, holding the run
- * for three budgets instead of one.
- */
-const builderErrorProcessors = (): NonNullable<Parameters<typeof createCodingAgent>[0]['errorProcessors']> => [
-  new ProviderHistoryCompat(),
-  new PrefillErrorHandler(),
-  new StreamErrorRetryProcessor({
-    retryUnknownErrors: true,
-    maxRetries: 2,
-    delayMs: 3000,
-    matchers: [
-      { match: (error) => isMastraTimeoutError(error), maxRetries: 0 },
-      { match: isBadRequestError, maxRetries: 1, delayMs: 2000 },
-      { match: isConnectionReset, maxRetries: 2, delayMs: ({ retryCount }) => Math.min(1000 * 2 ** retryCount, 30_000) },
-    ],
-  }),
-]
-
 /** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
 export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined }>
 
@@ -149,17 +158,21 @@ export type BuilderControllerDeps = Readonly<{
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
   /** The run's check and operation run, for `conexus_check` and `conexus_run_operation`; absent for a turn with no run behind it, which then has neither tool. */
   runTools?: (ctx: { requestContext: RequestContext }) => RunTools | undefined
+  /** The library documentation tools (Context7); absent when the caller offers none. */
+  docsTools?: DocsTools
   /** Absolute path to a folder of agent skills, one subfolder per skill. Defaults to the Hub's own `builder-skills/`. */
   skillsPath?: string
   /** Overrides how long one model call may run; only for tests. */
   modelStepTimeoutMs?: number
+  /** Overrides the wait before each retry of a transient model failure; only for tests. */
+  modelRetryDelayMs?: (retryCount: number) => number
   id?: string
 }>
 
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
  * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, `web_fetch`,
- * and `web_search` when the run's model has native provider search in Mastra), and the one `build`
+ * the `context7_*` documentation tools when `docsTools` is given, and `web_search` when the run's model has a provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
  * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
  * to suspend with the plan the Hub read, so the plan is approved on its card. `ask_user` is ours, taking 1 to 4
@@ -169,6 +182,9 @@ export type BuilderControllerDeps = Readonly<{
  */
 export const createBuilderController = (deps: BuilderControllerDeps): AgentController => {
   const skillsRoot = deps.skillsPath ?? defaultBuilderSkillsRoot()
+  // The `tools` function below runs for every agent call, so the searcher is built once, when the first Google model asks for it.
+  let googleSearch: ToolsInput[string] | undefined
+  const searchOnly = (): ToolsInput[string] => (googleSearch ??= searchOnlyWebSearch(deps.model))
 
   const agent = createCodingAgent({
     id: 'conexus-builder',
@@ -178,7 +194,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     tools: async (ctx: { requestContext: RequestContext }): Promise<ToolsInput> => ({
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
       ...runToolsInput(deps.runTools?.(ctx)),
-      ...(await webSearchFor(deps.model, ctx)),
+      ...(await webSearchFor(deps.model, searchOnly, ctx)),
+      ...(deps.docsTools ? await deps.docsTools.tools() : {}),
       web_fetch: webFetchTool,
     }),
     skills: [skillsRoot],
@@ -186,9 +203,8 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     inputProcessors: [new SkillsProcessor({ skills: resolveAgentSkills([skillsRoot]), formatLocation: (skill) => skill.name })],
     ...(deps.memory ? { memory: deps.memory } : {}),
     workspace: undefined,
-    errorProcessors: builderErrorProcessors(),
-    // Mastra's fallback when errorProcessors are set, made explicit so the cap is ours to read.
-    maxProcessorRetries: 3,
+    errorProcessors: builderErrorProcessors(deps.modelRetryDelayMs),
+    maxProcessorRetries: BUILDER_MAX_PROCESSOR_RETRIES,
     defaultOptions: {
       toolCallConcurrency: TOOL_CALL_CONCURRENCY,
       modelSettings: { maxOutputTokens: BUILDER_MAX_OUTPUT_TOKENS, timeout: { stepMs: deps.modelStepTimeoutMs ?? BUILDER_MODEL_STEP_TIMEOUT_MS } },

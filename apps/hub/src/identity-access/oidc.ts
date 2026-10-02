@@ -5,6 +5,7 @@ import { Agent, fetch as undiciFetch } from 'undici'
 import { parseEmailAddress } from './current-session.js'
 import type { EmailAddress } from './current-session.js'
 import { identityAccessError } from './errors.js'
+import { logger } from '../platform/logger.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 /**
@@ -54,7 +55,7 @@ type OidcDiscovery = typeof oidc.discovery
 /** @public Tests import this at runtime from the built module. */
 export const isEmailVerifiedClaim = (
   claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
 ): boolean => {
   if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
     log({ event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified })
@@ -65,7 +66,7 @@ export const isEmailVerifiedClaim = (
 /** @public Tests import this at runtime from the built module. */
 export const resolveVerifiedEmail = (
   claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
 ): EmailAddress | null => (isEmailVerifiedClaim(claims, log) ? parseEmailAddress(claims.email) : null)
 
 export const createOidcAdapter = async ({

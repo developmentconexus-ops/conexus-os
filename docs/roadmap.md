@@ -152,6 +152,12 @@ the Builder uses.
 | --- | --- | --- | --- | --- |
 | `@mastra/code-sdk` 1.8.3 | The Claude subscription and the ChatGPT subscription (sign-in, refresh and model), the sandbox filesystem (`SandboxFilesystem`), error classification (`parseError`) and the eval's Claude login | The subscription flows are unofficial, and Mastra maintains them for its own product. A provider's change must reach the Hub | [C-032](decisions/index.md#in-force) and the [spec 0002 amendment](tasks/specs/0002-builder-own-harness/index.md#amendment-2026-10-01-mastracode-sdk-stays-as-a-library) | Copy the code into the Hub, as C-032 first planned. A provider's change would then need a port by hand instead of an upgrade |
 
+### Accepted under the Builder documentation tools, pending the operator's verdict
+
+| Package and exact version | Consumer | Named limitation | Evidence | Alternative, and why not |
+| --- | --- | --- | --- | --- |
+| `@mastra/mcp` 2.1.0 | The Builder's two Context7 documentation tools, through one Hub-owned adapter that allows one host | The model's memory of a library is stale. The adapter needs the internet, and no real Context7 call ran in the proof | [Task](tasks/builder-context7-qualification.md) | Hand-written HTTP to Context7 copies the MCP protocol that Mastra already maintains |
+
 Every application-architecture gate follows the
 [Builder proof rule](development/delivery.md#builder-proof-rule).
 

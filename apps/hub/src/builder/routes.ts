@@ -1,3 +1,4 @@
+import type { UsageStats } from '@mastra/core/observability'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import type { BuilderService } from './service.js'
@@ -29,7 +30,8 @@ export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderSessionSnapshot>
   readTrace?(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderTraceSummary>
 }>
-export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
+/** Mastra's `UsageStats` with the three totals always present (null where no span reported one), keeping its cache and reasoning breakdown. */
+export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }> & Pick<UsageStats, 'inputDetails' | 'outputDetails'>
 export type BuilderTraceSpan = Readonly<{
   spanId: string
   parentSpanId: string | null

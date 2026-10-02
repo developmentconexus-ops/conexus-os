@@ -1,4 +1,6 @@
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
+import type { SubmitPlanResumeData } from '@mastra/core/tools'
+import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 import type { AgentControllerEvent, AgentControllerOMProgress, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 
 type DisplayState = Extract<KnownAgentControllerEvent, { type: 'display_state_changed' }>['displayState']
@@ -34,20 +36,23 @@ export type LiveTurn = Readonly<{
   // Set by the controller's om_*_failed events, which carry Mastra's data-om-*-failed parts.
   memoryFailed: MemoryOperation | null
   error: string | null
+  // A model call the controller is retrying (an `error` event with `retryable`): the turn goes on, so
+  // this is no failure. It clears when the model speaks or the run ends.
+  retrying: Readonly<{ attempt: number; maxRetries: number | null }> | null
 }>
 
 // A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve.
 export type PendingAnswer = Readonly<{ kind: 'APPROVAL' | 'QUESTION' | 'PLAN'; toolCallId: string; toolName: string; args: unknown; prompt: unknown }>
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
-type PlanResume = Readonly<{ action: 'approved' | 'rejected'; feedback?: string }>
+type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
 export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
-export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null }
+export const idleTurn: LiveTurn = { runId: null, status: 'CONNECTING', messages: [], tools: {}, waiting: {}, tasks: [], memory: null, memoryFailed: null, error: null, retrying: null }
 
 const parked = (state: DisplayState): LiveTurn['waiting'] => ({
   ...Object.fromEntries(Object.values(state.pendingSuspensions ?? {}).map((call): [string, PendingAnswer] =>
-    [call.toolCallId, { kind: call.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
+    [call.toolCallId, { kind: call.toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId: call.toolCallId, toolName: call.toolName, args: call.args, prompt: call.suspendPayload }])),
   ...(state.pendingApproval ? { [state.pendingApproval.toolCallId]: { kind: 'APPROVAL' as const, toolCallId: state.pendingApproval.toolCallId, toolName: state.pendingApproval.toolName, args: state.pendingApproval.args, prompt: null } } : {}),
 })
 
@@ -88,7 +93,7 @@ const applyUpdate = (message: MastraDBMessage, update: MessageUpdate): MastraDBM
 
 // A turn belongs to one run. The first action of another run starts from empty, so a settled run's
 // messages stay on screen until the next run actually speaks.
-export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
+const applyAction = (previous: LiveTurn, action: TurnAction): LiveTurn => {
   const turn = previous.runId === action.runId ? previous : { ...idleTurn, runId: action.runId }
   if (action.kind === 'connected') return { ...turn, status: 'LIVE' }
   if (action.kind === 'lost') return { ...turn, status: 'LOST' }
@@ -123,7 +128,7 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
     case 'tool_approval_required':
       return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null } } }
     case 'tool_suspended':
-      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === 'submit_plan' ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
+      return { ...turn, waiting: { ...turn.waiting, [event.toolCallId]: { kind: event.toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: event.suspendPayload } } }
     // The controller's display state forgets a tool when the run restarts to resume it, so its own
     // tool_end can find nothing to update there. The turn records the outcome itself, or a call that
     // agent_end marked "error" while parked would stay failed after the person answered it.
@@ -135,7 +140,9 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
     case 'tool_suspension_cancelled':
       return { ...turn, waiting: without(turn.waiting, event.toolCallId) }
     case 'error':
-      return { ...turn, error: event.error.message }
+      return event.retryable
+        ? { ...turn, retrying: { attempt: event.retryAttempt ?? 1, maxRetries: event.maxRetries ?? null } }
+        : { ...turn, error: event.error.message, retrying: null }
     // A turn parked on the person ends its agent run as suspended; the call stays open until they
     // answer, and the same run goes on.
     case 'agent_end':
@@ -145,3 +152,10 @@ export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => 
   }
 }
 
+// The model spoke again, or the run ended: the retry the turn showed is over.
+const RETRY_ENDED: ReadonlySet<string> = new Set(['message_start', 'message_update', 'agent_end'])
+
+export const reduceTurn = (previous: LiveTurn, action: TurnAction): LiveTurn => {
+  const next = applyAction(previous, action)
+  return next.retrying && action.kind === 'event' && RETRY_ENDED.has(action.event.type) ? { ...next, retrying: null } : next
+}

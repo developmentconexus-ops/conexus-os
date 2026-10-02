@@ -23,10 +23,16 @@ test('the input takes 1 to 4 questions with optional header, options and multiSe
     { questions: [1, 2, 3, 4, 5].map((n) => question(n)) },
     { questions: [{ question: '' }] },
     { questions: [question(1, { options: [{ label: '' }] })] },
-    { questions: [question(1, { header: 'um cabeçalho longo demais' })] },
     { question: 'Qual cor?' },
   ]
   assert.deepEqual(refused.filter((input) => inputSchema.safeParse(input).success), [])
+})
+
+test('a header longer than the 12 characters the description asks for is accepted, so a UI hint never costs the model a retry', () => {
+  const { inputSchema } = createAskUserTool()
+  const input = { questions: [question(1, { header: 'Próximo passo' })] }
+  assert.equal(inputSchema.safeParse(input).success, true)
+  assert.equal(createAskUserTool().description.includes('up to 12 characters'), true)
 })
 
 test('a first call suspends with the questions, and the resumed call returns one line per answer', async () => {

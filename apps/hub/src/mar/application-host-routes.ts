@@ -6,6 +6,7 @@ import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
+import { recordFailure } from '../platform/logger.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 
@@ -161,7 +162,8 @@ export const registerApplicationHostRoutes = async (
         caller: authority.caller,
         callerLeft: callerLeft(reply),
       })
-    } catch {
+    } catch (error) {
+      recordFailure(request.log, 'APPLICATION_INVOKE_FAILED', error, { 'conexus.project_id': target.projectId, 'conexus.operation': request.params.operation })
       return refuse(reply, 503, 'APPLICATION_RUNNER_UNAVAILABLE')
     }
     return reply.code(result.status).type('application/json').send(JSON.stringify(result.body))

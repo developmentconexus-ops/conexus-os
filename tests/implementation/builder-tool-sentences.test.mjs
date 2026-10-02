@@ -76,6 +76,8 @@ const REGISTERED_TOOL_SENTENCES = {
   connector_fetch: 'Consultou um sistema da empresa',
   web_search: 'Pesquisou na internet',
   web_fetch: 'Abriu uma página da internet',
+  context7_resolve_library_id: 'Procurou uma biblioteca na documentação',
+  context7_query_docs: 'Leu a documentação de uma biblioteca',
   conexus_check: 'Verificou o app',
   conexus_run_operation: 'Testou uma operação com dados reais',
 }
@@ -113,6 +115,7 @@ const toolsOfARun = async () => {
       workspace, model, storage: new InMemoryStore(), skillsPath: resolve(import.meta.dirname, '../../builder-skills'),
       connectorFetch: () => ({ connector_fetch: createTool({ id: 'connector_fetch', description: 'probe', execute: async () => ({}) }) }),
       runTools: () => ({ check: async () => ({}), runOperation: async () => ({}) }),
+      docsTools: { close: async () => {}, tools: async () => Object.fromEntries(['context7_resolve_library_id', 'context7_query_docs'].map((id) => [id, createTool({ id, description: 'probe', execute: async () => ({}) })])) },
     })
     await controller.init()
     const session = await controller.createSession({ resourceId: 'project:probe-sentences', scope: 'probe-sentences' })
@@ -150,4 +153,13 @@ test('submit_plan has its own pt-BR sentence and stays a row of its own', () => 
   assert.equal(toolSentence('submit_plan', true), 'Enviando o plano')
   assert.equal(toolSentence('submit_plan', false), 'Enviou o plano')
   assert.equal(toolRequest('submit_plan'), 'enviar o plano')
+})
+
+test('every Mastra workspace tool the Builder reads, prefixed as it reaches the conversation, has its own sentence, and none falls to the generic one', async () => {
+  const { WORKSPACE_TOOLS } = await import('@mastra/core/workspace')
+  const reaching = [WORKSPACE_TOOLS.FILESYSTEM, WORKSPACE_TOOLS.SANDBOX, WORKSPACE_TOOLS.SEARCH, WORKSPACE_TOOLS.LSP].flatMap((group) => Object.values(group))
+  assert.deepEqual(reaching.filter((name) => toolSentence(name, false) === 'Usou uma ferramenta'), [])
+  assert.equal(toolSentence(WORKSPACE_TOOLS.SANDBOX.EXECUTE_COMMAND, false), 'Executou um comando')
+  assert.equal(toolSentence(WORKSPACE_TOOLS.FILESYSTEM.MKDIR, true), 'Criando uma pasta')
+  assert.equal(toolSentence(WORKSPACE_TOOLS.FILESYSTEM.FILE_STAT, true), 'Consultando um arquivo')
 })
