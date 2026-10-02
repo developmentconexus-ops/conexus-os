@@ -152,6 +152,75 @@ test('every change of a model account\'s sharing level writes an append-only his
   assert.equal(direct.code, '42501')
 })
 
+test('an account created directly with sharing=\'everyone\' is recorded too, with no previous value', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_model_account_sharing_history_create')
+  const alice = await account(connectionString, 'alice')
+  const bob = await account(connectionString, 'bob')
+  const administrator = await account(connectionString, 'administrator')
+
+  const upsert = (owner, provider, secret, sharing) =>
+    callAs(connectionString, 'hub_model_account', 'SELECT model.upsert_model_account($1,$2,$3,$4,$5,$6) AS id',
+      [owner, provider, 'google_ai_pro', secret, sharing ?? null, administrator])
+  const history = () => query(connectionString,
+    'SELECT previous_sharing, new_sharing, changed_by_account_id FROM model.model_account_sharing_history')
+
+  // There is no prior row at all, but naming 'everyone' on creation is still someone deciding to
+  // share with everyone, so it is recorded with previous_sharing NULL.
+  await upsert(alice, 'google-ai-pro', sealedOf('alice-1'), 'everyone')
+  const rows = (await history()).rows
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].previous_sharing, null)
+  assert.equal(rows[0].new_sharing, 'everyone')
+  assert.equal(rows[0].changed_by_account_id, administrator)
+
+  // Creating a second, unrelated account at the default 'just_me' is not a decision anyone made
+  // about sharing, so it writes nothing.
+  await upsert(bob, 'openai', sealedOf('bob-1'), 'just_me')
+  assert.equal((await history()).rows.length, 1)
+})
+
+test('concurrent sharing changes on the same account do not lose a history row', async (t) => {
+  const { connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_model_account_sharing_history_race')
+  const alice = await account(connectionString, 'alice')
+  const administrator = await account(connectionString, 'administrator')
+
+  await callAs(connectionString, 'hub_model_account', 'SELECT model.upsert_model_account($1,$2,$3,$4,$5,$6)',
+    [alice, 'google-ai-pro', 'google_ai_pro', sealedOf('alice-1'), 'just_me', administrator])
+
+  const openTransaction = async () => {
+    const client = new pg.Client({ connectionString })
+    await client.connect()
+    await client.query('SET ROLE hub_model_account')
+    await client.query('BEGIN')
+    return client
+  }
+  const first = await openTransaction()
+  const second = await openTransaction()
+  onCleanup(async () => { await first.end(); await second.end() })
+
+  // `first`'s SELECT ... FOR UPDATE inside the function takes the row lock and holds it until it
+  // commits below.
+  await first.query('SELECT model.upsert_model_account($1,$2,$3,$4,$5,$6)',
+    [alice, 'google-ai-pro', 'google_ai_pro', sealedOf('alice-2'), 'everyone', administrator])
+
+  // `second` blocks on the same lock instead of reading the pre-`first` sharing value, so it
+  // cannot read a value that is about to become stale the moment `first` commits.
+  const secondCall = second.query('SELECT model.upsert_model_account($1,$2,$3,$4,$5,$6)',
+    [alice, 'google-ai-pro', 'google_ai_pro', sealedOf('alice-3'), 'just_me', administrator])
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await first.query('COMMIT')
+  await secondCall
+  await second.query('COMMIT')
+
+  const rows = (await query(connectionString,
+    'SELECT previous_sharing, new_sharing FROM model.model_account_sharing_history ORDER BY changed_at')).rows
+  assert.equal(rows.length, 2)
+  assert.equal(rows[0].previous_sharing, 'just_me')
+  assert.equal(rows[0].new_sharing, 'everyone')
+  assert.equal(rows[1].previous_sharing, 'everyone')
+  assert.equal(rows[1].new_sharing, 'just_me')
+})
+
 test('Google AI Pro credential read and write through model.model_account, sealed with the Conexus envelope', async (t) => {
   const { connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_model_account_gap')
   const alice = await account(connectionString, 'alice')
