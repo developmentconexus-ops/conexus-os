@@ -137,3 +137,52 @@ test("a Google AI Pro model is Mastra's own Google provider on Gemini's API, thr
     thinking: { thinkingLevel: 'low', includeThoughts: true },
   })
 })
+
+const sse = (events) => new Response(events.map((event) => `${event.event ? `event: ${event.event}\n` : ''}data: ${JSON.stringify(event.data ?? event)}\n\n`).join(''), { status: 200, headers: { 'content-type': 'text/event-stream' } })
+
+// Streams one answer from a stand-in upstream that speaks the provider's wire format, through the real SDK model.
+const streamedFrom = async (t, model, upstream) => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => upstream()
+  t.after(() => { globalThis.fetch = original })
+  const parts = []
+  const reader = (await model.doStream({ prompt })).stream.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parts.push(value)
+  }
+  globalThis.fetch = original
+  const text = (type) => parts.filter((part) => part.type === type).map((part) => part.delta).join('')
+  return { reasoning: text('reasoning-delta'), answer: text('text-delta'), finish: parts.find((part) => part.type === 'finish') }
+}
+
+test('an Anthropic thinking stream reaches the Builder as reasoning, then the answer, with its cache and reasoning token breakdown', async (t) => {
+  const model = await routingOver().resolve({ requestContext: turn('anthropic/claude-sonnet-5', { thinkingLevel: 'high' }) })
+  const { reasoning, answer, finish } = await streamedFrom(t, model, () => sse([
+    { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-sonnet-5', content: [], usage: { input_tokens: 12, cache_creation_input_tokens: 3, cache_read_input_tokens: 40, output_tokens: 1 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'pensando' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Olá' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 1 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 9 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]))
+  assert.deepEqual({ reasoning, answer, reason: finish.finishReason.unified }, { reasoning: 'pensando', answer: 'Olá', reason: 'stop' })
+  assert.deepEqual(finish.usage.inputTokens, { total: 55, noCache: 12, cacheRead: 40, cacheWrite: 3 })
+  assert.equal(finish.usage.outputTokens.total, 9)
+})
+
+test('a Gemini thinking stream reaches the Builder as reasoning, then the answer, with its thought and cache token breakdown', async (t) => {
+  const model = await routingOver().resolve({ requestContext: turn('google-ai-pro/gemini-3-flash', { thinkingLevel: 'high' }) })
+  const { reasoning, answer, finish } = await streamedFrom(t, model, () => sse([
+    { candidates: [{ content: { role: 'model', parts: [{ text: 'pensando', thought: true }] } }] },
+    { candidates: [{ content: { role: 'model', parts: [{ text: 'Olá' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 50, cachedContentTokenCount: 30, candidatesTokenCount: 7, thoughtsTokenCount: 20, totalTokenCount: 77 } },
+  ]))
+  assert.deepEqual({ reasoning, answer, reason: finish.finishReason.unified }, { reasoning: 'pensando', answer: 'Olá', reason: 'stop' })
+  assert.deepEqual(finish.usage.inputTokens, { total: 50, noCache: 20, cacheRead: 30, cacheWrite: undefined })
+  assert.deepEqual(finish.usage.outputTokens, { total: 27, text: 7, reasoning: 20 })
+})
