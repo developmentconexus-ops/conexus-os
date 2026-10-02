@@ -69,6 +69,17 @@ test('while the run is parked on the question there is no row, only the card to 
   assert.equal(count(html, 'card q1'), 1)
 })
 
+test('the card to answer waits until the words above it are all shown, so it is never pushed down', () => {
+  const words = assistant('live-5', [thought, { type: 'text', text: 'Antes de começar, tenho uma pergunta sobre o painel que você pediu.' }])
+  const asking = reduce([start(words), { type: 'event', event: { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: null } }])
+  const reduced = globalThis.window
+  globalThis.window = { matchMedia: () => ({ matches: false }) }
+  try {
+    assert.equal(count(render({ entries: asking.entries, working: true, renderPrompt: card }), 'card q1'), 0)
+  } finally { globalThis.window = reduced }
+  assert.equal(count(render({ entries: asking.entries, working: true, renderPrompt: card }), 'card q1'), 1)
+})
+
 test('a parked call whose run is over is a row again, and no card', () => {
   const parked = reduce(events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).map((event) => ({ type: 'event', event })))
   const html = render({ entries: parked.entries })

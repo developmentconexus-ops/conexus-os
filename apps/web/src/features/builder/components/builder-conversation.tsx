@@ -290,21 +290,24 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
 // The reply the run here is writing, paced by Mastra's message reveal. Every assistant message since
 // the person last spoke is one script, so a message that starts mid-turn continues the clock rather
 // than restarting it, and the person's next message empties the script and starts a new one.
-const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<string, MastraDBMessage>, working: boolean): ReadonlyMap<string, MessagePart[]> => {
+const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<string, MastraDBMessage>, working: boolean): Readonly<{ revealed: ReadonlyMap<string, MessagePart[]>; caughtUp: boolean }> => {
   let start = 0
   messages.forEach((entry, index) => { if (isUserAuthored(entry.message)) start = index + 1 })
   const turn = messages.slice(start).flatMap((entry) => {
     const message = merged.get(entry.id) ?? entry.message
     return message.role === 'assistant' && !isNotice(message) ? [{ id: entry.id, parts: message.content.parts }] : []
   })
-  const shown = useRevealedParts(turn.flatMap((message) => message.parts), working)
+  const script = turn.flatMap((message) => message.parts)
+  const shown = useRevealedParts(script, working)
+  // A part is the same object once fully revealed and a copy while it is typed out.
+  const caughtUp = shown.length === script.length && shown.every((part, index) => part === script[index])
   const revealed = new Map<string, MessagePart[]>()
   let at = 0
   for (const message of turn) {
     revealed.set(message.id, shown.slice(at, at + message.parts.length))
     at += message.parts.length
   }
-  return revealed
+  return { revealed, caughtUp }
 }
 
 export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
@@ -336,7 +339,7 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
   const reason = failureReason(failure)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
   const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
-  const revealed = useRevealedTurn(messages, merged, working)
+  const { revealed, caughtUp } = useRevealedTurn(messages, merged, working)
   const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
   const pieces: Piece[] = []
@@ -349,7 +352,8 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
   }
   for (const entry of entries) {
     if (entry.kind === 'prompt') {
-      if (renderPrompt) pieces.push({ kind: 'prompt', key: entry.id, prompt: entry })
+      // The card waits for the words above it: shown first, it would be pushed down as they are revealed.
+      if (renderPrompt && caughtUp) pieces.push({ kind: 'prompt', key: entry.id, prompt: entry })
       continue
     }
     if (entry.kind === 'notice') {
