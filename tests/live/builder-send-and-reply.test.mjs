@@ -16,8 +16,9 @@ liveFlow({ id: 'builder.send-and-reply', nome: 'Enviar um pedido e ler a respost
 
   await expect(page.getByRole('log')).toContainText(REPLY, { timeout: 60_000 })
 
-  const [run] = await hub.db('select state, result_kind, request_text from builder.builder_run')
-  assert.deepEqual(run, { state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY', request_text: REQUEST })
+  // The reply streams before the run settles, so the row is read until it does.
+  await expect.poll(() => hub.db('select state, result_kind, request_text from builder.builder_run'), { timeout: 30_000 })
+    .toEqual([{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY', request_text: REQUEST }])
 
   assert.equal(model.calls.length, 1)
   const lastUser = model.calls[0].contents.findLast((content) => content.role === 'user')
