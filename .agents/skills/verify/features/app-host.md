@@ -29,4 +29,3 @@ Preconditions:
 ## Gotchas
 
 - The runner and the application listener are what `infra/pilot/runner.sh` and the pilot's Hub env add. Never point this harness at the pilot's runner socket or its databases.
-- Adding the runner to `launch` is the next step for this map. It needs its own throwaway PostgreSQL for app data and its own socket directory under the run's state.

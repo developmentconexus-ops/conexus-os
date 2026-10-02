@@ -37,6 +37,8 @@ const ROLE_FILES = {
 }
 
 const fail = (message) => { throw new Error(message) }
+// A probe throws a fatal error when waiting longer cannot help, such as a process that exited.
+const fatal = (message) => { throw Object.assign(new Error(message), { fatal: true }) }
 const today = () => new Date().toLocaleDateString('sv')
 const writeSecret = (path, value) => { writeFileSync(path, `${value}\n`, { mode: 0o600 }); chmodSync(path, 0o600) }
 const run = (file, args, options = {}) => execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim()
@@ -91,7 +93,11 @@ const httpsGet = (state, port, path, servername) => new Promise((settle, reject)
 const waitFor = async (label, check, timeoutMs) => {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    try { if (await check()) return } catch {}
+    try {
+      if (await check()) return
+    } catch (error) {
+      if (error.fatal) throw error
+    }
     await delay(1000)
   }
   fail(`TIMEOUT_${label}`)
@@ -173,18 +179,20 @@ const hubEnvironment = (state, secrets) => {
 
 const buildDirs = () => readdirSync(join(REPO, 'apps/hub')).filter((name) => name.startsWith('.conexus-build-local-'))
 
+// Only what a person's shell needs; every Conexus and E2B variable comes from the run.
+const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER', 'SHELL', 'TZ'].filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
+
 const startHub = async (state, environment) => {
-  const before = new Set(buildDirs())
+  const before = new Set(state.buildDirsBefore)
   const log = evidence(state, 'hub.log')
   const out = openSync(log, 'a')
-  const base = Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER', 'SHELL', 'TZ'].filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
   const hub = spawn(process.execPath, ['--max-old-space-size=512', join(REPO, 'scripts/build-hub-local.mjs')],
-    { cwd: REPO, env: { ...base, ...environment }, detached: true, stdio: ['ignore', out, out] })
+    { cwd: REPO, env: { ...baseEnvironment(), ...environment }, detached: true, stdio: ['ignore', out, out] })
   hub.unref()
   state.pids.hub = hub.pid
   saveState(state)
   await waitFor('HUB', async () => {
-    if (!alive(hub.pid)) fail('HUB_EXITED: see hub.log')
+    if (!alive(hub.pid)) fatal('HUB_EXITED: see hub.log')
     return (await httpsGet(state, state.ports.hub, '/', HUB_HOST)).status === 200
   }, 420_000)
   state.hubBuildDir = buildDirs().find((name) => !before.has(name)) ?? null
@@ -194,11 +202,14 @@ const startHub = async (state, environment) => {
 const startBrowser = async (state) => {
   const out = openSync(evidence(state, 'browser.log'), 'a')
   const browser = spawn(process.execPath, [import.meta.filename, '__browser-host', state.runId],
-    { cwd: REPO, env: process.env, detached: true, stdio: ['ignore', out, out] })
+    { cwd: REPO, env: baseEnvironment(), detached: true, stdio: ['ignore', out, out] })
   browser.unref()
   state.pids.browser = browser.pid
   saveState(state)
-  await waitFor('BROWSER', async () => (await fetch(`http://127.0.0.1:${state.ports.cdp}/json/version`)).ok, 60_000)
+  await waitFor('BROWSER', async () => {
+    if (!alive(browser.pid)) fatal('BROWSER_EXITED: see browser.log')
+    return (await fetch(`http://127.0.0.1:${state.ports.cdp}/json/version`)).ok
+  }, 60_000)
 }
 
 const browserHost = async (runId) => {
@@ -231,6 +242,7 @@ const launch = async () => {
     containers: { postgres: `conexus-verify-pg-${runId}`, keycloak: `conexus-verify-kc-${runId}` },
     person: { ...PERSON, subject: randomUUID() }, pids: {}, tlsFingerprint: null, cleanedAt: null,
   }
+  state.buildDirsBefore = buildDirs()
   mkdirSync(state.evidenceDir, { recursive: true })
   saveState(state)
   const step = (name) => { logAction(state, `launch ${name}`); console.error(`launch: ${name}`) }
@@ -457,9 +469,11 @@ const cleanup = async () => {
       done.push(`${container} stopped`)
     } catch { done.push(`${container} already gone`) }
   }
-  if (state.hubBuildDir && existsSync(join(REPO, 'apps/hub', state.hubBuildDir))) {
-    rmSync(join(REPO, 'apps/hub', state.hubBuildDir), { recursive: true, force: true })
-    done.push(`removed apps/hub/${state.hubBuildDir}`)
+  // A launch that failed mid-build never recorded its directory; any directory new since launch is it.
+  const ours = state.hubBuildDir ? [state.hubBuildDir] : buildDirs().filter((name) => !state.buildDirsBefore.includes(name))
+  for (const name of ours.filter((each) => existsSync(join(REPO, 'apps/hub', each)))) {
+    rmSync(join(REPO, 'apps/hub', name), { recursive: true, force: true })
+    done.push(`removed apps/hub/${name}`)
   }
   state.cleanedAt = new Date().toISOString()
   writeFileSync(evidence(state, 'cleanup.json'), `${JSON.stringify({ cleanedAt: state.cleanedAt, done }, null, 2)}\n`)
