@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { OPT_IN } from './test-skip-reasons.mjs'
+import { OPT_IN, QUARANTINED, quarantineReason } from './test-skip-reasons.mjs'
 
 // Inside `npm run verify` a test may skip, or be a todo, only when it declares an opt-in live
 // authority. Any other unexecuted test, a PostgreSQL suite in a step without a database for example,
@@ -54,6 +54,16 @@ if (refused.length > 0) {
   fail([
     `${refused.length} skipped or todo test(s) in the verify graph; only a reason starting with "${OPT_IN}" may leave a test unexecuted:`,
     ...refused.map(describeUnexecuted),
+  ].join('\n'))
+}
+// Whatever form skipped the test, a quarantined reason needs a live entry for that file and test name.
+const registry = existsSync('tests/quarantine.json') ? JSON.parse(readFileSync('tests/quarantine.json', 'utf8')) : []
+const today = new Date().toISOString().slice(0, 10)
+const unregistered = all.filter(({ file, name, reason }) => typeof reason === 'string' && reason.startsWith(QUARANTINED) && !quarantineReason(registry, file, name, today))
+if (unregistered.length > 0) {
+  fail([
+    `${unregistered.length} test(s) skipped as quarantined without a live entry in tests/quarantine.json:`,
+    ...unregistered.map(describeUnexecuted),
   ].join('\n'))
 }
 for (const entry of all) process.stdout.write(`opt-in ${entry.kind}: ${describeUnexecuted(entry)}\n`)
