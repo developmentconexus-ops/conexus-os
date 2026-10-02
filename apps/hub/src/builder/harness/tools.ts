@@ -94,7 +94,7 @@ const askOptionsSchema = z.array(z.object({ label: z.string().min(1), descriptio
 
 const askQuestionSchema = z.object({
   question: z.string().min(1),
-  header: z.string().min(1).max(12).optional(),
+  header: z.string().min(1).optional(),
   options: askOptionsSchema,
   multiSelect: z.boolean().optional(),
 })
