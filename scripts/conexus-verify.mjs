@@ -152,8 +152,8 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
   candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs', 'browser'),
-  // One Hub, one Chromium and a scripted model for the whole suite, so the flows are named here and share one boot. A flow file goes in this command by name.
-  candidateStep('live-builder', 'node --test --test-isolation=none --test-global-setup=tests/live/harness.mjs tests/live/builder-send-and-reply.test.mjs', 'live'),
+  // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot. A flow file goes in the test:live script by name.
+  candidateStep('live-builder', 'npm run test:live', 'live'),
   candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 

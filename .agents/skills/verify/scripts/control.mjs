@@ -448,8 +448,9 @@ export const signIn = async (page, state) => {
 const signInCommand = async () => {
   const state = currentRun()
   const { pages } = await connect(state)
-  await signIn(pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0], state)
-  console.log((pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]).url())
+  const page = pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]
+  await signIn(page, state)
+  console.log(page.url())
 }
 
 // One read-only query as the database's owner, so a proof can read any schema.
