@@ -152,6 +152,8 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
   candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs', 'browser'),
+  // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot. A flow file goes in the test:live script by name.
+  candidateStep('live-builder', 'npm run test:live', 'live'),
   candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
@@ -168,6 +170,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
   candidateStep('conexus-backup', 'node --test tests/implementation/conexus-backup.test.mjs'),
 
+  candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
@@ -203,6 +206,7 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'wire-connector',
   'wire-technical-lint',
   'wire-technical-ingress',
+  'log-codes-check',
   'test-census',
 ])
 
@@ -216,15 +220,16 @@ export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
 
 export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
 
-// CI runs the graph as four jobs, each on its own machine with its own PostgreSQL and CPU, so no
+// CI runs the graph as five jobs, each on its own machine with its own PostgreSQL and CPU, so no
 // step shares a host resource with a step of another group. A step's group follows from what it
 // needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. The Builder screen
 // suite alone takes about 150 s, so it is a group of its own and the other browser suites share
-// the fourth, which keeps the groups close in length. Two steps belong to every group: the Hub
+// the fourth, which keeps the groups close in length. The live suite boots a whole Conexus of its
+// own (PostgreSQL and Keycloak containers, a Hub build, a browser), so it is the fifth. Two steps belong to every group: the Hub
 // build, which publishes the compiled Hub the suites import, and the skip check, which reads the
 // ledger of the job it runs in.
-export const VERIFY_GROUPS = Object.freeze(['builder-ui', 'browser', 'postgres', 'rest'])
-const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest' })
+export const VERIFY_GROUPS = Object.freeze(['builder-ui', 'browser', 'postgres', 'rest', 'live'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest', live: 'live' })
 const BUILDER_UI_STEPS = new Set(['c020-browser'])
 const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
 
@@ -251,7 +256,13 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH })
+// The fast check to run before every push: the two failures CI otherwise reports minutes later, with
+// no Docker, browser or network.
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census'])
+
+export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
+
+const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH, 'candidate-quick': QUICK_GRAPH })
 
 // Descriptive aliases make the manifest easy to discover for tests and small
 // callers without creating another mutable allowlist.
@@ -572,7 +583,7 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group builder-ui|browser|postgres|rest] [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group builder-ui|browser|postgres|rest|live] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',

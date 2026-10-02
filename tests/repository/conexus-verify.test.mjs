@@ -9,6 +9,7 @@ import {
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
   FAST_CHECK_SCOPES,
+  QUICK_GRAPH,
   VERIFY_GROUPS,
   graphForGroup,
   groupsOf,
@@ -74,6 +75,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-connector',
   'wire-technical-lint',
   'wire-technical-ingress',
+  'log-codes-check',
   'test-census',
   'hub-baseline',
   'c020-migration-selection',
@@ -154,6 +156,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-first-operational-delivery',
   'builder-planning-free-boot',
   'builder-eval',
+  'live-builder',
   'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
@@ -396,7 +399,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'live', 'postgres', 'static'])
 
   const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
   const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
@@ -560,6 +563,14 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
 })
 
+test('the quick graph is the log code registry check and the test census, both static and fast-checked', () => {
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['log-codes-check', 'test-census'])
+  assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
+  assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
+  assert.deepEqual(result.records.map(record => record.scope), ['log-codes-check', 'test-census'])
+})
+
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {
   const summary = renderStepSummary([
     { scope: 'quick', status: 'succeeded', durationMs: 1000 },
@@ -608,12 +619,13 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
   for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
   assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['c020-hub-typecheck', 'c020-browser', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['c020-hub-typecheck', 'live-builder', 'only-opt-in-skips'])
 })
 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
   assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
-  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest/)
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest, live/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

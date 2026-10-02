@@ -434,6 +434,8 @@ const runBoot = async () => {
       let spawnError = null
       chromium = spawn(chromiumPath, [
         '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
+        '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run', '--disable-default-apps',
+        '--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication',
         '--user-data-dir=' + profile, 'about:blank',
       ], { detached: true, stdio: 'ignore', env: stepEnvironment(), ...dropTo })
       chromium.once('error', (error) => { spawnError = error })

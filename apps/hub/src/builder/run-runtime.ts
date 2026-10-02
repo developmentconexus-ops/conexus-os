@@ -889,3 +889,6 @@ export const e2bConversationSandboxes = ({
     },
   })
 }
+
+/** What the Hub needs of its conversations' sandboxes: E2B's in production, a test composition's own otherwise. */
+export type ConversationSandboxes = ReturnType<typeof e2bConversationSandboxes>
