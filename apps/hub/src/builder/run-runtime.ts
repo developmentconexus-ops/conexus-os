@@ -33,6 +33,7 @@ type RunSandbox = Readonly<{
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   writeRootFile(path: string, bytes: Uint8Array): Promise<void>
   readAgentFile(path: string): Promise<Uint8Array>
+  readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
   runCheck(input: Readonly<{ root: string; out: string; collect: boolean; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
@@ -384,7 +385,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
         await sandbox.writeRootFile(path, bytes)
       }
-      const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path) }
+      const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path), readAgentFileStream: (path) => sandbox.readAgentFileStream(path) }
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
       // Recording which hosts the sandbox reaches is evidence, never a gate: a recorder that will not
       // start is logged and the turn goes on.
@@ -860,6 +861,7 @@ export const e2bConversationSandboxes = ({
         runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
         writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
         readAgentFile: (path: string) => sandbox.readAgentFile(path),
+        readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
         runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
         pause: async () => {
