@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0048",
+ "head": "0049",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -553,6 +553,7 @@
    "function builder.interrupt_builder_run(p_builder_run_id uuid, p_reason text) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=65a324405a851b23d903f50aee29440a",
    "function builder.list_admission_runs() returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=d8e3a958a726e8603e9708437a512296",
    "function builder.list_builder_runs(p_account_id uuid, p_project_id uuid, p_limit integer) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=93c7ec842a9b04906296fdb33d0d7513",
+   "function builder.list_unowned_run_candidates() returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=859a47cb7734d5c397b3b87478dfaa51",
    "function builder.lock_project_for_run(p_account_id uuid, p_project_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=4bcc393560b9fa67a83c9de2ecc23a59",
    "function builder.purge_project(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=433a6076c0190730a3e4aec9ba8611e2",
    "function builder.read_builder_run(p_account_id uuid, p_project_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=51e5554363f2cc129480c4cf2b8b49f7",

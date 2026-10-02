@@ -3,6 +3,7 @@ import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+const { logger } = await import(hubModuleUrl('platform/logger.js'))
 const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
@@ -528,4 +529,59 @@ test('a run publishes the state it parks in, and the state it ends in, before it
   const cancelled = await drive(cancelledId, () => { throw new Error('BUILDER_RUN_CANCELLED') })
   assert.deepEqual(cancelled.slice(cancelled.indexOf('publish:INTERRUPTED:null'), cancelled.indexOf('discard') + 1), ['publish:INTERRUPTED:null', 'close-session', 'discard'], 'a cancelled leg publishes INTERRUPTED, closes its session, then settles')
   assert.equal(cancelled.filter((event) => event === 'discard').length, 1)
+})
+
+// A leg that fails with `code`, a store whose failBuilderRun throws `failures` times before it writes,
+// and the lines the Hub logged. `orphans` is what the store lists as running with no leg.
+const settleHarness = async ({ failures, orphans = () => [], reconcileEveryMs = 5 }) => {
+  const runId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const lines = []
+  const originalError = logger.error
+  logger.error = (line) => lines.push(line)
+  const written = []
+  let refused = 0
+  const run = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    setBuilderRunPhase: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
+    failBuilderRun: async (_id, code) => {
+      if (refused < failures) { refused += 1; throw new Error('BUILDER_RUN_FAILURE_REFUSED') }
+      written.push(code)
+    },
+    listAdmissionRuns: async () => [],
+    listUnownedRunCandidates: async () => orphans(written),
+    close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    runs: { ...makeRuns({ execute: async () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } }), reconcileEveryMs, settleRetryMs: 1 },
+    applicationArtifacts: {},
+  })
+  await service.createBuilderRun({ accountId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', projectId, idempotencyKey: 'k', content: 'construa', conversationId: 'conv-build' })
+  const until = async (done) => { for (let i = 0; i < 400 && !done(); i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
+  return { service, written, lines, projectId, runId, until, restore: () => { logger.error = originalError } }
+}
+
+test('a failed run whose settle write fails once ends settled after the retry, with nothing logged', async () => {
+  const h = await settleHarness({ failures: 1 })
+  await h.until(() => h.written.length > 0)
+  await h.service.close()
+  h.restore()
+  assert.deepEqual(h.written, ['BUILDER_MODEL_INCOMPLETE'])
+  assert.deepEqual(h.lines, [])
+})
+
+test('a settle write that keeps failing is logged with a code, and the next timer pass settles the row', async () => {
+  const h = await settleHarness({
+    failures: 3,
+    orphans: (written) => (written.length ? [] : [{ builderRunId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', projectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', conversationId: 'conv-build' }]),
+  })
+  await h.until(() => h.written.length > 0)
+  await h.service.close()
+  h.restore()
+  assert.deepEqual(h.lines, [`BUILDER_RUN_SETTLE_FAILED:${h.runId}:BUILDER_RUN_FAILURE_REFUSED`])
+  assert.deepEqual(h.written, ['BUILDER_RUN_SETTLE_LOST'])
 })
