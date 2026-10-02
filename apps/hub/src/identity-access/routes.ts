@@ -19,6 +19,7 @@ const OIDC_STATE_COOKIE = '__Host-conexus_oidc_state'
 const cookieOptions = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const }
 const visibleCookieOptions = { ...cookieOptions, httpOnly: false }
 const clearCookieOptions = { path: '/', secure: true, sameSite: 'lax' as const }
+const PROVIDER_LOGOUT_TIMEOUT_MS = 3_000
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
 export type IdentityAccessRouteDependencies = Readonly<{
@@ -146,10 +147,18 @@ export const registerIdentityAccessRoutes = async (
       if (!requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
         return sendProblem(reply, 403, 'csrf-denied', 'Request authenticity denied')
       }
-      // Signing out never waits on Keycloak: the session and its own CSRF token are enough.
+      // The session and its own CSRF token are enough to end the Conexus session, and it ends before Keycloak
+      // is asked anything. Only then is Keycloak asked, for a bounded time, to end the SSO session behind it,
+      // so the next sign-in asks for a password. Keycloak's silence never undoes or delays the local end
+      // past that bound, and is never reported as a Keycloak sign-out.
       const sessionToken = request.cookies[SESSION_COOKIE]
-      if (!sessionToken || !await hubSessions.endHub({ sessionToken, csrfToken: requestCsrf })) {
-        return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      const ended = sessionToken ? await hubSessions.endHub({ sessionToken, csrfToken: requestCsrf }) : null
+      if (!ended) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      const providerLogout = ended.refreshToken
+        ? await oidc.endProviderSession({ refreshToken: ended.refreshToken, signal: AbortSignal.timeout(PROVIDER_LOGOUT_TIMEOUT_MS) })
+        : 'UNCONFIRMED'
+      if (providerLogout !== 'ENDED') {
+        request.log.warn({ event: 'hub_sign_out_provider_logout_unconfirmed' }, 'Conexus session ended; Keycloak did not confirm the SSO session ended')
       }
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)

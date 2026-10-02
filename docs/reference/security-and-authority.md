@@ -180,7 +180,16 @@ opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDE
 `PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused and the
 session is kept: 503 `identity-provider-unavailable` on every Hub route and on application and
 Preview hosts. The Factory's routes answer 503 too, because the Hub's own check runs before
-Mastra's auth; the operator accepted that answer on 2026-09-25 ([decisions index](../decisions/index.md)). Signing out of the Hub never asks Keycloak.
+Mastra's auth; the operator accepted that answer on 2026-09-25 ([decisions index](../decisions/index.md)). Signing out of the Hub
+never waits on Keycloak to end the Conexus session: the session ends first, and its sealed refresh
+token is handed out of the database once, in the same statement. The Hub then posts that token
+server to server to Keycloak's `end_session_endpoint`, bounded to three seconds, so Keycloak's SSO
+session ends and the next sign-in asks for a password. Keycloak's `204`, or its `invalid_grant`
+for a session it no longer holds, counts as ended; anything else, a timeout or an unreachable
+Keycloak, is logged as `hub_sign_out_provider_logout_unconfirmed`, with neither token nor Account,
+and the sign-out still answers `204`. Local revocation is never reported as upstream revocation.
+Once Keycloak's SSO session has ended, the person's application sessions opened from it end at
+their next Keycloak check; signing out of an application still ends only that application session.
 
 **Rotation is off.** The realm does not rotate refresh tokens (`revokeRefreshToken: false`,
 Keycloak's default): a token refreshes any number of times, so requests that find the same check

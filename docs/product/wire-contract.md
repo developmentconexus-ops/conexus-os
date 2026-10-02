@@ -237,8 +237,15 @@ Keycloak bearer tokens, realm roles, groups, organizations and Authorization Ser
 IAM-02 /api/session
 → CONTROL_PLANE or PUBLISHED_APP
 → end exact opaque Conexus session
+→ then ask Keycloak, bounded, to end the SSO session behind it
 -X-> claim global Keycloak SSO logout
 ```
+
+The Conexus session ends whatever Keycloak answers. The Hub then posts the session's sealed
+refresh token to Keycloak's `end_session_endpoint` for at most three seconds, so the next sign-in
+asks for a password. Keycloak's silence or refusal is logged
+(`hub_sign_out_provider_logout_unconfirmed`), never reported to the caller and never undoes the
+local end. Other OIDC clients of the realm learn nothing directly; their sessions follow Keycloak's.
 
 ### 9.2 Non-HTTP authority
 

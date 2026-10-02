@@ -24,7 +24,7 @@ Preconditions:
 - **Redirect.** Open the root. Run `$C browser goto /`. The URL becomes the Keycloak issuer's login page on `127.0.0.1:<keycloak port>`.
 - **Sign in and set up.** Run `$C sign-in`. It fills `#username` and `#password`, submits, fills `Seu nome`, chooses `Criar minha conta`, waits for the heading `Conta criada`, and chooses `Entrar`. It saves `screens/sign-in-account-created.png` and `screens/sign-in-landed.png`, and prints the landing URL, `/workspaces/new` on a fresh run.
 - **Landing.** Run `$C browser snapshot signin-landing`. The banner holds `Conta de Verify Operator`, and the content holds the heading `Novo Workspace`.
-- **Sign out.** Run `$C browser click --role button --name "Conta de Verify Operator"` and `$C browser click --role menuitem --name "Sair do Conexus"`. The URL is `/signed-out`, with the heading `Sessão encerrada` and the link `Entrar de novo`. `$C sign-in` then signs back in.
+- **Sign out.** Run `$C browser click --role button --name "Conta de Verify Operator"` and `$C browser click --role menuitem --name "Sair do Conexus"`. The URL is `/signed-out`, with the heading `Sessão encerrada` and the link `Entrar de novo`. `Entrar de novo` shows Keycloak's `#username` form again. `$C sign-in` then signs back in.
 - **Proof.** Run `$C db "select display_name, active from iam.account" --save signin-account` and `$C db "select granted_via from iam.installation_administrator" --save signin-admin`. One account `Verify Operator`, active, with `OPERATOR_BOOTSTRAP`.
 
 ## Gotchas
@@ -32,4 +32,4 @@ Preconditions:
 - The sign-in page is Keycloak's own theme, because the run does not build the Conexus theme jar. Don't judge the sign-in page's look from this run. `apps/keycloak-theme` has its own check.
 - `browser.log` holds `401` console errors on `/` before sign-in and on `/setup` during the first sign-in, while the session has no account yet. They are expected. Any other console error is a finding.
 - A second `sign-in` in the same run skips `/setup` and lands wherever the entry route sends the person.
-- `Sair do Conexus` ends only the Hub session. Keycloak keeps its own, so the next sign-in returns without the form. `$C sign-in` handles both cases.
+- `Sair do Conexus` ends the Hub session, then asks Keycloak to end its SSO session, so the next sign-in shows the form. When Keycloak does not confirm, `hub.log` holds `hub_sign_out_provider_logout_unconfirmed` and the next sign-in may return without the form. `$C sign-in` handles both cases.

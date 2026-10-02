@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const userPassword = process.env.CONEXUS_LIVE_USER_PASSWORD
 
-test('real Keycloak + PostgreSQL + Chromium complete bootstrap, normal re-entry and Conexus-only sign-out', async ({ page }) => {
+test('real Keycloak + PostgreSQL + Chromium complete bootstrap, normal re-entry and a sign-out that ends the Keycloak session too', async ({ page }) => {
   await page.goto('http://localhost:3000')
   await expect(page.getByRole('heading', { name: 'Entre no Conexus' })).toBeVisible()
   await page.getByRole('link', { name: 'Entrar' }).click()
@@ -25,5 +25,9 @@ test('real Keycloak + PostgreSQL + Chromium complete bootstrap, normal re-entry 
   await expect(page.getByRole('heading', { name: 'Entre no Conexus' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Entrar' }).click()
+  await expect(page.locator('#username'), 'Keycloak asks for the password again').toBeVisible()
+  await page.locator('#username').fill('r1f-user')
+  await page.locator('#password').fill(userPassword)
+  await page.locator('#kc-login').click()
   await expect(page.getByRole('heading', { name: 'Sua conta está pronta' })).toBeVisible()
 })

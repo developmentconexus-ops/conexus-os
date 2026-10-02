@@ -588,8 +588,10 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const signingOut = await openWithPreview('refresh-signing-out')
     providerAnswer = { kind: 'UNAVAILABLE' }
     refreshes.length = 0
-    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), true, 'a sign-out while Keycloak is down still ends the session')
-    assert.deepEqual(refreshes, [], 'and never asks Keycloak')
+    assert.deepEqual(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), { refreshToken: 'refresh-signing-out' },
+      'a sign-out while Keycloak is down still ends the session, and hands back the refresh token once so Keycloak can be asked to end its SSO session')
+    assert.deepEqual(refreshes, [], 'and never refreshes it')
+    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), null, 'a second sign-out ends nothing and hands back nothing')
     assert.deepEqual(await ended(signingOut.hub.sessionToken), { ended_reason: 'SIGNED_OUT', provider_refresh_token: null })
     assert.deepEqual(await ended(signingOut.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null })
   })
@@ -630,7 +632,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
     const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
     assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
-    assert.equal(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), true)
+    assert.deepEqual(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), { refreshToken: 'refresh-owner' })
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
     assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
       [{ ended_reason: 'PARENT_ENDED' }])
