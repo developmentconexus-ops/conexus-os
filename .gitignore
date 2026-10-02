@@ -19,4 +19,3 @@ apps/hub/*-build-*/
 .artifacts/
 
 # Scratch static builds a browser test writes under apps/web
-apps/web/test-static-*

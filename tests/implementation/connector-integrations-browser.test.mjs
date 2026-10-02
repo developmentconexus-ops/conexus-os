@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import pg from 'pg'
@@ -25,7 +26,9 @@ const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'
 
 // One build of the real SPA, shared by every test in this file: the Hub serves it exactly as
 // production does (staticRoot), so a reload is a real server round trip, not a Vite dev artifact.
-const staticRoot = configured ? mkdtempSync(resolve(repositoryRoot, 'apps/web/test-static-')) : null
+// The build goes outside apps/web: every other browser suite serves that directory with a Vite dev
+// server running beside this one, and a file written inside it reloads their pages mid-test.
+const staticRoot = configured ? mkdtempSync(join(tmpdir(), 'conexus-web-static-')) : null
 if (staticRoot) {
   process.once('exit', () => rmSync(staticRoot, { recursive: true, force: true }))
   await build({
