@@ -763,8 +763,10 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
 }
 
 /**
- * A stop on a parked run. The run holds no session, so one is opened on its thread to settle its
- * calls; Mastra marks each as denied in the thread, as a stop on a run waiting in a session always did.
+ * Settles every call a run left open on its thread: the run holds no session, so one is opened on
+ * its thread, and Mastra marks each call as denied, as a stop on a run waiting in a session always
+ * did. With no call open it only reads the thread, so every ending of a run can call it and a second
+ * call changes nothing.
  */
 export const createParkedDiscard = ({ controller }: Readonly<{ controller: AgentController }>): BuilderRunPorts['discardParked'] => async ({ projectId, conversationId }) => {
   const resourceId = projectResourceId(projectId)

@@ -51,7 +51,30 @@ export type PromptEntry = Readonly<{
   toolName: string
   args: unknown
   prompt: unknown
+  /** When the thread stored the call; null for one raised on the live stream, which belongs to the run being followed. */
+  raisedAt: string | null
 }>
+
+type RunStart = Readonly<{ builderRunId: string; createdAt: string }>
+
+/**
+ * The run that raised a prompt the thread stored: the latest run that began no later than the call.
+ * The thread does not name the run, so the card is placed by time. A prompt on the live stream
+ * (`raisedAt` null) belongs to the run being followed.
+ */
+const promptRunId = (prompt: PromptEntry, runs: readonly RunStart[]): string | null => {
+  if (prompt.raisedAt === null) return null
+  const raised = Date.parse(prompt.raisedAt)
+  const began = (run: RunStart): number => Date.parse(run.createdAt)
+  const owner = runs.filter((run) => began(run) <= raised).sort((left, right) => began(right) - began(left))[0]
+  return owner?.builderRunId ?? ''
+}
+
+/** A card is open only for the run it was raised under; one left by an earlier run is not shown. */
+export const promptIsOpenFor = (prompt: PromptEntry, current: RunStart, runs: readonly RunStart[]): boolean => {
+  const owner = promptRunId(prompt, runs)
+  return owner === null || owner === current.builderRunId
+}
 
 export type TranscriptEntry = MessageEntry | NoticeEntry | PromptEntry
 
@@ -176,7 +199,7 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
     case 'tool_end':
       return withoutPrompt(withTool(state, event.toolCallId, (tool) => ({ ...tool, status: event.isError ? 'error' : 'done', result: event.result })), event.toolCallId)
     case 'tool_approval_required':
-      return pushPrompt(state, { kind: 'prompt', id: promptId(event.toolCallId), ask: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null })
+      return pushPrompt(state, { kind: 'prompt', id: promptId(event.toolCallId), ask: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null, raisedAt: null })
     case 'tool_suspended':
       return pushPrompt(state, suspensionPrompt(event.toolCallId, event.toolName, event.args, event.suspendPayload))
     case 'tool_suspension_cancelled':
@@ -199,8 +222,8 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
 
 const promptId = (toolCallId: string): string => `prompt-${toolCallId}`
 
-const suspensionPrompt = (toolCallId: string, toolName: string, args: unknown, prompt: unknown): PromptEntry =>
-  ({ kind: 'prompt', id: promptId(toolCallId), ask: toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId, toolName, args, prompt })
+const suspensionPrompt = (toolCallId: string, toolName: string, args: unknown, prompt: unknown, raisedAt: string | null = null): PromptEntry =>
+  ({ kind: 'prompt', id: promptId(toolCallId), ask: toolName === SUBMIT_PLAN_TOOL ? 'PLAN' : 'QUESTION', toolCallId, toolName, args, prompt, raisedAt })
 
 const withoutEntry = (state: TranscriptState, id: string): TranscriptState =>
   state.entries.some((entry) => entry.id === id) ? { ...state, entries: state.entries.filter((entry) => entry.id !== id) } : state
@@ -232,7 +255,10 @@ const persistedSuspensionPrompts = (message: MastraDBMessage): PromptEntry[] => 
   return Object.values(suspendedTools).flatMap((suspension: unknown) => {
     if (!suspension || typeof suspension !== 'object' || Array.isArray(suspension) || !('toolCallId' in suspension) || !('toolName' in suspension)
       || typeof suspension.toolCallId !== 'string' || typeof suspension.toolName !== 'string') return []
-    return [suspensionPrompt(suspension.toolCallId, suspension.toolName, 'args' in suspension ? suspension.args : undefined, 'suspendPayload' in suspension ? suspension.suspendPayload : undefined)]
+    // A call a stop denied keeps its record on the message; the tool part says it no longer waits.
+    const callId = suspension.toolCallId
+    if (message.content.parts.some((part) => part.type === 'tool-invocation' && part.toolInvocation.toolCallId === callId && part.toolInvocation.state !== 'call')) return []
+    return [suspensionPrompt(suspension.toolCallId, suspension.toolName, 'args' in suspension ? suspension.args : undefined, 'suspendPayload' in suspension ? suspension.suspendPayload : undefined, new Date(message.createdAt).toISOString())]
   })
 }
 

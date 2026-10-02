@@ -8,6 +8,7 @@ import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './sto
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
+import { logLine } from '../platform/logger.js'
 
 /** What became of a person's answer to a parked run. Only `RESUMED` took the run out of PARKED. */
 export type BuilderAnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED'
@@ -132,6 +133,18 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const failureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
+  }
+  // A run that ever asked a question leaves it open on the conversation thread whichever way it ends:
+  // a stop during the park, a refused park, a failed resumed leg or a restart. Mastra's own discard
+  // settles the open calls as denied; with none open it only reads the thread, so every ending
+  // calls this and a second call changes nothing. A failed discard is logged, never thrown, since the
+  // run's own ending must not depend on it.
+  const settleRun = async (run: Readonly<{ builderRunId: string; projectId: string; conversationId: string }>, terminal: 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART'): Promise<void> => {
+    try {
+      await runs.runtime.discardParked({ projectId: run.projectId, conversationId: run.conversationId })
+    } catch {
+      logLine(`BUILDER_PARKED_DISCARD_FAILED:${run.builderRunId}:${terminal}`, 'warn')
+    }
   }
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
     if (builderActive.has(run.builderRunId)) return
@@ -265,6 +278,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           sourceRevision: unadmitted.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
         }).catch(() => undefined)
       }
+      // The leg's session lets go of the thread before its open calls are settled.
+      await closeSession()
+      await settleRun(run, controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' ? 'USER_CANCELLED' : 'FAILED')
       // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
       if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
@@ -319,7 +335,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const result = await store.requestBuilderRunCancellation(input)
       const leg = builderActive.get(input.builderRunId)
       leg?.controller.abort()
-      if (!leg && result.state === 'INTERRUPTED') await runs.runtime.discardParked({ projectId: result.projectId, conversationId: result.conversationId }).catch(() => undefined)
+      // With a leg, its catch settles once the leg has let go of the thread.
+      if (!leg && result.state === 'INTERRUPTED') await settleRun(result, 'USER_CANCELLED')
       await publishRun(result)
       return result
     },
@@ -365,7 +382,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     readApplicationFileBySource,
     recover: async () => {
       if ((await recover(new Set())).length) reconcileSoon()
-      await store.recoverAndListQueuedBuilderRuns()
+      for (const run of await store.recoverBuilderRuns()) await settleRun(run, 'HUB_RESTART')
     },
     close,
   })

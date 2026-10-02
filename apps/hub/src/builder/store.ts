@@ -37,6 +37,9 @@ type BuilderPreview = Readonly<{
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 /** A run left running with a candidate; `main` in the Conexus Git says whether it was admitted. */
+/** A run a restart interrupted after it had started. */
+type RestartedRun = Readonly<{ builderRunId: string; projectId: string; conversationId: string }>
+
 type AdmissionRun = Readonly<{
   builderRunId: string
   projectId: string
@@ -72,7 +75,8 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
   // mainRevision is `main` as the Hub just read it from the Conexus Git.
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
-  recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
+  // Interrupts what a restart left running and answers the runs that had started, so the Hub can settle what each left open.
+  recoverBuilderRuns(): Promise<readonly RestartedRun[]>
   listAdmissionRuns(): Promise<readonly AdmissionRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
@@ -234,11 +238,9 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.admitted === true
   },
-  recoverAndListQueuedBuilderRuns: async () => {
-    const result = await executorPool.query<QueryResultRow & Readonly<{ builder_run_id: string }>>(
-      'SELECT builder.recover_builder_runs() AS builder_run_id',
-    )
-    return result.rows.map((row) => row.builder_run_id)
+  recoverBuilderRuns: async () => {
+    const result = await executorPool.query<JsonRow<readonly RestartedRun[]>>('SELECT builder.recover_builder_runs() AS value')
+    return result.rows[0]?.value ?? []
   },
   listAdmissionRuns: async () => {
     const result = await executorPool.query<JsonRow<readonly AdmissionRun[]>>('SELECT builder.list_admission_runs() AS value')

@@ -20,7 +20,7 @@ import {
   answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { localMessageId, type TaskSnapshot } from '../transcript.ts'
+import { localMessageId, promptIsOpenFor, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
@@ -146,7 +146,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
   // A call stays parked on the person only while the run that parked it is still going.
-  const pending = runHere && isActive(runHere) ? transcript.entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
+  // A card the thread kept from an earlier run is not open for this one.
+  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || (runHere !== null && promptIsOpenFor(entry, runHere, runs)))
+  const pending = runHere && isActive(runHere) ? openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the
@@ -319,7 +321,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
                   : <BuilderConversation
-                    entries={transcript.entries}
+                    entries={openEntries}
                     persistedRequests={persisted}
                     failure={runHere ?? null}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
