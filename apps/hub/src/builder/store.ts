@@ -84,6 +84,7 @@ export type BuilderStore = Readonly<{
   recordConversationSandbox(input: Readonly<{ projectId: string; conversationId: string; providerSandboxId: string }>): Promise<void>
   readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
   readProjectSandboxes(projectId: string): Promise<readonly string[]>
+  readOpenRunConversations(): Promise<ReadonlySet<string>>
   close(): Promise<void>
 }>
 
@@ -261,6 +262,10 @@ export const createBuilderStore = ({
   readProjectSandboxes: async (projectId) => {
     const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_project_sandboxes($1) AS value', [projectId])
     return result.rows[0]?.value ?? []
+  },
+  readOpenRunConversations: async () => {
+    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_open_run_conversations() AS value')
+    return new Set(result.rows[0]?.value ?? [])
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

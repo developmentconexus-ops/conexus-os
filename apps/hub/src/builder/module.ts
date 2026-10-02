@@ -28,11 +28,14 @@ import type { AccountId, ResolveCurrentSession } from '../identity-access/curren
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
+import type { ConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
+import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
+import { listPausedConversationMachines } from './sandbox.js'
 import { createConversationSessions } from './conversation-sessions.js'
 import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
@@ -258,7 +261,7 @@ export type BuilderConnectorPort = Readonly<{
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
@@ -279,6 +282,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
+  /** The conversations' sandboxes; absent, the Hub uses E2B. Only a test composition passes one. */
+  conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
   const log = (line: string): void => logLine(line)
@@ -375,7 +380,20 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
   const discardParked = createParkedDiscard({ controller })
-  const sandboxes = e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
+  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
+  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
+  const e2bSandboxes = () => {
+    const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
+    const idleMachineSweep = scheduleIdleMachineSweep({
+      listPaused: () => listPausedConversationMachines(e2bApiKey),
+      openRunConversations: store.readOpenRunConversations,
+      kill: sandboxes.killRecorded,
+      log,
+    })
+    return { sandboxes, idleMachineSweep }
+  }
+  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
   const runtime = createBuilderRunRuntime({
     openSandbox: sandboxes.open,
     openSession: async (input) => {
@@ -481,7 +499,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
     // Runs before the Project's purge, which drops the rows that name its VMs.
-    killProjectSandboxes: async (projectId: string) => sandboxes.killRecorded(await store.readProjectSandboxes(projectId)),
+    killProjectSandboxes: async (projectId: string) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
       const conversationIds = await conversations.deleteAll(projectId)
@@ -494,6 +512,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     recover: service.recover,
     close: async () => {
       retentionPrune.close()
+      idleMachineSweep?.close()
       try {
         service.stopLegs()
         await service.close()

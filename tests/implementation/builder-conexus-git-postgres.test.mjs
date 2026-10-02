@@ -204,6 +204,19 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [withCandidate])
   })
 
+  await t.test('read_open_run_conversations names the conversations with a queued or running run, for the executor only', async () => {
+    const openRun = randomUUID()
+    const read = () => one(connectionString, 'hub_builder_executor', 'SELECT builder.read_open_run_conversations()')
+    assert.deepEqual(await read(), [])
+    await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '7', openRun, CANDIDATE))
+    assert.deepEqual(await read(), [`conversation-${projectId}`], 'a queued run')
+    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [openRun])
+    assert.deepEqual(await read(), [`conversation-${projectId}`], 'a running run')
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_open_run_conversations()'), /permission denied/)
+    await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [openRun])
+    assert.deepEqual(await read(), [], 'a settled run')
+  })
+
   await t.test('deletion tombstones the Project and the purge removes its repository record with its runs', async () => {
     const [tombstone] = await callAs(connectionString, 'hub_project_command', 'SELECT * FROM project.begin_project_deletion($1,$2,$3)', [owner, projectId, 'Git app'])
     assert.deepEqual({ project_id: tombstone.project_id, completed_at: tombstone.completed_at }, { project_id: projectId, completed_at: null })

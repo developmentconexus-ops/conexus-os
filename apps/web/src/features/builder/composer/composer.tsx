@@ -19,6 +19,8 @@ import { reasoningLabels } from './reasoning-labels'
 export type ComposerMode =
   | Readonly<{ kind: 'READY' }>
   | Readonly<{ kind: 'NO_MODEL' }>
+  | Readonly<{ kind: 'LOADING_MODEL' }>
+  | Readonly<{ kind: 'MODEL_ERROR' }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
@@ -48,7 +50,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?',
+  memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?', onRetryModels,
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -68,6 +70,7 @@ export function BuilderComposer({
   // What the memory last failed at, until it succeeds at it again.
   memoryFailed?: MemoryOperation | null
   placeholder?: string
+  onRetryModels?: () => void
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [interim, setInterim] = useState('')
@@ -113,6 +116,8 @@ export function BuilderComposer({
   const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
+    LOADING_MODEL: 'Carregando modelos…',
+    MODEL_ERROR: 'Não foi possível carregar os modelos',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
     BLOCKED: 'O repositório está inacessível',
   }
@@ -172,6 +177,16 @@ export function BuilderComposer({
         </ComposerActions>
       </ComposerBox>
     </ComposerRing>
+    {mode.kind === 'MODEL_ERROR' && (
+      <div className="cx-composer-note" role="alert">
+        <span>Não foi possível carregar os modelos.</span>
+        {onRetryModels && (
+          <button type="button" className="cx-composer-retry" onClick={onRetryModels}>
+            Tentar novamente
+          </button>
+        )}
+      </div>
+    )}
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
     <div className="cx-composer-foot">
       {memory && <MemoryStatus memory={memory} failed={memoryFailed} />}

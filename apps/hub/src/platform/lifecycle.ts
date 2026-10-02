@@ -5,6 +5,16 @@ import type { PostgresConnection, PostgresPool } from './postgres.js'
 
 const SHUTDOWN_DEADLINE_MS = 15_000
 
+/**
+ * EX_CONFIG. A Hub that refuses to start because another Hub holds the database or the schema is
+ * behind its code would refuse again on every retry, so a supervisor must not restart it. Units
+ * name this code in RestartPreventExitStatus=.
+ */
+const REFUSED_START_EXIT_CODE = 78
+
+const isRefusedStart = (error: unknown): boolean =>
+  error instanceof Error && /^(HUB_ALREADY_RUNNING|HUB_SCHEMA_BEHIND:)/.test(error.message)
+
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/
 const UNDEFINED_TABLE = '42P01'
 
@@ -57,7 +67,7 @@ type ExitProcess = (code: number) => never
 export const installFatalHandlers = (exit: ExitProcess = (code) => process.exit(code)): void => {
   const fatal = (cause: 'unhandledRejection' | 'uncaughtException') => (error: unknown): never => {
     recordFailure(logger, 'HUB_FATAL', error, { 'hub.fatal.cause': cause })
-    return exit(1)
+    return exit(isRefusedStart(error) ? REFUSED_START_EXIT_CODE : 1)
   }
   process.on('unhandledRejection', fatal('unhandledRejection'))
   process.on('uncaughtException', fatal('uncaughtException'))
