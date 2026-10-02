@@ -84,6 +84,8 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
   const pid = rows[0].pid
 
   const inFlight = client.query('SELECT pg_sleep(2)')
+  // The termination below can reject the query before the assertion further down attaches its handler.
+  inFlight.catch(() => {})
 
   const activeSince = Date.now()
   for (;;) {
