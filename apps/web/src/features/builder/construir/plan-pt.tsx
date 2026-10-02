@@ -8,11 +8,11 @@ import type { PendingReply } from '../mastra-session'
 import { personPart } from './plan-sections'
 
 // The plan's reply, shown on the card and again in the reader: the same answer handler behind both.
-function PlanReply({ feedback, onFeedback, sending, failed, onAnswer, children }: Readonly<{
+function PlanReply({ feedback, onFeedback, sending, refusal, onAnswer, children }: Readonly<{
   feedback: string
   onFeedback: (value: string) => void
   sending: boolean
-  failed: boolean
+  refusal: string | null
   onAnswer: (value: PendingReply) => void
   children?: ReactNode
 }>) {
@@ -23,7 +23,7 @@ function PlanReply({ feedback, onFeedback, sending, failed, onAnswer, children }
       <Button className="cx-button-ink" size="sm" disabled={sending} onClick={() => onAnswer({ plan: { action: 'approved' } })}>Aprovar e construir</Button>
       <Button variant="default" size="sm" disabled={sending || !feedback.trim()} onClick={() => onAnswer({ plan: { action: 'rejected', feedback: feedback.trim() } })}>Pedir ajustes</Button>
     </div>
-    {failed && <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p>}
+    {refusal && <p className="cx-pending-error" role="alert">{refusal}</p>}
   </>
 }
 
@@ -32,11 +32,12 @@ function PlanReply({ feedback, onFeedback, sending, failed, onAnswer, children }
  * part on the card, the whole plan in the reader, and one reply in both. The parts' own copy and
  * expand buttons speak English, so the card does without them.
  */
-export function PlanPt({ title, plan, sending, failed, onAnswer }: Readonly<{
+export function PlanPt({ title, plan, sending, refusal, onAnswer }: Readonly<{
   title: string | null
   plan: string | null
   sending: boolean
-  failed: boolean
+  /** Why the last answer did not resume the run, in the person's words. */
+  refusal: string | null
   onAnswer: (value: PendingReply) => void
 }>) {
   const [feedback, setFeedback] = useState('')
@@ -45,7 +46,7 @@ export function PlanPt({ title, plan, sending, failed, onAnswer }: Readonly<{
     setReading(false)
     onAnswer(value)
   }
-  const reply = { feedback, onFeedback: setFeedback, sending, failed, onAnswer: answer }
+  const reply = { feedback, onFeedback: setFeedback, sending, refusal, onAnswer: answer }
   return <Plan role="region" aria-label="Plano para aprovar">
     <PlanHeader><PlanLabel>Plano</PlanLabel></PlanHeader>
     <PlanBody className="cx-plan-body">

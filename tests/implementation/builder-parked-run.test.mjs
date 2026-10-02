@@ -11,6 +11,7 @@ const { createBuilderController } = await import(hubModuleUrl('builder/harness/c
 const { createControllerRunSessions, createParkedDiscard } = await import(hubModuleUrl('builder/run-runtime.js'))
 const { createBuilderMemory } = await import(hubModuleUrl('builder/memory.js'))
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+const { parkedCallStanding } = await import(hubModuleUrl('builder/runtime.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
@@ -124,6 +125,9 @@ test('a call the thread does not hold is refused, and a stop settles the parked 
   await wrong.release()
   await createParkedDiscard({ controller: hub.controller })({ projectId, conversationId })
   assert.deepEqual((await storedToolResult(hub)).map(({ state }) => state), ['output-denied'])
+  const reader = await hub.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
+  assert.equal(await parkedCallStanding(reader, 'c1'), 'ABSENT', 'a call a stop denied waits on no answer')
+  await hub.controller.deleteSession({ resourceId, scope: 'reader' })
 })
 
 const summary = (state, phase) => ({ builderRunId: runId, projectId, conversationId, state, phase, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'faça um app', createdAt: '2026-10-01T00:00:00.000Z', cancellationRequested: false })
@@ -157,6 +161,7 @@ const parkedStore = () => {
 }
 const runsOver = (execute) => ({
   runtime: { execute, discardParked: async () => {} },
+  findParkedCall: async () => 'PARKED',
   conversations: { ownerOf: async () => 'PROJECT' },
   git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
   appendDiagnostic: async () => {},
@@ -182,9 +187,8 @@ test('the same answer sent twice resumes the run once, one sent while the run is
   await new Promise((wake) => { setTimeout(wake, 20) })
   assert.deepEqual(calls, [], 'nothing resumed while the first leg still holds its session')
   release()
-  const resumed = await early
-  assert.equal(resumed?.phase, 'PREPARING')
-  assert.equal(await service.answerBuilderRun(answer), null, 'the second answer to the same call changes nothing')
+  assert.equal(await early, 'RESUMED')
+  assert.equal(await service.answerBuilderRun(answer), 'ALREADY_ANSWERED', 'the second answer to the same call changes nothing')
   await service.close()
   assert.deepEqual(legs, [null, { toolCallId: 'c1', resumeData: ['Azul'] }])
   assert.deepEqual(calls, ['resume', 'settle'])
@@ -201,4 +205,52 @@ test('a run parked with no leg in this process, as after a restart, is answered 
   await service.close()
   assert.deepEqual(legs, [{ toolCallId: 'c1', resumeData: ['Azul'] }])
   assert.deepEqual(calls, ['resume', 'settle'])
+})
+
+// The Hub's service over the run's row and a real Mastra thread: the web app's answer reaches
+// `answerBuilderRun`, and a resumed leg answers the call through a new run session, as in production.
+const serviceOverThread = async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const { model, prompts } = askingModel()
+  const hub = await hubOver(t, storage, model)
+  const browser = await hub.controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId })
+  const asked = await hub.open()
+  assert.equal((await asked.sendTurn('faça um app')).reason, 'suspended')
+  await asked.park()
+  const { store, row, calls } = parkedStore()
+  row.state = 'RUNNING'
+  row.phase = 'PARKED'
+  const runs = runsOver(async (input) => {
+    const leg = await hub.open()
+    try { await leg.resumeTurn(input.resume) } finally { await leg.release() }
+    return settled('RESPONSE_ONLY')
+  })
+  const service = createBuilderService({
+    store, applicationArtifacts: {},
+    runs: { ...runs, findParkedCall: ({ toolCallId }) => parkedCallStanding(browser, toolCallId) },
+  })
+  const answer = (toolCallId) => service.answerBuilderRun({ accountId, projectId, builderRunId: runId, toolCallId, resumeData: ['Azul'] })
+  return { service, row, calls, prompts, answer }
+}
+
+test('an answer to a call the run is not parked on is refused, the run stays parked, and its question can still be answered', async (t) => {
+  const { service, row, calls, prompts, answer } = await serviceOverThread(t)
+  const refused = await answer('forged')
+  assert.deepEqual({ state: row.state, phase: row.phase, calls }, { state: 'RUNNING', phase: 'PARKED', calls: [] }, 'the run is still parked and nothing resumed it')
+  assert.equal(refused, 'NOT_PARKED')
+  assert.equal(await answer('c1'), 'RESUMED')
+  await service.close()
+  assert.deepEqual({ state: row.state, calls }, { state: 'SUCCEEDED', calls: ['resume', 'settle'] })
+  assert.ok(prompts[1].includes('User answered'), 'the original question was answered after the refusal')
+})
+
+test('a second answer to a call already answered is told apart as ALREADY_ANSWERED, during its leg and after the run settled', async (t) => {
+  const { service, row, answer } = await serviceOverThread(t)
+  const first = answer('c1')
+  assert.equal(await answer('c1'), 'ALREADY_ANSWERED', 'a double click while the answer is resuming the run')
+  assert.equal(await first, 'RESUMED')
+  await service.close()
+  assert.equal(row.state, 'SUCCEEDED')
+  assert.equal(await answer('c1'), 'ALREADY_ANSWERED', 'an old card answered again once the run is over')
 })
