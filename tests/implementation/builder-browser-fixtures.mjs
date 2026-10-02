@@ -2,7 +2,7 @@
 export const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads
 // them from the Builder's controller and holds none. A model with no key is never offered.
-export const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
+const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
 export const BUILDER_MODELS = [
   { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
   { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
@@ -12,8 +12,8 @@ export const SELECTED_MODEL = BUILDER_MODELS[0].id
 // A Project's conversations are its threads, as the native threads route lists them.
 export const conversation = (id, title, createdAt = '2026-09-20T12:00:00.000Z') => ({ id, title, createdAt, updatedAt: createdAt })
 
-export const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
-export const scopeOf = (url) => new URL(url).searchParams.get('sessionScope') ?? ''
+const threadIdOf = (url, offsetFromEnd) => decodeURIComponent(new URL(url).pathname.split('/').at(offsetFromEnd))
+const scopeOf = (url) => new URL(url).searchParams.get('sessionScope') ?? ''
 export const conversationOf = (url) => scopeOf(url).replace(/^conversation:/, '')
 
 // Every Project is developed through the Builder's controller: its conversations are the threads
