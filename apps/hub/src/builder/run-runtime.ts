@@ -1,5 +1,6 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
+import { Sandbox } from 'e2b'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
@@ -301,6 +302,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     // Set once the checkout holds the turn's start; the turn end mirrors it however the run ends.
     let mirror: TurnMirror | undefined
     let incarnation: string | undefined
+    // Set before the run's `start()`: from then on the instance may hold a VM this run made or resumed.
+    let started = false
     let unusable = false
     // The leg ended on a question for the person, so the session is parked, not released.
     let parked = false
@@ -346,6 +349,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
 
       // The conversation's VM resumes when E2B still has it; a new one is created only when it has none.
+      started = true
       await sandbox.start()
       // The first command replaces a VM E2B already reaped, so the run records the incarnation
       // that will actually run it.
@@ -614,7 +618,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       else await closeSession()
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
-      else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
+      // A run that started and is not live kills its VM, a failed start included: no VM it made or
+      // resumed is left running or paused behind it.
+      else if (started) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
       ports.log(timing.line(input.executionId))
     }
   },
@@ -798,15 +804,30 @@ export const createParkedDiscard = ({ controller }: Readonly<{ controller: Agent
  * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
  * gets a new one.
  */
-export const e2bConversationSandboxes = ({ apiKey, templateId, create = createConversationSandbox, log = () => undefined }: Readonly<{
+// A deleted Project's kill waits on E2B at most this long per VM, so an unreachable provider never holds the deletion.
+const PROVIDER_KILL_TIMEOUT_MS = 15_000
+
+export const e2bConversationSandboxes = ({
+  apiKey,
+  templateId,
+  create = createConversationSandbox,
+  killProvider = (providerSandboxId) => Sandbox.kill(providerSandboxId, { apiKey, requestTimeoutMs: PROVIDER_KILL_TIMEOUT_MS }),
+  log = () => undefined,
+}: Readonly<{
   apiKey: string
   templateId: string
   create?: typeof createConversationSandbox
+  killProvider?: (providerSandboxId: string) => Promise<boolean>
   log?: (line: string) => void
 }>): Readonly<{
   open: BuilderRunPorts['openSandbox']
   /** The conversations are gone for good: their instances are dropped, and the VMs they hold are killed. */
   destroy(conversationIds: readonly string[]): Promise<void>
+  /**
+   * Kills the VMs by the provider ids the Hub recorded, running, paused or held by an earlier Hub
+   * process. A VM E2B no longer has counts as killed; a kill that fails is logged and never throws.
+   */
+  killRecorded(providerSandboxIds: readonly string[]): Promise<void>
 }> => {
   // `opened` counts the runs that took the instance, so a pause that finishes after a later run took it drops nothing.
   const kept = new Map<string, { readonly sandbox: RunSandbox; opened: number }>()
@@ -856,6 +877,11 @@ export const e2bConversationSandboxes = ({ apiKey, templateId, create = createCo
           log(`BUILDER_SANDBOX_KILL_FAILED:${conversationId}:${error instanceof Error ? error.message : String(error)}`)
         })
       }
+    },
+    killRecorded: async (providerSandboxIds) => {
+      await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).catch((error: unknown) => {
+        log(`BUILDER_SANDBOX_KILL_FAILED:${providerSandboxId}:${error instanceof Error ? error.message : String(error)}`)
+      })))
     },
   })
 }

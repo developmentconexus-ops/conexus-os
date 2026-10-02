@@ -1998,3 +1998,85 @@ for (const width of [1536, 1700]) {
     )
   })
 }
+
+const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: null, runHistory: [] })
+const stubSessionReads = async (page, accountId, projectId, answer) => {
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    const status = answer()
+    return route.fulfill(status === 200
+      ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
+      : { status, contentType: 'application/json', body: '{}' })
+  })
+}
+// The session is polled again whenever the page regains focus, which makes a poll deterministic.
+const pollNow = (page) => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+
+test('failed background polls keep the chat and show a note until a poll succeeds', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000071'
+  const projectId = '70000000-0000-4000-8000-000000000072'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+  const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
+  assert.equal(await note.count(), 0)
+
+  status = 503
+  await pollNow(page)
+  await note.waitFor()
+  assert.equal(await page.getByText('Não foi possível abrir o Construir').count(), 0)
+  assert.equal(await messageBox(page).count(), 1, 'the composer stays')
+
+  status = 200
+  await pollNow(page)
+  await note.waitFor({ state: 'detached' })
+  assert.equal(await messageBox(page).count(), 1)
+})
+
+test('a 403 poll after a good load shows the denied screen', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000075'
+  const projectId = '70000000-0000-4000-8000-000000000076'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 403
+  await pollNow(page)
+  await page.getByText('Você não pode construir neste Project').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a 401 poll after a good load signs the user out', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000077'
+  const projectId = '70000000-0000-4000-8000-000000000078'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 401
+  await pollNow(page)
+  await page.getByText('Sessão encerrada').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a first load that fails still shows the error page', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000073'
+  const projectId = '70000000-0000-4000-8000-000000000074'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  await stubSessionReads(page, accountId, projectId, () => 503)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Não foi possível abrir o Construir').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})

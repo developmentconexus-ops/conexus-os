@@ -57,7 +57,7 @@ const fakePorts = (pool, overrides = {}) => {
   }
   return {
     calls,
-    ports: { releaseApplicationData: step('releaseApplicationData'), deleteRepository: step('deleteRepository') },
+    ports: { releaseApplicationData: step('releaseApplicationData'), killSandboxes: step('killSandboxes'), deleteRepository: step('deleteRepository') },
   }
 }
 
@@ -85,15 +85,30 @@ test('#322 orchestrator refuses the wrong confirmation name and a busy Project b
   }
 })
 
-test('#322 deletion releases the application data, purges, deletes the repository, then completes', async () => {
+test('#322 deletion releases the application data, kills the VMs before the purge, deletes the repository, then completes', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
   const commandPool = fakePool()
   const { ports, calls } = fakePorts(commandPool)
 
   await createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input)
-  assert.deepEqual(calls, [['releaseApplicationData', projectId], ['deleteRepository', projectId]])
+  assert.deepEqual(calls, [['releaseApplicationData', projectId], ['killSandboxes', projectId], ['deleteRepository', projectId]])
   assert.deepEqual(commandPool.statements.map((statement) => statement.match(/port:\w+|\w+_project(?:_deletion)?/)[0]),
-    ['begin_project_deletion', 'port:releaseApplicationData', 'purge_project', 'port:deleteRepository', 'complete_project_deletion'])
+    ['begin_project_deletion', 'port:releaseApplicationData', 'port:killSandboxes', 'purge_project', 'port:deleteRepository', 'complete_project_deletion'])
+})
+
+test('#413 a VM read that fails stops the deletion before the purge, so a rerun still finds the VMs to kill', async () => {
+  const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
+  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const firstAttempt = fakePool()
+  const failing = fakePorts(firstAttempt, { killSandboxes: async () => { throw new Error('BUILDER_READ_FAILED') } })
+  await assert.rejects(createProjectDeletionOrchestrator({ commandPool: firstAttempt, ports: failing.ports }).deleteProject(input),
+    (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
+  assert.equal(firstAttempt.statements.some((statement) => statement.includes('project.purge_project')), false)
+
+  const rerunPool = fakePool()
+  const rerun = fakePorts(rerunPool)
+  await createProjectDeletionOrchestrator({ commandPool: rerunPool, ports: rerun.ports }).deleteProject(input)
+  assert.deepEqual(rerun.calls.map(([name]) => name), ['releaseApplicationData', 'killSandboxes', 'deleteRepository'])
 })
 
 test('#322 a repository failure after the database purge leaves a tombstoned Project that a rerun completes', async () => {
@@ -104,7 +119,7 @@ test('#322 a repository failure after the database purge leaves a tombstoned Pro
   const failing = fakePorts(firstAttempt, { deleteRepository: async () => { throw new Error('CONEXUS_GIT_FAILED') } })
   await assert.rejects(createProjectDeletionOrchestrator({ commandPool: firstAttempt, ports: failing.ports }).deleteProject(input),
     (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
-  assert.deepEqual(failing.calls.map(([name]) => name), ['releaseApplicationData', 'deleteRepository'])
+  assert.deepEqual(failing.calls.map(([name]) => name), ['releaseApplicationData', 'killSandboxes', 'deleteRepository'])
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('project.purge_project')), true)
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('complete_project_deletion')), false)
 
@@ -112,7 +127,7 @@ test('#322 a repository failure after the database purge leaves a tombstoned Pro
   const rerunPool = fakePool()
   const rerun = fakePorts(rerunPool)
   await createProjectDeletionOrchestrator({ commandPool: rerunPool, ports: rerun.ports }).deleteProject(input)
-  assert.deepEqual(rerun.calls.map(([name]) => name), ['releaseApplicationData', 'deleteRepository'])
+  assert.deepEqual(rerun.calls.map(([name]) => name), ['releaseApplicationData', 'killSandboxes', 'deleteRepository'])
   assert.equal(rerunPool.statements.some((statement) => statement.includes('complete_project_deletion')), true)
 })
 

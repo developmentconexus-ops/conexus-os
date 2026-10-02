@@ -19,7 +19,7 @@ import { registerBuilderRoutes } from './routes.js'
 import { registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
-import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
+import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, parkedCallStanding } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
@@ -399,6 +399,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     conversations,
     source: createProjectSourceReads({ git }),
     appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
+    findParkedCall: async ({ projectId, conversationId, toolCallId }) => parkedCallStanding(await conversationSession(projectResourceId(projectId), conversationId), toolCallId),
     // Into the session the run's turns go through, which the browser's stream follows. The
     // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
     publishRun: async (run) => {
@@ -462,8 +463,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         runContext: (scope) => runContexts.get(scope),
         answerParked: async ({ accountId, projectId, conversationId, toolCallId, resumeData }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
-          if (latest?.conversationId !== conversationId) throw new Error('BUILDER_RUN_NOT_FOUND')
-          await service.answerBuilderRun({ accountId, projectId, builderRunId: latest.builderRunId, toolCallId, resumeData })
+          if (latest?.conversationId !== conversationId) return 'NOT_PARKED'
+          return service.answerBuilderRun({ accountId, projectId, builderRunId: latest.builderRunId, toolCallId, resumeData })
         },
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
       })
@@ -479,6 +480,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
+    // Runs before the Project's purge, which drops the rows that name its VMs.
+    killProjectSandboxes: async (projectId: string) => sandboxes.killRecorded(await store.readProjectSandboxes(projectId)),
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
       const conversationIds = await conversations.deleteAll(projectId)

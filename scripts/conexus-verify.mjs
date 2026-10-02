@@ -70,7 +70,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs tests/implementation/connector-fetch-postgres.test.mjs', 'postgres'),
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
-  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs'),
+  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs tests/implementation/builder-web-fetch.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),
@@ -215,6 +215,24 @@ export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
 
 export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
 
+// CI runs the graph as four jobs, each on its own machine with its own PostgreSQL and CPU, so no
+// step shares a host resource with a step of another group. A step's group follows from what it
+// needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. The Builder screen
+// suite alone takes about 150 s, so it is a group of its own and the other browser suites share
+// the fourth, which keeps the groups close in length. Two steps belong to every group: the Hub
+// build, which publishes the compiled Hub the suites import, and the skip check, which reads the
+// ledger of the job it runs in.
+export const VERIFY_GROUPS = Object.freeze(['builder-ui', 'browser', 'postgres', 'rest'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest' })
+const BUILDER_UI_STEPS = new Set(['c020-browser'])
+const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
+
+export const groupsOf = (step) => {
+  if (EVERY_GROUP.has(step.scope)) return VERIFY_GROUPS
+  return [BUILDER_UI_STEPS.has(step.scope) ? 'builder-ui' : GROUP_OF_CLASS[step.environmentClass]]
+}
+export const graphForGroup = (graph, group) => graph.filter(step => groupsOf(step).includes(group))
+
 // A change that touches only documentation runs these steps: every step that reads a Markdown file,
 // plus the OpenAPI bundle the bijection check reads, the census and the skip check that close every run. The path test lives in
 // scripts/ci-change-scope.mjs.
@@ -261,7 +279,7 @@ export function loadPackageScripts(root = repositoryRoot) {
 }
 
 export function parseArguments(argv = process.argv.slice(2)) {
-  const options = { scopes: [], list: false, dryRun: false, json: false, help: false }
+  const options = { scopes: [], list: false, dryRun: false, json: false, help: false, group: null }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -280,6 +298,14 @@ export function parseArguments(argv = process.argv.slice(2)) {
     }
     if (argument === '--json') {
       options.json = true
+      continue
+    }
+
+    if (argument === '--group' || argument.startsWith('--group=')) {
+      if (argument === '--group') index += 1
+      const value = argument === '--group' ? argv[index] : argument.slice('--group='.length)
+      if (!VERIFY_GROUPS.includes(value)) throw new VerificationCliError(`--group must be one of ${VERIFY_GROUPS.join(', ')}`)
+      options.group = value
       continue
     }
 
@@ -479,6 +505,7 @@ export function runVerification({
   packageScripts,
   root = repositoryRoot,
   dryRun = false,
+  group = null,
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
@@ -487,7 +514,8 @@ export function runVerification({
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
-  const entries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const graphEntries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const entries = group ? graphForGroup(graphEntries, group) : graphEntries
   const records = []
   const published = {}
   const testLedger = newTestLedger(root)
@@ -543,7 +571,7 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group builder-ui|browser|postgres|rest] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',
@@ -619,6 +647,7 @@ export function main(argv = process.argv.slice(2)) {
       scopes: options.scopes,
       packageScripts,
       dryRun: options.dryRun,
+      group: options.group,
     })
     printResult(result, options.json)
     writeStepSummary(result)
