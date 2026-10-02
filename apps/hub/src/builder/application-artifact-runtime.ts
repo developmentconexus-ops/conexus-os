@@ -25,7 +25,8 @@ type CompiledApplicationFile = Readonly<{
   sha256: string
 }>
 
-type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
+/** A by-product of the check, retained beside the compiled application and never part of it. */
+export type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
 
 export type CompiledApplication = Readonly<{
   projectId: string
@@ -34,7 +35,6 @@ export type CompiledApplication = Readonly<{
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
   executionId: string
-  thumbnail?: CompiledApplicationThumbnail
 }>
 
 const hasControlCharacter = (value: string): boolean => [...value].some((character) => {

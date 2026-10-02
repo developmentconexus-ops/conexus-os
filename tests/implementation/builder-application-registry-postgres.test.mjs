@@ -162,3 +162,80 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
   assert.equal(await createServedApplicationReader(runtime).readThumbnail({ accountId: randomUUID(), projectId }), null)
 })
+
+test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {
+  await refuseProtectedCluster()
+  const database = `registry_thumbnail_${randomUUID().replaceAll('-', '')}`
+  const owner = await connect(admin)
+  let setup
+  let runtime
+  await owner.query(`CREATE DATABASE "${database}"`)
+  t.after(async () => { await runtime?.end(); await setup?.end(); await owner.query(`DROP DATABASE "${database}" WITH (FORCE)`); await owner.end() })
+  const config = { ...admin, database }
+  const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
+  await runHubMigrations({ connectionString: url.toString() })
+  const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
+  const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+  setup = await connect(config)
+  const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
+  const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40); const digest = 'f'.repeat(64)
+  await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.thumbnail', $2, 'Thumbnail')", [accountId, accountId])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Thumbnail Registry'])
+  await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
+  await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Thumbnail app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
+  await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+  await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, base_source_revision, state, candidate_revision)
+    VALUES ($1, $2, $3, $7, $4, $5, $5, $6, 'RUNNING', $8)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA, `conversa-${projectId}`, sourceB])
+  await setup.query("INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'thumbnail-app', $2)", [projectId, accountId])
+  await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-thumbnail-test'")
+  runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-thumbnail-test' })
+  assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
+
+  const store = createApplicationArtifactStore()
+  const bytes = Buffer.from('<!doctype html><title>Thumbnail</title>')
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
+  const compiledApplication = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060', recipeSha256: '4ce6f3a6b1233edb4a3f8741751239c7d43bf70c0b8e75318106ac08543ab05d', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
+  const settled = []
+  const run = { builderRunId, projectId, state: 'QUEUED', baseSourceRevision: sourceA, resultSourceRevision: null, resultKind: null, failureCode: null }
+  const service = createBuilderService({
+    store: {
+      createBuilderRun: async () => run,
+      claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+      setBuilderRunPhase: async () => {},
+      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
+      failBuilderRun: async (_id, code) => settled.push(['fail', code]), close: async () => {},
+      advanceBuilderRunSource: async () => {},
+      settleBuilderRunBuild: async (input) => {
+        settled.push(['build-settle', input.failureCode ?? null, Boolean(input.artifactRevisionId)])
+        assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [input.builderRunId, input.sourceRevision, input.artifactRevisionId ?? null, input.artifactDigest ?? null, input.failureCode ?? null])).rows[0].settled, true)
+      },
+    },
+    runs: {
+      runtime: {
+        execute: async () => ({
+          projectId, executionId: builderRunId, sandboxId: 'sandbox', baseSourceRevision: sourceA, summary: 'alterado', kind: 'SOURCE_ADMITTED', resultSourceRevision: sourceB,
+          applicationBuild: { kind: 'BUILT', compiledApplication, thumbnail: { mediaType: 'image/png', bytes: png } },
+        }),
+        discardParked: async () => {},
+      },
+      publishRun: async () => {},
+      conversations: { ownerOf: async () => 'PROJECT' },
+      git: { readMain: async () => sourceA, mainContains: async () => false },
+      appendDiagnostic: async (note) => settled.push(['note', note.code]),
+      source: { listSourceTree: async () => { throw new Error('not reached') }, readSourceFile: async () => { throw new Error('not reached') } },
+    },
+    applicationArtifacts: {
+      retainApplication: (input) => store.retainApplication(runtime, input),
+      retainApplicationThumbnail: (input) => store.retainApplicationThumbnail(runtime, input),
+    },
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
+  await service.close()
+
+  assert.deepEqual(settled, [['build-settle', null, true]])
+  const stored = await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })
+  assert.equal(stored.projectId, projectId)
+  const thumbnail = await store.getApplicationThumbnail(runtime, { accountId, projectId })
+  assert.equal(thumbnail.artifactRevisionId, stored.artifactRevisionId)
+  assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), png.toString('hex'))
+})

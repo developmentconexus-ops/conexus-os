@@ -282,11 +282,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         })
         const server = await prepareApplicationServer(applicationServer, result.applicationBuild.compiledApplication)
         if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
-        await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
-          artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
-        if (result.applicationBuild.compiledApplication.thumbnail && applicationArtifacts.retainApplicationThumbnail) {
-          const thumbnail = result.applicationBuild.compiledApplication.thumbnail
+        // The registry admits a thumbnail only for a run that is still working, so it is retained before the settlement.
+        const thumbnail = result.applicationBuild.thumbnail
+        if (thumbnail && applicationArtifacts.retainApplicationThumbnail) {
           if (thumbnail.bytes.byteLength > 0 && thumbnail.bytes.byteLength <= 512000) {
             await applicationArtifacts.retainApplicationThumbnail({
               accountId: input.accountId,
@@ -301,6 +299,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
             })
           }
         }
+        await finalizing()
+        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
+          artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
         if (result.applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', result.applicationBuild.bootProblems)
       } catch (error) {
         const code = failureCode(error)

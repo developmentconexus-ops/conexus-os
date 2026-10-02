@@ -637,8 +637,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
-          ...(built.thumbnail ? { thumbnail: built.thumbnail } : {}),
-        }, ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
+        }, ...(built.thumbnail ? { thumbnail: built.thumbnail } : {}), ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
         else throw new Error('APPLICATION_CHECK_UNREADABLE')
       } catch (error) {
         const code = error instanceof Error ? error.message : ''
