@@ -177,6 +177,10 @@ test('the global conexus-server skill matches the check it documents', async () 
   assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
   assert.match(guide, /never add a name or author field to the input/)
   assert.doesNotMatch(guide, /conexus\/check\.sh/)
+  // The built-ins the guide lists are exactly the ones the check admits.
+  const { SUPPORTED_NODE_IMPORTS } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+  const listed = /these `node:` built-ins: ([\s\S]*?)\. There are/.exec(guide)[1].match(/`node:[^`]+`/g).map((name) => name.slice(1, -1))
+  assert.deepEqual(listed, [...SUPPORTED_NODE_IMPORTS])
 })
 
 test('writes only the shape file a checkout lacks, and never over a symlink', async () => {

@@ -10,6 +10,7 @@ import { hubRoleNames, provisionApplicationDatabase } from '../../scripts/provis
 import { applicationClusterAdmin, loginThroughRelay, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
 import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { SHARED_LIBRARY_PROJECT, SUPPORTED_NODE_IMPORTS, buildServerProject, serverFilesOf } from './server-build-fixture.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
 import { EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
@@ -307,6 +308,23 @@ test('the runner reads relay TLS only from a private directory holding exactly i
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+// One gate: a tree the Project check passed is one the runner prepares and serves, shared chunks
+// included, rather than one it refuses after the Builder was told the source was fine. The shared
+// chunk imports every supported built-in, so serving it under the default sandbox (bubblewrap and
+// Node's permission layer) shows each one loads there.
+test('the runner prepares and serves exactly what the Project check built, every supported built-in loaded', async (t) => {
+  const built = buildServerProject(t, SHARED_LIBRARY_PROJECT)
+  assert.equal(built.status, 0, built.stderr)
+  const files = serverFilesOf(built.out)
+  const chunks = files.filter((entry) => entry.path.startsWith('conexus-server/chunks/')).map((entry) => Buffer.from(entry.content, 'base64').toString('utf8')).join('\n')
+  for (const name of SUPPORTED_NODE_IMPORTS) assert.match(chunks, new RegExp(`from "${name}"|import "${name}"`), `the shared chunk imports ${name}`)
+  const { supervisor, projects: [project] } = await setup(t)
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  const invoke = (operation, input) => supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER })
+  assert.deepEqual(await invoke('doubleValue', { value: 1.234 }), { status: 200, body: { value: 2.47 } })
+  assert.deepEqual(await invoke('tripleValue', { value: 2 }), { status: 200, body: { value: 6 } })
 })
 
 // The arena's reviewed cases, run with Node's permission layer off, so what they report is what the

@@ -19,7 +19,7 @@ const PREPARE_TIMEOUT_MS = 120_000
 const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 
 // The runner's own admission names two refusals about the Project's compiled server tree:
-// SERVER_TREE_REFUSED (admitServerTree, supervisor.ts) and MANIFEST_REFUSED (admitManifest,
+// SERVER_TREE_REFUSED (admitServerTree, server-manifest.ts) and MANIFEST_REFUSED (admitManifest,
 // server-manifest.ts). Both are facts about the Project's own build, so the Builder sees the exact
 // code. Anything else prepare threw, a database or allocation fault, a malformed request, the
 // runner's own generic PREPARE_FAILED, is not something the source caused, so it collapses to the

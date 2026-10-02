@@ -102,9 +102,13 @@ export async function changeTicketStatus(input: Input<'changeTicketStatus'>, { d
   this run's instructions says how to write the request and read the answer.
 - Always pass values as parameters (`$1`, `$2`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
-- A handler may import only files inside `conexus/` and `node:` built-ins. There are no npm packages,
-  no network (`connectors.fetch` is the only way to a company system), no file system and no
-  environment variables. Each call runs isolated for at most 5 seconds and answers at most 1 MiB.
+- A handler may import only files inside `conexus/` and these `node:` built-ins: `node:assert`,
+  `node:assert/strict`, `node:buffer`, `node:crypto`, `node:events`, `node:path`, `node:perf_hooks`,
+  `node:querystring`, `node:stream`, `node:stream/promises`, `node:stream/web`, `node:string_decoder`,
+  `node:timers`, `node:timers/promises`, `node:url`, `node:util`, `node:util/types` and `node:zlib`. There are no npm packages, no network (`fetch`, `WebSocket` and the like do not exist;
+  `connectors.fetch` is the only way to a company system), no file system and no environment
+  variables. Each declared `export` must be a function the handler file exports. Each call runs
+  isolated for at most 5 seconds and answers at most 1 MiB.
 - Postgres `integer` arrives as a number; `bigint` and `numeric` arrive as strings; `timestamptz`
   arrives as an ISO string. Declare decimals as `string` in the output and keep them as text: the
   screen formats them with `lib/format.ts`, and sums belong in SQL. Alias columns to the names the
