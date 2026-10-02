@@ -253,8 +253,10 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
     recordConversationSession: async (input) => { sessions.push(input) },
-    listAdmissionRuns: async () => row.running && row.candidate
-      ? [{ builderRunId: runId, projectId, conversationId, baseSourceRevision: base, candidateRevision: row.candidate, resultSourceRevision: row.result }]
+    // A run a leg of this Hub works is beating; one with a candidate and no beat is stale.
+    heartbeatBuilderRuns: async (_owner, ids) => { row.beating = ids.includes(runId) },
+    takeOverStaleBuilderRuns: async () => row.running && row.candidate && !row.beating
+      ? [{ builderRunId: runId, projectId, conversationId, started: true, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
       : [],
     close: async () => {},
   }
@@ -277,7 +279,6 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       },
       source: createProjectSourceReads({ git }),
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
-      reconcileEveryMs: 5,
     },
   })
   const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
@@ -300,8 +301,14 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   // The candidate the run offered, as the Conexus Git holds it under the run's own ref.
   const result = () => inBare('rev-parse', '--verify', '--quiet', `refs/conexus/runs/${runId}`) || null
   const commands = () => events.filter((event) => typeof event === 'string')
+  // The run's own ending, or the lease's: a heartbeat for the legs in flight, then a sweep.
   const settled = async () => {
-    for (let attempt = 0; row.running && attempt < 400; attempt++) await new Promise((wake) => { setTimeout(wake, 5) })
+    for (let attempt = 0; row.running && attempt < 400; attempt++) {
+      row.beating = false
+      await service.heartbeat()
+      await service.sweep()
+      if (row.running) await new Promise((wake) => { setTimeout(wake, 5) })
+    }
     return !row.running
   }
   return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
@@ -426,13 +433,13 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   assert.deepEqual(unconfigured.diagnostics.map(({ code, outcome }) => [code, outcome]), [['APPLICATION_RUNNER_UNAVAILABLE', 'PLATFORM_FAILED']])
 })
 
-test('a fast forward that moved main and then failed is admitted by reconciliation, never failed or disowned', async (t) => {
+test('a fast forward that moved main and then failed is admitted by a sweep, never failed or disowned', async (t) => {
   const run = await harness(t, {
     build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') },
     afterFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') },
   })
   await run.start()
-  assert.equal(await run.settled(), true, 'reconciled without a restart')
+  assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)
@@ -440,19 +447,19 @@ test('a fast forward that moved main and then failed is admitted by reconciliati
   assert.deepEqual(run.diagnostics, [])
 })
 
-test('a fast forward that failed before main moved fails the run with the discarded note once reconciliation reads main', async (t) => {
+test('a fast forward that failed before main moved fails the run with the discarded note once a sweep reads main', async (t) => {
   const run = await harness(t, { beforeFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') } })
   await run.start()
-  assert.equal(await run.settled(), true, 'reconciled without a restart')
+  assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()
   assert.equal(await run.main(), run.base)
   assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['fail', 'BUILDER_SOURCE_ADMISSION_FAILED']])
 })
 
-test('a database failure recording the advance after main moved leaves the run pending, and reconciliation admits it', async (t) => {
+test('a database failure recording the advance after main moved leaves the run pending, and a sweep admits it', async (t) => {
   const run = await harness(t, { lostAdvances: 1 })
   await run.start()
-  assert.equal(await run.settled(), true, 'reconciled without a restart')
+  assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)

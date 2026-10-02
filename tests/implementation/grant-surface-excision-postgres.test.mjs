@@ -144,13 +144,13 @@ test('removing the member stops the next claim and still records the work alread
   const queuedRunId = randomUUID()
   await createRun(connection, member, running, runningRunId)
   await createRun(connection, member, queued, queuedRunId)
-  assert.equal((await query(connection, 'SELECT builder.claim_builder_run($1) AS value',
+  assert.equal((await query(connection, 'SELECT builder.claim_builder_run($1, gen_random_uuid()) AS value',
     [runningRunId])).rows[0].value.state, 'RUNNING')
 
   await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [owner, workspaceId, member])
 
   // A claim asks for new authority and is refused.
-  assert.deepEqual(await refusal(connection, 'SELECT builder.claim_builder_run($1)',
+  assert.deepEqual(await refusal(connection, 'SELECT builder.claim_builder_run($1, gen_random_uuid())',
     [queuedRunId]), { code: '42501', message: 'NOT_ADMITTED' })
 
   // Settlement records what the run already performed, so it does not ask.

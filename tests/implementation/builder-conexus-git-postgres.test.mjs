@@ -147,15 +147,12 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
   })
 
   await t.test('a run records one candidate, advances only to it, and settles its build', async () => {
-    assert.equal((await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [runId])).state, 'RUNNING')
+    assert.equal((await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1, gen_random_uuid())', [runId])).state, 'RUNNING')
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.advance_builder_run_source($1,$2)', [runId, CANDIDATE]), false)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [runId, 'main']), false)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [runId, CANDIDATE]), true)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [runId, CANDIDATE]), true)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [runId, OTHER]), false)
-    assert.deepEqual(await one(connectionString, 'hub_builder_executor', 'SELECT builder.list_admission_runs()', []), [{
-      builderRunId: runId, projectId, conversationId: `conversation-${projectId}`, baseSourceRevision: STARTER, candidateRevision: CANDIDATE, resultSourceRevision: null,
-    }])
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.settle_builder_run($1,$2,$3,$4)', [runId, null, 'RESPONSE_ONLY', null]), false)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.advance_builder_run_source($1,$2)', [runId, OTHER]), false)
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.advance_builder_run_source($1,$2)', [runId, CANDIDATE]), true)
@@ -169,7 +166,6 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual((await query(connectionString, 'SELECT state, result_kind, candidate_revision, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1', [runId])).rows, [
       { state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', candidate_revision: CANDIDATE, result_source_revision: CANDIDATE },
     ])
-    assert.deepEqual(await one(connectionString, 'hub_builder_executor', 'SELECT builder.list_admission_runs()', []), [])
   })
 
   await t.test('the source view admits main as the Hub read it, the last Preview and the latest changing run', async () => {
@@ -185,22 +181,21 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.read_preview_subject($1,$2)', [outsider, projectId]), null)
   })
 
-  await t.test('recovery interrupts queued runs and runs without a candidate, and keeps one that offered a candidate', async () => {
-    const withoutCandidate = randomUUID()
-    await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '5', withoutCandidate, CANDIDATE))
-    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [withoutCandidate])
-    assert.deepEqual(await one(connectionString, 'hub_builder_executor', 'SELECT builder.recover_builder_runs()', []), [{ builderRunId: withoutCandidate, projectId, conversationId: `conversation-${projectId}` }], 'the restart answers the run it interrupted')
-    assert.deepEqual(await one(connectionString, 'hub_builder_executor', 'SELECT builder.recover_builder_runs()', []), [], 'a second restart interrupts nothing more')
+  await t.test('a stale run is taken over once with what its settling needs, and a fresh heartbeat keeps it from the sweep', async () => {
+    const gone = '0e000000-0000-4000-8000-000000000001'
+    const sweeper = '0e000000-0000-4000-8000-000000000002'
     const withCandidate = randomUUID()
     await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '6', withCandidate, CANDIDATE))
-    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [withCandidate])
+    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1,$2)', [withCandidate, gone])
     await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [withCandidate, OTHER])
-    await one(connectionString, 'hub_builder_executor', 'SELECT builder.recover_builder_runs()', [])
-    assert.deepEqual((await query(connectionString, 'SELECT builder_run_id, state, failure_code FROM builder.builder_run WHERE builder_run_id = ANY($1) ORDER BY created_at', [[withoutCandidate, withCandidate]])).rows, [
-      { builder_run_id: withoutCandidate, state: 'INTERRUPTED', failure_code: 'HUB_RESTART' },
-      { builder_run_id: withCandidate, state: 'RUNNING', failure_code: null },
-    ])
-    assert.deepEqual((await one(connectionString, 'hub_builder_executor', 'SELECT builder.list_admission_runs()', [])).map((run) => run.builderRunId), [withCandidate])
+    const takeOver = (staleAfterMs) => one(connectionString, 'hub_builder_executor', 'SELECT builder.take_over_stale_builder_runs($1,$2)', [sweeper, staleAfterMs])
+    assert.deepEqual(await takeOver(60_000), [], 'a heartbeat younger than the limit keeps the run')
+    assert.deepEqual(await takeOver(0), [{
+      builderRunId: withCandidate, projectId, conversationId: `conversation-${projectId}`, started: true, candidateRevision: OTHER, resultSourceRevision: null, previousOwnerId: gone,
+    }])
+    assert.deepEqual(await takeOver(60_000), [], 'the takeover is a fresh heartbeat of its own')
+    assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.heartbeat_builder_runs($1,$2)', [gone, [withCandidate]]), 0, 'the old owner no longer beats for it')
+    assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.heartbeat_builder_runs($1,$2)', [sweeper, [withCandidate]]), 1)
     await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [withCandidate])
   })
 
@@ -210,7 +205,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual(await read(), [])
     await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '7', openRun, CANDIDATE))
     assert.deepEqual(await read(), [`conversation-${projectId}`], 'a queued run')
-    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [openRun])
+    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1, gen_random_uuid())', [openRun])
     assert.deepEqual(await read(), [`conversation-${projectId}`], 'a running run')
     assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_open_run_conversations()'), /permission denied/)
     await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [openRun])
@@ -245,14 +240,14 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
       SELECT n.nspname || '.' || p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       CROSS JOIN pg_roles r
-      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'list_admission_runs', 'create_project_with_repository', 'register_project_repository')
+      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'take_over_stale_builder_runs', 'create_project_with_repository', 'register_project_repository')
         AND r.rolname LIKE 'hub\\_%' AND has_function_privilege(r.oid, p.oid, 'EXECUTE')
       GROUP BY 1 ORDER BY 1`)
     assert.deepEqual(rows, [
       { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress'] },
       { name: 'builder.create_builder_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.list_admission_runs', roles: ['hub_builder_executor'] },
       { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress'] },
+      { name: 'builder.take_over_stale_builder_runs', roles: ['hub_builder_executor'] },
       { name: 'project.create_project_with_repository', roles: ['hub_project_command'] },
     ])
   })

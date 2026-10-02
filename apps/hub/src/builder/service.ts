@@ -1,10 +1,11 @@
+import { randomUUID } from 'node:crypto'
 import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { CandidateRefused } from './run-runtime.js'
 import type { BuilderRunRuntime } from './run-runtime.js'
 import type { ParkedCallStanding } from './runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
-import type { BuilderRunSummary, BuilderStore } from './store.js'
+import type { BuilderRunSummary, BuilderStore, TakenOverRun } from './store.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import { builderFailureCategory } from './failure-vocabulary.js'
@@ -27,7 +28,13 @@ export type BuilderService = Readonly<{
   compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
   getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
-  recover(): Promise<void>
+  /** Refreshes the heartbeat of every run a leg of this Hub works, so no sweep takes it over. */
+  heartbeat(): Promise<void>
+  /**
+   * Takes over every run whose owner went quiet (a crash, a restart, or an ending whose write
+   * failed) and settles it. A run a sweep could not settle is taken over again by a later one.
+   */
+  sweep(): Promise<void>
   /** Aborts every running leg for a Hub that is stopping; each settles its run INTERRUPTED HUB_RESTART. */
   stopLegs(): void
   close(): Promise<void>
@@ -59,39 +66,34 @@ export type BuilderRunDependencies = Readonly<{
   findParkedCall(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string }>): Promise<ParkedCallStanding>
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation. */
   publishRun(run: BuilderRunSummary): Promise<void>
-  reconcileEveryMs?: number
   /** The wait before a failed settle write is tried again; it is tried three times. */
   settleRetryMs?: number
+  /** How long a run's owner may go without a heartbeat before a sweep takes the run over. */
+  staleAfterMs?: number
+  /** This Hub process as the owner of the runs its legs work; a new one at every start. */
+  ownerId?: string
 }>
 
+/** Three heartbeats missed. */
+const RUN_STALE_AFTER_MS = 30_000
+
 /**
- * Settles every running run with a candidate that no run in this process still owns, whatever phase
- * it stopped in; the candidate may be on `main`. When the run already recorded its advance, or
- * `main`'s history holds the candidate, the run is admitted with the last good Preview kept; both
- * writes converge when repeated. A candidate `main` lacks fails the run. Answers the runs it could
- * not settle, which stay running.
+ * Settles a run with a candidate whatever phase it stopped in; the candidate may be on `main`. When
+ * the run already recorded its advance, or `main`'s history holds the candidate, the run is admitted
+ * with the last good Preview kept; both writes converge when repeated. A candidate `main` lacks
+ * fails the run.
  */
-const recoverAdmissions = async ({ store, git, active }: Readonly<{
-  store: Pick<BuilderStore, 'listAdmissionRuns' | 'advanceBuilderRunSource' | 'settleBuilderRunBuild' | 'failBuilderRun'>
+const settleAdmission = async ({ store, git }: Readonly<{
+  store: Pick<BuilderStore, 'advanceBuilderRunSource' | 'settleBuilderRunBuild' | 'failBuilderRun'>
   git: BuilderRunDependencies['git']
-  active: ReadonlySet<string>
-}>): Promise<readonly string[]> => {
-  const unsettled: string[] = []
-  for (const run of await store.listAdmissionRuns()) {
-    if (active.has(run.builderRunId)) continue
-    const candidate = run.candidateRevision
-    try {
-      if (run.resultSourceRevision !== candidate && !await git.mainContains(run.projectId, candidate)) {
-        await store.failBuilderRun(run.builderRunId, 'BUILDER_SOURCE_ADMISSION_FAILED')
-        continue
-      }
-      await store.advanceBuilderRunSource(run.builderRunId, candidate)
-      await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
-    } catch {
-      unsettled.push(run.builderRunId)
-    }
+}>, run: TakenOverRun & Readonly<{ candidateRevision: string }>): Promise<void> => {
+  const candidate = run.candidateRevision
+  if (run.resultSourceRevision !== candidate && !await git.mainContains(run.projectId, candidate)) {
+    await store.failBuilderRun(run.builderRunId, 'BUILDER_SOURCE_ADMISSION_FAILED')
+    return
   }
-  return unsettled
+  await store.advanceBuilderRunSource(run.builderRunId, candidate)
+  await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
 }
 
 // How a run ended, for the settle of its open question.
@@ -108,8 +110,12 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   applicationServer?: ApplicationServerPort
   runs: BuilderRunDependencies
 }>): BuilderService => {
-  // Runs an answer is moving out of PARKED: owned from before the database transition until the leg is registered.
-  const resuming = new Set<string>()
+  const ownerId = runs.ownerId ?? randomUUID()
+  const staleAfterMs = runs.staleAfterMs ?? RUN_STALE_AFTER_MS
+  // How each run this Hub took over and has not yet settled lost its owner. A settle that failed
+  // leaves the run owned here, so the next sweep takes it from this Hub and must not read that as
+  // this Hub's own lost ending.
+  const takenOver = new Map<string, 'SETTLE_LOST' | 'OWNER_GONE'>()
   // A run's legs: the work now in flight for it. A parked run has none; its session stays live for the answer.
   const builderActive = new Map<string, Readonly<{
     controller: AbortController
@@ -121,39 +127,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   }>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
-  let reconcileTimer: ReturnType<typeof setTimeout> | null = null
-  let reconciling: Promise<void> = Promise.resolve()
-  const recover = (active: ReadonlySet<string>): Promise<readonly string[]> => recoverAdmissions({ store, git: runs.git, active })
-  // Candidate runs left running are settled here, again and again until the Conexus Git and the database answer.
-  const reconcile = async (): Promise<void> => {
-    const active = new Set(builderActive.keys())
-    const unsettled = await recover(active).then((ids) => ids.length > 0, () => true)
-    if (await settleUnowned(active).then((left) => left, () => true) || unsettled) reconcileSoon()
-  }
-  // A run still running that no leg of this Hub owns lost its ending to a failed write. Answers
-  // whether one is left unsettled. A leg dispatched since the list was read owns its run.
-  const settleUnowned = async (active: ReadonlySet<string>): Promise<boolean> => {
-    let left = false
-    for (const run of await store.listUnownedRunCandidates()) {
-      if (active.has(run.builderRunId) || builderActive.has(run.builderRunId) || resuming.has(run.builderRunId)) continue
-      try {
-        await store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST')
-        logLine(`BUILDER_RUN_SETTLED_BY_RECONCILE:${run.builderRunId}`, 'warn')
-        await settleRun(run, 'FAILED')
-      } catch {
-        left = true
-      }
-    }
-    return left
-  }
-  const reconcileSoon = (): void => {
-    if (reconcileTimer || serviceClosing) return
-    reconcileTimer = setTimeout(() => {
-      reconcileTimer = null
-      reconciling = reconciling.then(reconcile)
-    }, runs.reconcileEveryMs ?? 30_000)
-    reconcileTimer.unref?.()
-  }
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
   // one never stops a run or a stop request.
   const publishRun = async (run: BuilderRunSummary): Promise<void> => {
@@ -176,13 +149,13 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     }
   }
   // A run's ending is written again after a short wait, as a database blip is common and the
-  // Project answers PROJECT_BUSY while its row stays running. When every try fails the timer settles the row.
+  // Project answers PROJECT_BUSY while its row stays running. When every try fails, the leg is gone
+  // and its heartbeat with it, so a sweep takes the row over and settles it.
   const writeEnding = async (builderRunId: string, write: () => Promise<void>): Promise<void> => {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try { await write(); return } catch (error) {
         if (attempt === 3) {
           logLine(`BUILDER_RUN_SETTLE_FAILED:${builderRunId}:${failureCode(error)}`, 'error')
-          reconcileSoon()
           return
         }
         await new Promise((wake) => { setTimeout(wake, runs.settleRetryMs ?? 500) })
@@ -220,7 +193,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     }
     const work = (async () => {
       // An answered run was taken out of PARKED by the answer, which is its claim.
-      const claimed = input.resume ? run : await store.claimBuilderRun(run.builderRunId)
+      const claimed = input.resume ? run : await store.claimBuilderRun(run.builderRunId, ownerId)
       await setPhase('PREPARING')
       const conversation = { projectId: claimed.projectId, conversationId: claimed.conversationId }
       const result = await runs.runtime.execute({
@@ -326,11 +299,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }
     })().catch(async (error) => {
       const code = failureCode(error)
-      // Its source may be on main: the run stays running with its candidate until reconciliation settles it.
-      if (candidateRecorded && !NOT_ADMITTED.has(code)) {
-        reconcileSoon()
-        return
-      }
+      // Its source may be on main: the run stays running with its candidate until a sweep, once
+      // this leg's heartbeat has lapsed, reads `main` and settles it.
+      if (candidateRecorded && !NOT_ADMITTED.has(code)) return
       const unadmitted: BuilderRunSummary | null = unadmittedAgentRun
       if (unadmitted) {
         // A refused candidate says why, so the next turn in this conversation can fix it.
@@ -386,8 +357,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     serviceClosing = (async () => {
       applicationShutdown.abort()
       await Promise.all([...builderActive.values()].map(({ work }) => work))
-      if (reconcileTimer) clearTimeout(reconcileTimer)
-      await reconciling
       await store.close()
     })()
     return serviceClosing
@@ -431,16 +400,13 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         case 'PARKED': break
         default: { const unhandled: never = standing; return unhandled }
       }
-      resuming.add(builderRunId)
-      try {
-        const resumed = await store.resumeBuilderRun(builderRunId)
-        // Another answer took the run out of PARKED since the check.
-        if (!resumed) return answeredByLeg() ? 'ALREADY_ANSWERED' : 'NOT_PARKED'
-        dispatchBuilderRun(resumed, { accountId, content: resumed.requestText ?? '', resume: { toolCallId, resumeData } })
-        return 'RESUMED'
-      } finally {
-        resuming.delete(builderRunId)
-      }
+      // The answer takes the run under this Hub with a fresh heartbeat, so no sweep takes it over
+      // before its leg is registered.
+      const resumed = await store.resumeBuilderRun(builderRunId, ownerId)
+      // Another answer took the run out of PARKED since the check.
+      if (!resumed) return answeredByLeg() ? 'ALREADY_ANSWERED' : 'NOT_PARKED'
+      dispatchBuilderRun(resumed, { accountId, content: resumed.requestText ?? '', resume: { toolCallId, resumeData } })
+      return 'RESUMED'
     },
     listSourceTree: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
@@ -457,9 +423,27 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     },
     getApplicationBySource,
     readApplicationFileBySource,
-    recover: async () => {
-      if ((await recover(new Set())).length) reconcileSoon()
-      for (const run of await store.recoverBuilderRuns()) await settleRun(run, 'HUB_RESTART')
+    heartbeat: async () => {
+      if (builderActive.size > 0) await store.heartbeatBuilderRuns(ownerId, [...builderActive.keys()])
+    },
+    sweep: async () => {
+      for (const run of await store.takeOverStaleBuilderRuns(ownerId, staleAfterMs)) {
+        // This Hub's own leg is gone with its ending unwritten; any other owner stopped with its process.
+        const loss = takenOver.get(run.builderRunId) ?? (run.previousOwnerId === ownerId ? 'SETTLE_LOST' : 'OWNER_GONE')
+        takenOver.set(run.builderRunId, loss)
+        const lostOwnEnding = loss === 'SETTLE_LOST'
+        logLine(`BUILDER_RUN_TAKEN_OVER:${run.builderRunId}:${loss}`, 'warn')
+        try {
+          if (run.candidateRevision) await settleAdmission({ store, git: runs.git }, { ...run, candidateRevision: run.candidateRevision })
+          else {
+            await (lostOwnEnding ? store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST') : store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
+            if (run.started) await settleRun(run, lostOwnEnding ? 'FAILED' : 'HUB_RESTART')
+          }
+          takenOver.delete(run.builderRunId)
+        } catch (error) {
+          logLine(`BUILDER_RUN_SWEEP_SETTLE_FAILED:${run.builderRunId}:${failureCode(error)}`, 'error')
+        }
+      }
     },
     stopLegs: () => { for (const { controller } of builderActive.values()) controller.abort(HUB_STOPPING) },
     close,

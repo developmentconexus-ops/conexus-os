@@ -57,6 +57,7 @@ const modelAccountSharingHistoryDigest = 'c01d71477794fcbe974b1a239ec0e90d65e11c
 const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba798fceb05a77dbcf4'
 const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
 const listUnownedRunsDigest = 'b4653fc811f6bde04150b561aa240130cbe3da2ce2c93a954faf702ec3307dd9'
+const runLeaseDigest = '470019ea818885d1d729e16a2ac83020a30ce9ffb3599075b932293a1206324e'
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
 const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
 const hubSignOutProviderLogoutDigest = '082ef3a53dabaddc24937bcb0f236d0d8107287d4d73cdf35f9c27f8abf42413'
@@ -112,6 +113,7 @@ const migrationDigests = new Map([
   ['0048_application_thumbnail.sql', applicationThumbnailDigest],
   ['0049_builder_list_unowned_runs.sql', listUnownedRunsDigest],
   ['0050_hub_sign_out_provider_logout.sql', hubSignOutProviderLogoutDigest],
+  ['0051_builder_run_lease.sql', runLeaseDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -20,6 +20,7 @@ const run = (cwd, args) => execFileSync('git', args, {
 // A database and a Conexus Git holding one run per crash, each as a Hub stopped after its last
 // durable write. Every Project's history is starter, result, then one commit on top; each crash
 // sets `main` to one of them, and the run's candidate is always the result.
+const SWEEPER = '0f000000-0000-4000-8000-000000000001'
 const recoveryHarness = async (t, name, crashes) => {
   const { connectionString, connection, onCleanup } = await buildHubDatabase(t, name)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-recovery-'))
@@ -53,9 +54,10 @@ const recoveryHarness = async (t, name, crashes) => {
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, crash.name, base])
     await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
     await query(connectionString, `
-      INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', $8)`,
-    [builderRunId, projectId, owner, randomUUID(), builderRunId.replaceAll('-', '').padEnd(64, '0'), 'f'.repeat(64), base, crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase])
+      INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase, started_at, owner_id, parked_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $8 = 'RUNNING' THEN clock_timestamp() END, $10, CASE WHEN $9 = 'PARKED' THEN clock_timestamp() END)`,
+    [builderRunId, projectId, owner, randomUUID(), builderRunId.replaceAll('-', '').padEnd(64, '0'), 'f'.repeat(64), base, crash.queued ? 'QUEUED' : 'RUNNING',
+      crash.queued ? null : crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase, crash.owner ?? null])
     if (crash.candidate) assert.equal((await executorPool.query('SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, result])).rows[0].value, true)
     if (crash.advanced) {
       await store.advanceBuilderRunSource(builderRunId, result)
@@ -80,7 +82,8 @@ const recoveryHarness = async (t, name, crashes) => {
       },
       source: {},
       appendDiagnostic: async () => { throw new Error('not reached') },
-      reconcileEveryMs: 10,
+      ownerId: SWEEPER,
+      staleAfterMs: 0,
     },
   })
   onCleanup(() => service.close())
@@ -97,7 +100,7 @@ const notAdmitted = { state: 'FAILED', result_kind: null, result_source_revision
 const admitted = { state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: 'RESULT', failure_code: 'BUILDER_PREVIEW_NOT_BUILT' }
 const pending = { state: 'RUNNING', result_kind: null, result_source_revision: null, failure_code: null }
 
-test('recovery settles every unsettled run by whether main holds its candidate, after a stop at each durable write', async (t) => {
+test('a sweep settles every stale run by whether main holds its candidate, after a stop at each durable write', async (t) => {
   const crashes = [
     { name: 'compiled', phase: 'COMPILING', candidate: false, main: 'BASE', expected: interrupted },
     { name: 'offered-not-landed', phase: 'SOURCE_ADMISSION', candidate: true, main: 'BASE', expected: notAdmitted },
@@ -107,30 +110,28 @@ test('recovery settles every unsettled run by whether main holds its candidate, 
     { name: 'advanced', phase: 'SOURCE_ADMISSION', candidate: true, main: 'RESULT', advanced: true, expected: admitted },
     { name: 'finalizing', phase: 'FINALIZING', candidate: true, main: 'RESULT', advanced: true, expected: admitted },
     { name: 'parked-on-a-question', phase: 'PARKED', candidate: false, main: 'BASE', expected: pending },
+    { name: 'queued-never-claimed', queued: true, candidate: false, main: 'BASE', expected: interrupted },
+    { name: 'own-ending-lost', phase: 'AGENT', candidate: false, main: 'BASE', owner: SWEEPER, expected: { state: 'FAILED', result_kind: null, result_source_revision: null, failure_code: 'BUILDER_RUN_SETTLE_LOST' } },
   ]
   const { service, runs, rows } = await recoveryHarness(t, 'conexus_run_recovery', crashes)
-  await service.recover()
-  // A second recovery over the settled rows changes nothing.
-  await service.recover()
+  await service.sweep()
+  // A second sweep over the settled rows changes nothing.
+  await service.sweep()
   assert.deepEqual(await rows(), Object.fromEntries(runs.map(({ name, expected }) => [name, expected])))
 })
 
-test('a candidate recovery cannot confirm while the Conexus Git fails stays running, and is admitted once it answers, without another restart', async (t) => {
+test('a candidate a sweep cannot confirm while the Conexus Git fails stays running, and the next sweep admits it once it answers', async (t) => {
   const crashes = [
     { name: 'landed-unconfirmed', phase: 'SOURCE_ADMISSION', candidate: true, main: 'RESULT' },
     { name: 'compiled', phase: 'COMPILING', candidate: false, main: 'BASE' },
   ]
   const { service, rows, outage } = await recoveryHarness(t, 'conexus_run_recovery_outage', crashes)
   outage.active = true
-  await service.recover()
+  await service.sweep()
   assert.deepEqual(await rows(), { 'landed-unconfirmed': pending, compiled: interrupted })
   outage.active = false
-  let settled = await rows()
-  for (let attempt = 0; attempt < 300 && settled['landed-unconfirmed'].state === 'RUNNING'; attempt++) {
-    await new Promise((wake) => { setTimeout(wake, 10) })
-    settled = await rows()
-  }
-  assert.deepEqual(settled, { 'landed-unconfirmed': admitted, compiled: interrupted })
+  await service.sweep()
+  assert.deepEqual(await rows(), { 'landed-unconfirmed': admitted, compiled: interrupted })
 })
 
 test('a run that started in Planejar and built after the plan approval records, advances and settles its source (AC-4)', async (t) => {
@@ -163,39 +164,47 @@ test('a run that started in Planejar and built after the plan approval records, 
   })
 })
 
-test('a parked run survives recovery, one answer takes it out of PARKED, and a stop on a parked run interrupts it with no worker to tell', async (t) => {
+test('a parked run survives a sweep, one answer takes it out of PARKED under its owner, and a stop on a parked run interrupts it with no worker to tell', async (t) => {
   const crashes = [
     { name: 'answered', phase: 'PARKED', candidate: false, main: 'BASE' },
     { name: 'stopped', phase: 'PARKED', candidate: false, main: 'BASE' },
     { name: 'working', phase: 'AGENT', candidate: false, main: 'BASE' },
   ]
   const { service, runs, rows, store, connectionString } = await recoveryHarness(t, 'conexus_run_parked', crashes)
-  await service.recover()
+  await service.sweep()
   const [answered, stopped, working] = runs
-  assert.deepEqual(await rows(), { answered: pending, stopped: pending, working: interrupted }, 'a restart interrupts the run that was working and leaves the parked ones')
-  const phase = async ({ builderRunId }) => (await query(connectionString, 'SELECT state, phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
+  assert.deepEqual(await rows(), { answered: pending, stopped: pending, working: interrupted }, 'a sweep interrupts the run that was working and leaves the parked ones')
+  const phase = async ({ builderRunId }) => (await query(connectionString, 'SELECT state, phase, owner_id, parked_at IS NULL AS unparked FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
 
-  const [first, second] = await Promise.all([store.resumeBuilderRun(answered.builderRunId), store.resumeBuilderRun(answered.builderRunId)])
+  const answering = '0f000000-0000-4000-8000-000000000002'
+  const [first, second] = await Promise.all([store.resumeBuilderRun(answered.builderRunId, answering), store.resumeBuilderRun(answered.builderRunId, answering)])
   assert.deepEqual([first === null, second === null].sort(), [false, true], 'of two answers, one takes the run back to work')
-  assert.deepEqual(await phase(answered), { state: 'RUNNING', phase: 'PREPARING' })
-  assert.equal(await store.resumeBuilderRun(answered.builderRunId), null, 'a run that is working is not resumed again')
+  assert.deepEqual(await phase(answered), { state: 'RUNNING', phase: 'PREPARING', owner_id: answering, unparked: true })
+  assert.equal(await store.resumeBuilderRun(answered.builderRunId, answering), null, 'a run that is working is not resumed again')
+  assert.deepEqual(await store.takeOverStaleBuilderRuns(SWEEPER, 30_000), [], 'the answer is a fresh heartbeat, so no sweep takes the run before its leg starts')
+  await store.setBuilderRunPhase(answered.builderRunId, 'PARKED')
+  assert.deepEqual(await phase(answered), { state: 'RUNNING', phase: 'PARKED', owner_id: null, unparked: false }, 'parking again lets go of the owner')
 
   const [{ account_id: accountId }] = (await query(connectionString, 'SELECT account_id FROM builder.builder_run WHERE builder_run_id = $1', [stopped.builderRunId])).rows
   const cancelled = await store.requestBuilderRunCancellation({ accountId, projectId: stopped.projectId, builderRunId: stopped.builderRunId })
   assert.equal(cancelled.state, 'INTERRUPTED')
-  assert.deepEqual(await phase(stopped), { state: 'INTERRUPTED', phase: null })
-  assert.equal(await store.resumeBuilderRun(stopped.builderRunId), null, 'a stopped run is not answered')
+  assert.deepEqual(await phase(stopped), { state: 'INTERRUPTED', phase: null, owner_id: null, unparked: false })
+  assert.equal(await store.resumeBuilderRun(stopped.builderRunId, answering), null, 'a stopped run is not answered')
   assert.equal(working.name, 'working')
 })
 
-test('the list of runs no leg may own holds the running runs with no candidate and none parked or admitted', async (t) => {
+test('a heartbeat keeps its runs from every sweep, a parked run is never taken, and two sweeps at once take each stale run once', async (t) => {
+  const live = '0f000000-0000-4000-8000-000000000003'
   const crashes = [
-    { name: 'compiled', phase: 'COMPILING', candidate: false, main: 'BASE' },
-    { name: 'preparing', phase: 'PREPARING', candidate: false, main: 'BASE' },
-    { name: 'offered', phase: 'SOURCE_ADMISSION', candidate: true, main: 'BASE' },
+    { name: 'beating', phase: 'AGENT', candidate: false, main: 'BASE', owner: live },
+    { name: 'quiet-a', phase: 'PREPARING', candidate: false, main: 'BASE' },
+    { name: 'quiet-b', phase: 'COMPILING', candidate: false, main: 'BASE' },
     { name: 'parked', phase: 'PARKED', candidate: false, main: 'BASE' },
   ]
-  const { runs, store } = await recoveryHarness(t, 'conexus_run_unowned_list', crashes)
-  const listed = new Set((await store.listUnownedRunCandidates()).map(({ builderRunId }) => builderRunId))
-  assert.deepEqual(runs.filter(({ builderRunId }) => listed.has(builderRunId)).map(({ name }) => name), ['compiled', 'preparing'])
+  const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
+  await query(connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 minute', created_at = clock_timestamp() - interval '1 minute'")
+  await store.heartbeatBuilderRuns(live, [runs[0].builderRunId])
+  const [one, other] = await Promise.all([store.takeOverStaleBuilderRuns(SWEEPER, 30_000), store.takeOverStaleBuilderRuns('0f000000-0000-4000-8000-000000000004', 30_000)])
+  const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
+  assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b'])
 })

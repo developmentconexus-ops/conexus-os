@@ -272,35 +272,6 @@ test('a run parked with no leg in this process, as after a restart, is answered 
   assert.deepEqual(calls, ['resume', 'settle'])
 })
 
-test('a reconcile pass while an answer is moving the run out of PARKED does not fail the run', async () => {
-  const { store, row, calls } = parkedStore()
-  row.state = 'RUNNING'
-  row.phase = 'PARKED'
-  let resumeRow
-  const resumed = new Promise((wake) => { resumeRow = wake })
-  const resumeInDatabase = store.resumeBuilderRun
-  store.resumeBuilderRun = async (id) => { const result = await resumeInDatabase(id); await resumed; return result }
-  // A candidate run the database keeps refusing keeps the reconcile timer running.
-  store.listAdmissionRuns = async () => [{ builderRunId: 'stuck', projectId, candidateRevision: 'b'.repeat(40), resultSourceRevision: null }]
-  store.advanceBuilderRunSource = async () => { throw new Error('DATABASE_DOWN') }
-  store.recoverBuilderRuns = async () => []
-  store.listUnownedRunCandidates = async () => (row.state === 'RUNNING' && row.phase !== 'PARKED' ? [{ builderRunId: runId, projectId, conversationId }] : [])
-  const legs = []
-  const service = createBuilderService({
-    store, applicationArtifacts: {},
-    runs: { ...runsOver(async (input) => { legs.push(input.resume); return settled('RESPONSE_ONLY') }), git: { readMain: async () => 'a'.repeat(40), mainContains: async () => true }, reconcileEveryMs: 5 },
-  })
-  await service.recover()
-  const answering = service.answerBuilderRun({ accountId, projectId, builderRunId: runId, toolCallId: 'c1', resumeData: ['Azul'] })
-  await new Promise((wake) => { setTimeout(wake, 100) })
-  assert.deepEqual(calls, ['resume'], 'the row is running again and no leg is registered yet')
-  resumeRow()
-  assert.equal(await answering, 'RESUMED')
-  await service.close()
-  assert.deepEqual(calls, ['resume', 'settle'], 'the sweep did not fail the resumed run')
-  assert.deepEqual(legs, [{ toolCallId: 'c1', resumeData: ['Azul'] }])
-})
-
 // The Hub's service over the run's row and a real Mastra thread: the web app's answer reaches
 // `answerBuilderRun`, and a resumed leg answers the call through a new run session, as in production.
 const serviceOverThread = async (t) => {
@@ -366,7 +337,6 @@ const endingOverThread = async (t, { asks = 1 } = {}) => {
     if (phase === 'PARKED' && stopped.requested) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
     row.phase = phase
   }
-  store.recoverBuilderRuns = async () => []
   const open = async () => {
     const reader = await hub.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
     try {
@@ -421,7 +391,7 @@ test('a park the database refuses settles the question as denied, and the run en
 })
 
 test('a Hub that crashes while a resumed leg waits on a second question settles it on restart, and a second settle changes nothing', async (t) => {
-  const { hub, store, row, open, serviceOver, storage } = await endingOverThread(t, { asks: 2 })
+  const { hub, store, row, calls, open, serviceOver, storage } = await endingOverThread(t, { asks: 2 })
   const first = await hub.open()
   await first.sendTurn('faça um app')
   await first.end()
@@ -438,17 +408,20 @@ test('a Hub that crashes while a resumed leg waits on a second question settles 
   assert.deepEqual((await open()).open, ['c2'], 'the second question is open when the Hub dies')
 
   const after = await hubOver(t, storage, askingModel({ asks: 2 }).model)
+  // The next Hub's sweep takes the run over once the dead Hub's heartbeat is stale.
+  const stale = [{ builderRunId: runId, projectId, conversationId, started: true, candidateRevision: null, resultSourceRevision: null, previousOwnerId: 'the-dead-hub' }]
   const restarted = createBuilderService({
-    store: { ...store, recoverBuilderRuns: async () => [{ builderRunId: runId, projectId, conversationId }], listAdmissionRuns: async () => [] },
+    store: { ...store, takeOverStaleBuilderRuns: async () => stale },
     applicationArtifacts: {},
     runs: { ...runsOver(async () => { throw new Error('not used') }), runtime: { execute: async () => { throw new Error('not used') }, discardParked: createParkedDiscard({ controller: after.controller }) } },
   })
-  await restarted.recover()
+  await restarted.sweep()
+  assert.deepEqual({ state: row.state, calls: calls.slice(-1) }, { state: 'INTERRUPTED', calls: [['interrupt', 'HUB_RESTART']] })
   const reader = await after.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
   const standing = async () => ({ open: (await readParkedCalls(reader)).map((call) => call.toolCallId), c2: await parkedCallStanding(reader, 'c2') })
   assert.deepEqual(await standing(), { open: [], c2: 'ABSENT' })
-  await restarted.recover()
-  assert.deepEqual(await standing(), { open: [], c2: 'ABSENT' }, 'settling again leaves the same end state')
+  await restarted.sweep()
+  assert.deepEqual(await standing(), { open: [], c2: 'ABSENT' }, 'settling the run again, as a sweep that takes it over twice does, leaves the same end state')
   const states = (await reader.thread.listActiveMessages()).flatMap((message) => message.content.parts)
     .filter((part) => part.type === 'tool-invocation').map((part) => `${part.toolInvocation.toolCallId}:${part.toolInvocation.state}`)
   assert.deepEqual(states, ['c1:result', 'c2:output-denied'])
