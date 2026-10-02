@@ -282,7 +282,11 @@ step 5 are the check, and the Chromium scenarios above run before the merge.
   with no deadline, and every new app now waits on the card. Measure the waits in the eval and the
   pilot before adding a timeout (HQ study 54, F10).
 - Nothing stops the Builder from writing a company value into a memory file except the prompt. The
-  bakeoff scans for it (HQ study 49).
+  bakeoff scans for it (HQ study 49). One narrow exception, decided by the operator on 2026-10-01:
+  a configuration code that says what something means in this company (such as which operation
+  types count as a sale) may be kept in Project memory with the query that proved it and its date,
+  so a later conversation re-verifies it instead of investigating again. Amounts, names, document
+  numbers, rows and counts never are.
 - The four experiment variants leave with their measurements; the bakeoff of study 34 compares the
   new Builder with the kept baseline, not with those variants.
 
