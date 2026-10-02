@@ -86,3 +86,17 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 ## Verdict
 
 - The review names the head SHA, the pages it loaded, the census table or "no new mechanism", and each failed or unevaluated item with its evidence. Any failed or unevaluated item, or a correctness defect, is `request changes`, otherwise `approve`.
+
+## CI guards against repeated patching and forgotten flaky tests
+
+- **Patch churn guard.** A pull request whose title starts with `fix` fails the `patch-churn` check
+  (`scripts/check-patch-churn.mjs`, its own workflow) when it touches a file with three or more `fix(` or `fix:` commits on `main` in
+  the last 30 days. Lockfiles, generated files, the catalog snapshot and the weak-test ratchet are excluded. The message lists the
+  commits and asks you to check the premise first. If a redesign was considered, add the label `premise-checked`. `npm run verify:quick`
+  prints the ten hottest files without failing.
+- **Test quarantine.** A test that fails only sometimes may be listed in `tests/quarantine.json` as
+  `{ "test": "<file>:<test name>", "issue": <number>, "until": "YYYY-MM-DD" }` (the file ships empty). The `test-quarantine` step
+  fails when an entry is past `until`, more than 14 days ahead, has no issue number, or names a test that does not exist. The runner
+  cannot run a quarantined test without blocking, so quarantine by hand: add the entry, open the tracking issue, and mark the test
+  `{ skip: 'opt-in: quarantined, see #<issue>' }`, the one skip `only-opt-in-skips` accepts. When the date passes the check fails
+  until the test is fixed and the entry removed.

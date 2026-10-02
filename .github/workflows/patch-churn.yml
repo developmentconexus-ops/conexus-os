@@ -1,0 +1,23 @@
+name: Patch churn
+
+# A separate workflow because the label premise-checked must re-run the check when it is added, and
+# the verify workflow does not run on label events.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  patch-churn:
+    name: patch-churn
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/check-patch-churn.mjs --base "origin/${{ github.base_ref }}"
