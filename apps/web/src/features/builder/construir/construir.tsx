@@ -217,8 +217,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const switchConversation = (id: string) => { if (id !== conversationId) onConversationChange(id) }
 
   // Only a first load that failed replaces the screen; a failed refetch keeps the session already read.
-  if (session.isError && session.data === undefined) {
-    const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  // A 403 denied error always replaces the screen (even on refetch) because permission was revoked.
+  const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
       <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>

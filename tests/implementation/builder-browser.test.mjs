@@ -2026,18 +2026,48 @@ test('failed background polls keep the chat and show a note until a poll succeed
   const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
   assert.equal(await note.count(), 0)
 
-  for (const failing of [503, 401]) {
-    status = failing
-    await pollNow(page)
-    await note.waitFor()
-    assert.equal(await page.getByText('Não foi possível abrir o Construir').count(), 0)
-    assert.equal(await messageBox(page).count(), 1, 'the composer stays')
-  }
+  status = 503
+  await pollNow(page)
+  await note.waitFor()
+  assert.equal(await page.getByText('Não foi possível abrir o Construir').count(), 0)
+  assert.equal(await messageBox(page).count(), 1, 'the composer stays')
 
   status = 200
   await pollNow(page)
   await note.waitFor({ state: 'detached' })
   assert.equal(await messageBox(page).count(), 1)
+})
+
+test('a 403 poll after a good load shows the denied screen', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000075'
+  const projectId = '70000000-0000-4000-8000-000000000076'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 403
+  await pollNow(page)
+  await page.getByText('Você não pode construir neste Project').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a 401 poll after a good load signs the user out', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000077'
+  const projectId = '70000000-0000-4000-8000-000000000078'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 401
+  await pollNow(page)
+  await page.getByText('Sessão encerrada').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
 })
 
 test('a first load that fails still shows the error page', async (t) => {
