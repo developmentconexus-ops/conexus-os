@@ -29,7 +29,8 @@
       "tests/implementation/workspace-membership-*",
       "tests/implementation/preview-application-*",
       "tests/implementation/r1-s1-*",
-      "tests/implementation/r1-s2-*"
+      "tests/implementation/r1-s2-*",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/identity-session.md"
   },
@@ -60,7 +61,8 @@
       "tests/implementation/cutover-hub-*",
       "tests/implementation/connection-census.test.mjs",
       "tests/implementation/protected-cluster*",
-      "tests/implementation/workspace-reads.test.mjs"
+      "tests/implementation/workspace-reads.test.mjs",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/data-migrations.md"
   },
@@ -182,7 +184,8 @@
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
-      "docs/tasks/specs/0007-telemetry-otel/**"
+      "docs/tasks/specs/0007-telemetry-otel/**",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/platform.md"
   }

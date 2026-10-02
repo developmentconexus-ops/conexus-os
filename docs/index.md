@@ -16,6 +16,7 @@ owns status and the next action. Start there.
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
 | Why the Factory-centered composition was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |
 | What the Builder repair program delivered | [Builder repair program](tasks/builder-repair-program.md), closed |
+| Context7 documentation tools for the Builder | [Builder Context7 qualification](tasks/builder-context7-qualification.md), awaiting verdict |
 | How the Builder got faster on 2026-09-20 | [Builder throughput program](tasks/builder-throughput-program.md), historical |
 | The Builder on its own harness: specs 0002 and 0003, the closure set and the ordered work | [Builder own harness task](tasks/stage2-builder-own-harness-qualification.md) |
 
