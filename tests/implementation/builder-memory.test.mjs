@@ -250,7 +250,7 @@ test('a turn ends only after its conversation is titled, so the list read at the
   await firstWindows(controller, 'Quero uma agenda semanal para a equipe de campo.', { resourceId: 'project:memory', threadId })
 
   const memoryStore = await storage.getStore('memory')
-  assert.equal((await memoryStore.getThreadById({ threadId }))?.title, TITLE)
+  assert.equal((await memoryStore.getThreadById({ threadId }))?.title, 'Agenda semanal da equipe')
 })
 
 test('the Observer is told to title the conversation in Portuguese', async (t) => {
