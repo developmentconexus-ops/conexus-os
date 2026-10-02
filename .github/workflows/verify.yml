@@ -41,12 +41,22 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # A pull request that changes only documentation runs only the checks that read documentation.
+      # The test is a diff inside this job, not a workflow-level paths filter, so the required `verify`
+      # check always reports. A push to main has no base and runs everything.
+      - name: Classify the change
+        id: scope
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
+        run: node scripts/ci-change-scope.mjs ${BASE_REF:+--base "origin/$BASE_REF"}
       - run: npm ci
       - name: Install Playwright Chromium
+        if: steps.scope.outputs.docs_only != 'true'
         run: npx --no-install playwright install --with-deps chromium
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
       - name: Rootless sandbox for the application runner suite
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           command -v bwrap || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends bubblewrap; }
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -56,6 +66,7 @@ jobs:
       # passwordless sudo, so the test Applications cluster gets the same dedicated, mounted
       # filesystem an installation gets, at a fraction of the size, instead of an ordinary directory.
       - name: Start the Applications PostgreSQL test cluster
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           sudo bash scripts/mount-application-cluster-storage.sh install "$RUNNER_TEMP/conexus-apps.img" 1024 "$RUNNER_TEMP/conexus-apps"
           printf '%s' s6-ci-test-only > "$RUNNER_TEMP/conexus-apps-password"
@@ -65,8 +76,13 @@ jobs:
       # Project roles log in only with the application runner's certificate. The test cluster gets the
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
+        if: steps.scope.outputs.docs_only != 'true'
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
+      - name: Verify the documentation checks only
+        if: steps.scope.outputs.docs_only == 'true'
+        run: npm run verify:docs
       - run: npm run verify
+        if: steps.scope.outputs.docs_only != 'true'
         env:
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
           CONEXUS_TEST_APP_TLS_DIR: ${{ runner.temp }}/conexus-app-tls
