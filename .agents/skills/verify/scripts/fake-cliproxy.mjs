@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 // Verification stand-in for CLIProxyAPI, the binary the Hub runs for a Google AI Pro account
 // (CONEXUS_CLIPROXY_BIN). It is the provider boundary: nothing in the Hub is stubbed, and no request
-// leaves this machine: the verify browser cannot resolve accounts.google.com, and every chat
-// completion streams the fixed reasoning and answer below.
+// leaves this machine, because the verify browser cannot resolve accounts.google.com. It serves the
+// sign-in and readiness routes only. The Hub calls models on Gemini's /v1beta API, which this does not
+// answer, and no turn reaches a model while E2B is closed.
 import { randomBytes } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 
-const FAKE_REASONING = 'Verificação: o pedido chegou ao modelo simulado.'
-const FAKE_ANSWER = 'Resposta do modelo simulado do verify. Nenhum provedor real foi chamado.'
 const AUTH_FILE = 'antigravity-verify@conexus.test.json'
 
 const config = readFileSync(process.argv[process.argv.indexOf('-config') + 1], 'utf8')
@@ -27,16 +26,6 @@ const readBody = async (request) => {
   let text = ''
   for await (const piece of request) text += piece
   return text ? JSON.parse(text) : {}
-}
-
-const chunk = (delta, extra = {}) => `data: ${JSON.stringify({ id: 'verify', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: null }], ...extra })}\n\n`
-
-const streamAnswer = (response, model) => {
-  response.writeHead(200, { 'content-type': 'text/event-stream' })
-  response.write(chunk({ role: 'assistant', reasoning_content: FAKE_REASONING }, { model }))
-  for (const word of FAKE_ANSWER.split(' ')) response.write(chunk({ content: `${word} ` }, { model }))
-  response.write(`data: ${JSON.stringify({ id: 'verify', object: 'chat.completion.chunk', model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })}\n\n`)
-  response.end('data: [DONE]\n\n')
 }
 
 createServer(async (request, response) => {
@@ -65,15 +54,6 @@ createServer(async (request, response) => {
   }
   if (request.headers.authorization !== `Bearer ${apiKey}`) return json(response, 401, { error: 'Invalid API key' })
   if (url.pathname === '/v1/models') return json(response, 200, { object: 'list', data: [{ id: 'gemini-3-flash', owned_by: AUTH_FILE }] })
-  if (url.pathname === '/v1/chat/completions') {
-    const body = await readBody(request)
-    if (body.stream) return streamAnswer(response, body.model)
-    return json(response, 200, {
-      id: 'verify', object: 'chat.completion', model: body.model,
-      choices: [{ index: 0, message: { role: 'assistant', content: FAKE_ANSWER, reasoning_content: FAKE_REASONING }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-    })
-  }
   json(response, 404, { error: 'not found' })
 }).listen(port, '127.0.0.1')
 
