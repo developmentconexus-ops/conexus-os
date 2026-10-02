@@ -4,23 +4,20 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
 import { join } from 'node:path'
-import { z } from 'zod'
 import type { Broker } from './broker.js'
 import { refused } from './errors.js'
-import type { BrokerResult } from './errors.js'
 import type { FetchResult } from './native.js'
 import type { ConsumerScope } from './scope.js'
 
 // One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
 // Nothing on the wire names a Project.
 
-/** `answerBytes` bounds `/v1/fetch`; `callAnswerBytes` keeps the legacy `/v1/call` allowance until that path is deleted.
- * `invocationMs` is the runner's invocation timeout (`invokeTimeoutMs` in app-runner/supervisor.ts), and `marginMs` is
- * what a fetch leaves for the handler to answer before the runner stops it. */
-export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number; callAnswerBytes: number; invocationMs: number; marginMs: number }>
+/** `answerBytes` bounds the serialized answer. `invocationMs` is the runner's invocation timeout (`invokeTimeoutMs` in
+ * app-runner/supervisor.ts), and `marginMs` is what a fetch leaves for the handler to answer before the runner stops it. */
+export type HandlerPortLimits = Readonly<{ bodyBytes: number; calls: number; concurrent: number; answerBytes: number; invocationMs: number; marginMs: number }>
 
 const DEFAULT_PORT_LIMITS: HandlerPortLimits = Object.freeze({
-  bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024, callAnswerBytes: 2 * 1024 * 1024, invocationMs: 5000, marginMs: 250,
+  bodyBytes: 64 * 1024, calls: 8, concurrent: 2, answerBytes: 256 * 1024, invocationMs: 5000, marginMs: 250,
 })
 
 type FetchRefusal = Extract<FetchResult, { ok: false }>
@@ -45,9 +42,9 @@ export type HandlerPorts = Readonly<{
   sweep(): Promise<void>
 }>
 
-const callBody = z.strictObject({ operation: z.string().max(200), input: z.unknown() })
+const FETCH_PATH = '/v1/fetch'
 
-const answer = (response: ServerResponse, result: BrokerResult<unknown> | HandlerFetchResult, answerBytes = Infinity): void => {
+const answer = (response: ServerResponse, result: HandlerFetchResult, answerBytes = Infinity): void => {
   let payload = JSON.stringify(result)
   if (Buffer.byteLength(payload) > answerBytes) payload = JSON.stringify(refused('RESPONSE_TOO_LARGE'))
   response.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) })
@@ -99,30 +96,16 @@ export const createHandlerPorts = ({ directory, broker, limits: overrides }: Rea
     let active = 0
 
     const consumer = { kind: 'handler', invocationId, scope } as const
-    // Each verb is one route. Both spend the invocation's one budget and answer with the executor's own result.
-    const routes: Readonly<Record<string, Readonly<{ answerBytes: number; run: (body: unknown) => Promise<BrokerResult<unknown> | HandlerFetchResult> }>>> = {
-      '/v1/call': {
-        answerBytes: limits.callAnswerBytes,
-        run: async (body) => {
-          const parsed = callBody.safeParse(body)
-          return parsed.success ? broker.call(consumer, parsed.data.operation, parsed.data.input) : refused('INPUT_REFUSED')
-        },
-      },
-      // The executor's strict parse of the request is the boundary; the port only carries the JSON. The fetch gets
-      // what is left of the invocation, so the executor aborts it and frees its capacity before the runner stops the worker.
-      '/v1/fetch': {
-        answerBytes: limits.answerBytes,
-        run: async (body) => {
-          const deadlineMs = invocationEnds - Date.now() - limits.marginMs
-          if (deadlineMs <= 0) return refused('PROVIDER_TIMEOUT')
-          return forHandler(await broker.fetch(consumer, body, { deadlineMs }))
-        },
-      },
+    // The executor's strict parse of the request is the boundary; the port only carries the JSON. The fetch gets
+    // what is left of the invocation, so the executor aborts it and frees its capacity before the runner stops the worker.
+    const forward = async (body: unknown): Promise<HandlerFetchResult> => {
+      const deadlineMs = invocationEnds - Date.now() - limits.marginMs
+      if (deadlineMs <= 0) return refused('PROVIDER_TIMEOUT')
+      return forHandler(await broker.fetch(consumer, body, { deadlineMs }))
     }
 
     const handle = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
-      const route = request.method === 'POST' && request.url !== undefined && Object.hasOwn(routes, request.url) ? routes[request.url] : undefined
-      if (!route) {
+      if (request.method !== 'POST' || request.url !== FETCH_PATH) {
         response.writeHead(404).end()
         return
       }
@@ -140,7 +123,7 @@ export const createHandlerPorts = ({ directory, broker, limits: overrides }: Rea
         } catch {
           body = undefined
         }
-        answer(response, body === undefined ? refused('INPUT_REFUSED') : await route.run(body), route.answerBytes)
+        answer(response, body === undefined ? refused('INPUT_REFUSED') : await forward(body), limits.answerBytes)
       } finally {
         active -= 1
       }

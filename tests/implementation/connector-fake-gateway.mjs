@@ -1,9 +1,8 @@
 import { createServer } from 'node:http'
 
 // A local stand-in for the Sankhya gateway on 127.0.0.1. It records every request with the origin its
-// host header names, issues numbered short-lived tokens and answers loadRecords from a fixed purchase
-// order, in the operation path's body shape or any native one, and executeQuery from a fixed consult
-// answer. A request for any other service is counted as a write that reached the vendor. Its values are invented; only the document number 22790
+// host header names, issues numbered short-lived tokens and answers any native loadRecords from a fixed
+// purchase order, and executeQuery from a fixed consult answer. A request for any other service is counted as a write that reached the vendor. Its values are invented; only the document number 22790
 // is the task's. No test ever reaches a Sankhya host: the broker receives this origin through the
 // adapter factory, not configuration.
 
@@ -16,23 +15,12 @@ export const FAKE_CREDENTIAL = Object.freeze({ clientId: 'fake-client-id', clien
 
 const HEADERS = [{
   NUNOTA: '9001', NUMNOTA: '22790', DTNEG: '24/09/2026', STATUSNOTA: 'L', VLRNOTA: '1520.50', TIPMOV: 'O',
-  Parceiro_NOMEPARC: 'Fornecedor Exemplo Ltda', SENHA: SECRET_MARKER,
+  Parceiro_NOMEPARC: 'Fornecedor Exemplo Ltda',
 }]
 const ITEMS = [
   { NUNOTA: '9001', SEQUENCIA: '1', CODPROD: '501', QTDNEG: '10', CODVOL: 'UN', VLRUNIT: '100.05', VLRTOT: '1000.50', Produto_DESCRPROD: 'Parafuso' },
   { NUNOTA: '9001', SEQUENCIA: '2', CODPROD: '502', QTDNEG: '4', CODVOL: 'CX', VLRUNIT: '130', VLRTOT: '520', Produto_DESCRPROD: 'Arruela' },
 ]
-
-/** What the broker must answer for document 22790 from the rows above. */
-export const EXPECTED_ORDER_22790 = Object.freeze({
-  orders: [{
-    number: 22790, internalId: '9001', date: '2026-09-24', supplier: 'Fornecedor Exemplo Ltda', status: 'confirmed', total: '1520.50',
-    items: [
-      { sequence: 1, productCode: '501', description: 'Parafuso', quantity: '10', unit: 'UN', unitPrice: '100.05', total: '1000.50' },
-      { sequence: 2, productCode: '502', description: 'Arruela', quantity: '4', unit: 'CX', unitPrice: '130', total: '520' },
-    ],
-  }],
-})
 
 /** A native loadRecords dataSet for document 22790, and the envelope this fake answers it with. */
 export const NATIVE_ORDER_DATASET = Object.freeze({
@@ -59,11 +47,7 @@ export const EXPECTED_NATIVE_CONSULT = Object.freeze({
   },
 })
 
-export const HEADER_FIELDS = 'NUNOTA,NUMNOTA,DTNEG,STATUSNOTA,VLRNOTA'
-export const ITEM_FIELDS = 'NUNOTA,SEQUENCIA,CODPROD,QTDNEG,CODVOL,VLRUNIT,VLRTOT'
-
-const entities = (fieldNames, rows, { extraField = false } = {}) => {
-  const names = extraField ? [...fieldNames, 'SENHA'] : fieldNames
+const entities = (names, rows) => {
   const encoded = rows.map((row) => Object.fromEntries(names.map((name, index) => [`f${index}`, row[name] === undefined ? {} : { $: row[name] }])))
   return {
     total: String(rows.length), hasMoreResult: 'false', offsetPage: '0', offset: '0',
@@ -74,14 +58,14 @@ const entities = (fieldNames, rows, { extraField = false } = {}) => {
 
 const list = (value) => (Array.isArray(value) ? value : value === undefined ? [] : [value])
 
-const loadRecords = (dataSet, options) => {
+const loadRecords = (dataSet) => {
   const [root, ...references] = list(dataSet.entity)
   const fields = [...root.fieldset.list.split(','), ...references.flatMap((reference) => reference.fieldset.list.split(',').map((field) => `${reference.path}_${field}`))]
   const values = list(dataSet.criteria?.parameter).map((parameter) => parameter.$)
   const rows = dataSet.rootEntity === 'CabecalhoNota'
     ? HEADERS.filter((row) => row.NUMNOTA === values[0] && row.TIPMOV === 'O')
     : ITEMS.filter((row) => values.includes(row.NUNOTA))
-  return entities(fields, rows, options)
+  return entities(fields, rows)
 }
 
 export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'fake-token-' } = {}) => {
@@ -157,7 +141,7 @@ export const startFakeGateway = async ({ expiresInSeconds = 90, tokenPrefix = 'f
       if (service === 'oversized') return send(200, { serviceName: record.serviceName, status: '1', padding: 'x'.repeat(300 * 1024) })
       const loaded = () => record.serviceName === EXECUTE_QUERY ? send(200, EXPECTED_NATIVE_CONSULT) : send(200, {
         serviceName: record.serviceName, status: '1', pendingPrinting: 'false', transactionId: SECRET_MARKER,
-        responseBody: { entities: loadRecords(record.body.requestBody.dataSet, { extraField: service === 'extra-field' }) },
+        responseBody: { entities: loadRecords(record.body.requestBody.dataSet) },
       })
       if (service === 'cancel-concurrent') {
         return setTimeout(() => (overlapped ? send(200, { serviceName: record.serviceName, status: '4', statusMessage: `Serviço cancelado por concorrência ${SECRET_MARKER}`, pendingPrinting: 'false' }) : loaded()), 25)

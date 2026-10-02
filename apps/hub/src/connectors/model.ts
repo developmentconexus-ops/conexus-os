@@ -3,15 +3,11 @@ export type ConnectionId = string & { readonly __brand: 'ConnectionId' }
 export type BindingId = string & { readonly __brand: 'BindingId' }
 /** A Project-local name such as 'erp'; the only way a consumer names a Connection. */
 export type BindingName = string & { readonly __brand: 'BindingName' }
-/** '<connector>.<subject>.<verb>', e.g. 'sankhya.purchase-order.read'. Never validated as a shape
- * here: the set of admitted ids is the Connector Definition's, not this schema's. */
-export type OperationId = string & { readonly __brand: 'OperationId' }
 export type Environment = 'preview'
 
 export const connectionId = (value: string): ConnectionId => value as ConnectionId
 export const bindingId = (value: string): BindingId => value as BindingId
 export const bindingName = (value: string): BindingName => value as BindingName
-export const operationId = (value: string): OperationId => value as OperationId
 
 export type Connection = Readonly<{
   connectionId: ConnectionId

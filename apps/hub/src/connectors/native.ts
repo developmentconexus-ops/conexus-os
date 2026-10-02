@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AdapterFailure, inputIssues, transportFailure } from './errors.js'
 import type { BrokerErrorCode } from './errors.js'
-import type { NativeProtocol, ProviderAnswer } from './operation.js'
+import type { NativeProtocol, ProviderAnswer } from './integrator.js'
 import type { AccessToken } from './token-cache.js'
 
 export type NativeRequest = Readonly<{

@@ -1207,7 +1207,7 @@ test("a Project with no binding is told it has no Connection and nothing about a
   const instructions = run.sessionContext.get('conexusConnectorBrief')
   const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
   assert.equal(instructions, CONNECTOR_BRIEF_UNBOUND, 'told it has no Connection, and what to do')
-  for (const leak of ['sankhya.purchase-order.read', 'other-project-binding', otherBinding.connectionId, 'connectors.call']) {
+  for (const leak of ['other-project-binding', otherBinding.connectionId, 'connectors.call']) {
     assert.equal(instructions.includes(leak), false, leak)
   }
 })

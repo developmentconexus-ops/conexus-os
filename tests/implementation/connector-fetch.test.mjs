@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EXPECTED_NATIVE_CONSULT, EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { EXPECTED_NATIVE_CONSULT, EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, startFakeRest } from './connector-fake-rest.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -407,18 +407,6 @@ test('P2: the records carry the binding name, the integrator and closed facts, n
   const seen = JSON.stringify(exporter.events) + lines.join('')
   const forbidden = [ROUTE, 'service.sbr', 'outputType', 'CabecalhoNota', 'NUMNOTA', '22790', '9001', '1520.50', 'MARKER-VALUE-5e1', 'crm-marker', SECRET_MARKER, 'CORE_E01234', 'fake-token-', ...Object.values(FAKE_CREDENTIAL)]
   for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} reached the record`)
-})
-
-test('the lane holds across a native and an operation request on one token: the vendor cancels neither', async (t) => {
-  const { fake, broker } = await setup(t)
-  fake.mode.service = 'cancel-concurrent'
-  const [operation, native] = await Promise.all([
-    broker.call(handler(), 'sankhya.purchase-order.read', { documentNumber: 22790 }),
-    broker.fetch(handler(), read()),
-  ])
-  assert.deepEqual([operation, native], [{ ok: true, value: EXPECTED_ORDER_22790 }, ORDER_READ])
-  assert.deepEqual(fake.requests.filter(({ path }) => path === ROUTE).map(({ authorization }) => authorization), Array(3).fill('Bearer fake-token-1'))
-  assert.equal(fake.sameBearerOverlaps(), 0, 'no service request arrived while another on its bearer was unanswered')
 })
 
 test('the generic seam: a synthetic REST integrator\'s two Connections, bound as crm-a and crm-b, each reach only their own account', async (t) => {

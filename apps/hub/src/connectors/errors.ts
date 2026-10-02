@@ -1,8 +1,6 @@
 // The closed codes a consumer may see; never a provider body, header, status text or token.
 export const BROKER_ERROR_CODES = [
-  'OPERATION_UNKNOWN',
   'INPUT_REFUSED',
-  'EFFECT_REFUSED',
   'NOT_GRANTED',
   'CONNECTOR_UNCONFIGURED',
   'CREDENTIAL_REFUSED',
@@ -41,7 +39,6 @@ export type AdapterFailureReason =
   | 'UNAVAILABLE'
   | 'PROVIDER_ERROR'
   | 'RESPONSE_REFUSED'
-  | 'SERVICE_REFUSED'
 
 /** Carries a reason and nothing else: no provider text can ride along in its message. */
 export class AdapterFailure extends Error {
@@ -64,6 +61,5 @@ export const brokerCodeOf = (reason: AdapterFailureReason): BrokerErrorCode => {
     case 'UNAVAILABLE': return 'PROVIDER_UNAVAILABLE'
     case 'PROVIDER_ERROR': return 'PROVIDER_ERROR'
     case 'RESPONSE_REFUSED': return 'RESPONSE_REFUSED'
-    case 'SERVICE_REFUSED': return 'SERVICE_REFUSED'
   }
 }

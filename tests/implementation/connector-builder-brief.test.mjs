@@ -10,7 +10,6 @@ const { SANKHYA_GATEWAY_ORIGINS } = await import(hubModuleUrl('connectors/sankhy
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
-const READ = 'sankhya.purchase-order.read'
 const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
 
 const bound = (name, connectorId = 'sankhya', connectionId = '33333333-3333-4333-8333-333333333333') =>
@@ -35,11 +34,10 @@ test('a Project with no binding is told to change nothing and say a Conexão can
     + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.')
   const other = await briefOf(storeOf([bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(other.startsWith(line('crm', 'synthetic-rest')), other)
-  assert.equal(other.includes(READ), false)
+  assert.equal(other.includes('conexus-sankhya'), false, 'a Project bound only to another integrator is not pointed at the Sankhya skill')
 
   const mixed = await briefOf(storeOf([bound('erp'), bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(mixed.startsWith(`${line('erp', 'sankhya')}\n${line('crm', 'synthetic-rest')}\n`), mixed)
-  assert.equal(mixed.includes(READ), false, 'no binding mix names the operation path to the Builder')
 })
 
 test('the brief carries the runtime cases in one place: too large, call limit, a vendor refusal, any other code, and a system no Conexão reaches', async () => {
@@ -76,14 +74,14 @@ test('an unbound Connection leaves the Project told it has none', async () => {
   assert.equal(await brief(scope), CONNECTOR_BRIEF_UNBOUND)
 })
 
-test('an unreadable store answers the fixed notice, records a code with no store detail, and names no operation', async () => {
+test('an unreadable store answers the fixed notice, and records a code with no store detail', async () => {
   const record = connectorRecord()
   const brief = briefOf({ listBindings: async () => { throw new Error('permission denied for function list_bound_connections STORE_DETAIL_MARKER') } }, record)
   const text = await brief(scope)
   assert.equal(text, CONNECTOR_BRIEF_UNAVAILABLE)
   assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId: PROJECT, result: 'STORE_UNAVAILABLE' }])
   assert.equal(JSON.stringify(record.exporter.events).includes('STORE_DETAIL_MARKER') || record.lines.join('').includes('STORE_DETAIL_MARKER'), false, 'no store detail is recorded')
-  for (const term of [READ, 'STORE_DETAIL_MARKER', ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
+  for (const term of ['STORE_DETAIL_MARKER', ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
 
   const sinkFails = briefOf({ listBindings: async () => { throw new Error('down') } }, connectorRecord({ log: () => { throw new Error('sink down') } }))
   assert.equal(await sinkFails(scope), CONNECTOR_BRIEF_UNAVAILABLE)

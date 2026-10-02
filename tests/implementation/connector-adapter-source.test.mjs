@@ -41,7 +41,7 @@ test('G0: no known write service name appears anywhere in the Sankhya adapter so
 test('G0: the gateway carries the wire vocabulary, and the Skill only the read it teaches (C-030), never the authentication path', () => {
   const terms = ['CRUDServiceProvider', 'service.sbr', '/authenticate']
   const wire = Object.fromEntries(files.map((path) => [basename(path), terms.filter((term) => stringLiterals(path).some((text) => text.includes(term)))]))
-  assert.deepEqual(wire, { 'credential.ts': [], 'definition.ts': [], 'gateway.ts': terms, 'purchase-order.ts': [], 'read-only-sql.ts': [] })
+  assert.deepEqual(wire, { 'credential.ts': [], 'definition.ts': [], 'gateway.ts': terms, 'read-only-sql.ts': [] })
   const skill = readFileSync(resolve(import.meta.dirname, '../../builder-skills/conexus-sankhya/SKILL.md'), 'utf8')
   assert.equal(skill.includes('/authenticate'), false)
   assert.ok(skill.includes('CRUDServiceProvider') && skill.includes('service.sbr'))

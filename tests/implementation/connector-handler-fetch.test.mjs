@@ -83,12 +83,11 @@ test('the socket decides the Project, and the body cannot name one', async (t) =
   assert.equal(fake.requests.length, 0)
 })
 
-test('one budget of 8 is shared by /v1/fetch and /v1/call', async (t) => {
+test('one budget of 8 per invocation: the 9th fetch is CALL_LIMIT and reaches no vendor', async (t) => {
   const { fake, open } = await setup(t)
   const port = await open()
   for (let index = 0; index < 8; index += 1) assert.equal((await post(port.socketPath, READ)).json.ok, true, `call ${index + 1}`)
   assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'CALL_LIMIT' })
-  assert.deepEqual((await post(port.socketPath, { operation: 'x', input: {} }, '/v1/call')).json, { ok: false, code: 'CALL_LIMIT' })
   assert.equal(fake.requests.filter((r) => r.path === ROUTE).length, 8)
 })
 
@@ -145,14 +144,12 @@ test('a slow vendor ends in PROVIDER_TIMEOUT inside the invocation, and a fetch 
   assert.equal(fake.requests.length, before)
 })
 
-test('the legacy /v1/call keeps a 2 MiB answer while /v1/fetch stays at 256 KiB', async (t) => {
+test('by default a serialized answer over 256 KiB is RESPONSE_TOO_LARGE', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'cx-fetch-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  const big = { ok: true, value: 'x'.repeat(300 * 1024) }
-  const broker = { call: async () => big, fetch: async () => ({ ok: true, status: 200, bytes: 0, body: 'x'.repeat(300 * 1024) }) }
+  const broker = { fetch: async () => ({ ok: true, status: 200, bytes: 0, body: 'x'.repeat(300 * 1024) }) }
   const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }))
   t.after(() => port.close())
-  assert.deepEqual((await post(port.socketPath, { operation: 'x', input: {} }, '/v1/call')).json, big)
   assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'RESPONSE_TOO_LARGE' })
 })
 
