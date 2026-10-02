@@ -210,6 +210,7 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'weak-tests-ratchet',
 ])
 
 // A stable partition: fast checks first in graph order, then the rest in graph order. The Hub build
@@ -258,9 +259,9 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-// The fast check to run before every push: the two failures CI otherwise reports minutes later, with
+// The fast check to run before every push: the static gates CI otherwise reports minutes later, with
 // no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'knip', 'weak-tests-ratchet'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
