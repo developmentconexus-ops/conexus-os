@@ -2,7 +2,7 @@ import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-c
 import { parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
-import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -18,7 +18,7 @@ type CodingWorkerResultScope = Readonly<{
 // is still a thrown failure.
 export type ApplicationBuildOutcome =
   /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
-  | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; bootProblems?: string }>
+  | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; thumbnail?: CompiledApplicationThumbnail; bootProblems?: string }>
   | Readonly<{ kind: 'BUILD_FAILED'; code: string; detail?: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
