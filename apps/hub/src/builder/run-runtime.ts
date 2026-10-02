@@ -641,7 +641,10 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   conversationWorkspaces: Map<string, Workspace>
   /** The live runs' checks and operation runs by run id, which the controller's `conexus_check` and `conexus_run_operation` read. */
   runTools: Map<string, RunTools>
-}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
+}>): BuilderRunPorts['openSession'] => {
+  /** The run that owns each scope now. Two runs on one conversation can share one session object, so only the owner may end it. */
+  const owners = new Map<string, string>()
+  return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
   const resourceId = projectResourceId(projectId)
   const scope = conversationRunScope(conversationId)
   const requestContext = new RequestContext()
@@ -649,26 +652,33 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   conversationWorkspaces.set(conversationId, workspace)
   runTools.set(builderRunId, { check: runCheck, runOperation })
   runContexts.set(scope, bindContext)
+  owners.set(scope, builderRunId)
   let session: ControllerSession | undefined
-  const forget = (): void => {
+  // Lets go of what this run holds and says whether it still owned the scope. A run that a later
+  // run took the scope from leaves the session and the scope's entries to that run.
+  const forget = (keepOwnership = false): boolean => {
+    runTools.delete(builderRunId)
+    if (owners.get(scope) !== builderRunId) return false
+    if (!keepOwnership) owners.delete(scope)
     if (runContexts.get(scope) === bindContext) runContexts.delete(scope)
     if (conversationWorkspaces.get(conversationId) === workspace) conversationWorkspaces.delete(conversationId)
-    runTools.delete(builderRunId)
+    return true
   }
   const deleteSession = async (): Promise<void> => {
     if (!session || (await controller.getSessionByResource(resourceId, scope)) !== session) return
     await controller.deleteSession({ resourceId, scope })
     if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
+  // The agent's turn ends, but the run keeps the session for its remaining phases and still owns it.
   const end = async (): Promise<void> => {
-    forget()
+    forget(true)
   }
   try {
     session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     // A session resolves its workspace once, when it is made; one made on a VM the conversation no
     // longer has is made again on this one.
     if (session.getWorkspace() !== workspace) {
-      await deleteSession()
+      if (owners.get(scope) === builderRunId) await deleteSession()
       session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     }
     if (session.getWorkspace() !== workspace) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
@@ -682,8 +692,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     }
     await session.state.set({ yolo: true })
   } catch (error) {
-    forget()
-    await deleteSession().catch(() => undefined)
+    if (forget()) await deleteSession().catch(() => undefined)
     throw error
   }
   const takeTurn = async (step: BuilderStep, signal?: AbortSignal): Promise<AgentTurn> => {
@@ -723,8 +732,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       // The stuck run still holds the session, so the next turn must not find it: the session is
       // deleted, waiting only briefly, since the store that hung may not answer the delete either.
       if (error instanceof Error && error.message === 'BUILDER_AGENT_STALLED') {
-        forget()
-        await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
+        if (forget()) await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
       }
       throw error
     } finally {
@@ -738,8 +746,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     resumeTurn: (resume: ParkedAnswer, signal?: AbortSignal) => takeTurn({ resume }, signal),
     end,
     release: async () => {
-      forget()
-      await deleteSession()
+      if (forget()) await deleteSession()
     },
     // Mastra's `deleteSession` aborts the session, and the abort reaches the thread's run, parked or
     // not: it settles the session's parked calls as denied and marks the run aborted, so no answer
@@ -747,7 +754,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     // parked calls is cleared, an abort is marked as already made, and the stream is detached
     // without an abort. The call and its snapshot stay in storage for the answer.
     park: async () => {
-      forget()
+      if (!forget()) return
       session.suspensions.clear()
       session.displayState.clearPendingSuspensions()
       session.run.requestAbort({ deferSignal: true })
@@ -755,6 +762,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       await deleteSession()
     },
   })
+  }
 }
 
 /**

@@ -125,6 +125,39 @@ test("a late release of a prior run never removes a subsequent run's session or 
   assert.equal(runContexts.has(`builder:${conversation(1)}`), false)
 })
 
+test("a late release of a prior run that shares the next run's session object leaves that run's session, workspace entry and context", async (t) => {
+  const { open, live, conversationWorkspaces, runContexts, runTools } = await runner(t)
+  const scope = `builder:${conversation(1)}`
+  const runA = await open(conversation(1), runId(1))
+  const runB = await open(conversation(1), runId(2))
+  const sessionB = await live(conversation(1))
+  assert.notEqual(sessionB, undefined)
+
+  await runA.release()
+
+  assert.equal(await live(conversation(1)), sessionB, "run B's session is still live after run A's late release")
+  assert.equal(conversationWorkspaces.has(conversation(1)), true)
+  assert.equal(runContexts.has(scope), true)
+  assert.equal(runTools.has(runId(2)), true)
+  assert.equal(runTools.has(runId(1)), false)
+  assert.equal((await runB.sendTurn('olá')).reason, 'complete')
+
+  await runB.release()
+  assert.equal(await live(conversation(1)), undefined)
+  assert.equal(conversationWorkspaces.has(conversation(1)), false)
+  assert.equal(runContexts.has(scope), false)
+  assert.equal(runTools.has(runId(2)), false)
+})
+
+test("a late park of a prior run that shares the next run's session object leaves that run's session", async (t) => {
+  const { open, live } = await runner(t)
+  const runA = await open(conversation(1), runId(1))
+  await open(conversation(1), runId(2))
+  const sessionB = await live(conversation(1))
+  await runA.park()
+  assert.equal(await live(conversation(1)), sessionB)
+})
+
 test("a Project's deletion deletes both sessions of each of its conversations and no other Project's, and closing deletes the conversation sessions in use", async (t) => {
   const { controller, open } = await runner(t)
   const sessions = createConversationSessions({ controller, sweepEveryMs: 3_600_000 })
