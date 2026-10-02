@@ -44,7 +44,6 @@ const writeSecret = (path, value) => { writeFileSync(path, `${value}\n`, { mode:
 const run = (file, args, options = {}) => execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim()
 const alive = (pid) => { if (!pid) return false; try { process.kill(pid, 0); return true } catch { return false } }
 const cmdline = (pid) => { try { return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' ') } catch { return '' } }
-const children = (pid) => { try { return run('pgrep', ['-P', String(pid)]).split('\n').filter(Boolean).map(Number) } catch { return [] } }
 
 const freePort = () => new Promise((settle, reject) => {
   const probe = createServer()
@@ -177,16 +176,18 @@ const hubEnvironment = (state, secrets) => {
   return environment
 }
 
-const buildDirs = () => readdirSync(join(REPO, 'apps/hub')).filter((name) => name.startsWith('.conexus-build-local-'))
-
 // Only what a person's shell needs; every Conexus and E2B variable comes from the run.
 const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER', 'SHELL', 'TZ'].filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
 
+// The repository's own local build (web app, then the Hub into a fresh directory it names), then its
+// server.js run as scripts/build-hub-local.mjs runs it. The run records that directory by name and
+// deletes only it.
 const startHub = async (state, environment) => {
-  const before = new Set(state.buildDirsBefore)
-  const log = evidence(state, 'hub.log')
-  const out = openSync(log, 'a')
-  const hub = spawn(process.execPath, ['--max-old-space-size=512', join(REPO, 'scripts/build-hub-local.mjs')],
+  const { buildHubLocal } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
+  state.hubBuildDir = await buildHubLocal()
+  saveState(state)
+  const out = openSync(evidence(state, 'hub.log'), 'a')
+  const hub = spawn(process.execPath, ['--max-old-space-size=512', join(state.hubBuildDir, 'server.js')],
     { cwd: REPO, env: { ...baseEnvironment(), ...environment }, detached: true, stdio: ['ignore', out, out] })
   hub.unref()
   state.pids.hub = hub.pid
@@ -194,14 +195,14 @@ const startHub = async (state, environment) => {
   await waitFor('HUB', async () => {
     if (!alive(hub.pid)) fatal('HUB_EXITED: see hub.log')
     return (await httpsGet(state, state.ports.hub, '/', HUB_HOST)).status === 200
-  }, 420_000)
-  state.hubBuildDir = buildDirs().find((name) => !before.has(name)) ?? null
-  state.pids.hubServer = children(hub.pid).find((pid) => cmdline(pid).includes('server.js')) ?? null
+  }, 300_000)
 }
+
+const hubIsOurs = (state) => Boolean(state.hubBuildDir) && alive(state.pids.hub) && cmdline(state.pids.hub).includes(join(state.hubBuildDir, 'server.js'))
 
 const startBrowser = async (state) => {
   const out = openSync(evidence(state, 'browser.log'), 'a')
-  const browser = spawn(process.execPath, [import.meta.filename, '__browser-host', state.runId],
+  const browser = spawn(process.execPath, [import.meta.filename, '__browser-host', statePath(state.runId)],
     { cwd: REPO, env: baseEnvironment(), detached: true, stdio: ['ignore', out, out] })
   browser.unref()
   state.pids.browser = browser.pid
@@ -212,8 +213,8 @@ const startBrowser = async (state) => {
   }, 60_000)
 }
 
-const browserHost = async (runId) => {
-  const state = readState(runId)
+const browserHost = async (path) => {
+  const state = JSON.parse(readFileSync(path, 'utf8'))
   const { chromium } = await import('@playwright/test')
   const context = await chromium.launchPersistentContext(join(state.stateDir, 'chromium-profile'), {
     headless: true, ignoreHTTPSErrors: true, locale: 'pt-BR', viewport: { width: 1440, height: 900 },
@@ -242,7 +243,6 @@ const launch = async () => {
     containers: { postgres: `conexus-verify-pg-${runId}`, keycloak: `conexus-verify-kc-${runId}` },
     person: { ...PERSON, subject: randomUUID() }, pids: {}, tlsFingerprint: null, cleanedAt: null,
   }
-  state.buildDirsBefore = buildDirs()
   mkdirSync(state.evidenceDir, { recursive: true })
   saveState(state)
   const step = (name) => { logAction(state, `launch ${name}`); console.error(`launch: ${name}`) }
@@ -293,14 +293,14 @@ const doctor = async () => {
   for (const [name, container] of Object.entries(state.containers)) {
     await check(`${name} container running`, () => { if (run('docker', ['inspect', '-f', '{{.State.Running}}', container]) !== 'true') fail('not running') })
   }
-  await check('hub process ours', () => { if (!alive(state.pids.hub) || !cmdline(state.pids.hub).includes('build-hub-local.mjs')) fail(`pid ${state.pids.hub} is not our Hub`) })
+  await check('hub process ours', () => { if (!hubIsOurs(state)) fail(`pid ${state.pids.hub} is not this run's Hub`) })
   await check('hub answers with this run certificate', async () => {
     const answer = await httpsGet(state, state.ports.hub, '/', HUB_HOST)
     if (answer.status !== 200) fail(`status ${answer.status}`)
     if (answer.fingerprint !== state.tlsFingerprint) fail('another server holds the port')
   })
   await check('E2B unreachable from the hub', () => {
-    const environ = readFileSync(`/proc/${state.pids.hubServer}/environ`, 'utf8')
+    const environ = readFileSync(`/proc/${state.pids.hub}/environ`, 'utf8')
     if (!environ.includes(`E2B_API_URL=${E2B_CLOSED.E2B_API_URL}`)) fail('hub environment does not close E2B')
   })
   await check('keycloak issuer', async () => {
@@ -456,9 +456,7 @@ const stop = async (pid, label, graceMs = 15_000) => {
 const cleanup = async () => {
   const state = currentRun()
   const done = []
-  // The server first: build-hub-local.mjs then removes its own build directory and exits.
-  if (state.pids.hubServer && cmdline(state.pids.hubServer).includes('server.js')) done.push(await stop(state.pids.hubServer, 'hub server'))
-  if (state.pids.hub && cmdline(state.pids.hub).includes('build-hub-local.mjs')) done.push(await stop(state.pids.hub, 'hub launcher'))
+  if (hubIsOurs(state)) done.push(await stop(state.pids.hub, 'hub'))
   if (state.pids.browser && cmdline(state.pids.browser).includes('__browser-host')) done.push(await stop(state.pids.browser, 'browser'))
   for (const container of Object.values(state.containers)) {
     if (container === state.containers.keycloak) {
@@ -469,11 +467,9 @@ const cleanup = async () => {
       done.push(`${container} stopped`)
     } catch { done.push(`${container} already gone`) }
   }
-  // A launch that failed mid-build never recorded its directory; any directory new since launch is it.
-  const ours = state.hubBuildDir ? [state.hubBuildDir] : buildDirs().filter((name) => !state.buildDirsBefore.includes(name))
-  for (const name of ours.filter((each) => existsSync(join(REPO, 'apps/hub', each)))) {
-    rmSync(join(REPO, 'apps/hub', name), { recursive: true, force: true })
-    done.push(`removed apps/hub/${name}`)
+  if (state.hubBuildDir && existsSync(state.hubBuildDir)) {
+    rmSync(state.hubBuildDir, { recursive: true, force: true })
+    done.push(`removed ${state.hubBuildDir}`)
   }
   state.cleanedAt = new Date().toISOString()
   writeFileSync(evidence(state, 'cleanup.json'), `${JSON.stringify({ cleanedAt: state.cleanedAt, done }, null, 2)}\n`)

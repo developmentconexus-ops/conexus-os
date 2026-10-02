@@ -52,7 +52,7 @@ A proof drives the user path, never an API call or internal setter for the featu
 
 ## Cleanup
 
-`node $C cleanup` stops the Hub server (its launcher then removes its build directory), the browser and both containers (`docker stop`; they were started with `--rm`). It deletes the run's state directory, which holds the secrets, profile and Conexus Git, and keeps the evidence. It kills only the PIDs it recorded at launch and is safe to repeat. Run it after every failed launch too.
+`node $C cleanup` stops the Hub, the browser and both containers (`docker stop`; they were started with `--rm`). It deletes the Hub build directory this run created, by the name it recorded, and the run's state directory, which holds the secrets, profile and Conexus Git. It keeps the evidence. It kills only the PIDs it recorded at launch and is safe to repeat. Run it after every failed launch too.
 
 ## Keep the map honest
 
