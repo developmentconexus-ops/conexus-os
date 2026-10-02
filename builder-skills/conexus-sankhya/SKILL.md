@@ -77,7 +77,7 @@ Done when every join has a proven key and the totals match the row counts.
 
 Reconcile your result with a number the person already trusts, such as a report they use, when one exists. Ask for its definition, never for the data.
 
-Ask the person only what the data cannot settle. Each question covers one decision. Write it in their business words, never a table, a field or a code. Build the options from what you found, such as the operation types with their descriptions, and put your recommendation first, with its reason. While planning, put the question on the plan's open decisions list and let the plan's interview ask it. A meaning the person does not give stays open. Never guess it.
+Ask the person only what the data cannot settle. Each question covers one decision. Write it in their business words, never a table, a field or a code. Ask the person to say what counts, in their own words, and offer options only from the business meanings you know, never from values you read, such as the operation types, their descriptions or counts. Map their answer to the codes yourself and check it against the data. While planning, put the question on the plan's open decisions list and let the plan's interview ask it. A meaning the person does not give stays open. Never guess it.
 
 Done when each meaning is proven by the data, confirmed by the person, or open with what it leaves off.
 
