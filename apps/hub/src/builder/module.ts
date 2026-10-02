@@ -32,7 +32,7 @@ import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './applica
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { createConversationSessions } from './conversation-sessions.js'
-import { createBuilderController, type RunTools } from './harness/index.js'
+import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
@@ -260,7 +260,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string; modelStreamRecordDir?: string | undefined
+    e2bTemplateId: string; gitRoot: string; modelStreamRecordDir?: string | undefined; context7ApiKeyFile?: string | undefined
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -328,6 +328,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     readDefault,
     record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
   })
+  // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
+  const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
     workspace: ({ requestContext }) => {
@@ -339,6 +341,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return typeof runId === 'string' ? runTools.get(runId) : undefined
     },
     model: modelRouting.resolve,
+    docsTools,
     memory: createBuilderMemory({ storage, memoryModel: modelRouting.resolveMemory }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
   })
@@ -487,6 +490,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           await sessions.close()
           await controller.destroy()
         } finally {
+          await docsTools.close()
           await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
           await Promise.all([storagePool.end(), modelAccountPool.end()])
