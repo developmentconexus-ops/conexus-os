@@ -33,6 +33,8 @@ const sentences: Readonly<Record<string, Sentence>> = {
   skill_search: { running: 'Procurando uma skill', done: 'Procurou uma skill', ask: 'procurar uma skill', kind: 'buscar' },
   connector_fetch: { running: 'Consultando um sistema da empresa', done: 'Consultou um sistema da empresa', ask: 'consultar um sistema da empresa', kind: 'outros' },
   web_fetch: { running: 'Abrindo uma página da internet', done: 'Abriu uma página da internet', ask: 'abrir uma página da internet', kind: 'outros' },
+  context7_resolve_library_id: { running: 'Procurando uma biblioteca na documentação', done: 'Procurou uma biblioteca na documentação', ask: 'procurar uma biblioteca na documentação', kind: 'outros' },
+  context7_query_docs: { running: 'Lendo a documentação de uma biblioteca', done: 'Leu a documentação de uma biblioteca', ask: 'ler a documentação de uma biblioteca', kind: 'outros' },
   recall: { running: 'Relendo conversas anteriores', done: 'Releu conversas anteriores', ask: 'reler conversas anteriores', kind: 'outros' },
   ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você', kind: 'outros' },
   submit_plan: { running: 'Enviando o plano', done: 'Enviou o plano', ask: 'enviar o plano', kind: 'outros' },
