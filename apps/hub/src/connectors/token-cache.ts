@@ -14,9 +14,19 @@ export class Redacted<T> {
   [inspect.custom](): string { return REDACTED }
 }
 
-/** The provider's access token. Only the gateway file calls `bearer()`. */
+/** The provider's access token. Only an adapter's own requests and the native transport call `bearer()`. */
 export class AccessToken extends Redacted<string> {
   bearer(): string { return this.reveal() }
+}
+
+// A Sankhya token is one session, and a session cancels a second service in flight (envelope status "4",
+// https://developer.sankhya.com.br/docs/09_service). One lane per token serves the operation and the native paths alike.
+const lanes = new WeakMap<AccessToken, Promise<unknown>>()
+
+export const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
+  const turn = (lanes.get(token) ?? Promise.resolve()).then(work)
+  lanes.set(token, turn.catch(() => undefined))
+  return turn
 }
 
 export type IssuedToken = Readonly<{ token: AccessToken; expiresInSeconds: number }>

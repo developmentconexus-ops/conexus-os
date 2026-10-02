@@ -2,21 +2,21 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { CONNECTOR_GENERATED_ROUTES } from '../generated/connector-routes.js'
 import type {
-  ConnectorOwnerId, CreateWorkspaceConnectionBody, GrantProjectConnectorOperationBody,
-  ProjectConnectorGrantParams, ProjectConnectorGrantsParams, WorkspaceConnectionParams, WorkspaceConnectionsParams,
+  BindProjectConnectionBody, ConnectorOwnerId, CreateWorkspaceConnectionBody,
+  ProjectConnectionBindingParams, ProjectConnectionBindingsParams, WorkspaceConnectionParams, WorkspaceConnectionsParams,
 } from '../generated/connector-routes.js'
 import { sendProblem } from '../http/problem.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import {
-  isConnectorConnectionConflict, isConnectorConnectionNotAvailable, isConnectorNotAdmitted, isConnectorProjectNotFound, isConnectorWorkspaceNotFound,
+  isConnectorBindingConflict, isConnectorConnectionConflict, isConnectorConnectionNotAvailable, isConnectorNotAdmitted, isConnectorProjectNotFound,
+  isConnectorWorkspaceNotFound,
 } from './model.js'
-import type { OperationId } from './model.js'
-import { connectionId as toConnectionId, grantId as toGrantId, operationId as toOperationId } from './model.js'
+import type { ProjectBinding } from './model.js'
+import { bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'
 import type { ConnectorStore } from './store.js'
 
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
-// The contract types connectionId and grantId as uuids, so Fastify refuses a malformed one with 400.
 // workspaceId and projectId are shared parameters typed only as non-empty strings, so a reference
 // PostgreSQL could not read as a uuid is answered here as the resource it cannot name.
 const UUID = z.guid()
@@ -27,6 +27,11 @@ const isUuid = (value: string): boolean => UUID.safeParse(value).success
 export type CheckConnectionOutcome = 'OK' | 'CREDENTIAL_REFUSED' | 'CONNECTOR_UNCONFIGURED' | 'PROVIDER_UNAVAILABLE' | 'PROVIDER_TIMEOUT' | 'PROVIDER_ERROR'
 export type CheckConnection = (input: Readonly<{ actor: AccountId; workspaceId: string; connectionId: string }>) => Promise<CheckConnectionOutcome | 'NOT_FOUND'>
 
+const bindingBody = (binding: ProjectBinding) => ({
+  kind: 'binding', bindingId: binding.bindingId, name: binding.name, connectionId: binding.connectionId,
+  connectorId: binding.connectorId, label: binding.label, boundAt: binding.boundAt.toISOString(),
+})
+
 export type ConnectorRouteDependencies = Readonly<{
   store: ConnectorStore
   resolveCurrentSession: ResolveCurrentSession
@@ -35,15 +40,12 @@ export type ConnectorRouteDependencies = Readonly<{
   /** The admitted credential schema per registered Connector, keyed by connectorId. An unregistered
    * key (a connectorId the wire admits but no Definition claims) is simply absent. */
   credentialSchemas: Readonly<Record<string, { safeParse(value: unknown): { success: boolean } }>>
-  /** Every operation id a registered Connector Definition admits, flattened. A `GrantProjectConnectorOperation`
-   * body naming any other id is refused as 422 before the store. */
-  admittedOperationIds: ReadonlySet<OperationId>
   config: Readonly<{ origin: string }>
 }>
 
 export const registerConnectorRoutes = async (
   app: FastifyInstance,
-  { store, resolveCurrentSession, isInstallationAdministrator, checkConnection, credentialSchemas, admittedOperationIds, config }: ConnectorRouteDependencies,
+  { store, resolveCurrentSession, isInstallationAdministrator, checkConnection, credentialSchemas, config }: ConnectorRouteDependencies,
 ): Promise<readonly ConnectorOwnerId[]> => {
   const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
@@ -64,7 +66,8 @@ export const registerConnectorRoutes = async (
   const refusedOwner = (reply: Parameters<typeof sendProblem>[0], error: unknown) => {
     if (isConnectorProjectNotFound(error)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
     if (isConnectorConnectionNotAvailable(error)) return sendProblem(reply, 404, 'connector-connection-not-available', 'Connector Connection not available')
-    if (isConnectorNotAdmitted(error)) return sendProblem(reply, 403, 'connector-grant-manage-required', 'Connector grant administration denied')
+    if (isConnectorBindingConflict(error)) return sendProblem(reply, 409, 'connector-binding-conflict', 'Connector binding conflict')
+    if (isConnectorNotAdmitted(error)) return sendProblem(reply, 403, 'connector-binding-manage-required', 'Connector binding administration denied')
     throw error
   }
   const requireAdministrator = async (actor: AccountId, reply: Parameters<typeof sendProblem>[0]): Promise<boolean> => {
@@ -141,51 +144,49 @@ export const registerConnectorRoutes = async (
     },
   })
 
-  app.route<{ Params: ProjectConnectorGrantsParams }>({
-    ...CONNECTOR_GENERATED_ROUTES['CON-05'],
+  app.route<{ Params: ProjectConnectionBindingsParams }>({
+    ...CONNECTOR_GENERATED_ROUTES['CON-08'],
     handler: async (request, reply) => {
       const actor = await admittedActor(request, reply, false)
       if (!actor) return reply
       if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
       try {
-        const entries = await store.listProjectGrants({ actor, projectId: request.params.projectId, operationIds: [...admittedOperationIds] })
-        return { entries: entries.map((entry) => entry.kind === 'grant'
-          ? { kind: 'grant', grantId: entry.grantId, connectionId: entry.connectionId, connectorId: entry.connectorId, capabilityId: entry.capabilityId, grantedAt: entry.grantedAt.toISOString() }
-          : { kind: 'grantable', connectionId: entry.connectionId, connectorId: entry.connectorId, capabilityId: entry.capabilityId }) }
+        const entries = await store.listProjectBindings({ actor, projectId: request.params.projectId })
+        return { entries: entries.map((entry) => entry.kind === 'binding'
+          ? bindingBody(entry)
+          : { kind: 'bindable', connectionId: entry.connectionId, connectorId: entry.connectorId, label: entry.label }) }
       } catch (error) {
         return refusedOwner(reply, error)
       }
     },
   })
 
-  app.route<{ Params: ProjectConnectorGrantsParams; Body: GrantProjectConnectorOperationBody }>({
-    ...CONNECTOR_GENERATED_ROUTES['CON-06'],
+  app.route<{ Params: ProjectConnectionBindingsParams; Body: BindProjectConnectionBody }>({
+    ...CONNECTOR_GENERATED_ROUTES['CON-09'],
     handler: async (request, reply) => {
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
-      const { connectionId, operationId } = request.body
       if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-      if (!admittedOperationIds.has(toOperationId(operationId))) {
-        return sendProblem(reply, 422, 'connector-operation-not-admitted', 'Connector operation not admitted')
-      }
       try {
-        const grant = await store.grantCapability({ actor, projectId: request.params.projectId, connectionId: toConnectionId(connectionId), operationId: toOperationId(operationId) })
-        return { kind: 'grant', grantId: grant.grantId, connectionId: grant.connectionId, connectorId: grant.connectorId, capabilityId: grant.capabilityId, grantedAt: grant.grantedAt.toISOString() }
+        const binding = await store.bindConnection({
+          actor, projectId: request.params.projectId, connectionId: toConnectionId(request.body.connectionId), name: toBindingName(request.body.name),
+        })
+        return bindingBody(binding)
       } catch (error) {
         return refusedOwner(reply, error)
       }
     },
   })
 
-  app.route<{ Params: ProjectConnectorGrantParams }>({
-    ...CONNECTOR_GENERATED_ROUTES['CON-07'],
+  app.route<{ Params: ProjectConnectionBindingParams }>({
+    ...CONNECTOR_GENERATED_ROUTES['CON-10'],
     handler: async (request, reply) => {
       const actor = await admittedActor(request, reply, true)
       if (!actor) return reply
       if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
       try {
-        const found = await store.revokeGrant({ actor, projectId: request.params.projectId, grantId: toGrantId(request.params.grantId) })
-        if (!found) return sendProblem(reply, 404, 'connector-grant-not-found', 'Connector grant not found')
+        const found = await store.unbindConnection({ actor, projectId: request.params.projectId, bindingId: toBindingId(request.params.bindingId) })
+        if (!found) return sendProblem(reply, 404, 'connector-binding-not-found', 'Connector binding not found')
         return reply.code(204).send()
       } catch (error) {
         return refusedOwner(reply, error)
@@ -193,5 +194,5 @@ export const registerConnectorRoutes = async (
     },
   })
 
-  return ['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-05', 'CON-06', 'CON-07']
+  return ['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-08', 'CON-09', 'CON-10']
 }

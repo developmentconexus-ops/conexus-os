@@ -13,3 +13,7 @@
 .cx-technical dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1rem; margin: .75rem 0 0; }
 .cx-technical dd { margin: 0; }
 .cx-technical code { font-size: .8125rem; overflow-wrap: anywhere; }
+.cx-danger { display: grid; gap: .75rem; margin-top: 2rem; padding: 1.15rem; border: 1px solid color-mix(in srgb, var(--cx-danger) 35%, var(--cx-line)); border-radius: 14px; }
+.cx-danger h2 { margin: 0; font-size: 1rem; color: var(--cx-danger); }
+.cx-danger p { margin: 0; color: var(--cx-text-2); font-size: .875rem; }
+.cx-danger-confirm { max-width: 24rem; }

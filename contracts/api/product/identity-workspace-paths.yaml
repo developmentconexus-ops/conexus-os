@@ -53,7 +53,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204':
-          description: Current opaque Conexus session ended. This does not claim global Keycloak SSO logout.
+          description: Current opaque Conexus session ended. Keycloak is then asked, bounded, to end the SSO session behind it; its answer is not reported, and this does not claim global Keycloak SSO logout.
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
 

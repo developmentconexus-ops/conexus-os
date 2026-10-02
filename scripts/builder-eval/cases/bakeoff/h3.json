@@ -1,0 +1,38 @@
+{
+  "request": "Preciso enxergar o caixa da empresa. Quero um app com o saldo de cada conta bancária no fim de cada dia dos últimos 30 dias, com as entradas e as saídas de cada dia. Em cima, o saldo de hoje somando todas as contas. Quero escolher uma conta e ver um gráfico do saldo dela no período.",
+  "checks": [],
+  "oracle": "h3",
+  "person": {
+    "projectName": "Caixa",
+    "persona": "gerente de tesouraria, que acompanha o caixa todo dia e não sabe onde o Sankhya guarda o saldo das contas.",
+    "answers": [
+      {
+        "id": "contas",
+        "topic": "quais contas bancárias entram",
+        "say": "Toda conta bancária ativa e a conta de caixa interna.",
+        "pick": [
+          "ativas",
+          "todas"
+        ]
+      },
+      {
+        "id": "saldo",
+        "topic": "qual saldo mostrar (conciliado ou não, como o Sankhya mostra)",
+        "say": "O saldo como o Sankhya mostra na movimentação bancária, conciliado ou não.",
+        "pick": [
+          "movimentação bancária",
+          "conciliado ou não"
+        ]
+      },
+      {
+        "id": "dia-sem-movimento",
+        "topic": "o que mostrar num dia em que a conta não teve movimento",
+        "say": "Dia sem movimento repete o saldo do dia anterior.",
+        "pick": [
+          "repete",
+          "dia anterior"
+        ]
+      }
+    ]
+  }
+}

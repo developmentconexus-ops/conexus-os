@@ -45,7 +45,7 @@ stable application URL
                 +-- Connector broker
 ```
 
-Mastra remains the Builder/coding-harness owner. Conexus owns the application profile, application runtime boundary, Project data allocation, application access, enterprise Connector grants, Release identity and Publish.
+Mastra remains the Builder/coding-harness owner. Conexus owns the application profile, application runtime boundary, Project data allocation, application access, enterprise Connections and their Project bindings, Release identity and Publish.
 
 ### Database topology
 
@@ -137,7 +137,7 @@ Only one qualification task is actionable at a time. Later rows are roadmap gate
 | Q1 Handler runtime + persistent Preview data | Can Builder-generated server code run outside the Hub with Project-scoped data authority and no privileged platform authority? | Existing Node 24 + Fastify 5 + Zod 4 + pg 8; shared runner is the smallest hypothesis; stronger isolation if the adversarial probe falsifies it | Builder creates a real server-backed Preview; data survives runner restart; cross-Project, secret and forbidden-network probes fail; exhaustion or failure of the Applications PostgreSQL does not reach the Hub |
 | Q2 Data programming model | What is the smallest data API the Builder needs to produce reliable apps? | SQL-first with parameterized `pg`, accepted by Q2: no named SQL failure repeated, so neither Kysely nor a typed Data API was qualified | Same application built/changed by the Builder; compare successful iterations, errors, generated code, duplication and platform complexity |
 | Q3 Application identity | Can an employee use an app without receiving Control Plane authority? | Existing Keycloak identity boundary + Conexus app-scoped session/grants, accepted by Q3: one host per application, a one-use handoff from the Hub sign-in, `iam.application_session`, and the caller passed to handlers | App-only user can use the app; cannot create Workspace, read Project, open Builder or gain authority by identifiers |
-| Q4 First Connector | Does Connector Definition -> Workspace Connection -> Project Grant work against a real enterprise system? | Direct narrow Sankhya read-only adapter first | Builder uses the authorized operation from the app; real Sankhya result; revoked grant fails; no credential or arbitrary URL reaches browser/handler |
+| Q4 First Connector | Can a Project read a real enterprise system through a Connection bound to it, in the vendor's native format, through one Hub executor ([task amendment](../tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic))? | One integrator pattern and one executor (C-030), with Sankhya as the first integrator | The Builder investigates and builds an app whose handler reads through the binding; real Sankhya result; another Project and a removed binding read nothing; no write reaches the vendor; no credential or arbitrary URL reaches the browser, the handler or the sandbox; two Connections of a synthetic REST integrator read through the same executor |
 | Q5 Release + Publish | Can the verified application become a stable employee-facing product without introducing a deployment platform? Where does Published data live: in the Applications cluster beside Preview data, or apart from it? | Existing artifact registry + immutable manifest + published pointer + stable app ingress | Fresh browser opens stable URL, auth/data/Connector work, broken later build does not change Published, retrying Publish converges; the Published data placement is decided with evidence, not assumed |
 
 After Q5, Stage 2 is evaluated as a whole before any later capability is authorized.
@@ -167,7 +167,7 @@ typed handler adapter
 generated business handler
         |
         +-- scoped Project data
-        +-- later: authorized Connector operations
+        +-- later: bound Connections through the connector executor
 ```
 
 The public Project programming model must remain smaller than the hosting framework.

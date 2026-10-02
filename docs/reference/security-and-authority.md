@@ -65,9 +65,34 @@ by server configuration.
 ```text
 I&A OIDC adapter   → the exact configured Keycloak issuer and client
 Builder runtime    → E2B
+Builder docs       → Context7, mcp.context7.com, over MCP; the installation's key is optional
+Builder web        → any public host, through a guarded `web_fetch` from the Hub and the model provider's own search
+Builder sandbox    → any host, from the E2B guest (C-023)
 Project Git        → the Git provider
 ```
 
+The Context7 adapter is the Hub's own MCP client, refusing every other host. It sends the
+library name and a one-line question the Builder wrote, refused when long or shaped like data, never a Hub credential, and it does not run
+in the sandbox.
+`web_fetch` is Mastra's `webFetchTool` behind the Hub's guard. It sends no credential and only
+GET, and Mastra refuses private, loopback and link-local addresses, also after DNS and on each
+redirect. The guard refuses a URL with a query string, a `#` part or a user or password, one
+longer than 300 characters, with a path segment over 80 or a host label over 40, a path shaped
+like an email or a long number, and a host holding a long number. The host name gets these checks
+because it leaves in the DNS lookup before any request. The guard narrows what can leave in the
+URL; it cannot prove a URL is free of company data, so a short path or host label of company
+words still passes. C-023 keeps the sandbox allowlist before Q5.
+The sandbox's destinations are logged, not blocked. At the end of every turn the Hub logs one
+`BUILDER_SANDBOX_EGRESS` line per distinct host, port and protocol the sandbox reached since the
+last turn, with the run id, conversation id, first-seen time and a count, then a
+`BUILDER_SANDBOX_EGRESS_SUMMARY` line saying whether the list is complete, partial or failed.
+Two root-run recorders in the guest produce it: a DNS forwarder on `127.0.0.1:53` that names
+addresses (upstream: the VM's own resolver, kept as the fallback), and a poller of `/proc/net/tcp`
+every 10 seconds, `TIME_WAIT` included, which skips connections the sandbox accepted. A log that
+reaches its size cap is truncated and the summary reads partial. A connection
+shorter than the poll that never lingers can be missed, so an empty list is not proof of no
+egress. Paths, query strings and payloads are never recorded. A recorder or collection failure
+is logged and never fails the run. The list is what the Q5 allowlist starts from.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
@@ -155,7 +180,16 @@ opened; the ending records why: `PROVIDER_USER_DISABLED`, `PROVIDER_SESSION_ENDE
 `PROVIDER_REFUSED`. When Keycloak cannot answer a due check, the request is refused and the
 session is kept: 503 `identity-provider-unavailable` on every Hub route and on application and
 Preview hosts. The Factory's routes answer 503 too, because the Hub's own check runs before
-Mastra's auth; the operator accepted that answer on 2026-09-25 ([decisions index](../decisions/index.md)). Signing out of the Hub never asks Keycloak.
+Mastra's auth; the operator accepted that answer on 2026-09-25 ([decisions index](../decisions/index.md)). Signing out of the Hub
+never waits on Keycloak to end the Conexus session: the session ends first, and its sealed refresh
+token is handed out of the database once, in the same statement. The Hub then posts that token
+server to server to Keycloak's `end_session_endpoint`, bounded to three seconds, so Keycloak's SSO
+session ends and the next sign-in asks for a password. Keycloak's `204`, or its `invalid_grant`
+for a session it no longer holds, counts as ended; anything else, a timeout or an unreachable
+Keycloak, is logged as `hub_sign_out_provider_logout_unconfirmed`, with neither token nor Account,
+and the sign-out still answers `204`. Local revocation is never reported as upstream revocation.
+Once Keycloak's SSO session has ended, the person's application sessions opened from it end at
+their next Keycloak check; signing out of an application still ends only that application session.
 
 **Rotation is off.** The realm does not rotate refresh tokens (`revokeRefreshToken: false`,
 Keycloak's default): a token refreshes any number of times, so requests that find the same check
@@ -263,3 +297,13 @@ reconciled through I&A.
 
 The recovery posture is deny only. It may prevent normal ingress. Neither its presence
 nor its clearing grants authority.
+
+## 8. Risks accepted for the pilot
+
+The operator accepted these two risks for the pilot on 2026-10-02
+([decision register](../decisions/index.md#decided-on-2026-10-02-the-order-of-work-to-q5)).
+
+| Risk | Why it exists | Reopen |
+| --- | --- | --- |
+| A Project's handler can read the schema, table and column names of another Project's application. It cannot read their rows. | Every Project has its schemas in one shared application database. `app-runner/data-plane.ts` revokes schema and table rights from `PUBLIC`, but every role can read the PostgreSQL catalog (`pg_namespace`, `pg_class`, `pg_attribute`), and handler SQL runs as the Project's runtime role. | A second company's data shares the Applications cluster, a table name itself carries data that must not be seen, or the Stage 2 platform gives each Project its own database. |
+| The prompts, tool inputs and outputs, and source text of a deleted Project stay in the Builder's trace spans for up to 30 days. | Deleting a Project does not delete its spans. The Builder's Mastra storage keeps every span for 30 days (`OBSERVABILITY_SPAN_RETENTION` in `builder/module.ts`), and the daily prune removes it after that. | A person or a company asks for its data to be erased at once, or the traces move to a store with a different retention. |

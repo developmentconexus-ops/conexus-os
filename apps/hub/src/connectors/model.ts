@@ -1,17 +1,16 @@
-// Ids and shapes shared by the store and the routes. The broker's own types (Consumer, BrokerResult,
-// the token cache) live in broker.ts and token-cache.ts; this module only administers Connections and Grants.
-
 export type ConnectorId = 'sankhya'
 export type ConnectionId = string & { readonly __brand: 'ConnectionId' }
-export type GrantId = string & { readonly __brand: 'GrantId' }
+export type BindingId = string & { readonly __brand: 'BindingId' }
+/** A Project-local name such as 'erp'; the only way a consumer names a Connection. */
+export type BindingName = string & { readonly __brand: 'BindingName' }
 /** '<connector>.<subject>.<verb>', e.g. 'sankhya.purchase-order.read'. Never validated as a shape
- * here: the set of admitted ids is the granting Connector Definition's, not this schema's. */
+ * here: the set of admitted ids is the Connector Definition's, not this schema's. */
 export type OperationId = string & { readonly __brand: 'OperationId' }
 export type Environment = 'preview'
-export type CapabilityKind = 'operation'
 
 export const connectionId = (value: string): ConnectionId => value as ConnectionId
-export const grantId = (value: string): GrantId => value as GrantId
+export const bindingId = (value: string): BindingId => value as BindingId
+export const bindingName = (value: string): BindingName => value as BindingName
 export const operationId = (value: string): OperationId => value as OperationId
 
 export type Connection = Readonly<{
@@ -22,26 +21,31 @@ export type Connection = Readonly<{
   disabledAt: Date | null
 }>
 
-export type OpenGrant = Readonly<{
-  kind: 'grant'
-  grantId: GrantId
+export type ProjectBinding = Readonly<{
+  kind: 'binding'
+  bindingId: BindingId
+  name: BindingName
   connectionId: ConnectionId
   connectorId: ConnectorId
-  capabilityId: OperationId
-  grantedAt: Date
+  label: string
+  boundAt: Date
 }>
 
-type GrantableCapability = Readonly<{
-  kind: 'grantable'
+type BindableConnection = Readonly<{
+  kind: 'bindable'
   connectionId: ConnectionId
   connectorId: ConnectorId
-  capabilityId: OperationId
+  label: string
 }>
 
-export type ProjectGrantEntry = OpenGrant | GrantableCapability
+export type ProjectBindingEntry = ProjectBinding | BindableConnection
 
-/** Every refusal a caller sees is one of these two shapes: not told the Project or Connection
- * exists, or not an administrator/Owner. The store never throws anything else it has a name for. */
+/** What the broker reads per call. `connectorId` is the stored text: the registry decides whether it
+ * names a registered integrator. */
+export type BoundConnection = Readonly<{ bindingId: BindingId; name: BindingName; connectionId: ConnectionId; connectorId: string }>
+
+/** Every refusal a caller sees is one of these shapes: not told the Project or Connection exists,
+ * not an administrator/Owner, or a conflict. The store never throws anything else it has a name for. */
 export const isConnectorNotAdmitted = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === '42501' &&
   'message' in error && error.message === 'NOT_ADMITTED'
@@ -58,7 +62,10 @@ export const isConnectorConnectionNotAvailable = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
   'message' in error && error.message === 'CONNECTOR_CONNECTION_NOT_AVAILABLE'
 
-// A retry that differs from the stored row, or a second open Connection of the same Connector in one
-// Workspace: connector.create_connection raises both by name.
+// A retry with this Connection id whose fields differ from the stored row.
 export const isConnectorConnectionConflict = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && 'message' in error && error.message === 'CONNECTOR_CONNECTION_CONFLICT'
+
+// The Connection already bound under another name, or the name already bound to another Connection.
+export const isConnectorBindingConflict = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'message' in error && error.message === 'CONNECTOR_BINDING_CONFLICT'

@@ -5,7 +5,7 @@ import { lazy, Suspense, useEffect, useRef } from 'react'
 import { ConexusMark } from '../../../../packages/brand/src/index'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { createFactoryConversation, listFactoryConversations } from '../features/builder/api'
+import { listConversations, openConversation } from '../features/builder/mastra-session'
 import { getProject, ProjectRequestError, projectQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { rootRoute } from './__root'
@@ -59,10 +59,10 @@ function ProjectEntry() {
 
 function OpenConversation({ projectId }: Readonly<{ projectId: string }>) {
   const navigate = useNavigate()
-  const conversations = useQuery({ queryKey: ['project-conversations', projectId], queryFn: () => listFactoryConversations(projectId) })
-  // The browser picks the id, so a retried create lands on the row the first attempt wrote.
+  const conversations = useQuery({ queryKey: ['project-conversations', projectId], queryFn: () => listConversations(projectId) })
+  // The browser picks the id, so a retried open lands on the thread the first attempt made.
   const newId = useRef(crypto.randomUUID())
-  const create = useMutation({ mutationFn: () => createFactoryConversation(projectId, newId.current) })
+  const create = useMutation({ mutationFn: () => openConversation(projectId, newId.current) })
   const latest = conversations.data?.at(0)?.id ?? create.data?.id
   const empty = conversations.data?.length === 0
   const { mutate, isIdle } = create

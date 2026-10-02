@@ -3,19 +3,21 @@
 ## Scope
 
 The rest of the Hub (server, HTTP, platform helpers, the application runner, application hosting,
-registry, projects, workspaces), shared packages, repository scripts, CI and root configuration.
+registry, projects, workspaces), telemetry (spec 0007), shared packages, repository scripts, CI and
+root configuration.
 [`areas.json`](areas.json) owns the paths.
 
 ## What to check
 
 - [ ] Platform code does not import an application layer, and the
-      composition root's allowlist names every platform module `server.ts` imports.
+      composition root's allowlist names every platform module `hub.ts` imports.
       `tests/repository/import-law.test.mjs` enforces it.
 - [ ] Generated application code never runs in the Hub process.
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
       runs once. Owner: [Proof and verification](../delivery.md#proof-and-verification).
 - [ ] A leaf that drives a real browser is tagged `browser` (or `browser-postgres`) so its
-      environment wiring and record output are correct.
+      environment wiring and record output are correct. A leaf that boots a whole Conexus of its
+      own (`tests/live`) is tagged `live`.
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger
       coverage stay equivalent.
 - [ ] Expected output is regenerated only with the explicit generation command, never by hand to
@@ -23,6 +25,10 @@ registry, projects, workspaces), shared packages, repository scripts, CI and roo
 - [ ] A new dependency meets the [technology rule](../delivery.md#technology-rule).
 - [ ] A sandbox or runner change states which layer blocks each escape, and a test shows the escape
       refused with the other layers off.
+- [ ] Telemetry exports only what spec 0007's *Redaction* table allows: allowlisted attributes, a
+      log body reduced to its code, an error as its type and frames. A new exported field or
+      body source comes with a planted-string case in the `telemetry-redaction` suite.
+- [ ] Inbound trace context is trusted only on unix socket listeners (spec 0007, AC-28).
 
 ## Proof required
 

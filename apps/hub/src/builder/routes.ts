@@ -1,5 +1,7 @@
+import type { UsageStats } from '@mastra/core/observability'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { sendProblem } from '../http/problem.js'
+import { recordFailure } from '../platform/logger.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
@@ -29,7 +31,8 @@ export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderSessionSnapshot>
   readTrace?(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderTraceSummary>
 }>
-export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
+/** Mastra's `UsageStats` with the three totals always present (null where no span reported one), keeping its cache and reasoning breakdown. */
+export type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }> & Pick<UsageStats, 'inputDetails' | 'outputDetails'>
 export type BuilderTraceSpan = Readonly<{
   spanId: string
   parentSpanId: string | null
@@ -94,18 +97,18 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
-        mode: run?.mode ?? 'BUILD',
       }
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      recordFailure(request.log, 'BUILDER_SESSION_UNAVAILABLE', error, { 'conexus.project_id': request.params.projectId })
       return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
     }
   })
 
-  app.post<{ Params: { projectId: string }; Body: { content: string; mode: 'BUILD' | 'PLAN'; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
+  app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
     schema: {
       params,
-      body: { type: 'object', additionalProperties: false, required: ['content', 'mode', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, mode: { type: 'string', enum: ['BUILD', 'PLAN'] }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
+      body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
     },
   }, async (request, reply) => {
     const csrf = header(request.headers['x-conexus-csrf'])
@@ -118,14 +121,16 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       const run = await dependencies.service.createBuilderRun({
         accountId: session.account.accountId, projectId: request.params.projectId,
         conversationId: request.body.conversationId,
-        idempotencyKey, content: request.body.content, mode: request.body.mode,
+        idempotencyKey, content: request.body.content,
       })
       return reply.code(201).send({ builderRun: projectBuilderRun(run) })
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      if (detail === 'BUILDER_CONVERSATION_NOT_FOUND') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
+      recordFailure(request.log, 'BUILDER_RUN_START_FAILED', error, { 'conexus.project_id': request.params.projectId })
       return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
     }
   })
@@ -146,6 +151,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED') || detail.includes('NOT_FOUND')) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
+      recordFailure(request.log, 'BUILDER_CANCEL_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })
       return sendProblem(reply, 503, 'builder-cancellation-unavailable', 'Builder cancellation unavailable')
     }
   })
@@ -162,6 +168,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return dependencies.session.readTrace({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      recordFailure(request.log, 'BUILDER_TRACE_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })
       return sendProblem(reply, 503, 'builder-trace-unavailable', 'Builder trace unavailable')
     }
   })
@@ -192,6 +199,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     } catch (error) {
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED') || detail.includes('SUBJECT_REFUSED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+      recordFailure(request.log, 'BUILDER_PREVIEW_FAILED', error, { 'conexus.project_id': request.params.projectId })
       return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
     }
   })
@@ -210,6 +218,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
           return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
         }
+        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
         return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
       }
     },
@@ -230,6 +239,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
           detail.includes('NOT_DISCLOSABLE') || detail.includes('PATH_REFUSED')) {
           return sendProblem(reply, 404, 'source-file-not-found', 'Source file not found')
         }
+        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
         return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
       }
     },
@@ -249,6 +259,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
           return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
         }
+        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
         return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
       }
     },

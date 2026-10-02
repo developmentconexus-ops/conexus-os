@@ -5,7 +5,7 @@
  * the artifact, beside the bundled handlers and the Project's migrations.
  */
 export type ValueSchema =
-  | Readonly<{ type: 'string'; minLength?: number; maxLength?: number }>
+  | Readonly<{ type: 'string'; enum?: readonly string[]; minLength?: number; maxLength?: number }>
   | Readonly<{ type: 'integer' | 'number'; minimum?: number; maximum?: number }>
   | Readonly<{ type: 'boolean' }>
   | Readonly<{ type: 'object'; properties: Readonly<Record<string, ValueSchema>>; required?: readonly string[]; additionalProperties: false }>
@@ -21,9 +21,6 @@ export type ServerManifest = Readonly<{
   operations: Readonly<Record<string, ServerOperation>>
   migrations: readonly ServerMigration[]
 }>
-
-export const SERVER_ROOT = 'conexus-server'
-export const SERVER_MANIFEST_PATH = `${SERVER_ROOT}/manifest.json`
 
 /**
  * Admits a manifest or refuses it with the first violation, as `MANIFEST_REFUSED: <where>: <why>`.
@@ -51,7 +48,14 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
     const record = candidate as Record<string, unknown>
     switch (record.type) {
       case 'string':
-        onlyKeys(record, ['type', 'minLength', 'maxLength'], where)
+        onlyKeys(record, ['type', 'enum', 'minLength', 'maxLength'], where)
+        if (record.enum !== undefined) {
+          const values = record.enum
+          if (!Array.isArray(values) || values.length < 1 || values.length > 64 || new Set(values).size !== values.length || !values.every((value) => typeof value === 'string' && value.length <= 200)) {
+            refuse(where, '"enum" must list between 1 and 64 distinct strings of at most 200 characters')
+          }
+          if (record.minLength !== undefined || record.maxLength !== undefined) refuse(where, '"enum" cannot be combined with "minLength" or "maxLength"')
+        }
         bound(record, 'minLength', where, true)
         bound(record, 'maxLength', where, true)
         break
@@ -150,11 +154,12 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
  * at run time.
  */
 export const SUPPORTED_NODE_IMPORTS: readonly string[] = Object.freeze([
-  'node:assert', 'node:assert/strict', 'node:buffer', 'node:crypto', 'node:events', 'node:path', 'node:querystring',
-  'node:string_decoder', 'node:timers', 'node:timers/promises', 'node:url', 'node:util',
+  'node:assert', 'node:assert/strict', 'node:buffer', 'node:crypto', 'node:events', 'node:path', 'node:perf_hooks',
+  'node:querystring', 'node:stream', 'node:stream/promises', 'node:stream/web', 'node:string_decoder', 'node:timers',
+  'node:timers/promises', 'node:url', 'node:util', 'node:util/types', 'node:zlib',
 ])
 
-/** Globals that reach the network. A handler has none; it calls an external system through `connectors.call`. */
+/** Globals that reach the network. A handler has none; it reads a company system through `connectors.fetch`. */
 export const NETWORK_GLOBALS: readonly string[] = Object.freeze(['fetch', 'WebSocket', 'EventSource', 'XMLHttpRequest'])
 
 /** One file of an artifact's `conexus-server/` tree: its path, its base64 content and that content's SHA-256. */
@@ -215,12 +220,18 @@ export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Bu
   return Object.freeze({ manifest: admitted, modules })
 }
 
-/** The first place `value` breaks `schema`, as `<json pointer>: <why>`, or null when it conforms. */
+const UNDECLARED_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
+
+/**
+ * The first place `value` breaks `schema`, as `<json pointer>: <why>`, or null when it conforms. The
+ * text names only schema facts and array positions, so the runner may log it.
+ */
 export const schemaViolation = (schema: ValueSchema, value: unknown, where = ''): string | null => {
   const at = where || '/'
   switch (schema.type) {
     case 'string':
       if (typeof value !== 'string') return `${at}: expected string`
+      if (schema.enum !== undefined && !schema.enum.includes(value)) return `${at}: not one of ${schema.enum.map((allowed) => JSON.stringify(allowed)).join(', ')}`
       if (schema.minLength !== undefined && value.length < schema.minLength) return `${at}: shorter than ${schema.minLength}`
       if (schema.maxLength !== undefined && value.length > schema.maxLength) return `${at}: longer than ${schema.maxLength}`
       return null
@@ -244,7 +255,8 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, where = '')
     case 'object': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return `${at}: expected object`
       const record = value as Record<string, unknown>
-      for (const key of Object.keys(record)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${key}: not declared`
+      // The key comes from the value, so one that is not a property name is not repeated.
+      for (const key of Object.keys(record)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${UNDECLARED_KEY_NAME.test(key) ? key : '(key)'}: not declared`
       for (const key of schema.required ?? []) if (!Object.hasOwn(record, key)) return `${where}/${key}: required`
       for (const [key, property] of Object.entries(schema.properties)) {
         if (!Object.hasOwn(record, key)) continue

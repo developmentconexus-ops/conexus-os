@@ -111,8 +111,9 @@ for (const [id, operation] of Object.entries(source.operations)) {
 }
 
 // A handler has no network. The sandbox enforces that; this names the global the Builder reached
-// for while it can still change it. Bound names are collected module-wide, so a local named fetch
-// or a property read obj.fetch is never refused.
+// for while it can still change it. Each reference resolves through its own scope chain, so a local
+// named fetch or a property read obj.fetch is never refused, and a local fetch in one function does
+// not hide a bare global fetch in another.
 const bindingNames = (pattern, names) => {
   if (!pattern) return
   if (pattern.type === 'Identifier') names.add(pattern.name)
@@ -122,45 +123,55 @@ const bindingNames = (pattern, names) => {
   else if (pattern.type === 'RestElement') bindingNames(pattern.argument, names)
 }
 const GLOBAL_OBJECTS = ['globalThis', 'self', 'global', 'window']
+const BLOCK_SCOPES = ['BlockStatement', 'ForStatement', 'ForInStatement', 'ForOfStatement', 'SwitchStatement', 'StaticBlock']
 const networkGlobal = (program) => {
-  const declared = new Set()
   const references = []
-  const visit = (node, parent, key) => {
-    if (Array.isArray(node)) { for (const child of node) visit(child, parent, key); return }
+  const scopeIn = (parent, isFunction) => ({ parent, isFunction, names: new Set() })
+  const functionScope = (scope) => { while (!scope.isFunction) scope = scope.parent; return scope }
+  const bound = (name, scope) => { for (; scope; scope = scope.parent) if (scope.names.has(name)) return true; return false }
+  const visit = (node, parent, key, scope) => {
+    if (Array.isArray(node)) { for (const child of node) visit(child, parent, key, scope); return }
     if (!node || typeof node.type !== 'string') return
+    let inner = scope
     switch (node.type) {
-      case 'VariableDeclarator': bindingNames(node.id, declared); break
-      case 'FunctionDeclaration': case 'FunctionExpression': case 'ArrowFunctionExpression':
-        if (node.id) declared.add(node.id.name)
-        for (const param of node.params) bindingNames(param, declared)
+      case 'VariableDeclaration': {
+        const target = node.kind === 'var' ? functionScope(scope) : scope
+        for (const declarator of node.declarations) bindingNames(declarator.id, target.names)
         break
-      case 'ClassDeclaration': case 'ClassExpression': if (node.id) declared.add(node.id.name); break
-      case 'CatchClause': bindingNames(node.param, declared); break
-      case 'ImportSpecifier': case 'ImportDefaultSpecifier': case 'ImportNamespaceSpecifier': declared.add(node.local.name); break
+      }
+      case 'FunctionDeclaration': case 'FunctionExpression': case 'ArrowFunctionExpression':
+        inner = scopeIn(scope, true)
+        if (node.id) (node.type === 'FunctionDeclaration' ? scope : inner).names.add(node.id.name)
+        for (const param of node.params) bindingNames(param, inner.names)
+        break
+      case 'ClassDeclaration': if (node.id) scope.names.add(node.id.name); break
+      case 'ClassExpression': if (node.id) { inner = scopeIn(scope, false); inner.names.add(node.id.name) } break
+      case 'CatchClause': inner = scopeIn(scope, false); bindingNames(node.param, inner.names); break
+      case 'ImportSpecifier': case 'ImportDefaultSpecifier': case 'ImportNamespaceSpecifier': scope.names.add(node.local.name); break
       case 'Identifier': {
         const notReference = (key === 'property' && parent.type === 'MemberExpression' && !parent.computed) ||
           (key === 'key' && !parent.computed && ['Property', 'MethodDefinition', 'PropertyDefinition'].includes(parent.type) && !(parent.shorthand && parent.value === node)) ||
           key === 'label' || parent?.type?.endsWith('Specifier')
-        if (!notReference) references.push(node.name)
+        if (!notReference && NETWORK_GLOBALS.includes(node.name)) references.push({ name: node.name, scope, shown: node.name })
         break
       }
       case 'MemberExpression': {
         const property = node.computed ? (node.property.type === 'Literal' ? node.property.value : null) : node.property.name
-        if (node.object.type === 'Identifier' && GLOBAL_OBJECTS.includes(node.object.name) && NETWORK_GLOBALS.includes(property)) references.push(node.object.name + '.' + property)
+        if (node.object.type === 'Identifier' && GLOBAL_OBJECTS.includes(node.object.name) && NETWORK_GLOBALS.includes(property)) {
+          references.push({ name: node.object.name, scope, shown: node.object.name + '.' + property })
+        }
         break
       }
+      default: if (BLOCK_SCOPES.includes(node.type)) inner = scopeIn(scope, false)
     }
-    for (const [childKey, child] of Object.entries(node)) if (child && typeof child === 'object') visit(child, node, childKey)
+    for (const [childKey, child] of Object.entries(node)) if (child && typeof child === 'object') visit(child, node, childKey, inner)
   }
-  visit(program, null, null)
-  return references.find((name) => {
-    const [first, second] = name.split('.')
-    return second === undefined ? NETWORK_GLOBALS.includes(first) && !declared.has(first) : !declared.has(first)
-  })
+  visit(program, null, null, scopeIn(null, true))
+  return references.find((reference) => !bound(reference.name, reference.scope))?.shown
 }
 for (const chunk of chunks) {
   const reached = networkGlobal(vite.parseAst(chunk.code))
-  if (reached) fail(sourceOf(chunk) + ' uses the global "' + reached + '": a handler has no network; call an external system only through connectors.call')
+  if (reached) fail(sourceOf(chunk) + ' uses the global "' + reached + '": a handler has no network; a company system is reached only through connectors.fetch')
 }
 for (const file of readdirSync(serverOut, { recursive: true })) {
   const path = String(file)

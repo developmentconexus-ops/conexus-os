@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testPool } from './hub-database.mjs'
 
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
@@ -202,11 +203,47 @@ test('upgrading a database at 0025 with open sessions ends every Hub and applica
     before, 'Accounts, invitations and memberships are untouched')
 })
 
+test('the Hub reads a Project as having an application only once its application exists, and none is created while it relies on the answer', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
+  const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_presence')
+  const pool = testPool({ ...connection, max: 3 })
+  closeFirst(() => pool.end())
+  const store = createApplicationAccessStore({ pool })
+  const presence = (projectId) => store.withApplicationPresence(projectId, async (hasApplication) => hasApplication)
+  const owner = await account('owner-p')
+  const workspaceId = await workspace('presence-p', [[owner, 'owner']])
+  const withApplication = await project(workspaceId, 'Com Aplicação')
+  const withoutApplication = await project(workspaceId, 'Sem Aplicação')
+  const slugOf = async (projectId) => (await client.query('SELECT iam.application_slug($1) AS slug', [projectId])).rows[0].slug
+
+  // The first application is created while a decision that the Project has none is still acting.
+  let granted = false
+  let grant
+  const acted = await store.withApplicationPresence(withApplication, async (hasApplication) => {
+    grant = store.grant({ actor: owner, projectId: withApplication, email: 'presenca@application.test' }).then((entry) => { granted = true; return entry })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    return { hasApplication, granted, slug: await slugOf(withApplication) }
+  })
+  assert.deepEqual(acted, { hasApplication: false, granted: false, slug: null }, 'the application waits for the decision to finish')
+  assert.equal((await grant).kind, 'invitation')
+  assert.notEqual(await slugOf(withApplication), null)
+
+  assert.equal(await presence(withApplication), true)
+  assert.equal(await presence(withoutApplication), false)
+  assert.equal(await presence(randomUUID()), false)
+  // A Project that has one releases its lock at once, so granting access is not held up.
+  await store.withApplicationPresence(withApplication, async () => {
+    await store.grant({ actor: owner, projectId: withApplication, email: 'outra@application.test' })
+  })
+  await assert.rejects(store.withApplicationPresence(withoutApplication, async () => { throw new Error('WORK_FAILED') }), /WORK_FAILED/)
+  assert.equal(await presence(withoutApplication), false)
+})
+
 test('application sessions: sign-in, handoff, per-request authority, the Keycloak re-check and the Hub session refusal', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
   const { createApplicationAccessStore } = await import(hubModuleUrl('identity-access/application-access.js'))
   const { client, connection, closeFirst, account, workspace, project } = await applicationDatabase(t, 'application_session')
-  const pool = new pg.Pool({ ...connection, max: 4 })
+  const pool = testPool({ ...connection, max: 4 })
   closeFirst(() => pool.end())
   const accessStore = createApplicationAccessStore({ pool })
   const refreshes = []
@@ -551,8 +588,10 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const signingOut = await openWithPreview('refresh-signing-out')
     providerAnswer = { kind: 'UNAVAILABLE' }
     refreshes.length = 0
-    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), true, 'a sign-out while Keycloak is down still ends the session')
-    assert.deepEqual(refreshes, [], 'and never asks Keycloak')
+    assert.deepEqual(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), { refreshToken: 'refresh-signing-out' },
+      'a sign-out while Keycloak is down still ends the session, and hands back the refresh token once so Keycloak can be asked to end its SSO session')
+    assert.deepEqual(refreshes, [], 'and never refreshes it')
+    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), null, 'a second sign-out ends nothing and hands back nothing')
     assert.deepEqual(await ended(signingOut.hub.sessionToken), { ended_reason: 'SIGNED_OUT', provider_refresh_token: null })
     assert.deepEqual(await ended(signingOut.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null })
   })
@@ -593,7 +632,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
     const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
     assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
-    assert.equal(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), true)
+    assert.deepEqual(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), { refreshToken: 'refresh-owner' })
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
     assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
       [{ ended_reason: 'PARENT_ENDED' }])
@@ -959,8 +998,8 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await client.query("INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'caderno', $2)", [artifactId, projectId])
     await client.query("INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, $5, 'AVAILABLE')",
       [revisionId, artifactId, 'e'.repeat(40), 'f'.repeat(64), payload])
-    await client.query(`INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
-      VALUES ($1, $2, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
+    await client.query(`INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
+      VALUES ($1, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
 
     const served = await reader.readServedFile({ accountId: owner, projectId, path: 'assets/app.js' })
     assert.deepEqual({ ...served, file: { ...served.file, bytes: Buffer.from(served.file.bytes).toString() } }, {
@@ -981,16 +1020,16 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   })
 })
 
-test('the installed Factory seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { createFactorySecretEncryption } = await import('@mastra/factory/secret-encryption')
+test('the Hub seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
+  const { createFactorySecretEncryption } = await import(hubModuleUrl('platform/factory-secret-encryption.js'))
   const { client } = await applicationDatabase(t, 'envelope')
   const sealed = await createFactorySecretEncryption({ primary: { id: 'installation', key: Buffer.alloc(32, 7) } }).encrypt('a refresh token')
   const checks = (await client.query(`
     SELECT conrelid::regclass::text AS relation, pg_get_constraintdef(oid) AS definition FROM pg_constraint
     WHERE contype = 'c' AND pg_get_constraintdef(oid) LIKE '%mastra:factory-secret:%' ORDER BY 1`)).rows
-  assert.deepEqual(checks.map((check) => check.relation), ['connector.connection', 'iam.handoff', 'iam.host_session'])
+  assert.deepEqual(checks.map((check) => check.relation), ['connector.connection', 'iam.handoff', 'iam.host_session', 'model.model_account'])
   for (const { relation, definition } of checks) {
     const prefix = /'(mastra:factory-secret:[^%']*)%'/.exec(definition)?.[1]
-    assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Factory seals ${sealed.slice(0, 32)}…: reopen when the Factory changes its envelope`)
+    assert.ok(prefix && sealed.startsWith(prefix), `${relation} requires ${prefix}; the Hub seals ${sealed.slice(0, 32)}…`)
   }
 })

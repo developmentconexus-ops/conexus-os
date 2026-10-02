@@ -230,7 +230,7 @@ function InviteForm({ workspaceId, onInvited }: Readonly<{ workspaceId: string; 
     <h2 id="people-invite" className="cx-section-title">Convidar alguém</h2>
     <p className="cx-field-hint">A pessoa entra pelo login da empresa com exatamente este email, já confirmado. Nenhum email é enviado: copie o link de entrada e mande você mesmo.</p>
     <form className="cx-invite-form" onSubmit={submit} noValidate>
-      <div className="cx-field cx-invite-email">
+      <div className="cx-field">
         <Label htmlFor={emailId}>Email</Label>
         <Input id={emailId} name="email" type="email" autoComplete="off" required placeholder="nome@empresa.com.br" />
       </div>

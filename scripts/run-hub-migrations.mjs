@@ -39,6 +39,27 @@ const singleSessionDigest = '8b68fd77bdf58eb1ea8dc728d2315e1f32f42ba361e67744cf7
 const claimInvitationGrantLockDigest = '247d4e7e92c7fde07006bc0a5bf36f719402e4be38e257f6239e93f2d596b451'
 const claimLockAllOpenGrantsDigest = 'e56b9f08bed9b673ed7db2457e51ff837465b46e184a31deb94f8f11af296a43'
 const connectorDigest = '1e5afc4d0bb35ec617672212cee135f43ca72f4fe5a67697ca6b719838988553'
+const projectDeletionDigest = 'dcc5c29c3373ba776c772e4d38270dec930009071b102688bf4d53c6668870b6'
+const projectBindingDigest = 'e85f3bbfa5f7b47f51fb1b4d30df12922c7fff4826fc1b0b44c304a65878e59a'
+const conexusGitDigest = '03db7c70c662de2bd0eedaa4916f36b8d53560c64837bd1d0a9edccff7592986'
+const modelAccountDigest = '50d243c98fac0fd74cf47a163ee8deecb1500dfc6b7dd8f7a7f079a65f86616d'
+const runModelAccountDigest = '8b89f15aa1fb81e4eed4a314cc0b314cf5d33916b62df65492bbc10ac06c3a93'
+const modelAccountByIdDigest = '611c746f0734d3300ab53c79804627245f726612bffbd0ef87bb6212ca721ba0'
+const runSettlesByChangeDigest = 'e9ee2861c028cb994dbebb151bb5ea945a2a20866da65a8dac76445a51020581'
+const applicationStackV2Digest = '80bc51c5c305246a5ddc91816e8fa81e8063996ebc7523218ca46cef3d731c0d'
+const runModelAccountsDigest = '1de462f5dd403e811ab560cf91e787e69a2efde610f21cb62a039e345389b8cc'
+const conversationSessionDigest = 'b34c286a9c12f1b21c6a672001dd0cf3d75241fd9c72ffbebca576e431c4acfe'
+const conversationSandboxDigest = '22d9add00f715c6cf681cbea139629045c8b0c44d82c20c4569545f514f4e622'
+const oneModeDigest = 'f3947f61bdcc47936af47c4491a7b9e55e457a80fcb16b10e6766f5f93473aaa'
+const compilerTemplateEnumDigest = '6ede27869772c62a255a970f6cdb92d88db166dd1ba565d0147a031192412f8c'
+const runParkedDigest = 'fd6a7fb76d8f738ad4fcebb8b4b16ba87907821a98e009b5c5ab755190496c2e'
+const modelAccountSharingHistoryDigest = 'c01d71477794fcbe974b1a239ec0e90d65e11cc4ecf4b83079d7f3036ec04f4f'
+const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba798fceb05a77dbcf4'
+const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
+const listUnownedRunsDigest = 'b4653fc811f6bde04150b561aa240130cbe3da2ce2c93a954faf702ec3307dd9'
+const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
+const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
+const hubSignOutProviderLogoutDigest = '082ef3a53dabaddc24937bcb0f236d0d8107287d4d73cdf35f9c27f8abf42413'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -70,6 +91,27 @@ const migrationDigests = new Map([
   ['0027_claim_invitation_grant_lock.sql', claimInvitationGrantLockDigest],
   ['0028_claim_lock_all_open_grants.sql', claimLockAllOpenGrantsDigest],
   ['0029_connector.sql', connectorDigest],
+  ['0030_project_deletion.sql', projectDeletionDigest],
+  ['0031_project_binding.sql', projectBindingDigest],
+  ['0032_conexus_git.sql', conexusGitDigest],
+  ['0033_model_account.sql', modelAccountDigest],
+  ['0034_builder_run_model_account.sql', runModelAccountDigest],
+  ['0035_model_account_by_id.sql', modelAccountByIdDigest],
+  ['0036_builder_run_settles_by_change.sql', runSettlesByChangeDigest],
+  ['0037_application_stack_v2.sql', applicationStackV2Digest],
+  ['0038_builder_run_model_accounts.sql', runModelAccountsDigest],
+  ['0039_builder_conversation_session.sql', conversationSessionDigest],
+  ['0040_builder_conversation_sandbox.sql', conversationSandboxDigest],
+  ['0041_builder_one_mode.sql', oneModeDigest],
+  ['0042_compiler_template_enum.sql', compilerTemplateEnumDigest],
+  ['0043_builder_run_parked.sql', runParkedDigest],
+  ['0044_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
+  ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
+  ['0046_builder_open_run_conversations.sql', openRunConversationsDigest],
+  ['0047_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
+  ['0048_application_thumbnail.sql', applicationThumbnailDigest],
+  ['0049_builder_list_unowned_runs.sql', listUnownedRunsDigest],
+  ['0050_hub_sign_out_provider_logout.sql', hubSignOutProviderLogoutDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -130,40 +172,28 @@ const ledgerState = async (client, migrations) => {
   return { applied, maximum: rows.at(-1)?.version ?? null }
 }
 
+// Every pending migration and the catalog check run in one transaction, so a failure at any
+// point, including a catalog that does not match the snapshot once the last migration ran, leaves
+// the database exactly as it was. The migration bodies are already transactional DDL (the
+// envelope check refuses anything else), and the advisory lock is held until the single commit.
+// The catalog is compared only after the last migration, because before that the database is not
+// yet the one the snapshot describes.
 export const runMigrations = async ({ connectionString, migrations, catalogSnapshot = readCommittedSnapshot() }) => {
   const client = new pg.Client({ connectionString })
   await client.connect()
-  const appliedNow = []
   try {
-    for (const migration of migrations) {
-      await client.query('BEGIN')
-      try {
-        await takeAdvisoryLock(client)
-        const ledger = await ledgerState(client, migrations)
-        if (ledger.applied.has(migration.version)) {
-          await client.query('COMMIT')
-          continue
-        }
-        if (migration.version === baselineVersion && await schemaExists(client, 'iam')) fail('MIGRATION_DIRTY_BASELINE_REFUSED')
-        await client.query(migrationBody(migration))
-        await client.query('INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [migration.version, migration.checksum])
-        await client.query('COMMIT')
-        appliedNow.push(migration.version)
-      } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
-      }
-    }
-    // Every pending migration has now run, so this is the one point where the database is the one
-    // the snapshot describes. The catalog and role invariants are asserted here, once, rather than
-    // on every loop iteration: checking them earlier would compare a database that still has
-    // migrations left to run against a snapshot of the finished one, which refuses every upgrade
-    // and every fresh install of more than one migration. The cost is that a catalog that drifted
-    // independently of the ledger is now caught after pending migrations run rather than before;
-    // a ledger that is already complete still runs no migration bodies, so that case is unaffected.
     await client.query('BEGIN')
     try {
       await takeAdvisoryLock(client)
+      const appliedNow = []
+      for (const migration of migrations) {
+        const ledger = await ledgerState(client, migrations)
+        if (ledger.applied.has(migration.version)) continue
+        if (migration.version === baselineVersion && await schemaExists(client, 'iam')) fail('MIGRATION_DIRTY_BASELINE_REFUSED')
+        await client.query(migrationBody(migration))
+        await client.query('INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [migration.version, migration.checksum])
+        appliedNow.push(migration.version)
+      }
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)

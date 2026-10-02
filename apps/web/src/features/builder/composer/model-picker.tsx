@@ -3,31 +3,31 @@ import { Check, Search } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
-import { reasoningLevels } from '../mastra-session'
-import { groupModelsByProvider, providerIcon, providerLabel } from './model-order'
-import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
+import { groupModelsByProvider, providerIcon } from './model-order'
+import { humanizeModelName } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 const matches = (model: BuilderModel, query: string): boolean => {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
-  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || providerLabel(model.provider).toLowerCase().includes(needle)
+  return humanizeModelName(model.modelName).toLowerCase().includes(needle) || model.providerName.toLowerCase().includes(needle)
 }
 
 /**
  * One popover, one step: search the model, pick it, and set how hard it thinks, without opening a
  * second floating layer for either.
  */
-export function ModelPicker({ models, modelId, onModelChange, disabled, reasoning, onReasoningChange, reasoningDisabled, reasoningLocked = false }: Readonly<{
+export function ModelPicker({ models, modelId, onModelChange, disabled, levels, reasoning, onReasoningChange, reasoningDisabled }: Readonly<{
   models: readonly BuilderModel[]
   modelId: string
   onModelChange: (modelId: string) => void
   disabled: boolean
-  reasoning: ReasoningLevel
+  /** The levels the selected model honors, lowest first; none when it has no reasoning level. */
+  levels: readonly ReasoningLevel[]
+  /** The level the selected model runs at, null when it has none. */
+  reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
   reasoningDisabled: boolean
-  /** The selected model's id encodes its reasoning level (google-ai-pro's `-low`/`-high` suffix): no independent choice exists. */
-  reasoningLocked?: boolean
 }>) {
   const [query, setQuery] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
@@ -47,13 +47,14 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
     else if (event.key === 'Enter') { event.preventDefault(); const active = visible.find((model) => model.id === activeId); if (active) onModelChange(active.id) }
   }
 
-  const levelIndex = reasoningLevels.indexOf(reasoning)
+  const levelIndex = reasoning ? levels.indexOf(reasoning) : -1
+  const lastStop = Math.max(1, levels.length - 1)
   const onSliderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (reasoningDisabled) return
     const step = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 0
     if (!step) return
     event.preventDefault()
-    const next = reasoningLevels[Math.min(reasoningLevels.length - 1, Math.max(0, levelIndex + step))]
+    const next = levels[Math.min(levels.length - 1, Math.max(0, levelIndex + step))]
     if (next && next !== reasoning) onReasoningChange(next)
   }
   // Stop centers run from one thumb radius inside the pill to one thumb radius from its far end.
@@ -61,7 +62,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
     const box = event.currentTarget.getBoundingClientRect()
     const inset = box.height / 2
     const fraction = Math.min(1, Math.max(0, (event.clientX - box.left - inset) / (box.width - 2 * inset)))
-    const next = reasoningLevels[Math.round(fraction * (reasoningLevels.length - 1))]
+    const next = levels[Math.round(fraction * (levels.length - 1))]
     if (next && next !== reasoning) onReasoningChange(next)
   }
   // Capturing the pointer keeps a drag on the slider even when it leaves the pill.
@@ -99,7 +100,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
           {groups.map((group) => !group.models.length ? null : (() => {
             const Icon = providerIcon(group.provider)
             return <div className="cx-model-group" key={group.provider}>
-              <p className="cx-model-group-label">{providerLabel(group.provider)}</p>
+              <p className="cx-model-group-label">{group.providerName}</p>
               {group.models.map((model) => <button
                 key={model.id}
                 type="button"
@@ -114,7 +115,6 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
               >
                 <Icon width={15} height={15} aria-hidden="true" />
                 <span className="cx-model-option-name">{humanizeModelName(model.modelName)}</span>
-                {(() => { const suffix = parseReasoningSuffix(model.modelName); return suffix && <span className="cx-model-option-level">{reasoningLabels[suffix.level]}</span> })()}
                 {model.id === modelId && <Check size={14} aria-hidden="true" />}
               </button>)}
             </div>
@@ -123,34 +123,36 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, reasonin
       </>}
     <div className="cx-effort">
       <span id="cx-effort-label" className="cx-effort-title">Raciocínio</span>
-      <b className="cx-effort-value" aria-hidden="true">{reasoningLabels[reasoning]}</b>
-      <div
-        className="cx-effort-slider"
-        role="slider"
-        tabIndex={reasoningDisabled ? -1 : 0}
-        aria-labelledby="cx-effort-label"
-        aria-valuemin={0}
-        aria-valuemax={reasoningLevels.length - 1}
-        aria-valuenow={levelIndex}
-        aria-valuetext={reasoningLabels[reasoning]}
-        aria-disabled={reasoningDisabled || undefined}
-        data-locked={reasoningLocked || undefined}
-        style={{ '--cx-effort-at': levelIndex / (reasoningLevels.length - 1) } as CSSProperties}
-        onKeyDown={onSliderKeyDown}
-        onPointerDown={onSliderPointerDown}
-        onPointerMove={onSliderPointerMove}
-      >
-        <span className="cx-effort-fill" aria-hidden="true" />
-        {reasoningLevels.map((level, index) => <span
-          key={level}
-          className="cx-effort-dot"
-          aria-hidden="true"
-          data-filled={index < levelIndex || undefined}
-          style={{ '--cx-effort-stop': index / (reasoningLevels.length - 1) } as CSSProperties}
-        />)}
-        <span className="cx-effort-thumb" aria-hidden="true" />
-      </div>
-      {reasoningLocked && <p className="cx-effort-locked">Nível fixo neste modelo</p>}
+      {!reasoning
+        ? <p className="cx-effort-none">Este modelo não tem nível de raciocínio para escolher.</p>
+        : <>
+          <b className="cx-effort-value" aria-hidden="true">{reasoningLabels[reasoning]}</b>
+          <div
+            className="cx-effort-slider"
+            role="slider"
+            tabIndex={reasoningDisabled ? -1 : 0}
+            aria-labelledby="cx-effort-label"
+            aria-valuemin={0}
+            aria-valuemax={levels.length - 1}
+            aria-valuenow={levelIndex}
+            aria-valuetext={reasoningLabels[reasoning]}
+            aria-disabled={reasoningDisabled || undefined}
+            style={{ '--cx-effort-at': levelIndex / lastStop } as CSSProperties}
+            onKeyDown={onSliderKeyDown}
+            onPointerDown={onSliderPointerDown}
+            onPointerMove={onSliderPointerMove}
+          >
+            <span className="cx-effort-fill" aria-hidden="true" />
+            {levels.map((level, index) => <span
+              key={level}
+              className="cx-effort-dot"
+              aria-hidden="true"
+              data-filled={index < levelIndex || undefined}
+              style={{ '--cx-effort-stop': index / lastStop } as CSSProperties}
+            />)}
+            <span className="cx-effort-thumb" aria-hidden="true" />
+          </div>
+        </>}
     </div>
   </div>
 }

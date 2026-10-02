@@ -1,30 +1,25 @@
-import { getAuthProviderId } from '@mastra/factory/routes/provider-credentials'
-import { invalidateTenantCredentialSnapshots } from '@mastra/factory/routes/tenant-credentials'
-import { applyActiveModelPack } from '@mastra/factory/session/model-pack-hydration'
-import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
-import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
-import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
+import { createAnthropicThinkingMiddleware } from '@mastra/code-sdk/providers/claude-max'
+import { resolveGoogleThinkingConfig } from '@mastra/code-sdk/providers/google-thinking'
+import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@mastra/code-sdk/providers/openai-codex'
+import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import type { AvailableModel } from '@mastra/core/agent-controller'
+import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
 import { sendProblem } from '../http/problem.js'
+import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
+import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
-import { filterChatModels } from './chat-models.js'
-import { FACTORY_MEMORY_MODEL_ID, setFactoryMemoryModel } from './factory-provisioning.js'
-import { FACTORY_OPERATOR_ID } from './factory.js'
-import { GOOGLE_AI_PRO_PROVIDER, seedGoogleAiProMemory } from './google-ai-pro/credential.js'
+import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
+import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
+import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
+import { OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
+import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { isExactOrigin } from '../platform/origin.js'
 
-// The installation's defaults are one Factory model pack; a person's own defaults are their active
-// pack row. The plan role is not offered, so it follows the build model.
-const INSTALLATION_DEFAULTS_PACK = 'Modelos padrão'
-const PERSONAL_DEFAULTS_PACK_ID = 'conexus:personal'
-
-type ModelDefaults = Readonly<{ build: string; fast: string }>
-
 const CSRF_COOKIE = '__Host-conexus_csrf'
-const MODEL_ID = /^[\w.-]+\/[\w./:-]+$/
-const PROVIDER = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const LOGIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> = {
@@ -33,60 +28,112 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
   'model-login-callback-refused': [400, 'Sign-in address refused'],
 }
 
-type ModelAccountDomains = Readonly<{
-  credentials: ModelCredentialsStorage
-  modelPacks: ModelPacksStorage
-  memorySettings: MemorySettingsStorage
-}>
-
 type Caller = Readonly<{ accountId: AccountId }>
-type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
-
-// The Factory's own provider-key and sign-in routes, which the browser calls at their own paths.
-export const FACTORY_CREDENTIAL_ROUTES: ReadonlySet<string> = new Set([
-  'GET /web/config/providers',
-  'GET /web/config/models',
-  'GET /web/config/model-packs',
-  'PUT /web/config/providers/:provider/key',
-  'DELETE /web/config/providers/:provider/key',
-  'POST /web/config/providers/:provider/oauth/start',
-  'POST /web/config/providers/:provider/oauth/complete',
-  'POST /web/config/providers/:provider/oauth/poll',
-  'DELETE /web/config/providers/:provider/oauth/session/:sessionId',
-  'DELETE /web/config/providers/:provider/oauth',
-])
-
-const toDefaults = (models: Readonly<{ build: string; fast: string }>): ModelDefaults => ({ build: models.build, fast: models.fast })
-const packModels = ({ build, fast }: ModelDefaults) => ({ build, plan: build, fast })
-
-const readInstallationDefaults = async (modelPacks: ModelPacksStorage, orgId: string) =>
-  (await modelPacks.list({ orgId })).find((pack) => pack.name === INSTALLATION_DEFAULTS_PACK) ?? null
-
-type DefaultsSession = Parameters<typeof applyActiveModelPack>[0]
+/** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
+type OfferedModel = Readonly<Pick<AvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ThinkingLevelSetting[] }>
+type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
 
 /**
- * Gives a new conversation's thread the person's own defaults, else the installation's. The Factory
- * seeds only a person's active pack; a thread that already chose its models keeps them.
+ * The name a person reads for a provider: Mastra's catalog name, except for the providers the Hub
+ * signs in to by subscription, whose catalog name says nothing of how the person pays.
  */
-export const applyModelDefaults = ({ modelPacks, orgId }: Readonly<{ modelPacks: ModelPacksStorage; orgId: string }>) =>
-  async (session: DefaultsSession, accountId: string): Promise<void> => {
-    if (typeof await session.thread.getSetting?.({ key: 'activeModelPackId' }) === 'string') return
-    const own = await modelPacks.getActive({ orgId, userId: accountId })
-    const installation = own ? null : await readInstallationDefaults(modelPacks, orgId)
-    const pack = own ?? (installation ? { packId: `custom:${installation.id}`, models: installation.models } : null)
-    if (pack) await applyActiveModelPack(session, pack as Parameters<typeof applyActiveModelPack>[1])
-  }
+const PROVIDER_NAME_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+  [ANTHROPIC_PROVIDER]: 'Anthropic (Claude)',
+  [OPENAI_CODEX_PROVIDER]: 'OpenAI (ChatGPT)',
+  [OPENAI_MODEL_PROVIDER]: 'OpenAI (ChatGPT)',
+  [GOOGLE_AI_PRO_PROVIDER]: 'Google AI Pro',
+})
+const providerNameOf = (provider: string): string => PROVIDER_NAME_OVERRIDES[provider] ?? getProviderConfig(provider)?.name ?? provider
 
-export const registerModelAccountRoutes = async (app: FastifyInstance, { domains, orgId, origin, resolveCurrentSession, isInstallationAdministrator, googleAiPro }: Readonly<{
-  domains: ModelAccountDomains
-  orgId: string
+const shapeOf = (option: unknown): string => JSON.stringify(option) ?? 'undefined'
+
+/**
+ * The levels the composer offers for a model: Mastra Code's own for it
+ * (`getAvailableThinkingLevelsForModel`), each kept only when the provider's Mastra Code mapping
+ * (`optionAt`) sends a setting that differs from the level below's, so Gemini Flash, which runs
+ * `xhigh` and `max` as `high`, offers neither, and `pro-agent`, which has no thinking, offers none.
+ * `off` is offered when what Mastra sends for it differs from the lowest level that thinks.
+ */
+const thinkingLevelsOf = async (modelId: string, optionAt: (level: ThinkingLevelSetting) => unknown): Promise<readonly ThinkingLevelSetting[]> => {
+  const available: readonly string[] = getAvailableThinkingLevelsForModel(modelId)
+  const levels: ThinkingLevelSetting[] = []
+  let below: string | undefined
+  for (const level of THINKING_LEVEL_VALUES.filter((each) => each !== 'off' && available.includes(each))) {
+    const option = await optionAt(level)
+    if (option === undefined) continue
+    const shape = shapeOf(option)
+    if (shape !== below) levels.push(level)
+    below = shape
+  }
+  const [lowest] = levels
+  if (lowest && available.includes('off') && shapeOf(await optionAt('off')) !== shapeOf(await optionAt(lowest))) levels.unshift('off')
+  return Object.freeze(levels)
+}
+
+// Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
+/** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
+const googleAiProOffer = (): Promise<Offer> => Promise.all(GOOGLE_AI_PRO_MODELS.map(async (model) => Object.freeze({
+  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, providerName: providerNameOf(GOOGLE_AI_PRO_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${GOOGLE_AI_PRO_PROVIDER}/${model}`, (level) => resolveGoogleThinkingConfig(model, level)),
+})))
+
+// Mastra's model router catalog lists every model of a provider, and Mastra Code offers all of them
+// on a subscription. The catalog carries no capability field, so the ones that cannot chat are
+// left out by name, as the Hub did for the Factory catalog, with the retired ones the catalog marks.
+const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|transcribe|realtime|rerank|moderation)([-_.]|$)/i
+const chatModelsOf = (provider: string): readonly string[] => {
+  const catalog = getProviderConfig(provider)
+  const retired = new Set(catalog?.deprecatedModels ?? [])
+  return (catalog?.models ?? []).filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
+}
+
+/** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
+const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_MODEL_PROVIDER).map(async (model) => Object.freeze({
+  id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, providerName: providerNameOf(OPENAI_MODEL_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${OPENAI_MODEL_PROVIDER}/${model}`, (level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
+})))
+
+/** What Mastra Code's Claude middleware writes into the request's Anthropic options for a level; nothing when it writes none. */
+const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
+  const middleware = createAnthropicThinkingMiddleware(model, level)
+  if (!middleware?.transformParams) return undefined
+  const call = { type: 'stream', params: { prompt: [], providerOptions: {} }, model: {} } as unknown as Parameters<NonNullable<typeof middleware.transformParams>>[0]
+  return (await middleware.transformParams(call)).providerOptions?.anthropic
+}
+
+/** Both kinds of Anthropic account serve every chat model of Mastra's catalog, by the `anthropic/<model>` id a thread stores and a run resolves. */
+const anthropicOffer = (): Promise<Offer> => Promise.all(chatModelsOf(ANTHROPIC_PROVIDER).map(async (model) => Object.freeze({
+  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, providerName: providerNameOf(ANTHROPIC_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => anthropicSetting(model, level)),
+})))
+
+/** The providers a person connects by pasting a key, and the shape each key must have. */
+const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })
+
+/** The accounts the Settings screen lists, by `model.model_account` provider. */
+const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
+
+type Connection = Readonly<{ provider: string; providerName: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
+
+/**
+ * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
+ * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
+ * slice 5.
+ */
+export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
+  modelAccounts: ModelAccountStore
+  // OpenAI's device-code endpoints; only tests replace them.
+  openaiCodexDevice?: CodexDevice
+  // Anthropic's authorization endpoints; only tests replace them.
+  claudeAuthorization?: ClaudeAuthorization
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
+  // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
+  googleAiProAccounts?: GoogleAiProAccounts
 }>): Promise<void> => {
-  const { credentials, modelPacks, memorySettings } = domains
   const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
@@ -100,118 +147,110 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
       await sendProblem(reply, 401, 'authentication-required', 'Authentication required')
       return null
     }
-    const { provider } = (request.params ?? {}) as Readonly<{ provider?: string }>
-    if (provider !== undefined && !PROVIDER.test(provider)) {
-      await sendProblem(reply, 404, 'model-provider-not-found', 'Model provider not found')
-      return null
-    }
     return { accountId: session.account.accountId }
   }
-  const requireAdministrator = async (caller: Caller, reply: FastifyReply): Promise<boolean> => {
-    if (await isInstallationAdministrator(caller.accountId)) return true
-    await sendProblem(reply, 403, 'installation-administrator-required', 'Installation administrator required')
-    return false
+  // Offered only to a caller who can use it, own or shared, since a model whose first turn fails is
+  // worse than one not offered. With scope=installation, whether the installation shares one.
+  const offeredModels = async (accountId: AccountId, scope?: 'installation'): Promise<readonly Omit<OfferedModel, 'hasApiKey'>[]> => {
+    const usable = async (provider: string): Promise<boolean> => scope === 'installation'
+      ? modelAccounts.hasShared(provider)
+      : modelAccounts.connection(accountId, provider).then(({ mine, shared }) => mine !== null || shared)
+    const offers: readonly (readonly [string, () => Promise<Offer>])[] = [
+      ...(googleAiProAccounts ? [[GOOGLE_AI_PRO_PROVIDER, googleAiProOffer] as const] : []),
+      [OPENAI_CODEX_PROVIDER, openaiCodexOffer],
+      [ANTHROPIC_PROVIDER, anthropicOffer],
+    ]
+    return (await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? await offer() : []))).flat()
   }
+  app.get<{ Querystring: { scope?: 'installation' } }>('/api/control/model-accounts/models', {
+    schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } },
+  }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
+  })
 
-  const hasOrgCredential = async (provider: string): Promise<boolean> => {
-    const authProviderId = getAuthProviderId(provider)
-    const credential = await credentials.getCredential({ orgId }, authProviderId)
-    return Boolean(credential)
-  }
+  // The caller's accounts for the providers this Hub signs in to, never their secrets.
+  app.get('/api/control/model-accounts', async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const [administrator, accounts] = await Promise.all([
+      isInstallationAdministrator(caller.accountId),
+      Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
+        const { mine, shared } = await modelAccounts.connection(caller.accountId, provider)
+        return { provider, providerName: providerNameOf(provider), mine: mine !== null, kind: mine, shared }
+      })),
+    ])
+    return { administrator, accounts }
+  })
 
-  const orgCoversModel = async (modelId: string): Promise<boolean> => {
-    const provider = modelId.split('/')[0]
-    return provider ? hasOrgCredential(provider) : false
-  }
+  // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
+  app.put<{ Params: { provider: string }; Body: { key: string } }>('/api/control/model-accounts/:provider/api-key', {
+    schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } },
+  }, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    const shape = Object.hasOwn(API_KEY_SHAPES, request.params.provider) ? API_KEY_SHAPES[request.params.provider] : undefined
+    if (!shape) return sendProblem(reply, 404, 'model-account-provider-unknown', 'No API key accounts for this provider')
+    const key = request.body.key.trim()
+    if (!shape.test(key)) return sendProblem(reply, 400, 'model-account-key-refused', 'This is not an API key for this provider')
+    await modelAccounts.write(caller.accountId, request.params.provider, 'api_key', key)
+    return reply.code(204).send()
+  })
 
-  // The Factory's own answer for the caller's credentials, user over org, from its route. The
-  // Factory appends every custom-provider record (Google AI Pro included) to this answer itself, by
-  // the provider's own id, unconditionally — it has no notion of who has a usable credential for an
-  // installation-wide provider. The Hub narrows to chat models and, for Google AI Pro specifically,
-  // drops it for a caller with no usable credential of their own or the installation's: offering a
-  // model whose first turn fails is worse than not offering it.
-  app.get<{ Querystring: { scope?: string } }>('/api/control/model-accounts/models', {
+  const claudeLogin = createClaudeLogin<Caller>({
+    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, ANTHROPIC_PROVIDER, 'oauth', serializeClaudeTokens(tokens)),
+    ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
+  })
+  const claudeBase = `/api/control/model-accounts/${ANTHROPIC_PROVIDER}/oauth`
+  app.post(`${claudeBase}/start`, async (request, reply) => {
+    const caller = await admit(request, reply)
+    if (!caller) return reply
+    return claudeLogin.start(caller).then(
+      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
+      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+    )
+  })
+  app.post<{ Body: { loginId: string; code: string } }>(`${claudeBase}/complete`, {
     schema: {
-      querystring: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { scope: { type: 'string' } },
+      body: {
+        type: 'object', additionalProperties: false, required: ['loginId', 'code'],
+        properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, code: { type: 'string', minLength: 1, maxLength: 4096 } },
       },
     },
   }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
-    const { scope } = request.query
-    if (scope !== undefined && scope !== 'installation') {
-      return sendProblem(reply, 400, 'invalid-model-scope', 'Invalid model scope')
-    }
-    const answer = await app.inject({ method: 'GET', url: '/web/config/models', headers: { cookie: request.headers.cookie ?? '' } })
-    if (answer.statusCode !== 200) return reply.code(answer.statusCode).type('application/json').send(answer.body)
-    const models = filterChatModels((answer.json() as Readonly<{ models: readonly OfferedModel[] }>).models)
-
-    if (scope === 'installation') {
-      const orgCredentialCache = new Map<string, Promise<boolean>>()
-      const checkOrgCoverage = (provider: string): Promise<boolean> => {
-        let pending = orgCredentialCache.get(provider)
-        if (pending === undefined) {
-          pending = hasOrgCredential(provider)
-          orgCredentialCache.set(provider, pending)
-        }
-        return pending
-      }
-      const installationModels = await Promise.all(
-        models.map(async (model) => ({
-          ...model,
-          hasApiKey: await checkOrgCoverage(model.provider),
-        })),
-      )
-      const googleAiProConnected = await checkOrgCoverage(GOOGLE_AI_PRO_PROVIDER)
-      return { models: googleAiProConnected ? installationModels : installationModels.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
-    }
-
-    const connected = await credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER) ??
-      await credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER)
-    return { models: connected ? models : models.filter((model) => model.provider !== GOOGLE_AI_PRO_PROVIDER) }
+    return { state: await claudeLogin.complete(caller, request.body.loginId, request.body.code) }
   })
-  // Sharing moves the administrator's own account to the installation's row, and stopping moves it
-  // back. One row per account keeps a rotating OAuth refresh token in one place.
-  app.post<{ Params: { provider: string } }>('/api/control/model-accounts/:provider/share', async (request, reply) => {
+
+  const codexLogin = createCodexLogin<Caller>({
+    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, OPENAI_CODEX_PROVIDER, 'oauth', serializeCodexTokens(tokens)),
+    ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
+  })
+  const codexBase = `/api/control/model-accounts/${OPENAI_CODEX_PROVIDER}/oauth`
+  app.post(`${codexBase}/start`, async (request, reply) => {
     const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
-    const provider = getAuthProviderId(request.params.provider)
-    const own = { orgId, userId: caller.accountId }
-    const credential = await credentials.getCredential(own, provider)
-    if (!credential) return sendProblem(reply, 404, 'model-account-not-found', 'Model account not found')
-    if (await credentials.getCredential({ orgId }, provider)) return sendProblem(reply, 409, 'model-account-already-shared', 'An account for this provider is already shared')
-    await credentials.setCredential({ orgId }, provider, credential)
-    await credentials.removeCredential(own, provider)
-    invalidateTenantCredentialSnapshots({ orgId })
-    return reply.code(204).send()
+    if (!caller) return reply
+    return codexLogin.start(caller).then(
+      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
+      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+    )
   })
-  app.delete<{ Params: { provider: string } }>('/api/control/model-accounts/:provider/share', async (request, reply) => {
+  app.get<{ Querystring: { loginId?: string } }>(`${codexBase}/poll`, {
+    schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } },
+  }, async (request, reply) => {
     const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
-    const provider = getAuthProviderId(request.params.provider)
-    const own = { orgId, userId: caller.accountId }
-    const credential = await credentials.getCredential({ orgId }, provider)
-    if (!credential) return sendProblem(reply, 404, 'model-account-not-found', 'Model account not found')
-    if (!await credentials.getCredential(own, provider)) await credentials.setCredential(own, provider, credential)
-    await credentials.removeCredential({ orgId }, provider)
-    invalidateTenantCredentialSnapshots({ orgId })
-    return reply.code(204).send()
+    if (!caller) return reply
+    return { state: await codexLogin.poll(caller, request.query.loginId ?? '') }
   })
 
-  if (googleAiPro) {
+  if (googleAiPro && googleAiProAccounts) {
     const login = createGoogleAiProLogin<Caller>({
       pool: googleAiPro,
-      // The person's own row in the Factory's credential storage, as its key route writes it. The
-      // sign-in settles on a later poll, which carries no write's CSRF, so the Hub writes here.
-      writeCredential: async ({ accountId }, key) => {
-        const tenant = { orgId, userId: accountId }
-        await credentials.setCredential(tenant, GOOGLE_AI_PRO_PROVIDER, { type: 'api_key', key })
-        invalidateTenantCredentialSnapshots(tenant)
-      },
-      seedMemory: ({ accountId }) => seedGoogleAiProMemory(memorySettings, { orgId, userId: accountId }),
+      // The person's own row in model.model_account, sealed. The sign-in settles on a later
+      // poll, which carries no write's CSRF, so the Hub writes here.
+      writeCredential: ({ accountId }, key) => googleAiProAccounts.write(accountId, key),
     })
     const loginProblem = (reply: FastifyReply, error: unknown) => {
       if (!(error instanceof GoogleAiProLoginError)) throw error
@@ -219,17 +258,15 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
       const extra = error.expiresAt ? { expiresAt: new Date(error.expiresAt).toISOString() } : undefined
       return sendProblem(reply, status, error.problem, title, undefined, extra)
     }
-    // The Factory's provider listing names this provider by its catalog id, which is not the
-    // credential's id, so the Settings card reads the person's connection here.
+    // The Settings card reads the person's own connection and whether one is shared.
     app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request, reply) => {
       const caller = await admit(request, reply)
       if (!caller) return reply
-      const [mine, shared, administrator] = await Promise.all([
-        credentials.getCredential({ orgId, userId: caller.accountId }, GOOGLE_AI_PRO_PROVIDER),
-        credentials.getCredential({ orgId }, GOOGLE_AI_PRO_PROVIDER),
+      const [{ mine, shared }, administrator] = await Promise.all([
+        googleAiProAccounts.connection(caller.accountId),
         isInstallationAdministrator(caller.accountId),
       ])
-      return { mine: Boolean(mine), shared: Boolean(shared), administrator }
+      return { mine, shared, administrator }
     })
     const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
     app.post(`${base}/start`, async (request, reply) => {
@@ -257,61 +294,4 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { domains
       return { state: await login.status(caller, request.params.loginId) }
     })
   }
-
-  const defaultsBody = {
-    type: 'object', additionalProperties: false, required: ['build', 'fast'],
-    properties: { build: { type: 'string', pattern: MODEL_ID.source }, fast: { type: 'string', pattern: MODEL_ID.source } },
-  } as const
-  app.get('/api/control/model-defaults', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
-    const [installation, own, administrator] = await Promise.all([
-      readInstallationDefaults(modelPacks, orgId),
-      modelPacks.getActive({ orgId, userId: caller.accountId }),
-      isInstallationAdministrator(caller.accountId),
-    ])
-    return {
-      installation: installation ? toDefaults(installation.models) : null,
-      mine: own ? toDefaults(own.models) : null,
-      administrator,
-    }
-  })
-  app.put<{ Body: ModelDefaults }>('/api/control/model-defaults/installation', { schema: { body: defaultsBody } }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
-    if (!await orgCoversModel(request.body.build) || !await orgCoversModel(request.body.fast)) {
-      return sendProblem(reply, 409, 'model-not-covered-by-company', 'Model not covered by a shared account')
-    }
-    const pack = await modelPacks.upsert({ orgId, userId: caller.accountId, input: { name: INSTALLATION_DEFAULTS_PACK, models: packModels(request.body) } })
-    return { installation: toDefaults(pack.models) }
-  })
-  app.put<{ Body: ModelDefaults }>('/api/control/model-defaults/mine', { schema: { body: defaultsBody } }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
-    const active = await modelPacks.setActive({ orgId, userId: caller.accountId, packId: PERSONAL_DEFAULTS_PACK_ID, models: packModels(request.body) })
-    return { mine: toDefaults(active.models) }
-  })
-  app.delete('/api/control/model-defaults/mine', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
-    await modelPacks.clearActive({ orgId, userId: caller.accountId })
-    return reply.code(204).send()
-  })
-
-  const memoryBody = { type: 'object', additionalProperties: false, required: ['model'], properties: { model: { type: 'string', pattern: FACTORY_MEMORY_MODEL_ID.source } } } as const
-  app.get('/api/control/installation/memory', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
-    const record = await memorySettings.get({ orgId, userId: FACTORY_OPERATOR_ID })
-    return { model: record?.observerModelId ?? null }
-  })
-  app.put<{ Body: { model: string } }>('/api/control/installation/memory', { schema: { body: memoryBody } }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
-    if (!await orgCoversModel(request.body.model)) {
-      return sendProblem(reply, 409, 'model-not-covered-by-company', 'Model not covered by a shared account')
-    }
-    await setFactoryMemoryModel({ records: { memorySettings }, orgId, modelId: request.body.model, write: () => undefined })
-    return { model: request.body.model }
-  })
 }

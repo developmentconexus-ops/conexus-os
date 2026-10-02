@@ -187,53 +187,6 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
 
-  /api/control/projects/{projectId}/conversations:
-    parameters:
-      - $ref: '#/components/parameters/ProjectId'
-    get:
-      summary: ListFactoryConversations
-      operationId: ListFactoryConversations
-      x-conexus-4a-id: BLD-27
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '200':
-          description: The conversations of a Project developed through the Factory, newest first.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FactoryConversationList' }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-    post:
-      summary: CreateFactoryConversation
-      operationId: CreateFactoryConversation
-      x-conexus-4a-id: BLD-28
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateFactoryConversationRequest' }
-      responses:
-        '200':
-          description: The conversation a previous request with the same client-chosen id already created.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FactoryConversationCreated' }
-        '201':
-          description: One new conversation of the Project, under the id the client chose.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/FactoryConversationCreated' }
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-
 components:
   parameters:
     ProjectId:
@@ -253,7 +206,7 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, conversationId, state, mode, baseSourceRevision, requestText, createdAt, failureCategory, cancellationRequested]
+      required: [builderRunId, projectId, conversationId, state, baseSourceRevision, requestText, createdAt, failureCategory, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -261,7 +214,6 @@ components:
         # resourceId, not a Conexus record: the product keeps no conversation store of its own.
         conversationId: { type: string, minLength: 1, maxLength: 200 }
         state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
-        mode: { type: string, enum: [BUILD, PLAN] }
         baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
         resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
@@ -313,9 +265,9 @@ components:
       required: [projectId, latestBuilderRun, latestCodeChangingRun, preview, runHistory]
       properties:
         projectId: { type: string, format: uuid }
-        # The Project's conversations are its Mastra session's own threads, so the browser lists
-        # them and their messages over the Agent Controller routes. Nothing about them is projected
-        # here, and neither is the model, which is Mastra's own credential store and selection.
+        # The Project's conversations are its Mastra threads, so the browser lists, opens and reads
+        # them, and switches their model, over the Agent Controller routes. Nothing about them is
+        # projected here.
         latestBuilderRun:
           oneOf:
             - $ref: '#/components/schemas/BuilderRunSummary'
@@ -325,43 +277,9 @@ components:
             - $ref: '#/components/schemas/LatestCodeChangingBuilderRun'
             - type: 'null'
         preview: { $ref: '#/components/schemas/BuilderPreviewSummary' }
-        mode: { type: string, enum: [BUILD, PLAN] }
         runHistory:
           type: array
           items: { $ref: '#/components/schemas/BuilderRunSummary' }
-    FactoryConversation:
-      type: object
-      additionalProperties: false
-      required: [conversationId, title, createdAt]
-      properties:
-        # The Factory session id, which is also the Mastra resourceId and thread id.
-        conversationId: { type: string, format: uuid }
-        title: { type: [string, 'null'], maxLength: 200 }
-        createdAt: { type: string, format: date-time }
-    FactoryConversationList:
-      type: object
-      additionalProperties: false
-      required: [conversations]
-      properties:
-        conversations:
-          type: array
-          items: { $ref: '#/components/schemas/FactoryConversation' }
-    CreateFactoryConversationRequest:
-      type: object
-      additionalProperties: false
-      required: [conversationId]
-      properties:
-        conversationId:
-          description: Chosen by the client, so a retried request returns the conversation the first one created.
-          type: string
-          format: uuid
-        title: { type: string, minLength: 1, maxLength: 200 }
-    FactoryConversationCreated:
-      type: object
-      additionalProperties: false
-      required: [conversation]
-      properties:
-        conversation: { $ref: '#/components/schemas/FactoryConversation' }
     EmptyRequest:
       type: object
       additionalProperties: false
@@ -375,6 +293,14 @@ components:
         inputTokens: { type: [integer, 'null'], minimum: 0 }
         outputTokens: { type: [integer, 'null'], minimum: 0 }
         totalTokens: { type: [integer, 'null'], minimum: 0 }
+        inputDetails:
+          description: Mastra's InputTokenDetails, present only where the provider reported a breakdown (cache reads and writes, audio, image).
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        outputDetails:
+          description: Mastra's OutputTokenDetails, present only where the provider reported a breakdown (reasoning, text, audio, image).
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
     BuilderTraceSpan:
       type: object
       additionalProperties: false
@@ -416,10 +342,9 @@ components:
     SendBuilderMessageRequest:
       type: object
       additionalProperties: false
-      required: [content, mode, conversationId]
+      required: [content, conversationId]
       properties:
         content: { type: string, minLength: 1, maxLength: 20000, pattern: '.*\S.*' }
-        mode: { type: string, enum: [BUILD, PLAN] }
         conversationId:
           description: Which of the Project's conversations this message belongs to.
           type: string

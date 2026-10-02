@@ -30,6 +30,7 @@ test('the register holds every role the Hub connects as, with the capability an 
     ['hub_builder_ingress', 'builder-request'],
     ['hub_builder_executor', 'builder-run-execution'],
     ['hub_factory', 'factory-storage'],
+    ['hub_model_account', 'model-account'],
   ])
 })
 
@@ -54,18 +55,18 @@ test('the generated module is the current projection of the register', async () 
 
 test('every password file variable in the register is read by the Hub config', () => {
   const config = readFileSync(resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), 'utf8')
-  for (const row of register.roles) {
-    assert.ok(config.includes(row.passwordFileVariable), `${row.passwordFileVariable} is registered for ${row.role} but nothing in config.ts reads it`)
-  }
+  const unread = register.roles.filter((row) => !config.includes(row.passwordFileVariable)).map((row) => row.passwordFileVariable)
+  assert.deepEqual(unread, [])
 })
 
 test('every registered role is the user of a pool in the module the register names', () => {
-  for (const row of register.roles) {
+  const unconnected = register.roles.filter((row) => {
     const sources = row.connectsFrom.map((path) => readFileSync(resolve(repositoryRoot, path), 'utf8'))
     const expected = row.roleVariable ? `required(environment, '${row.roleVariable}')` : `user: '${row.role}'`
     const searched = row.roleVariable ? [readFileSync(resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), 'utf8')] : sources
-    assert.ok(searched.some((source) => source.includes(expected)), `${row.role} is registered but no module the register names connects as it`)
-  }
+    return !searched.some((source) => source.includes(expected))
+  }).map((row) => row.role)
+  assert.deepEqual(unconnected, [])
 })
 
 test('the register refuses a second role claiming one capability', () => {

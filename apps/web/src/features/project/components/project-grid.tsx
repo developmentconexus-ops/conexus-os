@@ -1,11 +1,9 @@
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { Button } from '@mastra/playground-ui/components/Button'
-import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { launchBuilderPreview } from '../../builder/api'
-import type { ProjectCardSummary } from '../api'
+import { projectThumbnailUrl, type ProjectCardSummary } from '../api'
 
 export type ProjectActivity = 'BUILDING' | 'FAILED' | 'LIVE' | 'NEW'
 
@@ -37,80 +35,48 @@ function lastChangeLabel(iso: string, now: number = Date.now()): string {
   return 'Alterado há muito tempo'
 }
 
-// The Preview renders at this desktop width and is scaled to the card, whatever the card's size.
-const PREVIEW_WIDTH = 1280
-
-function useThumbnailFrame<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const element = ref.current
-    if (!element) return undefined
-    const intersection = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setVisible(true)
-    }, { rootMargin: '200px' })
-    const resize = new ResizeObserver(([entry]) => {
-      if (entry) element.style.setProperty('--cx-thumb-scale', String(entry.contentRect.width / PREVIEW_WIDTH))
-    })
-    intersection.observe(element)
-    resize.observe(element)
-    return () => {
-      intersection.disconnect()
-      resize.disconnect()
-    }
-  }, [])
-  return [ref, visible] as const
-}
-
 function PreviewThumbnail({ projectId, name, hasPreview }: Readonly<{ projectId: string; name: string; hasPreview: boolean }>) {
-  const [ref, visible] = useThumbnailFrame<HTMLDivElement>()
   const [loaded, setLoaded] = useState(false)
-  const entered = useRef(false)
-  const entryForm = useRef<HTMLFormElement>(null)
-  const frameName = `cx-thumb-${projectId}`
-  // The entry grant is spent by its first use, so every mounted card launches its own and the
-  // result is never served from the cache to a later mount.
-  const preview = useQuery({
-    queryKey: ['project-thumbnail', projectId],
-    queryFn: () => launchBuilderPreview(projectId),
-    enabled: hasPreview && visible,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: 0,
-    retry: false,
-    refetchOnWindowFocus: false,
-  })
-  // The Preview host only admits a POST carrying the grant, the same entry the Construir Preview
-  // uses. The blank frame's own load fires on insertion, before React listens, so the first load
-  // observed after the post is the Preview.
-  useEffect(() => {
-    if (!preview.data || entered.current) return
-    entered.current = true
-    entryForm.current?.submit()
-  }, [preview.data])
-  const onFrameLoad = () => {
-    if (entered.current) setLoaded(true)
-  }
-  return <div className="cx-thumb" ref={ref} data-loaded={loaded || undefined}>
+  const [error, setError] = useState(false)
+
+  return <div className="cx-thumb" data-loaded={loaded && !error ? true : undefined}>
     <div className="cx-thumb-placeholder" aria-hidden>
       <ConexusMark size={28} />
     </div>
-    {preview.data && <>
-      <iframe
-        title={`Prévia de ${name}`}
-        name={frameName}
-        aria-hidden
-        tabIndex={-1}
-        src="about:blank"
-        onLoad={onFrameLoad}
+    {hasPreview && !error && (
+      <img
+        src={projectThumbnailUrl(projectId)}
+        alt={`Prévia de ${name}`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
       />
-      <form ref={entryForm} hidden method="post" action={preview.data.entryUrl} target={frameName}>
-        <input type="hidden" name="entryGrant" value={preview.data.entryGrant} />
-      </form>
-    </>}
+    )}
   </div>
 }
 
+// A tombstoned Project cannot open the Construir page anymore: its data may already be purged, so
+// the card instead points at the settings screen's own recovery view, the only place left to finish
+// or watch the deletion the administrator started.
+function DeletingProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
+  return <li className="cx-project-cell">
+    <Link to="/projects/$projectId/settings" params={{ projectId: summary.projectId }} className="cx-project-card">
+      <div className="cx-thumb" data-loaded>
+        <div className="cx-thumb-placeholder" aria-hidden><ConexusMark size={28} /></div>
+      </div>
+      <div className="cx-project-body">
+        <h3>{summary.name}</h3>
+        <div className="cx-project-meta">
+          <span className="cx-chip" data-tone="failed">Exclusão pendente</span>
+          <span className="cx-project-time">{lastChangeLabel(summary.lastActivityAt)}</span>
+        </div>
+      </div>
+    </Link>
+  </li>
+}
+
 function ProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
+  if (summary.deleting) return <DeletingProjectCard summary={summary} />
   const activity = projectActivity(summary)
   const chip = CHIPS[activity]
   return <li className="cx-project-cell">
@@ -134,7 +100,7 @@ export function ProjectGridSkeleton() {
   return <ul className="cx-project-grid" aria-hidden>
     {[0, 1, 2].map((index) => (
       <li key={index} className="cx-project-cell">
-        <div className="cx-project-card cx-project-card--skeleton">
+        <div className="cx-project-card">
           <Skeleton className="cx-thumb" />
           <div className="cx-project-body"><Skeleton className="cx-skeleton-line" /><Skeleton className="cx-skeleton-line cx-skeleton-line--short" /></div>
         </div>

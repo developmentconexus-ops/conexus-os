@@ -26,6 +26,7 @@ const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOStr
 function hubFixture() {
   return {
     accessStatus: 200,
+    modelsStatus: 200,
     workspaces: [{ workspaceId: ids.operations, name: 'Operações' }, { workspaceId: ids.sales, name: 'Comercial' }],
     summariesStatus: 200,
     summaries: [
@@ -34,7 +35,6 @@ function hubFixture() {
       { projectId: ids.checklist, name: 'Checklist de abertura da loja', archived: false, lastActivityAt: minutesAgo(60 * 26), latestRun: { state: 'FAILED', resultKind: null }, hasPreview: false },
       { projectId: ids.stock, name: 'Estoque do almoxarifado', archived: false, lastActivityAt: minutesAgo(60 * 24 * 9), latestRun: null, hasPreview: false },
     ],
-    repository: { state: 'REACHABLE', fullName: 'empresa-exemplo/pedidos-de-ferias', url: 'https://github.com/empresa-exemplo/pedidos-de-ferias' },
     roster: {
       viewerRole: 'owner',
       entries: [
@@ -70,7 +70,8 @@ async function mockHub(page, hub) {
       return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
-    if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true }] })
+    if (p === '/api/control/model-accounts/models' && hub.modelsStatus !== 200) return json(route, hub.modelsStatus, { type: 'unavailable' })
+    if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], hasApiKey: true }], defaultThinkingLevel: 'medium' })
     if (p === '/api/control/accounts' && method === 'POST') return json(route, 201, { accountId: ids.account, displayName: body.displayName })
     if (p === '/api/control/workspaces' && method === 'POST') return json(route, 201, { workspaceId: ids.sales, name: body.name, initialAccessEstablished: true, creatorAccountId: ids.account })
     const summaries = p.match(/^\/api\/control\/workspaces\/([^/]+)\/project-summaries$/)
@@ -88,13 +89,18 @@ async function mockHub(page, hub) {
       return json(route, 200, invitation)
     }
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
-    if (p.endsWith('/repository')) return json(route, 200, hub.repository)
+    if (p.endsWith('/thumbnail') && method === 'GET') {
+      const projectId = p.split('/')[4]
+      if (!hub.summaries.find((summary) => summary.projectId === projectId)?.hasPreview || projectId === ids.visits) return json(route, 404, { type: 'project-thumbnail-not-found' })
+      return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'cache-control': 'private, no-cache', etag: '"rev-001"' }, body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') })
+    }
     if (p.endsWith('/builder-session/preview')) {
       const projectId = p.split('/')[4]
       const name = hub.summaries.find((summary) => summary.projectId === projectId)?.name ?? 'App'
       return json(route, 201, { entryUrl: `${origin}/__preview/${encodeURIComponent(name)}`, previewUrl: '', entryGrant: 'grant', artifactRevisionId: 'a', artifactDigest: 'd', expiresAt: minutesAgo(-30) })
     }
-    if (p.endsWith('/conversations') && method === 'POST') return json(route, 201, { conversation: { conversationId: body.conversationId, title: null, createdAt: minutesAgo(0) } })
+    if (p === '/api/builder/agent-controller/conexus-builder/sessions' && method === 'POST') return json(route, 200, { controllerId: 'conexus-builder', resourceId: body.resourceId, threadId: body.threadId })
+    if (p.startsWith('/api/builder/agent-controller/conexus-builder/sessions/') && method === 'POST') return json(route, 200, {})
     if (p.endsWith('/builder-session/messages') && method === 'POST') return json(route, 201, { builderRun: { builderRunId: 'run-1', state: 'QUEUED' } })
     const project = p.match(/^\/api\/control\/projects\/([^/]+)$/)
     if (project) return json(route, 200, projectOf(project[1]))
@@ -190,6 +196,20 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.waitForURL(`${origin}/workspaces/${ids.operations}/projects`)
   })
 
+  await t.test('the new-project prompt says when the models failed, and retries on request', async () => {
+    await reset({ modelsStatus: 503 })
+    await page.goto(`${origin}/workspaces/${ids.sales}/projects`)
+    const box = page.locator('[aria-label="Mensagem para o agente"]')
+    await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).waitFor({ timeout: 30_000 })
+    assert.equal(await box.getAttribute('placeholder'), 'Não foi possível carregar os modelos')
+    await box.fill('Um app de vendas')
+    assert.equal(await page.getByRole('button', { name: 'Enviar', exact: true }).isDisabled(), true)
+    hub.modelsStatus = 200
+    await page.getByRole('button', { name: 'Tentar novamente' }).first().click()
+    await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).waitFor({ state: 'detached' })
+    assert.equal(await page.getByRole('button', { name: 'Enviar', exact: true }).isDisabled(), false)
+  })
+
   await t.test('the last Workspace used is where / lands next time', async () => {
     await reset()
     await page.goto(`${origin}/workspaces/${ids.sales}/projects`)
@@ -216,6 +236,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 
   await t.test('the Projects home shows cards most recent first, with state and last change', async () => {
     await reset()
+    const previewRequests = []
+    const onRequest = (request) => { if (/\/builder-session\/preview|\/__preview\//.test(request.url())) previewRequests.push(request.url()) }
+    page.on('request', onRequest)
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
     await expect(page.locator('.cx-project-card')).toHaveCount(4)
     assert.deepEqual(await page.locator('.cx-project-card h3').allTextContents(), ['Pedidos de férias', 'Visitas a clientes', 'Checklist de abertura da loja', 'Estoque do almoxarifado'])
@@ -223,8 +246,11 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Alterado há 5 min.')
     assert.equal(await page.locator('.cx-project-card').first().getAttribute('href'), `/projects/${ids.vacation}`)
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
-    assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
-    assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
+    assert.equal(await page.locator('.cx-thumb img').first().getAttribute('loading'), 'lazy')
+    assert.equal(await page.locator('.cx-thumb iframe').count(), 0)
+    await expect(page.locator(`.cx-project-card[href="/projects/${ids.visits}"] .cx-thumb[data-loaded]`)).toHaveCount(0)
+    assert.deepEqual(previewRequests, [], 'the Projects list never requests a live preview')
+    page.off('request', onRequest)
     assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
       'the grid is a uniform 3-column layout, with no card spanning more than one')
     const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
@@ -296,9 +322,12 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.waitForURL(`${origin}/projects/${ids.created}`)
     const create = hub.requests.find((entry) => entry.method === 'POST' && entry.path.endsWith('/projects'))
     assert.deepEqual(create.body, { name: 'Controle de pedidos de férias', sourceBootstrap: { mode: 'NEW' } })
-    const conversation = hub.requests.find((entry) => entry.method === 'POST' && entry.path.endsWith('/conversations'))
+    const opened = hub.requests.find((entry) => entry.method === 'POST' && entry.path === '/api/builder/agent-controller/conexus-builder/sessions')
+    assert.equal(opened.body.resourceId, `project:${ids.created}`)
+    assert.equal(opened.body.sessionScope, `conversation:${opened.body.threadId}`)
+    assert.equal(hub.requests.some((entry) => entry.path.endsWith('/mode')), false, 'the Builder has no mode to switch')
     const message = hub.requests.find((entry) => entry.path.endsWith('/builder-session/messages'))
-    assert.deepEqual(message.body, { content: 'controle de pedidos de férias, com aprovação do gestor e motivo na recusa', mode: 'BUILD', conversationId: conversation.body.conversationId })
+    assert.deepEqual(message.body, { content: 'controle de pedidos de férias, com aprovação do gestor e motivo na recusa', conversationId: opened.body.threadId })
     assert.ok(message.idempotencyKey)
   })
 
@@ -392,12 +421,11 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await shoot(page, '15-people-member')
   })
 
-  await t.test('Sobre o Projeto shows the repository and the internet line', async () => {
+  await t.test('Sobre o Projeto says where the code lives and the internet line', async () => {
     await reset()
     await page.goto(`${origin}/projects/${ids.vacation}/settings`)
     await page.getByRole('heading', { name: 'Sobre o Projeto' }).waitFor()
-    const link = page.getByRole('link', { name: /empresa-exemplo\/pedidos-de-ferias/ })
-    assert.equal(await link.getAttribute('href'), 'https://github.com/empresa-exemplo/pedidos-de-ferias')
+    await page.getByText('Guardado no próprio Conexus. Cada mudança aprovada vira uma nova versão.').waitFor()
     await page.getByText('O agente executa comandos sozinho num ambiente isolado com acesso à internet.').waitFor()
     await page.getByRole('link', { name: 'Construir' }).waitFor()
     // The back item names the Workspace itself, not a generic "Voltar para Projetos". The trail
@@ -406,10 +434,6 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     // In Project context, Configurações do projeto links to this same Project settings route.
     assert.equal(await page.getByRole('link', { name: 'Configurações do projeto' }).getAttribute('href'), `/projects/${ids.vacation}/settings`)
     await shoot(page, '16-project-about')
-    await reset({ repository: { state: 'UNREACHABLE' } })
-    await page.reload()
-    await page.getByText('Inacessível').waitFor()
-    await shoot(page, '17-project-about-unreachable')
   })
 
   await t.test('Sair do Conexus ends the session and shows Sessão encerrada', async () => {

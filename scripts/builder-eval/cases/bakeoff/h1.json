@@ -1,0 +1,57 @@
+{
+  "request": "Preciso de um app para acompanhar a inadimplência dos nossos clientes, com os dados do Sankhya. Quero ver quais clientes têm títulos a receber vencidos e ainda não pagos, quanto cada um deve no total, há quantos dias está vencido o título mais antigo e quantos títulos estão em atraso. Separe por faixa de atraso: até 30 dias, de 31 a 60, de 61 a 90 e acima de 90. O maior devedor aparece primeiro, e quero clicar no cliente e ver os títulos dele.",
+  "checks": [],
+  "oracle": "h1",
+  "person": {
+    "projectName": "Cobrança",
+    "persona": "gerente financeiro, que cobra os clientes em atraso e não sabe em que tabela o Sankhya guarda os títulos.",
+    "answers": [
+      {
+        "id": "vencido",
+        "topic": "o que conta como título vencido",
+        "say": "Vencido é o título com vencimento antes de hoje e ainda não pago.",
+        "pick": [
+          "vencimento antes de hoje",
+          "antes de hoje"
+        ]
+      },
+      {
+        "id": "provisorio",
+        "topic": "se títulos provisórios entram na conta",
+        "say": "Título provisório não conta.",
+        "pick": [
+          "provisório",
+          "provisorio"
+        ]
+      },
+      {
+        "id": "juros",
+        "topic": "se juros e multa entram no valor devido",
+        "say": "Juros e multa não contam, só o valor em aberto.",
+        "pick": [
+          "valor em aberto",
+          "sem juros"
+        ]
+      },
+      {
+        "id": "empresas",
+        "topic": "de quais empresas do grupo são os títulos",
+        "say": "Todas as empresas do grupo.",
+        "pick": [
+          "todas as empresas",
+          "todas"
+        ]
+      },
+      {
+        "id": "receber-pago",
+        "kind": "stated",
+        "topic": "se contas a pagar e títulos já pagos entram",
+        "say": "Só o que os clientes nos devem. Conta a pagar e título já pago não entram.",
+        "pick": [
+          "a receber",
+          "somente"
+        ]
+      }
+    ]
+  }
+}

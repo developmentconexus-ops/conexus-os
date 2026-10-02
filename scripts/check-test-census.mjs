@@ -2,9 +2,9 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-export const EXEMPT_TESTS = Object.freeze([
+const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-e2b-live.test.mjs',
-  'tests/implementation/builder-factory-e2b-live.test.mjs',
+  'tests/implementation/builder-sandbox-e2b-live.test.mjs',
   'tests/implementation/builder-production-composed-live.test.mjs',
 ])
 
@@ -60,6 +60,10 @@ export function checkTestCensus({ root, candidateGraph, packageScripts, committe
   }
 }
 
+export const unreachedMessage = (unreached) =>
+  `${unreached.length} committed test file(s) are not reachable from CANDIDATE_GRAPH or exempt:\n` +
+  unreached.map((t) => `  ${t}`).join('\n') + '\n'
+
 const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename ?? '')
 if (isMainModule) {
   const root = resolve('.')
@@ -73,10 +77,7 @@ if (isMainModule) {
   })
 
   if (result.unreached.length > 0) {
-    process.stderr.write(
-      `${result.unreached.length} committed test file(s) are not reachable from CANDIDATE_GRAPH or exempt:\n` +
-      result.unreached.map((t) => `  ${t}`).join('\n') + '\n'
-    )
+    process.stderr.write(unreachedMessage(result.unreached))
     process.exit(1)
   }
 

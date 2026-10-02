@@ -1,39 +1,20 @@
 import { createHash } from 'node:crypto'
-import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
 
 declare const brand: unique symbol
 
-// The person's CLIProxyAPI auth record, file name and bytes, carried as the Factory credential's
-// key. The Factory row is the only durable copy; a proxy directory holds a throwaway copy of it.
+// The person's CLIProxyAPI auth record, file name and bytes, carried as their model account's
+// secret. That row is the only durable copy; a proxy directory holds a throwaway copy of it.
 export type GoogleAiProKey = string & { readonly [brand]: 'GoogleAiProKey' }
 export type InstanceId = string & { readonly [brand]: 'InstanceId' }
 export type AuthRecord = Readonly<{ fileName: string; bytes: Uint8Array }>
 
 export const GOOGLE_AI_PRO_PROVIDER = 'google-ai-pro'
-export const GOOGLE_AI_PRO_NAME = 'Google AI Pro'
 // What CLIProxyAPI v7.3.12 listed for an AI Pro account on 2026-09-22, Gemini only: Claude through
 // Antigravity has a small separate quota, and an account that lacks a model fails at call time.
 export const GOOGLE_AI_PRO_MODELS: readonly string[] = Object.freeze([
   'gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high',
   'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite',
 ])
-// The Factory's custom-provider catalog (`/web/config/models`) now lists this provider itself, by
-// its own providerId, so this is also the id a picker offers and a selection stores. A selection
-// made before this fix can still carry the old Mastra Code gateway alias id
-// (`mastracode/google-ai-pro/<model>`); it still resolves at call time
-// (`stripMastraCodeCustomProviderPrefix` treats it and the bare id as the same provider), so it only
-// shows as unselected in a picker until the person re-picks it once. This installation is a
-// single-operator pilot, so that one-time re-pick costs less than a permanent id-rewrite layer.
-const GOOGLE_AI_PRO_MEMORY_MODEL = `${GOOGLE_AI_PRO_PROVIDER}/gemini-3.5-flash-lite`
-
-// The Factory's own seed call (om-seed): it never overwrites a model the person already chose.
-export const seedGoogleAiProMemory = async (memorySettings: Pick<MemorySettingsStorage, 'ensureReady' | 'patch'>, tenant: Readonly<{ orgId: string; userId: string }>): Promise<void> => {
-  await memorySettings.ensureReady()
-  await memorySettings.patch({
-    ...tenant, patch: {},
-    fillIfUnset: { observerModelId: GOOGLE_AI_PRO_MEMORY_MODEL, reflectorModelId: GOOGLE_AI_PRO_MEMORY_MODEL },
-  })
-}
 
 const PREFIX = 'cxagy1.'
 const FILE_NAME = /^antigravity-[\w.@+-]{1,200}\.json$/

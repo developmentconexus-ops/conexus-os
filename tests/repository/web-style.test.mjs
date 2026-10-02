@@ -61,3 +61,88 @@ test('a tree without the web app refuses to pass on zero files', context => {
   assert.equal(result.status, 1)
   assert.match(result.stderr, /^no files scanned: apps\/web\/src does not exist under /)
 })
+
+test('a Conexus class with no CSS rule fails with its location', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel cx-panel--missing\" />\n",
+    'apps/web/src/screen.css': '.cx-panel { padding: 1rem; }\n',
+  }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-panel--missing" has no CSS rule under apps/web/src or packages/brand/src\n')
+})
+
+test('a Conexus class defined in every checked root passes', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel cx-mark\" />\n",
+    'apps/web/src/screen.css': '.cx-panel { padding: 1rem; }\n',
+    'packages/brand/src/tokens.css': '.cx-mark { width: 1rem; }\n',
+  }))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a class built from a template literal fails unless it is in the allowlist', context => {
+  const result = check(tree(context, {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${tone} for the script to parse, not a JS interpolation
+    'apps/web/src/screen.tsx': "export const Screen = ({ tone }) => <div className={`cx-row cx-row-${tone}`} />\n",
+    'apps/web/src/screen.css': '.cx-row { display: flex; }\n',
+  }))
+  assert.equal(result.status, 1)
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: asserting the script's own literal ${tone} error text
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-row-${tone}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs\n')
+})
+
+test('an allowlisted dynamic class fails when one of its resolved names has no CSS rule', context => {
+  const result = check(tree(context, {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${side} for the script to parse, not a JS interpolation
+    'apps/web/src/features/builder/construir/lens-diff.tsx': "export const Cell = ({ side }) => <td className={`cx-dt-n cx-dt-${side}`} />\n",
+    'apps/web/src/features/builder/construir/lens-diff.css': '.cx-dt-n { padding: 0; }\n.cx-dt-add { color: green; }\n',
+  }))
+  assert.equal(result.status, 1)
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: asserting the script's own literal ${side} error text
+  assert.equal(result.stderr, 'apps/web/src/features/builder/construir/lens-diff.tsx:1: class "cx-dt-del", resolved from the dynamic "cx-dt-${side}", has no CSS rule under apps/web/src or packages/brand/src\n')
+})
+
+test('a class defined in CSS with no .tsx use warns but does not fail', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel\" />\n",
+    'apps/web/src/screen.css': '.cx-panel { padding: 1rem; }\n.cx-panel-unused { padding: 0; }\n',
+  }))
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stderr, /^1 Conexus class\(es\) defined in CSS with no apps\/web\/src\/\*\*\/\*\.tsx use:\napps\/web\/src\/screen\.css:2: class "cx-panel-unused" is defined in CSS but no apps\/web\/src\/\*\*\/\*\.tsx uses it\n$/)
+  assert.match(result.stdout, /^Web style check passed \(files=\d+\)\.\n$/)
+})
+
+test('a native title hint fails on an element and on a dotted component, and names the Tooltip to use', context => {
+  const result = check(tree(context, {
+    'apps/web/src/chip.tsx': [
+      'export const Chip = () => <button type="button" aria-label="Modo" title="Modo: Planejar" />',
+      'export const Menu = () => <DropdownMenu.Trigger title="Modo" aria-label="Modo" />',
+      '',
+    ].join('\n'),
+  }))
+  const hint = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `apps/web/src/chip.tsx:1: <button title=...>: ${hint}\napps/web/src/chip.tsx:2: <DropdownMenu.Trigger title=...>: ${hint}\n`)
+})
+
+test('a title prop that renders a heading, and an iframe title, pass', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': [
+      'export const Screen = () => <PageHeader title="Minha conta" />',
+      'export const Frame = () => <iframe title="Prévia do aplicativo" src="about:blank" />',
+      '',
+    ].join('\n'),
+  }))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails, a generated client passes', context => {
+  const reader = "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))\n"
+  const result = check(tree(context, {
+    'apps/web/src/app/http.ts': reader,
+    'apps/web/src/generated/iam-client.ts': reader,
+    'apps/web/src/features/builder/api.ts': `export const a = 1\n${reader}`,
+  }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
+})

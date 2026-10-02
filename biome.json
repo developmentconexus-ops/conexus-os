@@ -10,6 +10,7 @@
     "includes": [
       "apps/**",
       "!apps/keycloak-theme",
+      "!apps/hub/starter-template",
       "packages/**",
       "scripts/**",
       "tests/**",
@@ -30,6 +31,15 @@
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
         "noUnusedFunctionParameters": "error"
+      },
+      "nursery": {
+        "useExhaustiveSwitchCases": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error"
       }
     }
   },
@@ -58,6 +68,16 @@
           },
           "correctness": {
             "useExhaustiveDependencies": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/src/**", "packages/*/src/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
           }
         }
       }

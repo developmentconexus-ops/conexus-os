@@ -1,12 +1,8 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { CURRENT_TEMPLATE_PIN, isReadableTemplatePin, type ApplicationProfile } from '../platform/application-template-pins.js'
 import type { RegistryQueryClient } from './store.js'
 
-const TEMPLATE_REF = '537fnzf4c16x9d7oz21k:0f44de30-d856-40d1-b6b3-54a8bbf2f440'
-const RECIPE_SHA256 = 'df2e896284661a4402158d6e694493332df57de4b56f4c565e5b6ed19bfabde4'
-// Applications retained before the agent-user template (0014) still read back.
-const READABLE_TEMPLATE_REFS = [TEMPLATE_REF, '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189'] as const
-const READABLE_RECIPE_SHA256S = [RECIPE_SHA256, '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf'] as const
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/
@@ -48,8 +44,8 @@ const compiledApplicationSchema = z.object({
   projectId: uuidSchema,
   executionId: uuidSchema,
   sourceRevision: sourceRevisionSchema,
-  templateRef: z.literal(TEMPLATE_REF),
-  recipeSha256: z.literal(RECIPE_SHA256),
+  templateRef: z.literal(CURRENT_TEMPLATE_PIN.templateRef),
+  recipeSha256: z.literal(CURRENT_TEMPLATE_PIN.recipeSha256),
   files: z.array(compiledFileSchema).min(1).max(MAX_FILES),
 }).strict()
 
@@ -62,11 +58,11 @@ const payloadFileSchema = z.object({
 }).strict()
 const payloadSchema = z.object({
   format: z.literal('application-payload-v1'),
-  profile: z.literal('REACT_VITE_V1'),
+  profile: z.literal(CURRENT_TEMPLATE_PIN.profile),
   projectId: uuidSchema,
   sourceRevision: sourceRevisionSchema,
-  templateRef: z.literal(TEMPLATE_REF),
-  recipeSha256: z.literal(RECIPE_SHA256),
+  templateRef: z.literal(CURRENT_TEMPLATE_PIN.templateRef),
+  recipeSha256: z.literal(CURRENT_TEMPLATE_PIN.recipeSha256),
   entryPath: z.literal('index.html'),
   files: z.array(payloadFileSchema).min(1).max(MAX_FILES),
 }).strict()
@@ -82,12 +78,12 @@ const metadataRowSchema = z.object({
   artifact_digest: sha256Schema,
   project_id: uuidSchema,
   source_revision: sourceRevisionSchema,
-  profile: z.literal('REACT_VITE_V1'),
-  template_ref: z.enum(READABLE_TEMPLATE_REFS),
-  recipe_sha256: z.enum(READABLE_RECIPE_SHA256S),
+  profile: z.enum(['REACT_VITE_V1', 'REACT_VITE_V2']),
+  template_ref: z.string(),
+  recipe_sha256: sha256Schema,
   entry_path: z.literal('index.html'),
   files: z.array(metadataFileSchema).min(1).max(MAX_FILES),
-}).strict()
+}).strict().refine((row) => isReadableTemplatePin({ profile: row.profile, templateRef: row.template_ref, recipeSha256: row.recipe_sha256 }))
 const readRowSchema = z.object({
   artifact_revision_id: uuidSchema,
   project_id: uuidSchema,
@@ -97,6 +93,20 @@ const readRowSchema = z.object({
   bytes: z.instanceof(Uint8Array),
   sha256: sha256Schema,
 }).strict()
+const retainedThumbnailRowSchema = z.object({
+  out_project_id: uuidSchema,
+  out_artifact_revision_id: uuidSchema,
+  out_media_type: z.literal('image/png'),
+  out_byte_length: z.number().int().positive().max(512000),
+  out_sha256: sha256Schema,
+}).strict()
+const thumbnailRowSchema = z.object({
+  artifact_revision_id: uuidSchema,
+  media_type: z.literal('image/png'),
+  bytes: z.instanceof(Uint8Array),
+  byte_length: z.number().int().positive().max(512000),
+  sha256: sha256Schema,
+}).strict()
 
 type ApplicationPayload = z.infer<typeof payloadSchema>
 type ApplicationMetadata = Readonly<{
@@ -104,7 +114,7 @@ type ApplicationMetadata = Readonly<{
   artifactDigest: string
   projectId: string
   sourceRevision: string
-  profile: 'REACT_VITE_V1'
+  profile: ApplicationProfile
   templateRef: string
   recipeSha256: string
   entryPath: 'index.html'
@@ -114,6 +124,22 @@ type ApplicationMetadata = Readonly<{
     byteLength: number
     sha256: string
   }>[]
+}>
+
+type RetainedApplicationThumbnail = Readonly<{
+  projectId: string
+  artifactRevisionId: string
+  mediaType: string
+  byteLength: number
+  sha256: string
+}>
+
+type ApplicationArtifactThumbnail = Readonly<{
+  artifactRevisionId: string
+  mediaType: 'image/png'
+  bytes: Uint8Array
+  byteLength: number
+  sha256: string
 }>
 
 export type ApplicationArtifactStore = Readonly<{
@@ -138,6 +164,19 @@ export type ApplicationArtifactStore = Readonly<{
     bytes: Uint8Array
     sha256: string
   }> | null>
+  retainApplicationThumbnail(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
+    executionId: string
+    sourceRevision: string
+    artifactRevisionId: string
+    mediaType: string
+    bytes: Uint8Array
+  }>): Promise<RetainedApplicationThumbnail>
+  getApplicationThumbnail(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
+  }>): Promise<ApplicationArtifactThumbnail | null>
 }>
 
 const refuseInput = (): never => {
@@ -214,7 +253,7 @@ const parseCompiled = (value: unknown): Readonly<{
   const files = validateFiles(parsed.files)
   const payload = {
     format: 'application-payload-v1',
-    profile: 'REACT_VITE_V1',
+    profile: CURRENT_TEMPLATE_PIN.profile,
     projectId: parsed.projectId,
     sourceRevision: parsed.sourceRevision,
     templateRef: parsed.templateRef,
@@ -280,6 +319,32 @@ const parseReadFile = (value: unknown, expected: Readonly<{
   return Object.freeze({ path: parsed.path, mediaType: parsed.media_type, bytes, sha256: digest })
 }
 
+const parseRetainedThumbnail = (value: unknown): RetainedApplicationThumbnail => {
+  const parsed = parseResponseOrRefuse(retainedThumbnailRowSchema, value)
+  return Object.freeze({
+    projectId: parsed.out_project_id,
+    artifactRevisionId: parsed.out_artifact_revision_id,
+    mediaType: parsed.out_media_type,
+    byteLength: parsed.out_byte_length,
+    sha256: parsed.out_sha256,
+  })
+}
+
+const parseThumbnail = (value: unknown): ApplicationArtifactThumbnail => {
+  const parsed = parseResponseOrRefuse(thumbnailRowSchema, value)
+  const bytes = Uint8Array.from(parsed.bytes)
+  if (bytes.byteLength > 512000 || bytes.byteLength !== parsed.byte_length) refuseResponse()
+  const digest = createHash('sha256').update(bytes).digest('hex')
+  if (digest !== parsed.sha256) refuseResponse()
+  return Object.freeze({
+    artifactRevisionId: parsed.artifact_revision_id,
+    mediaType: parsed.media_type,
+    bytes,
+    byteLength: parsed.byte_length,
+    sha256: digest,
+  })
+}
+
 export const createApplicationArtifactStore = (): ApplicationArtifactStore => Object.freeze({
   async retainApplication(client, input) {
     const parsedInput = parseOrRefuse(z.object({ accountId: uuidSchema, compiled: z.unknown() }).strict(), input)
@@ -320,5 +385,38 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
     )
     const row = rows[0]
     return row ? parseReadFile(row, parsed) : null
+  },
+
+  async retainApplicationThumbnail(client, input) {
+    const parsed = parseOrRefuse(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
+      executionId: uuidSchema,
+      sourceRevision: sourceRevisionSchema,
+      artifactRevisionId: uuidSchema,
+      mediaType: z.literal('image/png'),
+      bytes: z.instanceof(Uint8Array),
+    }).strict(), input)
+    if (parsed.bytes.byteLength <= 0 || parsed.bytes.byteLength > 512000) refuseInput()
+    const rows = await queryRows(client,
+      'SELECT * FROM reg.retain_application_thumbnail($1, $2, $3, $4, $5, $6, $7)',
+      [parsed.accountId, parsed.projectId, parsed.executionId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.mediaType, parsed.bytes],
+    )
+    const row = rows[0]
+    if (!row) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+    return parseRetainedThumbnail(row)
+  },
+
+  async getApplicationThumbnail(client, input) {
+    const parsed = parseOrRefuse(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
+    }).strict(), input)
+    const rows = await queryRows(client,
+      'SELECT * FROM reg.get_application_thumbnail($1, $2)',
+      [parsed.accountId, parsed.projectId],
+    )
+    const row = rows[0]
+    return row ? parseThumbnail(row) : null
   },
 })

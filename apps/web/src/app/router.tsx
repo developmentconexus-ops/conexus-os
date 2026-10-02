@@ -7,10 +7,6 @@ import { settingsRoute } from '../routes/settings'
 import { settingsAccountRoute } from '../routes/settings-account'
 import { settingsIndexRoute } from '../routes/settings-index'
 import { settingsInstallationAdminsRoute } from '../routes/settings-installation-admins'
-import { settingsInstallationGithubRoute } from '../routes/settings-installation-github'
-import { settingsInstallationMemoryRoute } from '../routes/settings-installation-memory'
-import { settingsInstallationModelDefaultsRoute } from '../routes/settings-installation-model-defaults'
-import { settingsInstallationModelsRoute } from '../routes/settings-installation-models'
 import { settingsModelsRoute } from '../routes/settings-models'
 import { setupRoute } from '../routes/setup'
 import { workspaceMembersRoute } from '../routes/workspace-members'
@@ -27,10 +23,6 @@ const settingsRouteWithChildren = settingsRoute.addChildren([
   settingsIndexRoute,
   settingsAccountRoute,
   settingsModelsRoute,
-  settingsInstallationGithubRoute,
-  settingsInstallationModelsRoute,
-  settingsInstallationModelDefaultsRoute,
-  settingsInstallationMemoryRoute,
   settingsInstallationAdminsRoute,
 ])
 

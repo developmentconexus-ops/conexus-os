@@ -1,20 +1,27 @@
 import type { ObservabilityInstance } from '@mastra/core/observability'
+import type { ToolsInput } from '@mastra/core/agent'
+import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { logLine } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
 import type { Broker, RegisteredConnector } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
+import { createConnectorFetchTools, openBuilderRun } from './builder-tool.js'
+import type { BuilderConnectorRun } from './builder-tool.js'
+import { createToolPayloadProjection } from './fetch-projection.js'
+import type { ToolPayloadProjection } from './fetch-projection.js'
 import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
 import { createConnectorObservability } from './record.js'
 import type { CheckConnection, CheckConnectionOutcome } from './routes.js'
 import { registerConnectorRoutes } from './routes.js'
-import { sankhyaDefinition, SANKHYA_OPERATION_IDS } from './sankhya/definition.js'
+import { sankhyaDefinition } from './sankhya/definition.js'
 import { createSankhyaGateway, pinnedGatewayOrigin } from './sankhya/gateway.js'
 import { scopeFromArtifactSource } from './scope.js'
 import { createBrokerStore, createConnectorStore } from './store.js'
@@ -28,10 +35,13 @@ export type ConnectorModule = Readonly<{
   openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
-  /** The Builder's per-run brief for this Project's own open grants. Empty for a Project with no open
-   * grant, a fixed notice when the grants cannot be read. Never throws, never opens a credential and
-   * makes no network call. */
-  builderBrief(projectId: string): Promise<string>
+  /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief opens
+   * no credential and makes no network call. */
+  openBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
+  /** Contributes `connector_fetch` to the Builder run bound with `openBuilderRun`. */
+  builderTools(context: Readonly<{ requestContext: RequestContext }>): ToolsInput
+  /** The route-level projection of `connector_fetch` payloads the Builder's session routes serve. */
+  toolPayloadProjection: ToolPayloadProjection
   broker: Broker
   observability: ObservabilityInstance
 }>
@@ -55,7 +65,7 @@ export const createConnectorModule = ({
   isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
-  log = (line) => { process.stderr.write(line) },
+  log = (line) => logLine(line),
 }: Readonly<{
   /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
    * exactly as the application-access functions are (no new login role, no new pilot secret). */
@@ -80,7 +90,7 @@ export const createConnectorModule = ({
     secretFields: registeredConnectors.flatMap(({ definition }) => definition.secretFields),
   })
   const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, observability })
-  const connectorBrief = createConnectorBrief({ connectors: registeredConnectors, store: brokerStore, observability })
+  const connectorBrief = createConnectorBrief({ store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
   const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {
@@ -109,19 +119,13 @@ export const createConnectorModule = ({
       isInstallationAdministrator,
       checkConnection,
       credentialSchemas: { sankhya: sankhyaDefinition.credential },
-      admittedOperationIds: new Set(SANKHYA_OPERATION_IDS),
       config: { origin },
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    // A Project id this module cannot mint a scope for has no grant to describe.
-    builderBrief: async (projectId) => {
-      try {
-        return await connectorBrief(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
-      } catch {
-        return ''
-      }
-    },
+    openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId, ports }),
+    builderTools: createConnectorFetchTools(broker),
+    toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,
     observability,
   })

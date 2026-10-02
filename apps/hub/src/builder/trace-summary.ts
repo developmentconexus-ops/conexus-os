@@ -1,43 +1,62 @@
+import type { ScoreRowData } from '@mastra/core/evals'
+import { type InputTokenDetails, type OutputTokenDetails, SpanType, type UsageStats } from '@mastra/core/observability'
+import type { SpanRecord } from '@mastra/core/storage'
 import type { BuilderTraceScore, BuilderTraceSpan, BuilderTraceSummary, BuilderTraceUsage } from './routes.js'
 
-// A structural subset of Mastra's stored span/score records: independent of the SDK's exact
-// class hierarchy, so the mapping below is testable with plain objects.
-export type ObservabilitySpanRecord = Readonly<{
-  spanId: string
-  parentSpanId?: string | null | undefined
-  spanType: string
-  name: string
-  startedAt: Date
-  endedAt?: Date | null | undefined
-  error?: unknown
-  attributes?: Readonly<Record<string, unknown>> | null | undefined
-}>
-export type ObservabilityScoreRecord = Readonly<{ scorerId: string; score: number; reason?: string | null | undefined }>
+// The fields of Mastra's stored span and score records this summary reads, so a plain object with
+// those fields maps the same as a stored record.
+export type ObservabilitySpanRecord = Readonly<Pick<SpanRecord, 'spanId' | 'parentSpanId' | 'spanType' | 'name' | 'startedAt' | 'endedAt' | 'error' | 'attributes'>>
+export type ObservabilityScoreRecord = Readonly<Pick<ScoreRowData, 'scorerId' | 'score' | 'reason'>>
 
-// Mastra span-type strings (@mastra/core/observability SpanType). A model call is one
-// MODEL_GENERATION span; a tool call is one TOOL_CALL span. Client/provider/MCP tool spans are
-// their own distinct native mechanisms (docs-observability), not counted here.
-const MODEL_GENERATION_SPAN_TYPE = 'model_generation'
-const TOOL_CALL_SPAN_TYPE = 'tool_call'
+// A model call is one MODEL_GENERATION span; a tool call is one TOOL_CALL span. Client, provider
+// and MCP tool spans are their own native mechanisms (docs-observability), not counted here.
 
 const finiteOrNull = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 
 const totalOf = (inputTokens: number | null, outputTokens: number | null): number | null =>
   inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null
 
+type TokenDetails = InputTokenDetails | OutputTokenDetails
+
+const finiteDetails = <Details extends TokenDetails>(details: Details | undefined): Details | undefined => {
+  const kept = Object.entries(details ?? {}).filter(([, count]) => finiteOrNull(count) !== null)
+  return kept.length > 0 ? (Object.freeze(Object.fromEntries(kept)) as unknown as Details) : undefined
+}
+
+const addDetails = <Details extends TokenDetails>(left: Details | undefined, right: Details | undefined): Details | undefined => {
+  if (!left || !right) return left ?? right
+  const sum: Record<string, number> = { ...left }
+  for (const [key, count] of Object.entries(right)) sum[key] = (sum[key] ?? 0) + (count as number)
+  return Object.freeze(sum) as unknown as Details
+}
+
+/**
+ * Mastra's `UsageStats` with the totals made explicit: a total no span reported is null, never
+ * zero, and the cache and reasoning breakdowns (`inputDetails`, `outputDetails`) ride along when
+ * the provider reported them.
+ */
+const usageOf = (inputTokens: number | null, outputTokens: number | null, inputDetails: InputTokenDetails | undefined, outputDetails: OutputTokenDetails | undefined): BuilderTraceUsage =>
+  Object.freeze({
+    inputTokens,
+    outputTokens,
+    totalTokens: totalOf(inputTokens, outputTokens),
+    ...(inputDetails ? { inputDetails } : {}),
+    ...(outputDetails ? { outputDetails } : {}),
+  })
+
 /** Token usage recorded on a MODEL_GENERATION span's attributes, or null when absent or zero-value. */
 const spanUsage = (span: ObservabilitySpanRecord): BuilderTraceUsage | null => {
-  if (span.spanType !== MODEL_GENERATION_SPAN_TYPE) return null
-  const usage = (span.attributes as Readonly<{ usage?: Readonly<{ inputTokens?: unknown; outputTokens?: unknown }> }> | null | undefined)?.usage
+  if (span.spanType !== SpanType.MODEL_GENERATION) return null
+  const usage = (span.attributes as Readonly<{ usage?: UsageStats }> | null | undefined)?.usage
   if (!usage) return null
   const inputTokens = finiteOrNull(usage.inputTokens)
   const outputTokens = finiteOrNull(usage.outputTokens)
   if (inputTokens === null && outputTokens === null) return null
-  return Object.freeze({ inputTokens, outputTokens, totalTokens: totalOf(inputTokens, outputTokens) })
+  return usageOf(inputTokens, outputTokens, finiteDetails(usage.inputDetails), finiteDetails(usage.outputDetails))
 }
 
 const spanModel = (span: ObservabilitySpanRecord): string | null => {
-  if (span.spanType !== MODEL_GENERATION_SPAN_TYPE) return null
+  if (span.spanType !== SpanType.MODEL_GENERATION) return null
   const model = (span.attributes as Readonly<{ model?: unknown }> | null | undefined)?.model
   return typeof model === 'string' ? model : null
 }
@@ -62,6 +81,8 @@ export const summarizeSpan = (span: ObservabilitySpanRecord): BuilderTraceSpan =
 export const summarizeRunUsage = (spans: readonly ObservabilitySpanRecord[]): BuilderTraceUsage | null => {
   let inputTokens: number | null = null
   let outputTokens: number | null = null
+  let inputDetails: InputTokenDetails | undefined
+  let outputDetails: OutputTokenDetails | undefined
   let sawUsage = false
   for (const span of spans) {
     const usage = spanUsage(span)
@@ -69,8 +90,10 @@ export const summarizeRunUsage = (spans: readonly ObservabilitySpanRecord[]): Bu
     sawUsage = true
     if (usage.inputTokens !== null) inputTokens = (inputTokens ?? 0) + usage.inputTokens
     if (usage.outputTokens !== null) outputTokens = (outputTokens ?? 0) + usage.outputTokens
+    inputDetails = addDetails(inputDetails, usage.inputDetails)
+    outputDetails = addDetails(outputDetails, usage.outputDetails)
   }
-  return sawUsage ? Object.freeze({ inputTokens, outputTokens, totalTokens: totalOf(inputTokens, outputTokens) }) : null
+  return sawUsage ? usageOf(inputTokens, outputTokens, inputDetails, outputDetails) : null
 }
 
 /** @public Tests import this at runtime from the built module. */
@@ -89,8 +112,8 @@ export const buildTraceSummary = ({ traceId, spans, scores }: Readonly<{
   traceId,
   spans: Object.freeze(spans.map(summarizeSpan)),
   usage: summarizeRunUsage(spans),
-  modelCalls: spans.filter((span) => span.spanType === MODEL_GENERATION_SPAN_TYPE).length,
-  toolCalls: spans.filter((span) => span.spanType === TOOL_CALL_SPAN_TYPE).length,
+  modelCalls: spans.filter((span) => span.spanType === SpanType.MODEL_GENERATION).length,
+  toolCalls: spans.filter((span) => span.spanType === SpanType.TOOL_CALL).length,
   scores: Object.freeze(scores.map(summarizeScore)),
 })
 

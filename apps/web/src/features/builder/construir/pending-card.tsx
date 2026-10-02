@@ -1,59 +1,91 @@
 import { Button } from '@mastra/playground-ui/components/Button'
-import { type AskUserAnswer, type AskUserOption, type AskUserPayload } from '@mastra/playground-ui/components/ai/ask-user'
-import { AskUserPt } from './ask-user-pt'
+import type { AskUserAnswer, AskUserOption } from '@mastra/playground-ui/components/ai/ask-user'
+import { AskUserPt, type AskUserQuestionData } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
-import type { PendingAnswer } from '../mastra-session'
+import type { AnswerOutcome, PendingReply, PromptEntry } from '../mastra-session'
+import { PlanPt } from './plan-pt'
 import { toolRequest } from './tool-sentences'
 
-const questionText = (pending: PendingAnswer): string => {
+// submit_plan's suspend payload carries the plan it points at; like ask_user's, it is untrusted
+// wire data, so only a string field is shown.
+const planField = (pending: PromptEntry, name: 'title' | 'plan'): string | null => {
   for (const source of [pending.prompt, pending.args]) {
-    if (source && typeof source === 'object' && 'question' in source && typeof source.question === 'string') return source.question
+    if (source && typeof source === 'object' && name in source) {
+      const value = (source as Record<string, unknown>)[name]
+      if (typeof value === 'string' && value.trim()) return value
+    }
   }
-  return 'O agente precisa de uma resposta sua para continuar.'
+  return null
 }
 
-const isOptionList = (value: unknown): value is readonly AskUserOption[] =>
-  Array.isArray(value) && value.every((entry) => entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).label === 'string')
+const isOption = (value: unknown): value is AskUserOption =>
+  Boolean(value) && typeof value === 'object' && typeof (value as Record<string, unknown>).label === 'string' && (value as AskUserOption).label !== ''
 
-const asSelectionMode = (value: unknown): AskUserPayload['selectionMode'] | undefined =>
-  value === 'single_select' || value === 'multi_select' ? value : undefined
+const parseQuestion = (value: unknown): AskUserQuestionData | null => {
+  if (!value || typeof value !== 'object') return null
+  const entry = value as Record<string, unknown>
+  if (typeof entry.question !== 'string' || !entry.question) return null
+  const options = Array.isArray(entry.options) ? entry.options.filter(isOption) : []
+  return {
+    question: entry.question,
+    ...(typeof entry.header === 'string' && entry.header ? { header: entry.header } : {}),
+    options,
+    multiSelect: entry.multiSelect === true && options.length > 0,
+  }
+}
+
+const FALLBACK_QUESTION: AskUserQuestionData = { question: 'O agente precisa de uma resposta sua para continuar.', options: [], multiSelect: false }
 
 // ask_user's suspend payload is untrusted wire data (unknown on the wire type), so it is parsed
-// here rather than cast: a malformed or missing options/selectionMode field degrades to a plain
-// free-text question (still answerable) instead of passing bad shapes into AskUser.
-const askUserPayload = (pending: PendingAnswer): AskUserPayload => {
-  const source = [pending.prompt, pending.args].find((value): value is Record<string, unknown> => Boolean(value) && typeof value === 'object')
-  const options = source && isOptionList(source.options) ? source.options : undefined
-  const selectionMode = source ? asSelectionMode(source.selectionMode) : undefined
-  return { question: questionText(pending), ...(options ? { options: [...options] } : {}), ...(selectionMode ? { selectionMode } : {}) }
+// here rather than cast: a malformed question is dropped, and a payload with none left degrades to
+// a plain free-text question (still answerable) instead of passing bad shapes into the card.
+const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
+  for (const source of [pending.prompt, pending.args]) {
+    const list = source && typeof source === 'object' ? (source as Record<string, unknown>).questions : undefined
+    const questions = Array.isArray(list) ? list.map(parseQuestion).filter((entry): entry is AskUserQuestionData => entry !== null) : []
+    if (questions.length > 0) return questions
+  }
+  return [FALLBACK_QUESTION]
+}
+
+// Why an answer did not take the run back to work, in the person's words.
+const REFUSAL_TEXT: Readonly<Record<Exclude<AnswerOutcome, 'RESUMED'>, string>> = {
+  ALREADY_ANSWERED: 'Esta pergunta já foi respondida.',
+  NOT_PARKED: 'O agente não está mais esperando esta resposta.',
+  UNAVAILABLE: 'A resposta não chegou ao agente. Tente de novo.',
 }
 
 /**
  * A call the run parked on the person. An approval offers Permitir and Recusar and nothing that
  * widens the policy; a question renders through AskUserPt, playground-ui's AskUser parts in pt-BR (free text, or the
- * agent's options as radio/checkbox controls for single_select/multi_select).
+ * agent's options as radio/checkbox controls, with one send for all of its 1 to 4 questions).
  */
 export function PendingCard({ pending, onAnswer }: Readonly<{
-  pending: PendingAnswer
-  onAnswer: (answer: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>) => Promise<void>
+  pending: PromptEntry
+  onAnswer: (answer: PendingReply) => Promise<AnswerOutcome>
 }>) {
-  const [state, setState] = useState<'OPEN' | 'SENDING' | 'FAILED'>('OPEN')
-  const answer = (value: Readonly<{ approved: boolean }> | Readonly<{ text: string | string[] }>) => {
+  const [state, setState] = useState<AnswerOutcome | 'OPEN' | 'SENDING'>('OPEN')
+  const answer = (value: PendingReply) => {
     setState('SENDING')
-    onAnswer(value).catch(() => setState('FAILED'))
+    onAnswer(value).then(setState, () => setState('UNAVAILABLE'))
   }
+  const refusal = state === 'OPEN' || state === 'SENDING' || state === 'RESUMED' ? null : REFUSAL_TEXT[state]
   const detail = presentTool(pending.toolName, pending.args).detail
   const technical = stringifyToolValue(pending.args)
 
-  if (pending.kind === 'QUESTION') {
-    const submit = (value: AskUserAnswer) => answer({ text: value })
+  if (pending.ask === 'PLAN') {
+    return <PlanPt title={planField(pending, 'title')} plan={planField(pending, 'plan')} sending={state === 'SENDING'} refusal={refusal} onAnswer={answer} />
+  }
+
+  if (pending.ask === 'QUESTION') {
+    const submit = (value: AskUserAnswer[]) => answer({ answers: value })
     return <AskUserPt
       aria-label="Pergunta do agente"
-      payload={askUserPayload(pending)}
+      questions={askUserQuestions(pending)}
       isSubmitting={state === 'SENDING'}
       onSubmit={submit}
-      footer={state === 'FAILED' ? <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p> : undefined}
+      footer={refusal ? <p className="cx-pending-error" role="alert">{refusal}</p> : undefined}
     />
   }
 
@@ -67,6 +99,6 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
       <Button className="cx-button-ink" size="sm" disabled={state === 'SENDING'} onClick={() => answer({ approved: true })}>Permitir</Button>
       <Button variant="default" size="sm" disabled={state === 'SENDING'} onClick={() => answer({ approved: false })}>Recusar</Button>
     </div>
-    {state === 'FAILED' && <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p>}
+    {refusal && <p className="cx-pending-error" role="alert">{refusal}</p>}
   </section>
 }

@@ -42,9 +42,9 @@ const query = async (connection, statement, values = []) => {
 }
 const digest = (character) => character.repeat(64)
 const HEAD = 'a'.repeat(40)
-// A new Project is created bound to its repository; these are the Factory ids that binding names.
-const REPOSITORY = ['factory-project-1', 'project-repository-1', 'repository-1', HEAD]
-const CREATE = 'SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)'
+// A new Project is created with its repository in the Conexus Git; HEAD is the starter commit on `main`.
+const REPOSITORY = [HEAD]
+const CREATE = 'SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8)'
 
 // The first two tests install the R1 ledger, which ends at 010, so they name the roles R1 itself
 // creates. The capability names arrive at 059 and the third test, which installs the current
@@ -108,7 +108,8 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   await assert.rejects(command.query('INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, $4, $5, $6)', [projectId, workspaceId, 'Denied', 'NEW', 'a', 'b']), /permission denied/)
   await assert.rejects(command.query('SET ROLE project_owner'), /permission denied/)
   await assert.rejects(command.query('SELECT workspace.create_workspace($1, $2)', [otherProjectId, 'Unlisted']), /permission denied/)
-  await assert.rejects(command.query('SELECT project.create_project_with_source($1, $2, $3, $4, $5, $6, $7, $8, $9)', [accountId, workspaceId, digest('a'), digest('b'), projectId, 'Unbound', 'NEW', HEAD, 'revision-a']), /permission denied for function create_project_with_source/)
+  assert.deepEqual((await query(fresh, `SELECT count(*)::integer AS count FROM pg_proc WHERE proname IN ('create_project_with_source', 'bind_factory_project')`)).rows, [{ count: 0 }])
+  await assert.rejects(command.query('SELECT builder.register_project_repository($1)', [projectId]), /permission denied/)
   await assert.rejects(command.query(CREATE, [accountId, workspaceId, digest('a'), digest('b'), projectId, 'No receipt', 'revision-a', ...REPOSITORY]), /PRJ03_RECEIPT_NOT_RESERVED/)
   const preexistingProjectId = '30000000-0000-4000-8000-000000000039'
   await query(fresh, `
@@ -145,7 +146,7 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
     }
   }
   await rollbackCase('e', () => command.query(CREATE, [accountId, workspaceId, digest('e'), requestDigest, projectId, '', 'project-1', ...REPOSITORY]), /check constraint/)
-  await rollbackCase('2', () => command.query(CREATE, [accountId, workspaceId, digest('2'), requestDigest, projectId, 'Unborn head', 'project-1', ...REPOSITORY.slice(0, 3), 'main']), /working_source_revision_check/)
+  await rollbackCase('2', () => command.query(CREATE, [accountId, workspaceId, digest('2'), requestDigest, projectId, 'Unborn head', 'project-1', 'main']), /PROJECT_REPOSITORY_INPUT_REFUSED/)
   await rollbackCase('f', () => command.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [accountId, workspaceId, digest('f'), requestDigest, projectId, 201, responseDigest, responseBody]), /PRJ03_SETTLEMENT_INCOMPLETE/)
   await rollbackCase('1', async () => {
     await command.query(CREATE, [accountId, workspaceId, digest('1'), requestDigest, projectId, 'Project One', 'project-1', ...REPOSITORY])
@@ -174,9 +175,10 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   const durable = await query(fresh, `
     SELECT (SELECT count(*)::integer FROM project.project) AS project_count,
       (SELECT count(*)::integer FROM project.operation_idempotency WHERE outcome = 'SUCCEEDED') AS terminal_receipt_count,
-      (SELECT count(*)::integer FROM builder.factory_binding) AS binding_count
+      (SELECT count(*)::integer FROM builder.project_repository) AS repository_count,
+      (SELECT count(*)::integer FROM builder.project_working_state) AS working_count
   `)
-  assert.deepEqual(durable.rows, [{ project_count: 0, terminal_receipt_count: 0, binding_count: 0 }])
+  assert.deepEqual(durable.rows, [{ project_count: 0, terminal_receipt_count: 0, repository_count: 0, working_count: 0 }])
 
 })
 
@@ -248,6 +250,7 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
     name: 'Visible Project',
     project_revision: 'revision-visible',
     archived: false,
+    deleting: false,
   }])
   assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, crossWorkspaceProjectId])).rows, [])
 

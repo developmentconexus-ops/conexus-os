@@ -1,11 +1,14 @@
 import { Button } from '@mastra/playground-ui/components/Button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { Monitor, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import type { BuilderRun } from '../api'
 import { failureReason } from '../failure-reasons'
 import './lens-surfaces.css'
-import type { RunView } from './run-state'
+import type { PreviewWait } from './preview-wait'
+import { type RunView, elapsedLabel } from './run-state'
+import { TaskListPtRow } from './task-list-pt'
 import type { Preview } from './use-preview'
 
 const changedRuns = (history: readonly BuilderRun[]): readonly BuilderRun[] =>
@@ -22,9 +25,10 @@ const addressOf = (url: string): string => {
   try { return new URL(url).host } catch { return url }
 }
 
-export function LensPreview({ preview, view, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
+export function LensPreview({ preview, view, wait, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
   preview: Preview
   view: RunView
+  wait: PreviewWait | null
   history: readonly BuilderRun[]
   lastGoodSourceRevision: string | null
   sourceAhead: boolean
@@ -52,9 +56,10 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
   const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
   if (!preview.ready && !lease) {
+    if (wait) return <PreviewWaiting wait={wait} />
     return <div className="cx-preview-empty">
-      <ConexusMark size={40} working={view.kind === 'ACTIVE'} />
-      <p>{view.kind === 'ACTIVE' ? 'Gerando a primeira prévia…' : 'Ainda não há uma prévia disponível. Descreva o aplicativo para começar.'}</p>
+      <ConexusMark size={40} />
+      <p>Ainda não há uma prévia disponível. Descreva o aplicativo para começar.</p>
       {failedRun && <FailureNote run={failedRun} />}
     </div>
   }
@@ -63,16 +68,25 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
     <div className="cx-preview-toolbar" role="toolbar" aria-label="Janela da prévia">
       <fieldset className="cx-seg cx-seg-icons">
         <legend className="cx-sr">Dispositivo</legend>
-        <button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" title="Computador" onClick={() => setViewport('desktop')}>
-          <Monitor size={14} aria-hidden="true" />
-        </button>
-        <button type="button" aria-pressed={viewport === 'mobile'} aria-label="Celular" title="Celular" onClick={() => setViewport('mobile')}>
-          <Smartphone size={14} aria-hidden="true" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger render={<button type="button" aria-pressed={viewport === 'desktop'} aria-label="Computador" onClick={() => setViewport('desktop')} />}>
+            <Monitor size={14} aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>Computador</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<button type="button" aria-pressed={viewport === 'mobile'} aria-label="Celular" onClick={() => setViewport('mobile')} />}>
+            <Smartphone size={14} aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent>Celular</TooltipContent>
+        </Tooltip>
       </fieldset>
-      <button type="button" className="cx-icon-button" aria-label="Recarregar prévia" title="Recarregar" onClick={preview.retry}>
-        <RotateCw size={14} aria-hidden="true" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger render={<button type="button" className="cx-icon-button" aria-label="Recarregar prévia" onClick={preview.retry} />}>
+          <RotateCw size={14} aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipContent>Recarregar</TooltipContent>
+      </Tooltip>
       {lease && <span className="cx-preview-address">{addressOf(lease.launch.previewUrl)}</span>}
       <span className="cx-chip" data-tone={view.kind === 'ACTIVE' ? 'active' : sourceAhead ? 'neutral' : 'ok'}>
         {version !== null ? `Versão ${version} · em uso` : 'Em uso'}
@@ -105,10 +119,24 @@ export function LensPreview({ preview, view, history, lastGoodSourceRevision, so
   </div>
 }
 
+// The first version takes minutes. The wait names the phase, the tasks the agent wrote and the time
+// it has run, and claims nothing about how far along it is.
+function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
+  const { tasks } = wait
+  const current = tasks.findIndex((task) => task.status === 'in_progress')
+  return <div className="cx-preview-empty cx-preview-wait">
+    <ConexusMark size={40} working />
+    <p className="cx-preview-wait-title" role="status">{wait.title}</p>
+    {current !== -1 && <p>Tarefa {current + 1} de {tasks.length}: {tasks[current]?.activeForm}</p>}
+    {tasks.length > 0 && <ul className="cx-preview-wait-tasks">{tasks.map((task) => <TaskListPtRow key={task.id} task={task} />)}</ul>}
+    <p className="cx-preview-wait-time">{wait.elapsedMs === null ? 'A' : `Há ${elapsedLabel(wait.elapsedMs)} · a`} prévia aparece quando a primeira versão compilar</p>
+  </div>
+}
+
 function FailureNote({ run }: Readonly<{ run: BuilderRun }>) {
   const sentence = run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED'
     ? 'A última alteração não compilou. A prévia continua na versão anterior.'
-    : failureReason(run.failureCategory)
+    : failureReason(run)
   return <div className="cx-note" data-tone="warning" role="alert">
     <p>{sentence}</p>
     {run.failureCode && <details>

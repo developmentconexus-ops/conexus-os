@@ -1,41 +1,65 @@
 import type { FastifyInstance } from 'fastify'
-import type { ModelCredentialsStorage } from '@mastra/factory/storage/domains/credentials/base'
-import type { MemorySettingsStorage } from '@mastra/factory/storage/domains/memory-settings/base'
-import type { ModelPacksStorage } from '@mastra/factory/storage/domains/model-packs/base'
 import { createHash } from 'node:crypto'
-import type { ObservabilityInstance } from '@mastra/core/observability'
+import type { AgentController } from '@mastra/core/agent-controller'
+import type { ToolsInput } from '@mastra/core/agent'
+import { Mastra } from '@mastra/core/mastra'
+import { ConsoleLogger } from '@mastra/core/logger'
+import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
+import { SpanType } from '@mastra/core/observability'
+import { RequestContext } from '@mastra/core/request-context'
+import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
+import type { Workspace } from '@mastra/core/workspace'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
+import { PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
-import { readSecretFile } from '../platform/secrets.js'
+import { logLine } from '../platform/logger.js'
+import type { PostgresPool } from '../platform/postgres.js'
+import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { registerFactoryApiRoutes, registerFactoryMastraRoutes } from './mastra-session-routes.js'
-import { admitFactoryConversation, FACTORY_SESSION_ROUTE, openFactoryConversationThread, registerFactoryConversationRoutes } from './factory-routes.js'
+import { registerBuilderSessionRoutes } from './mastra-session-routes.js'
+import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
-import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS } from './runtime.js'
+import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, parkedCallStanding } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
-import { assertFactoryHost, composeFactory, createFactoryPool, createFactorySandbox } from './factory.js'
-import type { FactoryComposition } from './factory.js'
-import { createGithubApp } from './factory-github.js'
-import { assertFactoryGlobalSkillsAvailable } from './factory-skills-guard.js'
-import { HubSessionAuthProvider } from './hub-session-auth.js'
-import { registerInstallationGithubRoutes } from './installation-github-routes.js'
-import { openFactoryRecords, prepareFactoryRepository } from './factory-provisioning.js'
-import type { FactoryBinding } from './factory-provisioning.js'
-import { createFactoryCodingWorkerRuntime, createMastraFactoryRunPorts, recoverFactoryAdmissions } from './factory-runtime.js'
-import { createFactorySourceReads } from './factory-source.js'
+import { assertBuilderSkillsAvailable } from './skills-guard.js'
+import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
+import type { ConversationSandboxes } from './run-runtime.js'
+import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
+import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
+import { createConexusGit } from './conexus-git.js'
+import { createConversations, projectResourceId } from './conversations.js'
+import { projectBuilderRun } from './failure-vocabulary.js'
+import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
+import { listPausedConversationMachines } from './sandbox.js'
+import { createConversationSessions } from './conversation-sessions.js'
+import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
+import { starterProjectFiles } from './project-context.js'
+import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
-import { applyModelDefaults, FACTORY_CREDENTIAL_ROUTES, registerModelAccountRoutes } from './model-accounts.js'
-import { createProjectRepositoryPort, registerProjectRepositoryRoutes } from './repository-routes.js'
-import type { FactoryRunDependencies, RunNote } from './service.js'
-import type { BuilderStore } from './store.js'
+import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
+import { GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
+import { createGoogleAiProRoute } from './google-ai-pro/route.js'
+import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
+import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
+import { createAnthropicRoute } from './anthropic/route.js'
+import { createModelAccountStore } from './model-account-store.js'
+import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRole, type ModelRoute } from './model-routing.js'
+import { createBuilderMemory } from './memory.js'
+import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
+import { createOpenAICodexRoute } from './openai-codex/route.js'
+import { registerModelAccountRoutes } from './model-accounts.js'
+import type { BuilderRunDependencies, RunNote } from './service.js'
 
 const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
+// The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
+// (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
+const AGENT_STORAGE_CONNECT_TIMEOUT_MS = 30_000
 
 type BuilderObservabilityLifecycle = Readonly<{
   flush(): Promise<void>
@@ -96,37 +120,63 @@ export const createBuilderObservabilityLifecycle = (
 const diagnosticMessageId = (builderRunId: string, code: string): string =>
   createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
 
-// The next turn reads this thread, and a discarded run's tool calls in it describe edits the files
-// no longer have, so the note is written for the agent as much as for the person.
-const discarded = (sourceRevision: string): string =>
-  `As alterações desta execução foram descartadas e os arquivos voltaram à revisão ${sourceRevision}; as edições descritas acima nesta conversa não existem nos arquivos. Leia os arquivos antes de confiar neste histórico.`
+// The next turn reads this thread, and an unadmitted run's tool calls in it describe edits that are
+// in the conversation's files but not on `main`, so the note is written for the agent as much as for the person.
+const kept = (sourceRevision: string): string =>
+  `Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${sourceRevision}. Leia os arquivos antes de confiar neste histórico.`
 
 const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>> = Object.freeze({
   SOURCE_BASE_MOVED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele começará da versão atual da fonte.`,
+    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${kept(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele juntará os arquivos desta conversa com a versão atual da fonte.`,
   RUN_NOT_FINISHED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${discarded(sourceRevision)} Diagnóstico seguro: ${code}.`,
+    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.`,
   BUILD_FAILED: ({ builderRunId, code, detail }) =>
     `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
   PLATFORM_FAILED: ({ builderRunId, code }) =>
     `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
+  CANDIDATE_REFUSED: ({ builderRunId, code, detail, sourceRevision }) =>
+    `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
+  BOOT_PROBLEMS: ({ builderRunId, detail }) =>
+    `A execução ${builderRunId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas.${detail ? ` Detalhe: ${detail}` : ''} Corrija isso na próxima execução.`,
   PREVIEW_DATA_RESET: ({ builderRunId }) =>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
 })
 
-const noteMessage = (note: RunNote, resourceId: string) => ({
-  id: diagnosticMessageId(note.builderRunId, note.code), role: 'assistant' as const, createdAt: new Date(), threadId: note.conversationId, resourceId,
-  content: { format: 2 as const, parts: [{ type: 'text' as const, text: NOTE_TEXT[note.outcome](note) }] },
+type NoteSession = Pick<Awaited<ReturnType<AgentController['createSession']>>, 'sendSignalToThread'>
+
+/**
+ * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as
+ * 6b in docs/reference/mastra-boundary.md): the next turn's model reads it as
+ * `<notification source="conexus" ...>` context, and the thread stores it as a `signal` row the
+ * browser renders as a notice, never as the Builder speaking. Its id is deterministic, so a retry
+ * writes it once.
+ */
+const noteSignal = (note: RunNote) => ({
+  id: diagnosticMessageId(note.builderRunId, note.code),
+  type: 'notification' as const,
+  contents: NOTE_TEXT[note.outcome](note),
+  attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
-// A Factory conversation's thread lives under the conversation's own resourceId in Factory storage.
 /** @public Tests import this at runtime from the built module. */
-export const createFactoryDiagnosticAppender = (ready: Promise<Pick<FactoryComposition, 'mastra'>>) =>
+export const createDiagnosticAppender = (openSession: (target: Readonly<{ resourceId: string; threadId: string }>) => Promise<NoteSession>) =>
   async (note: RunNote): Promise<void> => {
-    const memory = await (await ready).mastra.getStorage()?.getStore('memory')
-    if (!memory) throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-    await memory.saveMessages({ messages: [noteMessage(note, note.conversationId)] })
+    const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
+    await (await openSession(target)).sendSignalToThread(noteSignal(note), target).accepted
   }
+
+/** @public Tests import this at runtime from the built module. */
+export const compactProcessorRunPayloads: SpanOutputProcessor = {
+  name: 'builder-compact-processor-run-payloads',
+  process: (span) => {
+    if (span && span.type === SpanType.PROCESSOR_RUN) {
+      if (Array.isArray(span.input)) span.input = { messageCount: span.input.length }
+      if (Array.isArray(span.output)) span.output = { messageCount: span.output.length }
+    }
+    return span
+  },
+  shutdown: async () => {},
+}
 
 /** @public Tests import this at runtime from the built module. */
 export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
@@ -137,6 +187,10 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
         serviceName,
         requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
         exporters: [new MastraStorageExporter()],
+        spanOutputProcessors: [compactProcessorRunPayloads],
+        serializationOptions: { maxStringLength: 32_768 },
+        // The Postgres store keeps spans but has no log table; the Hub's logs go through its pino logger.
+        logging: { enabled: false },
       },
     },
   })
@@ -146,34 +200,67 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
 
 const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 
-// Mastra never runs prune() itself (reference-storage-retention.md). The Factory's PostgresStore
-// declares the `maxAge` policy (factory.ts, OBSERVABILITY_SPAN_RETENTION); this is the schedule
-// that actually deletes rows older than it. It prunes only what that policy names -- observability
-// spans -- never memory threads/messages, which Builder evidence depends on.
-type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
+// Spans hold prompts, tool I/O and source text. Bounding their age is the only retention: Builder
+// evidence lives in the threads' messages, so memory is never a retention key here.
+const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: { maxAge: '30d' } } }
 
-const scheduleRetentionPrune = (
-  ready: Promise<Pick<FactoryComposition, 'storage'>>,
+/**
+ * The Builder's Mastra storage: threads, messages and traces in Postgres, so conversations survive a
+ * restart. It lives in the `factory` schema through the `hub_factory` role until slice 7 moves it
+ * to schema `mastra`.
+ * @public Tests import this at runtime from the built module.
+ */
+export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
+  new PostgresStore({ id: 'conexus-builder', pool, schemaName: 'factory', retention: OBSERVABILITY_SPAN_RETENTION })
+
+// Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
+// `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
+// waits for the store's own init, which creates the tables a fresh installation does not have yet.
+// `close()` stops the timer, aborts the prune in flight between batches, and settles after it, so the pool it uses can end after it.
+type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
+
+/** @public Tests import this at runtime from the built module. */
+export const scheduleRetentionPrune = (
+  storage: Pick<MastraCompositeStore, 'init' | 'prune'>,
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
-  const tick = async (): Promise<void> => {
-    const { storage } = await ready
-    for (const result of await storage.getMastraStorage().prune()) {
+  const inFlight = new Set<Promise<void>>()
+  const stop = new AbortController()
+  const run = async (): Promise<void> => {
+    await storage.init()
+    for (const result of await storage.prune({ signal: stop.signal })) {
+      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }
-  const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
+  const tick = (): Promise<void> => {
+    const pass = run()
+    inFlight.add(pass)
+    const settled = (): void => { inFlight.delete(pass) }
+    pass.then(settled, settled)
+    return pass
+  }
+  const tickLogged = (): void => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }
+  tickLogged()
+  const timer = setInterval(tickLogged, intervalMs)
   timer.unref()
-  return Object.freeze({ tick, close: () => clearInterval(timer) })
+  return Object.freeze({
+    tick,
+    close: async () => {
+      clearInterval(timer)
+      stop.abort()
+      await Promise.allSettled([...inFlight])
+    },
+  })
 }
 
 // Kills what a crashed Hub left running before the router takes calls.
-const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) => {
+const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig, persistFor: Parameters<typeof startModelRouter>[1]) => {
   await verifyCliproxyBinary(binary, sha256)
   const pool = createCliproxyPool({ binary, stateDir: defaultCliproxyStateDir() })
   await pool.sweepOrphans()
-  const router = await startModelRouter(pool)
+  const router = await startModelRouter(pool, persistFor)
   return Object.freeze({
     pool,
     url: router.url,
@@ -183,119 +270,24 @@ const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig) =>
   })
 }
 
-// The Factory's Mastra is the Hub's only one: it holds every conversation, its model selection and
-// the Builder's traces.
-const startFactoryComposition = ({ database, factory, secretKey: installationKey, googleAiPro: googleAiProConfig, store, e2bApiKey, e2bTemplateId, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief, connectorObservability }: Readonly<{
-  database: Readonly<{ host: string; port: number; database: string }>
-  factory: FactoryRuntimeConfig
-  secretKey: InstallationSecretKey
-  googleAiPro: GoogleAiProRuntimeConfig | undefined
-  store: BuilderStore
-  e2bApiKey: string
-  e2bTemplateId: string
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
-  isInstallationAdministrator(account: AccountId): Promise<boolean>
-  /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
-  connectorBrief?: (projectId: string) => Promise<string>
-  connectorObservability?: ObservabilityInstance
-}>) => {
-  assertFactoryHost({ cwd: process.cwd(), home: process.env.HOME })
-  const pool = createFactoryPool(database, readSecretFile(factory.databasePasswordFile))
-  const github = {
-    appId: factory.githubAppId,
-    clientId: factory.githubClientId,
-    slug: factory.githubAppSlug,
-    privateKey: readSecretFile(factory.githubPrivateKeyFile),
-    clientSecret: readSecretFile(factory.githubClientSecretFile),
-  }
-  const stateSecret = readSecretFile(factory.stateSecretFile)
-  const secretKey = readSecretFile(installationKey.file)
-  const previousSecretKeys = installationKey.previousFiles.map(readSecretFile)
-  const observability = createBuilderObservability('conexus-builder-factory', connectorObservability)
-  const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
-  const githubApp = createGithubApp({ appId: factory.githubAppId, privateKey: github.privateKey })
-  // A sandbox starts only after the composition is ready, so its seed reads the Factory's rows then.
-  const readCheckout = async (slug: string) => {
-    const sourceControl = (await ready).github.sourceControlStorage
-    for (const installation of await sourceControl.installations.list({ orgId: factory.orgId })) {
-      const repository = await sourceControl.repositories.findBySlug({ orgId: factory.orgId, installationId: installation.id, slug })
-      if (repository) {
-        return { token: await githubApp.repositoryToken(Number(installation.externalId), Number(repository.externalId), 'read'), defaultBranch: repository.defaultBranch }
-      }
-    }
-    throw new Error('BUILDER_FACTORY_UNAVAILABLE')
-  }
-  const googleAiPro = googleAiProConfig ? startGoogleAiPro(googleAiProConfig) : Promise.resolve(undefined)
-  googleAiPro.catch(() => undefined)
-  const auth = new HubSessionAuthProvider({ orgId: factory.orgId, resolveCurrentSession, isInstallationAdministrator })
-  const ready: Promise<FactoryComposition> = googleAiPro.then((started) => composeFactory({
-    pool, orgId: factory.orgId, auth, github, stateSecret, secretKey, previousSecretKeys, publicUrl: origin, observability,
-    sandbox: createFactorySandbox({ apiKey: e2bApiKey, templateId: e2bTemplateId, readCheckout }),
-    ...(started ? { googleAiProUrl: started.url } : {}),
-  }))
-  ready.catch(() => undefined)
-  const retentionPrune = scheduleRetentionPrune(ready, (line) => { process.stderr.write(`${line}\n`) })
-  const appendDiagnostic = createFactoryDiagnosticAppender(ready)
-  const portsReady = ready.then((composition) => createMastraFactoryRunPorts({
-    composition, orgId: factory.orgId, log: (line) => { process.stderr.write(`${line}\n`) },
-  }))
-  portsReady.catch(() => undefined)
-  const runtime = portsReady.then((ports) => createFactoryCodingWorkerRuntime({ ...ports, github: githubApp, ...(connectorBrief ? { connectorBrief } : {}) }))
-  runtime.catch(() => undefined)
-  const records = ready.then((composition) => openFactoryRecords(composition.storage))
-  records.catch(() => undefined)
-  const prepareRepository = async ({ projectId, projectName }: Readonly<{ projectId: string; projectName: string }>): Promise<FactoryBinding> =>
-    prepareFactoryRepository({ github: githubApp, records: await records, orgId: factory.orgId, projectId, projectName })
-  const repository = createProjectRepositoryPort({
-    readFactoryBinding: store.readFactoryBinding,
-    resolveRepository: (binding) => portsReady.then((ports) => ports.resolveRepository(binding)),
-    github: githubApp,
-  })
-  const run: FactoryRunDependencies = Object.freeze({
-    runtime: { execute: async (input) => (await runtime).execute(input) },
-    readBindingForRun: store.readFactoryBindingForRun,
-    readSourceHead: async (binding) => {
-      const repository = await (await portsReady).resolveRepository(binding)
-      return githubApp.readBranchHead(repository.installation, repository, repository.defaultBranch)
-    },
-    readConversationRepository: async (conversationId) =>
-      (await (await ready).github.sourceControlStorage.sessions.getBySessionId(conversationId))?.projectRepositoryId ?? null,
-    appendDiagnostic,
-    recoverAdmissions: async (active) => recoverFactoryAdmissions({ store, github: githubApp, resolveRepository: (await portsReady).resolveRepository, active }),
-    source: createFactorySourceReads({ github: githubApp, resolveRepository: async (binding) => (await portsReady).resolveRepository(binding) }),
-  })
-  return Object.freeze({
-    orgId: factory.orgId,
-    ready,
-    portsReady,
-    googleAiPro,
-    run,
-    prepareRepository,
-    repository,
-    githubApp,
-    githubAppSlug: factory.githubAppSlug,
-    records,
-    observabilityLifecycle,
-    close: async () => {
-      retentionPrune.close()
-      try {
-        await ready.then((composition) => composition.close(), () => pool.end())
-      } finally {
-        await googleAiPro.then((started) => started?.close(), () => undefined)
-        await observabilityLifecycle.close()
-      }
-    },
-  })
-}
+/** The Connector owner's part in a Builder run; absent without a Connector module. */
+export type BuilderConnectorPort = Readonly<{
+  openRun: NonNullable<BuilderRunPorts['openConnectorRun']>
+  tools(context: Readonly<{ requestContext: RequestContext }>): ToolsInput
+  toolPayloadProjection: ToolPayloadProjection
+}>
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, connectorBrief, connectorObservability }: Readonly<{
+const BUILDER_CONTROLLER_ID = 'conexus-builder'
+
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
-    ingressPasswordFile: string; executorPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string
+    ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
+    e2bTemplateId: string; gitRoot: string; modelStreamRecordDir?: string | undefined; context7ApiKeyFile?: string | undefined
   }>
-  factory: FactoryRuntimeConfig
+  // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
+  // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
+  factory: Pick<FactoryRuntimeConfig, 'databasePasswordFile'>
   secretKey: InstallationSecretKey
   googleAiPro?: GoogleAiProRuntimeConfig
   applicationArtifacts: UnboundBuilderApplicationArtifacts
@@ -304,30 +296,159 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   origin: string
   resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
-  /** The Connector owner's per-run brief for a Project; absent without a Connector module. */
-  connectorBrief?: (projectId: string) => Promise<string>
+  /** The Project's display name, which the Builder's prompt states. */
+  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
+  connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
+  /** The conversations' sandboxes; absent, the Hub uses E2B. Only a test composition passes one. */
+  conversationSandboxes?: ConversationSandboxes
 }>) => {
-  assertFactoryGlobalSkillsAvailable()
+  assertBuilderSkillsAvailable()
+  const log = (line: string): void => logLine(line)
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
     executorPool,
   })
+  // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
+  // envelope every Conexus secret uses.
+  const modelAccountPool = createPostgresPool({ ...database, user: 'hub_model_account', password: readSecretFile(builder.modelAccountPasswordFile) })
+  const modelAccounts = createModelAccountStore({
+    pool: modelAccountPool,
+    envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
+  })
+  const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
+  const readDefault = async (role: ModelRole): Promise<string | null> =>
+    (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
+  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
+  const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
+    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(executorPool, input) } : {}),
+    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(executorPool, input) } : {}),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
-  const factoryComposition = startFactoryComposition({
-    database, factory, secretKey, googleAiPro, store, e2bApiKey: readSecretFile(builder.e2bApiKeyFile), e2bTemplateId: builder.e2bTemplateId, origin,
-    resolveCurrentSession, isInstallationAdministrator, ...(connectorBrief ? { connectorBrief } : {}),
-    ...(connectorObservability ? { connectorObservability } : {}),
+  const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
+  const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
+  const storage = createBuilderStorage(storagePool)
+  const observability = createBuilderObservability('conexus-builder', connectorObservability)
+  const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
+  const googleWriteBack = createRefreshWriteBack(modelAccounts)
+  const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
+  googleAiProReady.catch(() => undefined)
+
+  const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
+    [GOOGLE_AI_PRO_PROVIDER]: createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
+    [OPENAI_MODEL_PROVIDER]: createOpenAICodexRoute(createCodexHolds({ store: modelAccounts }), builder.modelStreamRecordDir),
+    // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
+    [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
+  })
+  const runContexts = new Map<string, RunContextBinder>()
+  const conversationWorkspaces = new Map<string, Workspace>()
+  const runTools = new Map<string, RunTools>()
+  const modelRouting = createModelRouting({
+    routes,
+    modelAccounts,
+    // Read when a run starts, long after the controller below exists.
+    conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
+    readDefault,
+    record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
+  })
+  // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
+  const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
+  const controller = createBuilderController({
+    id: BUILDER_CONTROLLER_ID,
+    workspace: ({ requestContext }) => {
+      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
+      return typeof conversationId === 'string' ? conversationWorkspaces.get(conversationId) : undefined
+    },
+    runTools: ({ requestContext }) => {
+      const runId = requestContext.getRaw(RUN_ID_KEY)
+      return typeof runId === 'string' ? runTools.get(runId) : undefined
+    },
+    model: modelRouting.resolve,
+    docsTools,
+    memory: createBuilderMemory({ storage, memoryModel: modelRouting.resolveMemory }),
+    ...(connectors ? { connectorFetch: connectors.tools } : {}),
+  })
+  const mastra = new Mastra({
+    storage,
+    agentControllers: { [BUILDER_CONTROLLER_ID]: controller },
+    observability,
+    logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn' }),
+  })
+  const ready = controller.init()
+  ready.catch(() => undefined)
+  const sessions = createConversationSessions({ controller, log })
+  const conversationSession = async (resourceId: string, conversationId: string) => {
+    await ready
+    return sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
+  }
+  // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
+  const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
+    const session = await conversationSession(projectResourceId(projectId), conversationId)
+    await session.thread.loadMetadata()
+    return session.model.hasSelection() ? session.model.get() : null
+  }
+  const retentionPrune = scheduleRetentionPrune(storage, log)
+  const conversations = createConversations(async () => {
+    const memory = await mastra.getStorage()?.getStore('memory')
+    if (!memory) throw new Error('BUILDER_CONVERSATIONS_UNAVAILABLE')
+    return memory
+  })
+
+  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
+  const discardParked = createParkedDiscard({ controller })
+  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
+  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
+  const e2bSandboxes = () => {
+    const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
+    const idleMachineSweep = scheduleIdleMachineSweep({
+      listPaused: () => listPausedConversationMachines(e2bApiKey),
+      openRunConversations: store.readOpenRunConversations,
+      kill: sandboxes.killRecorded,
+      log,
+    })
+    return { sandboxes, idleMachineSweep }
+  }
+  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
+  const runtime = createBuilderRunRuntime({
+    openSandbox: sandboxes.open,
+    openSession: async (input) => {
+      await ready
+      return openSession(input)
+    },
+    discardParked: async (input) => {
+      await ready
+      return discardParked(input)
+    },
+    checkModel: modelRouting.check,
+    readProjectName,
+    git,
+    ...(connectors ? { openConnectorRun: connectors.openRun } : {}),
+    ...(applicationServer ? { invokeOperation: applicationServer.invoke } : {}),
+    log,
+  })
+  const runs: BuilderRunDependencies = Object.freeze({
+    runtime,
+    git,
+    conversations,
+    source: createProjectSourceReads({ git }),
+    appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
+    findParkedCall: async ({ projectId, conversationId, toolCallId }) => parkedCallStanding(await conversationSession(projectResourceId(projectId), conversationId), toolCallId),
+    // Into the session the run's turns go through, which the browser's stream follows. The
+    // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
+    publishRun: async (run) => {
+      const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationRunScope(run.conversationId))
+      await session?.state.set({ conexusRun: projectBuilderRun(run) })
+    },
   })
   const service = createBuilderService({
-    store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), factory: factoryComposition.run,
+    store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
   })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
@@ -335,17 +456,17 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       if (!preview) throw new Error('NOT_AUTHORIZED')
       return Object.freeze({
         projectId,
-        workingSourceRevision: preview.workingSourceRevision,
-        lastPreviewSourceRevision: preview.lastPreviewSourceRevision ?? null,
-        lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId ?? null,
-        lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest ?? null,
+        workingSourceRevision: await git.readMain(projectId).catch(() => null),
+        lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
+        lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
+        lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },
     readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Error('NOT_AUTHORIZED')
-      const mastraStorage = (await factoryComposition.ready).mastra.getStorage()
+      const mastraStorage = mastra.getStorage()
       const observabilityStore = await mastraStorage?.getStore('observability')
       if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
       const traces = await observabilityStore.listTraces({
@@ -355,10 +476,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       const root = traces.spans.at(0)
       if (!root) return UNAVAILABLE_TRACE_SUMMARY
       const trace = await observabilityStore.getTrace({ traceId: root.traceId })
-      // The mastracode-* scores already run on every Builder run (mastra_scorers) and attach to
-      // the trace's root span; nobody read them until this route. They overstate success because
-      // the Conexus build/Preview settle outside the agent's own tool calls -- said in the PR body,
-      // not hidden here.
       const scoresStore = await mastraStorage?.getStore('scores')
       const scoreRows = scoresStore
         ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
@@ -370,67 +487,72 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       })
     },
   })
+  const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: string; projectId: string }>): Promise<boolean> =>
+    (await store.readPreviewSubject({ accountId, projectId })) !== null
   return Object.freeze({
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
-      const composition = await factoryComposition.ready
-      const googleAiProPool = (await factoryComposition.googleAiPro)?.pool
-      const sessions = composition.github.sourceControlStorage.sessions
-      const modelPacks = composition.storage.getDomain<ModelPacksStorage>('model-packs')
-      await registerFactoryApiRoutes(app, { mastra: composition.mastra, routes: FACTORY_CREDENTIAL_ROUTES, origin, resolveCurrentSession })
-      await registerFactoryApiRoutes(app, {
-        mastra: composition.mastra, routes: new Set([FACTORY_SESSION_ROUTE]), origin, resolveCurrentSession,
-        admit: async ({ accountId, params }) => typeof params.id === 'string' && await store.resolveFactoryProject({ accountId, projectRepositoryId: params.id }) !== null,
-      })
-      await registerModelAccountRoutes(app, {
-        domains: {
-          credentials: composition.storage.getDomain<ModelCredentialsStorage>('model-credentials'),
-          modelPacks,
-          memorySettings: composition.storage.getDomain<MemorySettingsStorage>('memory-settings'),
+      await ready
+      await registerBuilderSessionRoutes(app, {
+        mastra, controller, sessions, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
+        conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
+        projectBusy: async ({ accountId, projectId }) => {
+          const latest = await store.readBuilderRun({ accountId, projectId })
+          return latest?.state === 'QUEUED' || latest?.state === 'RUNNING'
         },
-        orgId: factoryComposition.orgId,
+        runContext: (scope) => runContexts.get(scope),
+        answerParked: async ({ accountId, projectId, conversationId, toolCallId, resumeData }) => {
+          const latest = await store.readBuilderRun({ accountId, projectId })
+          if (latest?.conversationId !== conversationId) return 'NOT_PARKED'
+          return service.answerBuilderRun({ accountId, projectId, builderRunId: latest.builderRunId, toolCallId, resumeData })
+        },
+        ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
+      })
+      const googleAiProPool = (await googleAiProReady)?.pool
+      await registerModelAccountRoutes(app, {
         origin,
         resolveCurrentSession,
         isInstallationAdministrator,
-        ...(googleAiProPool ? { googleAiPro: googleAiProPool } : {}),
+        modelAccounts,
+        ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
       })
-      await registerInstallationGithubRoutes(app, {
-        origin,
-        resolveCurrentSession,
-        isInstallationAdministrator,
-        github: factoryComposition.githubApp,
-        records: await factoryComposition.records,
-        orgId: factoryComposition.orgId,
-        appSlug: factoryComposition.githubAppSlug,
-      })
-      await registerFactoryMastraRoutes(app, {
-        mastra: composition.mastra,
-        controllerId: composition.controllerId,
-        controller: composition.controller,
-        origin,
-        orgId: factoryComposition.orgId,
-        resolveCurrentSession,
-        admitConversation: admitFactoryConversation({ sessions, resolveFactoryProject: store.resolveFactoryProject }),
-      })
-      const repositoryOperations = await registerProjectRepositoryRoutes(app, {
-        repository: factoryComposition.repository,
-        resolveCurrentSession,
-      })
-      return [...builderOperations, ...repositoryOperations, ...await registerFactoryConversationRoutes(app, {
-        readFactoryBinding: store.readFactoryBinding, sessions, controller: composition.controller, origin, resolveCurrentSession,
-        openThread: openFactoryConversationThread({ controller: composition.controller, orgId: factoryComposition.orgId, applyDefaults: applyModelDefaults({ modelPacks, orgId: factoryComposition.orgId }) }),
-      })]
+      return builderOperations
     },
-    // Absent without the Factory, and then no Project can be created.
-    prepareProjectRepository: factoryComposition?.prepareRepository,
+    // Absent without the Builder, and then no Project can be created.
+    prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
+    // Runs before the Project's purge, which drops the rows that name its VMs.
+    killProjectSandboxes: async (projectId: string) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
+    // A deleted Project leaves neither its conversations nor its repository behind.
+    deleteProjectRepository: async (projectId: string) => {
+      const conversationIds = await conversations.deleteAll(projectId)
+      await sessions.drop(projectResourceId(projectId), conversationIds)
+      await sandboxes.destroy(conversationIds)
+      await git.deleteRepository(projectId)
+    },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
+    getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     recover: service.recover,
     close: async () => {
+      let drained: Promise<unknown> = Promise.resolve()
       try {
+        try {
+          service.stopLegs()
+        } finally {
+          drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
+        }
         await service.close()
       } finally {
-        await factoryComposition.close()
+        try {
+          await sessions.close()
+          await controller.destroy()
+        } finally {
+          await docsTools.close()
+          await googleAiProReady.then((started) => started?.close(), () => undefined)
+          await observabilityLifecycle.close()
+          await drained
+          await Promise.all([storagePool.end(), modelAccountPool.end()])
+        }
       }
     },
   })

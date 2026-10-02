@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -53,7 +53,7 @@ const hubBuildStep = Object.freeze({
  * explicitly by its own repository command; it is not a required-main CI
  * property while the candidate remains unadmitted.
  */
-export const CANDIDATE_GRAPH = Object.freeze([
+const GRAPH_STEPS = Object.freeze([
   hubBuildStep,
   candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs tests/implementation/hub-database-cleanup-postgres.test.mjs', 'postgres'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs'),
@@ -66,46 +66,57 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('hub-call-site-privileges', 'node --test --test-concurrency=1 tests/implementation/hub-call-site-privileges-postgres.test.mjs', 'postgres'),
   candidateStep('connector-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-postgres.test.mjs', 'postgres'),
   candidateStep('connector-routes', 'node --test tests/implementation/connector-routes.test.mjs'),
-  candidateStep('connector-broker', 'node --test tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/application-invoker.test.mjs'),
-  candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs', 'postgres'),
+  candidateStep('connector-broker', 'node --test tests/implementation/connector-token-cache.test.mjs tests/implementation/connector-broker.test.mjs tests/implementation/connector-fetch.test.mjs tests/implementation/connector-adapter-source.test.mjs tests/implementation/connector-handler-port.test.mjs tests/implementation/connector-handler-fetch.test.mjs tests/implementation/application-invoker.test.mjs'),
+  candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs tests/implementation/connector-fetch-postgres.test.mjs', 'postgres'),
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
+  candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
+  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs tests/implementation/builder-web-fetch.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
-  candidateStep('factory-binding-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-binding-postgres.test.mjs', 'postgres'),
+  candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
-  candidateStep('factory-composition', 'node --test --test-concurrency=1 tests/implementation/builder-factory-composition.test.mjs', 'postgres'),
-  candidateStep('model-accounts-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-model-accounts-postgres.test.mjs', 'postgres'),
+  candidateStep('builder-composition', 'node --test --test-concurrency=1 tests/implementation/builder-composition.test.mjs', 'postgres'),
+  candidateStep('model-account-postgres', 'node --test --test-concurrency=1 tests/implementation/model-account-postgres.test.mjs', 'postgres'),
   candidateStep('google-ai-pro', 'node --test --test-concurrency=1 tests/implementation/builder-google-ai-pro.test.mjs'),
-  candidateStep('factory-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-factory-runtime.test.mjs tests/implementation/builder-factory-run-ports.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-factory-run-ports-priming-order.test.mjs tests/implementation/builder-trace-summary.test.mjs'),
-  candidateStep('factory-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-factory-recovery-postgres.test.mjs tests/implementation/builder-factory-source-head-postgres.test.mjs', 'postgres'),
-  candidateStep('factory-routes', 'node --test --test-concurrency=1 tests/implementation/builder-factory-routes.test.mjs'),
-  candidateStep('factory-provisioning', 'node --test --test-concurrency=1 tests/implementation/builder-factory-provisioning.test.mjs', 'postgres'),
+  candidateStep('openai-codex', 'node --test --test-concurrency=1 tests/implementation/builder-openai-codex.test.mjs'),
+  candidateStep('anthropic', 'node --test --test-concurrency=1 tests/implementation/builder-anthropic.test.mjs'),
+  candidateStep('run-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-run-runtime.test.mjs tests/implementation/builder-idle-machine-sweep.test.mjs tests/implementation/builder-egress-log.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-trace-summary.test.mjs tests/implementation/builder-session-tripwire.test.mjs tests/implementation/builder-agent-retry.test.mjs tests/implementation/builder-runaway-step.test.mjs tests/implementation/builder-parallel-tools.test.mjs tests/implementation/builder-run-timing.test.mjs tests/implementation/builder-turn-stall.test.mjs tests/implementation/builder-session-lifecycle.test.mjs tests/implementation/builder-parked-run.test.mjs tests/implementation/builder-stream-backlog.test.mjs'),
+  candidateStep('run-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-recovery-postgres.test.mjs', 'postgres'),
+  candidateStep('builder-session-routes', 'node --test --test-concurrency=1 tests/implementation/builder-session-routes.test.mjs tests/implementation/builder-stream-facts.test.mjs'),
+  candidateStep('conexus-git', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git.test.mjs'),
   candidateStep('application-data-postgres', 'node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs tests/implementation/application-cluster-installation.test.mjs', 'postgres'),
   candidateStep('application-runner-sandbox', 'node --test --test-concurrency=1 tests/implementation/application-runner-sandbox.test.mjs', 'postgres'),
+  candidateStep('app-runner-http', 'node --test --test-concurrency=1 tests/implementation/app-runner-module.test.mjs tests/implementation/app-runner-http.test.mjs tests/implementation/app-path-classifier.test.mjs tests/implementation/app-runner-worker.test.mjs tests/implementation/application-release.test.mjs tests/implementation/manifest-enum.test.mjs'),
   candidateStep('application-server', 'node --test --test-concurrency=1 tests/implementation/application-server-build.test.mjs tests/implementation/preview-application-api.test.mjs'),
   candidateStep('application-host', 'node --test tests/implementation/application-host.test.mjs'),
   candidateStep('foundation-postgres', 'node --test --test-concurrency=1 tests/implementation/identity-access-postgres.test.mjs tests/implementation/workspace-postgres.test.mjs tests/implementation/project-postgres.test.mjs', 'postgres'),
   candidateStep('project-summary-activity-postgres', 'node --test --test-concurrency=1 tests/implementation/project-summary-activity-postgres.test.mjs', 'postgres'),
-  candidateStep('project-summary-routes', 'node --test tests/implementation/project-summary-routes.test.mjs tests/implementation/builder-repository-routes.test.mjs'),
+  candidateStep('project-summary-routes', 'node --test tests/implementation/project-summary-routes.test.mjs'),
   candidateStep('c020-registry', 'node --test --test-concurrency=1 tests/implementation/builder-application-registry.test.mjs tests/implementation/builder-application-registry-postgres.test.mjs', 'postgres'),
   candidateStep('c020-source-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs tests/implementation/builder-run-dispatch.test.mjs'),
   candidateStep('c020-failure-vocabulary', 'node --test --test-concurrency=1 tests/implementation/builder-failure-vocabulary.test.mjs'),
-  candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs', 'browser'),
-  candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs', 'browser'),
+  candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs tests/implementation/builder-application-check.test.mjs', 'browser'),
+  candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs tests/implementation/builder-parked-card-browser.test.mjs tests/implementation/builder-transcript.test.mjs tests/implementation/builder-conversation-rows.test.mjs tests/implementation/builder-memory-status.test.mjs tests/implementation/builder-plan-sections.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs', 'browser'),
   candidateStep('application-access-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-access-browser.test.mjs', 'browser'),
   candidateStep('connector-integrations-browser', 'node --test --test-concurrency=1 tests/implementation/connector-integrations-browser.test.mjs', 'browser-postgres'),
-  candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs'),
+  candidateStep('c020-e2b-template', 'node scripts/builder-e2b-template.mjs --check && node --test --test-concurrency=1 tests/implementation/builder-e2b-template.test.mjs tests/implementation/builder-compiler-template-recipe.test.mjs tests/implementation/builder-compiler-recipe-stack.test.mjs tests/implementation/builder-template-pins.test.mjs'),
+  candidateStep('c020-compiler-v2', 'node --test --test-concurrency=1 tests/implementation/builder-compiler-allowlist.test.mjs tests/implementation/builder-client-generator.test.mjs tests/implementation/builder-app-starter-v2.test.mjs tests/implementation/builder-skill-examples.test.mjs', 'browser'),
   candidateStep('c020-web-typecheck', 'node node_modules/typescript/bin/tsc --project apps/web/tsconfig.json --pretty false'),
   candidateStep('c020-web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
 
   candidateStep('db-catalog-snapshot', 'npm run db:catalog:check', 'postgres'),
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
+  candidateStep('hub-lifecycle', 'node --test --test-concurrency=1 tests/implementation/hub-lifecycle.test.mjs', 'postgres'),
+  candidateStep('hub-postgres-pool', 'node --test tests/implementation/hub-postgres-pool.test.mjs', 'postgres'),
   candidateStep('db-role-register', 'npm run db:roles:check && node --test tests/implementation/cutover-hub-role-names.test.mjs'),
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
+  candidateStep('hub-build-shared', 'node --test tests/implementation/hub-build.test.mjs'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/conexus-verify.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/check-test-census.test.mjs'),
+  candidateStep('hub-log-sinks', 'node --test tests/repository/hub-log-sinks.test.mjs'),
+  candidateStep('telemetry', 'node --test tests/implementation/telemetry-register.test.mjs tests/implementation/telemetry-redaction.test.mjs tests/implementation/telemetry-logs.test.mjs tests/implementation/telemetry-metrics.test.mjs tests/implementation/telemetry-trace-trust.test.mjs tests/implementation/telemetry-log-codes.test.mjs tests/implementation/hub-launch-flags.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-weak-tests.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -116,8 +127,8 @@ export const CANDIDATE_GRAPH = Object.freeze([
 
   candidateStep('brand-wordmark-csp', 'node --test tests/implementation/brand-wordmark-csp.test.mjs', 'browser'),
   candidateStep('builder-tool-sentences', 'node --test tests/implementation/builder-tool-sentences.test.mjs'),
-  candidateStep('factory-skills-guard', 'node --test tests/implementation/factory-skills-guard.test.mjs'),
-  candidateStep('settings-provider-groups', 'node --test tests/implementation/provider-groups.test.mjs'),
+  candidateStep('builder-skills-guard', 'node --test tests/implementation/builder-skills-guard.test.mjs tests/implementation/builder-skills-no-answer-key.test.mjs tests/implementation/builder-skill-manifest-vocabulary.test.mjs'),
+  candidateStep('builder-guidance-neutral', 'node --test tests/repository/builder-guidance-neutral.test.mjs'),
   candidateStep('conexus-preflight', 'node --test tests/repository/conexus-preflight.test.mjs'),
 
   candidateStep('identity-access-http', 'node --test tests/implementation/identity-access-http.test.mjs'),
@@ -127,15 +138,24 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('workspace-reads', 'node --test --test-concurrency=1 tests/implementation/workspace-reads.test.mjs', 'postgres'),
   candidateStep('project-disclosure', 'node --test tests/implementation/project-disclosure.test.mjs'),
   candidateStep('project-command-postgres', 'node --test --test-concurrency=1 tests/implementation/project-command.test.mjs', 'postgres'),
+  candidateStep('project-deletion', 'node --test tests/implementation/project-deletion.test.mjs'),
+  candidateStep('project-deletion-postgres', 'node --test --test-concurrency=1 tests/implementation/project-deletion-postgres.test.mjs', 'postgres'),
   candidateStep('project-browser', 'node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs', 'browser'),
+  candidateStep('project-settings-deletion-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-deletion-browser.test.mjs', 'browser'),
   candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs'),
+  candidateStep('project-delete-problem', 'node --test tests/implementation/project-delete-problem.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
+  candidateStep('web-dev-server', 'node --test tests/implementation/web-dev-server.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs && node --test tests/repository/web-style.test.mjs'),
   candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
+  candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs', 'browser'),
+  // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot. A flow file goes in the test:live script by name.
+  candidateStep('live-builder', 'npm run test:live', 'live'),
+  candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
@@ -149,10 +169,103 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
+  candidateStep('conexus-backup', 'node --test tests/implementation/conexus-backup.test.mjs'),
 
+  candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
+  candidateStep('weak-tests-ratchet', 'node scripts/check-weak-tests.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
+
+// The cheap static checks (typechecks, lint, repository and agent-context checks, contract
+// projections, wire checks, census) run before the browser and PostgreSQL suites, so a run that is
+// going to fail on them fails in seconds instead of after minutes. Nothing is dropped, only moved.
+export const FAST_CHECK_SCOPES = Object.freeze([
+  'c020-hub-typecheck',
+  'c020-web-typecheck',
+  'biome',
+  'knip',
+  'repository-check',
+  'repository-import-law',
+  'repository-agent-context',
+  'repository-contract-checks',
+  'contract-projection-check-iam',
+  'contract-projection-check-workspace',
+  'contract-projection-check-project',
+  'contract-projection-check-connector',
+  'conexus-preflight',
+  'web-style',
+  'builder-guidance-neutral',
+  'db-role-register',
+  'wire-openapi-lint',
+  'wire-openapi-bundle',
+  'wire-bijection',
+  'wire-bijection-gate',
+  'wire-carriers',
+  'wire-identity-workspace',
+  'wire-project',
+  'wire-builder',
+  'wire-connector',
+  'wire-technical-lint',
+  'wire-technical-ingress',
+  'log-codes-check',
+  'test-census',
+  'weak-tests-ratchet',
+])
+
+// A stable partition: fast checks first in graph order, then the rest in graph order. The Hub build
+// step stays first (it publishes the compiled Hub) and the skip check stays last (it reads the
+// ledger of the whole run), because each is first or last in GRAPH_STEPS and the partition keeps order.
+export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
+  const fast = new Set(fastScopes)
+  return Object.freeze([...steps.filter(step => fast.has(step.scope)), ...steps.filter(step => !fast.has(step.scope))])
+}
+
+export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
+
+// CI runs the graph as five jobs, each on its own machine with its own PostgreSQL and CPU, so no
+// step shares a host resource with a step of another group. A step's group follows from what it
+// needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. The Builder screen
+// suite alone takes about 150 s, so it is a group of its own and the other browser suites share
+// the fourth, which keeps the groups close in length. The live suite boots a whole Conexus of its
+// own (PostgreSQL and Keycloak containers, a Hub build, a browser), so it is the fifth. Two steps belong to every group: the Hub
+// build, which publishes the compiled Hub the suites import, and the skip check, which reads the
+// ledger of the job it runs in.
+export const VERIFY_GROUPS = Object.freeze(['builder-ui', 'browser', 'postgres', 'rest', 'live'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest', live: 'live' })
+const BUILDER_UI_STEPS = new Set(['c020-browser'])
+const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
+
+export const groupsOf = (step) => {
+  if (EVERY_GROUP.has(step.scope)) return VERIFY_GROUPS
+  return [BUILDER_UI_STEPS.has(step.scope) ? 'builder-ui' : GROUP_OF_CLASS[step.environmentClass]]
+}
+export const graphForGroup = (graph, group) => graph.filter(step => groupsOf(step).includes(group))
+
+// A change that touches only documentation runs these steps: every step that reads a Markdown file,
+// plus the OpenAPI bundle the bijection check reads, the census and the skip check that close every run. The path test lives in
+// scripts/ci-change-scope.mjs.
+export const DOCS_CHECK_SCOPES = Object.freeze([
+  'repository-check',
+  'repository-agent-context',
+  'repository-contract-checks',
+  'conexus-preflight',
+  'wire-openapi-bundle',
+  'wire-bijection',
+  'wire-bijection-gate',
+  'test-census',
+  'only-opt-in-skips',
+])
+
+export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
+
+// The fast check to run before every push: the static gates CI otherwise reports minutes later, with
+// no Docker, browser or network.
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'knip', 'weak-tests-ratchet'])
+
+export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
+
+const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH, 'candidate-quick': QUICK_GRAPH })
 
 // Descriptive aliases make the manifest easy to discover for tests and small
 // callers without creating another mutable allowlist.
@@ -181,7 +294,7 @@ export function loadPackageScripts(root = repositoryRoot) {
 }
 
 export function parseArguments(argv = process.argv.slice(2)) {
-  const options = { scopes: [], list: false, dryRun: false, json: false, help: false }
+  const options = { scopes: [], list: false, dryRun: false, json: false, help: false, group: null }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -200,6 +313,14 @@ export function parseArguments(argv = process.argv.slice(2)) {
     }
     if (argument === '--json') {
       options.json = true
+      continue
+    }
+
+    if (argument === '--group' || argument.startsWith('--group=')) {
+      if (argument === '--group') index += 1
+      const value = argument === '--group' ? argv[index] : argument.slice('--group='.length)
+      if (!VERIFY_GROUPS.includes(value)) throw new VerificationCliError(`--group must be one of ${VERIFY_GROUPS.join(', ')}`)
+      options.group = value
       continue
     }
 
@@ -246,8 +367,8 @@ export function resolveScope(scope, packageScripts = loadPackageScripts()) {
   }
 
   const normalized = scope.trim()
-  if (normalized === 'candidate') {
-    return { scope: normalized, command: null, graph: 'candidate' }
+  if (own(GRAPHS, normalized)) {
+    return { scope: normalized, command: null, graph: normalized }
   }
   const alias = manifestEntry(normalized)
   if (alias) return alias
@@ -277,7 +398,7 @@ export function resolveScopes(scopes, packageScripts = loadPackageScripts()) {
 
 export function assertExecutionEnvironment(entries, { platform = process.platform, dryRun = false } = {}) {
   if (dryRun) return
-  if (platform !== 'linux' && entries.some(entry => entry.npmScript === 'verify' || entry.graph === 'candidate')) {
+  if (platform !== 'linux' && entries.some(entry => entry.npmScript === 'verify' || own(GRAPHS, entry.graph ?? ''))) {
     throw new VerificationCliError(
       'final verification requires Linux; local Conexus proof must run in WSL Ubuntu with the pinned Node/npm toolchain',
     )
@@ -399,6 +520,7 @@ export function runVerification({
   packageScripts,
   root = repositoryRoot,
   dryRun = false,
+  group = null,
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
@@ -407,7 +529,8 @@ export function runVerification({
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
-  const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
+  const graphEntries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const entries = group ? graphForGroup(graphEntries, group) : graphEntries
   const records = []
   const published = {}
   const testLedger = newTestLedger(root)
@@ -463,11 +586,36 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group builder-ui|browser|postgres|rest|live] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',
   ].join('\n')
+}
+
+export function renderStepSummary(records) {
+  const total = records.reduce((sum, record) => sum + record.durationMs, 0)
+  const rows = [...records]
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .map(record => {
+      const share = total === 0 ? 0 : (record.durationMs / total) * 100
+      return `| ${record.scope} | ${record.status} | ${(record.durationMs / 1000).toFixed(1)} | ${share.toFixed(1)}% |`
+    })
+  return [
+    '### Verification step timings',
+    '',
+    `${records.length} steps, ${(total / 1000).toFixed(1)} s in total, slowest first.`,
+    '',
+    '| Step | Status | Seconds | Share |',
+    '| --- | --- | ---: | ---: |',
+    ...rows,
+    '',
+  ].join('\n')
+}
+
+function writeStepSummary(result, env = process.env) {
+  if (!env.GITHUB_STEP_SUMMARY || result.records.length === 0) return
+  appendFileSync(env.GITHUB_STEP_SUMMARY, `${renderStepSummary(result.records)}\n`)
 }
 
 function printResult(result, json) {
@@ -514,8 +662,10 @@ export function main(argv = process.argv.slice(2)) {
       scopes: options.scopes,
       packageScripts,
       dryRun: options.dryRun,
+      group: options.group,
     })
     printResult(result, options.json)
+    writeStepSummary(result)
     return result.exitCode
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

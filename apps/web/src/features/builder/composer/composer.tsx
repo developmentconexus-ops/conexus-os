@@ -7,24 +7,30 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/c
 import { ArrowUp, ChevronDown, Mic, Paperclip, Square } from 'lucide-react'
 import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { useRef, useState } from 'react'
-import { type BuilderModel, type ReasoningLevel, reasoningLevels } from '../mastra-session'
+import { type BuilderModel, type MemoryGauge, type MemoryOperation, type ReasoningLevel, levelForModel } from '../mastra-session'
+import { MemoryStatus } from './memory-status'
 import { useDictation } from './use-dictation'
 import { ModelPicker } from './model-picker'
 import { providerIcon } from './model-order'
-import { humanizeModelName, parseReasoningSuffix } from './model-display-name'
+import { parseThinkCommand } from '@mastra/code-sdk/thinking'
+import { humanizeModelName } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
 
 export type ComposerMode =
   | Readonly<{ kind: 'READY' }>
   | Readonly<{ kind: 'NO_MODEL' }>
+  | Readonly<{ kind: 'LOADING_MODEL' }>
+  | Readonly<{ kind: 'MODEL_ERROR' }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
 
-const commands: readonly ComposerCommand[] = [
+// `/raciocinio` offers exactly the levels the selected model honors, the ones the slider shows, and
+// none for a model with no reasoning level.
+const commandsFor = (levels: readonly ReasoningLevel[]): readonly ComposerCommand[] => [
   { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
-  { name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: reasoningLevels.map((level) => ({ value: level, label: reasoningLabels[level] })) },
+  ...levels.length ? [{ name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: levels.map((level) => ({ value: level, label: reasoningLabels[level] })) }] : [],
 ]
 
 const modelName = (model: BuilderModel | undefined): string => model ? humanizeModelName(model.modelName) : 'Escolha um modelo'
@@ -44,7 +50,7 @@ function Soon({ label, children }: Readonly<{ label: string; children: ReactNode
  */
 export function BuilderComposer({
   draft, onDraftChange, onSend, onStop, onNewConversation, mode, working, models, modelsPending, modelId, onModelChange, reasoning, onReasoningChange,
-  placeholder = 'O que vamos construir ou melhorar?',
+  memory = null, memoryFailed = null, placeholder = 'O que vamos construir ou melhorar?', onRetryModels,
 }: Readonly<{
   draft: string
   onDraftChange: (value: string) => void
@@ -59,24 +65,33 @@ export function BuilderComposer({
   onModelChange: (modelId: string) => void
   reasoning: ReasoningLevel | null
   onReasoningChange: (level: ReasoningLevel) => void
+  // The conversation's observational memory; absent before a conversation exists.
+  memory?: MemoryGauge | null
+  // What the memory last failed at, until it succeeds at it again.
+  memoryFailed?: MemoryOperation | null
   placeholder?: string
+  onRetryModels?: () => void
 }>) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [interim, setInterim] = useState('')
   const [pulse, setPulse] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // The Hub refuses a model change while a turn is active, so the control waits for it to end.
+  const modelLocked = working || mode.kind === 'SENDING'
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
   )
+  const selected = models.find((model) => model.id === modelId)
+  const levels = selected?.thinkingLevels ?? []
   const runCommand = (text: string): boolean => {
-    const [name, argument] = text.trim().slice(1).split(/\s+/)
+    const [name, ...argument] = text.trim().slice(1).split(/\s+/)
     if (!text.startsWith('/')) return false
     if (name === 'nova') onNewConversation()
     else if (name === 'raciocinio') {
-      const level = reasoningLevels.find((candidate) => candidate === argument)
-      if (!level) return false
-      onReasoningChange(level)
+      const command = parseThinkCommand(argument.join(' '), levels)
+      if (command.kind !== 'set') return false
+      onReasoningChange(command.level)
     } else return false
     onDraftChange('')
     return true
@@ -87,7 +102,7 @@ export function BuilderComposer({
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
-  const slash = useComposerCommands({ commands, value: draft, onValueChange: onDraftChange, onSubmit: submit, inputRef })
+  const slash = useComposerCommands({ commands: commandsFor(levels), value: draft, onValueChange: onDraftChange, onSubmit: submit, inputRef })
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.defaultPrevented || event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
@@ -98,13 +113,11 @@ export function BuilderComposer({
     if (mode.kind === 'RUNNING') onStop()
     else submit(draft)
   }
-  const selected = models.find((model) => model.id === modelId)
-  // google-ai-pro/CLIProxy models bake the reasoning level into the id itself (`-low`/`-high`); such
-  // a model has no independent reasoning setting, so its own level wins over any stored choice.
-  const lockedReasoning = selected ? parseReasoningSuffix(selected.modelName) : null
-  const level = lockedReasoning?.level ?? reasoning ?? 'medium'
+  const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
     NO_MODEL: 'Escolha um modelo para começar',
+    LOADING_MODEL: 'Carregando modelos…',
+    MODEL_ERROR: 'Não foi possível carregar os modelos',
     BUSY_ELSEWHERE: 'Outra conversa está construindo este Projeto',
     BLOCKED: 'O repositório está inacessível',
   }
@@ -130,10 +143,10 @@ export function BuilderComposer({
           </div>
           <div className="cx-composer-tools">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}, raciocínio ${reasoningLabels[level]}`} />}>
+              <PopoverTrigger render={<button type="button" className="cx-model-button" aria-label={`Modelo ${modelName(selected)}${level ? `, raciocínio ${reasoningLabels[level]}` : ''}`} />}>
                 {selected && (() => { const Icon = providerIcon(selected.provider); return <Icon width={14} height={14} aria-hidden="true" /> })()}
                 <span className="cx-model-name">{modelName(selected)}</span>
-                {selected && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
+                {selected && level && <span className="cx-model-level">· {reasoningLabels[level]}</span>}
                 <ChevronDown size={14} aria-hidden="true" />
               </PopoverTrigger>
               {/* p-0 matches PopoverContent's own padding-utility check, so it skips its default px-3
@@ -143,11 +156,11 @@ export function BuilderComposer({
                   models={models}
                   modelId={selected ? modelId : ''}
                   onModelChange={(next) => { onModelChange(next); setPickerOpen(false) }}
-                  disabled={modelsPending || mode.kind === 'RUNNING'}
+                  disabled={modelsPending || modelLocked}
+                  levels={levels}
                   reasoning={level}
                   onReasoningChange={onReasoningChange}
-                  reasoningDisabled={!selected || mode.kind === 'RUNNING' || Boolean(lockedReasoning)}
-                  reasoningLocked={Boolean(lockedReasoning)}
+                  reasoningDisabled={!selected || modelLocked}
                 />
               </PopoverContent>
             </Popover>
@@ -164,8 +177,21 @@ export function BuilderComposer({
         </ComposerActions>
       </ComposerBox>
     </ComposerRing>
+    {mode.kind === 'MODEL_ERROR' && (
+      <div className="cx-composer-note" role="alert">
+        <span>Não foi possível carregar os modelos.</span>
+        {onRetryModels && (
+          <button type="button" className="cx-composer-retry" onClick={onRetryModels}>
+            Tentar novamente
+          </button>
+        )}
+      </div>
+    )}
     {dictation.error && <p className="cx-composer-note" role="alert">{dictation.error}</p>}
-    <p className="cx-composer-hint">Enter envia · Shift+Enter quebra linha · / comandos</p>
+    <div className="cx-composer-foot">
+      {memory && <MemoryStatus memory={memory} failed={memoryFailed} />}
+      <p className="cx-composer-hint">Enter envia · / comandos</p>
+    </div>
   </Composer>
 }
 

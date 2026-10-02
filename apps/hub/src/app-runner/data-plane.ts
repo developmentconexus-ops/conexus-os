@@ -173,8 +173,9 @@ export const readLedger = async (provisioner: Sql, allocation: PreviewAllocation
 
 /**
  * The applied history must be an exact prefix of the artifact's migrations. Anything else (an edited,
- * removed or reordered migration) cannot apply cleanly, so the Preview schema is reset and every
- * migration runs again; Preview data is disposable and the caller says so.
+ * removed or reordered migration) cannot apply cleanly: `reset` says the Preview schema would have to be
+ * dropped and every migration run again. The caller decides whether that is allowed; a Project with an
+ * application refuses instead, so its data is never erased.
  */
 export const planMigrations = (ledger: readonly LedgerRow[], migrations: readonly MigrationSource[]): MigrationPlan => {
   const prefix = ledger.length <= migrations.length && ledger.every((row, index) =>
@@ -188,6 +189,25 @@ export const planMigrations = (ledger: readonly LedgerRow[], migrations: readonl
 
 export const resetPreviewSchema = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
   await provisioner.query(`DROP SCHEMA IF EXISTS ${identifier(allocation.schema)} CASCADE`)
+}
+
+/**
+ * Removes a Project's Preview allocation entirely: the schema and the two roles derived from its
+ * id. Called once, when the Project itself is deleted, never as part of the ordinary migrate path.
+ * Idempotent: a role or schema already gone is not an error.
+ */
+export const releasePreviewAllocation = async (provisioner: Sql, allocation: PreviewAllocation): Promise<void> => {
+  await resetPreviewSchema(provisioner, allocation)
+  for (const role of [allocation.migrationRole, allocation.runtimeRole]) {
+    const { rows } = await provisioner.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role])
+    if (rows.length === 0) continue
+    // DROP OWNED BY needs the privileges of the role it clears, and the provisioner holds the
+    // migration role with INHERIT FALSE and the runtime role with none, so it takes them for this
+    // last step. Restating the grant on a retry changes nothing.
+    await provisioner.query(`GRANT ${identifier(role)} TO ${identifier(PROVISIONER_ROLE)} WITH INHERIT TRUE, SET TRUE`)
+    await provisioner.query(`DROP OWNED BY ${identifier(role)} CASCADE`)
+    await provisioner.query(`DROP ROLE ${identifier(role)}`)
+  }
 }
 
 /**

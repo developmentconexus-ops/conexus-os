@@ -83,6 +83,7 @@ test('the check names what is wrong with the server source, in words the Builder
   refused({ ...valid, 'conexus/handlers/notes.ts': HANDLER.replace('createNote(', 'makeNote(') }, /operations\.createNote: conexus\/handlers\/notes\.ts does not export "createNote" \(it exports: makeNote\)/)
   refused({ ...valid, 'conexus/handlers/shared.ts': `export const clean = (value: string): string => { void fetch('https://example.com/' + value); return value.trim() }\n` }, /conexus\/handlers\/notes\.ts uses the global "fetch": a handler has no network/)
   refused({ ...valid, 'conexus/handlers/shared.ts': `export const clean = (value: string): string => { void new globalThis['WebSocket']('wss://example.com'); return value.trim() }\n` }, /uses the global "globalThis\.WebSocket"/)
+  refused({ ...valid, 'conexus/handlers/shared.ts': `export const clean = (value: string): string => {\n  const size = (): number => { const fetch = (text: string) => text.length; return fetch(value) }\n  void fetch('https://example.com/' + size())\n  return value.trim()\n}\n` }, /uses the global "fetch"/)
 })
 
 test('a handler may use its own fetch or a property named fetch, and the supported built-ins', (t) => {

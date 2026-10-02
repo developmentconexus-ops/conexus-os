@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_VALUES } from '@mastra/code-sdk/thinking'
 import type { ReasoningLevel } from '../mastra-session'
 
 // Mastra's AvailableModel.modelName is documented as "Model name without provider prefix"
@@ -10,19 +11,13 @@ import type { ReasoningLevel } from '../mastra-session'
 // registry, gateway catalog (`GatewayModel`, gateway-manager.d.ts) or models.dev bundle. So this
 // formatter derives a name from the id; it is the documented fallback, not a field Mastra ships.
 
-// A literal copy of mastra-session's `reasoningLevels`, kept as a `ReasoningLevel` array so the
-// compiler catches drift: this module is imported standalone by a plain node:test run (no bundler),
-// where importing mastra-session's *runtime* export would also drag in its Mastra client/React
-// Query chain, so only its type is imported (erased entirely by TS's type-only import).
-const reasoningLevelIds: readonly ReasoningLevel[] = ['low', 'medium', 'high', 'xhigh']
-const reasoningSuffixPattern = new RegExp(`-(${reasoningLevelIds.join('|')})$`)
+const reasoningSuffixPattern = new RegExp(`-(${THINKING_LEVEL_VALUES.join('|')})$`)
 
 export type ReasoningSuffix = Readonly<{ base: string; level: ReasoningLevel }>
 
 /**
- * google-ai-pro/CLIProxy ids encode their reasoning level as a trailing suffix
- * (`gemini-3.8-flash-high`) instead of exposing an independent reasoning setting. A model whose raw
- * name ends this way has no free choice of level: the id itself locks it in.
+ * Google AI Pro ids carry Antigravity's variant as a trailing level (`gemini-3.8-flash-high`). The
+ * name the person reads leaves it out: the composer shows the level the conversation runs at.
  */
 export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null => {
   const match = reasoningSuffixPattern.exec(modelName)
@@ -35,6 +30,9 @@ export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null 
 // lowercase, matching how OpenAI itself writes them.
 const upperCaseWords = new Set(['gpt', 'ai'])
 const literalWords = new Set(['o1', 'o3', 'o4'])
+
+// OpenAI dates its snapshots (`gpt-4o-2024-08-06`) and Anthropic does too (`claude-haiku-4-5-20251001`); the date stays whole instead of merging into a version, written as year-month-day.
+const datedSnapshotPattern = /-(\d{4}-\d{2}-\d{2}|\d{8})$/
 
 const titleWord = (word: string): string => {
   if (literalWords.has(word)) return word
@@ -58,11 +56,12 @@ const mergeVersionTokens = (tokens: readonly string[]): readonly string[] => {
 
 /**
  * Turns a bare catalog id ("gemini-3.8-flash-high") into the human name the person reads
- * ("Gemini 3.8 Flash"). The reasoning suffix, if any, is stripped here: the composer renders that
- * level separately (the "· alto" badge, or the locked reasoning control), not as part of the name.
+ * ("Gemini 3.8 Flash"). The level suffix, if any, is stripped here: the composer shows the
+ * conversation's own level next to the name.
  */
 export const humanizeModelName = (modelName: string): string => {
   const { base } = parseReasoningSuffix(modelName) ?? { base: modelName }
-  const tokens = mergeVersionTokens(base.split(/[-_]+/).filter(Boolean))
-  return tokens.map(titleWord).join(' ')
+  const dated = datedSnapshotPattern.exec(base)
+  const tokens = mergeVersionTokens((dated ? base.slice(0, dated.index) : base).split(/[-_]+/).filter(Boolean))
+  return [...tokens.map(titleWord), ...(dated?.[1] ? [dated[1].replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')] : [])].join(' ')
 }

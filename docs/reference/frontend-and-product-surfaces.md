@@ -49,27 +49,23 @@ redirect, not a screen; it is labeled as one below.
 /projects/$projectId                       redirect: opens the Project's latest conversation, or starts one
 /projects/$projectId/build                 compatibility redirect to /projects/$projectId
 /projects/$projectId/c/$conversationId     the Build surface (33.6)
-/projects/$projectId/settings              About the Project: name, repository connection, archive state
+/projects/$projectId/settings              About the Project: name, where its code lives, archive state
 /projects/$projectId/settings/access       Acesso ao aplicativo: application-only invitations (contract.md 3.1)
-/projects/$projectId/integrations          Integrações: Workspace Connections and this Project's Connector Grants (Q4)
+/projects/$projectId/integrations          Integrações: Workspace Connections and this Project's Connection bindings (Q4)
 /settings                                  redirect to /settings/account
 /settings/account                          the Account's details and its Workspaces
-/settings/models                           the person's own model accounts and personal model defaults
-/settings/installation/github              installation administration: the company GitHub organization
-/settings/installation/models              installation administration: sharing model accounts with everyone
-/settings/installation/model-defaults      installation administration: default build/fast models
-/settings/installation/memory              installation administration: the memory model
+/settings/models                           the person's own Google AI Pro account
 /settings/installation/admins              installation administration: grant/revoke the administrator role
 ```
 
-Settings holds the Account's own details plus the Hub's half of Factory model
-credentials: a person's own model accounts and personal defaults at
-`/settings/models`, and, for an installation administrator, the GitHub
-connection, shared model accounts, model defaults, memory model and
-administrator roster under `/settings/installation/*`. Model sign-in itself,
-and credential storage, stay Mastra Code's, per [C-022](../decisions/index.md)
-and [C-025](../decisions/index.md). The five `/settings/installation/*` routes
-render for any signed-in person but refuse their content to a non-administrator.
+Settings holds the Account's own details, the person's own Google AI Pro
+account at `/settings/models`, and, for an installation administrator, the
+administrator roster at `/settings/installation/admins`. The model a
+conversation runs on is chosen in the Build composer and held on the
+conversation's thread. API keys, the other subscriptions, sharing an account
+and installation defaults return with the Modelos de IA screen in slice 5 of
+spec 0002. The `/settings/installation/admins` route renders for any signed-in
+person but refuses its content to a non-administrator.
 There is no Agents, Brain, Data, Capabilities, Versions or Activity surface,
 and none is planned. Do not add navigation for one because a shell looks empty
 without it. Integrations is the one exception: Q4 turns it on as the Hub's

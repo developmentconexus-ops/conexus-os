@@ -5,6 +5,7 @@ import { Agent, fetch as undiciFetch } from 'undici'
 import { parseEmailAddress } from './current-session.js'
 import type { EmailAddress } from './current-session.js'
 import { identityAccessError } from './errors.js'
+import { logger } from '../platform/logger.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 /**
@@ -34,12 +35,20 @@ const providerRefusal = (description: string | undefined): ProviderRefusal => {
   if (description === 'Session not active' || description === 'Offline session not active' || description === 'Client session not active') return 'SESSION_ENDED'
   return 'REFUSED'
 }
+/**
+ * Keycloak's answer to ending the SSO session behind a sign-in: it said the session ended, or it gave no
+ * such answer (unreachable, too slow, refused or anything else). Unconfirmed never means still signed in;
+ * it means nobody knows.
+ */
+type ProviderLogout = 'ENDED' | 'UNCONFIRMED'
 export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
   complete(input: OidcCompletion): Promise<CompletedSignIn>
   refresh(input: Readonly<{ refreshToken: string; expectedSubject: string }>): Promise<ProviderCheck>
+  /** Asks Keycloak to end the SSO session the refresh token belongs to. Never throws. */
+  endProviderSession(input: Readonly<{ refreshToken: string; signal: AbortSignal }>): Promise<ProviderLogout>
   close(): Promise<void>
 }>
 type OidcDiscovery = typeof oidc.discovery
@@ -54,7 +63,7 @@ type OidcDiscovery = typeof oidc.discovery
 /** @public Tests import this at runtime from the built module. */
 export const isEmailVerifiedClaim = (
   claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
 ): boolean => {
   if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
     log({ event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified })
@@ -65,7 +74,7 @@ export const isEmailVerifiedClaim = (
 /** @public Tests import this at runtime from the built module. */
 export const resolveVerifiedEmail = (
   claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => console.warn(JSON.stringify(line)),
+  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
 ): EmailAddress | null => (isEmailVerifiedClaim(claims, log) ? parseEmailAddress(claims.email) : null)
 
 export const createOidcAdapter = async ({
@@ -100,13 +109,11 @@ export const createOidcAdapter = async ({
   const options: Parameters<OidcDiscovery>[4] = {
     execute: [oidc.enableNonRepudiationChecks, ...(allowInsecureForTest ? [oidc.allowInsecureRequests] : [])],
   }
-  if (localIssuerTransport) {
-    const localIssuerFetch: CustomFetch = (url, init) => undiciFetch(url, {
-        ...init,
-        dispatcher: localIssuerTransport,
-      } as never) as unknown as Promise<Response>
-    options[oidc.customFetch] = localIssuerFetch
-  }
+  const localIssuerFetch: CustomFetch | undefined = localIssuerTransport ? (url, init) => undiciFetch(url, {
+      ...init,
+      dispatcher: localIssuerTransport,
+    } as never) as unknown as Promise<Response> : undefined
+  if (localIssuerFetch) options[oidc.customFetch] = localIssuerFetch
   let configuration: Awaited<ReturnType<OidcDiscovery>>
   try {
     configuration = await discovery(issuerUrl, clientId, clientSecret, undefined, options)
@@ -161,6 +168,33 @@ export const createOidcAdapter = async ({
       const subject = tokens.claims()?.sub
       if (subject !== undefined && subject !== expectedSubject) return { kind: 'REFUSED', reason: 'REFUSED' }
       return { kind: 'ACTIVE', refreshToken: tokens.refresh_token ?? refreshToken }
+    },
+    // Keycloak's logout endpoint ends the whole user session for a confidential client that presents one
+    // of its refresh tokens, so the browser's SSO cookie no longer signs anyone in.
+    async endProviderSession({ refreshToken, signal }): Promise<ProviderLogout> {
+      const endpoint = configuration.serverMetadata().end_session_endpoint
+      if (!endpoint) return 'UNCONFIRMED'
+      try {
+        const init = {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+          body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken }).toString(),
+          redirect: 'manual' as const,
+          signal,
+        }
+        // The same transport discovery used, so the local issuer stays pinned to its loopback listener.
+        const response = localIssuerFetch ? await localIssuerFetch(endpoint, init) : await fetch(endpoint, init)
+        if (response.ok) {
+          await response.body?.cancel()
+          return 'ENDED'
+        }
+        // invalid_grant: Keycloak no longer has a session for this token, so there is none left to end.
+        const answer: unknown = await response.json().catch(() => null)
+        const invalidGrant = typeof answer === 'object' && answer !== null && 'error' in answer && answer.error === 'invalid_grant'
+        return response.status === 400 && invalidGrant ? 'ENDED' : 'UNCONFIRMED'
+      } catch {
+        return 'UNCONFIRMED'
+      }
     },
     close: () => {
       closePromise ??= localIssuerTransport?.close() ?? Promise.resolve()

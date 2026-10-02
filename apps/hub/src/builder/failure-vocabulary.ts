@@ -27,23 +27,24 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_SOURCE_INPUT_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SOURCE_TREE_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED: 'ENVIRONMENT_PREPARATION_FAILED',
-  BUILDER_SANDBOX_FRESH_CREATE_REQUIRED: 'ENVIRONMENT_PREPARATION_FAILED',
+  BUILDER_SANDBOX_ID_UNAVAILABLE: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SANDBOX_INCARNATION_CHANGED: 'ENVIRONMENT_PREPARATION_FAILED',
+  BUILDER_SANDBOX_KEEPALIVE_FAILED: 'ENVIRONMENT_PREPARATION_FAILED',
+  BUILDER_SANDBOX_AGENT_USER_REQUIRED: 'ENVIRONMENT_PREPARATION_FAILED',
+  BUILDER_CHECK_INSTALL_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ENTRY_INSPECTION_FAILED: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ENTRY_UNSAFE: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_STARTER_ROOT_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
   CONEXUS_APP_ROOT_MISSING: 'ENVIRONMENT_PREPARATION_FAILED',
   APPLICATION_COMPILER_SANDBOX_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
   APPLICATION_COMPILER_WORKSPACE_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
-  BUILDER_FACTORY_UNAVAILABLE: 'ENVIRONMENT_PREPARATION_FAILED',
+  APPLICATION_CHECK_UNREADABLE: 'ENVIRONMENT_PREPARATION_FAILED',
+  APPLICATION_CHECK_REPORT_UNREADABLE: 'ENVIRONMENT_PREPARATION_FAILED',
   BUILDER_SOURCE_BASE_PIN_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
-  BUILDER_SOURCE_PUSH_FAILED: 'ENVIRONMENT_PREPARATION_FAILED',
-  FACTORY_CHECKOUT_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
-  FACTORY_CHECKOUT_CREDENTIAL_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
 
   BUILDER_MODEL_AUTH_FAILED: 'MODEL_CREDENTIAL_REFUSED',
-  // The model and its credential are Mastra Code's. A Project whose operator has not chosen one
-  // yet is refused before the sandbox is used, and reads as a credential the run does not have.
+  // No usable account for the model being called (the run's start model, or one chosen mid-run)
+  // reads as a credential the run does not have.
   BUILDER_MODEL_NOT_SELECTED: 'MODEL_CREDENTIAL_REFUSED',
 
   BUILDER_MODEL_RATE_LIMITED: 'MODEL_RATE_LIMITED',
@@ -54,12 +55,15 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_MESSAGE_ID_UNAVAILABLE: 'MODEL_REQUEST_REFUSED',
 
   BUILDER_RESULT_MATERIALIZATION_REFUSED: 'SOURCE_RESULT_REJECTED',
+  BUILDER_RESULT_BUNDLE_TOO_LARGE: 'SOURCE_RESULT_REJECTED',
+  BUILDER_RESULT_CONTENT_TOO_LARGE: 'SOURCE_RESULT_REJECTED',
   BUILDER_RESULT_IDENTITY_REFUSED: 'SOURCE_RESULT_REJECTED',
   BUILDER_SOURCE_RESULT_INPUT_REFUSED: 'SOURCE_RESULT_REJECTED',
   BUILDER_SOURCE_RESULT_SANDBOX_REVISION_MISMATCH: 'SOURCE_RESULT_REJECTED',
-  BUILDER_PLAN_SOURCE_RESULT_REFUSED: 'SOURCE_RESULT_REJECTED',
   BUILDER_RUNTIME_RESULT_SCOPE_REFUSED: 'SOURCE_RESULT_REJECTED',
   BUILDER_RUN_BASE_STALE: 'SOURCE_RESULT_REJECTED',
+  // The candidate broke the Project's own rules (AC-9): its check failed, or its AGENTS.md did.
+  BUILDER_CHECK_FAILED: 'SOURCE_RESULT_REJECTED',
 
   // The Project's repository moved while the run worked, so its result was not admitted and
   // nothing was overwritten.
@@ -70,10 +74,20 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // The Hub could not reach its application runner. Nothing in the source can fix that, and naming
   // it a build failure sends the author to delete the server code that was correct.
   APPLICATION_RUNNER_UNAVAILABLE: 'ENVIRONMENT_PREPARATION_FAILED',
+  // module.ts throws this for any /v1/prepare refusal that isn't one of the runner's own named
+  // admission refusals below: a database or allocation fault, a malformed request, or anything else
+  // the runner's process itself hit. Nothing in the source caused that either, so it is routed the
+  // same as APPLICATION_RUNNER_UNAVAILABLE, not named a build failure.
+  APPLICATION_SERVER_REFUSED: 'ENVIRONMENT_PREPARATION_FAILED',
 
   APPLICATION_COMPILATION_FAILED: 'APPLICATION_BUILD_FAILED',
   APPLICATION_MIGRATION_FAILED: 'APPLICATION_BUILD_FAILED',
-  APPLICATION_SERVER_REFUSED: 'APPLICATION_BUILD_FAILED',
+  APPLICATION_MIGRATION_HISTORY_DIVERGED: 'APPLICATION_BUILD_FAILED',
+  // The runner's own admission refused the Project's compiled server tree: a manifest or handler
+  // bundling problem the Project's source caused. module.ts carries the runner's exact code here
+  // instead of the generic APPLICATION_SERVER_REFUSED above.
+  SERVER_TREE_REFUSED: 'APPLICATION_BUILD_FAILED',
+  MANIFEST_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_SOURCE_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_REQUEST_REFUSED: 'APPLICATION_BUILD_FAILED',
   BUILDER_APPLICATION_RESULT_SCOPE_REFUSED: 'APPLICATION_BUILD_FAILED',
@@ -120,6 +134,14 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // E2B, Postgres and fetch faults arrive here. Calling it a preparation failure would name a cause
   // nobody established.
   BUILDER_PREPARATION_FAILED: 'INTERNAL_ERROR',
+  BUILDER_AGENT_TRIPWIRE: 'INTERNAL_ERROR',
+  // The agent loop's own storage or connection failed, after the continuations allowed; the model was not the cause.
+  BUILDER_AGENT_PLATFORM_FAILED: 'INTERNAL_ERROR',
+  // One model step ran past its time budget while streaming, so the Hub ended the run.
+  BUILDER_MODEL_STEP_TIMEOUT: 'INTERNAL_ERROR',
+  // The agent's session sent no event for the turn's silence limit while working, so the Hub ended the turn.
+  BUILDER_AGENT_STALLED: 'INTERNAL_ERROR',
+  // A question or plan card went unanswered past the answer wait, which ends before Mastra drops the parked run, so the Hub ended the run.
   BUILDER_RUN_INPUT_REFUSED: 'INTERNAL_ERROR',
   BUILDER_RUN_CREATE_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_CLAIM_REFUSED: 'INTERNAL_ERROR',

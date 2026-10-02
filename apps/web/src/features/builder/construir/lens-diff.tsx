@@ -1,5 +1,6 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronsUpDown, File } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
@@ -60,7 +61,7 @@ const sideCell = (line: DiffLine | null, side: 'add' | 'del') => line
 
 function SplitTable({ rows, open, onToggle }: Readonly<{ rows: readonly DiffRow[]; open: ReadonlySet<string>; onToggle: (id: string) => void }>) {
   const splitRows = toSplitRows(withOpenGaps(rows, open))
-  return <table className="cx-dt cx-dt-split">
+  return <table className="cx-dt">
     <colgroup><col className="cx-dt-num" /><col className="cx-dt-marker" /><col /><col className="cx-dt-num" /><col className="cx-dt-marker" /><col /></colgroup>
     <tbody>
       {splitRows.map((row) => {
@@ -81,7 +82,9 @@ function FileCard({ id, file, mode, open, onToggle }: Readonly<{ id: string; fil
     <header className="cx-dfile-head">
       <File size={14} aria-hidden="true" />
       <code className="cx-dfile-path">{file.entry.path}</code>
-      {chip && <span className="cx-chip" data-tone="neutral" title={file.entry.previousPath ? `Renomeado de ${file.entry.previousPath}` : undefined}>{chip}</span>}
+      {chip && (file.entry.previousPath
+        ? <Tooltip><TooltipTrigger render={<span className="cx-chip" data-tone="neutral" />}>{chip}</TooltipTrigger><TooltipContent>{`Renomeado de ${file.entry.previousPath}`}</TooltipContent></Tooltip>
+        : <span className="cx-chip" data-tone="neutral">{chip}</span>)}
       {file.added > 0 && <span className="cx-diff-add">+{file.added}</span>}
       {file.removed > 0 && <span className="cx-diff-del">−{file.removed}</span>}
     </header>
@@ -153,7 +156,9 @@ export function LensDiff({ projectId, basis, requestText, requestTime, version }
       <div className="cx-diff-req">
         <h3>
           {requestTime && <span className="cx-diff-when">Pedido das {requestTime} · </span>}
-          <span title={requestText ?? undefined}>{requestText ?? 'Alterações'}</span>
+          {requestText
+            ? <Tooltip><TooltipTrigger render={<span />}>{requestText}</TooltipTrigger><TooltipContent>{requestText}</TooltipContent></Tooltip>
+            : <span>Alterações</span>}
         </h3>
         <fieldset className="cx-seg">
           <legend className="cx-sr">Modo do diff</legend>

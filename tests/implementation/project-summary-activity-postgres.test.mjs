@@ -94,16 +94,16 @@ test('real PostgreSQL proves project-summaries activity ordering, fallback, and 
     ($3, $5, 'Ready Project', 'NEW', $6, 'revision-ready', TIMESTAMPTZ '2026-01-03T00:00:00Z'),
     ($4, $7, 'Cross Workspace', 'NEW', $6, 'revision-cross', TIMESTAMPTZ '2026-01-04T00:00:00Z')`,
   [staleProjectId, runningProjectId, readyProjectId, crossWorkspaceProjectId, workspaceId, head, otherWorkspaceId])
-  await query(fresh, `INSERT INTO builder.project_working_state(project_id, working_source_revision, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest) VALUES
-    ($1, $3, NULL, NULL, NULL), ($2, $3, $3, $4, $5)`,
+  await query(fresh, `INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest) VALUES
+    ($1, NULL, NULL, NULL), ($2, $3, $4, $5)`,
   [runningProjectId, readyProjectId, head, randomUUID(), 'b'.repeat(64)])
   await query(fresh, `INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, mode, base_source_revision,
-    expected_working_version, base_working_version, state, result_kind, result_source_revision, created_at
+    builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision,
+    state, result_kind, result_source_revision, created_at
   ) VALUES
-    ($1, $4, $5, $12, $7, $10, 'BUILD', $11, 0, 0, 'RUNNING', NULL, NULL, TIMESTAMPTZ '2026-02-01T00:00:00Z'),
-    ($2, $6, $5, $13, $8, $10, 'BUILD', $11, 0, 0, 'SUCCEEDED', 'SOURCE_CHANGED', $11, TIMESTAMPTZ '2026-02-02T00:00:00Z'),
-    ($3, $6, $5, $13, $9, $10, 'BUILD', $11, 0, 0, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', NULL, TIMESTAMPTZ '2026-02-03T00:00:00Z')`,
+    ($1, $4, $5, $12, $7, $10, $11, 'RUNNING', NULL, NULL, TIMESTAMPTZ '2026-02-01T00:00:00Z'),
+    ($2, $6, $5, $13, $8, $10, $11, 'SUCCEEDED', 'SOURCE_CHANGED', $11, TIMESTAMPTZ '2026-02-02T00:00:00Z'),
+    ($3, $6, $5, $13, $9, $10, $11, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', NULL, TIMESTAMPTZ '2026-02-03T00:00:00Z')`,
   [randomUUID(), randomUUID(), randomUUID(), runningProjectId, accountId, readyProjectId, '7'.repeat(64), '8'.repeat(64), '9'.repeat(64), 'c'.repeat(64), head,
     `conexus-builder:${runningProjectId}`, `conexus-builder:${readyProjectId}`])
 
@@ -119,20 +119,20 @@ test('real PostgreSQL proves project-summaries activity ordering, fallback, and 
       projectId: readyProjectId, name: 'Ready Project', archived: false,
       lastActivityAt: '2026-02-03T00:00:00.000Z',
       latestRun: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED' },
-      hasPreview: true,
+      hasPreview: true, deleting: false,
     })
     assert.deepEqual(projects.find((project) => project.projectId === runningProjectId), {
       projectId: runningProjectId, name: 'Running Project', archived: false,
       lastActivityAt: '2026-02-01T00:00:00.000Z',
       latestRun: { state: 'RUNNING', resultKind: null },
-      hasPreview: false,
+      hasPreview: false, deleting: false,
     })
     // No Builder run: the Project's own created_at, and no working_state row, so no Preview.
     assert.deepEqual(projects.find((project) => project.projectId === staleProjectId), {
       projectId: staleProjectId, name: 'Stale Project', archived: false,
       lastActivityAt: '2026-01-01T00:00:00.000Z',
       latestRun: null,
-      hasPreview: false,
+      hasPreview: false, deleting: false,
     })
 
     // The Workspace is the authority boundary, same as list_project_summaries: nothing from the
@@ -145,4 +145,76 @@ test('real PostgreSQL proves project-summaries activity ordering, fallback, and 
   } finally {
     await read.end()
   }
+})
+
+// A tombstone whose project.project row has already been purged mid-deletion would otherwise
+// vanish from the Projects listing entirely, taking the administrator's only way back to finish
+// it with it. This proves the UNION ALL branch: the tombstone reappears with deleting true for the
+// installation administrator who has to see it, stays absent for an ordinary member of the same
+// Workspace, and disappears once the tombstone itself is completed.
+test('real PostgreSQL surfaces a purged-but-incomplete tombstone to the installation administrator only', async (t) => {
+  await refuseProtectedCluster()
+  const database = `conexus_project_summary_tomb_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
+  const admin = new Client(adminConnection)
+  await admin.connect()
+  await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`)
+  await admin.end()
+  const fresh = { ...adminConnection, database }
+
+  t.after(async () => {
+    const cleanup = new Client(adminConnection)
+    await cleanup.connect()
+    try {
+      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
+      await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
+    } finally {
+      await cleanup.end()
+    }
+  })
+
+  await runHubMigrations({ connectionString: connectionString(fresh) })
+
+  const administratorId = '10000000-0000-4000-8000-000000000191'
+  const memberId = '10000000-0000-4000-8000-000000000192'
+  const workspaceId = '20000000-0000-4000-8000-000000000191'
+  const projectId = '30000000-0000-4000-8000-000000000191'
+  const head = 'a'.repeat(40)
+
+  await query(fresh, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
+    ($1, 'https://issuer.test', 'tomb-admin', 'Tomb Admin'),
+    ($2, 'https://issuer.test', 'tomb-member', 'Tomb Member')`, [administratorId, memberId])
+  await query(fresh, `INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [administratorId])
+  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Tomb Workspace')`, [workspaceId])
+  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
+    ($1, $2, 'owner'), ($3, $2, 'owner')`, [administratorId, workspaceId, memberId])
+  await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES
+    ($1, $2, 'Tombstoned Project', 'NEW', $3, 'revision-tomb')`, [projectId, workspaceId, head])
+  await query(fresh, 'SELECT project.begin_project_deletion($1, $2, $3)', [administratorId, projectId, 'Tombstoned Project'])
+  await query(fresh, 'SELECT project.purge_project($1)', [projectId])
+
+  const readPassword = 'summary-activity-tomb-read-test-only'
+  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
+  const read = new Client({ ...fresh, user: 'hub_project_read', password: readPassword })
+  await read.connect()
+  try {
+    const asAdministrator = (await read.query(
+      'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [administratorId, workspaceId],
+    )).rows[0].value
+    assert.deepEqual(asAdministrator, [{
+      projectId, name: 'Tombstoned Project', archived: false,
+      lastActivityAt: asAdministrator[0].lastActivityAt,
+      latestRun: null, hasPreview: false, deleting: true,
+    }])
+
+    const asMember = (await read.query(
+      'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [memberId, workspaceId],
+    )).rows[0].value
+    assert.deepEqual(asMember, [])
+  } finally {
+    await read.end()
+  }
+
+  await query(fresh, 'SELECT project.complete_project_deletion($1)', [projectId])
+  const afterCompletion = await query(fresh, 'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [administratorId, workspaceId])
+  assert.deepEqual(afterCompletion.rows[0].value, [])
 })

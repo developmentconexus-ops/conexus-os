@@ -235,8 +235,9 @@ export function checkImportLaw(rootDirectory) {
         violations.push(violation('IMPORT_PACKAGE_DEEP', source, specifier, 'cross-package imports must use the public entry'))
       }
 
-      if (source === 'apps/hub/src/server.ts' && isRelative) {
+      if ((source === 'apps/hub/src/server.ts' || source === 'apps/hub/src/hub.ts') && isRelative) {
         const allowed = new Set([
+          'apps/hub/src/hub.ts',
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
           'apps/hub/src/app-runner/module.ts',
@@ -248,6 +249,8 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/mar/module.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/connection-census.ts',
+          'apps/hub/src/platform/lifecycle.ts',
+          'apps/hub/src/platform/logger.ts',
           'apps/hub/src/platform/postgres.ts',
           'apps/hub/src/platform/secrets.ts',
           'apps/hub/src/project/module.ts',
@@ -259,7 +262,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/')) {
+          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts') {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
@@ -268,6 +271,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/generated/s1-routes.',
           'apps/hub/src/identity-access/',
           'apps/hub/src/platform/application-slug.',
+          'apps/hub/src/platform/logger.',
           'apps/hub/src/platform/opaque-token.',
           'apps/hub/src/platform/origin.',
         ]

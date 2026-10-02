@@ -8,19 +8,16 @@ import type {
   Prj03Response,
 } from '../generated/s3-routes.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { createProjectDeletionOrchestrator } from './deletion.js'
+import type { ProjectDeletionPorts } from './deletion.js'
 import { projectError, repositoryRefused } from './errors.js'
 import { isProjectIdentity } from './identity.js'
 
-// Gives a Project that does not exist yet its repository and Factory rows, and nothing else. The
-// same Project id always reaches the same repository, so calling it again converges.
+// Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
+// `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
+// again converges.
 export type ProjectRepositoryPort = Readonly<{
-  prepare(input: Readonly<{ projectId: string; projectName: string }>): Promise<Readonly<{
-    projectId: string
-    factoryProjectId: string
-    projectRepositoryId: string
-    repositoryId: string
-    headRevision: string
-  }>>
+  prepare(projectId: string): Promise<string>
 }>
 
 type CreateProjectInput = Readonly<{
@@ -47,6 +44,7 @@ type ProjectSummaryRow = QueryResultRow & Readonly<{
   archived: boolean
 }>
 type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision: string }>
+type ProjectDetailRow = ProjectRepresentationRow & Readonly<{ deleting: boolean }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
 // The Projects home's card row: a Project's name and archived flag next to its latest Builder
@@ -63,6 +61,7 @@ export type ProjectSummaryWithActivity = Readonly<{
   lastActivityAt: string
   latestRun: ProjectLatestRunSummary | null
   hasPreview: boolean
+  deleting: boolean
 }>
 
 export type ProjectStore = Readonly<{
@@ -70,16 +69,15 @@ export type ProjectStore = Readonly<{
   listProjects(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<Prj01Response>
   getProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj02Response | null>
   listProjectSummariesWithActivity(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<readonly ProjectSummaryWithActivity[]>
+  deleteProject(input: Readonly<{ accountId: string; projectId: string; confirmName: string }>): Promise<void>
 }>
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
 const digestBody = (value: unknown): string => sha256(canonicalBytes(value))
-const errorText = (error: unknown): string => error instanceof Error ? error.message : ''
 const isNotAdmitted = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
 const mapDatabaseError = (error: unknown): never => {
   if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
-  if (errorText(error).startsWith('FACTORY_BINDING_')) throw repositoryRefused(error)
   throw error
 }
 
@@ -99,17 +97,20 @@ export const createProjectStore = ({
   commandPool,
   readPool,
   repository,
+  deletion,
   mintIdentity = randomUUID,
 }: Readonly<{
   commandPool: PostgresPool
   readPool?: PostgresPool
   repository: ProjectRepositoryPort
+  deletion: ProjectDeletionPorts
   mintIdentity?: () => string
 }>): ProjectStore => {
   const requireReadPool = (): PostgresPool => {
     if (!readPool) throw new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
     return readPool
   }
+  const deletionOrchestrator = createProjectDeletionOrchestrator({ commandPool, ports: deletion })
 
   const listProjects = async ({ accountId, workspaceId }: Readonly<{
     accountId: string
@@ -144,9 +145,9 @@ export const createProjectStore = ({
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
-      const result = await client.query<ProjectRepresentationRow>(`
+      const result = await client.query<ProjectDetailRow>(`
         SELECT detail.project_id, detail.workspace_id, detail.name,
-          detail.project_revision, detail.archived
+          detail.project_revision, detail.archived, detail.deleting
         FROM project.get_project($1, $2) detail
       `, [accountId, projectId])
       const row = result.rows[0] ?? null
@@ -157,6 +158,7 @@ export const createProjectStore = ({
         name: row.name,
         projectRevision: row.project_revision,
         archived: row.archived,
+        deleting: row.deleting,
       } : null
     } catch (error) {
       await client.query('ROLLBACK')
@@ -229,10 +231,9 @@ export const createProjectStore = ({
     // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
     // so the repository this call may already have created.
     const projectId = reservation.project_id
-    const binding = await repository.prepare({ projectId, projectName: input.body.name }).catch((error: unknown) => {
+    const starterRevision = await repository.prepare(projectId).catch((error: unknown) => {
       throw repositoryRefused(error)
     })
-    if (binding.projectId !== projectId) throw projectError('OUTCOME_UNKNOWN')
 
     const client = await commandPool.connect()
     try {
@@ -260,9 +261,8 @@ export const createProjectStore = ({
         projectRevision,
         archived: false,
       }
-      await client.query('SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [
-        input.accountId, input.workspaceId, keyDigest, requestDigest, projectId, input.body.name, projectRevision,
-        binding.factoryProjectId, binding.projectRepositoryId, binding.repositoryId, binding.headRevision,
+      await client.query('SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8)', [
+        input.accountId, input.workspaceId, keyDigest, requestDigest, projectId, input.body.name, projectRevision, starterRevision,
       ])
       await client.query('SELECT project.complete_create_project_receipt($1, $2, $3, $4, $5, $6, $7, $8)', [
         input.accountId, input.workspaceId, keyDigest, requestDigest, projectId,
@@ -283,5 +283,6 @@ export const createProjectStore = ({
     listProjects,
     getProject,
     listProjectSummariesWithActivity,
+    deleteProject: deletionOrchestrator.deleteProject,
   })
 }

@@ -62,8 +62,12 @@ export type HostSessions = Readonly<{
    * token; a read passes none. Slides the idle limit.
    */
   resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; now?: Date }>): Promise<CurrentSession | null>
-  /** Signs out of the Hub with the session's own CSRF token, and ends the Previews it opened. Never asks Keycloak. */
-  endHub(input: Readonly<{ sessionToken: string; csrfToken: string }>): Promise<boolean>
+  /**
+   * Signs out of the Hub with the session's own CSRF token, and ends the Previews it opened. Never asks Keycloak.
+   * Null: no open Hub session ended. Otherwise the session's Keycloak refresh token, handed out once so the caller
+   * can end the SSO session behind it; null when it no longer opens under this installation's key.
+   */
+  endHub(input: Readonly<{ sessionToken: string; csrfToken: string }>): Promise<Readonly<{ refreshToken: string | null }> | null>
   applicationBySlug(slug: string): Promise<string | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
@@ -218,9 +222,16 @@ export const createHostSessions = ({
     },
 
     async endHub({ sessionToken, csrfToken }) {
-      if (!parseOpaqueToken(sessionToken) || !parseOpaqueToken(csrfToken)) return false
-      const ended = await pool.query<QueryResultRow & { ended: boolean }>('SELECT iam.end_hub_session($1, $2) AS ended', [digest(sessionToken), digest(csrfToken)])
-      return ended.rows[0]?.ended === true
+      if (!parseOpaqueToken(sessionToken) || !parseOpaqueToken(csrfToken)) return null
+      const ended = await pool.query<QueryResultRow & { sealed: string | null }>('SELECT iam.end_hub_session($1, $2) AS sealed', [digest(sessionToken), digest(csrfToken)])
+      const sealed = ended.rows[0]?.sealed
+      if (!sealed) return null
+      try {
+        return { refreshToken: await envelope.open(sealed) }
+      } catch {
+        // The session has ended either way; only the Keycloak logout is out of reach.
+        return { refreshToken: null }
+      }
     },
 
     async applicationBySlug(slug) {

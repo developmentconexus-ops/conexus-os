@@ -1,0 +1,7 @@
+## Regras
+
+## Fontes
+
+## Decisões
+
+## Preferências

@@ -69,14 +69,13 @@ const seedProject = async (connection, workspaceId, label, sourceRevision) => {
   await query(connection,
     `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
      VALUES ($1,$2,$3,'NEW',$4,$5)`, [projectId, workspaceId, label, sourceRevision, `${label}-revision`])
-  await query(connection, 'INSERT INTO builder.project_working_state(project_id, working_source_revision) VALUES ($1,$2)',
-    [projectId, sourceRevision])
+  await query(connection, 'SELECT builder.register_project_repository($1)', [projectId])
   return projectId
 }
 const digest = () => randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64)
 const createRun = (connection, accountId, projectId, runId) =>
   query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
-    [accountId, projectId, `conversa-${projectId}`, digest(), digest(), 'pedido', null, 'PLAN', runId])
+    [accountId, projectId, `conversa-${projectId}`, digest(), digest(), 'pedido', null, runId, 'a'.repeat(40)])
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
   const connection = await freshDatabase(t)
@@ -106,10 +105,10 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.equal(created.rows[0].value.state, 'QUEUED')
   assert.deepEqual((await query(connection, 'SELECT builder.list_builder_runs($1,$2,$3) AS value', [member, projectId, 20]))
     .rows[0].value.map((run) => run.builderRunId), [runId])
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [member, projectId, sourceRevision]))
+  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [member, projectId, sourceRevision, sourceRevision]))
     .rows[0].admitted, true)
-  assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [member, projectId]))
-    .rows[0].value.sourceRevision, sourceRevision)
+  assert.deepEqual((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [member, projectId]))
+    .rows[0].value, { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
   // The member may create a Project of their own: project.create is a member right.
   const reserved = await query(connection, 'SELECT state FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)',
@@ -118,10 +117,10 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
 
   // A non-member reads nothing and every effect refuses with the one error code.
   assert.deepEqual((await query(connection, 'SELECT builder.list_builder_runs($1,$2,$3) AS value', [stranger, projectId, 20])).rows[0].value, [])
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [stranger, projectId, sourceRevision])).rows[0].admitted, false)
+  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [stranger, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [stranger, projectId])).rows[0].value, null)
   for (const [sql, parameters] of [
-    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, 'PLAN', randomUUID()]],
+    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]],
     ['SELECT builder.request_builder_run_cancellation($1,$2,$3)', [stranger, projectId, runId]],
     ['SELECT * FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)', [stranger, workspaceId, 'f'.repeat(64), '0'.repeat(64), randomUUID()]],
   ]) {
@@ -176,16 +175,16 @@ test('an inactive account is refused everywhere, including Preview and source re
   const sourceRevision = 'c'.repeat(40)
   const projectId = await seedProject(connection, workspaceId, 'Dormant', sourceRevision)
 
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [dormant, projectId, sourceRevision])).rows[0].admitted, true)
+  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [dormant, projectId, sourceRevision, sourceRevision])).rows[0].admitted, true)
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [dormant])
 
   // The two holes 052's grounding found were here: Preview and source read never checked active.
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3) AS admitted', [dormant, projectId, sourceRevision])).rows[0].admitted, false)
+  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [dormant, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.equal((await query(connection, 'SELECT builder.read_builder_run($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [dormant, projectId])).rows, [])
   assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-    [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, 'PLAN', randomUUID()]), { code: '42501', message: 'NOT_ADMITTED' })
+    [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]), { code: '42501', message: 'NOT_ADMITTED' })
 })
 
 test('the runner refuses a database where PUBLIC may execute a Hub function', async (t) => {

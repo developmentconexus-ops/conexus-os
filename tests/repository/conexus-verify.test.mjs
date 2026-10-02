@@ -6,12 +6,21 @@ import test from 'node:test'
 import {
   ALLOWED_ALIASES,
   CANDIDATE_GRAPH,
+  DOCS_CHECK_SCOPES,
+  DOCS_GRAPH,
+  FAST_CHECK_SCOPES,
+  QUICK_GRAPH,
+  VERIFY_GROUPS,
+  graphForGroup,
+  groupsOf,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
   executionEnvironment,
+  failFastOrder,
   listScopes,
   newTestLedger,
   parseArguments,
+  renderStepSummary,
   resolveScope,
   runVerification,
   runNpmScript,
@@ -40,29 +49,119 @@ const packageScripts = Object.freeze({
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-hub-typecheck',
-  'hub-baseline',
-  'c020-migration-selection', 'c020-migration-postgres', 'iam-membership-authority', 'iam-application-access', 'iam-installation-administrator', 'installation-settings-routes', 'iam-grant-surface-excision',
-  'hub-call-site-privileges',
-  'connector-postgres', 'connector-routes', 'connector-broker', 'connector-broker-postgres', 'connector-builder-brief',
-  'c020-builder-postgres', 'c020-builder-request-text-postgres', 'factory-binding-postgres', 'factory-dependency-tree', 'factory-composition', 'model-accounts-postgres', 'google-ai-pro', 'factory-runtime', 'factory-recovery-postgres', 'factory-routes', 'factory-provisioning',
-  'application-data-postgres', 'application-runner-sandbox', 'application-server', 'application-host',
-  'foundation-postgres', 'project-summary-activity-postgres', 'project-summary-routes',
-  'c020-registry', 'c020-source-runtime', 'c020-failure-vocabulary', 'c020-compiler-runtime',
-  'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-web-typecheck', 'c020-web-build',
-  'db-catalog-snapshot', 'db-baseline-file', 'db-role-register', 'db-role-provision-postgres',
-  'repository-check', 'repository-import-law', 'repository-agent-context',
-  'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
-  'repository-contract-checks', 'knip', 'biome',
-  'brand-wordmark-csp', 'builder-tool-sentences', 'factory-skills-guard', 'settings-provider-groups', 'conexus-preflight',
-  'identity-access-http', 'application-access-http', 'workspace-membership-http', 'workspace-http', 'workspace-reads', 'project-disclosure',
-  'project-command-postgres', 'project-browser', 'project-name', 'shell-browser-boundary', 'brand-tokens', 'web-style', 'preview-form-policy',
-  'builder-credential-generation', 'builder-first-operational-delivery', 'builder-planning-free-boot',
-  'protected-cluster-coverage',
-  'wire-openapi-lint', 'wire-openapi-bundle',
-  'wire-bijection', 'wire-bijection-gate', 'wire-carriers', 'wire-identity-workspace',
-  'wire-project', 'wire-builder', 'wire-connector',
-  'wire-technical-lint', 'wire-technical-ingress',
+  'c020-web-typecheck',
+  'db-role-register',
+  'repository-check',
+  'repository-import-law',
+  'repository-agent-context',
+  'contract-projection-check-iam',
+  'contract-projection-check-workspace',
+  'contract-projection-check-project',
+  'contract-projection-check-connector',
+  'repository-contract-checks',
+  'knip',
+  'biome',
+  'builder-guidance-neutral',
+  'conexus-preflight',
+  'web-style',
+  'wire-openapi-lint',
+  'wire-openapi-bundle',
+  'wire-bijection',
+  'wire-bijection-gate',
+  'wire-carriers',
+  'wire-identity-workspace',
+  'wire-project',
+  'wire-builder',
+  'wire-connector',
+  'wire-technical-lint',
+  'wire-technical-ingress',
+  'log-codes-check',
   'test-census',
+  'weak-tests-ratchet',
+  'hub-baseline',
+  'c020-migration-selection',
+  'c020-migration-postgres',
+  'iam-membership-authority',
+  'iam-application-access',
+  'iam-installation-administrator',
+  'installation-settings-routes',
+  'iam-grant-surface-excision',
+  'hub-call-site-privileges',
+  'connector-postgres',
+  'connector-routes',
+  'connector-broker',
+  'connector-broker-postgres',
+  'connector-builder-brief',
+  'connector-builder-tool',
+  'builder-harness',
+  'c020-builder-postgres',
+  'c020-builder-request-text-postgres',
+  'conexus-git-postgres',
+  'factory-dependency-tree',
+  'builder-composition',
+  'model-account-postgres',
+  'google-ai-pro',
+  'openai-codex',
+  'anthropic',
+  'run-runtime',
+  'run-recovery-postgres',
+  'builder-session-routes',
+  'conexus-git',
+  'application-data-postgres',
+  'application-runner-sandbox',
+  'app-runner-http',
+  'application-server',
+  'application-host',
+  'foundation-postgres',
+  'project-summary-activity-postgres',
+  'project-summary-routes',
+  'c020-registry',
+  'c020-source-runtime',
+  'c020-failure-vocabulary',
+  'c020-compiler-runtime',
+  'c020-browser',
+  'settings-browser',
+  'application-access-browser',
+  'connector-integrations-browser',
+  'c020-e2b-template',
+  'c020-compiler-v2',
+  'c020-web-build',
+  'db-catalog-snapshot',
+  'db-baseline-file',
+  'hub-lifecycle',
+  'hub-postgres-pool',
+  'db-role-provision-postgres',
+  'hub-build-shared',
+  'hub-log-sinks',
+  'telemetry',
+  'brand-wordmark-csp',
+  'builder-tool-sentences',
+  'builder-skills-guard',
+  'identity-access-http',
+  'application-access-http',
+  'workspace-membership-http',
+  'workspace-http',
+  'workspace-reads',
+  'project-disclosure',
+  'project-command-postgres',
+  'project-deletion',
+  'project-deletion-postgres',
+  'project-browser',
+  'project-settings-deletion-browser',
+  'project-name',
+  'project-delete-problem',
+  'shell-browser-boundary',
+  'web-dev-server',
+  'brand-tokens',
+  'preview-form-policy',
+  'builder-credential-generation',
+  'builder-first-operational-delivery',
+  'builder-planning-free-boot',
+  'builder-eval',
+  'live-builder',
+  'builder-eval-postgres',
+  'protected-cluster-coverage',
+  'conexus-backup',
   'only-opt-in-skips',
 ])
 
@@ -97,6 +196,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
     dryRun: true,
     json: true,
     help: false,
+    group: null,
   })
 
   const calls = []
@@ -154,7 +254,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     },
   })
   assert.equal(result.exitCode, 1)
-  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'hub-baseline', 'c020-migration-selection'])
+  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'c020-web-typecheck', 'db-role-register'])
   assert.equal(seen[0][1], null)
   assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
@@ -197,6 +297,31 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
   assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
+  const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/app-runner-worker.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/application-release.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/manifest-enum.test.mjs'), [['app-runner-http', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-submit-plan.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-project-context.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-memory.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-model-stream-recorder.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-run-operation.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-sankhya-reader.test.mjs'), [['builder-harness', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-agent-retry.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-runaway-step.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-turn-stall.test.mjs'), [['run-runtime', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['c020-browser', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
+  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
+    'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
   assert.equal(biomeCommand, 'npx --no-install biome ci .')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
@@ -209,6 +334,20 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
+  const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
+  assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
+    'the tripwire test runs with the run runtime suites')
+
+  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
+  assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
+  const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
+  assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
+  assert.equal(builderEval.environmentClass, 'browser')
+  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-compiler-runtime')
+  assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
+  assert.equal(appCheck.environmentClass, 'browser')
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
+  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'conexus-backup').command.includes('tests/implementation/conexus-backup.test.mjs'), true)
 
   const result = runVerification({
     processEnvironment: {},
@@ -262,7 +401,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'live', 'postgres', 'static'])
 
   const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
   const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
@@ -391,4 +530,104 @@ test('the opt-in skip check runs last', () => {
     environmentClass: 'static',
     graph: 'candidate',
   })
+})
+
+test('the cheap static checks run before every browser and PostgreSQL suite, and the Hub build stays first', () => {
+  const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
+  assert.equal(scopes[0], 'c020-hub-typecheck')
+  const fast = new Set(FAST_CHECK_SCOPES)
+  const lastFast = Math.max(...FAST_CHECK_SCOPES.map(scope => scopes.indexOf(scope)))
+  assert.equal(lastFast, FAST_CHECK_SCOPES.length - 1, 'the fast checks are one prefix of the graph')
+  const environments = CANDIDATE_GRAPH.slice(0, FAST_CHECK_SCOPES.length).map(entry => entry.environmentClass)
+  assert.deepEqual([...new Set(environments)], ['static'])
+  const slowStart = CANDIDATE_GRAPH.findIndex(entry => !fast.has(entry.scope))
+  assert.equal(CANDIDATE_GRAPH.slice(slowStart).some(entry => fast.has(entry.scope)), false)
+  for (const scope of ['biome', 'knip', 'c020-web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census']) {
+    assert.ok(scopes.indexOf(scope) < scopes.indexOf('hub-baseline'), `${scope} runs before the first PostgreSQL suite`)
+    assert.ok(scopes.indexOf(scope) < scopes.indexOf('c020-browser'), `${scope} runs before the first browser suite`)
+  }
+})
+
+test('failFastOrder moves the named scopes up in graph order and keeps every step', () => {
+  const steps = ['a', 'b', 'c', 'd', 'e'].map(scope => ({ scope }))
+  assert.deepEqual(failFastOrder(steps, ['d', 'b']).map(step => step.scope), ['b', 'd', 'a', 'c', 'e'])
+  assert.deepEqual(failFastOrder(steps, []).map(step => step.scope), ['a', 'b', 'c', 'd', 'e'])
+})
+
+test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
+  assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), [
+    'repository-check', 'repository-agent-context', 'repository-contract-checks', 'conexus-preflight',
+    'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'only-opt-in-skips',
+  ])
+  assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
+  assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })
+  assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
+})
+
+test('the quick graph is the knip, log code registry, test census and weak-test ratchet checks, all static and fast-checked', () => {
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['knip', 'log-codes-check', 'test-census', 'weak-tests-ratchet'])
+  assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
+  assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
+  assert.deepEqual(result.records.map(record => record.scope), ['knip', 'log-codes-check', 'test-census', 'weak-tests-ratchet'])
+})
+
+test('step summary is a markdown table sorted slowest first with each share of the total', () => {
+  const summary = renderStepSummary([
+    { scope: 'quick', status: 'succeeded', durationMs: 1000 },
+    { scope: 'slow', status: 'succeeded', durationMs: 7500 },
+    { scope: 'broken', status: 'failed', durationMs: 1500 },
+  ])
+  assert.equal(summary, [
+    '### Verification step timings',
+    '',
+    '3 steps, 10.0 s in total, slowest first.',
+    '',
+    '| Step | Status | Seconds | Share |',
+    '| --- | --- | ---: | ---: |',
+    '| slow | succeeded | 7.5 | 75.0% |',
+    '| broken | failed | 1.5 | 15.0% |',
+    '| quick | succeeded | 1.0 | 10.0% |',
+    '',
+  ].join('\n'))
+})
+
+test('the CI helper tests run in the graph, so the census and the checks see them', () => {
+  const agentContext = CANDIDATE_GRAPH.find(entry => entry.scope === 'repository-agent-context')
+  for (const file of ['tests/repository/ci-change-scope.test.mjs', 'tests/repository/ci-install.test.mjs']) {
+    assert.equal(agentContext.command.split(' ').includes(file), true, file)
+  }
+})
+
+test('every graph step belongs to exactly one group, except the two every group runs', () => {
+  const shared = ['c020-hub-typecheck', 'only-opt-in-skips']
+  for (const entry of CANDIDATE_GRAPH) {
+    const groups = groupsOf(entry)
+    assert.ok(groups.every(group => VERIFY_GROUPS.includes(group)), `${entry.scope} has a known group`)
+    assert.equal(groups.length, shared.includes(entry.scope) ? VERIFY_GROUPS.length : 1, entry.scope)
+  }
+  const owned = VERIFY_GROUPS.flatMap(group => graphForGroup(CANDIDATE_GRAPH, group).map(entry => entry.scope).filter(scope => !shared.includes(scope)))
+  assert.deepEqual([...owned].sort(), CANDIDATE_GRAPH.map(entry => entry.scope).filter(scope => !shared.includes(scope)).sort())
+  assert.equal(new Set(owned).size, owned.length)
+})
+
+test('a group runs the Hub build first and the skip check last, and keeps graph order between', () => {
+  for (const group of VERIFY_GROUPS) {
+    const scopes = graphForGroup(CANDIDATE_GRAPH, group).map(entry => entry.scope)
+    assert.equal(scopes[0], 'c020-hub-typecheck', group)
+    assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
+  }
+  for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['c020-hub-typecheck', 'c020-browser', 'only-opt-in-skips'])
+  assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['c020-hub-typecheck', 'live-builder', 'only-opt-in-skips'])
+})
+
+test('--group narrows the candidate graph and refuses an unknown group', async () => {
+  assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
+  assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest, live/)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
+  assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

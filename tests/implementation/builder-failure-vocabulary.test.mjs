@@ -20,6 +20,8 @@ test('each public category is reachable from a real internal code', () => {
   assert.equal(builderFailureCategory('BUILDER_MODEL_RATE_LIMITED'), 'MODEL_RATE_LIMITED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_STREAM_FAILED'), 'MODEL_REQUEST_REFUSED')
   assert.equal(builderFailureCategory('BUILDER_RESULT_IDENTITY_REFUSED'), 'SOURCE_RESULT_REJECTED')
+  assert.equal(builderFailureCategory('BUILDER_RESULT_BUNDLE_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
+  assert.equal(builderFailureCategory('BUILDER_RESULT_CONTENT_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
   assert.equal(builderFailureCategory('APPLICATION_COMPILATION_FAILED'), 'APPLICATION_BUILD_FAILED')
   assert.equal(builderFailureCategory('USER_CANCELLED'), 'RUN_CANCELLED')
   assert.equal(builderFailureCategory('BUILDER_PREPARATION_FAILED'), 'INTERNAL_ERROR')
@@ -46,6 +48,16 @@ test('an unreachable application runner is the platform failing, not a build the
   assert.deepEqual([unreachable.failureCategory, unreachable.failureCode], ['ENVIRONMENT_PREPARATION_FAILED', 'APPLICATION_RUNNER_UNAVAILABLE'])
 })
 
+test('a generic prepare refusal is the platform failing too, same as an unreachable runner', () => {
+  const refused = projectBuilderRun(run('FAILED', 'APPLICATION_SERVER_REFUSED'))
+  assert.deepEqual([refused.failureCategory, refused.failureCode], ['ENVIRONMENT_PREPARATION_FAILED', 'APPLICATION_SERVER_REFUSED'])
+})
+
+test('a prepare refusal that names the Project\'s own compiled server tree is a build failure', () => {
+  assert.equal(builderFailureCategory('SERVER_TREE_REFUSED'), 'APPLICATION_BUILD_FAILED')
+  assert.equal(builderFailureCategory('MANIFEST_REFUSED'), 'APPLICATION_BUILD_FAILED')
+})
+
 test('a code nobody declared and a raw provider message are both internal errors', () => {
   assert.equal(builderFailureCategory('SOMETHING_NOBODY_DECLARED'), 'INTERNAL_ERROR')
   // service.ts turns any message that is not an uppercase snake code into BUILDER_PREPARATION_FAILED,
@@ -57,11 +69,11 @@ test('a code nobody declared and a raw provider message are both internal errors
 test('every code a build failure can settle with names the build, not an internal error', async () => {
   const { readFileSync } = await import('node:fs')
   const { resolve: resolvePath } = await import('node:path')
-  const runtime = readFileSync(resolvePath(import.meta.dirname, '../../apps/hub/src/builder/factory-runtime.ts'), 'utf8')
-  // The Factory runtime turns exactly these into a BUILD_FAILED outcome, which the service then
+  const runtime = readFileSync(resolvePath(import.meta.dirname, '../../apps/hub/src/builder/run-runtime.ts'), 'utf8')
+  // The run runtime turns exactly these into a BUILD_FAILED outcome, which the service then
   // persists as the run's failure code. Anything it can persist has to be a declared build failure.
   const guard = /if \(code !== '([A-Z_]+)' && code !== '([A-Z_]+)' &&\s*!code\.startsWith\('([A-Z_]+)'\)\) throw error/.exec(runtime)
-  assert.ok(guard, 'the build-failure guard in factory-runtime.ts moved; this test must follow it')
+  assert.ok(guard, 'the build-failure guard in run-runtime.ts moved; this test must follow it')
   for (const code of [guard[1], guard[2]]) {
     assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
   }
@@ -69,6 +81,10 @@ test('every code a build failure can settle with names the build, not an interna
     assert.equal(code.startsWith(guard[3]), true)
     assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
   }
+})
+
+test("a candidate the Hub's check refuses reads as a rejected result (AC-9)", () => {
+  assert.equal(builderFailureCategory('BUILDER_CHECK_FAILED'), 'SOURCE_RESULT_REJECTED')
 })
 
 test('no code outside the table reaches the wire', () => {

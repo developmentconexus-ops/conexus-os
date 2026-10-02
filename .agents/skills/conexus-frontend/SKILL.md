@@ -13,7 +13,7 @@ Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap and the r
 
 - `packages/brand/src/tokens.css` defines every color, font, radius and easing. When anything else disagrees with it, including this skill, `tokens.css` wins.
 - The screens in `apps/web/src` are the reference implementation. Read the nearest existing screen before building a new one.
-- The Claude Design project "Conexus Design System" mirrors `main` for prototyping. Never copy its JSX kit into the repository: production composes Mastra `@mastra/playground-ui` components. When a pull request changes tokens, components or screens, say "Claude Design: re-sync from `main`" in its body. The operator re-syncs after merging.
+- The Claude Design project "Conexus Design System" mirrors `main` for prototyping. Never copy its JSX kit into the repository: production takes only basic parts and agent display parts from `@mastra/playground-ui`, repainted with Conexus tokens, and the Mastra Factory is a feature reference, not a layout to match (the three kinds table below). When a pull request changes tokens, components or screens, say "Claude Design: re-sync from `main`" in its body. The operator re-syncs after merging.
 - `DESIGN.md` and `.impeccable/design.json` summarize the visual system for the impeccable tools. When a token changes, edit both by hand in the same pull request, or rerun `/impeccable document`.
 - `PRODUCT.md` owns the users and the product principles. `docs/reference/frontend-and-product-surfaces.md` owns what each surface means, including the Build surface's functional contract (section 33.6).
 
@@ -39,7 +39,7 @@ Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap and the r
 - **Three faces.** Bricolage Grotesque for headings, Hanken Grotesk for language, JetBrains Mono for facts only, through the `--cx-font-*` tokens.
 - **Hairlines, not shadows.** Radius comes from the scale; regions and panes take none. Shadows only where `visual-foundations.md` lists them.
 - **Encaixe is the only authored motion.** Everything stops under `prefers-reduced-motion`.
-- **Mastra first.** Use the Mastra primitive when one exists. Change its palette through `apps/web/src/mastra-theme.css`, and its size or layout through a `cx-*` class next to the screen. Replace any English text it brings.
+- **Structure is ours; Mastra is a parts bin.** Conexus designs every screen and page pattern. `@mastra/playground-ui` supplies three kinds of part, per the table in `references/components-map.md`: basic parts (preferred; `Button`, `Input`, dialogs, menus and the rest, repainted through `apps/web/src/mastra-theme.css`), agent display parts (allowed, because they render a Mastra run) and structure blocks (`AppShell`, `MainSidebar`, `ChatShell`, `new/settings`, frozen: existing uses stay, no new screen or section adopts one). Change a basic or agent part's size or layout through a `cx-*` class next to the screen, and replace any English text it brings. Never fork a part. A new hand class uses the `cx-` prefix and has CSS behind it; `npm run web:style:check` fails one that does not. C-031 in the decision register.
 - **Honest states.** Show only what the server says. Keep loading, empty, failed and unknown distinct. Never fake progress, counts or actions; mark unbuilt things "em breve".
 
 ## Checks

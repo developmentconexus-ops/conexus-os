@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  EXEMPT_TESTS,
   checkTestCensus,
   collectReachableTests,
+  unreachedMessage,
 } from '../../scripts/check-test-census.mjs'
 
 test('collectReachableTests finds tests in direct commands and package scripts', () => {
@@ -66,8 +66,8 @@ test('checkTestCensus reports any committed test not in candidate graph or exemp
   assert.deepEqual(result.unreached, ['tests/implementation/orphaned.test.mjs'])
 })
 
-test('live suites remain exempt in EXEMPT_TESTS', () => {
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-e2b-live.test.mjs'))
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-factory-e2b-live.test.mjs'))
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-production-composed-live.test.mjs'))
+test('the unreached report names each file and CANDIDATE_GRAPH', () => {
+  const message = unreachedMessage(['tests/implementation/orphaned.test.mjs'])
+  assert.match(message, /1 committed test file\(s\) are not reachable from CANDIDATE_GRAPH or exempt/)
+  assert.match(message, /tests\/implementation\/orphaned\.test\.mjs/)
 })

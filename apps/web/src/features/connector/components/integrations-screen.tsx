@@ -7,24 +7,24 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import type { CheckWorkspaceConnectionOutcome, ConnectorConnection } from '../../../generated/connector-client'
+import { BINDING_NAME_PATTERN } from '../../../generated/connector-client'
 import {
+  type BindableConnection,
+  bindProjectConnection,
   checkConnectionMessage,
   checkOutcomeMessage,
   checkWorkspaceConnection,
-  type ConnectorGrant,
-  type ConnectorGrantable,
   createWorkspaceConnection,
-  describeOperation,
   disableConnectionMessage,
   disableWorkspaceConnection,
-  grantProjectConnectorOperation,
   isConnectorAdminRequired,
-  isConnectorGrantsForbidden,
-  listProjectConnectorGrants,
+  isConnectorBindingsForbidden,
+  listProjectConnectionBindings,
   listWorkspaceConnections,
-  projectConnectorGrantsQueryKey,
-  projectGrantsMessage,
-  revokeProjectConnectorGrant,
+  type ProjectConnectionBinding,
+  projectBindingsMessage,
+  projectConnectionBindingsQueryKey,
+  unbindProjectConnection,
   workspaceConnectionsMessage,
   workspaceConnectionsQueryKey,
 } from '../connector-api'
@@ -36,7 +36,7 @@ const formatDate = (value: string) => date.format(new Date(value))
 export function IntegrationsScreen({ workspaceId, projectId }: Readonly<{ workspaceId: string; projectId: string }>) {
   return <div className="cx-connector">
     <ConnectionsSection workspaceId={workspaceId} />
-    <GrantsSection projectId={projectId} />
+    <BindingsSection projectId={projectId} />
   </div>
 }
 
@@ -44,8 +44,6 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
   const queryClient = useQueryClient()
   const queryKey = workspaceConnectionsQueryKey(workspaceId)
   const connections = useQuery({ queryKey, queryFn: () => listWorkspaceConnections(workspaceId) })
-  // A new or disabled Connection changes what the Grants section can offer too, so both sections
-  // refresh together rather than drifting until the next reload.
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['connector'] })
 
   if (connections.isPending) {
@@ -81,11 +79,10 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
         ))}
       </ul>
     )}
-    {connections.data.some((connection) => connection.connectorId === 'sankhya' && !connection.disabledAt) ? (
-      <p className="cx-field-hint">Para trocar a credencial, desative a conexão ativa e adicione outra.</p>
-    ) : (
-      <CreateConnectionForm workspaceId={workspaceId} onCreated={refresh} />
+    {connections.data.some((connection) => !connection.disabledAt) && (
+      <p className="cx-field-hint">Para trocar a credencial de uma conexão, desative-a e adicione outra.</p>
     )}
+    <CreateConnectionForm workspaceId={workspaceId} onCreated={refresh} />
   </section>
 }
 
@@ -201,107 +198,123 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
   </form>
 }
 
-function GrantsSection({ projectId }: Readonly<{ projectId: string }>) {
+function BindingsSection({ projectId }: Readonly<{ projectId: string }>) {
   const queryClient = useQueryClient()
-  const queryKey = projectConnectorGrantsQueryKey(projectId)
-  const grants = useQuery({ queryKey, queryFn: () => listProjectConnectorGrants(projectId) })
+  const queryKey = projectConnectionBindingsQueryKey(projectId)
+  const bindings = useQuery({ queryKey, queryFn: () => listProjectConnectionBindings(projectId) })
   const refresh = () => queryClient.invalidateQueries({ queryKey })
 
-  if (grants.isPending) {
-    return <section aria-labelledby="connector-grants" className="cx-connector-section" aria-busy="true">
-      <h2 id="connector-grants" className="cx-section-title">Integrações deste Projeto</h2>
+  if (bindings.isPending) {
+    return <section aria-labelledby="connector-bindings" className="cx-connector-section" aria-busy="true">
+      <h2 id="connector-bindings" className="cx-section-title">Integrações deste Projeto</h2>
       <span className="sr-only" role="status">Carregando as integrações</span>
       <Skeleton className="cx-skeleton-line" />
     </section>
   }
-  if (grants.isError) {
-    return <section aria-labelledby="connector-grants" className="cx-connector-section">
-      <h2 id="connector-grants" className="cx-section-title">Integrações deste Projeto</h2>
-      {isConnectorGrantsForbidden(grants.error) ? (
-        <div className="cx-state" role="alert"><h2>Só o Owner do Workspace concede e revoga integrações deste Projeto.</h2></div>
+  if (bindings.isError) {
+    return <section aria-labelledby="connector-bindings" className="cx-connector-section">
+      <h2 id="connector-bindings" className="cx-section-title">Integrações deste Projeto</h2>
+      {isConnectorBindingsForbidden(bindings.error) ? (
+        <div className="cx-state" role="alert"><h2>Só o Owner do Workspace vincula e desvincula conexões deste Projeto.</h2></div>
       ) : (
         <div className="cx-state" role="alert">
           <h2>Não foi possível carregar as integrações</h2>
           <p>Nada foi alterado. O servidor não respondeu desta vez.</p>
-          <Button type="button" variant="outline" onClick={() => void grants.refetch()}>Tentar de novo</Button>
+          <Button type="button" variant="outline" onClick={() => void bindings.refetch()}>Tentar de novo</Button>
         </div>
       )}
     </section>
   }
 
-  const open = grants.data.filter((entry): entry is ConnectorGrant => entry.kind === 'grant')
-  const grantable = grants.data.filter((entry): entry is ConnectorGrantable => entry.kind === 'grantable')
+  const bound = bindings.data.filter((entry): entry is ProjectConnectionBinding => entry.kind === 'binding')
+  const bindable = bindings.data.filter((entry): entry is BindableConnection => entry.kind === 'bindable')
 
-  return <section aria-labelledby="connector-grants" className="cx-connector-section">
-    <h2 id="connector-grants" className="cx-section-title">Integrações deste Projeto</h2>
-    <h3 className="cx-connector-subtitle">Concedidas <span className="cx-count">{open.length}</span></h3>
-    {open.length === 0 ? (
-      <p className="cx-connector-empty">Nenhuma integração concedida ainda.</p>
+  return <section aria-labelledby="connector-bindings" className="cx-connector-section">
+    <h2 id="connector-bindings" className="cx-section-title">Integrações deste Projeto</h2>
+    <h3 className="cx-connector-subtitle">Vinculadas <span className="cx-count">{bound.length}</span></h3>
+    {bound.length === 0 ? (
+      <p className="cx-connector-empty">Nenhuma conexão vinculada ainda.</p>
     ) : (
       <ul className="cx-connection-list">
-        {open.map((grant) => <OpenGrantRow key={grant.grantId} projectId={projectId} grant={grant} onChanged={refresh} />)}
+        {bound.map((binding) => <BindingRow key={binding.bindingId} projectId={projectId} binding={binding} onChanged={refresh} />)}
       </ul>
     )}
-    {grantable.length > 0 && <>
-      <h3 className="cx-connector-subtitle">Disponíveis para conceder</h3>
+    {bindable.length > 0 && <>
+      <h3 className="cx-connector-subtitle">Disponíveis para vincular</h3>
       <ul className="cx-connection-list">
-        {grantable.map((capability) => (
-          <GrantableRow key={`${capability.connectionId}:${capability.capabilityId}`} projectId={projectId} capability={capability} onChanged={refresh} />
+        {bindable.map((connection) => (
+          <BindableRow key={connection.connectionId} projectId={projectId} connection={connection} onChanged={refresh} />
         ))}
       </ul>
     </>}
   </section>
 }
 
-function OpenGrantRow({ projectId, grant, onChanged }: Readonly<{ projectId: string; grant: ConnectorGrant; onChanged: () => void }>) {
+function BindingRow({ projectId, binding, onChanged }: Readonly<{ projectId: string; binding: ProjectConnectionBinding; onChanged: () => void }>) {
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState('')
-  const revoke = useMutation({
-    mutationFn: () => revokeProjectConnectorGrant(projectId, grant.grantId),
+  const unbind = useMutation({
+    mutationFn: () => unbindProjectConnection(projectId, binding.bindingId),
     onSuccess: () => { setConfirming(false); onChanged() },
-    onError: (error) => { setConfirming(false); setMessage(projectGrantsMessage(error)) },
+    onError: (error) => { setConfirming(false); setMessage(projectBindingsMessage(error)) },
   })
 
   return <li className="cx-connection">
     <div className="cx-connection-main">
-      <strong>{describeOperation(grant.capabilityId)}</strong>
-      <span className="cx-connection-meta">concedida em {formatDate(grant.grantedAt)}</span>
-      <code className="cx-connection-id">{grant.capabilityId}</code>
+      <strong>{binding.label}</strong>
+      <span className="cx-connection-meta">vinculada em {formatDate(binding.boundAt)}</span>
+      <code className="cx-connection-id">{binding.name}</code>
     </div>
-    <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(true)}>Revogar</Button>
+    <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(true)}>Desvincular</Button>
     {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
 
     <AlertDialog open={confirming} onOpenChange={setConfirming}>
       <AlertDialog.Content>
         <AlertDialog.Header>
-          <AlertDialog.Title>Revogar {describeOperation(grant.capabilityId)}?</AlertDialog.Title>
-          <AlertDialog.Description>O Projeto para de conseguir chamar esta integração assim que a revogação acontecer.</AlertDialog.Description>
+          <AlertDialog.Title>Desvincular {binding.label}?</AlertDialog.Title>
+          <AlertDialog.Description>
+            O Projeto para de conseguir usar esta conexão pelo nome {binding.name} assim que o vínculo for desfeito. O registro fica guardado.
+          </AlertDialog.Description>
         </AlertDialog.Header>
         <AlertDialog.Footer>
           <AlertDialog.Cancel>Voltar</AlertDialog.Cancel>
-          <AlertDialog.Action onClick={() => revoke.mutate()}>Revogar</AlertDialog.Action>
+          <AlertDialog.Action onClick={() => unbind.mutate()}>Desvincular</AlertDialog.Action>
         </AlertDialog.Footer>
       </AlertDialog.Content>
     </AlertDialog>
   </li>
 }
 
-function GrantableRow({ projectId, capability, onChanged }: Readonly<{ projectId: string; capability: ConnectorGrantable; onChanged: () => void }>) {
+function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId: string; connection: BindableConnection; onChanged: () => void }>) {
+  const nameId = useId()
   const [message, setMessage] = useState('')
-  const grant = useMutation({
-    mutationFn: () => grantProjectConnectorOperation(projectId, { connectionId: capability.connectionId, operationId: capability.capabilityId }),
+  const bind = useMutation({
+    mutationFn: (name: string) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
     onSuccess: () => onChanged(),
-    onError: (error) => setMessage(projectGrantsMessage(error)),
+    onError: (error) => setMessage(projectBindingsMessage(error)),
   })
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (bind.isPending) return
+    const name = String(new FormData(event.currentTarget).get('name') ?? '').trim()
+    if (!BINDING_NAME_PATTERN.test(name)) {
+      setMessage('Use letras minúsculas, números e hífen, começando por uma letra.')
+      return
+    }
+    setMessage('')
+    bind.mutate(name)
+  }
 
   return <li className="cx-connection">
     <div className="cx-connection-main">
-      <strong>{describeOperation(capability.capabilityId)}</strong>
-      <code className="cx-connection-id">{capability.capabilityId}</code>
+      <strong>{connection.label}</strong>
+      <Label htmlFor={nameId} className="cx-connection-meta">Nome no Projeto</Label>
     </div>
-    <Button type="button" variant="primary" size="sm" disabled={grant.isPending} onClick={() => grant.mutate()}>
-      {grant.isPending ? 'Concedendo…' : 'Conceder'}
-    </Button>
+    <form className="cx-connection-actions" onSubmit={submit} noValidate>
+      <Input id={nameId} name="name" type="text" size="sm" autoComplete="off" required maxLength={40} placeholder="erp" />
+      <Button type="submit" variant="primary" size="sm" disabled={bind.isPending}>{bind.isPending ? 'Vinculando…' : 'Vincular'}</Button>
+    </form>
     {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
   </li>
 }

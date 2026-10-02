@@ -131,8 +131,8 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
   hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   assert.deepEqual(await hub.resolveHub({ sessionToken: established.sessionToken }), signedIn, 'another Hub process reads the same session')
-  assert.equal(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: 'w'.repeat(43) }), false, 'not without its CSRF token')
-  assert.equal(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken }), true)
+  assert.equal(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: 'w'.repeat(43) }), null, 'not without its CSRF token')
+  assert.deepEqual(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken }), { refreshToken: 'refresh-1' })
   assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken }), null)
   await hubPool.end()
   hubPool = null

@@ -1,4 +1,5 @@
 import { clearAuthorityCache } from '../../app/query-client'
+import { deleteFailureMessage } from './delete-problem'
 import type {
   CreateProjectInput,
   CreateProjectResponse,
@@ -43,13 +44,9 @@ export type ProjectCardSummary = Readonly<{
   lastActivityAt: string
   latestRun: Readonly<{ state: ProjectRunState; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null }> | null
   hasPreview: boolean
+  deleting: boolean
 }>
-export type ProjectRepositoryState =
-  | Readonly<{ state: 'REACHABLE'; fullName: string; url: string }>
-  | Readonly<{ state: 'UNREACHABLE' }>
-
 export const projectSummariesQueryKey = (workspaceId: string) => ['project-summaries', workspaceId] as const
-export const projectRepositoryQueryKey = (projectId: string) => ['project-repository', projectId] as const
 
 const getJson = async <T>(url: string): Promise<T> => {
   const response = await responseFrom(fetch(url, { credentials: 'same-origin' }))
@@ -59,9 +56,6 @@ const getJson = async <T>(url: string): Promise<T> => {
 
 export const listProjectSummaries = async (workspaceId: string): Promise<readonly ProjectCardSummary[]> =>
   (await getJson<{ projects: ProjectCardSummary[] }>(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/project-summaries`)).projects
-
-export const getProjectRepository = (projectId: string): Promise<ProjectRepositoryState> =>
-  getJson(`/api/control/projects/${encodeURIComponent(projectId)}/repository`)
 
 export async function getProject(projectId: string): Promise<ProjectRepresentation> {
   const response = await responseFrom(projectClient.getProject(projectId))
@@ -78,3 +72,24 @@ export async function createProject(
   if (response.status !== 201) reject(response)
   return response.json() as Promise<CreateProjectResponse>
 }
+
+class ProjectDeleteError extends Error {
+  constructor(readonly status: number, readonly type: string | null = null) {
+    super(`Project deletion failed with ${status}`)
+  }
+}
+
+export async function deleteProject(projectId: string, confirmName: string): Promise<void> {
+  const response = await responseFrom(projectClient.deleteProject(projectId, confirmName))
+  if (response.status === 204) return
+  if (response.status === 401) clearAuthorityCache()
+  const problem = await response.json().catch(() => null) as { type?: string } | null
+  throw new ProjectDeleteError(response.status, problem?.type ?? null)
+}
+
+export function projectDeleteMessage(error: unknown): string {
+  if (!(error instanceof ProjectDeleteError)) return 'O servidor não respondeu desta vez. Nada foi excluído.'
+  return deleteFailureMessage(error.status, error.type)
+}
+
+export const projectThumbnailUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`

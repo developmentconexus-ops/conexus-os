@@ -10,10 +10,10 @@ import { hubRoleNames, provisionApplicationDatabase } from '../../scripts/provis
 import { applicationClusterAdmin, loginThroughRelay, refuseProtectedApplicationCluster, relayTls } from './application-cluster.mjs'
 import { adminConnection } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { SHARED_LIBRARY_PROJECT, buildServerProject, serverFilesOf } from './server-build-fixture.mjs'
+import { SHARED_LIBRARY_PROJECT, SUPPORTED_NODE_IMPORTS, buildServerProject, serverFilesOf } from './server-build-fixture.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { probeOperations, probeServerTree } from './sandbox-probe/server-tree.mjs'
-import { EXPECTED_ORDER_22790, FAKE_CREDENTIAL, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
+import { EXPECTED_NATIVE_ORDER, EXPECTED_ORDER_22790, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord } from './connector-record.mjs'
 
 // The real runner path: a supervisor that provisions with app_provisioner, migrates and invokes
@@ -33,6 +33,8 @@ const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
 
+// A reset the Hub permits, with a deadline no test run reaches.
+const RESET = Object.freeze({ resetBefore: Date.now() + 60 * 60_000 })
 const NOTE_SQL = `CREATE TABLE follow_up_note (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   purchase_order_id text NOT NULL,
@@ -138,9 +140,9 @@ test('the runner migrates and serves each Project through its own sandboxed work
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
   const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files, caller: CALLER })
 
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files }), { state: 'READY', reset: false, applied: [] })
-  assert.deepEqual(await supervisor.prepare({ projectId: b, files }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
 
   const created = await invoke(a, 'createNote', { purchaseOrderId: 'PO-7', note: 'ligar para o fornecedor' })
   assert.equal(created.status, 200)
@@ -198,7 +200,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
 
   await t.test('a failing migration applies nothing and names the error', async () => {
     const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_broken.sql', 'ALTER TABLE follow_up_note ADD COLUMN done boolean; SELECT * FROM missing_table']])
-    const result = await supervisor.prepare({ projectId: a, files: broken })
+    const result = await supervisor.prepare({ projectId: a, files: broken, onDivergence: RESET })
     assert.equal(result.state, 'MIGRATION_FAILED')
     assert.match(result.detail, /42P01 relation "missing_table" does not exist/)
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).body.length, 1)
@@ -248,7 +250,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
     const runtimeB = previewAllocation(b).runtimeRole
     const extra = 'TRUNCATE, TRIGGER, REFERENCES, MAINTAIN'
     const granting = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_grant_more.sql', `GRANT ${extra} ON follow_up_note TO ${runtimeB}; GRANT ALL ON follow_up_note TO PUBLIC`]])
-    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
+    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
     const runtime = await loginThroughRelay(st, { host: admin.host, port: admin.port }, runtimeB, database)
     const attempt = (sql) => runtime.query(sql).then(() => 'ok', (error) => error.code)
     assert.deepEqual({
@@ -256,6 +258,38 @@ test('the runner migrates and serves each Project through its own sandboxed work
       createTrigger: await attempt('CREATE TRIGGER t BEFORE UPDATE ON follow_up_note FOR EACH ROW EXECUTE FUNCTION suppress_redundant_updates_trigger()'),
       insert: await attempt("INSERT INTO follow_up_note (purchase_order_id, note) VALUES ('PO-9', 'n')"),
     }, { truncate: '42501', createTrigger: '42501', insert: 'ok' })
+  })
+
+  await t.test('an edited applied migration is refused without erasing data unless reset is permitted', async () => {
+    const schema = previewAllocation(a).schema
+    const superuser = new pg.Client({ ...admin, database })
+    await superuser.connect()
+    const state = async () => ({
+      notes: (await superuser.query(`SELECT note FROM "${schema}".follow_up_note ORDER BY id`)).rows.map((row) => row.note),
+      ledger: (await superuser.query(`SELECT position, name, sha256 FROM "${schema}".conexus_migration ORDER BY position`)).rows,
+    })
+    try {
+      const before = await state()
+      assert.deepEqual(before.notes, ['ligar para o fornecedor'])
+      const edited = serverTree([['001_follow_up_note.sql', `${NOTE_SQL}\n-- editada depois de aplicada`]])
+      const refused = await supervisor.prepare({ projectId: a, files: edited, onDivergence: 'REFUSE' })
+      assert.equal(refused.state, 'MIGRATION_HISTORY_DIVERGED')
+      assert.match(refused.detail, /^A migração já aplicada 001_follow_up_note\.sql foi alterada, removida ou reordenada\./)
+      assert.ok(refused.detail.length <= 400)
+      assert.deepEqual(await state(), before)
+
+      const removed = await supervisor.prepare({ projectId: a, files: serverTree([['002_other.sql', 'SELECT 1']]), onDivergence: 'REFUSE' })
+      assert.equal(removed.state, 'MIGRATION_HISTORY_DIVERGED')
+      assert.deepEqual(await state(), before)
+
+      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), /PREVIEW_RESET_EXPIRED/)
+      assert.deepEqual(await state(), before)
+
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
+      assert.deepEqual((await state()).notes, [])
+    } finally {
+      await superuser.end()
+    }
   })
 })
 
@@ -277,12 +311,15 @@ test('the runner reads relay TLS only from a private directory holding exactly i
 })
 
 // One gate: a tree the Project check passed is one the runner prepares and serves, shared chunks
-// included, rather than one it refuses after the Builder was told the source was fine.
-test('the runner prepares and serves exactly what the Project check built', async (t) => {
+// included, rather than one it refuses after the Builder was told the source was fine. The shared
+// chunk imports every supported built-in, so serving it under the default sandbox (bubblewrap and
+// Node's permission layer) shows each one loads there.
+test('the runner prepares and serves exactly what the Project check built, every supported built-in loaded', async (t) => {
   const built = buildServerProject(t, SHARED_LIBRARY_PROJECT)
   assert.equal(built.status, 0, built.stderr)
   const files = serverFilesOf(built.out)
-  assert.ok(files.some((entry) => entry.path.startsWith('conexus-server/chunks/')))
+  const chunks = files.filter((entry) => entry.path.startsWith('conexus-server/chunks/')).map((entry) => Buffer.from(entry.content, 'base64').toString('utf8')).join('\n')
+  for (const name of SUPPORTED_NODE_IMPORTS) assert.match(chunks, new RegExp(`from "${name}"|import "${name}"`), `the shared chunk imports ${name}`)
   const { supervisor, projects: [project] } = await setup(t)
   assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
   const invoke = (operation, input) => supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER })
@@ -295,7 +332,7 @@ test('the runner prepares and serves exactly what the Project check built', asyn
 test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
   const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
   const files = probeServerTree()
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
   const run = async (name, input) => {
     const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
     assert.equal(answer.status, 200, JSON.stringify(answer.body))
@@ -341,6 +378,17 @@ test('the runner refuses to start where the sandbox cannot be built', () => {
   assert.throws(() => assertUserNamespaces({ ...DEFAULT_SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
 })
 
+test('the runner socket admits a prepare only when the Hub says whether a divergent history may reset', async () => {
+  const { prepareBody } = await import(hubModuleUrl('app-runner/requests.js'))
+  const body = { projectId: randomUUID(), files: serverTree([]), onDivergence: 'REFUSE' }
+  assert.equal(prepareBody.safeParse(body).success, true)
+  assert.equal(prepareBody.safeParse({ ...body, onDivergence: { resetBefore: Date.now() + 60_000 } }).success, true)
+  const { onDivergence: _omitted, ...withoutFlag } = body
+  for (const refused of [withoutFlag, { ...body, onDivergence: 'RESET' }, { ...body, onDivergence: {} }, { ...body, onDivergence: { resetBefore: 'soon' } }, { ...body, onDivergence: null }]) {
+    assert.equal(prepareBody.safeParse(refused).success, false, JSON.stringify(refused.onDivergence))
+  }
+})
+
 test('the runner socket admits an invocation only with an exact platform caller beside the input', async () => {
   const { invokeBody } = await import(hubModuleUrl('app-runner/requests.js'))
   const body = { projectId: randomUUID(), operation: 'whoAmI', input: {}, files: serverTree([]), caller: CALLER }
@@ -361,6 +409,21 @@ test('the runner socket admits an invocation only with an exact platform caller 
 // A handler reaching the Connector broker through the one socket the runner binds: the order comes
 // back, and the handler still holds no credential, no token and no other way out.
 const CONNECTOR_HANDLER = `const READ = 'sankhya.purchase-order.read'
+const ROUTE = '/gateway/v1/mge/service.sbr'
+const LOAD = 'CRUDServiceProvider.loadRecords'
+const DATASET = ${JSON.stringify(NATIVE_ORDER_DATASET)}
+const nativeRead = () => ({ connection: 'erp', method: 'POST', path: ROUTE, query: { serviceName: LOAD, outputType: 'json' }, body: { serviceName: LOAD, requestBody: { dataSet: DATASET } } })
+export const fetchOrder = async (input, { connectors }) => ({ text: JSON.stringify(await connectors.fetch(nativeRead())) })
+export const fetchShapes = async (input, { connectors }) => {
+  const read = nativeRead()
+  return { text: JSON.stringify([
+    await connectors.fetch(42),
+    await connectors.fetch({ ...read, path: '//127.0.0.2:' + input.port + '/authenticate' }),
+    await connectors.fetch({ ...read, headers: { authorization: 'x' } }),
+    await connectors.fetch({ ...read, query: { serviceName: 'CRUDServiceProvider.saveRecord', outputType: 'json' }, body: { serviceName: 'CRUDServiceProvider.saveRecord', requestBody: {} } }),
+  ]) }
+}
+export const leakBody = async (input, { connectors }) => { const read = await connectors.fetch(nativeRead()); return { text: 'x', extra: read.body } }
 export const readOrder = async (input, { connectors }) => ({ text: JSON.stringify(await connectors.call(READ, { documentNumber: input.documentNumber })) })
 export const callShapes = async (input, { connectors }) => ({ text: JSON.stringify([
   await connectors.call(42, {}),
@@ -387,12 +450,16 @@ export const probe = async (input, context) => {
   }) }
 }
 `
+const fetchInput = { type: 'object', properties: { port: { type: 'integer' } }, additionalProperties: false }
 const connectorTree = () => {
   const manifest = {
     version: 1,
     operations: {
       readOrder: { module: 'handlers/connector.mjs', export: 'readOrder', input: { type: 'object', properties: { documentNumber: { type: 'integer' } }, required: ['documentNumber'], additionalProperties: false }, output: text },
       callShapes: { module: 'handlers/connector.mjs', export: 'callShapes', input: empty, output: text },
+      fetchOrder: { module: 'handlers/connector.mjs', export: 'fetchOrder', input: fetchInput, output: text },
+      fetchShapes: { module: 'handlers/connector.mjs', export: 'fetchShapes', input: fetchInput, output: text },
+      leakBody: { module: 'handlers/connector.mjs', export: 'leakBody', input: fetchInput, output: text },
       probe: { module: 'handlers/connector.mjs', export: 'probe', input: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' } }, port: { type: 'integer' } }, required: ['paths', 'port'], additionalProperties: false }, output: text },
     },
     migrations: [],
@@ -410,9 +477,8 @@ const connectorSetup = async (t, sandbox) => {
   const envelope = createSecretEnvelope('fe'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    resolveGrant: async (input) => (input.projectId === project ? { grantId: 'grant', connectionId: '33333333-3333-4333-8333-333333333333' } : null),
+    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
-    listGrantedCapabilities: async () => [],
   }
   const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
   const ports = createHandlerPorts({ directory: socketDir, broker })
@@ -423,7 +489,7 @@ const connectorSetup = async (t, sandbox) => {
     return port
   }
   const files = connectorTree()
-  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
   const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
   const port = Number(new URL(fake.origin).port)
   return { ...runner, socketDir, fake, open, invoke, project, otherProject, port }
@@ -452,7 +518,7 @@ test('a handler reads the order through the bound connector socket, and holds no
   ])
   assert.deepEqual(
     await run('readOrder', { documentNumber: 22790 }, portB.socketPath), { ok: false, code: 'NOT_GRANTED' },
-    "the other Project's own open port grants nothing here: the grant belongs to the socket that resolved it",
+    "the other Project's own open port reaches nothing here: the binding belongs to the socket that resolved it",
   )
 
   const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`, socketDir], port })
@@ -466,7 +532,7 @@ test('a handler reads the order through the bound connector socket, and holds no
     fetch: false,
     env: { PWD: '/' },
     context: ['caller', 'connectors', 'db'],
-    connectorKeys: ['call'],
+    connectorKeys: ['call', 'fetch'],
     frozen: true,
     files: { environ: 'ERR_ACCESS_DENIED', cmdline: 'ERR_ACCESS_DENIED' },
   })
@@ -489,6 +555,46 @@ test('a handler reads the order through the bound connector socket, and holds no
   await t.test('a closed port refuses its next connection: the socket dies with the invocation', async () => {
     await portA.close()
     assert.deepEqual(await invoke('readOrder', { documentNumber: 22790 }, portA.socketPath), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } })
+  })
+})
+
+test('a handler fetches through the socket: another Project gets NOT_GRANTED with no request, and nothing secret is visible', async (t) => {
+  const { fake, open, invoke, project, otherProject, port } = await connectorSetup(t)
+  const portA = await open(project)
+  const portB = await open(otherProject)
+  const FETCH = {}
+  const run = async (operation, input, socket = portA.socketPath) => {
+    const answer = await invoke(operation, input, socket)
+    assert.equal(answer.status, 200, JSON.stringify(answer.body))
+    return JSON.parse(answer.body.text)
+  }
+
+  assert.deepEqual(await run('fetchOrder', FETCH), { ok: true, status: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), body: EXPECTED_NATIVE_ORDER })
+  assert.deepEqual(await run('fetchOrder', FETCH, portB.socketPath), { ok: false, code: 'NOT_GRANTED' })
+  assert.equal(fake.requests.length, 2, 'the other Project reached no gateway')
+
+  assert.deepEqual(await run('fetchShapes', { ...FETCH, port }), [
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/'] },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/path'] },
+    { ok: false, code: 'INPUT_REFUSED', issues: ['/<unrecognized>'] },
+    { ok: false, code: 'SERVICE_REFUSED' },
+  ])
+  assert.equal(fake.requests.length, 2, 'refused shapes sent nothing')
+
+  const leaked = await invoke('leakBody', {}, portA.socketPath)
+  assert.equal(leaked.status, 502)
+  assert.equal(leaked.body.error.code, 'HANDLER_OUTPUT_REFUSED')
+
+  const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath], port })
+  noSecretIn(JSON.stringify(seen))
+  assert.deepEqual([seen.context, seen.connectorKeys], [['caller', 'connectors', 'db'], ['call', 'fetch']])
+  // The vendor's own body is the handler's to read, and the fake plants its marker in it; the credential and the token never are.
+  const fetched = JSON.stringify(await run('fetchOrder', FETCH))
+  for (const secret of [...Object.values(FAKE_CREDENTIAL), 'fake-token-']) assert.equal(fetched.includes(secret), false, `${secret} reached the handler`)
+
+  await t.test('without a bound socket fetch answers CONNECTOR_UNCONFIGURED', async () => {
+    const answer = await invoke('fetchOrder', {})
+    assert.deepEqual(JSON.parse(answer.body.text), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   })
 })
 

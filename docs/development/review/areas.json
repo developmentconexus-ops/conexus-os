@@ -10,7 +10,7 @@
     "area": "identity-session",
     "paths": [
       "apps/hub/src/identity-access/**",
-      "apps/hub/src/builder/hub-session-auth.ts",
+      "apps/hub/src/builder/mastra-session-routes.ts",
       "apps/hub/src/mar/application-host-routes.ts",
       "apps/hub/src/mar/preview-routes.ts",
       "apps/hub/src/platform/caller.ts",
@@ -29,7 +29,10 @@
       "tests/implementation/workspace-membership-*",
       "tests/implementation/preview-application-*",
       "tests/implementation/r1-s1-*",
-      "tests/implementation/r1-s2-*"
+      "tests/implementation/r1-s2-*",
+      "docs/tasks/specs/0005-app-access-perfis/**",
+      "docs/tasks/specs/0006-people-and-sign-in/**",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/identity-session.md"
   },
@@ -60,7 +63,10 @@
       "tests/implementation/cutover-hub-*",
       "tests/implementation/connection-census.test.mjs",
       "tests/implementation/protected-cluster*",
-      "tests/implementation/workspace-reads.test.mjs"
+      "tests/implementation/workspace-reads.test.mjs",
+      "docs/tasks/specs/0005-app-access-perfis/**",
+      "docs/tasks/specs/0006-people-and-sign-in/**",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/data-migrations.md"
   },
@@ -70,13 +76,13 @@
       "apps/hub/src/connectors/**",
       "apps/hub/src/app-runner/data-plane.ts",
       "apps/hub/src/app-runner/pg-relay.ts",
-      "apps/hub/src/builder/factory-github.ts",
-      "apps/hub/src/builder/installation-github-routes.ts",
-      "apps/hub/src/builder/repository-routes.ts",
+      "apps/hub/src/builder/conexus-git.ts",
       "apps/hub/src/builder/model-accounts.ts",
-      "apps/hub/src/builder/chat-models.ts",
+      "apps/hub/src/builder/anthropic/**",
       "apps/hub/src/builder/google-ai-pro/**",
-      "apps/hub/src/builder/factory-provisioning.ts",
+      "apps/hub/src/builder/openai-codex/**",
+      "apps/hub/src/builder/model-account-store.ts",
+      "apps/hub/src/builder/model-routing.ts",
       "apps/hub/src/platform/secrets.ts",
       "scripts/builder-e2b-template.mjs",
       "scripts/provision-application-database.mjs",
@@ -87,10 +93,12 @@
       "tests/implementation/application-cluster*",
       "tests/implementation/sandbox-probe/**",
       "tests/implementation/builder-google-*",
+      "tests/implementation/builder-openai-*",
       "tests/implementation/builder-model-*",
       "tests/implementation/builder-e2b-*",
-      "tests/implementation/builder-factory-fake-github.mjs",
-      "tests/implementation/builder-repository-*"
+      "tests/implementation/builder-anthropic*",
+      "tests/implementation/model-account-*",
+      "tests/implementation/builder-conexus-git*"
     ],
     "page": "docs/development/review/connectors.md"
   },
@@ -106,8 +114,7 @@
       "tests/implementation/parity-shots.mjs",
       "tests/implementation/*-screenshot*",
       "tests/implementation/preview-form-policy.test.mjs",
-      "tests/repository/web-style.test.mjs",
-      "tests/implementation/provider-groups.test.mjs"
+      "tests/repository/web-style.test.mjs"
     ],
     "page": "docs/development/review/frontend.md"
   },
@@ -115,14 +122,12 @@
     "area": "builder-factory",
     "paths": [
       "apps/hub/src/builder/**",
-      "apps/hub/src/factory-cli.ts",
       "apps/hub/compiler-template/**",
-      "factory-skills/**",
+      "builder-skills/**",
       "scripts/builder-eval/**",
       "scripts/builder-e2b-template.mjs",
-      "scripts/hub-factory.mjs",
       "tests/implementation/builder-*",
-      "tests/implementation/factory-skills-guard.test.mjs"
+      "tests/implementation/builder-skills-guard.test.mjs"
     ],
     "page": "docs/development/review/builder-factory.md"
   },
@@ -146,6 +151,7 @@
     "area": "platform",
     "paths": [
       "apps/hub/src/server.ts",
+      "apps/hub/src/hub.ts",
       "apps/hub/src/http/**",
       "apps/hub/src/platform/**",
       "apps/hub/src/app-runner/**",
@@ -165,6 +171,8 @@
       "scripts/conexus-verify.mjs",
       "scripts/labels.mjs",
       "scripts/check-test-skips.mjs",
+      "scripts/check-weak-tests.mjs",
+      "scripts/weak-tests-ratchet.json",
       "scripts/test-ledger-reporter.mjs",
       ".github/workflows/**",
       "package.json",
@@ -180,9 +188,17 @@
       "tests/implementation/application-server-*",
       "tests/implementation/hub-build.mjs",
       "tests/implementation/guard-mutations.mjs",
+      "tests/implementation/guard-web-mutations.mjs",
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
-      "tests/implementation/shell-browser-boundary.test.mjs"
+      "tests/implementation/shell-browser-boundary.test.mjs",
+      "docs/tasks/specs/0007-telemetry-otel/**",
+      "apps/hub/src/telemetry/**",
+      "infra/telemetry/**",
+      "infra/pilot/**",
+      "tests/implementation/telemetry-*",
+      "tests/implementation/hub-launch-flags.test.mjs",
+      "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/platform.md"
   }

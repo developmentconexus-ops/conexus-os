@@ -70,6 +70,15 @@ test('running again applies nothing and still passes', async (t) => {
 
 // The advisory lock is what stops two Hub processes starting at once from both applying the same
 // pending migration; one of them waits and then finds the ledger already holds it.
+test('a database that applied a later migration without an earlier one still receives the earlier one and matches the snapshot', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_gap')
+  const withoutGap = corpus.filter(({ version }) => version !== '0040')
+  await runMigrations({ connectionString, migrations: withoutGap, catalogSnapshot: null })
+  assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), withoutGap.map(({ version }) => version))
+  const result = await runHubMigrations({ connectionString })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0040'], versions: corpusVersions })
+})
+
 test('two runs at once leave one ledger row per version', async (t) => {
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig')
   const results = await Promise.all([runHubMigrations({ connectionString }), runHubMigrations({ connectionString })])
@@ -187,4 +196,22 @@ test('a login role provisioned with CONNECT on its database is still revoked and
     ) AS granted
   `)).rows[0].granted
   assert.equal(granted, false)
+})
+
+test('a catalog check that fails after the pending migrations leaves no version and no object behind', async (t) => {
+  const catalogSnapshot = await snapshotAfterBoth(t)
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_rollback')
+  await runMigrations({ connectionString, migrations: [migrationA], catalogSnapshot: null })
+  const mismatched = { catalog: Object.fromEntries(Object.entries(catalogSnapshot.catalog).map(([section, lines]) => [section, lines.filter((line) => !line.includes('gadget'))])) }
+  await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: mismatched }), /MIGRATION_CATALOG_DRIFT/)
+  assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), ['0001'])
+  assert.equal((await query(connectionString, "SELECT to_regclass('iam.gadget') IS NOT NULL AS present")).rows[0].present, false)
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+})
+
+test('a fresh install whose catalog check fails leaves the database empty', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_rollback_fresh')
+  await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: { catalog: {} } }), /MIGRATION_CATALOG_DRIFT/)
+  assert.equal((await query(connectionString, "SELECT to_regnamespace('iam') IS NOT NULL AS present")).rows[0].present, false)
 })

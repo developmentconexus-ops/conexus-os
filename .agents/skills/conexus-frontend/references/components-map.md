@@ -2,21 +2,30 @@
 
 Where things live. Every path below exists on `main`. If one does not, the map is stale: fix it in the same change.
 
-## Production primitives come from Mastra
+## Conexus owns structure; Mastra is a parts bin
 
-The web app composes `@mastra/playground-ui` components. It does not have its own component kit.
+Screens, structure and page patterns are Conexus's own design, not Mastra's. `@mastra/playground-ui` supplies three kinds of part (C-031 in the decision register):
+
+| Kind | Examples in use | Rule |
+| --- | --- | --- |
+| Basic parts | `Button`, `Input`, `Textarea`, `Label`, `Select`, `Combobox`, `RadioGroup`, `DropdownMenu`, `Popover`, `Tooltip`, `AlertDialog`, `Avatar`, `Skeleton`, `Notice`, `Toaster`, `Breadcrumb`, `Collapsible`, `ScrollArea`, `Tree`, `PanelGroup`, `CodeEditor`, `ThemeProvider`, provider icons | Preferred. Repaint through `mastra-theme.css`, replace English text in pt-BR. Never fork. |
+| Agent display parts | `Composer`, `MessageScroller`, `MarkdownRenderer`, `ai/tool-call`, `ai/ask-user`, `ai/task-list` | Allowed, because they render a Mastra run. Wrap with our copy (the `*-pt.tsx` pattern). |
+| Structure blocks | `AppShell`, `MainSidebar`, `ChatShell`, `new/settings` | Frozen. Existing uses stay until the frontend phase. No new screen or section adopts one; new structure is a Conexus component. |
+
+The Mastra Factory's own screens are a reference for what features exist, never a layout to match.
 
 - `apps/web/src/mastra-theme.css` re-points every Mastra custom property (surfaces, neutrals, borders, accents, notices, badges, its green and blue ramps, the focus ring) at a `--cx-*` token. That file is how Mastra looks like Conexus.
 - `apps/web/src/main.tsx` loads `@mastra/playground-ui/style.css` once, up front, then the brand tokens, then `styles.css`. Keep that order. Loading the Mastra stylesheet later changed margins on every page.
 - `apps/web/src/styles.css` puts element defaults in `@layer base`, so Mastra's utilities still win on its own controls, and keeps class rules unlayered so they win over both.
 
-Mastra primitives in use today: `Button`, `Input`, `Textarea`, `Label`, `Select`, `Combobox`, `DropdownMenu`, `Popover`, `Tooltip`, `AlertDialog`, `Avatar`, `Skeleton`, `Notice`, `toast` with `Toaster`, `Breadcrumb` with `Crumb`, `Collapsible`, `ScrollArea`, `Tree`, `AppShell`, `MainSidebar`, `ChatShell`, `MessageScrollerItem`, `MarkdownRenderer`, `PanelGroup` with `PanelSeparator`, `ThemeProvider`, `useCodemirrorTheme`, and the model provider icons.
+Mastra primitives in use today: `Button`, `Input`, `Textarea`, `Label`, `Select`, `Combobox`, `DropdownMenu`, `Popover`, `Tooltip`, `AlertDialog`, `Avatar`, `Skeleton`, `Notice`, `toast` with `Toaster`, `Breadcrumb` with `Crumb`, `Collapsible`, `ScrollArea`, `Tree`, `AppShell`, `MainSidebar`, `ChatShell`, `MessageScrollerItem`, `MarkdownRenderer`, `PanelGroup` with `PanelSeparator`, `ThemeProvider`, `useCodemirrorTheme`, and the model provider icons. `AppShell`, `MainSidebar` and `ChatShell` are existing structure uses under the freeze above, not a pattern to repeat.
 
 To add UI:
 
-1. Use the Mastra primitive when one exists. Change its palette through `mastra-theme.css`, by re-pointing a property it reads. Change its size or layout through a `cx-*` class next to the screen. Never fork the component.
+1. Use the Mastra basic or agent display part when one exists. Change its palette through `mastra-theme.css`, by re-pointing a property it reads. Change its size or layout through a `cx-*` class next to the screen. Never fork the component.
 2. When Mastra hardcodes English text, replace it in pt-BR. `apps/web/src/features/builder/construir/ask-user-pt.tsx` and `task-list-pt.tsx` show the pattern; `builder-copy.ts` holds the strings.
-3. Build a component of your own only when Mastra has nothing close. Keep it in the feature that uses it until a second feature needs the same behavior.
+3. Build structure and page patterns as a Conexus component, with a `cx-*` class defined in a CSS file next to the screen. A class with no CSS behind it fails `npm run web:style:check`.
+4. Build a part of your own only when Mastra has nothing close among basic or agent display parts. Keep it in the feature that uses it until a second feature needs the same behavior.
 
 Do not copy the Claude Design JSX kit (`ConexusDesignSystem_*`, `cx-btn`, `cx-chip` and the rest) into the repository. Those components re-create the look of the Mastra-based screens for prototyping. They are not the production API.
 

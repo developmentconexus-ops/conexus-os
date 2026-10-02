@@ -10,7 +10,7 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 31
+fixed Product operations = 30
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
@@ -23,7 +23,13 @@ and selection (C-022). `BLD-27` to `BLD-29` then raised the table to 21 while th
 18. It became 24 on 2026-09-23, when Stage 2 Q3 let a Workspace Owner grant one person the use of
 a Project's application (`IAM-11` to `IAM-13`). It became 31 on 2026-09-24, when Stage 2 Q4 let an
 installation administrator hold a Workspace's Connector Connection and a Workspace Owner grant one
-Project one of its operations (`CON-01` to `CON-07`).
+Project one of its operations (`CON-01` to `CON-07`). It became 32 on 2026-09-27, when an
+installation administrator gained the power to delete a Project, its data and its GitHub
+repository (`PRJ-04`). On 2026-09-28, C-030 replaced the grant per operation (`CON-05` to `CON-07`)
+with a binding of a whole Connection under a Project-local name (`CON-08` to `CON-10`), and the
+count stayed 32. It became 30 later that day, when spec 0002 gave the Builder its own controller:
+a Project's conversations are its Mastra threads, listed and opened over the Agent Controller's
+own routes, so `BLD-27` and `BLD-28` left the table.
 
 ---
 
@@ -92,22 +98,21 @@ must agree exactly.
 | `PRJ-01` | `ListProjects` | Project | current Workspace Projects selection flow | read |
 | `PRJ-03` | `CreateProject` | Project | current Project creation flow; atomically establishes source and initial access | command |
 | `PRJ-02` | `GetProject` | Project | current Project disclosure/open flow | read |
+| `PRJ-04` | `DeleteProject` | Project | exact Project + repeated exact current name; installation administrator only; tears down every Hub row, its conversations (Mastra threads), its application's data and its Conexus Git repository together | narrowing command |
 | `BLD-08` | `ListProjectSourceTree` | Project Git via Builder | authorized Project + exact immutable source revision | read |
 | `BLD-09` | `GetProjectSourceFile` | Project Git via Builder | authorized Project + exact immutable source revision/path | read |
 | `BLD-23` | `GetBuilderSession` | Builder projection + Mastra conversation | authorized Project + persisted Project Thread and latest BuilderRun/Preview projection | read |
 | `BLD-24` | `SendBuilderMessage` | Builder | authorized Project + server-resolved current source and Project Thread | command |
 | `BLD-25` | `CancelBuilderRun` | Builder | authorized Project + exact BuilderRun; repeated requests remain idempotent | command |
-| `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only | read |
-| `BLD-27` | `ListFactoryConversations` | Builder over Factory storage | authorized Project bound to its Factory repository; conversations are Factory session rows | read |
-| `BLD-28` | `CreateFactoryConversation` | Builder over Factory storage | authorized Project bound to its Factory repository + client-chosen conversation id; a retry returns the existing row | command |
+| `BLD-26` | `GetBuilderRunTrace` | Builder | authorized Project + exact BuilderRun; safe native trace projection only; token usage carries Mastra's optional `inputDetails` and `outputDetails` breakdowns when the provider reported them | read |
 | `BLD-29` | `CompareProjectSourceRevisions` | Project Git via Builder | authorized Project + two exact admitted source revisions; file content stays behind GetProjectSourceFile | read |
 | `CON-01` | `ListWorkspaceConnections` | Connector | the Workspace's Connections, never a credential field; installation administrator only | read |
-| `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it; the credential fields are write-only and never returned | command |
+| `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it, and a retry with this id whose fields differ is a conflict; the credential fields are write-only and never returned | command |
 | `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | read |
-| `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, revokes the Connection's open grants, and the rows stay as the record | narrowing command |
-| `CON-05` | `ListProjectConnectorGrants` | Connector | exact Project's open grants and the operations it could still be granted, in one projection; Owner of the Project's Workspace only | read |
-| `CON-06` | `GrantProjectConnectorOperation` | Connector | exact Project + one operation of one Connection of its own Workspace; Owner of the Project's Workspace only; an operation already granted through another Connection answers that grant | command |
-| `CON-07` | `RevokeProjectConnectorGrant` | Connector | exact Project's connector grant; narrowing, and the next call through it is refused; Owner of the Project's Workspace only | narrowing command |
+| `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, ends the Connection's open bindings, and the rows stay as the record | narrowing command |
+| `CON-08` | `ListProjectConnectionBindings` | Connector | exact Project's open bindings and the Workspace's enabled Connections it has not bound, in one projection; Owner of the Project's Workspace only | read |
+| `CON-09` | `BindProjectConnection` | Connector | exact Project + one enabled Connection of its own Workspace, under a Project-local name; Owner of the Project's Workspace only; the same Connection under the same name answers the open binding, and the Connection under another name or the name on another Connection is a conflict | command |
+| `CON-10` | `UnbindProjectConnection` | Connector | exact Project's binding; narrowing, the row stays as the record, and the next call through it is refused; Owner of the Project's Workspace only | narrowing command |
 
 # 4. What is not an operation
 

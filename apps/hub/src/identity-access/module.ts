@@ -5,6 +5,7 @@ import type { ApplicationAddress } from '../platform/config.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
+import type { ApplicationAccessStore } from './application-access.js'
 import { createHostSessions } from './host-sessions.js'
 import type { HostSessions, PreviewLaunch } from './host-sessions.js'
 import { createInstallationAdministration } from './installation-administration.js'
@@ -25,6 +26,8 @@ export type IdentityAccessModule = Readonly<{
   installationAdministration: InstallationAdministration
   /** The sessions of application and Preview hosts. */
   hostSessions: HostSessions
+  /** Acts on whether the Project has an application, whose Preview data must then never be erased; none can be created meanwhile. */
+  withApplicationPresence: ApplicationAccessStore['withApplicationPresence']
   close(): Promise<void>
 }>
 
@@ -112,6 +115,7 @@ export const createIdentityAccessModule = async ({
     },
     installationAdministration,
     hostSessions,
+    withApplicationPresence: (projectId, work) => applicationAccess.withApplicationPresence(projectId, work),
     close: async () => {
       await Promise.all([oidc.close(), store.close()])
     },

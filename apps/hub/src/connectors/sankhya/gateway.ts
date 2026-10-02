@@ -1,13 +1,11 @@
 import { z } from 'zod'
-import { AdapterFailure } from '../errors.js'
+import { AdapterFailure, transportFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, EnvelopeStatus, ProviderAnswer, RequestTrace } from '../operation.js'
-import { AccessToken } from '../token-cache.js'
+import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../operation.js'
+import { AccessToken, inLane } from '../token-cache.js'
 import type { IssuedToken, Redacted, TokenLease } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
-
-// The only file that speaks the Sankhya gateway wire. Nothing here takes a service, entity,
-// expression, URL, header or token from a consumer.
+import { isOneReadStatement } from './read-only-sql.js'
 
 /**
  * The gateway origins the Sankhya documentation publishes: production and sandbox.
@@ -15,9 +13,26 @@ import type { SankhyaCredential } from './credential.js'
  */
 export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
 
-/** The allow-list: read services only. Any other name is refused before a request is built. */
-const SANKHYA_SERVICES = Object.freeze(['CRUDServiceProvider.loadRecords'] as const)
-type SankhyaService = typeof SANKHYA_SERVICES[number]
+const LOAD_RECORDS = 'CRUDServiceProvider.loadRecords'
+type SankhyaService = typeof LOAD_RECORDS
+
+const sqlConsult = z.strictObject({ sql: z.string() })
+
+/**
+ * The allow-list: read services only, each with the rule for its native `requestBody`, which answers
+ * the refused schema path or null. Any other name is refused before a request is built.
+ */
+const READ_SERVICES: ReadonlyMap<string, (requestBody: unknown) => string | null> = new Map([
+  [LOAD_RECORDS, () => null],
+  ['DbExplorerSP.executeQuery', (requestBody: unknown) => {
+    const consult = sqlConsult.safeParse(requestBody)
+    if (!consult.success) return '/body/requestBody'
+    return isOneReadStatement(consult.data.sql) ? null : '/body/requestBody/sql'
+  }],
+])
+const SANKHYA_SERVICES = Object.freeze([...READ_SERVICES.keys()])
+
+const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
 
 type SankhyaEntity = 'CabecalhoNota' | 'ItemNota'
 type SankhyaReference = Readonly<{ path: 'Parceiro' | 'Produto'; fields: readonly string[] }>
@@ -57,8 +72,6 @@ const failureOfStatus = (status: number, phase: 'authenticate' | 'service'): Ada
   if (status >= 500) return 'UNAVAILABLE'
   return 'PROVIDER_ERROR'
 }
-
-const transportFailure = (signal: AbortSignal): AdapterFailure => new AdapterFailure(signal.aborted ? 'TIMEOUT' : 'UNAVAILABLE')
 
 const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, signal: AbortSignal, phase: 'authenticate' | 'service', answer: ProviderAnswer): Promise<unknown> => {
   let response: Response
@@ -157,8 +170,47 @@ const requestBody = (service: SankhyaService, query: LoadRecordsQuery): string =
   },
 })
 
+const jsonObject = z.record(z.string(), z.unknown())
+const envelopeStatus = envelope.pick({ status: true })
+
+const SERVICE_REFUSED = Object.freeze({ ok: false, code: 'SERVICE_REFUSED' } as const)
+const inputRefused = (issue: string) => Object.freeze({ ok: false, code: 'INPUT_REFUSED', issues: Object.freeze([issue]) } as const)
+
+/**
+ * The native read rule: POST to the gateway's service route, one service on the allow-list in the
+ * query, `outputType=json`, and a JSON object body naming that same service, whose `requestBody` that
+ * service's rule admits. It has no loadRecords expression filter: C-030 puts the read boundary at the
+ * vendor's principal, and this is the service-level tripwire.
+ */
+export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
+  services: SANKHYA_SERVICES,
+  admit({ method, url, body }: Readonly<{ method: string; url: URL; body: unknown }>) {
+    const named = url.searchParams.getAll('serviceName')
+    const allowed = named.length === 1 ? [...READ_SERVICES].find(([name]) => name === named[0]) : undefined
+    if (method !== 'POST' || url.pathname !== SERVICE_PATH || !allowed) return SERVICE_REFUSED
+    const [service, admitBody] = allowed
+    if ([...url.searchParams.keys()].some((key) => key !== 'serviceName' && key !== 'outputType')) return inputRefused('/query')
+    const output = url.searchParams.getAll('outputType')
+    if (output.length !== 1 || output[0] !== 'json') return inputRefused('/query/outputType')
+    const request = jsonObject.safeParse(body)
+    if (!request.success) return inputRefused('/body')
+    if (request.data.serviceName !== service) return SERVICE_REFUSED
+    const issue = admitBody(request.data.requestBody)
+    if (issue) return inputRefused(issue)
+    return Object.freeze({ ok: true, service })
+  },
+  answer(body: unknown) {
+    const parsed = envelopeStatus.safeParse(body)
+    if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
+    const { status } = parsed.data
+    return status === '1' ? Object.freeze({ kind: 'success' }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status })
+  },
+  oneRequestPerToken: true,
+})
+
 /** The adapter factory. The Hub passes the pinned origin; a test passes a local fake's origin directly. */
 export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fetch }: Readonly<{ origin: string; fetch?: typeof fetch }>): Adapter<SankhyaCredential, SankhyaSession> => Object.freeze({
+  origin: new URL(origin).origin,
   async authenticate(credential: Redacted<SankhyaCredential>, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> {
     const { clientId, clientSecret, xToken } = credential.reveal()
     if (/[\r\n]/.test(xToken)) throw new AdapterFailure('AUTHENTICATION_REFUSED')
@@ -174,17 +226,17 @@ export const createSankhyaGateway = ({ origin, fetch: fetchImpl = globalThis.fet
   },
   open(token: TokenLease, signal: AbortSignal, trace: RequestTrace): SankhyaSession {
     const callService = async (service: SankhyaService, query: LoadRecordsQuery): Promise<readonly SankhyaRecord[]> => {
-      if (!SANKHYA_SERVICES.includes(service)) throw new AdapterFailure('SERVICE_REFUSED')
-      const bearer = (await token()).bearer()
-      return trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}/gateway/v1/mge/service.sbr?serviceName=${encodeURIComponent(service)}&outputType=json`, {
+      if (service !== LOAD_RECORDS) throw new AdapterFailure('SERVICE_REFUSED')
+      const leased = await token()
+      return inLane(leased, () => trace.request(service, async (answer) => decodeRecords(await send(fetchImpl, `${origin}${SERVICE_PATH}?serviceName=${encodeURIComponent(service)}&outputType=json`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${bearer}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${leased.bearer()}` },
         body: requestBody(service, query),
-      }, signal, 'service', answer), answer))
+      }, signal, 'service', answer), answer)))
     }
     return Object.freeze({
       callService,
-      loadRecords: (query: LoadRecordsQuery) => callService(SANKHYA_SERVICES[0], query),
+      loadRecords: (query: LoadRecordsQuery) => callService(LOAD_RECORDS, query),
     })
   },
 })
