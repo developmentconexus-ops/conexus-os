@@ -1,56 +1,83 @@
 // The plain sentence a person reads for each Mastra Code tool, in the running and the finished
 // voice. The tool name, arguments and output stay behind the disclosure.
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from '../mastra-tool-names.ts'
+import type { BuiltinToolId } from '@mastra/core/agent-controller'
+import type { WORKSPACE_TOOLS_PREFIX, WorkspaceToolName } from '@mastra/core/workspace'
+
 type ToolKind = 'ler' | 'editar' | 'executar' | 'buscar' | 'verificar' | 'outros'
 type Sentence = Readonly<{ running: string; done: string; ask: string; kind: ToolKind }>
 
-const sentences: Readonly<Record<string, Sentence>> = {
-  view: { running: 'Lendo um arquivo', done: 'Leu um arquivo', ask: 'ler um arquivo', kind: 'ler' },
-  read_file: { running: 'Lendo um arquivo', done: 'Leu um arquivo', ask: 'ler um arquivo', kind: 'ler' },
-  write_file: { running: 'Escrevendo um arquivo', done: 'Escreveu um arquivo', ask: 'escrever um arquivo', kind: 'editar' },
-  create_file: { running: 'Criando um arquivo', done: 'Criou um arquivo', ask: 'criar um arquivo', kind: 'editar' },
-  edit_file: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo', kind: 'editar' },
-  string_replace: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo', kind: 'editar' },
-  str_replace: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo', kind: 'editar' },
-  ast_edit: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo', kind: 'editar' },
-  execute_command: { running: 'Executando um comando', done: 'Executou um comando', ask: 'executar um comando', kind: 'executar' },
-  get_process_output: { running: 'Lendo a saída de um processo', done: 'Leu a saída de um processo', ask: 'ler a saída de um processo', kind: 'executar' },
-  kill_process: { running: 'Parando um processo', done: 'Parou um processo', ask: 'parar um processo', kind: 'executar' },
-  find_files: { running: 'Procurando arquivos', done: 'Procurou arquivos', ask: 'procurar arquivos', kind: 'buscar' },
-  list_files: { running: 'Listando arquivos', done: 'Listou arquivos', ask: 'listar arquivos', kind: 'buscar' },
-  grep: { running: 'Buscando no código', done: 'Buscou no código', ask: 'buscar no código', kind: 'buscar' },
-  search_content: { running: 'Buscando no código', done: 'Buscou no código', ask: 'buscar no código', kind: 'buscar' },
-  search: { running: 'Buscando', done: 'Buscou', ask: 'buscar', kind: 'buscar' },
-  web_search: { running: 'Pesquisando na internet', done: 'Pesquisou na internet', ask: 'pesquisar na internet', kind: 'buscar' },
-  lsp_inspect: { running: 'Inspecionando o código', done: 'Inspecionou o código', ask: 'inspecionar o código', kind: 'buscar' },
-  file_stat: { running: 'Consultando um arquivo', done: 'Consultou um arquivo', ask: 'consultar um arquivo', kind: 'ler' },
-  delete: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo', kind: 'outros' },
-  delete_file: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo', kind: 'outros' },
-  mkdir: { running: 'Criando uma pasta', done: 'Criou uma pasta', ask: 'criar uma pasta', kind: 'outros' },
-  conexus_check: { running: 'Verificando o app', done: 'Verificou o app', ask: 'verificar o app', kind: 'verificar' },
-  conexus_run_operation: { running: 'Testando uma operação com dados reais', done: 'Testou uma operação com dados reais', ask: 'testar uma operação com dados reais', kind: 'verificar' },
-  skill: { running: 'Consultando a skill', done: 'Consultou a skill', ask: 'consultar a skill', kind: 'ler' },
-  skill_read: { running: 'Lendo a skill', done: 'Leu a skill', ask: 'ler a skill', kind: 'ler' },
-  skill_search: { running: 'Procurando uma skill', done: 'Procurou uma skill', ask: 'procurar uma skill', kind: 'buscar' },
-  connector_fetch: { running: 'Consultando um sistema da empresa', done: 'Consultou um sistema da empresa', ask: 'consultar um sistema da empresa', kind: 'outros' },
-  web_fetch: { running: 'Abrindo uma página da internet', done: 'Abriu uma página da internet', ask: 'abrir uma página da internet', kind: 'outros' },
-  context7_resolve_library_id: { running: 'Procurando uma biblioteca na documentação', done: 'Procurou uma biblioteca na documentação', ask: 'procurar uma biblioteca na documentação', kind: 'outros' },
-  context7_query_docs: { running: 'Lendo a documentação de uma biblioteca', done: 'Leu a documentação de uma biblioteca', ask: 'ler a documentação de uma biblioteca', kind: 'outros' },
-  recall: { running: 'Relendo conversas anteriores', done: 'Releu conversas anteriores', ask: 'reler conversas anteriores', kind: 'outros' },
-  ask_user: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você', kind: 'outros' },
-  submit_plan: { running: 'Enviando o plano', done: 'Enviou o plano', ask: 'enviar o plano', kind: 'outros' },
-  task_write: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas', kind: 'outros' },
-  task_update: { running: 'Atualizando as tarefas', done: 'Atualizou as tarefas', ask: 'atualizar as tarefas', kind: 'outros' },
-  task_check: { running: 'Conferindo as tarefas', done: 'Conferiu as tarefas', ask: 'conferir as tarefas', kind: 'outros' },
-  task_complete: { running: 'Concluindo uma tarefa', done: 'Concluiu uma tarefa', ask: 'concluir uma tarefa', kind: 'outros' },
+const sentence = (running: string, done: string, ask: string, kind: ToolKind): Sentence => ({ running, done, ask, kind })
+
+// Typed by Mastra's own tool names, so a name Mastra renames stops compiling instead of quietly
+// reading as "Usou uma ferramenta". The web cannot import the runtime constants (@mastra/core's
+// workspace entry pulls Node's `os` and `path`), so the names are checked as types only.
+type WorkspacePrefix = `${typeof WORKSPACE_TOOLS_PREFIX}_`
+type BareWorkspaceTool = WorkspaceToolName extends `${WorkspacePrefix}${infer Name}` ? Name : never
+
+const readFile = sentence('Lendo um arquivo', 'Leu um arquivo', 'ler um arquivo', 'ler')
+const editFile = sentence('Editando um arquivo', 'Editou um arquivo', 'editar um arquivo', 'editar')
+const grep = sentence('Buscando no código', 'Buscou no código', 'buscar no código', 'buscar')
+const deleteFile = sentence('Apagando um arquivo', 'Apagou um arquivo', 'apagar um arquivo', 'outros')
+
+const workspaceSentences: Readonly<Partial<Record<BareWorkspaceTool, Sentence>>> = {
+  read_file: readFile,
+  write_file: sentence('Escrevendo um arquivo', 'Escreveu um arquivo', 'escrever um arquivo', 'editar'),
+  edit_file: editFile,
+  ast_edit: editFile,
+  execute_command: sentence('Executando um comando', 'Executou um comando', 'executar um comando', 'executar'),
+  get_process_output: sentence('Lendo a saída de um processo', 'Leu a saída de um processo', 'ler a saída de um processo', 'executar'),
+  kill_process: sentence('Parando um processo', 'Parou um processo', 'parar um processo', 'executar'),
+  list_files: sentence('Listando arquivos', 'Listou arquivos', 'listar arquivos', 'buscar'),
+  grep,
+  search: sentence('Buscando', 'Buscou', 'buscar', 'buscar'),
+  index: sentence('Indexando arquivos', 'Indexou arquivos', 'indexar arquivos', 'buscar'),
+  lsp_inspect: sentence('Inspecionando o código', 'Inspecionou o código', 'inspecionar o código', 'buscar'),
+  file_stat: sentence('Consultando um arquivo', 'Consultou um arquivo', 'consultar um arquivo', 'ler'),
+  delete: deleteFile,
+  mkdir: sentence('Criando uma pasta', 'Criou uma pasta', 'criar uma pasta', 'outros'),
 }
+
+const builtinSentences: Readonly<Partial<Record<BuiltinToolId, Sentence>>> = {
+  ask_user: sentence('Perguntando a você', 'Perguntou a você', 'perguntar a você', 'outros'),
+  submit_plan: sentence('Enviando o plano', 'Enviou o plano', 'enviar o plano', 'outros'),
+  task_write: sentence('Organizando as tarefas', 'Organizou as tarefas', 'organizar as tarefas', 'outros'),
+  task_update: sentence('Atualizando as tarefas', 'Atualizou as tarefas', 'atualizar as tarefas', 'outros'),
+  task_check: sentence('Conferindo as tarefas', 'Conferiu as tarefas', 'conferir as tarefas', 'outros'),
+  task_complete: sentence('Concluindo uma tarefa', 'Concluiu uma tarefa', 'concluir uma tarefa', 'outros'),
+}
+
+// The Builder's own tools, and the names other agents give the same file actions.
+const ownSentences: Readonly<Record<string, Sentence>> = {
+  view: readFile,
+  create_file: sentence('Criando um arquivo', 'Criou um arquivo', 'criar um arquivo', 'editar'),
+  string_replace: editFile,
+  str_replace: editFile,
+  find_files: sentence('Procurando arquivos', 'Procurou arquivos', 'procurar arquivos', 'buscar'),
+  search_content: grep,
+  delete_file: deleteFile,
+  web_search: sentence('Pesquisando na internet', 'Pesquisou na internet', 'pesquisar na internet', 'buscar'),
+  conexus_check: sentence('Verificando o app', 'Verificou o app', 'verificar o app', 'verificar'),
+  conexus_run_operation: sentence('Testando uma operação com dados reais', 'Testou uma operação com dados reais', 'testar uma operação com dados reais', 'verificar'),
+  skill: sentence('Consultando a skill', 'Consultou a skill', 'consultar a skill', 'ler'),
+  skill_read: sentence('Lendo a skill', 'Leu a skill', 'ler a skill', 'ler'),
+  skill_search: sentence('Procurando uma skill', 'Procurou uma skill', 'procurar uma skill', 'buscar'),
+  connector_fetch: sentence('Consultando um sistema da empresa', 'Consultou um sistema da empresa', 'consultar um sistema da empresa', 'outros'),
+  web_fetch: sentence('Abrindo uma página da internet', 'Abriu uma página da internet', 'abrir uma página da internet', 'outros'),
+  context7_resolve_library_id: sentence('Procurando uma biblioteca na documentação', 'Procurou uma biblioteca na documentação', 'procurar uma biblioteca na documentação', 'outros'),
+  context7_query_docs: sentence('Lendo a documentação de uma biblioteca', 'Leu a documentação de uma biblioteca', 'ler a documentação de uma biblioteca', 'outros'),
+  recall: sentence('Relendo conversas anteriores', 'Releu conversas anteriores', 'reler conversas anteriores', 'outros'),
+}
+
+const sentences: Readonly<Record<string, Sentence>> = { ...ownSentences, ...workspaceSentences, ...builtinSentences }
 
 // The Mastra Code task tools (@mastra/core's built-in task-tools): construir.tsx drives the
 // pinned checklist from their calls instead of the conversation rendering one row per call.
-export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set(['task_write', 'task_update', 'task_check', 'task_complete'])
+export const TASK_TOOL_NAMES: ReadonlySet<string> = new Set<BuiltinToolId>(['task_write', 'task_update', 'task_check', 'task_complete'])
 
 // Calls that always read as their own row: the person answers them, or they open a skill, so a fold
 // into "Editou 4 arquivos" would hide the one call the conversation turns on.
-export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set(['ask_user', 'submit_plan', 'skill'])
+export const UNGROUPED_TOOL_NAMES: ReadonlySet<string> = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL, 'skill'])
 
 // Names the same underlying action under a different id (a shell alias, an older or provider-specific
 // spelling). Each maps onto one of the sentences above instead of duplicating it.
@@ -79,10 +106,11 @@ const heuristics: readonly Readonly<{ test: RegExp; sentence: Sentence }>[] = [
   { test: /ask_user|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você', kind: 'outros' } },
 ]
 
-// The Builder's workspace tools reach the conversation as `mastra_workspace_<name>`; the table above
-// keys them by the bare name.
+// The Builder's workspace tools reach the conversation as `mastra_workspace_<name>`; the tables above
+// key them by the bare name. The compile-time check pins the literal to Mastra's own prefix.
+const WORKSPACE_PREFIX = 'mastra_workspace_' satisfies WorkspacePrefix
 const lookup = (toolName: string): Sentence | undefined => {
-  const name = toolName.replace(/^mastra_workspace_/, '')
+  const name = toolName.startsWith(WORKSPACE_PREFIX) ? toolName.slice(WORKSPACE_PREFIX.length) : toolName
   return sentences[name] ?? sentences[aliases[name] ?? ''] ?? heuristics.find((entry) => entry.test.test(name))?.sentence
 }
 

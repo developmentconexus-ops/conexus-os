@@ -17,3 +17,6 @@ apps/hub/*-build-*/
 # Claude Code keeps local state here (launch.json, locks, worktrees).
 .claude/*
 .artifacts/
+
+# Scratch static builds a browser test writes under apps/web
+apps/web/test-static-*

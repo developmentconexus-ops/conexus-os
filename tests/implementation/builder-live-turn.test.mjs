@@ -52,3 +52,16 @@ test('a question answered after the run stopped parked on it ends completed, not
   assert.equal(turn.tools.call1.isError, false)
   assert.deepEqual(turn.waiting, {})
 })
+
+test('a retryable error event is a retry in progress, not a failure, and it ends when the model speaks again', () => {
+  const retrying = reduceTurn(idleTurn, event('run-1', { type: 'error', error: new Error('Service Unavailable'), retryable: true, retryDelay: 500, retryAttempt: 2, maxRetries: 10 }))
+  assert.deepEqual([retrying.error, retrying.retrying], [null, { attempt: 2, maxRetries: 10 }])
+  const spoke = reduceTurn(retrying, event('run-1', { type: 'message_start', message: { id: 'm1', role: 'assistant', createdAt: new Date(), content: { format: 2, parts: [] } } }))
+  assert.deepEqual([spoke.error, spoke.retrying], [null, null])
+})
+
+test('an error event with no retry is the failure, and it replaces a retry in progress', () => {
+  const retrying = reduceTurn(idleTurn, event('run-1', { type: 'error', error: new Error('Service Unavailable'), retryable: true, retryAttempt: 10, maxRetries: 10 }))
+  const failed = reduceTurn(retrying, event('run-1', { type: 'error', error: new Error('Service Unavailable') }))
+  assert.deepEqual([failed.error, failed.retrying], ['Service Unavailable', null])
+})

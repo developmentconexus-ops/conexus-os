@@ -139,6 +139,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_MODEL_STEP_TIMEOUT: 'INTERNAL_ERROR',
   // The agent's session sent no event for the turn's silence limit while working, so the Hub ended the turn.
   BUILDER_AGENT_STALLED: 'INTERNAL_ERROR',
+  // A question or plan card went unanswered past the answer wait, which ends before Mastra drops the parked run, so the Hub ended the run.
   BUILDER_RUN_INPUT_REFUSED: 'INTERNAL_ERROR',
   BUILDER_RUN_CREATE_FAILED: 'INTERNAL_ERROR',
   BUILDER_RUN_CLAIM_REFUSED: 'INTERNAL_ERROR',

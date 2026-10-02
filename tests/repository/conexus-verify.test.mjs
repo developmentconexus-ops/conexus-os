@@ -125,6 +125,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-postgres-pool',
   'db-role-provision-postgres',
   'hub-build-shared',
+  'hub-log-sinks',
+  'telemetry',
   'brand-wordmark-csp',
   'builder-tool-sentences',
   'builder-skills-guard',

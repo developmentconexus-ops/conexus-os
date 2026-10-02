@@ -5,6 +5,7 @@ import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
+import { logLine } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
@@ -64,7 +65,7 @@ export const createConnectorModule = ({
   isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
-  log = (line) => { process.stderr.write(line) },
+  log = (line) => logLine(line),
 }: Readonly<{
   /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
    * exactly as the application-access functions are (no new login role, no new pilot secret). */

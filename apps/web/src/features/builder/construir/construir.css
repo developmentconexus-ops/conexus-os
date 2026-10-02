@@ -104,6 +104,7 @@
 .cx-messages .builder-turn-body { display: grid; gap: .6rem; }
 .cx-messages .builder-turn-reason, .cx-messages .builder-turn-error { margin: 0; padding: .55rem .8rem; border-radius: 8px; font-size: .875rem; }
 .cx-messages .builder-turn-reason { background: color-mix(in srgb, var(--cx-warning) 8%, var(--cx-surface)); color: var(--cx-text); }
+.cx-messages .builder-turn-notice { justify-self: start; max-width: 100%; }
 .cx-messages .builder-turn-error { background: color-mix(in srgb, var(--cx-danger) 8%, var(--cx-surface)); color: var(--cx-text); }
 .cx-messages .builder-conversation-empty { margin: 2rem 0 0; color: var(--cx-text-2); text-align: center; }
 

@@ -58,6 +58,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.read_preview_subject': 'hub_builder_ingress',
     'builder.admit_source_revision': 'hub_builder_ingress',
     'builder.claim_builder_run': 'hub_builder_executor',
+    'builder.resume_builder_run': 'hub_builder_executor',
     'builder.set_builder_run_phase': 'hub_builder_executor',
     'builder.record_builder_run_candidate': 'hub_builder_executor',
     'builder.bind_builder_run_message': 'hub_builder_executor',

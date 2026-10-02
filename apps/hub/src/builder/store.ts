@@ -3,7 +3,7 @@ import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
 
-export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
+export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'PARKED' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
 type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
 
 export type BuilderRunSummary = Readonly<{
@@ -55,6 +55,8 @@ export type BuilderStore = Readonly<{
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
   claimBuilderRun(builderRunId: string): Promise<BuilderRunSummary>
+  // Takes a PARKED run back to PREPARING for the answer; null when the run is not parked, which is how a second answer is told.
+  resumeBuilderRun(builderRunId: string): Promise<BuilderRunSummary | null>
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
   // Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested.
   recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
@@ -143,6 +145,12 @@ export const createBuilderStore = ({
     const value = result.rows[0]?.value
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Error('BUILDER_RUN_CLAIM_REFUSED')
     return value
+  },
+  resumeBuilderRun: async (builderRunId) => {
+    const result = await executorPool.query<JsonRow<BuilderRunSummary | null>>(
+      'SELECT builder.resume_builder_run($1) AS value', [builderRunId],
+    )
+    return result.rows[0]?.value ?? null
   },
   setBuilderRunPhase: async (builderRunId, phase) => {
     const result = await executorPool.query<{ value: boolean }>(
