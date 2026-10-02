@@ -15,7 +15,7 @@ test('buildWorktreeAddCommand creates a worktree on a new branch from origin/mai
 
 function recordingCommand(responses) {
   const calls = []
-  const command = (file, args, options) => {
+  const command = (file, args) => {
     calls.push([file, ...args])
     const key = [file, ...args].join(' ')
     return responses[key] ?? { status: 0, stdout: '' }
