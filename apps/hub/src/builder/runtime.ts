@@ -57,6 +57,17 @@ const MAX_CONTINUATION_DELAY_MS = 30_000
 
 type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | 'BUILDER_AGENT_PLATFORM_FAILED' | 'BUILDER_MODEL_STEP_TIMEOUT' | typeof NO_MODEL_ACCOUNT
 
+/**
+ * What a failed model call leaves in the run's log: its HTTP status only. The provider's own error
+ * carries a message and a response body that can echo the account key, and `BUILDER_RUN_FAILED`
+ * logs the cause of what the run throws.
+ */
+const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined => {
+  const { statusCode, status } = (typeof error === 'object' && error !== null ? error : {}) as { statusCode?: unknown; status?: unknown }
+  const http = [statusCode, status].find((value): value is number => typeof value === 'number')
+  return http === undefined ? undefined : { statusCode: http }
+}
+
 /** A failure the agent ended with. `retryDelayMs` is set only when the same session may be continued. */
 class BuilderAgentError extends Error {
   constructor(code: string, readonly retryDelayMs: number | null, options?: ErrorOptions) {
@@ -163,13 +174,13 @@ export const sendBuilderSessionMessage = async (
       }
     } catch (error) {
       const { code, retryDelayMs } = classifyAgentFailure(error)
-      throw code ? new BuilderAgentError(code, retryDelayMs, { cause: error }) : error
+      throw code ? new BuilderAgentError(code, retryDelayMs, { cause: safeCause(error) }) : error
     }
     if (tripwire) throw new Error('BUILDER_AGENT_TRIPWIRE', { cause: tripwire })
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
     if (terminalReason === 'error') {
       const { code, retryDelayMs } = agentError ? classifyAgentFailure(agentError) : { code: null, retryDelayMs: null }
-      throw new BuilderAgentError(code ?? 'BUILDER_MODEL_STREAM_FAILED', retryDelayMs, agentError ? { cause: agentError } : undefined)
+      throw new BuilderAgentError(code ?? 'BUILDER_MODEL_STREAM_FAILED', retryDelayMs, { cause: safeCause(agentError) })
     }
     return terminalReason
   } finally {

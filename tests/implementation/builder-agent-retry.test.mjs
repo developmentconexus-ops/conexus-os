@@ -185,19 +185,21 @@ const runOnUpstream = async (t, replies) => {
   const everything = []
   const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
   session.subscribe((event) => {
-    everything.push(event.type === 'error' ? { ...event, error: { message: event.error?.message, statusCode: event.error?.statusCode, responseBody: event.error?.responseBody } } : event)
+    everything.push(event.type === 'error' ? { ...event, error: event.error && Object.fromEntries(Object.getOwnPropertyNames(event.error).map((name) => [name, event.error[name]])) } : event)
     if (event.type === 'error' && event.retryable) notices.push([event.retryable, event.retryAttempt, event.maxRetries])
   })
-  const outcome = await settle(run.sendTurn('Faça o app.'))
+  let thrownCause
+  const outcome = await settle(run.sendTurn('Faça o app.').catch((error) => { thrownCause = error.cause; throw error }))
   const exposed = JSON.stringify({ outcome, everything }).includes(apiKey)
-  return { calls: calls.length, notices, outcome, exposed, outcomeExposed: JSON.stringify(outcome).includes(apiKey) }
+  const leakingEvents = everything.filter((event) => JSON.stringify(event).includes(apiKey)).map((event) => `${event.type}${event.retryable ? ':retry' : ''}`)
+  return { calls: calls.length, notices, outcome, exposed, leakingEvents, outcomeExposed: JSON.stringify(outcome).includes(apiKey), causeLogged: JSON.stringify(thrownCause ?? null) }
 }
 
 const transient = [['503', 503, 'api_error', 'Service Unavailable'], ['529', 529, 'overloaded_error', 'Overloaded']]
 for (const [label, status, type, message] of transient) {
   test(`an Anthropic ${label} response, decoded by the real provider, is retried with a notice each time and the turn completes without exposing the key`, async (t) => {
     const r = await runOnUpstream(t, [anthropicError(status, type, message), anthropicError(status, type, message), anthropicAnswer])
-    assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, outcomeExposed: false })
+    assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
   })
 }
 
@@ -227,4 +229,16 @@ test('an upstream that echoes the key in its 401 body still ends the run as a ba
 test('an Anthropic 400 is not a transient failure: it is retried at most once and ends as a refused model request', async (t) => {
   const r = await runOnUpstream(t, [anthropicError(400, 'invalid_request_error', 'messages: text content blocks must be non-empty')])
   assert.deepEqual({ outcome: r.outcome, calls: r.calls, exposed: r.exposed }, { outcome: { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' }, calls: 2, exposed: false })
+})
+
+const echoing = (status, type, message) => anthropicError(status, type, `${message} for ${apiKey}`)
+
+test('a transient Anthropic response that echoes the key is retried with notices that carry only the status, and the key is in no event the session emits', async (t) => {
+  const r = await runOnUpstream(t, [echoing(503, 'api_error', 'Service Unavailable'), echoing(529, 'overloaded_error', 'Overloaded'), anthropicAnswer])
+  assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
+})
+
+test('a transient Anthropic failure that echoes the key and never clears ends with the key in no retry notice and in no cause the run logs', async (t) => {
+  const r = await runOnUpstream(t, [echoing(503, 'api_error', 'Service Unavailable')])
+  assert.deepEqual({ outcome: r.outcome, retryNoticesLeaking: r.leakingEvents.filter((type) => type !== 'error'), causeLogged: r.causeLogged }, { outcome: { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' }, retryNoticesLeaking: [], causeLogged: '{"statusCode":503}' })
 })
