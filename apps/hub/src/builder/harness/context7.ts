@@ -13,17 +13,49 @@ const RETRY_AFTER_FAILURE_MS = 60_000
 const RESOLVE_DESCRIPTION = [
   "Finds Context7's id for a library or framework, such as Hono or TanStack Query, so `context7_query_docs` can read its current documentation.",
   'Use it, then `context7_query_docs`, before you write code against a library API you are not sure of; skip it for what the checkout already shows you or you know well.',
-  'Takes `libraryName` and `query`, what you need the library for. Write both in English and send only the library name and a general technical question, never anything from this company or Project.',
+  'Takes `libraryName`, at most four words, and `query`, what you need the library for, one line of at most 200 characters. Write both in English and send only the library name and a general technical question, never anything from this company or Project. A call that carries data, or is longer, is refused.',
   'Returns the matching libraries, each with its id, description and how much documentation it has; pick the one whose name and description fit best.',
   'It needs the internet: if it returns an error, go on without it and read the code in the checkout.',
 ].join(' ')
 
 const QUERY_DESCRIPTION = [
   "Reads the current documentation of one library from Context7, for the `libraryId` that `context7_resolve_library_id` returned, as `/org/project`.",
-  'Takes `libraryId` and `query`, a specific technical question in English, such as "how to define a route with a path parameter". Send nothing from this company or Project.',
+  'Takes `libraryId` and `query`, a specific technical question in English, such as "how to define a route with a path parameter". Send nothing from this company or Project: one line of at most 200 characters, and a call that carries data is refused.',
   'Returns the documentation passages and code examples that answer it. Trust them over what you remember when they differ, and check them against the version the app installs.',
   'It needs the internet: if it returns an error, go on without it and read the code in the checkout.',
 ].join(' ')
+
+const MAX_QUERY_LENGTH = 200
+const MAX_LIBRARY_NAME_LENGTH = 50
+const MAX_LIBRARY_NAME_WORDS = 4
+const LIBRARY_ID = /^\/[\w.-]+\/[\w.-]+(\/[\w.-]+)?$/
+const EMAIL = /\S+@\S+/
+const LONG_NUMBER = /\d{6,}/
+
+const REFUSAL =
+  'Refused: send only a library name or id and a short technical question, never company or Project data. Rephrase it generally, or go on without Context7.'
+
+const isCleanText = (value: unknown, maxLength: number): boolean =>
+  typeof value === 'string' && value.length <= maxLength && !/[\r\n]/.test(value) && !EMAIL.test(value) && !LONG_NUMBER.test(value)
+
+/**
+ * The tool boundary's check on what leaves for Context7. The Hub holds no list of the values the
+ * Builder read through Conexões, so this cannot prove a query is free of company data. It bounds
+ * what can leave to a short single-line technical phrase, and refuses the shapes company data
+ * usually takes: pasted rows, emails and long numbers. A short sentence of company words still
+ * passes; the tool descriptions and the Builder prompt forbid it, and the first real uses are watched.
+ */
+const leavesCleanly = (input: unknown): boolean => {
+  if (typeof input !== 'object' || input === null) return false
+  const { query, libraryName, libraryId } = input as Record<string, unknown>
+  if (!isCleanText(query, MAX_QUERY_LENGTH)) return false
+  if (libraryName !== undefined) {
+    if (!isCleanText(libraryName, MAX_LIBRARY_NAME_LENGTH)) return false
+    if ((libraryName as string).trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return false
+  }
+  if (libraryId !== undefined && !(typeof libraryId === 'string' && LIBRARY_ID.test(libraryId))) return false
+  return true
+}
 
 const REMOTE_TOOLS: Readonly<Record<string, Readonly<{ name: string; description: string }>>> = Object.freeze({
   'context7_resolve-library-id': { name: CONTEXT7_RESOLVE_TOOL, description: RESOLVE_DESCRIPTION },
@@ -46,7 +78,7 @@ export type Context7Options = Readonly<{
 
 /**
  * Context7's documentation lookup as two Builder tools, over Mastra's own MCP client. Only the Hub
- * calls Context7, only the library name and the question leave, and the client refuses any host but
+ * calls Context7, only the library name and a bounded one-line question leave (anything longer or shaped like data is refused), and the client refuses any host but
  * `url`'s. Context7 being down costs the Builder these tools, never the run.
  */
 export const createContext7Docs = (options: Context7Options = {}): DocsTools => {
@@ -79,6 +111,7 @@ export const createContext7Docs = (options: Context7Options = {}): DocsTools => 
         id: exposed.name,
         description: exposed.description,
         execute: async (input: unknown, context: Parameters<typeof call>[1]) => {
+          if (!leavesCleanly(input)) return { content: REFUSAL, isError: true }
           try {
             return await call(input, context)
           } catch {

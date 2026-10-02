@@ -70,7 +70,7 @@ Project Git        → the Git provider
 ```
 
 The Context7 adapter is the Hub's own MCP client, refusing every other host. It sends the
-library name and the question the Builder wrote, never a Hub credential, and it does not run
+library name and a one-line question the Builder wrote, refused when long or shaped like data, never a Hub credential, and it does not run
 in the sandbox.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
