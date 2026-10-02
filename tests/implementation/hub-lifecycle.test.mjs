@@ -34,14 +34,12 @@ test('a database with no ledger at all is behind by every migration', async (t) 
 
 test('a second Hub on the same database is refused until the first lets go', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_lock')
-  const first = testPool({ ...connection, max: 2 })
-  const second = testPool({ ...connection, max: 2 })
-  onCleanup(() => Promise.all([first.end(), second.end()]))
-  const release = await takeInstanceLock(first)
-  await assert.rejects(takeInstanceLock(second), { message: 'HUB_ALREADY_RUNNING' })
-  release()
-  const releaseSecond = await takeInstanceLock(second)
-  releaseSecond()
+  const release = await takeInstanceLock(connection)
+  onCleanup(() => release().catch(() => undefined))
+  await assert.rejects(takeInstanceLock(connection), { message: 'HUB_ALREADY_RUNNING' })
+  await release()
+  const releaseSecond = await takeInstanceLock(connection)
+  await releaseSecond()
 })
 
 test('shutdown with an open stream ends the close and does not wait for the browser', async () => {
@@ -150,4 +148,51 @@ process.exitCode = await runForwarding(process.execPath, [${JSON.stringify(child
   assert.equal(readFileSync(marker, 'utf8'), 'stopped')
   const pid = Number(readFileSync(pidFile, 'utf8'))
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
+})
+
+test('SIGTERM with the real instance lock and pool ends the close and exits 0 well under the deadline', async (t) => {
+  const { connection } = await buildHubDatabase(t, 'conexus_lifecycle_shutdown')
+  const started = Date.now()
+  const { status, output } = await runFixture('real-close', `
+const connection = ${JSON.stringify(connection)}
+const pool = (await import(${JSON.stringify(hubModuleUrl('platform/postgres.js'))})).createPostgresPool(connection)
+const releaseInstanceLock = await lifecycle.takeInstanceLock(connection)
+await pool.query('SELECT 1')
+lifecycle.exitOnSignals(async () => {
+  await pool.end()
+  await releaseInstanceLock()
+})
+process.stdout.write('READY\\n')
+setInterval(() => {}, 1000)
+`, { signalAfterLine: { line: 'READY', signal: 'SIGTERM' } })
+  assert.equal(status, 0, output)
+  assert.doesNotMatch(output, /HUB_SHUTDOWN_TIMEOUT/)
+  assert.ok(Date.now() - started < 5_000, `shutdown took ${Date.now() - started} ms`)
+})
+
+test('Ctrl-C on the launcher reaches the Hub once: it closes and exits 0, never forced', async () => {
+  const childFile = join(fixtureDirectory, 'ctrl-c-child.mjs')
+  writeFileSync(childFile, `
+import * as lifecycle from ${JSON.stringify(hubModuleUrl('platform/lifecycle.js'))}
+lifecycle.exitOnSignals(() => new Promise((done) => setTimeout(done, 300)))
+process.stdout.write('READY\\n')
+setInterval(() => {}, 1000)
+`)
+  const launcherFile = join(fixtureDirectory, 'ctrl-c-launcher.mjs')
+  writeFileSync(launcherFile, `
+import { runForwarding } from ${JSON.stringify(pathToFileURL(resolve(repositoryRoot, 'scripts/build-hub-local.mjs')).href)}
+process.exitCode = await runForwarding(process.execPath, [${JSON.stringify(childFile)}])
+`)
+  // detached makes the launcher a process group leader, so a negative pid signals the group as a terminal does.
+  const launcher = spawn(process.execPath, [launcherFile], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
+  let output = ''
+  const exited = new Promise((resolveExit) => launcher.on('exit', (status) => resolveExit(status)))
+  await new Promise((resolveReady) => launcher.stdout.on('data', (chunk) => {
+    output += chunk
+    if (output.includes('READY')) resolveReady()
+  }))
+  process.kill(-launcher.pid, 'SIGINT')
+  assert.equal(await exited, 0)
+  assert.match(output, /HUB_SHUTDOWN_STARTED:SIGINT/)
+  assert.doesNotMatch(output, /HUB_SHUTDOWN_FORCED/)
 })

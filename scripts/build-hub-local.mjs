@@ -46,10 +46,12 @@ export const buildHubLocal = async () => {
   }
 }
 
-// A signal to this wrapper reaches the child, which stops on its own terms; the wrapper then resolves
-// with the child's exit status so a supervisor sees what the child did.
+// A signal to this wrapper reaches the child once, which stops on its own terms; the wrapper then
+// resolves with the child's exit status so a supervisor sees what the child did. The child runs in
+// its own process group so a terminal's Ctrl-C, sent to the wrapper's group, is not also delivered
+// to it directly.
 export const runForwarding = async (command, args, options = {}) => {
-  const child = spawn(command, args, { cwd: repositoryRoot, stdio: 'inherit', ...options })
+  const child = spawn(command, args, { cwd: repositoryRoot, stdio: 'inherit', detached: true, ...options })
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP']
   const forward = (signal) => child.kill(signal)
   for (const signal of signals) process.on(signal, forward)

@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { logLine, logger, recordFailure } from './logger.js'
-import type { PostgresPool } from './postgres.js'
+import pg from 'pg'
+import type { PostgresConnection, PostgresPool } from './postgres.js'
 
 const SHUTDOWN_DEADLINE_MS = 15_000
 
@@ -33,18 +34,21 @@ export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, mig
 
 /**
  * One Hub per database. The session lock outlives every request and vanishes with the process, so
- * a Hub that cannot take it exits before recovery marks the live Hub's runs INTERRUPTED.
+ * a Hub that cannot take it exits before recovery marks the live Hub's runs INTERRUPTED. It sits on
+ * its own connection, not the pool's, so ending the pool at shutdown never waits on it.
  */
-export const takeInstanceLock = async (pool: Pick<PostgresPool, 'connect'>): Promise<() => void> => {
-  const client = await pool.connect()
+export const takeInstanceLock = async (connection: PostgresConnection): Promise<() => Promise<void>> => {
+  const client = new pg.Client({ ...connection, application_name: 'conexus-hub:instance-lock' })
+  client.on('error', () => logLine('HUB_POOL_ERROR:instance-lock:', 'error'))
+  await client.connect()
   try {
     const { rows } = await client.query<{ taken: boolean }>("SELECT pg_try_advisory_lock(hashtext('conexus.hub.instance')) AS taken")
     if (rows[0]?.taken !== true) throw new Error('HUB_ALREADY_RUNNING')
   } catch (error) {
-    client.release(true)
+    await client.end()
     throw error
   }
-  return () => client.release(true)
+  return () => client.end()
 }
 
 type ExitProcess = (code: number) => never
