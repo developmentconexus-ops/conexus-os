@@ -120,7 +120,7 @@ test('the application check builds app/ and then the server half into /tmp/conex
   assert.equal(APPLICATION_CHECK_INSTRUCTION, 'Before finishing a BUILD, run `sh conexus/check.sh` at the repository root and fix what it reports.')
 })
 
-test('the global conexus-server skill matches the check it documents', () => {
+test('the global conexus-server skill matches the check it documents', async () => {
   const guide = readFileSync(resolve(repositoryRoot, 'factory-skills/conexus-server/SKILL.md'), 'utf8')
   // The guide's example is the contract the check enforces, so it must be one the check admits.
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
@@ -132,6 +132,10 @@ test('the global conexus-server skill matches the check it documents', () => {
   assert.match(guide, /type Caller = \{ accountId: string; email: string \| null; displayName: string \}/)
   assert.match(guide, /\{ db, caller \}: \{ db: Db; caller: Caller \}/)
   assert.match(guide, /never add a name or author field to the input/)
+  // The built-ins the guide lists are exactly the ones the check admits.
+  const { SUPPORTED_NODE_IMPORTS } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+  const listed = /these `node:` built-ins: ([\s\S]*?)\. There are/.exec(guide)[1].match(/`node:[^`]+`/g).map((name) => name.slice(1, -1))
+  assert.deepEqual(listed, [...SUPPORTED_NODE_IMPORTS])
 })
 
 test('writes only the application check files a checkout lacks, and never over a symlink', async () => {

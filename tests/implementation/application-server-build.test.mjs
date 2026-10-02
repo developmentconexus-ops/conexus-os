@@ -1,17 +1,14 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { SHARED_LIBRARY_PROJECT, buildServerProject as project, serverFilesOf } from './server-build-fixture.mjs'
 
-// The same script the Conexus build and the Project check run in the build sandbox, pointed at this
-// repository's vite instead of the template's copy of the same version.
-const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
-const repositoryVite = resolve(import.meta.dirname, '../../node_modules/vite/dist/node/index.js')
-const script = serverBuildScriptSource().replace("'/opt/conexus/compiler/node_modules/vite/dist/node/index.js'", JSON.stringify(repositoryVite))
+const { admitServerTree } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
 const MANIFEST = {
   operations: {
@@ -30,19 +27,6 @@ export async function createNote(input: { purchaseOrderId: string; note: string 
   return { id: rows[0].id }
 }
 `
-
-const project = (t, files) => {
-  const root = mkdtempSync(join(tmpdir(), 'conexus-server-build-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true })
-    writeFileSync(join(root, path), typeof content === 'string' ? content : JSON.stringify(content))
-  }
-  writeFileSync(join(root, '.server-build.mjs'), script)
-  const out = join(root, 'dist')
-  const ran = spawnSync(process.execPath, [join(root, '.server-build.mjs'), root, out], { encoding: 'utf8', timeout: 60_000 })
-  return { root, out, status: ran.status, stdout: ran.stdout.trim(), stderr: ran.stderr.trim() }
-}
 
 const valid = {
   'conexus/manifest.json': MANIFEST,
@@ -95,4 +79,29 @@ test('the check names what is wrong with the server source, in words the Builder
   refused({ ...valid, 'app/src/secret.ts': 'export const secret = 1\n', 'conexus/handlers/notes.ts': `import { secret } from '../../app/src/secret'\nexport const x = secret\n${HANDLER}` }, /imports "\.\.\/\.\.\/app\/src\/secret"/)
   refused({ ...valid, 'conexus/migrations/second.sql': 'SELECT 1' }, /conexus\/migrations\/second\.sql must be a file named like 001_create_notes\.sql/)
   refused({ 'conexus/manifest.json': MANIFEST, 'conexus/handlers/shared.ts': 'export {}\n' },/conexus\/handlers\/notes\.ts does not exist/)
+  refused({ ...valid, 'conexus/handlers/notes.ts': `import { readFileSync } from 'node:fs'\nexport const read = () => readFileSync('/etc/passwd')\n${HANDLER}` }, /imports "node:fs": among Node built-ins a handler may import only .*node:crypto/)
+  refused({ ...valid, 'conexus/handlers/notes.ts': HANDLER.replace('createNote(', 'makeNote(') }, /operations\.createNote: conexus\/handlers\/notes\.ts does not export "createNote" \(it exports: makeNote\)/)
+  refused({ ...valid, 'conexus/handlers/shared.ts': `export const clean = (value: string): string => { void fetch('https://example.com/' + value); return value.trim() }\n` }, /conexus\/handlers\/notes\.ts uses the global "fetch": a handler has no network/)
+  refused({ ...valid, 'conexus/handlers/shared.ts': `export const clean = (value: string): string => { void new globalThis['WebSocket']('wss://example.com'); return value.trim() }\n` }, /uses the global "globalThis\.WebSocket"/)
+})
+
+test('a handler may use its own fetch or a property named fetch, and the supported built-ins', (t) => {
+  const handler = `import { createHash } from 'node:crypto'
+export async function createNote(input: { note: string }, { connectors }: { connectors: { fetch(x: string): string } }) {
+  const fetch = (value: string) => createHash('sha256').update(value).digest('hex')
+  return { id: fetch(input.note).length + connectors.fetch('x').length }
+}
+`
+  const built = project(t, { ...valid, 'conexus/handlers/notes.ts': handler })
+  assert.equal(built.status, 0, built.stderr)
+})
+
+test('what the check builds, the runner admits: shared chunks carry hash-only names', (t) => {
+  const built = project(t, SHARED_LIBRARY_PROJECT)
+  assert.equal(built.status, 0, built.stderr)
+  const files = serverFilesOf(built.out)
+  const chunks = files.map((file) => file.path).filter((path) => path.startsWith('conexus-server/chunks/'))
+  assert.ok(chunks.length > 0, 'the shared library is split into a chunk')
+  for (const path of chunks) assert.match(path, /^conexus-server\/chunks\/c-[A-Za-z0-9_-]+\.mjs$/)
+  assert.doesNotThrow(() => admitServerTree(files, sha256))
 })

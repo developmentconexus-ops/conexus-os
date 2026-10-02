@@ -65,9 +65,12 @@ export async function addItem(input: { name: string }, { db, caller }: { db: Db;
   request asks for.
 - Always pass values as parameters (`$1`, `$2`). Tables live in this Project's own schema: do not
   prefix them with a schema name.
-- A handler may import only files inside `conexus/` and `node:` built-ins. There are no npm packages,
-  no network, no file system and no environment variables. Each call runs isolated for at most 5
-  seconds and answers at most 1 MiB.
+- A handler may import only files inside `conexus/` and these `node:` built-ins: `node:assert`,
+  `node:assert/strict`, `node:buffer`, `node:crypto`, `node:events`, `node:path`,
+  `node:querystring`, `node:string_decoder`, `node:timers`, `node:timers/promises`, `node:url` and
+  `node:util`. There are no npm packages, no network (`fetch`, `WebSocket` and the like do not
+  exist), no file system and no environment variables. Each declared `export` must be a function the
+  handler file exports. Each call runs isolated for at most 5 seconds and answers at most 1 MiB.
 - Postgres `integer` arrives as a number; `bigint` and `numeric` arrive as strings; `timestamptz`
   arrives as an ISO string. Alias columns to the names the output schema declares, for example
   `created_at AS "createdAt"`.
