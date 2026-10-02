@@ -189,6 +189,11 @@
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
       "docs/tasks/specs/0007-telemetry-otel/**",
+      "apps/hub/src/telemetry/**",
+      "infra/telemetry/**",
+      "infra/pilot/**",
+      "tests/implementation/telemetry-*",
+      "tests/implementation/hub-launch-flags.test.mjs",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/platform.md"
