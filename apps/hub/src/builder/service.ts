@@ -107,9 +107,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   applicationServer?: ApplicationServerPort
   runs: BuilderRunDependencies
 }>): BuilderService => {
-  // A run's legs: the work now in flight for it. A parked run has none, in this process or after a restart.
   // Runs an answer is moving out of PARKED: owned from before the database transition until the leg is registered.
   const resuming = new Set<string>()
+  // A run's legs: the work now in flight for it. A parked run has none, in this process or after a restart.
   const builderActive = new Map<string, Readonly<{
     controller: AbortController
     work: Promise<void>
