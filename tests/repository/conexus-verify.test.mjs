@@ -544,7 +544,7 @@ test('failFastOrder moves the named scopes up in graph order and keeps every ste
 test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
   assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), [
     'repository-check', 'repository-agent-context', 'repository-contract-checks', 'conexus-preflight',
-    'wire-bijection', 'wire-bijection-gate', 'test-census', 'only-opt-in-skips',
+    'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'only-opt-in-skips',
   ])
   assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
