@@ -61,8 +61,7 @@ tenant-specific issuer and a first-login flow that only links to existing users.
 **Cons**:
 - Managing users in Keycloak 26.7.2 still includes deleting them, deleting their credentials and
   redirecting their email; no v2 scope separates these from updating. The adapter's surface, the
-  start-up role check, the realm having no human administrator, admin events and the Hub's alerts on
-  them contain it; the spec states it as residual authority.
+  start-up role check, the realm having no human administrator, and Keycloak's own admin events (kept 90 days) contain it; the spec states it as residual authority.
 - Invites need SMTP.
 
 ### Option 3: Option 2 with the `realm-management` roles `manage-users` and `view-users`
@@ -111,6 +110,18 @@ set any user's mail attribute; the spec states it as a limit.
 An email change records its target in Conexus before Keycloak is written, for the same reason a
 create records its intent first: Keycloak can take the new address and then the email or the Hub can
 fail, and without a stored target nothing could finish the change or explain the difference.
+
+No admin-event sweep. An earlier draft had the Hub read Keycloak's admin events every five minutes and
+alert on any call the adapter never makes (AC-25). Review found its cursor starved when more than 100
+events share a millisecond, and the question behind it is whether the sweep earns its place. It does not.
+The leaver path is decided elsewhere (0008 and the user lifecycle study of 2026-10-01): SCIM where the
+company directory supports it, a session maximum of 1 hour, and an immediate disable on the Pessoas
+screen that also ends the person's sessions. Nothing in that path reads admin events. The sweep only
+watched the provisioner credential itself. Dropping it costs the in-product banner for a misused
+credential; Keycloak still records every admin call for 90 days and the operator can read them in the
+console, and the credential's reach stays contained by the adapter surface, the start-up role check and
+`apply keycloak`. The Hub no longer needs `view-events`, so its service account holds `query-users`
+only. If a later need for admin events returns, page by `(time, event id)` and not by time alone.
 
 Email by Keycloak, not by the Hub: Keycloak's action token is what lets a person set a password
 without Conexus ever holding it, and one sender means one SMTP setting.
