@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { chromium } from '@playwright/test'
-import { startWebServer } from './web-dev-server.mjs'
+import { shareWebBrowser } from './web-dev-server.mjs'
 import { answerPendingCard, createCards } from '../../scripts/builder-eval/run.mjs'
 import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
+
+const web = shareWebBrowser()
 
 // The formatter has no Mastra field to read a display name from (see model-display-name.ts's own
 // comment and the PR description for the file:line citations), so its output is pinned here against
@@ -103,10 +104,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   let runFinished = false
   const threadMessages = []
   const requests = []
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   // The second send settles as RESPONSE_ONLY: an ordinary send that changes nothing.
   const session = () => ({
@@ -257,10 +255,7 @@ test('new Project lands directly in Build and can send its first Builder message
   const runId = '70000000-0000-4000-8000-000000000014'
   const sourceRevision = 'd'.repeat(40)
   let run = null
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   const conversationId = 'conversation-new-project'
   const session = () => ({
@@ -307,10 +302,7 @@ test('an untitled conversation shows the title its first request gives it while 
   const conversationId = '70000000-0000-4000-8000-000000000025'
   const sourceRevision = 'e'.repeat(40)
   let run = null
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const state = builderState([conversation(conversationId, null)], { [conversationId]: [] })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -349,10 +341,7 @@ test('a Project holds several conversations, and switching between them leaves t
     [counter.id]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
     [clock.id]: [userMessage('clock-1', 'Crie um relógio'), assistantMessage('clock-2', 'Relógio pronto')],
   }, '')
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   const previewRequests = []
@@ -422,10 +411,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const olderResult = '2'.repeat(40)
   const latestBase = '3'.repeat(40)
   const latestResult = '4'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   const conversationId = 'conversation-history'
@@ -520,10 +506,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
 test('a send whose outcome is unknown reuses its idempotency key on an identical resend', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000071'
   const projectId = '70000000-0000-4000-8000-000000000072'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   const keys = []
@@ -566,10 +549,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
 test('a send the Hub refused reads Não enviado and takes a fresh key on a resend', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   const keys = []
@@ -620,10 +600,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   const digestB = 'd'.repeat(64)
   let phase = 'A'
   let previewRequests = 0
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-preview-continuity', 'Conversa')]))
@@ -688,10 +665,7 @@ test('a run that failed before the agent still shows the request and names why i
   const projectId = '70000000-0000-4000-8000-000000000042'
   const runId = '70000000-0000-4000-8000-000000000043'
   const sourceRevision = '9'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
   // empty and the row is the only record of what the operator asked for.
@@ -727,10 +701,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   const accountId = '70000000-0000-4000-8000-000000000091'
   const projectId = '70000000-0000-4000-8000-000000000092'
   const conversationId = 'conversation-levels'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const models = [
     { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
     { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
@@ -793,10 +764,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
   const conversationId = 'conversation-run-notice'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const notice = {
     id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
     content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
@@ -825,10 +793,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   const projectId = '70000000-0000-4000-8000-000000000072'
   const runId = '70000000-0000-4000-8000-000000000073'
   const sourceRevision = '7'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   const working = 'conversation-working'
   const other = 'conversation-other'
@@ -887,10 +852,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   const projectId = '70000000-0000-4000-8000-000000000052'
   const sourceRevision = '7'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000053'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
 
   let releaseEntry
@@ -930,10 +892,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   const accountId = '70000000-0000-4000-8000-000000000061'
   const projectId = '70000000-0000-4000-8000-000000000062'
   const artifactRevisionId = '70000000-0000-4000-8000-000000000063'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-source-ahead', 'Conversa')]))
@@ -970,10 +929,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   const launchB = deferred()
   const firstLaunchStarted = deferred()
   const secondLaunchStarted = deferred()
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-preview-race', 'Conversa')]))
@@ -1036,10 +992,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   const counterId = '70000000-0000-4000-8000-000000000094'
   const clockId = '70000000-0000-4000-8000-000000000095'
   const sourceRevision = '7'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   let run = null
   const conversations = [
@@ -1135,10 +1088,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
   const runId = '70000000-0000-4000-8000-000000000103'
   const conversationId = 'conversation-dedup'
   const sourceRevision = 'e'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
   // The controller stores a turn under the message and call ids its stream used, with a step-start
@@ -1209,10 +1159,7 @@ test('a page opened while the run is parked shows the question card once from th
   const runId = '70000000-0000-4000-8000-000000000303'
   const conversationId = 'conversation-parked-reload'
   const sourceRevision = 'a'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const question = 'Qual status um pedido pode ter?'
   const ask = { questions: [{ question, options: [{ label: 'Aberto' }, { label: 'Pago' }] }] }
@@ -1273,10 +1220,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   const runId = '70000000-0000-4000-8000-000000000203'
   const conversationId = 'conversation-ask-user'
   const sourceRevision = 'f'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const question = 'Qual cor você prefere para o destaque?'
   const options = [{ label: 'Azul' }, { label: 'Verde' }]
@@ -1358,10 +1302,7 @@ const openLiveTurn = async (t, events) => {
   const runId = '70000000-0000-4000-8000-000000000223'
   const conversationId = 'conversation-live-deltas'
   const sourceRevision = 'c'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const threadMessages = [userMessage('user-1', 'Mude o título')]
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: threadMessages })
@@ -1390,10 +1331,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   const runId = '70000000-0000-4000-8000-000000000313'
   const conversationId = 'conversation-streamed-phase'
   const sourceRevision = 'b'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const run = {
     builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
@@ -1627,10 +1565,7 @@ test('the eval driver answers every question of the real multi-question ask_user
   const runId = '70000000-0000-4000-8000-000000000233'
   const conversationId = 'conversation-ask-user-many'
   const sourceRevision = 'd'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const questions = [
     { question: 'Contar provisórios?', multiSelect: false, options: [{ label: 'Sim, contar também os provisórios', description: 'Inclui rascunhos' }, { label: 'Não' }] },
@@ -1691,10 +1626,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   const runId = '70000000-0000-4000-8000-000000000213'
   const conversationId = 'conversation-ask-user-freetext'
   const sourceRevision = 'e'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const question = 'Qual nome você quer para o app?'
   const threadMessages = [userMessage('user-1', 'Crie um app de lista de tarefas')]
@@ -1728,10 +1660,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
 // A conversation of Project "Agenda" whose latest run, when given, is working.
 const openAgenda = async (t, { accountId, projectId, conversationId, runId = null, stream = [], omProgress = null, viewport = { width: 1100, height: 900 } }) => {
   const sourceRevision = 'a'.repeat(40)
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport })
+  const { page, origin } = await web.openPage(t, { viewport })
   const state = builderState([conversation(conversationId, 'Agenda')], { [conversationId]: runId ? [userMessage('user-1', 'Crie uma agenda')] : [] })
   state.omProgress = omProgress
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -2018,10 +1947,7 @@ for (const width of [1536, 1700]) {
     const runId = '70000000-0000-4000-8000-000000000253'
     const conversationId = 'conversation-chat-width'
     const sourceRevision = 'c'.repeat(40)
-    const origin = await startWebServer(t)
-    const browser = await chromium.launch({ headless: true })
-    t.after(() => browser.close())
-    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    const { page, origin } = await web.openPage(t, { viewport: { width, height: 900 } })
 
     const longPath = `apps/web/src/features/${'agenda-semanal-com-nome-muito-comprido/'.repeat(4)}componente.tsx`
     const question = ['Posso construir assim?', `Vou editar \`${longPath}\``, `e rodar npm run test -- ${longPath} --reporter=verbose --coverage`, 'a'.repeat(160)].join(' ')

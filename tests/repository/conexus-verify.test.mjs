@@ -143,6 +143,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'project-settings-deletion-browser',
   'project-name',
   'shell-browser-boundary',
+  'web-dev-server',
   'brand-tokens',
   'preview-form-policy',
   'builder-credential-generation',
