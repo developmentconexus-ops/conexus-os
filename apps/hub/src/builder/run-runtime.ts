@@ -649,19 +649,20 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   conversationWorkspaces.set(conversationId, workspace)
   runTools.set(builderRunId, { check: runCheck, runOperation })
   runContexts.set(scope, bindContext)
+  let session: ControllerSession | undefined
   const forget = (): void => {
-    runContexts.delete(scope)
-    conversationWorkspaces.delete(conversationId)
+    if (runContexts.get(scope) === bindContext) runContexts.delete(scope)
+    if (conversationWorkspaces.get(conversationId) === workspace) conversationWorkspaces.delete(conversationId)
     runTools.delete(builderRunId)
   }
   const deleteSession = async (): Promise<void> => {
+    if (!session || (await controller.getSessionByResource(resourceId, scope)) !== session) return
     await controller.deleteSession({ resourceId, scope })
     if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
   const end = async (): Promise<void> => {
     forget()
   }
-  let session: ControllerSession
   try {
     session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     // A session resolves its workspace once, when it is made; one made on a VM the conversation no
