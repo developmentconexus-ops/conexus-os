@@ -428,7 +428,7 @@ const browserCommand = async ([action, ...args]) => {
 export const signIn = async (page, state) => {
   logAction(state, 'sign-in')
   await page.goto(new URL('/protocol/oidc/login', state.origin).href)
-  // Signing out of the Hub leaves Keycloak's own session alive, and Keycloak then returns at once.
+  // While the browser holds a Keycloak session (a sign-in that never signed out), Keycloak returns at once.
   const form = page.locator('#username')
   await Promise.race([form.waitFor({ timeout: 30_000 }), page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })].map((wait) => wait.catch(() => {})))
   if (new URL(page.url()).origin !== state.origin) {

@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0049",
+ "head": "0050",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -599,7 +599,7 @@
    "function iam.claim_invitations(p_account_id uuid, p_verified_email text) returns integer kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=ad60e34430b82bd13e15be73c6cbbbcb",
    "function iam.email_has_open_invitation(p_verified_email text) returns boolean kind=f owner=iam_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=05b749c56aa6323a48c968ac384f025b",
    "function iam.end_host_session(p_session_digest bytea, p_reason text) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=81db8d2a623d6e43bf9a75c6982e1037",
-   "function iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) returns boolean kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=79e105076414d0ca311a76b0933c8fce",
+   "function iam.end_hub_session(p_session_digest bytea, p_csrf_digest bytea) returns text kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=fbf11fde6d309d33dff071ac57fdb9ce",
    "function iam.establish_workspace_creator_access(p_account_id uuid, p_workspace_id uuid) returns void kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_workspace_command:EXECUTE:false,iam_owner:EXECUTE:false,workspace_owner:EXECUTE:false body=48167b502a780d7942c024180298f489",
    "function iam.grant_application_access(p_actor uuid, p_project_id uuid, p_invitation_id uuid, p_email text, p_expires_at timestamp with time zone) returns TABLE(kind text, entry_id uuid) kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=0edaec86baf5b63d51a192636b428f1e",
    "function iam.grant_first_installation_administrator(p_account_id uuid) returns boolean kind=f owner=iam_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_iam_runtime:EXECUTE:false,iam_owner:EXECUTE:false body=4c7bcddfa5ea46f07923da9de9bb2a4d",
