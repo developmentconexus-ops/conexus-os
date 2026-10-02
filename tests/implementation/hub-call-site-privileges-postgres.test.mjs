@@ -138,10 +138,13 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',
     'reg.get_application_by_source': 'hub_builder_executor',
     'reg.read_application_file_by_source': 'hub_builder_executor',
+    'reg.retain_application_thumbnail': 'hub_builder_executor',
+    'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'registry/served-application.ts': Object.freeze({
     'reg.get_served_application': 'hub_builder_executor',
     'reg.read_served_application_file': 'hub_builder_executor',
+    'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'workspace/store.ts': Object.freeze({
     'workspace.reserve_or_replay_create_workspace': 'hub_workspace_command',

@@ -95,3 +95,5 @@ export function projectDeleteMessage(error: unknown): string {
   if (error.status === 503) return 'A exclusão não terminou. O que já foi apagado não volta atrás; tente de novo para concluir.'
   return 'O servidor não respondeu desta vez. Nada foi excluído.'
 }
+
+export const projectThumbnailUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`

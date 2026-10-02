@@ -25,6 +25,8 @@ type CompiledApplicationFile = Readonly<{
   sha256: string
 }>
 
+type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
+
 export type CompiledApplication = Readonly<{
   projectId: string
   sourceRevision: string
@@ -32,6 +34,7 @@ export type CompiledApplication = Readonly<{
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
   executionId: string
+  thumbnail?: CompiledApplicationThumbnail
 }>
 
 const hasControlCharacter = (value: string): boolean => [...value].some((character) => {
@@ -176,10 +179,27 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortS
   return Object.freeze(output)
 }
 
+const THUMBNAIL_MAX_BYTES = 512_000
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
+
+const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<CompiledApplicationThumbnail | null> => {
+  try {
+    const path = `${place.out.slice(0, place.out.lastIndexOf('/'))}/conexus-thumbnail.png`
+    if (!SAFE_ABSOLUTE_PATH.test(path)) return null
+    const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(signal, place) })
+    if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
+    return Object.freeze({ mediaType: 'image/png' as const, bytes: new Uint8Array(bytes) })
+  } catch {
+    return null
+  }
+}
+
 export type ApplicationCheckRun = Readonly<{
   report: CheckReport
   /** The build's files, read only when the check passed its blocking steps and `collect` was asked for. */
   files: readonly CompiledApplicationFile[] | null
+  /** The picture the boot step took of the rendered page, when the build was collected and one was taken. */
+  thumbnail: CompiledApplicationThumbnail | null
 }>
 
 /**
@@ -213,5 +233,6 @@ export const checkApplicationInSandbox = async (
   const report = parseCheckReport(result.stdout)
   const files = input.collect && report.ok ? await collectOutput(sandbox, place, input.signal) : null
   assertNotAborted(input.signal)
-  return Object.freeze({ report, files })
+  const thumbnail = files ? await readThumbnail(sandbox, place, input.signal) : null
+  return Object.freeze({ report, files, thumbnail })
 }

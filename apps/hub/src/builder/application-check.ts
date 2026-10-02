@@ -381,6 +381,7 @@ const stubValue = (schema) => {
   }
 }
 
+const THUMBNAIL_FILE = 'conexus-thumbnail.png'
 const runBoot = async () => {
   const problems = []
   const seen = new Set()
@@ -509,6 +510,14 @@ const runBoot = async () => {
       await new Promise((settle) => setTimeout(settle, 300))
       const evaluated = await send('Runtime.evaluate', { expression: '(() => { const element = document.getElementById("root"); return element ? element.children.length : -1 })()', returnByValue: true })
       if (typeof evaluated?.result?.value !== 'number' || evaluated.result.value <= 0) add({ code: 'BOOT_NO_ROOT_CHILD', message: 'The page loaded but #root has no children: nothing was rendered.' })
+      else {
+        // Best effort: the Projects list shows this picture; failing to take it never fails the check.
+        try {
+          await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 0.5, mobile: false })
+          const shot = await send('Page.captureScreenshot', { format: 'png' })
+          if (typeof shot?.data === 'string' && shot.data.length > 0) writeFileSync(join(out, '..', THUMBNAIL_FILE), Buffer.from(shot.data, 'base64'), { mode: 0o644 })
+        } catch {}
+      }
       return {}
     }
     const outcome = await Promise.race([
