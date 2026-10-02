@@ -42,22 +42,22 @@ test('registering a flow with no test file fails', () => {
 
 test('a live test naming an unregistered flow fails', () => {
   const { problems } = run({ areas: [{ area: 'a', flows: [] }] })
-  assert.match(problems.join('\n'), /live flow builder\.send-and-reply is not registered/)
+  assert.deepEqual(problems, ['live flow builder.send-and-reply is not registered in docs/development/review/areas.json'])
 })
 
 test('a registered flow whose test does not declare it fails', () => {
   const { problems } = run({ areas: [{ area: 'a', flows: [flow(), flow({ id: 'builder.ghost' })] }] })
-  assert.match(problems.join('\n'), /builder\.ghost .* does not declare that flow/)
+  assert.deepEqual(problems, ['flow builder.ghost names tests/live/builder-send-and-reply.test.mjs, which does not declare that flow'])
 })
 
 test('a registered flow whose test the graph does not run fails', () => {
   const { problems } = run({ graph: [] })
-  assert.match(problems.join('\n'), /not run by the required graph/)
+  assert.deepEqual(problems, ['flow builder.send-and-reply names tests/live/builder-send-and-reply.test.mjs, which is not run by the required graph'])
 })
 
 test('a live test file with no flow declaration fails', () => {
   const sources = { ...SOURCES, 'tests/live/bare.test.mjs': 'test("x", () => {})' }
-  assert.match(run({ sources }).problems.join('\n'), /bare\.test\.mjs declares no flow/)
+  assert.deepEqual(run({ sources }).problems, ['tests/live/bare.test.mjs declares no flow: wrap each scenario in liveFlow({ id, nome }, ...)'])
 })
 
 test('a liveFlow call the census cannot read fails instead of being skipped', () => {
@@ -77,8 +77,9 @@ test('a duplicate id, a malformed flow and a missing flows array fail', () => {
       { area: 'c' },
     ],
   })
-  const text = problems.join('\n')
-  assert.match(text, /registered twice/)
-  assert.match(text, /without id, nome and test/)
-  assert.match(text, /area c has no "flows" array/)
+  assert.deepEqual(problems, [
+    'flow builder.send-and-reply is registered twice (a and b)',
+    'area b has a flow without id, nome and test: {"id":"x.y"}',
+    'area c has no "flows" array (use [] when it has no person flow)',
+  ])
 })
