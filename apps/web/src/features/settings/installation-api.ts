@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { hubFetch } from '../../app/http'
 
 export class InstallationRequestError extends Error {
   constructor(readonly status: number, readonly type: string | null = null) {
@@ -6,16 +7,10 @@ export class InstallationRequestError extends Error {
   }
 }
 
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
-
 async function request<T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await hubFetch(url, {
     method,
-    credentials: 'same-origin',
-    headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...(method === 'GET' ? {} : { 'x-conexus-csrf': csrf() }),
-    },
+    headers: body === undefined ? {} : { 'content-type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
