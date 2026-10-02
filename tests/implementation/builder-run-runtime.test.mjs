@@ -152,6 +152,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       if (!held) throw new Error(`ENOENT: ${path}`)
       return held
     },
+    readAgentFileIfPresent: async (path) => egress.files.get(path) ?? null,
     executeCommand: async (command, args = [], options = {}) => {
       const line = [command, ...args].join(' ')
       onCommand?.(sandbox, line)

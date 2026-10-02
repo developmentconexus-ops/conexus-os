@@ -19,7 +19,7 @@ const ports = (overrides = {}) => {
     ports: {
       asRoot: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
       writeRootFile: async (path, content) => { files.set(path, Buffer.from(content)) },
-      readAgentFile: async (path) => { if (!files.has(path)) throw new Error('ENOENT'); return files.get(path) },
+      readAgentFile: async (path) => files.get(path) ?? null,
       log: (line) => lines.push(line),
       executionId: 'run-1',
       conversationId: 'conv-1',
@@ -116,6 +116,14 @@ test('a turn whose poller wrote no file is complete with no destinations, and th
     `BUILDER_SANDBOX_EGRESS:run-1:conv-1:10.0.0.1:443:tcp:${new Date(3000).toISOString()}:1`,
     'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:1',
   ])
+})
+
+test('a TCP log that cannot be read is a failed collection, never a complete one', async () => {
+  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('502 upstream timeout'); return null } })
+  await collectEgress(held.ports)
+  assert.equal(held.lines.some((line) => line.includes(':complete:')), false)
+  assert.equal(held.lines.some((line) => line.startsWith('BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:run-1:')), true)
+  assert.equal(held.lines.at(-1), 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
 })
 
 test('a collection that fails or hangs is logged, never thrown, and never waits past its timeout', async () => {

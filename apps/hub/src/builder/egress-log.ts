@@ -238,7 +238,8 @@ const aggregateEgress = (dnsRows: readonly unknown[], tcpRows: readonly unknown[
 }
 
 export type EgressCollectPorts = Readonly<EgressRoot & {
-  readAgentFile(path: string): Promise<Uint8Array>
+  /** Null when the file is not there; any other failure rejects. */
+  readAgentFile(path: string): Promise<Uint8Array | null>
   log(line: string): void
   executionId: string
   conversationId: string
@@ -247,7 +248,7 @@ export type EgressCollectPorts = Readonly<EgressRoot & {
 
 const readOffsets = async (ports: EgressCollectPorts): Promise<Offsets | null> => {
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(await ports.readAgentFile(OFFSET_PATH)).toString('utf8'))
+    const parsed: unknown = JSON.parse(Buffer.from((await ports.readAgentFile(OFFSET_PATH)) ?? new Uint8Array()).toString('utf8'))
     if (isObject(parsed) && Number.isInteger(parsed.dns) && Number.isInteger(parsed.tcp) && (parsed.dns as number) >= 0 && (parsed.tcp as number) >= 0) {
       return { dns: parsed.dns as number, tcp: parsed.tcp as number }
     }
@@ -260,8 +261,8 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   if (polled.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
   const stored = await readOffsets(ports)
   const offsets = stored ?? { dns: 0, tcp: 0 }
-  let tcpBytes: Uint8Array | null = null
-  try { tcpBytes = await ports.readAgentFile(TCP_LOG_PATH) } catch { /* the poller writes the log on first sighting: no file means no destinations */ }
+  // The poller writes the log on first sighting: no file means no destinations. A read that fails otherwise fails the collection.
+  const tcpBytes = await ports.readAgentFile(TCP_LOG_PATH)
   const tcp = tcpBytes ? readJsonl(tcpBytes, offsets.tcp) : { rows: [], offset: offsets.tcp }
   let dnsBytes: Uint8Array | null = null
   try { dnsBytes = await ports.readAgentFile(DNS_LOG_PATH) } catch { /* no forwarder log: addresses go unnamed */ }
