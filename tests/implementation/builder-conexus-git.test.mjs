@@ -7,7 +7,7 @@ import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { MAX_RESULT_BUNDLE_BYTES, MAX_RESULT_FILE_BYTES, candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { MAX_RESULT_BUNDLE_BYTES, MAX_RESULT_FILE_BYTES, MAX_RESULT_FILES, candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(hubModuleUrl('builder/source.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -445,4 +445,30 @@ test('a small bundle holding a file above the per-file cap is refused and its st
   const exact = stage(MAX_RESULT_FILE_BYTES)
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
   assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
+})
+
+test('a result holding more files than the cap is refused and its staging ref is gone', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const work = cloneOf(root, directory)
+  const held = bare(root, 'ls-tree', '-r', '--name-only', base).split('\n').filter(Boolean).length
+  const stage = (count) => {
+    const files = Object.fromEntries(Array.from({ length: count }, (_, index) => [`app/many/f${index}.txt`, `${index}`]))
+    const candidate = commitIn(work, files)
+    run(work, ['update-ref', `refs/conexus/runs/${RUN}`, candidate])
+    const bundle = bundleOf(work, directory, [`refs/conexus/runs/${RUN}`, `^${base}`])
+    run(work, ['reset', '--quiet', '--hard', base])
+    return { candidate, bundle }
+  }
+  const before = refs(root)
+
+  const over = stage(MAX_RESULT_FILES - held + 1)
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: over.bundle }), { message: 'BUILDER_RESULT_CONTENT_TOO_LARGE' })
+  assert.equal(refs(root), before)
+  assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
+
+  const exact = stage(MAX_RESULT_FILES - held)
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
 })

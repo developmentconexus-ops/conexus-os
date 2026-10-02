@@ -54,8 +54,10 @@ const BUILDER_IDENTITY = { name: 'Conexus Builder', email: 'builder@conexus.inva
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 /** The largest result bundle the Hub takes from a sandbox, measured in the sandbox and again while it streams. */
 export const MAX_RESULT_BUNDLE_BYTES = 64 * 1024 * 1024
-/** The largest file a result may hold: the application's own per-file limit (`application-artifact-runtime.ts`). */
+/** The largest file a result may hold: 12 MiB, the same bound as the build-output total in `application-artifact-runtime.ts`. */
 export const MAX_RESULT_FILE_BYTES = 12 * 1024 * 1024
+/** The most files a result may hold: 256, the file count `application-artifact-runtime.ts` allows in a build output; the starter holds 41. */
+export const MAX_RESULT_FILES = 256
 
 class GitCommandError extends Error {
   constructor(readonly exitCode: number, readonly stderr: string) {
@@ -266,7 +268,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
         if (!commit || !OID.test(commit) || parents.length !== 1 || parents[0] !== parent) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
         const tree = (await git(projectId, ['ls-tree', '-r', '-l', '-z', staging])).toString('utf8').split('\0').filter(Boolean)
         const sizes = tree.map((entry) => /^\d+ blob [0-9a-f]{40} +(\d+)\t/.exec(entry)?.[1]).map(Number)
-        if (sizes.some((size) => size > MAX_RESULT_FILE_BYTES)) throw new Error('BUILDER_RESULT_CONTENT_TOO_LARGE')
+        if (tree.length > MAX_RESULT_FILES || sizes.some((size) => size > MAX_RESULT_FILE_BYTES)) throw new Error('BUILDER_RESULT_CONTENT_TOO_LARGE')
         await moveRef(projectId, ref, commit, expected)
         return commit
       } finally {
