@@ -104,8 +104,11 @@ export const localConversationSandboxes = (root, workspaceTools) => {
   return Object.freeze({
     open,
     destroy: async (conversationIds) => { for (const conversationId of conversationIds) remove(conversationId) },
-    killRecorded: async (providerSandboxIds) => {
-      for (const providerSandboxId of providerSandboxIds) if (providerSandboxId.startsWith('local-')) remove(providerSandboxId.slice('local-'.length))
-    },
+    // Answers the ids that are gone, as E2B's does: every id this stand-in made, and none it did not.
+    killRecorded: async (providerSandboxIds) => providerSandboxIds.filter((providerSandboxId) => {
+      if (!providerSandboxId.startsWith('local-')) return false
+      remove(providerSandboxId.slice('local-'.length))
+      return true
+    }),
   })
 }
