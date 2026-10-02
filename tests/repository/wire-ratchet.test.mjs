@@ -7,14 +7,15 @@ import test from 'node:test'
 
 const gate = resolve(import.meta.dirname, '../../scripts/check-wire-ratchet.mjs')
 
-const hubFile = ({ routes, named = [] }) => `const SESSIONS_PATH = '/agent-controller/:controllerId/sessions'
+const hubFile = ({ routes, named = [], browserExtra = '', top = '' }) => `const SESSIONS_PATH = '/agent-controller/:controllerId/sessions'
 const SESSION_BASE = \`\${SESSIONS_PATH}/:resourceId\`
 ${named.map(({ name, path }) => `const ${name} = mastraRoute('POST', '${path}')`).join('\n')}
+${top}
 const BROWSER_ROUTES: ReadonlySet<string> = new Set([
 ${named.map(({ name }) => `  ${name},`).join('\n')}
   sessionRoute('GET'),
   sessionRoute('POST', '/abort'),
-])
+${browserExtra}])
 export const register = (app) => {
 ${routes.map((route) => `  app.get<{ Params: { id: string } }>('${route}', async () => ({}))`).join('\n')}
 }
@@ -29,19 +30,19 @@ const BASE = {
       'mastra GET /agent-controller/:controllerId/sessions/:resourceId',
       'mastra POST /agent-controller/:controllerId/sessions',
       'mastra POST /agent-controller/:controllerId/sessions/:resourceId/abort',
-      'routes.ts GET /a',
-      'routes.ts GET /b',
+      'apps/hub/src/builder/routes.ts GET /a',
+      'apps/hub/src/builder/routes.ts GET /b',
     ],
     problemTypes: ['urn:conexus:problem:one'],
   },
 }
 
 const fixture = (t, overrides = {}) => {
-  const { routes, named, webLines, recorded } = { ...BASE, ...overrides }
+  const { routes, named, webLines, recorded, browserExtra, top } = { ...BASE, ...overrides }
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-wire-ratchet-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   for (const directory of ['apps/hub/src/builder', 'apps/web/src/features', 'contracts/technical']) mkdirSync(resolve(root, directory), { recursive: true })
-  writeFileSync(resolve(root, 'apps/hub/src/builder/routes.ts'), hubFile({ routes, named }))
+  writeFileSync(resolve(root, 'apps/hub/src/builder/routes.ts'), hubFile({ routes, named, browserExtra, top }))
   writeFileSync(resolve(root, 'apps/hub/src/builder/mastra-session-routes.ts'), '')
   writeFileSync(resolve(root, 'apps/web/src/features/problems.ts'), webLines.join('\n'))
   writeFileSync(resolve(root, 'apps/web/src/features/problems.test.ts'), "'urn:conexus:problem:ignored'")
@@ -59,7 +60,7 @@ test('passes when the list matches the code, named constants included', (t) => {
 
 test('fails when a new off-table Builder route appears', (t) => {
   const result = run(fixture(t, { routes: ['/a', '/b', '/c'] }))
-  assert.equal(errorLines(result), 'Error: builderRoutes: new gap routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+  assert.equal(errorLines(result), 'Error: builderRoutes: new gap apps/hub/src/builder/routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
 })
 
 test('fails when a route is added through a named constant', (t) => {
@@ -68,15 +69,47 @@ test('fails when a route is added through a named constant', (t) => {
   assert.equal(errorLines(result), 'Error: builderRoutes: new gap mastra POST /agent-controller/:controllerId/extra; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
 })
 
+test('reads a browser route followed by a comment', (t) => {
+  const result = run(fixture(t, { browserExtra: "  sessionRoute('POST', '/probe'), // probe\n" }))
+  assert.equal(errorLines(result), 'Error: builderRoutes: new gap mastra POST /agent-controller/:controllerId/sessions/:resourceId/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+})
+
+test('reads a browser route split over two lines', (t) => {
+  const result = run(fixture(t, { browserExtra: "  sessionRoute(\n    'POST', '/probe'),\n" }))
+  assert.equal(errorLines(result), 'Error: builderRoutes: new gap mastra POST /agent-controller/:controllerId/sessions/:resourceId/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+})
+
+test('reads a registration whose path is a local constant', (t) => {
+  const result = run(fixture(t, { top: "const PROBE_PATH = '/api/control/probe'\nexport const more = (app) => app.post(PROBE_PATH, async () => ({}))" }))
+  assert.equal(errorLines(result), 'Error: builderRoutes: new gap apps/hub/src/builder/routes.ts POST /api/control/probe; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+})
+
+test('stops on a registration whose path cannot be resolved', (t) => {
+  const result = run(fixture(t, { top: 'export const more = (app) => app.post(importedPath, async () => ({}))' }))
+  assert.equal(errorLines(result), 'Error: apps/hub/src/builder/routes.ts: cannot read a path `importedPath`; the ratchet does not understand its shape')
+})
+
+test('stops on a BROWSER_ROUTES entry it cannot read', (t) => {
+  const result = run(fixture(t, { browserExtra: '  ...more,\n' }))
+  assert.equal(errorLines(result), 'Error: apps/hub/src/builder/routes.ts: cannot read a BROWSER_ROUTES entry `...more`; the ratchet does not understand its shape')
+})
+
+test('keys routes by repository path so same-named files do not collide', (t) => {
+  const root = fixture(t)
+  mkdirSync(resolve(root, 'apps/hub/src/builder/other'), { recursive: true })
+  writeFileSync(resolve(root, 'apps/hub/src/builder/other/routes.ts'), "export const r = (app) => app.get('/a', async () => ({}))")
+  assert.equal(errorLines(run(root)), 'Error: builderRoutes: new gap apps/hub/src/builder/other/routes.ts GET /a; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json')
+})
+
 test('fails on a swap: one route fixed and another added keeps the count and still fails', (t) => {
   const result = run(fixture(t, { routes: ['/a', '/c'] }))
-  assert.equal(errorLines(result), `Error: builderRoutes: new gap routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json
-builderRoutes: routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json`)
+  assert.equal(errorLines(result), `Error: builderRoutes: new gap apps/hub/src/builder/routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json
+builderRoutes: apps/hub/src/builder/routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json`)
 })
 
 test('fails and names the line to delete when a gap is fixed', (t) => {
   const result = run(fixture(t, { routes: ['/a'] }))
-  assert.equal(errorLines(result), 'Error: builderRoutes: routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json')
+  assert.equal(errorLines(result), 'Error: builderRoutes: apps/hub/src/builder/routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json')
 })
 
 test('fails when the web compares a new problem type by hand', (t) => {
