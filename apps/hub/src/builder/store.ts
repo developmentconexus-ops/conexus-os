@@ -79,6 +79,8 @@ export type BuilderStore = Readonly<{
   // The E2B sandbox a conversation's turns resume, by its provider id.
   recordConversationSandbox(input: Readonly<{ projectId: string; conversationId: string; providerSandboxId: string }>): Promise<void>
   readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
+  readProjectSandboxes(projectId: string): Promise<readonly string[]>
+  readOpenRunConversations(): Promise<ReadonlySet<string>>
   close(): Promise<void>
 }>
 
@@ -254,6 +256,14 @@ export const createBuilderStore = ({
   readConversationSandbox: async ({ projectId, conversationId }) => {
     const result = await executorPool.query<Readonly<{ value: string | null }>>('SELECT builder.read_conversation_sandbox($1,$2) AS value', [projectId, conversationId])
     return result.rows[0]?.value ?? null
+  },
+  readProjectSandboxes: async (projectId) => {
+    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_project_sandboxes($1) AS value', [projectId])
+    return result.rows[0]?.value ?? []
+  },
+  readOpenRunConversations: async () => {
+    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_open_run_conversations() AS value')
+    return new Set(result.rows[0]?.value ?? [])
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

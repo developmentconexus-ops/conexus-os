@@ -3,11 +3,14 @@ import type { PostgresPool } from '../platform/postgres.js'
 import { logger, recordFailure } from '../platform/logger.js'
 import { projectError, projectErrorCode } from './errors.js'
 
-// The application's Preview data and the Project's repository in the Conexus Git, torn down once
-// the tombstone names the Project. Each is idempotent by the Project id, so a retry after a crash
-// repeats a finished step for free instead of refusing it.
+// The application's Preview data, the E2B VMs of the Project's conversations and the Project's
+// repository in the Conexus Git, torn down once the tombstone names the Project. Each is idempotent
+// by the Project id, so a retry after a crash repeats a finished step for free instead of refusing
+// it. The VMs are killed before the purge, which drops the rows that name them; a VM that fails to
+// die is logged, not a failed deletion.
 export type ProjectDeletionPorts = Readonly<{
   releaseApplicationData(projectId: string): Promise<void>
+  killSandboxes(projectId: string): Promise<void>
   deleteRepository(projectId: string): Promise<void>
 }>
 
@@ -88,6 +91,7 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
     if (tombstone.completed_at) return
     try {
       await ports.releaseApplicationData(tombstone.project_id)
+      await ports.killSandboxes(tombstone.project_id)
       await purge(tombstone.project_id)
       await ports.deleteRepository(tombstone.project_id)
       await complete(tombstone.project_id)

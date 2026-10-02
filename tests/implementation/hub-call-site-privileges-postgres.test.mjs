@@ -75,6 +75,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.record_conversation_session': 'hub_builder_executor',
     'builder.record_conversation_sandbox': 'hub_builder_executor',
     'builder.read_conversation_sandbox': 'hub_builder_executor',
+    'builder.read_project_sandboxes': 'hub_builder_executor',
+    'builder.read_open_run_conversations': 'hub_builder_executor',
   }),
   'identity-access/application-access.ts': Object.freeze({
     'iam.list_application_access': 'hub_iam_runtime',

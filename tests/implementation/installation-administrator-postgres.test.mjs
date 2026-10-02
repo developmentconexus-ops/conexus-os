@@ -5,7 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import pg from 'pg'
 import { bootstrapInstallationAdministrator } from '../../scripts/bootstrap-installation-administrator.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase } from './hub-database.mjs'
+import { buildHubDatabase, testPool } from './hub-database.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { createInstallationAdministration } = await import(hubModuleUrl('identity-access/installation-administration.js'))
@@ -29,7 +29,7 @@ test('installation administration is its own fact, bootstrapped by the operator 
   await owner.connect()
   // The Hub connects as hub_iam_runtime. Setting that role on the session, rather than giving the
   // cluster-global role a password, proves the grants without touching any other database's login.
-  const runtimePool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 4 })
+  const runtimePool = testPool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 4 })
   fixture.onCleanup(() => owner.end())
   fixture.onCleanup(() => runtimePool.end())
   const administration = createInstallationAdministration({ pool: runtimePool })

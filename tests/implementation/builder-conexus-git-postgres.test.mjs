@@ -119,6 +119,17 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.equal(await read(projectId), 'ivm2second')
   })
 
+  await t.test('read_project_sandboxes names every VM the Project recorded and no other Project\'s, for the executor only', async () => {
+    const readAll = async (project) => one(connectionString, 'hub_builder_executor', 'SELECT builder.read_project_sandboxes($1)', [project])
+    const before = await readAll(projectId)
+    const another = randomUUID()
+    await callAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_sandbox($1,$2,$3)', [projectId, another, 'ivm4another'])
+    assert.deepEqual(await readAll(projectId), [...before, 'ivm4another'].sort())
+    assert.ok(before.includes('ivm2second'))
+    assert.deepEqual(await readAll(unregistered), [])
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_project_sandboxes($1)', [projectId]), /permission denied/)
+  })
+
   await t.test('lock_project_for_run admits a builder of a registered Project and refuses the rest', async () => {
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, projectId]), true)
     assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, unregistered]), /BUILDER_SUBJECT_NOT_FOUND/)
@@ -190,6 +201,19 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     ])
     assert.deepEqual((await one(connectionString, 'hub_builder_executor', 'SELECT builder.list_admission_runs()', [])).map((run) => run.builderRunId), [withCandidate])
     await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [withCandidate])
+  })
+
+  await t.test('read_open_run_conversations names the conversations with a queued or running run, for the executor only', async () => {
+    const openRun = randomUUID()
+    const read = () => one(connectionString, 'hub_builder_executor', 'SELECT builder.read_open_run_conversations()')
+    assert.deepEqual(await read(), [])
+    await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '7', openRun, CANDIDATE))
+    assert.deepEqual(await read(), [`conversation-${projectId}`], 'a queued run')
+    await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1)', [openRun])
+    assert.deepEqual(await read(), [`conversation-${projectId}`], 'a running run')
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_open_run_conversations()'), /permission denied/)
+    await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [openRun])
+    assert.deepEqual(await read(), [], 'a settled run')
   })
 
   await t.test('deletion tombstones the Project and the purge removes its repository record with its runs', async () => {

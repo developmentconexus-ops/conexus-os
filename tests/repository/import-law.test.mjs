@@ -33,7 +33,7 @@ test('real production graph satisfies the import law', () => {
 
 test('required CI delegates once to the flattened candidate graph', () => {
   const workflow = readFileSync(resolve(import.meta.dirname, '../../.github/workflows/verify.yml'), 'utf8')
-  assert.equal(workflow.match(/^ {6}- run: npm run verify$/gm)?.length, 1)
+  assert.equal(workflow.match(/^ {8}run: npm run conexus:verify -- --scope candidate --group \$\{\{ matrix\.group \}\}$/gm)?.length, 1)
   assert.equal(workflow.match(/^ {6}- run: npm run r1:s2:hub:typecheck$/gm)?.length ?? 0, 0)
   assert.equal(workflow.match(/^ {6}- run: npm run r1:a0:web:typecheck$/gm)?.length ?? 0, 0)
   assert.ok(workflow.includes('npm run verify'))

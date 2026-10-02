@@ -32,7 +32,7 @@ export const createHttpApp = async ({
   https?: Readonly<{ cert: Buffer | string; key: Buffer | string }>
   previewCspSource?: string
 }>): Promise<HubHttpApp> => {
-  const app = Fastify({ loggerInstance: logger, disableRequestLogging: true, trustProxy: false, ...(https ? { https } : {}) })
+  const app = Fastify({ loggerInstance: logger, forceCloseConnections: true, disableRequestLogging: true, trustProxy: false, ...(https ? { https } : {}) })
   // A client may label a DELETE with no body as JSON; Fastify refuses that empty body. Any other
   // method still needs a body its route validates.
   const parseJson = app.getDefaultJsonParser('error', 'error')

@@ -1,0 +1,25 @@
+[Unit]
+Description=Conexus pilot Hub
+# Five crashes inside the window stop the unit in the failed state (start-limit-hit). The operator
+# looks at the log, fixes the cause, and runs `systemctl --user reset-failed` then `start`.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@CHECKOUT@
+Environment=CONEXUS_PILOT_HUB_ENV=@HUB_ENV@
+Environment=CONEXUS_PILOT_LOGS=@LOGS@
+ExecStart=@CHECKOUT@/infra/pilot/hub.sh
+Restart=on-failure
+RestartSec=10
+# 78 is REFUSED_START_EXIT_CODE in apps/hub/src/platform/lifecycle.ts: another Hub holds the
+# database, or the schema is behind the code. A retry cannot fix either.
+RestartPreventExitStatus=78
+# The Hub's own shutdown has a 15 s deadline. Only the launcher gets SIGTERM, which it forwards once;
+# a second signal to the Hub would force it out with exit 1.
+KillMode=mixed
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

@@ -162,6 +162,38 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
   assert.deepEqual(calls.at(-1), ['interrupt', 'USER_CANCELLED'])
 })
 
+test('stopping the legs aborts a live one and interrupts its run as HUB_RESTART, never as the operator\'s stop', async () => {
+  const runId = '88888888-8888-4888-8888-888888888889'
+  const projectId = '99999999-9999-4999-8999-999999999998'
+  const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab'
+  const calls = []
+  let started
+  const startedPromise = new Promise((resolve) => { started = resolve })
+  const run = { builderRunId: runId, projectId, state: 'QUEUED', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+  const store = {
+    createBuilderRun: async () => run,
+    claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
+    interruptBuilderRun: async (_id, reason) => calls.push(['interrupt', reason]),
+    setBuilderRunPhase: async () => {},
+    bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, failBuilderRun: async () => calls.push('fail'), close: async () => {},
+  }
+  const service = createBuilderService({
+    store,
+    runs: makeRuns({
+      execute: async (input) => {
+        started()
+        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true }))
+      },
+    }),
+    applicationArtifacts: {},
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'restart-key', content: 'construa', conversationId: 'conv-build' })
+  await startedPromise
+  service.stopLegs()
+  await service.close()
+  assert.deepEqual(calls, [['interrupt', 'HUB_RESTART']])
+})
+
 test("a browser following the conversation is handed the run as the builder-session read serves it: at each phase, at a stop request, and once settled", async () => {
   const runId = '88888888-8888-4888-8888-88888888888a'
   const projectId = '99999999-9999-4999-8999-999999999999'
