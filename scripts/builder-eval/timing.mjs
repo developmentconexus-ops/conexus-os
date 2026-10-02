@@ -3,8 +3,10 @@
 // go in, one block of integer milliseconds comes out, so the block is comparable across arms.
 import { flowOf } from './flow.mjs'
 import { mainAgentRuns, mainAgentScope, traceMetrics } from './scorers.mjs'
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from './tool-names.mjs'
+import { SpanType } from '@mastra/core/observability'
 
-const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
+const CARD_TOOLS = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL])
 const TASK_TOOLS = new Set(['task_write', 'task_update', 'task_complete', 'task_check'])
 // A model step shorter than this is a bookkeeping span, not a model call.
 const MIN_STEP_MS = 50
@@ -64,13 +66,13 @@ export function timingBlock({ spans, run, hubStages = null }) {
   const firstStart = ms(agentRuns[0].startedAt)
   const lastEnd = Math.max(...agentRuns.map((agent) => ms(agent.endedAt)))
   const agentMs = sum(agentRuns.map(durationOf))
-  const chunks = scope.filter((span) => span.spanType === 'model_chunk').sort((a, b) => ms(a.startedAt) - ms(b.startedAt))
+  const chunks = scope.filter((span) => span.spanType === SpanType.MODEL_CHUNK).sort((a, b) => ms(a.startedAt) - ms(b.startedAt))
   const firstText = chunks.find((chunk) => /text/.test(chunk.name ?? ''))
 
-  const calls = scope.filter((span) => span.spanType === 'tool_call')
+  const calls = scope.filter((span) => span.spanType === SpanType.TOOL_CALL)
   const callsOfStep = new Map()
   for (const call of calls) callsOfStep.set(call.parentSpanId, [...(callsOfStep.get(call.parentSpanId) ?? []), call])
-  const steps = scope.filter((span) => span.spanType === 'model_step' && durationOf(span) > MIN_STEP_MS).sort((a, b) => ms(a.startedAt) - ms(b.startedAt))
+  const steps = scope.filter((span) => span.spanType === SpanType.MODEL_STEP && durationOf(span) > MIN_STEP_MS).sort((a, b) => ms(a.startedAt) - ms(b.startedAt))
   const stepFacts = steps.map((step) => {
     const own = callsOfStep.get(step.spanId) ?? []
     const window = own.length === 0 ? 0 : Math.max(...own.map((call) => ms(call.endedAt))) - Math.min(...own.map((call) => ms(call.startedAt)))

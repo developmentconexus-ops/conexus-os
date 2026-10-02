@@ -1,3 +1,4 @@
+import { isThinkingLevelSetting, resolveDefaultThinkingLevel, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { RequestContext } from '@mastra/core/request-context'
 
 /**
@@ -16,7 +17,23 @@ export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'
 /** The paths the turn's start left with conflict markers when it brought `main` in, newline separated. */
 export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 
-type ControllerContextValue = Readonly<{ session?: Readonly<{ modelId?: unknown }> }>
+type ControllerContextValue = Readonly<{ session?: Readonly<{ modelId?: unknown }>; getState?: () => Readonly<Record<string, unknown>> }>
+
+/**
+ * The level a conversation runs at until the person picks one, resolved the way Mastra Code does.
+ * The Hub sends it to the composer with the models, so the screen never holds a second copy.
+ */
+export const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = resolveDefaultThinkingLevel({ globalDefault: 'medium', modeDefaults: {} }, 'build').level
+
+/**
+ * The thinking level the conversation's session runs at, read on every call as Mastra Code's
+ * `resolveRequestThinkingLevel` does: the session state's `thinkingLevel`, which the composer sets
+ * and `AgentController` restores from the thread when a run's session loads it.
+ */
+export const readSessionThinkingLevel = (requestContext: RequestContext | undefined): ThinkingLevelSetting => {
+  const level = (requestContext?.get('controller') as ControllerContextValue | undefined)?.getState?.().thinkingLevel
+  return isThinkingLevelSetting(level) ? level : DEFAULT_THINKING_LEVEL
+}
 
 /** The model the conversation's session runs on, from the `controller` context `AgentController` sets on every call. */
 export const readSessionModelId = (requestContext: RequestContext | undefined): string | undefined => {

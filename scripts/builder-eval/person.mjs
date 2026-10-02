@@ -12,7 +12,7 @@ import { z } from 'zod'
 
 const PERSON_MODEL_ENV = 'CONEXUS_EVAL_PERSON_MODEL'
 const VALUES_FILE_ENV = 'CONEXUS_EVAL_VALUES_FILE'
-// A model of the Anthropic catalog the Hub offers (`ANTHROPIC_MODELS`), through the Claude subscription
+// A model of the Anthropic catalog the Hub offers, through the Claude subscription
 // signed in to Mastra Code's own store by `login.mjs`.
 const SUBSCRIPTION_PERSON_MODEL = 'claude-opus-5-5'
 const SILENT_TEXT = 'Não sei.'

@@ -1,7 +1,7 @@
 import { AlertDialog } from '@mastra/playground-ui/components/AlertDialog'
 import { Button } from '@mastra/playground-ui/components/Button'
 import { MarkdownRenderer } from '@mastra/playground-ui/components/MarkdownRenderer'
-import { type AskUserAnswer, type AskUserOption } from '@mastra/playground-ui/components/ai/ask-user'
+import type { AskUserAnswer, AskUserOption } from '@mastra/playground-ui/components/ai/ask-user'
 import { AskUserPt, type AskUserQuestionData } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { type ReactNode, useState } from 'react'

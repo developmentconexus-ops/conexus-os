@@ -176,7 +176,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
           return completed()
         },
         end: async () => { events.push('close'); if (close) await close() },
-        discard: async () => { events.push('discard') },
+        release: async () => { events.push('session-release') },
       }
     },
     git,
@@ -238,7 +238,6 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       git,
       conversations: {
         ownerOf: async () => 'PROJECT',
-        titleFromRequest: async () => {},
       },
       source: createProjectSourceReads({ git }),
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
@@ -1016,6 +1015,29 @@ test("a run checks its start model once, names its payer in every turn's context
     assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
     assert.equal(run.events.at(-1), 'pause')
   }
+})
+
+test('a run deletes the session it opened, once, after the agent and its admission, whether it completed, failed, threw or aborted', async (t) => {
+  const sessionEnds = (run) => run.events.filter((event) => event === 'close' || event === 'session-release')
+  const completedRun = await harness(t)
+  await completedRun.start()
+  await completedRun.service.close()
+  const failedTurn = await harness(t, { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) })
+  await failedTurn.start()
+  await failedTurn.service.close()
+  const thrown = await harness(t, { turn: () => { throw new Error('BOOM') } })
+  await thrown.start()
+  await thrown.service.close()
+  const stopped = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
+  await stopped.start()
+  await stopped.service.close()
+  assert.deepEqual(sessionEnds(completedRun), ['close', 'session-release'], 'a completed run ends its turn, then deletes the session after the admission')
+  for (const run of [failedTurn, thrown, stopped]) assert.deepEqual(run.events.filter((event) => event === 'session-release'), ['session-release'])
+  for (const run of [completedRun, failedTurn, thrown, stopped]) {
+    assert.ok(run.events.indexOf('session-release') > run.events.indexOf('turn'), 'the session outlives the agent turn')
+    assert.ok(run.events.indexOf('session-release') < run.events.indexOf('pause'), 'and is gone before the VM pauses')
+  }
+  assert.ok(completedRun.events.indexOf('build') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the build in the session')
 })
 
 test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUSED before the agent runs', async (t) => {

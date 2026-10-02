@@ -11,6 +11,11 @@ import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, Applic
 export type BuilderService = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
+  /**
+   * The person's answer to the call a parked run waits on, which takes the run back to work. Null
+   * when the run is no longer parked, so the same answer sent twice resumes it once.
+   */
+  answerBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string; toolCallId: string; resumeData: unknown }>): Promise<BuilderRunSummary | null>
   listSourceTree(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<BuilderSourceTree>
   getSourceFile(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; path: string }>): Promise<BuilderSourceFile>
   compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
@@ -39,7 +44,7 @@ type DiagnosticAppender = (note: RunNote) => Promise<void>
 export type BuilderRunDependencies = Readonly<{
   runtime: BuilderRunRuntime
   git: Pick<ConexusGit, 'readMain' | 'mainContains'>
-  conversations: Pick<Conversations, 'ownerOf' | 'titleFromRequest'>
+  conversations: Pick<Conversations, 'ownerOf'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
   reconcileEveryMs?: number
@@ -84,7 +89,15 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   applicationServer?: ApplicationServerPort
   runs: BuilderRunDependencies
 }>): BuilderService => {
-  const builderActive = new Map<string, Readonly<{ controller: AbortController; work: Promise<void> }>>()
+  // A run's legs: the work now in flight for it. A parked run has none, in this process or after a restart.
+  const builderActive = new Map<string, Readonly<{
+    controller: AbortController
+    work: Promise<void>
+    /** Whether this leg ended parked on a question; settles once its work has released everything. */
+    parking: Promise<boolean>
+    /** The call this leg was started to answer, so a second answer to it is told apart from an answer to a later question. */
+    answered: string | undefined
+  }>>()
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
   let reconcileTimer: ReturnType<typeof setTimeout> | null = null
@@ -107,9 +120,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
   }
-  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string }>): void => {
+  const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
+    let endParking: (parked: boolean) => void = () => undefined
+    const parking = new Promise<boolean>((resolve) => { endParking = resolve })
     // The browser reads run.phase from the builder-session poll; the live turn itself is Mastra's.
     const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
@@ -119,12 +134,13 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     let unadmittedAgentRun: BuilderRunSummary | null = null
     let candidateRecorded = false
     const work = (async () => {
-      const claimed = await store.claimBuilderRun(run.builderRunId)
+      // An answered run was taken out of PARKED by the answer, which is its claim.
+      const claimed = input.resume ? run : await store.claimBuilderRun(run.builderRunId)
       await setPhase('PREPARING')
       const conversation = { projectId: claimed.projectId, conversationId: claimed.conversationId }
       const result = await runs.runtime.execute({
         projectId: claimed.projectId, accountId: input.accountId, conversationId: claimed.conversationId,
-        executionId: claimed.builderRunId, intent: input.content, baseSourceRevision: claimed.baseSourceRevision,
+        executionId: claimed.builderRunId, intent: input.content, ...(input.resume ? { resume: input.resume } : {}), baseSourceRevision: claimed.baseSourceRevision,
         providerSandboxId: await store.readConversationSandbox(conversation),
         signal: controller.signal,
         setPhase: async (phase: BuilderRunningPhase) => {
@@ -144,6 +160,14 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       })
       if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
       if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
+      if (result.kind === 'PARKED') {
+        if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+        await setPhase('PARKED')
+        // The leg is over: an answer starts the next one, which this entry must not shadow.
+        builderActive.delete(run.builderRunId)
+        endParking(true)
+        return
+      }
       if (result.kind === 'RESPONSE_ONLY') {
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
         await setPhase('FINALIZING')
@@ -220,8 +244,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
       }
     })
-      .finally(() => { builderActive.delete(run.builderRunId) })
-    builderActive.set(run.builderRunId, { controller, work })
+      .finally(() => {
+        if (builderActive.get(run.builderRunId)?.controller === controller) builderActive.delete(run.builderRunId)
+        endParking(false)
+      })
+    builderActive.set(run.builderRunId, { controller, work, parking, answered: input.resume?.toolCallId })
   }
   const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
     if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
@@ -253,15 +280,32 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // The base is `main`, read only once the database holds the Project's run lock.
       const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
       if (run.state === 'QUEUED') {
-        await runs.conversations.titleFromRequest(input.projectId, input.conversationId, input.content).catch(() => undefined)
         dispatchBuilderRun(run, input)
       }
       return run
     },
     cancelBuilderRun: async (input) => {
       const result = await store.requestBuilderRunCancellation(input)
-      builderActive.get(input.builderRunId)?.controller.abort()
+      const leg = builderActive.get(input.builderRunId)
+      leg?.controller.abort()
+      // A parked run was interrupted by the database, with no leg to tell: its open call is settled here.
+      if (!leg && result.state === 'INTERRUPTED') await runs.runtime.discardParked({ projectId: result.projectId, conversationId: result.conversationId }).catch(() => undefined)
       return result
+    },
+    answerBuilderRun: async ({ accountId, projectId, builderRunId, toolCallId, resumeData }) => {
+      const latest = await store.readBuilderRun({ accountId, projectId })
+      if (latest?.builderRunId !== builderRunId) throw new Error('BUILDER_RUN_NOT_FOUND')
+      const leg = builderActive.get(builderRunId)
+      if (leg) {
+        if (leg.answered === toolCallId) return null
+        // The question can be answered the moment it is asked, while the leg is still releasing what it held.
+        if (!await leg.parking) return null
+      }
+      const resumed = await store.resumeBuilderRun(builderRunId)
+      if (!resumed) return null
+      const resume = { toolCallId, resumeData }
+      dispatchBuilderRun(resumed, { accountId, content: resumed.requestText ?? '', resume })
+      return resumed
     },
     listSourceTree: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')

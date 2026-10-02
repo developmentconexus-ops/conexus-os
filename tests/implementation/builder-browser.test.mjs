@@ -18,6 +18,8 @@ test('humanizeModelName turns a bare catalog id into the name a person reads', (
   assert.equal(humanizeModelName('claude-sonnet-5'), 'Claude Sonnet 5')
   assert.equal(humanizeModelName('gpt-5.3-codex'), 'GPT 5.3 Codex')
   assert.equal(humanizeModelName('gpt-4o-2024-08-06'), 'GPT 4o 2024-08-06')
+  assert.equal(humanizeModelName('claude-haiku-4-5-20251001'), 'Claude Haiku 4.5 2025-10-01')
+  assert.equal(humanizeModelName('claude-fable-5-1'), 'Claude Fable 5.1')
   assert.equal(humanizeModelName('gpt-5.1'), 'GPT 5.1')
   assert.equal(humanizeModelName('o1'), 'o1')
   assert.equal(humanizeModelName('gemini-3-flash'), 'Gemini 3 Flash')
@@ -27,7 +29,7 @@ test('humanizeModelName turns a bare catalog id into the name a person reads', (
   assert.equal(humanizeModelName('gemini-3.1-pro-low'), 'Gemini 3.1 Pro')
 })
 
-test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into the id, and nothing for everyone else', () => {
+test('parseReasoningSuffix reads the level suffix Google AI Pro ids carry, and nothing for everyone else', () => {
   assert.deepEqual(parseReasoningSuffix('gemini-3.8-flash-high'), { base: 'gemini-3.8-flash', level: 'high' })
   assert.deepEqual(parseReasoningSuffix('gemini-3.1-pro-low'), { base: 'gemini-3.1-pro', level: 'low' })
   assert.equal(parseReasoningSuffix('claude-opus-4-5'), null)
@@ -37,10 +39,16 @@ test('parseReasoningSuffix reads the level google-ai-pro/CLIProxy ids bake into 
 const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads
 // them from the Builder's controller and holds none. A model with no key is never offered.
+const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
 const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', modelName: 'claude-sonnet-4-5', hasApiKey: true },
-  { id: 'groq/llama-4', provider: 'groq', modelName: 'llama-4', hasApiKey: false },
+  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
+  { id: 'groq/llama-4', provider: 'groq', providerName: 'Groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
+]
+// Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
+const GOOGLE_AI_PRO_MODELS = [
+  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
 ]
 const SELECTED_MODEL = BUILDER_MODELS[0].id
 const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
@@ -72,7 +80,7 @@ const routeBuilder = async (page, state) => {
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/threads*`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: state.conversations }) }))
   await page.route('**/api/control/model-accounts/models', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS }) }))
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: state.models ?? BUILDER_MODELS, defaultThinkingLevel: state.defaultThinkingLevel ?? 'medium' }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: state.modelId, threadId: conversationOf(route.request().url()), ...(state.omProgress ? { omProgress: state.omProgress } : {}) }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/model*`, (route) => {
@@ -479,7 +487,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const tracedRuns = []
   let compareQuery = null
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation(conversationId, 'Histórico')]))
+  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Histórico')]), models: [...BUILDER_MODELS, ...GOOGLE_AI_PRO_MODELS] })
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'History', projectRevision: 'revision', archived: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
@@ -513,7 +521,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   await openModelPicker(page)
   await page.getByRole('option', { name: 'Claude Opus 4.5' }).waitFor()
   await page.getByRole('option', { name: 'Claude Sonnet 4.5' }).waitFor()
-  assert.equal(await page.getByRole('option').count(), 2, 'a model the controller has no key for is never offered')
+  assert.equal(await page.getByRole('option').count(), 4, 'a model the controller has no key for is never offered')
 
   // The reasoning slider follows a drag, not only a click, and names each level capitalized.
   const slider = page.getByRole('slider', { name: 'Raciocínio' })
@@ -526,6 +534,21 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   for (let wait = 0; wait < 50 && thinkingLevels.at(-1) !== 'xhigh'; wait += 1) await page.waitForTimeout(100)
   assert.equal(thinkingLevels.at(-1), 'xhigh', `the drag ended at the high end: ${JSON.stringify(thinkingLevels)}`)
   assert.ok(thinkingLevels.includes('low'), `the drag started at the low end: ${JSON.stringify(thinkingLevels)}`)
+  await page.keyboard.press('Escape')
+
+  // Each model offers the levels it honors: Gemini Flash three, and Gemini Pro Agent, which has none, says so.
+  await chooseModel(page, 'Gemini 3 Flash')
+  await openModelPicker(page)
+  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['2', 'Médio', 3])
+  const flashSlider = await slider.boundingBox()
+  await page.mouse.click(flashSlider.x + flashSlider.width - 2, flashSlider.y + flashSlider.height / 2)
+  for (let wait = 0; wait < 50 && thinkingLevels.at(-1) !== 'high'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(thinkingLevels.at(-1), 'high', 'Gemini Flash takes its own top level')
+  await page.keyboard.press('Escape')
+  await chooseModel(page, 'Gemini Pro Agent')
+  await openModelPicker(page)
+  await page.getByText('Este modelo não tem nível de raciocínio para escolher.').waitFor()
+  assert.equal(await page.getByRole('slider', { name: 'Raciocínio' }).count(), 0)
   await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Sobre' }).click()
@@ -695,6 +718,102 @@ test('a run that failed before the agent still shows the request and names why i
   assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).isVisible(), false,
     'the internal code is never the sentence the operator reads')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('the slider and /raciocinio offer exactly the levels of the selected model, named in Portuguese', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000091'
+  const projectId = '70000000-0000-4000-8000-000000000092'
+  const conversationId = 'conversation-levels'
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const models = [
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
+    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+  ]
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models, defaultThinkingLevel: 'high' })
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Níveis', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  const chosen = []
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/state*`, (route) => {
+    const level = route.request().postDataJSON()?.state?.thinkingLevel
+    if (level) chosen.push(level)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  const commandLevels = async () => {
+    await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
+    await messageBox(page).fill('/raciocinio ')
+    const options = page.getByRole('option')
+    await options.first().waitFor()
+    const labels = await options.allTextContents()
+    await messageBox(page).fill('')
+    return labels
+  }
+  await openModelPicker(page)
+  const slider = page.getByRole('slider', { name: 'Raciocínio' })
+  assert.deepEqual([await slider.getAttribute('aria-valuemax'), await slider.getAttribute('aria-valuetext'), await page.locator('.cx-effort-dot').count()], ['5', 'Alto', 6], 'a conversation with no level of its own runs at the level the Hub sends')
+  const sliderBox = await slider.boundingBox()
+  await page.mouse.click(sliderBox.x + sliderBox.width - 2, sliderBox.y + sliderBox.height / 2)
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'max'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'max', 'the top stop is Máximo')
+  await page.keyboard.press('Escape')
+  assert.deepEqual(await commandLevels(), ['Desligado', 'Baixo', 'Médio', 'Alto', 'Muito alto', 'Máximo'])
+
+  await chooseModel(page, 'Gemini 3 Flash')
+  assert.deepEqual(await commandLevels(), ['Baixo', 'Médio', 'Alto'])
+  await messageBox(page).fill('/raciocinio high')
+  await messageBox(page).press('Enter')
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'high'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'high')
+  await messageBox(page).fill('/raciocinio  LOW ')
+  await messageBox(page).press('Enter')
+  for (let wait = 0; wait < 50 && chosen.at(-1) !== 'low'; wait += 1) await page.waitForTimeout(100)
+  assert.equal(chosen.at(-1), 'low', "Mastra Code's own parse ignores case and spacing")
+
+  await chooseModel(page, 'Gemini Pro Agent')
+  await page.locator('.cx-model-popover').waitFor({ state: 'detached' })
+  await messageBox(page).fill('/raci')
+  assert.equal(await page.getByRole('option').count(), 0, 'a model with no reasoning level has no /raciocinio command')
+})
+
+test('a run notice the Hub signalled into the thread reads as a notice, apart from the Builder\'s own turn', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000081'
+  const projectId = '70000000-0000-4000-8000-000000000082'
+  const conversationId = 'conversation-run-notice'
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const notice = {
+    id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
+  }
+  const state = builderState([conversation(conversationId, 'Conversa')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Comecei pela lista.'), notice] })
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, state)
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: null, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [],
+  }) }))
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  const shown = page.locator('.cx-messages .builder-turn-notice')
+  await shown.waitFor()
+  assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
+  assert.equal(await shown.getAttribute('role'), 'note')
+  assert.deepEqual(await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body').allTextContents(), ['Comecei pela lista.'],
+    'the notice is not inside the Builder\'s turn')
 })
 
 test('an agent that spoke once and then works in silence still reads as working, with its elapsed time and a way to stop', async (t) => {
@@ -949,7 +1068,7 @@ test('a Project lists its conversations as the threads of its resource, and each
     run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
-  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) => {
     const id = conversationOf(route.request().url())
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: models[id] ?? '', threadId: id }) })
@@ -1219,18 +1338,29 @@ test('a live reply streamed as deltas renders whole while the run is still worki
     'a delta for a message that never started is dropped')
 })
 
+test('a model call the controller is retrying reads as a retry in progress, not as a failure, and the next reply clears it', async (t) => {
+  const retryError = { type: 'error', error: { message: 'Service Unavailable' }, retryable: true, retryAttempt: 2, maxRetries: 10 }
+  const retrying = await openLiveTurn(t, [retryError])
+  await retrying.getByRole('status').getByText('O modelo não respondeu. Tentando de novo (2 de 10).', { exact: true }).waitFor()
+  assert.equal(await retrying.getByRole('alert').count(), 0, 'a retry is not a failure')
+  const recovered = await openLiveTurn(t, [retryError, { type: 'message_start', message: assistantMessage('live-retry-1', 'Voltei.') }])
+  await recovered.locator('.cx-messages').getByText('Voltei.', { exact: true }).waitFor()
+  assert.equal(await recovered.getByText('Tentando de novo', { exact: false }).count(), 0)
+  assert.equal(await recovered.getByRole('alert').count(), 0)
+})
+
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
 
-test('a reasoning part still streaming is one "Pensando…" line and never the provider\'s own summary', async (t) => {
+test('a reasoning part still streaming is one "Pensando…" line and not yet a "Pensou" row', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-1', 'Certo.') },
     { type: 'message_update', id: 'live-reasoning-1', event: { type: 'part', index: 1, part: reasoningPart } },
   ])
   await page.getByText('Pensando…', { exact: true }).waitFor()
-  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'the English summary is not on screen')
+  assert.equal(await page.getByText('Pensou', { exact: true }).count(), 0, 'the thought is not settled yet')
 })
 
-test('a reasoning part that settled leaves nothing in the thread', async (t) => {
+test('a reasoning part that settled is a collapsed "Pensou" row that opens to its text', async (t) => {
   const page = await openLiveTurn(t, [
     { type: 'message_start', message: assistantMessage('live-reasoning-2', 'Certo.') },
     { type: 'message_update', id: 'live-reasoning-2', event: { type: 'part', index: 1, part: reasoningPart } },
@@ -1238,7 +1368,9 @@ test('a reasoning part that settled leaves nothing in the thread', async (t) => 
   ])
   await page.locator('.cx-messages').getByText('Pronto.', { exact: true }).waitFor()
   assert.equal(await page.getByText('Pensando…').count(), 0)
-  assert.equal(await page.getByText('Planning schema validation').count(), 0)
+  assert.equal(await page.getByText('Planning schema validation').count(), 0, 'collapsed, the text is not on screen')
+  await page.getByText('Pensou', { exact: true }).click()
+  await page.getByText('Planning schema validation').waitFor()
 })
 
 const toolPart = (id, toolName, args, state = 'result', result = 'ok') => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state, args, result } })
@@ -1653,6 +1785,29 @@ test('the arrow keys move through the options of a question and Enter confirms t
   await page.keyboard.press('Enter')
   await sent
   assert.deepEqual(replies, [{ toolCallId: 'ask-keys', resumeData: ['Verde', ['Lista'], 'Sim'] }])
+})
+
+test('a header longer than twelve characters stays on one line inside the card, alone and as a step tab', async (t) => {
+  const header = 'Um cabeçalho bem mais comprido do que o cartão tem de largura para mostrar inteiro'
+  const asks = [
+    { questions: [{ question: 'Qual o próximo passo?', header, options: [{ label: 'Seguir' }, { label: 'Parar' }] }] },
+    { questions: [{ question: 'Qual cor?', header, options: [{ label: 'Azul' }, { label: 'Verde' }] }, { question: 'Algo mais?' }] },
+  ]
+  for (const [index, ask] of asks.entries()) {
+    const page = await openLiveTurn(t, [{ type: 'tool_suspended', toolCallId: `ask-long-${index}`, toolName: 'ask_user', args: ask, suspendPayload: ask }])
+    const card = page.getByLabel('Pergunta do agente')
+    await card.getByText(ask.questions[0].question, { exact: true }).waitFor()
+    const shown = card.getByText(header, { exact: true }).first()
+    await shown.waitFor()
+    const fits = await shown.evaluate((node) => {
+      const box = node.getBoundingClientRect()
+      const parent = node.parentElement.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      const oneLine = box.height <= parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth) + 1
+      return { oneLine, inside: box.right <= parent.right + 1 }
+    })
+    assert.deepEqual(fits, { oneLine: true, inside: true }, `the long header fits the card (${index})`)
+  }
 })
 
 test('a typed answer replaces the chosen option of a single-select question', async (t) => {
