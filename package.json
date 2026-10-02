@@ -76,7 +76,8 @@
     "repository:check:local": "npm run repository:check",
     "verify:local": "npm run verify",
     "verify": "npm run conexus:verify -- --scope candidate",
-    "verify:docs": "npm run conexus:verify -- --scope candidate-docs"
+    "verify:docs": "npm run conexus:verify -- --scope candidate-docs",
+    "verify:quick": "npm run conexus:verify -- --scope candidate-quick"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.118",
