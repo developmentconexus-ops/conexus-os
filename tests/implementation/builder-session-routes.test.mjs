@@ -498,6 +498,16 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   assert.equal(traceLog['conexus.project_id'], projectA)
   assert.equal(traceLog['conexus.builder_run_id'], runId)
 
+  // 3b. GET /runs/:id/trace with mismatched run ID returns 404 builder-run-not-found
+  const mismatchRunId = randomUUID()
+  const traceNotFoundRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${mismatchRunId}/trace`, ...authentic })
+  assert.equal(traceNotFoundRes.statusCode, 404)
+  assert.deepEqual(JSON.parse(traceNotFoundRes.body), {
+    type: 'urn:conexus:problem:builder-run-not-found',
+    title: 'BuilderRun not found',
+    status: 404,
+  })
+
   // 4. POST /preview -> BUILDER_PREVIEW_FAILED
   const previewRes = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/preview`, ...authentic, payload: {} })
   assert.equal(previewRes.statusCode, 503)
