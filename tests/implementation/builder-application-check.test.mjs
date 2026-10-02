@@ -82,6 +82,16 @@ const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
 const stepsOf = (report) => report.steps.map((step) => [step.step, step.status])
 const failedStep = (report, id) => report.steps.find((step) => step.step === id && step.status === 'failed')
 
+test('the browser launches with the background Google services switched off', () => {
+  const source = checkScriptSource()
+  for (const flag of [
+    '--headless=new', '--remote-debugging-address=127.0.0.1', '--user-data-dir=',
+    '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run', '--disable-default-apps',
+    '--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication',
+  ]) assert.ok(source.includes(flag), flag)
+  assert.equal(source.split('--disable-features=').length, 2)
+})
+
 test('a starter with no server half passes all five steps and reports what it built', (t) => {
   const { report } = check(t, STARTER)
   assert.equal(report.ok, true)
