@@ -13,8 +13,13 @@ from one fixed checkout of `main`. The Keycloak it signs in with is in [`../keyc
 | Runner env | `~/q3/runner.env`, or `CONEXUS_PILOT_RUNNER_ENV`. |
 | Logs | `~/conexus-pilot-logs/hub.log` and `runner.log`, or `CONEXUS_PILOT_LOGS`. Each run appends. Its first line reads `hub starting <time> head <sha>` (or `runner starting …`). |
 
-Both scripts run in the foreground and refuse to start when the checkout has local changes. Hold each one in a
-terminal tab, or detach it with `setsid nohup infra/pilot/hub.sh >/dev/null 2>&1 < /dev/null &`.
+Both scripts run in the foreground and refuse to start when the checkout has local changes. Run them under
+systemd as described in the [supervision runbook](../../docs/reference/pilot-supervision.md), or hold each one in a terminal tab.
+
+## Supervised by systemd
+
+Two user units restart the Hub and the runner after a crash. [`install-units.sh`](install-units.sh) installs them.
+The runbook is [`docs/reference/pilot-supervision.md`](../../docs/reference/pilot-supervision.md).
 
 ## Deploy main
 
@@ -33,7 +38,7 @@ Hub and the runner both run from this checkout, so nothing in it changes while e
      package.json package-lock.json                                                # runner restart and npm ci
    ```
 
-2. Stop the Hub (its `server.js` and the `build-hub-local.mjs` parent). If the runner restarts, stop it too.
+2. Stop the Hub (`systemctl --user stop conexus-hub.service`, or its `server.js` and the `build-hub-local.mjs` parent when run by hand). If the runner restarts, stop it too.
 3. Move the checkout, and install only if the dependencies changed:
 
    ```bash
@@ -52,7 +57,7 @@ Hub and the runner both run from this checkout, so nothing in it changes while e
 
    Then apply the migrations with `scripts/run-hub-migrations.mjs`. `CONEXUS_MIGRATION_DATABASE_URL_FILE` names
    the file that holds the migration role's URL. Migrations are forward-only, and the operator approves each one.
-5. Start `infra/pilot/hub.sh`, and `infra/pilot/runner.sh` if it was stopped. Sessions live in PostgreSQL and
+5. Start the Hub unit, and the runner unit if it was stopped (or `infra/pilot/hub.sh` and `infra/pilot/runner.sh` by hand). Sessions live in PostgreSQL and
    survive the restart.
 6. Confirm the new head in the last `starting` line of each log you restarted:
 

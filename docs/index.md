@@ -41,6 +41,7 @@ owns status and the next action. Start there.
 | Project, data and persistence | [Data and persistence](reference/data-and-persistence.md) |
 | Database roles and their capabilities | [Role register](reference/hub-database-roles.md) |
 | Backing up the database and Git root, and proving a restore | [Backup and tested restore](reference/backup.md) |
+| Running the pilot Hub and runner under systemd, and what a crash looks like | [Pilot supervision](reference/pilot-supervision.md) |
 | Security and authority | [Security reference](reference/security-and-authority.md) |
 | Which side owns a concept Conexus and the Factory share | [Single-owner map](reference/single-owner-map.md) |
 | Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra-boundary.md) |

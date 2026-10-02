@@ -8,16 +8,16 @@ const targetPath = 'apps/hub/src/telemetry/log-codes.generated.ts'
 // A code opens a quoted or template literal and is followed by its end, a colon, a space or `${`.
 const CODE_LITERAL = /['"`]([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?=['"`:\s$])/g
 
-const sources = (directory) => readdirSync(resolve(repositoryRoot, directory), { withFileTypes: true }).flatMap((entry) => {
+const sources = (directory, root = repositoryRoot) => readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap((entry) => {
   const path = `${directory}/${entry.name}`
-  if (entry.isDirectory()) return sources(path)
+  if (entry.isDirectory()) return sources(path, root)
   return path.endsWith('.ts') && path !== targetPath ? [path] : []
 })
 
-export const renderLogCodes = () => {
+export const renderLogCodes = (root = repositoryRoot) => {
   const codes = new Set()
-  for (const path of sources(sourceRoot)) {
-    for (const match of readFileSync(resolve(repositoryRoot, path), 'utf8').matchAll(CODE_LITERAL)) codes.add(match[1])
+  for (const path of sources(sourceRoot, root)) {
+    for (const match of readFileSync(resolve(root, path), 'utf8').matchAll(CODE_LITERAL)) codes.add(match[1])
   }
   return [
     `// GENERATED from the code literals under ${sourceRoot} by scripts/generate-log-codes.mjs. Do not edit.`,
@@ -29,12 +29,17 @@ export const renderLogCodes = () => {
   ].join('\n')
 }
 
+export const staleMessage = (root = repositoryRoot) =>
+  readFileSync(resolve(root, targetPath), 'utf8') === renderLogCodes(root)
+    ? null
+    : 'LOG_CODES_STALE: run node scripts/generate-log-codes.mjs'
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const rendered = renderLogCodes()
   if (process.argv.includes('--check')) {
-    if (readFileSync(resolve(repositoryRoot, targetPath), 'utf8') !== rendered) {
-      process.stderr.write(`LOG_CODES_STALE: run node scripts/generate-log-codes.mjs\n`)
+    const stale = staleMessage()
+    if (stale) {
+      process.stderr.write(`${stale}\n`)
       process.exit(1)
     }
-  } else writeFileSync(resolve(repositoryRoot, targetPath), rendered)
+  } else writeFileSync(resolve(repositoryRoot, targetPath), renderLogCodes())
 }

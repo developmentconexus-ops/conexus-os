@@ -49,3 +49,72 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   assert.equal(unavailable.statusCode, 503)
   assert.equal(unavailable.json().type.endsWith('project-summaries-unavailable'), true)
 })
+
+test('GET project thumbnail streams PNG bytes with ETag and cache control, handles 401, 404, 503', async (t) => {
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const { registerProjectThumbnailRoutes } = await import(hubModuleUrl('project/thumbnail-routes.js'))
+
+  const projectId = '30000000-0000-4000-8000-000000000103'
+  let authenticated = true
+  let answer = {
+    projectId,
+    artifactRevisionId: 'rev-001',
+    mediaType: 'image/png',
+    bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    byteLength: 8,
+    sha256: 'fake-sha256',
+    createdAt: '2026-09-28T12:00:00.000Z',
+  }
+  let calledWith = null
+
+  const app = await createHttpApp({
+    staticRoot: null,
+    registerRoutes: (server) => registerProjectThumbnailRoutes(server, {
+      resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-103' } } : null,
+      reader: {
+        readThumbnail: async (input) => {
+          calledWith = input
+          if (answer instanceof Error) throw answer
+          return answer
+        },
+      },
+    }),
+  })
+  t.after(() => app.close())
+
+  const fetchThumbnail = (id = projectId) => app.inject({ method: 'GET', url: `/api/control/projects/${id}/thumbnail` })
+
+  // 200 Success
+  const res = await fetchThumbnail()
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.headers['content-type'], 'image/png')
+  assert.equal(res.headers['content-length'], '8')
+  assert.equal(res.headers['cache-control'], 'private, no-cache')
+  assert.equal(res.headers.etag, '"rev-001"')
+  assert.deepEqual(res.rawPayload, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  assert.deepEqual(calledWith, { accountId: 'account-103', projectId })
+
+  // 401 Unauthenticated
+  authenticated = false
+  const unauth = await fetchThumbnail()
+  assert.equal(unauth.statusCode, 401)
+  authenticated = true
+
+  // 404 Not Found (no thumbnail)
+  answer = null
+  const notFound = await fetchThumbnail()
+  assert.equal(notFound.statusCode, 404)
+  assert.equal(notFound.json().type.endsWith('project-thumbnail-not-found'), true)
+
+  // 404 Invalid project ID (e.g. Postgres 22P02)
+  answer = Object.assign(new Error('invalid input syntax for type uuid'), { code: '22P02' })
+  const malformed = await fetchThumbnail()
+  assert.equal(malformed.statusCode, 404)
+  assert.equal(malformed.json().type.endsWith('project-not-found'), true)
+
+  // 503 Service Unavailable / Store failure
+  answer = new Error('DATABASE_CONNECTION_REFUSED')
+  const unavailable = await fetchThumbnail()
+  assert.equal(unavailable.statusCode, 503)
+  assert.equal(unavailable.json().type.endsWith('project-thumbnail-unavailable'), true)
+})

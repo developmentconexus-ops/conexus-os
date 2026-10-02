@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   checkTestCensus,
   collectReachableTests,
+  unreachedMessage,
 } from '../../scripts/check-test-census.mjs'
 
 test('collectReachableTests finds tests in direct commands and package scripts', () => {
@@ -63,4 +64,10 @@ test('checkTestCensus reports any committed test not in candidate graph or exemp
   })
 
   assert.deepEqual(result.unreached, ['tests/implementation/orphaned.test.mjs'])
+})
+
+test('the unreached report names each file and CANDIDATE_GRAPH', () => {
+  const message = unreachedMessage(['tests/implementation/orphaned.test.mjs'])
+  assert.match(message, /1 committed test file\(s\) are not reachable from CANDIDATE_GRAPH or exempt/)
+  assert.match(message, /tests\/implementation\/orphaned\.test\.mjs/)
 })

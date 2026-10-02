@@ -151,6 +151,7 @@
     "area": "platform",
     "paths": [
       "apps/hub/src/server.ts",
+      "apps/hub/src/hub.ts",
       "apps/hub/src/http/**",
       "apps/hub/src/platform/**",
       "apps/hub/src/app-runner/**",

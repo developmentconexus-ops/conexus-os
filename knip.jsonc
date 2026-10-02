@@ -23,6 +23,8 @@
     "tests/**/*.test.mjs",
     // Test-support files that are run or loaded but never imported. Name each one: a directory glob
     // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
+    "tests/live/harness.mjs",
+    "tests/live/hub-entry.mjs",
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
     "tests/implementation/builder-composer-screenshots.mjs",
     "tests/implementation/connector-integrations-screenshot.mjs",

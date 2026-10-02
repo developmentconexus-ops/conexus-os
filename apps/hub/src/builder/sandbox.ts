@@ -2,12 +2,14 @@ import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspac
 import { Workspace, WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
+import { FileNotFoundError, Sandbox } from 'e2b'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
 export const SANDBOX_CHECKOUT = `${SANDBOX_HOME}/repo`
 // The template's unprivileged user: every agent command and file write runs as it.
 export const SANDBOX_AGENT_USER = 'conexus-agent'
+const CONVERSATION_METADATA_KEY = 'conexus-builder-conversation'
 const MAX_CONSECUTIVE_KEEPALIVE_FAILURES = 3
 
 type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]>
@@ -106,6 +108,15 @@ export class ConexusRunSandbox extends E2BSandbox {
   async readAgentFile(path: string): Promise<Uint8Array> {
     return this.e2b.files.read(path, { format: 'bytes', user: SANDBOX_AGENT_USER })
   }
+
+  // Null only when the file is not there; any other failure still throws.
+  async readAgentFileIfPresent(path: string): Promise<Uint8Array | null> {
+    try { return await this.readAgentFile(path) } catch (error) { if (error instanceof FileNotFoundError) return null; throw error }
+  }
+
+  async readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
+    return this.e2b.files.read(path, { format: 'stream', user: SANDBOX_AGENT_USER })
+  }
 }
 
 /**
@@ -129,9 +140,30 @@ export const createConversationSandbox = ({ apiKey, templateId, conversationId, 
   // E2B otherwise serves every listening port at a public URL, loopback-bound ones included.
   network: { allowPublicTraffic: false },
   env: {},
-  metadata: { 'conexus-builder-conversation': conversationId },
+  metadata: { [CONVERSATION_METADATA_KEY]: conversationId },
   instructions: 'Remote Conexus Builder sandbox. No host fallback, remote credentials, or owner-state authority.',
 })
+
+/** A paused conversation machine at E2B, and when it stopped being alive. */
+export type PausedConversationMachine = Readonly<{ providerSandboxId: string; conversationId: string; idleSince: Date }>
+
+/**
+ * Every paused machine E2B holds for a conversation, found by the metadata `createConversationSandbox`
+ * sets and not by the Hub's rows, so a machine whose row is gone is listed too. E2B filters by state;
+ * a metadata filter needs the value, so the key is matched here. A paused machine's `endAt` is the
+ * moment it stopped being alive: every turn pushes it out, so it is the end of the last use.
+ */
+export const listPausedConversationMachines = async (apiKey: string): Promise<readonly PausedConversationMachine[]> => {
+  const found: PausedConversationMachine[] = []
+  const pages = Sandbox.list({ apiKey, query: { state: ['paused'] } })
+  while (pages.hasNext) {
+    for (const info of await pages.nextItems()) {
+      const conversationId = info.metadata[CONVERSATION_METADATA_KEY]
+      if (conversationId) found.push({ providerSandboxId: info.sandboxId, conversationId, idleSince: info.endAt })
+    }
+  }
+  return found
+}
 
 /** Every workspace tool that can change the checkout, the shell included. */
 export const CHECKOUT_WRITER_TOOLS: ReadonlySet<string> = new Set([

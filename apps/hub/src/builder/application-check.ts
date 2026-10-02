@@ -178,11 +178,12 @@ for (const entry of limitFlags) {
   if (step in LIMIT_MS && Number.isInteger(Number(ms))) LIMIT_MS[step] = Number(ms)
 }
 if (!flags['--root'] || !flags['--out']) {
-  process.stderr.write('usage: check.mjs --root <checkout> --out <dist> [--as <uid>:<gid>]\n')
+  process.stderr.write('usage: check.mjs --root <checkout> --out <dist> [--thumbnail <png>] [--as <uid>:<gid>]\n')
   process.exit(2)
 }
 const root = resolve(flags['--root'])
 const out = resolve(flags['--out'])
+const thumbnailPath = flags['--thumbnail'] ? resolve(flags['--thumbnail']) : null
 const tools = flags['--tools'] ?? '/opt/conexus'
 const compiler = join(tools, 'compiler')
 const chromiumPath = flags['--chromium'] ?? '/usr/bin/chromium'
@@ -433,6 +434,8 @@ const runBoot = async () => {
       let spawnError = null
       chromium = spawn(chromiumPath, [
         '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
+        '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run', '--disable-default-apps',
+        '--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication',
         '--user-data-dir=' + profile, 'about:blank',
       ], { detached: true, stdio: 'ignore', env: stepEnvironment(), ...dropTo })
       chromium.once('error', (error) => { spawnError = error })
@@ -509,6 +512,18 @@ const runBoot = async () => {
       await new Promise((settle) => setTimeout(settle, 300))
       const evaluated = await send('Runtime.evaluate', { expression: '(() => { const element = document.getElementById("root"); return element ? element.children.length : -1 })()', returnByValue: true })
       if (typeof evaluated?.result?.value !== 'number' || evaluated.result.value <= 0) add({ code: 'BOOT_NO_ROOT_CHILD', message: 'The page loaded but #root has no children: nothing was rendered.' })
+      else {
+        // Best effort: the Projects list shows this picture; failing to take it never fails the check.
+        try {
+          await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 0.5, mobile: false })
+          const shot = await send('Page.captureScreenshot', { format: 'png' })
+          if (thumbnailPath && typeof shot?.data === 'string' && shot.data.length > 0) {
+            // The picture goes to a path the Hub chose outside the candidate's tree, replaced and never followed.
+            rmSync(thumbnailPath, { force: true })
+            writeFileSync(thumbnailPath, Buffer.from(shot.data, 'base64'), { flag: 'wx', mode: 0o644 })
+          }
+        } catch {}
+      }
       return {}
     }
     const outcome = await Promise.race([
