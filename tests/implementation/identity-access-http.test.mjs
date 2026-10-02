@@ -398,6 +398,26 @@ test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 
   assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
 })
 
+const capturePinoLogs = async (fn) => {
+  const { logger } = await import(built('platform/logger.js'))
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const originalWrite = stream.write.bind(stream)
+  const logs = []
+  stream.write = (chunk) => {
+    try {
+      logs.push(JSON.parse(chunk))
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    return await fn(logs)
+  } finally {
+    stream.write = originalWrite
+  }
+}
+
 test('OIDC begin, callback failures, and missing tokens log registered error codes and keep 503 status', async (t) => {
   const store = makeStore()
   const failingOidc = {
@@ -408,19 +428,31 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
   t.after(() => app.close())
 
   // 1. OIDC begin fails -> logs OIDC_BEGIN_FAILED, returns 503
-  const beginRes = await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
-  assert.equal(beginRes.statusCode, 503)
-  assert.equal(beginRes.body, '')
+  await capturePinoLogs(async (logs) => {
+    const beginRes = await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+    assert.equal(beginRes.statusCode, 503)
+    assert.equal(beginRes.body, '')
+    const failure = logs.find((record) => record.msg === 'OIDC_BEGIN_FAILED')
+    assert.ok(failure, 'OIDC_BEGIN_FAILED was logged')
+    assert.equal(failure.level, 50)
+    assert.equal(failure['exception.message'], 'discovery network error')
+  })
 
   // 2. OIDC complete fails -> logs OIDC_CALLBACK_FAILED, returns 503
   store.state.oidc.set('state-cb-fail', { state: 'state-cb-fail', nonce: 'nonce-1', pkceVerifier: 'pkce-1', signInReturn: { kind: 'HUB' } })
-  const cbFailRes = await app.inject({
-    method: 'GET',
-    url: '/protocol/oidc/callback?code=code-1&state=state-cb-fail',
-    cookies: { '__Host-conexus_oidc_state': 'state-cb-fail' },
+  await capturePinoLogs(async (logs) => {
+    const cbFailRes = await app.inject({
+      method: 'GET',
+      url: '/protocol/oidc/callback?code=code-1&state=state-cb-fail',
+      cookies: { '__Host-conexus_oidc_state': 'state-cb-fail' },
+    })
+    assert.equal(cbFailRes.statusCode, 503)
+    assert.equal(cbFailRes.body, '')
+    const failure = logs.find((record) => record.msg === 'OIDC_CALLBACK_FAILED')
+    assert.ok(failure, 'OIDC_CALLBACK_FAILED was logged')
+    assert.equal(failure.level, 50)
+    assert.equal(failure['exception.message'], 'token endpoint timeout')
   })
-  assert.equal(cbFailRes.statusCode, 503)
-  assert.equal(cbFailRes.body, '')
 
   // 3. OIDC complete without refresh token -> logs OIDC_REFRESH_TOKEN_MISSING, returns 503
   store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'acc-1', displayName: 'User' })
@@ -431,13 +463,19 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
   }
   const appNoRt = await createHubApp({ store, oidc: noRtOidc, config })
   t.after(() => appNoRt.close())
-  const noRtRes = await appNoRt.inject({
-    method: 'GET',
-    url: '/protocol/oidc/callback?code=code-1&state=state-no-rt',
-    cookies: { '__Host-conexus_oidc_state': 'state-no-rt' },
+  await capturePinoLogs(async (logs) => {
+    const noRtRes = await appNoRt.inject({
+      method: 'GET',
+      url: '/protocol/oidc/callback?code=code-1&state=state-no-rt',
+      cookies: { '__Host-conexus_oidc_state': 'state-no-rt' },
+    })
+    assert.equal(noRtRes.statusCode, 503)
+    assert.equal(noRtRes.body, '')
+    const failure = logs.find((record) => record.msg === 'OIDC_REFRESH_TOKEN_MISSING')
+    assert.ok(failure, 'OIDC_REFRESH_TOKEN_MISSING was logged')
+    assert.equal(failure.level, 50)
+    assert.equal(failure['exception.message'], 'OIDC provider returned no refresh token')
   })
-  assert.equal(noRtRes.statusCode, 503)
-  assert.equal(noRtRes.body, '')
 
   // 4. Application sign-in without applications configured -> logs OIDC_APPLICATION_SIGN_IN_UNAVAILABLE, returns 503
   store.state.oidc.set('state-no-app', {
@@ -452,12 +490,19 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
   }
   const appWithoutApps = await createHubApp({ store, oidc: noAppOidc, config, applications: undefined })
   t.after(() => appWithoutApps.close())
-  const noAppRes = await appWithoutApps.inject({
-    method: 'GET',
-    url: '/protocol/oidc/callback?code=code-1&state=state-no-app',
-    cookies: { '__Host-conexus_oidc_state': 'state-no-app' },
+  await capturePinoLogs(async (logs) => {
+    const noAppRes = await appWithoutApps.inject({
+      method: 'GET',
+      url: '/protocol/oidc/callback?code=code-1&state=state-no-app',
+      cookies: { '__Host-conexus_oidc_state': 'state-no-app' },
+    })
+    assert.equal(noAppRes.statusCode, 503)
+    assert.equal(noAppRes.body, '')
+    const failure = logs.find((record) => record.msg === 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE')
+    assert.ok(failure, 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE was logged')
+    assert.equal(failure.level, 50)
+    assert.equal(failure['exception.message'], 'Applications module unavailable')
+    assert.equal(failure['conexus.project_id'], PROJECT_ID)
   })
-  assert.equal(noAppRes.statusCode, 503)
-  assert.equal(noAppRes.body, '')
 })
 

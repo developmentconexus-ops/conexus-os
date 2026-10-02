@@ -320,14 +320,21 @@ test("a conversation's session the browser stops using is deleted by the idle sw
   assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 
-const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun } = {}) => {
+const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun, store, session, service: customService, launchPreview } = {}) => {
   const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
     ? { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
     : null
   const unused = async () => { throw new Error('unused in this test') }
-  const service = { compareSourceRevisions: compareSourceRevisions ?? unused, createBuilderRun: createBuilderRun ?? unused }
+  const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, createBuilderRun: createBuilderRun ?? unused }
   const app = await createHttpApp({
-    registerRoutes: (instance) => registerBuilderRoutes(instance, { store: {}, service, resolveCurrentSession, origin }),
+    registerRoutes: (instance) => registerBuilderRoutes(instance, {
+      store: store ?? {},
+      service,
+      session,
+      resolveCurrentSession,
+      origin,
+      launchPreview,
+    }),
     staticRoot: null,
   })
   t.after(() => app.close())
@@ -351,6 +358,16 @@ test('the source compare route returns the changed files between two admitted re
 })
 
 test('the source compare route maps a not-found revision to 404 and any other failure to 503', async (t) => {
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const logs = []
+  const originalWrite = stream.write.bind(stream)
+  stream.write = (chunk) => {
+    try { logs.push(JSON.parse(chunk)) } catch {}
+  }
+  t.after(() => { stream.write = originalWrite })
+
   const base = 'b'.repeat(40)
   const result = 'c'.repeat(40)
   const url = `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}`
@@ -363,6 +380,11 @@ test('the source compare route maps a not-found revision to 404 and any other fa
   const unavailable = await unavailableApp.inject({ method: 'GET', url, ...authentic })
   assert.equal(unavailable.statusCode, 503)
   assert.equal(unavailable.json().type.endsWith('builder-source-unavailable'), true)
+  const sourceLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_FAILED')
+  assert.ok(sourceLog, 'BUILDER_SOURCE_FAILED was logged')
+  assert.equal(sourceLog.level, 50)
+  assert.equal(sourceLog['exception.message'], 'BUILDER_FACTORY_PROJECT_UNBOUND')
+  assert.equal(sourceLog['conexus.project_id'], projectA)
 })
 
 test('the source compare route requires authentication and 40-hex revisions', async (t) => {
@@ -376,9 +398,24 @@ test('the source compare route requires authentication and 40-hex revisions', as
 })
 
 test('a message names its conversation only: mode and promptVariant are refused, an unknown conversation is 404', async (t) => {
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const logs = []
+  const originalWrite = stream.write.bind(stream)
+  stream.write = (chunk) => {
+    try { logs.push(JSON.parse(chunk)) } catch {}
+  }
+  t.after(() => { stream.write = originalWrite })
+
   const received = []
+  let failRun = null
   const { app } = await createBuilderRoutesApp(t, {
-    createBuilderRun: async (input) => { received.push(input); throw new Error('BUILDER_CONVERSATION_NOT_FOUND') },
+    createBuilderRun: async (input) => {
+      received.push(input)
+      if (failRun) throw failRun
+      throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
+    },
   })
   const url = `/api/control/projects/${projectA}/builder-session/messages`
   const send = (payload) => app.inject({ method: 'POST', url, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload })
@@ -388,6 +425,96 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.deepEqual([withMode.statusCode, withVariant.statusCode, unknown.statusCode], [400, 400, 404])
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
+
+  failRun = new Error('STORE_UNAVAILABLE')
+  const unavailable = await send({ content: 'altere', conversationId: conversationA })
+  assert.equal(unavailable.statusCode, 503)
+  assert.equal(unavailable.json().type.endsWith('builder-unavailable'), true)
+  const runLog = logs.find((r) => r.msg === 'BUILDER_RUN_START_FAILED')
+  assert.ok(runLog, 'BUILDER_RUN_START_FAILED was logged')
+  assert.equal(runLog.level, 50)
+  assert.equal(runLog['exception.message'], 'STORE_UNAVAILABLE')
+  assert.equal(runLog['conexus.project_id'], projectA)
+})
+
+test('builder session, cancel, trace, and preview routes log failure codes on internal errors', async (t) => {
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const logs = []
+  const originalWrite = stream.write.bind(stream)
+  stream.write = (chunk) => {
+    try { logs.push(JSON.parse(chunk)) } catch {}
+  }
+  t.after(() => { stream.write = originalWrite })
+
+  const runId = '88888888-8888-4888-8888-888888888888'
+  const { app } = await createBuilderRoutesApp(t, {
+    session: {
+      read: async () => { throw new Error('SESSION_READ_FAIL') },
+      readTrace: async () => { throw new Error('TRACE_READ_FAIL') },
+    },
+    store: {
+      readBuilderRun: async () => ({ builderRunId: runId, accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k', content: 'c', state: 'PENDING', resultKind: null, runSequence: 1, baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
+      readPreviewSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+    },
+    service: {
+      cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
+      compareSourceRevisions: async () => { throw new Error('COMPARE_SERVICE_FAIL') },
+      createBuilderRun: async () => { throw new Error('unused') },
+      getApplicationBySource: async () => ({ artifactRevisionId: runId, artifactDigest: 'd'.repeat(64) }),
+      listSourceTree: async () => { throw new Error('TREE_SERVICE_FAIL') },
+      getSourceFile: async () => { throw new Error('FILE_SERVICE_FAIL') },
+    },
+    launchPreview: async () => { throw new Error('LAUNCH_PREVIEW_FAIL') },
+  })
+
+  // 1. GET /builder-session -> BUILDER_SESSION_UNAVAILABLE
+  const sessionRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session`, ...authentic })
+  assert.equal(sessionRes.statusCode, 503)
+  const sessionLog = logs.find((r) => r.msg === 'BUILDER_SESSION_UNAVAILABLE')
+  assert.ok(sessionLog, 'BUILDER_SESSION_UNAVAILABLE was logged')
+  assert.equal(sessionLog.level, 50)
+  assert.equal(sessionLog['exception.message'], 'SESSION_READ_FAIL')
+  assert.equal(sessionLog['conexus.project_id'], projectA)
+
+  // 2. POST /runs/:id/cancel -> BUILDER_CANCEL_FAILED
+  const cancelRes = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/runs/${runId}/cancel`, ...authentic, payload: {} })
+  assert.equal(cancelRes.statusCode, 503)
+  const cancelLog = logs.find((r) => r.msg === 'BUILDER_CANCEL_FAILED')
+  assert.ok(cancelLog, 'BUILDER_CANCEL_FAILED was logged')
+  assert.equal(cancelLog.level, 50)
+  assert.equal(cancelLog['exception.message'], 'CANCEL_SERVICE_FAIL')
+  assert.equal(cancelLog['conexus.project_id'], projectA)
+  assert.equal(cancelLog['conexus.builder_run_id'], runId)
+
+  // 3. GET /runs/:id/trace -> BUILDER_TRACE_FAILED
+  const traceRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${runId}/trace`, ...authentic })
+  assert.equal(traceRes.statusCode, 503)
+  const traceLog = logs.find((r) => r.msg === 'BUILDER_TRACE_FAILED')
+  assert.ok(traceLog, 'BUILDER_TRACE_FAILED was logged')
+  assert.equal(traceLog.level, 50)
+  assert.equal(traceLog['exception.message'], 'TRACE_READ_FAIL')
+  assert.equal(traceLog['conexus.project_id'], projectA)
+  assert.equal(traceLog['conexus.builder_run_id'], runId)
+
+  // 4. POST /preview -> BUILDER_PREVIEW_FAILED
+  const previewRes = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/preview`, ...authentic, payload: {} })
+  assert.equal(previewRes.statusCode, 503)
+  const previewLog = logs.find((r) => r.msg === 'BUILDER_PREVIEW_FAILED')
+  assert.ok(previewLog, 'BUILDER_PREVIEW_FAILED was logged')
+  assert.equal(previewLog.level, 50)
+  assert.equal(previewLog['exception.message'], 'LAUNCH_PREVIEW_FAIL')
+  assert.equal(previewLog['conexus.project_id'], projectA)
+
+  // 5. GET /source/tree -> BUILDER_SOURCE_FAILED
+  const treeRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/source/tree?sourceRevision=${'0'.repeat(40)}`, ...authentic })
+  assert.equal(treeRes.statusCode, 503)
+  const treeLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_FAILED')
+  assert.ok(treeLog, 'BUILDER_SOURCE_FAILED was logged')
+  assert.equal(treeLog.level, 50)
+  assert.equal(treeLog['exception.message'], 'TREE_SERVICE_FAIL')
+  assert.equal(treeLog['conexus.project_id'], projectA)
 })
 
 test("the browser reaches exactly ten of Mastra's agent-controller routes, each one Mastra's own route table names", async (t) => {

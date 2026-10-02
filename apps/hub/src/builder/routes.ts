@@ -163,9 +163,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
     if (!dependencies.session?.readTrace) return sendProblem(reply, 503, 'builder-trace-unavailable', 'Builder trace unavailable')
     try {
-      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!run || run.builderRunId !== request.params.builderRunId) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
-      return dependencies.session.readTrace({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
+      return await dependencies.session.readTrace({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
     } catch (error) {
       if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       recordFailure(request.log, 'BUILDER_TRACE_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })

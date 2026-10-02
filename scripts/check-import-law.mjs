@@ -269,6 +269,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/generated/s1-routes.',
           'apps/hub/src/identity-access/',
           'apps/hub/src/platform/application-slug.',
+          'apps/hub/src/platform/logger.',
           'apps/hub/src/platform/opaque-token.',
           'apps/hub/src/platform/origin.',
         ]
