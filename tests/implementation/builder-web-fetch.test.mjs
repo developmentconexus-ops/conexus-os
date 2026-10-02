@@ -27,6 +27,9 @@ test('a URL that can carry data is refused before anything leaves', async () => 
     'https://example.com/a\nb',
     'https://example.com/a b',
     'https://example.com/%E0%A4%A',
+    'https://123456789.attacker.example/',
+    'https://cpf-12345678900.attacker.example/',
+    `https://${'a'.repeat(41)}.attacker.example/`,
   ]
   for (const url of refused) {
     assert.equal(outboundUrl(url), undefined, url)

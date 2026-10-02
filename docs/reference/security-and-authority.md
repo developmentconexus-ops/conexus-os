@@ -77,9 +77,11 @@ in the sandbox.
 `web_fetch` is Mastra's `webFetchTool` behind the Hub's guard. It sends no credential and only
 GET, and Mastra refuses private, loopback and link-local addresses, also after DNS and on each
 redirect. The guard refuses a URL with a query string, a `#` part or a user or password, one
-longer than 300 characters or with a path segment over 80, and a path shaped like an email or a
-long number. It narrows what can leave in the URL; it cannot prove a URL is free of company data,
-so a short path of company words still passes. C-023 keeps the sandbox allowlist before Q5.
+longer than 300 characters, with a path segment over 80 or a host label over 40, a path shaped
+like an email or a long number, and a host holding a long number. The host name gets these checks
+because it leaves in the DNS lookup before any request. The guard narrows what can leave in the
+URL; it cannot prove a URL is free of company data, so a short path or host label of company
+words still passes. C-023 keeps the sandbox allowlist before Q5.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
