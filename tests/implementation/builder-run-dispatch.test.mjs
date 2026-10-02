@@ -8,8 +8,8 @@ const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabul
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
 // so each test only overrides the pieces it exercises.
 // A conversation is the Project's when its thread is; these tests name the missing one through the conversation id.
-const makeRuns = ({ execute, appendDiagnostic, publishRun }) => ({
-  runtime: { execute },
+const makeRuns = ({ execute, appendDiagnostic, publishRun, discardParked }) => ({
+  runtime: { execute, discardParked: discardParked ?? (async () => {}) },
   publishRun: publishRun ?? (async () => {}),
   conversations: {
     ownerOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? 'NONE' : 'PROJECT'),
@@ -494,12 +494,14 @@ test('a run publishes the state it parks in, and the state it ends in, before it
       setBuilderRunPhase: async (_id, phase) => { Object.assign(row, { phase }) },
       settleBuilderRun: async () => { Object.assign(row, { state: 'SETTLED', phase: null, resultKind: 'RESPONSE_ONLY' }) },
       failBuilderRun: async () => { Object.assign(row, { state: 'FAILED', phase: null }) },
+      interruptBuilderRun: async () => { Object.assign(row, { state: 'INTERRUPTED', phase: null }) },
       bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, close: async () => {},
     }
     const service = createBuilderService({
       store,
       runs: makeRuns({
         publishRun: async (run) => { events.push(`publish:${run.state}:${run.phase}`) },
+        discardParked: async () => { events.push('discard') },
         execute: async (input) => {
           input.holdSession(async () => { events.push('close-session') })
           return result(input)
@@ -518,4 +520,12 @@ test('a run publishes the state it parks in, and the state it ends in, before it
   const ended = await drive(endedId, () => ({ kind: 'RESPONSE_ONLY', projectId, executionId: endedId, baseSourceRevision: 'a'.repeat(40) }))
   assert.deepEqual(ended.slice(-2), ['publish:SETTLED:null', 'close-session'])
   assert.equal(ended.filter((event) => event === 'close-session').length, 1)
+  const failedId = '88888888-8888-4888-8888-88888888888d'
+  const failed = await drive(failedId, () => { throw new Error('BUILDER_MODEL_STREAM_FAILED') })
+  assert.deepEqual(failed.slice(failed.indexOf('publish:FAILED:null'), failed.indexOf('discard') + 1), ['publish:FAILED:null', 'close-session', 'discard'], 'a failed leg publishes FAILED, closes its session, then settles')
+  assert.equal(failed.filter((event) => event === 'discard').length, 1)
+  const cancelledId = '88888888-8888-4888-8888-88888888888e'
+  const cancelled = await drive(cancelledId, () => { throw new Error('BUILDER_RUN_CANCELLED') })
+  assert.deepEqual(cancelled.slice(cancelled.indexOf('publish:INTERRUPTED:null'), cancelled.indexOf('discard') + 1), ['publish:INTERRUPTED:null', 'close-session', 'discard'], 'a cancelled leg publishes INTERRUPTED, closes its session, then settles')
+  assert.equal(cancelled.filter((event) => event === 'discard').length, 1)
 })

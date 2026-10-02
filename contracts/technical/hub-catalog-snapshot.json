@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0046",
+ "head": "0047",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -552,7 +552,7 @@
    "function builder.record_builder_run_model_account(p_builder_run_id uuid, p_model_account_id uuid) returns boolean kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=8f5efd83107057badd560987f46f871c",
    "function builder.record_conversation_sandbox(p_project_id uuid, p_conversation_id uuid, p_provider_sandbox_id text) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=98380b577eb8e7ccfee830a21168dfc4",
    "function builder.record_conversation_session(p_project_id uuid, p_conversation_id uuid, p_mirror_head text, p_synced_main text, p_turn_ended boolean) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=5828f0805cd7c3e7394e39ea1d79d13d",
-   "function builder.recover_builder_runs() returns SETOF uuid kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=e5ea44ecaf17eacbf6537e1bb32a7420",
+   "function builder.recover_builder_runs() returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=ba00604030beae587636a8e14d1d4d67",
    "function builder.register_project_repository(p_project_id uuid) returns void kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,project_owner:EXECUTE:false body=fd5090601b26022f638bbf723909ca90",
    "function builder.request_builder_run_cancellation(p_account_id uuid, p_project_id uuid, p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_ingress:EXECUTE:false body=2498f7c0f539a7b0176ca63be39a7252",
    "function builder.resume_builder_run(p_builder_run_id uuid) returns jsonb kind=f owner=builder_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=builder_owner:EXECUTE:false,hub_builder_executor:EXECUTE:false body=55a6b1a694a0bcae853a96543aa690a7",
