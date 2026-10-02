@@ -122,6 +122,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-web-build',
   'db-catalog-snapshot',
   'db-baseline-file',
+  'hub-lifecycle',
   'hub-postgres-pool',
   'db-role-provision-postgres',
   'hub-build-shared',

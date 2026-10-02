@@ -22,6 +22,8 @@ export type BuilderService = Readonly<{
   getApplicationBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   recover(): Promise<void>
+  /** Aborts every running leg for a Hub that is stopping; each settles its run INTERRUPTED HUB_RESTART. */
+  stopLegs(): void
   close(): Promise<void>
 }>
 
@@ -83,6 +85,8 @@ const recoverAdmissions = async ({ store, git, active }: Readonly<{
 }
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
+// The abort reason of a leg the Hub stops: it settles INTERRUPTED HUB_RESTART, not as the operator's stop.
+const HUB_STOPPING = 'HUB_STOPPING'
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
 export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs }: Readonly<{
@@ -259,9 +263,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           sourceRevision: unadmitted.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
         }).catch(() => undefined)
       }
-      // Only the operator's cancellation aborts this controller, and what the abort surfaces depends
+      // The operator's cancellation or the Hub's own stop aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
-      if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
+      if (controller.signal.reason === HUB_STOPPING) {
+        await store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART').catch(() => undefined)
+      } else if (controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED') {
         await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
       } else {
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
@@ -351,6 +357,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if ((await recover(new Set())).length) reconcileSoon()
       await store.recoverAndListQueuedBuilderRuns()
     },
+    stopLegs: () => { for (const { controller } of builderActive.values()) controller.abort(HUB_STOPPING) },
     close,
   })
 }

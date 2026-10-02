@@ -1,7 +1,9 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
+import { constants } from 'node:os'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 
@@ -44,13 +46,30 @@ export const buildHubLocal = async () => {
   }
 }
 
+// A signal to this wrapper reaches the child, which stops on its own terms; the wrapper then resolves
+// with the child's exit status so a supervisor sees what the child did.
+export const runForwarding = async (command, args, options = {}) => {
+  const child = spawn(command, args, { cwd: repositoryRoot, stdio: 'inherit', ...options })
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP']
+  const forward = (signal) => child.kill(signal)
+  for (const signal of signals) process.on(signal, forward)
+  try {
+    const [status, signal] = await once(child, 'exit')
+    return status ?? (signal ? 128 + constants.signals[signal] : 1)
+  } finally {
+    for (const signal of signals) process.off(signal, forward)
+  }
+}
+
 const main = async () => {
   const buildRoot = await buildHubLocal()
   const diagnosticDir = resolve(process.env.CONEXUS_DIAGNOSTIC_DIR ?? join(repositoryRoot, '.audit/diagnostics'))
   await mkdir(diagnosticDir, { recursive: true })
-  const server = spawnSync(process.execPath, hubNodeArguments({ buildRoot, diagnosticDir }), { cwd: repositoryRoot, stdio: 'inherit' })
-  await rm(buildRoot, { recursive: true, force: true })
-  process.exitCode = server.status ?? 1
+  try {
+    process.exitCode = await runForwarding(process.execPath, hubNodeArguments({ buildRoot, diagnosticDir }))
+  } finally {
+    await rm(buildRoot, { recursive: true, force: true })
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) await main()
