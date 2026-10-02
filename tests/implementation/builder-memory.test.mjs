@@ -33,7 +33,7 @@ const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delt
 // The Hub's routing over one provider whose accounts are "acct-<person>". Each call names the model
 // it reached and the account that paid for it; the Observer answers with a fixed log, and the main
 // model says what tools it was offered and calls what the script tells it to.
-const probeRouting = (script = [], onObserverPrompt = () => {}) => {
+const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0) => {
   const calls = []
   const titled = []
   const recorded = []
@@ -41,11 +41,13 @@ const probeRouting = (script = [], onObserverPrompt = () => {}) => {
   const model = (name, paidBy) => ({
     specificationVersion: 'v2', provider: 'probe', modelId: name, supportedUrls: {},
     async doGenerate(options) {
+      if (asksForTitle(options)) await new Promise((resolve) => setTimeout(resolve, titleDelayMs))
       ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
       onObserverPrompt(options)
       return { content: [{ type: 'text', text: asksForTitle(options) ? TITLE : OBSERVATIONS }], finishReason: 'stop', usage, warnings: [] }
     },
     async doStream(options) {
+      if (asksForTitle(options)) await new Promise((resolve) => setTimeout(resolve, titleDelayMs))
       ;(asksForTitle(options) ? titled : calls).push([name, paidBy])
       if (name !== 'main') onObserverPrompt(options)
       if (name !== 'main') return { stream: streamOf(textParts(asksForTitle(options) ? TITLE : OBSERVATIONS)) }
@@ -72,11 +74,11 @@ const runContext = () => {
   return requestContext
 }
 
-const builderWithMemory = async (t, script, onObserverPrompt) => {
+const builderWithMemory = async (t, script, onObserverPrompt, titleDelayMs) => {
   const dir = mkdtempSync(join(tmpdir(), 'builder-memory-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const storage = new LibSQLStore({ id: 'builder-memory', url: `file:${join(dir, 'memory.db')}` })
-  const probe = probeRouting(script, onObserverPrompt)
+  const probe = probeRouting(script, onObserverPrompt, titleDelayMs)
   const controller = createBuilderController({
     model: probe.routing.resolve,
     storage,
@@ -239,6 +241,16 @@ test('a conversation is titled by Memory generateTitle on the memory model in Po
 
   assert.equal((await memoryStore.getThreadById({ threadId })).title, 'Agenda semanal da equipe')
   assert.deepEqual(titled, [['observer', `acct-${ana}`]], 'one title call, on the memory default and the run\'s account')
+})
+
+test('a turn ends only after its conversation is titled, so the list read at the turn\'s end carries the title even when the title model is slow', async (t) => {
+  const { controller, storage } = await builderWithMemory(t, [], undefined, 800)
+  const threadId = '77777777-7777-4777-8777-777777777777'
+
+  await firstWindows(controller, 'Quero uma agenda semanal para a equipe de campo.', { resourceId: 'project:memory', threadId })
+
+  const memoryStore = await storage.getStore('memory')
+  assert.equal((await memoryStore.getThreadById({ threadId }))?.title, 'Agenda semanal da equipe')
 })
 
 test('the Observer is told to title the conversation in Portuguese', async (t) => {

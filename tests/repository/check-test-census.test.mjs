@@ -71,3 +71,18 @@ test('the unreached report names each file and CANDIDATE_GRAPH', () => {
   assert.match(message, /1 committed test file\(s\) are not reachable from CANDIDATE_GRAPH or exempt/)
   assert.match(message, /tests\/implementation\/orphaned\.test\.mjs/)
 })
+
+test('collectReachableTests finds *.spec.mjs files too', () => {
+  const reachable = collectReachableTests([{ command: 'npx playwright test tests/implementation/x.spec.mjs' }], {})
+  assert.equal(reachable.has('tests/implementation/x.spec.mjs'), true)
+})
+
+test('a *.spec.mjs outside the graph and the exempt list is unreached', () => {
+  const result = checkTestCensus({
+    root: '.',
+    candidateGraph: [],
+    packageScripts: {},
+    committedTests: ['tests/implementation/stray.spec.mjs', 'tests/implementation/r1-s1-live-browser.spec.mjs'],
+  })
+  assert.deepEqual(result.unreached, ['tests/implementation/stray.spec.mjs'])
+})

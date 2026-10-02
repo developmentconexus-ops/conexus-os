@@ -509,9 +509,18 @@ const runBoot = async () => {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] })
       await send('Page.navigate', { url: origin + '/' })
       await loadFired
-      await new Promise((settle) => setTimeout(settle, 300))
-      const evaluated = await send('Runtime.evaluate', { expression: '(() => { const element = document.getElementById("root"); return element ? element.children.length : -1 })()', returnByValue: true })
-      if (typeof evaluated?.result?.value !== 'number' || evaluated.result.value <= 0) add({ code: 'BOOT_NO_ROOT_CHILD', message: 'The page loaded but #root has no children: nothing was rendered.' })
+      // The load event does not wait for a module script's top-level await or its fetches, so a page can draw
+      // after it. Hold a short minimum so late errors are seen, then wait for the first child up to a ceiling.
+      const settledAt = Date.now() + 300
+      const ceilingAt = Date.now() + 10000
+      let rootChildren = -1
+      while (true) {
+        const evaluated = await send('Runtime.evaluate', { expression: '(() => { const element = document.getElementById("root"); return element ? element.children.length : -1 })()', returnByValue: true })
+        rootChildren = typeof evaluated?.result?.value === 'number' ? evaluated.result.value : -1
+        if ((rootChildren > 0 && Date.now() >= settledAt) || problems.some((problem) => problem.code === 'BOOT_UNCAUGHT_ERROR') || Date.now() >= ceilingAt) break
+        await new Promise((wait) => setTimeout(wait, 50))
+      }
+      if (rootChildren <= 0) add({ code: 'BOOT_NO_ROOT_CHILD', message: 'The page loaded but #root has no children: nothing was rendered.' })
       else {
         // Best effort: the Projects list shows this picture; failing to take it never fails the check.
         try {

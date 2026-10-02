@@ -51,6 +51,8 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
   await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY' }])
 
   assert.equal(streams.filter(({ status }) => status === 200).length, 1, 'the answer reached the page on the stream that followed the park')
+  await expect(page.getByRole('combobox', { name: 'Conversa' })).toContainText('Contador simples', { timeout: 30_000 })
+
   assert.equal(model.calls.length, 2)
   assert.ok(JSON.stringify(model.calls[1].contents).includes(ANSWER), "the model's second call carries the person's answer")
 })

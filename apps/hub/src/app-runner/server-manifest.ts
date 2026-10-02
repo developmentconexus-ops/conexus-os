@@ -22,9 +22,6 @@ export type ServerManifest = Readonly<{
   migrations: readonly ServerMigration[]
 }>
 
-export const SERVER_ROOT = 'conexus-server'
-export const SERVER_MANIFEST_PATH = `${SERVER_ROOT}/manifest.json`
-
 /**
  * Admits a manifest or refuses it with the first violation, as `MANIFEST_REFUSED: <where>: <why>`.
  * `source` is the Builder's `conexus/manifest.json`; `server` is the build's normalized one.
@@ -149,6 +146,78 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
     if (ordered.some((name, index) => index > 0 && name <= (ordered[index - 1] as string))) refuse('migrations', 'must be in name order')
   }
   return value as SourceManifest | ServerManifest
+}
+
+/**
+ * The Node built-ins a handler may import: computation only. The runner's sandbox has no file
+ * system, network or process access, so the check refuses every other built-in before it can fail
+ * at run time.
+ */
+export const SUPPORTED_NODE_IMPORTS: readonly string[] = Object.freeze([
+  'node:assert', 'node:assert/strict', 'node:buffer', 'node:crypto', 'node:events', 'node:path', 'node:perf_hooks',
+  'node:querystring', 'node:stream', 'node:stream/promises', 'node:stream/web', 'node:string_decoder', 'node:timers',
+  'node:timers/promises', 'node:url', 'node:util', 'node:util/types', 'node:zlib',
+])
+
+/** Globals that reach the network. A handler has none; it reads a company system through `connectors.fetch`. */
+export const NETWORK_GLOBALS: readonly string[] = Object.freeze(['fetch', 'WebSocket', 'EventSource', 'XMLHttpRequest'])
+
+/** One file of an artifact's `conexus-server/` tree: its path, its base64 content and that content's SHA-256. */
+export type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
+
+/** An admitted server tree: its manifest and the bundled modules, keyed by path under `conexus-server/`. */
+export type ServerTree = Readonly<{ manifest: ServerManifest; modules: ReadonlyMap<string, Buffer> }>
+
+/**
+ * Admits a `conexus-server/` tree or refuses it with the first violation, as
+ * `SERVER_TREE_REFUSED: <where>: <why>`. `sha256` hashes bytes to a hex digest.
+ *
+ * Like `admitManifest`, it references nothing outside its own body but `admitManifest` and `Buffer`:
+ * the build script embeds it from `Function.prototype.toString`, so the Project check refuses exactly
+ * the tree the runner would refuse.
+ */
+export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Buffer) => string): ServerTree {
+  const refuse = (where: string, why: string): never => { throw new Error(`SERVER_TREE_REFUSED: ${where}: ${why}`) }
+  const ROOT = 'conexus-server'
+  const MAX_FILES = 128
+  const MAX_FILE_BYTES = 4 * 1024 * 1024
+  const DIRECTORY = /^[a-z0-9][A-Za-z0-9_.-]{0,127}$/
+  const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_FILES) refuse('tree', `must hold between 1 and ${MAX_FILES} files`)
+  const modules = new Map<string, Buffer>()
+  let manifest: ServerManifest | null = null
+  for (const file of files) {
+    if (typeof file?.path !== 'string' || typeof file.content !== 'string' || typeof file.sha256 !== 'string') refuse('tree', 'every file needs a path, content and sha256')
+    const parts = file.path.split('/')
+    if (parts[0] !== ROOT || parts.length < 2 || parts.length > 8) refuse(file.path, `must sit at most 7 levels under ${ROOT}/`)
+    const name = parts[parts.length - 1] as string
+    const directories = parts.slice(1, -1)
+    if (directories.some((part) => part === '..' || part === '.' || !DIRECTORY.test(part))) {
+      refuse(file.path, 'a directory is ASCII letters, digits, "_", "." or "-" and starts with a lowercase letter or digit')
+    }
+    if (!NAME.test(name)) refuse(file.path, 'a file name is ASCII letters, digits, "_", "." or "-" and starts with a letter or digit')
+    const bytes = Buffer.from(file.content, 'base64')
+    if (bytes.byteLength > MAX_FILE_BYTES) refuse(file.path, 'larger than 4 MiB')
+    if (sha256(bytes) !== file.sha256) refuse(file.path, 'content does not match its sha256')
+    const relative = file.path.slice(ROOT.length + 1)
+    if (relative === 'manifest.json') {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(bytes.toString('utf8'))
+      } catch {
+        refuse(file.path, 'is not valid JSON')
+      }
+      manifest = admitManifest(parsed, 'server') as ServerManifest
+    } else if (!relative.endsWith('.mjs')) refuse(file.path, 'only .mjs modules and manifest.json may be in the tree')
+    else if (modules.has(relative)) refuse(file.path, 'appears twice')
+    else modules.set(relative, bytes)
+  }
+  if (!manifest) refuse(`${ROOT}/manifest.json`, 'is missing')
+  const admitted = manifest as ServerManifest
+  for (const [id, operation] of Object.entries(admitted.operations)) {
+    if (!modules.has(operation.module)) refuse(`operations.${id}`, `module ${ROOT}/${operation.module} is not in the tree`)
+  }
+  return Object.freeze({ manifest: admitted, modules })
 }
 
 const UNDECLARED_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/

@@ -4,7 +4,8 @@
     "paths": [
       "**"
     ],
-    "page": "docs/development/review/mastra-native.md"
+    "page": "docs/development/review/mastra-native.md",
+    "flows": []
   },
   {
     "area": "identity-session",
@@ -34,7 +35,14 @@
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/identity-session.md"
+    "page": "docs/development/review/identity-session.md",
+    "flows": [
+      {
+        "id": "identity.sign-out-asks-password",
+        "nome": "Sair do Conexus e entrar de novo pede a senha",
+        "test": "tests/live/identity-sign-out-asks-password.test.mjs"
+      }
+    ]
   },
   {
     "area": "data-migrations",
@@ -68,7 +76,8 @@
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/data-migrations.md"
+    "page": "docs/development/review/data-migrations.md",
+    "flows": []
   },
   {
     "area": "connectors",
@@ -100,7 +109,8 @@
       "tests/implementation/model-account-*",
       "tests/implementation/builder-conexus-git*"
     ],
-    "page": "docs/development/review/connectors.md"
+    "page": "docs/development/review/connectors.md",
+    "flows": []
   },
   {
     "area": "frontend",
@@ -116,7 +126,8 @@
       "tests/implementation/preview-form-policy.test.mjs",
       "tests/repository/web-style.test.mjs"
     ],
-    "page": "docs/development/review/frontend.md"
+    "page": "docs/development/review/frontend.md",
+    "flows": []
   },
   {
     "area": "builder-factory",
@@ -129,7 +140,39 @@
       "tests/implementation/builder-*",
       "tests/implementation/builder-skills-guard.test.mjs"
     ],
-    "page": "docs/development/review/builder-factory.md"
+    "page": "docs/development/review/builder-factory.md",
+    "flows": [
+      {
+        "id": "builder.ask-and-answer",
+        "nome": "Responder a uma pergunta do agente e ver o trabalho seguir",
+        "test": "tests/live/builder-ask-and-answer.test.mjs"
+      },
+      {
+        "id": "builder.park-and-answer",
+        "nome": "Deixar o pedido esperando uma pergunta e responder depois",
+        "test": "tests/live/builder-park-and-answer.test.mjs"
+      },
+      {
+        "id": "builder.reload-while-parked",
+        "nome": "Recarregar a página com uma pergunta esperando resposta",
+        "test": "tests/live/builder-reload-while-parked.test.mjs"
+      },
+      {
+        "id": "builder.second-question",
+        "nome": "Ver a segunda pergunta numa página já aberta",
+        "test": "tests/live/builder-second-question.test.mjs"
+      },
+      {
+        "id": "builder.send-and-reply",
+        "nome": "Enviar um pedido e ler a resposta do agente",
+        "test": "tests/live/builder-send-and-reply.test.mjs"
+      },
+      {
+        "id": "builder.typing-while-parked",
+        "nome": "Digitar no campo de mensagem enquanto o pedido espera",
+        "test": "tests/live/builder-typing-while-parked.test.mjs"
+      }
+    ]
   },
   {
     "area": "contracts",
@@ -145,7 +188,8 @@
       "tests/repository/wire-bijection-gate.test.mjs",
       "tests/implementation/project-disclosure.test.mjs"
     ],
-    "page": "docs/development/review/contracts.md"
+    "page": "docs/development/review/contracts.md",
+    "flows": []
   },
   {
     "area": "platform",
@@ -200,6 +244,13 @@
       "tests/implementation/hub-launch-flags.test.mjs",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/platform.md"
+    "page": "docs/development/review/platform.md",
+    "flows": [
+      {
+        "id": "project.delete-wrong-name",
+        "nome": "Excluir um Projeto digitando o nome errado",
+        "test": "tests/live/project-delete-wrong-name.test.mjs"
+      }
+    ]
   }
 ]
