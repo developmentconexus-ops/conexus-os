@@ -14,27 +14,29 @@ import type { CommandResult } from '@mastra/core/workspace'
  * without a lookup (the last is logged as the bare address). `count` is poll observations, not
  * connections. An empty list is never evidence of no egress: the summary line says how complete it is.
  */
-export const EGRESS_LOG_DIR = '/var/log/conexus-egress'
-export const EGRESS_SCRIPT_DIR = '/usr/local/lib/conexus-egress'
+const EGRESS_LOG_DIR = '/var/log/conexus-egress'
+const EGRESS_SCRIPT_DIR = '/usr/local/lib/conexus-egress'
 const DNS_SCRIPT_PATH = `${EGRESS_SCRIPT_DIR}/dns.mjs`
 const POLLER_SCRIPT_PATH = `${EGRESS_SCRIPT_DIR}/poller.py`
 const OFFSET_PATH = `${EGRESS_LOG_DIR}/offset.json`
 const DNS_LOG_PATH = `${EGRESS_LOG_DIR}/dns.jsonl`
 const TCP_LOG_PATH = `${EGRESS_LOG_DIR}/tcp.jsonl`
-export const EGRESS_COLLECT_TIMEOUT_MS = 10_000
-export const MAX_EGRESS_LINES = 200
+const EGRESS_COLLECT_TIMEOUT_MS = 10_000
+const MAX_EGRESS_LINES = 200
 const MAX_LOG_BYTES = 8_000_000
-const RESOLVER = '8.8.8.8'
+const FALLBACK_RESOLVER = '8.8.8.8'
+const UPSTREAM_PATH = `${EGRESS_LOG_DIR}/upstream`
 
-export type EgressRecord = Readonly<{ host: string; port: number; protocol: 'tcp'; firstSeen: string; count: number }>
-export type EgressStatus = 'complete' | 'partial' | 'failed'
+type EgressRecord = Readonly<{ host: string; port: number; protocol: 'tcp'; firstSeen: string; count: number }>
+type EgressStatus = 'complete' | 'partial' | 'failed'
 type DnsObservation = Readonly<{ t: number; name: string; ips: readonly string[] }>
 type TcpObservation = Readonly<{ t: number; ip: string; port: number }>
 type Offsets = Readonly<{ dns: number; tcp: number }>
 
-export const dnsForwarderSource = (): string => `import dgram from 'node:dgram'
-import { appendFileSync } from 'node:fs'
+const dnsForwarderSource = (): string => `import dgram from 'node:dgram'
+import { appendFileSync, writeFileSync } from 'node:fs'
 const LOG = '${DNS_LOG_PATH}'
+const UPSTREAM = process.argv[2]
 let written = 0
 const readName = (buf, start) => {
   const labels = []
@@ -66,7 +68,7 @@ const parse = (buf) => {
   return { name: question.name, ips }
 }
 const record = (answer) => {
-  if (written > ${MAX_LOG_BYTES}) return
+  if (written > ${MAX_LOG_BYTES}) { try { writeFileSync(LOG, '{"capped":true}\\n'); written = 0 } catch {} }
   try {
     const { name, ips } = parse(answer)
     if (ips.length === 0) return
@@ -82,13 +84,13 @@ server.on('message', (query, client) => {
   const timer = setTimeout(done, 5000)
   upstream.on('message', (answer) => { server.send(answer, client.port, client.address); record(answer); done() })
   upstream.on('error', done)
-  upstream.send(query, 53, '${RESOLVER}')
+  upstream.send(query, 53, UPSTREAM)
 })
 server.on('error', () => process.exit(1))
 server.bind(53, '127.0.0.1')
 `
 
-export const tcpPollerSource = (): string => `import ipaddress, os, socket, sys, time
+const tcpPollerSource = (): string => `import ipaddress, os, socket, sys, time
 LOG = '${TCP_LOG_PATH}'
 LISTEN = '0A'
 def v4(h):
@@ -98,7 +100,8 @@ def v6(h):
     a = ipaddress.IPv6Address(raw)
     return str(a.ipv4_mapped or a)
 def poll():
-    seen = set()
+    tables = []
+    listening = set()
     for path, convert in (('/proc/net/tcp', v4), ('/proc/net/tcp6', v6)):
         try:
             with open(path) as f:
@@ -107,17 +110,25 @@ def poll():
             continue
         for row in rows:
             fields = row.split()
-            if len(fields) < 4 or fields[3] == LISTEN:
+            if len(fields) < 4:
                 continue
-            ip, port = fields[2].split(':')
-            if int(port, 16) == 0:
-                continue
-            seen.add((convert(ip), int(port, 16)))
+            tables.append((convert, fields))
+            if fields[3] == LISTEN:
+                listening.add(int(fields[1].split(':')[1], 16))
+    seen = set()
+    for convert, fields in tables:
+        if fields[3] == LISTEN or int(fields[1].split(':')[1], 16) in listening:
+            continue
+        ip, port = fields[2].split(':')
+        if int(port, 16) == 0:
+            continue
+        seen.add((convert(ip), int(port, 16)))
     return seen
 def record():
     try:
         if os.path.getsize(LOG) > ${MAX_LOG_BYTES}:
-            return
+            with open(LOG, 'w') as f:
+                f.write('{"capped":true}\\n')
     except OSError:
         pass
     now = int(time.time() * 1000)
@@ -141,21 +152,25 @@ type EgressRoot = Readonly<{
 const aliveCheck = [`for p in dns poller; do kill -0 "$(cat '${EGRESS_LOG_DIR}'/$p.pid 2>/dev/null)" 2>/dev/null || exit 1; done`].join('\n')
 
 // A forwarder that never answers must not take name resolution with it: the second nameserver is
+// the VM's own resolver, read before resolv.conf is rewritten and kept in a file so a restart finds it,
 // what a lookup falls through to, and resolv.conf points at the forwarder only once it is running.
 const startScript = [
   'umask 022',
   `mkdir -p -m 755 '${EGRESS_LOG_DIR}'`,
+  `[ -s '${UPSTREAM_PATH}' ] || awk '$1 == "nameserver" && $2 ~ /^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$/ && $2 !~ /^127[.]/ { print $2; exit }' /etc/resolv.conf > '${UPSTREAM_PATH}'`,
+  `[ -s '${UPSTREAM_PATH}' ] || echo '${FALLBACK_RESOLVER}' > '${UPSTREAM_PATH}'`,
+  `up=$(cat '${UPSTREAM_PATH}')`,
   'start() {',
   `  if ! kill -0 "$(cat '${EGRESS_LOG_DIR}'/$1.pid 2>/dev/null)" 2>/dev/null; then`,
   `    p=$1; shift; setsid nohup "$@" >/dev/null 2>&1 </dev/null &`,
   `    echo $! > '${EGRESS_LOG_DIR}'/$p.pid`,
   '  fi',
   '}',
-  `start dns node '${DNS_SCRIPT_PATH}'`,
+  `start dns node '${DNS_SCRIPT_PATH}' "$up"`,
   `start poller python3 '${POLLER_SCRIPT_PATH}'`,
   'sleep 1',
   aliveCheck,
-  `printf 'nameserver 127.0.0.1\\nnameserver ${RESOLVER}\\n' > /etc/resolv.conf`,
+  'printf "nameserver 127.0.0.1\\nnameserver %s\\n" "$up" > /etc/resolv.conf',
 ].join('\n')
 
 /**
@@ -172,7 +187,7 @@ export const ensureEgressLog = async (root: EgressRoot): Promise<void> => {
 }
 
 /** The complete lines of `bytes` after `offset`, parsed, and the offset after the last complete one. */
-export const readJsonl = (bytes: Uint8Array, offset: number): Readonly<{ rows: readonly unknown[]; offset: number }> => {
+const readJsonl = (bytes: Uint8Array, offset: number): Readonly<{ rows: readonly unknown[]; offset: number }> => {
   const start = offset > bytes.length ? 0 : offset
   const text = Buffer.from(bytes.subarray(start)).toString('utf8')
   const last = text.lastIndexOf('\n')
@@ -203,15 +218,14 @@ const isLoopback = (ip: string): boolean => ip === '::1' || ip.startsWith('127.'
 
 /**
  * One record per destination: the name the agent last resolved to the address, else the bare address,
- * with the earliest sighting and the number of sightings. Loopback and the forwarder's own upstream
- * leg are not the agent's destinations.
+ * with the earliest sighting and the number of sightings. Loopback is not a destination.
  */
-export const aggregateEgress = (dnsRows: readonly unknown[], tcpRows: readonly unknown[]): EgressRecord[] => {
+const aggregateEgress = (dnsRows: readonly unknown[], tcpRows: readonly unknown[]): EgressRecord[] => {
   const names = new Map<string, string>()
   for (const { name, ips } of dnsObservations(dnsRows).sort((a, b) => a.t - b.t)) for (const ip of ips) names.set(ip, name)
   const groups = new Map<string, { host: string; port: number; firstSeen: number; count: number }>()
   for (const { t, ip, port } of tcpObservations(tcpRows)) {
-    if (isLoopback(ip) || (ip === RESOLVER && port === 53)) continue
+    if (isLoopback(ip)) continue
     const host = names.get(ip) ?? (ip.includes(':') ? `[${ip}]` : ip)
     const key = `${host}\0${port}`
     const group = groups.get(key)
@@ -255,7 +269,8 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
     ports.log(`BUILDER_SANDBOX_EGRESS:${ports.executionId}:${ports.conversationId}:${record.host}:${record.port}:${record.protocol}:${record.firstSeen}:${record.count}`)
   }
   await ports.writeRootFile(OFFSET_PATH, new TextEncoder().encode(JSON.stringify({ dns: dns.offset, tcp: tcp.offset })))
-  const status: EgressStatus = stored === null || dnsBytes === null || records.length > MAX_EGRESS_LINES ? 'partial' : 'complete'
+  const capped = [...dns.rows, ...tcp.rows].some((row) => isObject(row) && row.capped === true)
+  const status: EgressStatus = stored === null || dnsBytes === null || capped || records.length > MAX_EGRESS_LINES ? 'partial' : 'complete'
   ports.log(`BUILDER_SANDBOX_EGRESS_SUMMARY:${ports.executionId}:${status}:${Math.min(records.length, MAX_EGRESS_LINES)}`)
   return status
 }
