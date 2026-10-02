@@ -184,6 +184,7 @@
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
+      "docs/tasks/specs/0007-telemetry-otel/**",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/platform.md"
