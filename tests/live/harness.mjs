@@ -113,6 +113,7 @@ const createWorkspace = async (page) => {
 export const globalSetup = async () => {
   started = Date.now()
   let state
+  let page
   try {
     const model = await startScriptedModel()
     suite = { model, sandboxRoot: mkdtempSync(join(tmpdir(), 'conexus-live-sandboxes-')) }
@@ -124,7 +125,7 @@ export const globalSetup = async () => {
     suite.contextOptions = { ...contextOptions, baseURL: state.origin }
     suite.browser = await chromium.launch({ headless, args: [...args] })
     const context = await suite.browser.newContext(suite.contextOptions)
-    const page = await context.newPage()
+    page = await context.newPage()
     await signIn(page, state)
     await connectGoogle(page)
     await seedModelDefaults(state)
@@ -133,10 +134,10 @@ export const globalSetup = async () => {
     await context.close()
     timing.setup = Date.now() - setupStarted
   } catch (error) {
+    if (state) await page?.screenshot({ path: evidence(state, 'live', 'setup.failure.png') }).catch(() => undefined)
     await globalTeardown()
     throw error
   }
-  suite.flowsStarted = Date.now()
 }
 
 // node:test runs globalTeardown only once the event loop is empty, and the Hub, the browser and the
