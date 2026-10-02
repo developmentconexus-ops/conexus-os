@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { test } from 'node:test'
-import { buildReapCommand, buildWorktreeAddCommand, main } from '../../scripts/worktree-new.mjs'
+import { fileURLToPath } from 'node:url'
+import { buildReapCommand, buildWorktreeAddCommand, main, repositoryRoot } from '../../scripts/worktree-new.mjs'
+
+test('repositoryRoot resolves to the real repository root, not a URL-shaped path', () => {
+  const expectedRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
+  assert.equal(repositoryRoot, expectedRoot)
+  assert.ok(existsSync(repositoryRoot), `repositoryRoot ${repositoryRoot} must exist`)
+  assert.ok(existsSync(resolve(repositoryRoot, 'package.json')), `repositoryRoot ${repositoryRoot} must be the repo root`)
+})
 
 test('buildReapCommand runs the reaper in apply mode', () => {
   assert.deepEqual(buildReapCommand(), ['node', 'scripts/worktree-reap.mjs', '--apply'])

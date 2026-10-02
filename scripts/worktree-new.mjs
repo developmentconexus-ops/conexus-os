@@ -4,9 +4,9 @@
 // `gh` not authenticated) is visible instead of silently skipped.
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const repositoryRoot = resolve(dirname(pathToFileURL(import.meta.url).pathname), '..')
+export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const defaultCommand = (file, args, options = {}) => {
   const result = spawnSync(file, args, { cwd: options.cwd, stdio: options.capture ? 'pipe' : 'inherit', encoding: 'utf8', windowsHide: true })
