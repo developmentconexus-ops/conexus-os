@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "npm run verify",
-    "test:live": "node --test --test-isolation=none --test-global-setup=tests/live/harness.mjs tests/live/builder-send-and-reply.test.mjs",
+    "test:live": "node --test --test-isolation=none --test-global-setup=tests/live/harness.mjs tests/live/builder-send-and-reply.test.mjs tests/live/builder-ask-and-answer.test.mjs tests/live/builder-park-and-answer.test.mjs tests/live/builder-reload-while-parked.test.mjs tests/live/builder-second-question.test.mjs tests/live/builder-typing-while-parked.test.mjs tests/live/project-delete-wrong-name.test.mjs",
     "test:repository": "node --test --test-concurrency=1 tests/repository/*.test.mjs",
     "conexus:preflight": "node scripts/conexus-preflight.mjs",
     "conexus:verify": "node scripts/conexus-verify.mjs",

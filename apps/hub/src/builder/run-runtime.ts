@@ -33,6 +33,7 @@ type RunSandbox = Readonly<{
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   writeRootFile(path: string, bytes: Uint8Array): Promise<void>
   readAgentFile(path: string): Promise<Uint8Array>
+  readAgentFileIfPresent(path: string): Promise<Uint8Array | null>
   readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
@@ -177,8 +178,8 @@ type TurnMirror = Readonly<{
   schedule(): void
   /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout. Answers the mirror's head. */
   end(candidate: string | null): Promise<string | null>
-  /** Ends the turn's mirror without writing, for a sandbox that is gone. */
-  abandon(): void
+  /** Ends the turn's mirror without a new write, for a sandbox that is gone. Settles once the write in flight has. */
+  abandon(): Promise<void>
 }>
 
 /**
@@ -245,7 +246,8 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
     },
     abandon: () => {
       stop()
-      ended ??= Promise.resolve(expected)
+      ended ??= chain.then(() => expected)
+      return ended.then(() => undefined)
     },
   })
 }
@@ -602,15 +604,15 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         await collectEgress({
           asRoot: (script) => sandbox.runAsRoot(script, {}),
           writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes),
-          readAgentFile: (path) => sandbox.readAgentFile(path),
+          readAgentFile: (path) => sandbox.readAgentFileIfPresent(path),
           log: ports.log,
           executionId: input.executionId,
           conversationId: input.conversationId,
         })
         live = sandbox.sandboxId === incarnation
       }
-      if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
-      else mirror?.abandon()
+      const mirrorSettled = live ? endMirror(null) : mirror?.abandon()
+      await Promise.race([mirrorSettled, new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       const failed = (code: string) => (error: unknown): void => {
         ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       }
@@ -867,6 +869,7 @@ export const e2bConversationSandboxes = ({
         runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
         writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
         readAgentFile: (path: string) => sandbox.readAgentFile(path),
+        readAgentFileIfPresent: (path: string) => sandbox.readAgentFileIfPresent(path),
         readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
         runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),

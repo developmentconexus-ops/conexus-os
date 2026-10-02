@@ -133,6 +133,16 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
   const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
+
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const logs = []
+  const originalWrite = stream.write.bind(stream)
+  stream.write = (chunk) => {
+    try { logs.push(JSON.parse(chunk)) } catch {}
+  }
+  t.after(() => { stream.write = originalWrite })
   const response = {
     projectId: '30000000-0000-8000-8000-000000000063',
     workspaceId: '20000000-0000-4000-8000-000000000063',
@@ -181,5 +191,19 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   assert.deepEqual([refused.statusCode, refused.json()], [503, {
     type: 'urn:conexus:problem:project-repository-unavailable', title: 'Project repository unavailable', status: 503, detail: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED',
   }])
+  const repoRefusedLog = logs.find((r) => r.msg === 'PROJECT_REPOSITORY_REFUSED')
+  assert.ok(repoRefusedLog, 'PROJECT_REPOSITORY_REFUSED was logged')
+  assert.equal(repoRefusedLog.level, 50)
+  assert.equal(repoRefusedLog['exception.message'], 'REPOSITORY_REFUSED:FACTORY_INSTALLATION_ORGANIZATION_REQUIRED')
+  assert.equal(repoRefusedLog['conexus.workspace_id'], '20000000-0000-4000-8000-000000000063')
+
+  refusal = new Error('UNEXPECTED_STORE_BLOWUP')
+  const failed = await request()
+  assert.equal(failed.statusCode, 500)
+  const routeFailedLog = logs.find((r) => r.msg === 'PROJECT_ROUTE_FAILED')
+  assert.ok(routeFailedLog, 'PROJECT_ROUTE_FAILED was logged')
+  assert.equal(routeFailedLog.level, 50)
+  assert.equal(routeFailedLog['exception.message'], 'UNEXPECTED_STORE_BLOWUP')
+  assert.equal(routeFailedLog['conexus.workspace_id'], '20000000-0000-4000-8000-000000000063')
 })
 

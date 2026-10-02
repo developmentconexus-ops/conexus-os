@@ -19,7 +19,7 @@ const ports = (overrides = {}) => {
     ports: {
       asRoot: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
       writeRootFile: async (path, content) => { files.set(path, Buffer.from(content)) },
-      readAgentFile: async (path) => { if (!files.has(path)) throw new Error('ENOENT'); return files.get(path) },
+      readAgentFile: async (path) => files.get(path) ?? null,
       log: (line) => lines.push(line),
       executionId: 'run-1',
       conversationId: 'conv-1',
@@ -101,6 +101,29 @@ test('a turn logs each destination once and the next turn logs only what happene
     `BUILDER_SANDBOX_EGRESS:run-1:conv-1:10.0.0.1:443:tcp:${new Date(3000).toISOString()}:1`,
     'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:1',
   ])
+})
+
+test('a turn whose poller wrote no file is complete with no destinations, and the next turn logs its destination', async () => {
+  const held = ports()
+  held.files.set(DNS, bytes([]))
+  await collectEgress(held.ports)
+  assert.deepEqual(held.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:0'])
+  assert.deepEqual(JSON.parse(held.files.get('/var/log/conexus-egress/offset.json').toString('utf8')), { dns: 0, tcp: 0 })
+  held.lines.length = 0
+  held.files.set(TCP, bytes([{ t: 3000, ip: '10.0.0.1', port: 443 }]))
+  await collectEgress(held.ports)
+  assert.deepEqual(held.lines, [
+    `BUILDER_SANDBOX_EGRESS:run-1:conv-1:10.0.0.1:443:tcp:${new Date(3000).toISOString()}:1`,
+    'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:1',
+  ])
+})
+
+test('a TCP log that cannot be read is a failed collection, never a complete one', async () => {
+  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('502 upstream timeout'); return null } })
+  await collectEgress(held.ports)
+  assert.equal(held.lines.some((line) => line.includes(':complete:')), false)
+  assert.equal(held.lines.some((line) => line.startsWith('BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:run-1:')), true)
+  assert.equal(held.lines.at(-1), 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
 })
 
 test('a collection that fails or hangs is logged, never thrown, and never waits past its timeout', async () => {

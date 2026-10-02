@@ -197,3 +197,21 @@ test('a login role provisioned with CONNECT on its database is still revoked and
   `)).rows[0].granted
   assert.equal(granted, false)
 })
+
+test('a catalog check that fails after the pending migrations leaves no version and no object behind', async (t) => {
+  const catalogSnapshot = await snapshotAfterBoth(t)
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_rollback')
+  await runMigrations({ connectionString, migrations: [migrationA], catalogSnapshot: null })
+  const mismatched = { catalog: Object.fromEntries(Object.entries(catalogSnapshot.catalog).map(([section, lines]) => [section, lines.filter((line) => !line.includes('gadget'))])) }
+  await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: mismatched }), /MIGRATION_CATALOG_DRIFT/)
+  assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), ['0001'])
+  assert.equal((await query(connectionString, "SELECT to_regclass('iam.gadget') IS NOT NULL AS present")).rows[0].present, false)
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+})
+
+test('a fresh install whose catalog check fails leaves the database empty', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_rollback_fresh')
+  await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: { catalog: {} } }), /MIGRATION_CATALOG_DRIFT/)
+  assert.equal((await query(connectionString, "SELECT to_regnamespace('iam') IS NOT NULL AS present")).rows[0].present, false)
+})

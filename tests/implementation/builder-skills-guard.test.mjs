@@ -17,7 +17,7 @@ test('starts when the skills folder carries the six builder skills', () => {
       mkdirSync(join(root, name))
       writeFileSync(join(root, name, 'SKILL.md'), `---\nname: ${name}\n---\nguide\n`)
     }
-    assert.doesNotThrow(() => assertBuilderSkillsAvailable(root))
+    assert.equal(assertBuilderSkillsAvailable(root), undefined)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -35,7 +35,10 @@ test('refuses to start when the skills folder lacks a builder skill, and names i
 })
 
 test('the repository ships the six builder skills where the Hub looks for them', () => {
-  assert.doesNotThrow(() => assertBuilderSkillsAvailable(resolve(repositoryRoot, 'builder-skills')))
+  const folder = resolve(repositoryRoot, 'builder-skills')
+  const shipped = readdirSync(folder).filter((name) => existsSync(join(folder, name, 'SKILL.md'))).sort()
+  assert.deepEqual(shipped, ['conexus-app', 'conexus-build', 'conexus-plan-change', 'conexus-plan-new', 'conexus-sankhya', 'conexus-server'])
+  assert.equal(assertBuilderSkillsAvailable(folder), undefined)
 })
 
 const skillText = (name) => readFileSync(resolve(repositoryRoot, 'builder-skills', name, 'SKILL.md'), 'utf8')
@@ -45,7 +48,7 @@ for (const name of ['conexus-server', 'conexus-app', 'conexus-plan-new', 'conexu
     const text = skillText(name)
     assert.equal(/^---\nname: (.+)\n/.exec(text)?.[1], name)
     const cited = [...text.matchAll(/`(references\/[\w.-]+)`/g)].map((match) => match[1])
-    for (const path of cited) assert.ok(existsSync(resolve(repositoryRoot, 'builder-skills', name, path)), `${name} cites missing ${path}`)
+    assert.deepEqual(cited.filter((path) => !existsSync(resolve(repositoryRoot, 'builder-skills', name, path))), [])
   })
 }
 

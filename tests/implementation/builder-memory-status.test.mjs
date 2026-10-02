@@ -39,3 +39,9 @@ test('a failed observation says so on the message budget, and a failed reflectio
   assert.equal(spoken('observation'), 'Memória da conversa: Não foi possível guardar as mensagens na memória, 104,1 de 30 mil tokens. Observações até a próxima reflexão, 0,5 de 40 mil tokens')
   assert.equal(spoken('reflection'), 'Memória da conversa: Mensagens até a próxima observação, 104,1 de 30 mil tokens. Não foi possível resumir as observações, 0,5 de 40 mil tokens')
 })
+
+test('a failure outranks background buffering on the message budget', () => {
+  const buffering = { ...memory, bufferingMessages: true }
+  const html = renderToStaticMarkup(createElement(MemoryStatus, { memory: buffering, failed: 'observation' }))
+  assert.equal(/aria-label="([^"]*)"/.exec(html)?.[1], 'Memória da conversa: Não foi possível guardar as mensagens na memória, 104,1 de 30 mil tokens. Observações até a próxima reflexão, 0,5 de 40 mil tokens')
+})

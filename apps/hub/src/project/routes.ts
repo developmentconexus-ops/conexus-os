@@ -9,6 +9,7 @@ import type {
   Prj04Querystring,
 } from '../generated/s3-routes.js'
 import { sendProblem } from '../http/problem.js'
+import { recordFailure } from '../platform/logger.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { type ProjectError, projectErrorCode } from './errors.js'
 import type { ProjectStore } from './store.js'
@@ -41,6 +42,7 @@ export const registerProjectRoutes = async (
         })
       } catch (error) {
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')
+        recordFailure(request.log, 'PROJECT_ROUTE_FAILED', error, { 'conexus.workspace_id': request.params.workspaceId })
         return sendProblem(reply, 500, 'internal-error', 'Internal server error')
       }
     },
@@ -60,6 +62,7 @@ export const registerProjectRoutes = async (
         return project
       } catch (error) {
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+        recordFailure(request.log, 'PROJECT_ROUTE_FAILED', error, { 'conexus.project_id': request.params.projectId })
         return sendProblem(reply, 500, 'internal-error', 'Internal server error')
       }
     },
@@ -89,12 +92,14 @@ export const registerProjectRoutes = async (
         if (code === 'AUTHORIZATION_DENIED') return sendProblem(reply, 403, 'project-create-denied', 'Project creation denied')
         if (code === 'SOURCE_INPUT_REFUSED') return sendProblem(reply, 422, 'project-source-refused', 'Project source refused')
         if (code === 'REPOSITORY_REFUSED') {
+          recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.workspace_id': request.params.workspaceId })
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
         if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN') {
           return sendProblem(reply, 409, 'project-create-conflict', 'Project creation conflict')
         }
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')
+        recordFailure(request.log, 'PROJECT_ROUTE_FAILED', error, { 'conexus.workspace_id': request.params.workspaceId })
         return sendProblem(reply, 500, 'internal-error', 'Internal server error')
       }
     },
@@ -122,10 +127,15 @@ export const registerProjectRoutes = async (
         if (code === 'PROJECT_NAME_MISMATCH') return sendProblem(reply, 409, 'project-name-mismatch', 'Project name confirmation mismatch')
         if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
         if (code === 'REPOSITORY_REFUSED') {
+          recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.project_id': request.params.projectId })
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
-        if (code === 'DELETION_INCOMPLETE') return sendProblem(reply, 503, 'project-deletion-incomplete', 'Project deletion incomplete')
+        if (code === 'DELETION_INCOMPLETE') {
+          recordFailure(request.log, 'PROJECT_DELETION_INCOMPLETE', error, { 'conexus.project_id': request.params.projectId })
+          return sendProblem(reply, 503, 'project-deletion-incomplete', 'Project deletion incomplete')
+        }
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
+        recordFailure(request.log, 'PROJECT_ROUTE_FAILED', error, { 'conexus.project_id': request.params.projectId })
         return sendProblem(reply, 500, 'internal-error', 'Internal server error')
       }
     },

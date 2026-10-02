@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
+import { recordFailure } from '../platform/logger.js'
 import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
 import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
@@ -55,7 +56,8 @@ export const registerIdentityAccessRoutes = async (
       const transaction = await oidc.begin()
       await store.createOidcTransaction({ ...transaction, signInReturn })
       return reply.setCookie(OIDC_STATE_COOKIE, transaction.state, cookieOptions).redirect(transaction.location, 302)
-    } catch {
+    } catch (error) {
+      recordFailure(request.log, 'OIDC_BEGIN_FAILED', error)
       return reply.code(503).send()
     }
   })
@@ -78,7 +80,12 @@ export const registerIdentityAccessRoutes = async (
       if (signInReturn.kind === 'APPLICATION') {
         // This branch never sets the Hub session or its CSRF cookie: the person leaves with a
         // one-use handoff for the application's own host, or with no access at all.
-        if (!applications) return reply.code(503).send()
+        if (!applications) {
+          recordFailure(request.log, 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE', new Error('Applications module unavailable'), {
+            'conexus.project_id': signInReturn.projectId,
+          })
+          return reply.code(503).send()
+        }
         const outcome = await applications.sessions.signIn({
           identity,
           existingAccountId: account?.accountId ?? null,
@@ -94,7 +101,10 @@ export const registerIdentityAccessRoutes = async (
       if (account) {
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
-        if (!identity.refreshToken) return reply.code(503).send()
+        if (!identity.refreshToken) {
+          recordFailure(request.log, 'OIDC_REFRESH_TOKEN_MISSING', new Error('OIDC provider returned no refresh token'))
+          return reply.code(503).send()
+        }
         const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
         return reply
           .setCookie(SESSION_COOKIE, established.sessionToken, cookieOptions)
@@ -113,6 +123,7 @@ export const registerIdentityAccessRoutes = async (
         .redirect('/setup', 303)
     } catch (error) {
       if (identityAccessErrorCode(error) === 'IDENTITY_NOT_ELIGIBLE') return reply.code(403).send()
+      recordFailure(request.log, 'OIDC_CALLBACK_FAILED', error)
       return reply.code(503).send()
     }
   })
