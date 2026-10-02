@@ -97,12 +97,63 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
-| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)) |
+| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept. The executor followed it to `main` (#369, #372, #378) ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)) |
 | **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
 
 The sequence is a commitment order, not a dependency chain. Q5 depends on Q1's manifest rather than on Q3 or Q4. Exploration may therefore run ahead of the current gate. A spike that settles a gate's hypothesis runs on its own branch and worktree, is never merged, and ends in a report the gate's task cites. Work outside the gates follows the [lanes and work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
+
+Specs 0005 to 0008 build people, access, configuration and telemetry before the Q5 task exists.
+They prepare Q5, whose proof needs an employee who is not a developer and signs in with their own
+access. They are not the Q5 task, which still waits for the Q4 verdict.
+
+## Order of work to Q5
+
+The operator approved this order on 2026-10-02. It changes no gate status. It says what runs beside
+the current gate and in what order, inside the
+[work-in-progress limits](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress):
+one qualification workstream and two shaped workstreams at once. The decisions taken with it are in
+the [decision register](decisions/index.md#decided-on-2026-10-02-the-order-of-work-to-q5).
+
+| Phase | Work | Ends when |
+| --- | --- | --- |
+| 0. Finish open work | The open CI pull requests, a `verify` median of 5 minutes or less, the verdicts of the open Context7, telemetry and configuration qualifications, a rule that a pull request is up to date with `main` before it merges, and one pull request that corrects the authority documents that describe code `main` no longer has | No work started before 2026-10-02 is still open |
+| 1. Close Q4 | Inside the Q4 workstream: first the fixes where a person or data is at risk, then the guards, then the rest of the closure set | The Q4 verdict |
+| 2. Prepare Q5, then Q5 | In this order, which the specs set: spec 0008 slice 1 (one session lifetime from one source, which may start during phase 1); spec 0006 (people and sign-in); experiment E1 of spec 0005, then 0005 slices 3 to 6 as one release; spec 0007 slices 2 to 4 with spec 0008 slice 4; the sandbox allowlist of C-023. Then the Q5 task | The Q5 verdict: a published application used by an employee who is not a developer |
+| 3. Structural waves | Beside phases 1 and 2, once the phase 1 guards are in CI, one wave at a time | Each wave's own check |
+
+Phase 1 fixes, each with its own behavior test:
+
+- A run parked on a question has an exit, and the answer is checked before the run changes state.
+- One idempotent settle ends every run, and a failed settle write is retried and logged.
+- Every error that reaches a person leaves a log line with a code.
+- The Hub refuses a source bundle above a size cap.
+- Deleting a Project kills its E2B machines.
+- A failed poll no longer replaces a screen that has data with the error page, and each error
+  message names the real cause.
+- A supervisor restarts the Hub and the runner and sends a crash alert, and the Hub checks its
+  schema version at boot.
+- A daily backup runs with a restore check and a copy off the machine.
+- A new run is refused above a Hub memory threshold. A turn has no time limit. The decisions of
+  2026-10-02 say what guards it instead.
+
+Phase 1 guards land before any structural wave: a browser test harness against a real Hub, with
+the Builder flows a person uses; a list of flows per review area that CI requires for every change
+to that area; and the run states from one source that the Hub, the web app and SQL import.
+
+Phase 3 waves, in order:
+
+1. **S1.** One generated contract between the web app and the Hub for every Builder route.
+2. **S2.** The run as one state machine. It is designed before it is built.
+3. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
+   the session lifetimes.
+4. **S4.** One reaper for everything that expires: parked runs, idle E2B machines, expired sessions.
+5. **S5.** The Builder screen holds one record of the conversation.
+
+After S2, the Builder moves out of the Hub process, as the runner already is. That move gets its
+own design first, because it depends on how the sandbox and the session belong to each
+conversation.
 
 ## Technology baseline
 
@@ -218,6 +269,10 @@ application profile with a backend per Project, is a different thing and stays f
 Steps 4 to 10 may reorder by real demand. Step 1 comes first because it shapes how everything after
 it is built.
 
+On 2026-10-02 the operator moved part of step 1 ahead of the Stage 2 close: auth, roles and users,
+and telemetry are built as Q5 preparation under specs 0005 to 0008. The rest of step 1 still
+enters when Stage 2 closes.
+
 ## Exact next action
 
 **Execute the amended Stage 2 Q4 task: a Project reads a real enterprise system through a Connection bound to it, with Sankhya as the first integrator.**
@@ -234,16 +289,19 @@ Protected question:
 > platform operation?
 
 The amendment's closure set says what closes Q4. The Connection, the Project binding and the
-executor land on `main` as pull requests built from `main`, and the pilot then runs `main` for the
-real proof. Spike branches never merge.
+executor are on `main` (#369, #372, #378). What remains: delete the per-operation path
+(`connectors.call`, `/v1/call`), run the pilot on `main`, record one autonomous investigation and
+one useful application with a later change, and freeze the verdict. The phase 1 fixes and guards of
+the [order of work](#order-of-work-to-q5) run inside this gate. Spike branches never merge.
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
 Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
 ([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 closed with
 ACCEPT_WITH_BOUNDARY in #210 (`7f3dc0b7`): an application has its own host, an app-only Account reaches it through a
 one-use handoff from the Hub sign-in, and handlers receive the caller
-([evidence and verdict](evidence/stage2-q3/README.md)). The Q4 task starts from the notebook
-application Q3 left, whose handlers already know who is calling.
+([evidence and verdict](evidence/stage2-q3/README.md)). The data reset of the Builder own harness
+qualification removes the notebook application Q3 left, so the useful application of the Q4 closure
+set takes its role (operator, 2026-10-01).
 
 Q3 left one pending item by operator choice: the no-access page names the wrong reason when
 Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#findings)).
