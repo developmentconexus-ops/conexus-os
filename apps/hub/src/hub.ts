@@ -270,8 +270,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       key: readFileSync(config.preview.keyFile),
     },
   }) : undefined
-  await builder?.recover()
-
   // Read-only, and it never stops the Hub. One capability holding a bad credential must not
   // take the others down, and it must be named here rather than surfacing as a 28P01 inside
   // somebody's request.

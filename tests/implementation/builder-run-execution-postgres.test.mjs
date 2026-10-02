@@ -83,7 +83,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   await assert.rejects(() => create(ingressClient, secondRunId, '4'.repeat(64)), /PROJECT_BUSY/)
 
   executorClient = await connect(executor)
-  assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1) AS value', [runId])).rows[0].value.state, 'RUNNING')
+  assert.equal((await executorClient.query('SELECT builder.claim_builder_run($1, gen_random_uuid()) AS value', [runId])).rows[0].value.state, 'RUNNING')
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_message($1,$2)', [runId, 'mastra-message-1'])).rows[0].bind_builder_run_message, true)
   assert.equal((await executorClient.query('SELECT builder.bind_builder_run_sandbox($1,$2)', [runId, 'sandbox-1'])).rows[0].bind_builder_run_sandbox, true)
   // Every account that paid for one of the run's model calls is recorded once; the same one again converges.

@@ -339,13 +339,13 @@ controller injects into a session, not as a host API.
 
 ## 9. Keeping a run's sandbox alive
 
-**Current code.** `ConexusFactoryE2BSandbox.holdOpen` in `apps/hub/src/builder/factory.ts` extends the
+**Current code.** `ConexusRunSandbox.holdOpen` in `apps/hub/src/builder/sandbox.ts` extends the
 deadline with `this.e2b.setTimeout` before a run's first command and every third of the budget until
 the run releases it.
 
-**What Mastra offers.** `E2BSandbox` sends its `timeout` to E2B once, when it creates the VM
-(`e2b/dist/index.js:829`). E2B counts it from creation, command activity never moves it, and nothing
-in `@mastra/e2b` extends it. The field is private in the type declarations. `E2BSandbox.e2b` is the
+**What Mastra offers.** `E2BSandbox` sends its `timeout` to E2B only when it creates the VM
+(`e2b/dist/index.js:829`) or connects to an existing one (`:1267`, `:1288`). E2B counts it from that
+moment, command activity never moves it, and nothing in `@mastra/e2b` extends it during a run. The field is private in the type declarations. `E2BSandbox.e2b` is the
 documented way to reach an E2B feature that the `WorkspaceSandbox` interface lacks, and E2B's
 `Sandbox.setTimeout` moves the deadline.
 
@@ -355,15 +355,11 @@ private default.
 
 ## 10. Starting the agent's shell in the Project checkout
 
-**Current code.** `ConexusFactoryE2BSandbox` sets its working directory to `/workspace` before the
-Factory's start hook runs and to the checkout after it, with `setWorkingDirectory`.
+**Current code.** `ConexusRunSandbox` in `apps/hub/src/builder/sandbox.ts` passes the checkout,
+`/workspace/repo`, as its `workingDirectory` when it is constructed.
 
 **What Mastra offers.** A command with no `cwd` runs in the sandbox's `workingDirectory`
-(`e2b/dist/index.js:557`). The Factory derives a remote checkout as `<workingDirectory>/<repo>`
-(`factory/dist/sandbox/workdir.js:30-32`) and runs its checkout scripts with no `cwd`. So one
-directory set at construction cannot serve as both the checkout's parent and the agent's shell.
-`MastraSandbox.setWorkingDirectory` is protected, for a subclass that resolves its own directory
-(`core/dist/workspace/sandbox/mastra-sandbox.d.ts:266`).
+(`e2b/dist/index.js:557`), so the agent's shell starts in the checkout.
 
 **Decision.** A.
 
@@ -583,11 +579,11 @@ Proposal: handle `tripwire` in `processStreamChunk`. Emit `agent_end` with its o
 
 ### U7 (not opened yet). Let `E2BSandbox` extend its own timeout
 
-**Package.** `@mastra/e2b` 0.12.1, `dist/index.js:716` and `dist/index.js:829`.
+**Package.** `@mastra/e2b` 0.12.1, `dist/index.js:716`, `:829`, `:1267` and `:1288`.
 
-`E2BSandbox` sends `timeout` to E2B once, when it creates the VM. E2B counts that deadline from
-creation, and command activity never moves it, so a long agent run loses its VM in the middle of its
-work. The field is private in the type declarations, so a subclass cannot read the budget back, and
+`E2BSandbox` sends `timeout` to E2B only when it creates or connects to the VM. E2B counts that
+deadline from that moment, and command activity never moves it, so a long agent run loses its VM in
+the middle of its work. The field is private in the type declarations, so a subclass cannot read the budget back, and
 nothing calls `Sandbox.setTimeout`.
 
 Proposal: expose the budget as a `timeout` getter and add `extendTimeout(ms?)`, which resets the

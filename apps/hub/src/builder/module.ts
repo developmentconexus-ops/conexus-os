@@ -35,6 +35,7 @@ import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
 import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
+import { scheduleRunLease } from './run-lease.js'
 import { listPausedConversationMachines } from './sandbox.js'
 import { createConversationSessions } from './conversation-sessions.js'
 import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
@@ -450,6 +451,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
   })
+  // Sweeps at boot: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
+  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep, log })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
@@ -532,7 +535,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
     getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
-    recover: service.recover,
     close: async () => {
       let drained: Promise<unknown> = Promise.resolve()
       try {
@@ -541,6 +543,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         } finally {
           drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
         }
+        // The lease reads the run store's pool, which the service's close ends.
+        await runLease.close()
         await service.close()
       } finally {
         try {
