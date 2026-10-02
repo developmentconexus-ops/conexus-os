@@ -307,11 +307,51 @@ test("the retention prune at boot on a fresh installation waits for the store's 
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
   const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
-  t.after(() => schedule.close())
   await schedule.tick()
+  await schedule.close()
   assert.deepEqual(logs, [
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
+  ])
+})
+
+test('closing the retention schedule waits for the prune in flight, so the pool can end after it', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const events = []
+  const storage = {
+    init: async () => undefined,
+    prune: async () => {
+      await new Promise((release) => setTimeout(release, 50))
+      events.push('pruned')
+      return []
+    },
+  }
+  const schedule = scheduleRetentionPrune(storage, () => {}, 60_000)
+  await schedule.close()
+  events.push('closed')
+  assert.deepEqual(events, ['pruned', 'closed'])
+})
+
+test('closing the retention schedule aborts a prune that never ends on its own and returns inside the shutdown deadline', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const logs = []
+  let seen
+  const storage = {
+    init: async () => undefined,
+    prune: ({ signal }) => new Promise((settle) => {
+      seen = signal
+      signal.addEventListener('abort', () => settle([{ domain: 'observability', table: 'mastra_ai_spans', deleted: 1000, done: false }]))
+    }),
+  }
+  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  await new Promise((r) => setImmediate(r))
+  const started = Date.now()
+  await schedule.close()
+  assert.equal(seen.aborted, true)
+  assert.ok(Date.now() - started < 1_000, 'close returned without waiting for the backlog')
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:1000',
+    'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
   ])
 })
 
