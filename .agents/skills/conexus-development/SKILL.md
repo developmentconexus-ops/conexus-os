@@ -38,7 +38,7 @@ If a higher-lane trigger appears mid-work, stop, comment on the issue, and chang
 - Before adding a mechanism, take the native census in [Mastra native](../../../docs/development/review/mastra-native.md#proof-required).
 - Stop on the conditions in [Stop, then escalate](../../../docs/development/delivery.md#stop-then-escalate).
 - Add `needs:aprovo` when the change is one of the [three kinds that need it](../../../docs/development/delivery.md#ask-for-aprovo-on-three-kinds-of-change).
-- Before every push, `git add` new files and run `npm run verify:quick`. It takes seconds and catches a stale log code registry and a test CANDIDATE_GRAPH does not reach.
+- Before every push, run `npm run verify:quick` ([Proof and verification](../../../docs/development/delivery.md#proof-and-verification)).
 - Run the checks the change touches. Do not run `npm run verify` locally. CI runs the whole graph at the head SHA.
 - Preserve every path this session did not create. Never reset, clean, stash or force-push, and remove worktrees only with `npm run worktree:reap`.
 - Use conventional commits. Push, open the pull request against `main`, link the issue, and confirm that `verify` ran at the exact head SHA. Never merge.

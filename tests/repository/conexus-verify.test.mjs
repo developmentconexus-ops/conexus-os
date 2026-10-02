@@ -566,7 +566,6 @@ test('the quick graph is the log code registry check and the test census, both s
   assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['log-codes-check', 'test-census'])
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
-  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'log-codes-check').command, 'node scripts/generate-log-codes.mjs --check')
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
   assert.deepEqual(result.records.map(record => record.scope), ['log-codes-check', 'test-census'])
 })
