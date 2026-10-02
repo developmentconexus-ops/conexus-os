@@ -235,8 +235,9 @@ export function checkImportLaw(rootDirectory) {
         violations.push(violation('IMPORT_PACKAGE_DEEP', source, specifier, 'cross-package imports must use the public entry'))
       }
 
-      if (source === 'apps/hub/src/server.ts' && isRelative) {
+      if ((source === 'apps/hub/src/server.ts' || source === 'apps/hub/src/hub.ts') && isRelative) {
         const allowed = new Set([
+          'apps/hub/src/hub.ts',
           'apps/hub/src/http/app.ts',
           'apps/hub/src/brain/module.ts',
           'apps/hub/src/app-runner/module.ts',

@@ -26,6 +26,7 @@ const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60_000).toISOStr
 function hubFixture() {
   return {
     accessStatus: 200,
+    modelsStatus: 200,
     workspaces: [{ workspaceId: ids.operations, name: 'Operações' }, { workspaceId: ids.sales, name: 'Comercial' }],
     summariesStatus: 200,
     summaries: [
@@ -69,6 +70,7 @@ async function mockHub(page, hub) {
       return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
+    if (p === '/api/control/model-accounts/models' && hub.modelsStatus !== 200) return json(route, hub.modelsStatus, { type: 'unavailable' })
     if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], hasApiKey: true }], defaultThinkingLevel: 'medium' })
     if (p === '/api/control/accounts' && method === 'POST') return json(route, 201, { accountId: ids.account, displayName: body.displayName })
     if (p === '/api/control/workspaces' && method === 'POST') return json(route, 201, { workspaceId: ids.sales, name: body.name, initialAccessEstablished: true, creatorAccountId: ids.account })
@@ -187,6 +189,20 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await reset({ workspaces: [{ workspaceId: ids.operations, name: 'Operações' }] })
     await page.goto(`${origin}/workspaces`)
     await page.waitForURL(`${origin}/workspaces/${ids.operations}/projects`)
+  })
+
+  await t.test('the new-project prompt says when the models failed, and retries on request', async () => {
+    await reset({ modelsStatus: 503 })
+    await page.goto(`${origin}/workspaces/${ids.sales}/projects`)
+    const box = page.locator('[aria-label="Mensagem para o agente"]')
+    await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).waitFor({ timeout: 30_000 })
+    assert.equal(await box.getAttribute('placeholder'), 'Não foi possível carregar os modelos')
+    await box.fill('Um app de vendas')
+    assert.equal(await page.getByRole('button', { name: 'Enviar', exact: true }).isDisabled(), true)
+    hub.modelsStatus = 200
+    await page.getByRole('button', { name: 'Tentar novamente' }).first().click()
+    await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).waitFor({ state: 'detached' })
+    assert.equal(await page.getByRole('button', { name: 'Enviar', exact: true }).isDisabled(), false)
   })
 
   await t.test('the last Workspace used is where / lands next time', async () => {

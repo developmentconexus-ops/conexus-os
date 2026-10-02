@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Launches, inspects, drives and tears down one isolated Conexus instance for verification: its own
 // PostgreSQL and Keycloak containers, its own Hub built from this checkout, and its own headless
-// Chromium. See ../SKILL.md for the commands and ../features/ for what to drive.
+// Chromium. See ../SKILL.md for the commands and ../features/ for what to drive. Imported by
+// tests/live, which reuses launch, signIn, query and cleanup instead of driving a second way.
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash, randomBytes, randomUUID, X509Certificate } from 'node:crypto'
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -9,6 +10,7 @@ import { request as httpsRequest } from 'node:https'
 import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const SKILL_DIR = resolve(import.meta.dirname, '..')
@@ -60,8 +62,8 @@ const currentRun = () => {
   if (!runId || !existsSync(statePath(runId))) fail('NO_RUN: launch one first, or set CONEXUS_VERIFY_RUN')
   return readState(runId)
 }
-const evidence = (state, ...parts) => { const path = join(state.evidenceDir, ...parts); mkdirSync(dirname(path), { recursive: true }); return path }
-const logAction = (state, line) => appendFileSync(evidence(state, 'actions.log'), `${new Date().toISOString()} ${line}\n`)
+export const evidence = (state, ...parts) => { const path = join(state.evidenceDir, ...parts); mkdirSync(dirname(path), { recursive: true }); return path }
+export const logAction = (state, line) => appendFileSync(evidence(state, 'actions.log'), `${new Date().toISOString()} ${line}\n`)
 
 // One throwaway CA per run, trusted by this run's Hub (NODE_EXTRA_CA_CERTS) and nothing else.
 
@@ -137,16 +139,20 @@ const startKeycloak = async (state, realm) => {
   const importDir = join(state.stateDir, 'keycloak-import')
   mkdirSync(importDir, { recursive: true, mode: 0o700 })
   writeSecret(join(importDir, 'realm-conexus.json'), JSON.stringify(realm))
+  // The TLS key and the realm are readable by this user alone. Keycloak's image runs under any uid in
+  // group 0, so it runs as this user: under another uid (a CI runner's is 1001) it cannot read them.
   run('docker', ['run', '--rm', '-d', '--name', state.containers.keycloak, '-p', `127.0.0.1:${state.ports.keycloak}:8443`,
-    '-e', 'JAVA_OPTS_KC_HEAP=-Xms128m -Xmx384m', '--memory=640m',
+    '--user', `${process.getuid()}:0`, '-e', 'JAVA_OPTS_KC_HEAP=-Xms128m -Xmx384m', '--memory=640m',
     '-v', `${importDir}:/opt/keycloak/data/import:ro`, '-v', `${join(state.stateDir, 'tls')}:/tls:ro`,
     KEYCLOAK_IMAGE, 'start-dev', '--import-realm', `--hostname=https://127.0.0.1:${state.ports.keycloak}`,
     '--https-port=8443', '--https-certificate-file=/tls/server.pem', '--https-certificate-key-file=/tls/server-key.pem'])
+  // Followed from the start: a container that exits is removed (--rm) and its log with it.
+  const out = openSync(evidence(state, 'keycloak.log'), 'a')
+  spawn('docker', ['logs', '-f', state.containers.keycloak], { detached: true, stdio: ['ignore', out, out] }).unref()
   await waitFor('KEYCLOAK', async () => (await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')).status === 200, 180_000)
 }
 
-const hubEnvironment = (state, secrets) => {
-  const fake = join(SKILL_DIR, 'scripts/fake-cliproxy.mjs')
+const hubEnvironment = (state, secrets, fake) => {
   const environment = {
     NODE_EXTRA_CA_CERTS: join(state.stateDir, 'tls/ca.pem'),
     CONEXUS_ORIGIN: state.origin,
@@ -182,7 +188,7 @@ const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER'
 // The repository's own local build (web app, then the Hub into a fresh directory it names), then its
 // server run with the same node arguments scripts/build-hub-local.mjs uses. The run records that
 // directory by name and deletes only it.
-const startHub = async (state, environment) => {
+const startHub = async (state, environment, scripted) => {
   const { buildHubLocal, hubNodeArguments } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
   state.hubBuildDir = await buildHubLocal().catch((error) => {
     writeFileSync(evidence(state, 'hub.log'), `HUB_BUILD_FAILED\n${error.message}\n`)
@@ -192,7 +198,11 @@ const startHub = async (state, environment) => {
   const out = openSync(evidence(state, 'hub.log'), 'a')
   const diagnosticDir = join(state.evidenceDir, 'diagnostics')
   mkdirSync(diagnosticDir, { recursive: true })
-  const hub = spawn(process.execPath, hubNodeArguments({ buildRoot: state.hubBuildDir, diagnosticDir }),
+  // A scripted run starts the Hub through tests/live's entry, which hands it a local sandbox; the entry stays recorded so `hubIsOurs` finds it.
+  const entry = scripted ? join(REPO, 'tests/live/hub-entry.mjs') : join(state.hubBuildDir, 'server.js')
+  state.hubEntry = entry
+  saveState(state)
+  const hub = spawn(process.execPath, hubNodeArguments({ buildRoot: state.hubBuildDir, diagnosticDir, entry, args: scripted ? [state.hubBuildDir, scripted.sandboxRoot] : [] }),
     { cwd: REPO, env: { ...baseEnvironment(), ...environment }, detached: true, stdio: ['ignore', out, out] })
   hub.unref()
   state.pids.hub = hub.pid
@@ -203,7 +213,7 @@ const startHub = async (state, environment) => {
   }, 300_000)
 }
 
-const hubIsOurs = (state) => Boolean(state.hubBuildDir) && alive(state.pids.hub) && cmdline(state.pids.hub).includes(join(state.hubBuildDir, 'server.js'))
+const hubIsOurs = (state) => Boolean(state.hubBuildDir) && alive(state.pids.hub) && cmdline(state.pids.hub).includes(state.hubEntry ?? join(state.hubBuildDir, 'server.js'))
 
 const startBrowser = async (state) => {
   const out = openSync(evidence(state, 'browser.log'), 'a')
@@ -218,13 +228,18 @@ const startBrowser = async (state) => {
   }, 60_000)
 }
 
+// What every browser of a run is launched with. accounts.google.com never resolves: the Google AI Pro
+// sign-in tab must not reach Google.
+export const BROWSER_OPTIONS = Object.freeze({
+  headless: true, ignoreHTTPSErrors: true, locale: 'pt-BR', viewport: Object.freeze({ width: 1440, height: 900 }),
+  args: Object.freeze(['--ignore-certificate-errors', '--host-resolver-rules=MAP accounts.google.com ~NOTFOUND']),
+})
+
 const browserHost = async (path) => {
   const state = JSON.parse(readFileSync(path, 'utf8'))
   const { chromium } = await import('@playwright/test')
   const context = await chromium.launchPersistentContext(join(state.stateDir, 'chromium-profile'), {
-    headless: true, ignoreHTTPSErrors: true, locale: 'pt-BR', viewport: { width: 1440, height: 900 },
-    // accounts.google.com never resolves: the Google AI Pro sign-in tab must not reach Google.
-    args: [`--remote-debugging-port=${state.ports.cdp}`, '--ignore-certificate-errors', '--host-resolver-rules=MAP accounts.google.com ~NOTFOUND'],
+    ...BROWSER_OPTIONS, args: [`--remote-debugging-port=${state.ports.cdp}`, ...BROWSER_OPTIONS.args],
   })
   const record = (page) => page.on('console', (message) => console.log(`${new Date().toISOString()} console.${message.type()} ${page.url()} ${message.text()}`))
   for (const page of context.pages()) record(page)
@@ -233,7 +248,22 @@ const browserHost = async (path) => {
   console.log('browser-ready')
 }
 
-const launch = async () => {
+// The model proxy the Hub spawns is a wrapper that sets the scripted model's address and imports the
+// real stand-in, because the Hub gives the binary a scrubbed environment.
+const writeScriptedProxy = (state, modelUrl) => {
+  const path = join(state.stateDir, 'cliproxy.mjs')
+  writeFileSync(path, `#!/usr/bin/env node\nprocess.env.CONEXUS_FAKE_MODEL_URL = ${JSON.stringify(modelUrl)}\nawait import(${JSON.stringify(pathToFileURL(join(SKILL_DIR, 'scripts/fake-cliproxy.mjs')).href)})\n`)
+  chmodSync(path, 0o755)
+  return path
+}
+
+/**
+ * Starts one run. With no `scripted`, the model proxy answers no model call and E2B is closed. With it,
+ * the Hub's model calls go to `modelUrl` and its sandboxes are directories under `sandboxRoot`; E2B stays closed.
+ * `onState` receives the run as soon as it exists, so a caller can clean up a launch that fails midway.
+ * @param {{ browser: boolean, scripted?: { modelUrl: string, sandboxRoot: string }, onState?: (state: object) => void }} options
+ */
+export const launch = async ({ browser, scripted, onState }) => {
   const runId = `${new Date().toTimeString().slice(0, 8).replaceAll(':', '')}-${randomBytes(2).toString('hex')}`
   const stateDir = join(STATE_ROOT, runId)
   const secrets = join(stateDir, 'secrets')
@@ -250,6 +280,7 @@ const launch = async () => {
   }
   mkdirSync(state.evidenceDir, { recursive: true })
   saveState(state)
+  onState?.(state)
   const step = (name) => { logAction(state, `launch ${name}`); console.error(`launch: ${name}`) }
 
   step('tls')
@@ -263,7 +294,8 @@ const launch = async () => {
 
   step('postgres')
   await startPostgres(state, secrets)
-  const environment = hubEnvironment(state, secrets)
+  const proxy = scripted ? writeScriptedProxy(state, scripted.modelUrl) : join(SKILL_DIR, 'scripts/fake-cliproxy.mjs')
+  const environment = hubEnvironment(state, secrets, proxy)
   step('migrations and roles')
   state.database = await prepareDatabase(state, secrets, environment)
   saveState(state)
@@ -278,14 +310,21 @@ const launch = async () => {
 
   step('hub build and start (a few minutes)')
   writeFileSync(evidence(state, 'hub.env'), Object.entries(environment).map(([name, value]) => `${name}=${value}`).join('\n'))
-  await startHub(state, environment)
+  await startHub(state, environment, scripted)
   saveState(state)
 
-  step('browser')
-  await startBrowser(state)
-  saveState(state)
+  if (browser) {
+    step('browser')
+    await startBrowser(state)
+    saveState(state)
+  }
   writeFileSync(evidence(state, 'run.json'), `${JSON.stringify({ runId, gitHead, gitDirty: state.gitDirty, origin: state.origin, issuer: state.issuer, ports, containers: state.containers, person: state.person.username }, null, 2)}\n`)
-  console.log(JSON.stringify({ runId, origin: state.origin, evidence: state.evidenceDir }, null, 2))
+  return state
+}
+
+const launchCommand = async () => {
+  const state = await launch({ browser: true })
+  console.log(JSON.stringify({ runId: state.runId, origin: state.origin, evidence: state.evidenceDir }, null, 2))
 }
 
 const doctor = async () => {
@@ -386,10 +425,7 @@ const browserCommand = async ([action, ...args]) => {
 }
 
 // The repeated first stretch of every drive: Keycloak's form, then /setup on the first sign-in.
-const signIn = async () => {
-  const state = currentRun()
-  const { pages } = await connect(state)
-  const page = pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]
+export const signIn = async (page, state) => {
   logAction(state, 'sign-in')
   await page.goto(new URL('/protocol/oidc/login', state.origin).href)
   // Signing out of the Hub leaves Keycloak's own session alive, and Keycloak then returns at once.
@@ -412,12 +448,18 @@ const signIn = async () => {
     await page.waitForLoadState('networkidle')
   }
   await page.screenshot({ path: evidence(state, 'screens', 'sign-in-landed.png') })
+}
+
+const signInCommand = async () => {
+  const state = currentRun()
+  const { pages } = await connect(state)
+  const page = pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]
+  await signIn(page, state)
   console.log(page.url())
 }
 
-const db = async (args) => {
-  const state = currentRun()
-  const sql = args.find((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--save') ?? fail('SQL_REQUIRED')
+// One read-only query as the database's owner, so a proof can read any schema.
+export const query = async (state, sql) => {
   const { default: pg } = await import('pg')
   const client = new pg.Client({ connectionString: adminUrl(state) })
   await client.connect()
@@ -425,18 +467,21 @@ const db = async (args) => {
     await client.query('BEGIN READ ONLY')
     const { rows } = await client.query(sql)
     await client.query('ROLLBACK')
-    const text = `${JSON.stringify(rows, null, 2)}\n`
     logAction(state, `db ${sql}`)
-    if (option(args, 'save')) writeFileSync(evidence(state, 'db', `${option(args, 'save')}.json`), `-- ${sql}\n${text}`)
-    process.stdout.write(text)
+    return rows
   } finally {
     await client.end()
   }
 }
 
-const seedModelDefaults = async (args) => {
-  const state = currentRun()
-  const model = option(args, 'model') ?? 'google-ai-pro/gemini-3-flash'
+const db = async (args) => {
+  const sql = args.find((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--save') ?? fail('SQL_REQUIRED')
+  const text = `${JSON.stringify(await query(currentRun(), sql), null, 2)}\n`
+  if (option(args, 'save')) writeFileSync(evidence(currentRun(), 'db', `${option(args, 'save')}.json`), `-- ${sql}\n${text}`)
+  process.stdout.write(text)
+}
+
+export const seedModelDefaults = async (state, model = 'google-ai-pro/gemini-3-flash') => {
   const { default: pg } = await import('pg')
   const client = new pg.Client({ connectionString: adminUrl(state) })
   await client.connect()
@@ -448,10 +493,15 @@ const seedModelDefaults = async (args) => {
         ON CONFLICT (role) DO UPDATE SET model_id = EXCLUDED.model_id, updated_by = EXCLUDED.updated_by`, [role, model, account.account_id])
     }
     logAction(state, `seed model-defaults ${model}`)
-    console.log(`build and memory default: ${model}`)
   } finally {
     await client.end()
   }
+}
+
+const seedModelDefaultsCommand = async (args) => {
+  const model = option(args, 'model') ?? 'google-ai-pro/gemini-3-flash'
+  await seedModelDefaults(currentRun(), model)
+  console.log(`build and memory default: ${model}`)
 }
 
 const stop = async (pid, label, graceMs = 15_000) => {
@@ -463,15 +513,11 @@ const stop = async (pid, label, graceMs = 15_000) => {
   return `${label} stopped`
 }
 
-const cleanup = async () => {
-  const state = currentRun()
+export const cleanup = async (state) => {
   const done = []
   if (hubIsOurs(state)) done.push(await stop(state.pids.hub, 'hub'))
   if (state.pids.browser && cmdline(state.pids.browser).includes('__browser-host')) done.push(await stop(state.pids.browser, 'browser'))
   for (const container of Object.values(state.containers)) {
-    if (container === state.containers.keycloak) {
-      try { writeFileSync(evidence(state, 'keycloak.log'), run('docker', ['logs', container])) } catch {}
-    }
     try {
       run('docker', ['stop', container])
       done.push(`${container} stopped`)
@@ -485,8 +531,10 @@ const cleanup = async () => {
   writeFileSync(evidence(state, 'cleanup.json'), `${JSON.stringify({ cleanedAt: state.cleanedAt, done }, null, 2)}\n`)
   cpSync(statePath(state.runId), evidence(state, 'state.json'))
   rmSync(state.stateDir, { recursive: true, force: true })
-  console.log(JSON.stringify({ runId: state.runId, done, evidence: state.evidenceDir, evidenceKept: existsSync(join(state.evidenceDir, 'cleanup.json')) }, null, 2))
+  return { runId: state.runId, done, evidence: state.evidenceDir, evidenceKept: existsSync(join(state.evidenceDir, 'cleanup.json')) }
 }
+
+const cleanupCommand = async () => { console.log(JSON.stringify(await cleanup(currentRun()), null, 2)) }
 
 const list = () => {
   for (const runId of listRuns()) {
@@ -495,25 +543,27 @@ const list = () => {
   }
 }
 
-const [command, ...rest] = process.argv.slice(2)
-const commands = {
-  launch, doctor, list, cleanup,
-  'sign-in': signIn,
-  browser: () => browserCommand(rest),
-  db: () => db(rest),
-  'seed-model-defaults': () => seedModelDefaults(rest),
-  '__browser-host': () => browserHost(rest[0]),
-}
-if (!commands[command]) {
-  console.error(`usage: control.mjs ${Object.keys(commands).filter((name) => !name.startsWith('__')).join('|')}`)
-  process.exitCode = 2
-} else {
-  try {
-    await commands[command]()
-  } catch (error) {
-    console.error(error.message)
-    process.exitCode = 1
+if (import.meta.main) {
+  const [command, ...rest] = process.argv.slice(2)
+  const commands = {
+    launch: launchCommand, doctor, list, cleanup: cleanupCommand,
+    'sign-in': signInCommand,
+    browser: () => browserCommand(rest),
+    db: () => db(rest),
+    'seed-model-defaults': () => seedModelDefaultsCommand(rest),
+    '__browser-host': () => browserHost(rest[0]),
   }
-  // A CDP connection keeps the event loop alive; leaving drops it and the browser keeps running.
-  if (command !== '__browser-host') process.exit()
+  if (!commands[command]) {
+    console.error(`usage: control.mjs ${Object.keys(commands).filter((name) => !name.startsWith('__')).join('|')}`)
+    process.exitCode = 2
+  } else {
+    try {
+      await commands[command]()
+    } catch (error) {
+      console.error(error.message)
+      process.exitCode = 1
+    }
+    // A CDP connection keeps the event loop alive; leaving drops it and the browser keeps running.
+    if (command !== '__browser-host') process.exit()
+  }
 }

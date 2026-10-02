@@ -49,7 +49,7 @@ const withMain = (main) => ({ ...STARTER, 'app/src/main.tsx': main })
 // Runs the real script against a real install of the template's compiler (its lockfile, its allowlist
 // view of node_modules) and the Playwright Chromium, in a folder laid out like the sandbox:
 // /opt/conexus is `tools`.
-const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
+const check = (t, files, { limits = [], compilerFiles = {}, before, chromiumPath = () => chromium.executablePath() } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const root = join(scratch, 'repo')
@@ -72,7 +72,7 @@ const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
   const script = join(scratch, 'check.mjs')
   writeFileSync(script, checkScriptSource())
   const ran = spawnSync(process.execPath, [
-    script, '--root', root, '--out', out, '--tools', tools, '--home', scratch, '--chromium', chromium.executablePath(),
+    script, '--root', root, '--out', out, '--tools', tools, '--home', scratch, '--chromium', chromiumPath(scratch),
     ...limits.flatMap((limit) => ['--limit', limit]),
   ], { encoding: 'utf8', timeout: 120_000 })
   assert.equal(ran.status, 0, ran.stderr)
@@ -81,6 +81,24 @@ const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
 
 const stepsOf = (report) => report.steps.map((step) => [step.step, step.status])
 const failedStep = (report, id) => report.steps.find((step) => step.step === id && step.status === 'failed')
+
+test('the browser is launched with the background Google services switched off', (t) => {
+  const argvFile = join(tmpdir(), `conexus-chromium-argv-${process.pid}-${Date.now()}`)
+  t.after(() => rmSync(argvFile, { force: true }))
+  const { report } = check(t, STARTER, {
+    chromiumPath: (scratch) => {
+      const wrapper = join(scratch, 'chromium-recorder.sh')
+      writeFileSync(wrapper, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(argvFile)}\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`, { mode: 0o755 })
+      return wrapper
+    },
+  })
+  assert.deepEqual(report.steps.find((step) => step.step === 'boot')?.status, 'passed')
+  const argv = readFileSync(argvFile, 'utf8').split('\n').filter(Boolean)
+  for (const flag of ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run', '--disable-default-apps']) {
+    assert.ok(argv.includes(flag), flag)
+  }
+  assert.deepEqual(argv.filter((arg) => arg.startsWith('--disable-features=')), ['--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication'])
+})
 
 test('a starter with no server half passes all five steps and reports what it built', (t) => {
   const { report } = check(t, STARTER)

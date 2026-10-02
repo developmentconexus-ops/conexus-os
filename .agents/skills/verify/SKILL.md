@@ -24,6 +24,8 @@ node $C launch    # 3 to 5 minutes; prints runId, origin and the evidence direct
 
 Launch starts a throwaway CA, PostgreSQL 17 with the migrations and the nine Hub roles, Keycloak with the repository realm and one test person, then the Hub and Chromium. It is ready when it prints JSON. On failure, read `hub.log` in the evidence directory and run cleanup. Run one launch per worktree, because the Hub build writes `apps/hub/public`. `node $C list` shows every run and its state.
 
+`tests/live/` drives this same launch with a scripted model and a local sandbox in place of the two boundaries above, so a flow can stream a turn end to end. Run it with `npm run test:live`; the CLI here still cannot reach `stream`.
+
 ## Doctor
 
 `node $C doctor` is read-only. It checks that both containers run, that the Hub process is ours and serves this run's certificate, that the Hub's E2B is closed, that the Keycloak issuer matches, that CDP answers, and that the checkout HEAD still equals the launched one. If any check fails, clean up and launch again. `CONEXUS_VERIFY_RUN=<runId>` selects a run; the default is the newest.

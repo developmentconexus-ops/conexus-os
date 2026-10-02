@@ -18,14 +18,16 @@ const run = (command, args) => {
 
 // The heap snapshot flag sits on the process that dies of the OOM, which is this child and not the
 // script that launches it. Telemetry loads first with --import and starts only when the endpoint is set.
-export const hubNodeArguments = ({ buildRoot, diagnosticDir }) => [
+// `entry` is resolved against the build, so a path outside it (a test composition's entry) stays as given.
+export const hubNodeArguments = ({ buildRoot, diagnosticDir, entry = 'server.js', args = [] }) => [
   '--max-old-space-size=512',
   '--heapsnapshot-near-heap-limit=1',
   `--diagnostic-dir=${diagnosticDir}`,
   '--report-on-fatalerror',
   `--report-directory=${diagnosticDir}`,
   '--import', pathToFileURL(join(buildRoot, 'telemetry/register.js')).href,
-  join(buildRoot, 'server.js'),
+  resolve(buildRoot, entry),
+  ...args,
 ]
 
 export const buildHubLocal = async () => {

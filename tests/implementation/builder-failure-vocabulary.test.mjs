@@ -20,6 +20,8 @@ test('each public category is reachable from a real internal code', () => {
   assert.equal(builderFailureCategory('BUILDER_MODEL_RATE_LIMITED'), 'MODEL_RATE_LIMITED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_STREAM_FAILED'), 'MODEL_REQUEST_REFUSED')
   assert.equal(builderFailureCategory('BUILDER_RESULT_IDENTITY_REFUSED'), 'SOURCE_RESULT_REJECTED')
+  assert.equal(builderFailureCategory('BUILDER_RESULT_BUNDLE_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
+  assert.equal(builderFailureCategory('BUILDER_RESULT_CONTENT_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
   assert.equal(builderFailureCategory('APPLICATION_COMPILATION_FAILED'), 'APPLICATION_BUILD_FAILED')
   assert.equal(builderFailureCategory('USER_CANCELLED'), 'RUN_CANCELLED')
   assert.equal(builderFailureCategory('BUILDER_PREPARATION_FAILED'), 'INTERNAL_ERROR')

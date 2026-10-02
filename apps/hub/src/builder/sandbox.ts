@@ -113,6 +113,10 @@ export class ConexusRunSandbox extends E2BSandbox {
   async readAgentFileIfPresent(path: string): Promise<Uint8Array | null> {
     try { return await this.readAgentFile(path) } catch (error) { if (error instanceof FileNotFoundError) return null; throw error }
   }
+
+  async readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
+    return this.e2b.files.read(path, { format: 'stream', user: SANDBOX_AGENT_USER })
+  }
 }
 
 /**
