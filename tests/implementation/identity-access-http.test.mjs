@@ -397,3 +397,67 @@ test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 
   assert.equal(answer.json().type.endsWith('identity-provider-unavailable'), true)
   assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
 })
+
+test('OIDC begin, callback failures, and missing tokens log registered error codes and keep 503 status', async (t) => {
+  const store = makeStore()
+  const failingOidc = {
+    async begin() { throw new Error('discovery network error') },
+    async complete() { throw new Error('token endpoint timeout') },
+  }
+  const app = await createHubApp({ store, oidc: failingOidc, config })
+  t.after(() => app.close())
+
+  // 1. OIDC begin fails -> logs OIDC_BEGIN_FAILED, returns 503
+  const beginRes = await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
+  assert.equal(beginRes.statusCode, 503)
+  assert.equal(beginRes.body, '')
+
+  // 2. OIDC complete fails -> logs OIDC_CALLBACK_FAILED, returns 503
+  store.state.oidc.set('state-cb-fail', { state: 'state-cb-fail', nonce: 'nonce-1', pkceVerifier: 'pkce-1', signInReturn: { kind: 'HUB' } })
+  const cbFailRes = await app.inject({
+    method: 'GET',
+    url: '/protocol/oidc/callback?code=code-1&state=state-cb-fail',
+    cookies: { '__Host-conexus_oidc_state': 'state-cb-fail' },
+  })
+  assert.equal(cbFailRes.statusCode, 503)
+  assert.equal(cbFailRes.body, '')
+
+  // 3. OIDC complete without refresh token -> logs OIDC_REFRESH_TOKEN_MISSING, returns 503
+  store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'acc-1', displayName: 'User' })
+  store.state.oidc.set('state-no-rt', { state: 'state-no-rt', nonce: 'nonce-1', pkceVerifier: 'pkce-1', signInReturn: { kind: 'HUB' } })
+  const noRtOidc = {
+    async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test' } },
+    async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: null } },
+  }
+  const appNoRt = await createHubApp({ store, oidc: noRtOidc, config })
+  t.after(() => appNoRt.close())
+  const noRtRes = await appNoRt.inject({
+    method: 'GET',
+    url: '/protocol/oidc/callback?code=code-1&state=state-no-rt',
+    cookies: { '__Host-conexus_oidc_state': 'state-no-rt' },
+  })
+  assert.equal(noRtRes.statusCode, 503)
+  assert.equal(noRtRes.body, '')
+
+  // 4. Application sign-in without applications configured -> logs OIDC_APPLICATION_SIGN_IN_UNAVAILABLE, returns 503
+  store.state.oidc.set('state-no-app', {
+    state: 'state-no-app',
+    nonce: 'nonce-1',
+    pkceVerifier: 'pkce-1',
+    signInReturn: { kind: 'APPLICATION', projectId: PROJECT_ID, bindingDigest: Buffer.from('digest') },
+  })
+  const noAppOidc = {
+    async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test' } },
+    async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: 'rt' } },
+  }
+  const appWithoutApps = await createHubApp({ store, oidc: noAppOidc, config, applications: undefined })
+  t.after(() => appWithoutApps.close())
+  const noAppRes = await appWithoutApps.inject({
+    method: 'GET',
+    url: '/protocol/oidc/callback?code=code-1&state=state-no-app',
+    cookies: { '__Host-conexus_oidc_state': 'state-no-app' },
+  })
+  assert.equal(noAppRes.statusCode, 503)
+  assert.equal(noAppRes.body, '')
+})
+
