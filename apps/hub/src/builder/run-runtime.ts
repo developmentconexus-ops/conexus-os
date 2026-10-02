@@ -22,7 +22,7 @@ import { collectEgress, ensureEgressLog } from './egress-log.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
-import type { BuilderRunningPhase } from './store.js'
+import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
 type RunSandbox = Readonly<{
@@ -129,7 +129,7 @@ type BuilderRunInput = Readonly<{
   providerSandboxId: string | null
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   bindMessage(messageId: string): Promise<void>
-  setPhase(phase: BuilderRunningPhase): Promise<void>
+  setPhase(phase: BuilderRunPhase): Promise<void>
   recordCandidate(sourceRevision: string): Promise<void>
   /** Records the conversation's mirror head as the turn ends; the Git ref stays the truth. */
   recordMirror(head: string): Promise<void>

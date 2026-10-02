@@ -4,7 +4,8 @@ import { CandidateRefused } from './run-runtime.js'
 import type { BuilderRunRuntime } from './run-runtime.js'
 import type { ParkedCallStanding } from './runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
-import type { BuilderRunningPhase, BuilderRunSummary, BuilderStore } from './store.js'
+import type { BuilderRunSummary, BuilderStore } from './store.js'
+import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
@@ -200,7 +201,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     }
     let endParking: (parked: boolean) => void = () => undefined
     const parking = new Promise<boolean>((resolve) => { endParking = resolve })
-    const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
+    const setPhase = async (phase: BuilderRunPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
       await publish()
     }
@@ -228,7 +229,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         providerSandboxId: await store.readConversationSandbox(conversation),
         signal: controller.signal,
         holdSession: (close) => { closeHeldSession = close },
-        setPhase: async (phase: BuilderRunningPhase) => {
+        setPhase: async (phase: BuilderRunPhase) => {
           await setPhase(phase)
           if (phase === 'AGENT') unadmittedAgentRun = claimed
         },

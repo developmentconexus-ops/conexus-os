@@ -1,6 +1,7 @@
 import { hubFetch } from '../../app/http'
 import { clearAuthorityCache } from '../../app/query-client'
 import { type BuilderFailureCategory, isBuilderFailureCategory } from './failure-reasons'
+import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind, type BuilderRunState } from '../../generated/builder-run-vocabulary'
 export type SourceTree = Readonly<{
   sourceRevision: string
   entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
@@ -20,7 +21,7 @@ export type BuilderSession = Readonly<{
   latestCodeChangingRun: Readonly<{
     baseSourceRevision: string
     resultSourceRevision: string
-    resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
+    resultKind: Exclude<BuilderRunResultKind, 'RESPONSE_ONLY'>
   }> | null
   preview: Readonly<{
     workingSourceRevision: string | null
@@ -33,11 +34,11 @@ export type BuilderSession = Readonly<{
 export type BuilderRun = Readonly<{
   builderRunId: string
   projectId: string
-  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
-  phase: 'PREPARING' | 'AGENT' | 'PARKED' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING' | null
+  state: BuilderRunState
+  phase: BuilderRunPhase | null
   baseSourceRevision: string
   resultSourceRevision: string | null
-  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+  resultKind: BuilderRunResultKind | null
   failureCode: string | null
   failureCategory: BuilderFailureCategory | null
   requestText: string | null
@@ -153,9 +154,9 @@ export const getBuilderRunTrace =async (projectId: string, builderRunId: string)
   return response.json() as Promise<BuilderTraceSummary>
 }
 
-const RUN_STATES: ReadonlySet<unknown> = new Set(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'])
-const RUN_PHASES: ReadonlySet<unknown> = new Set(['PREPARING', 'AGENT', 'PARKED', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', null])
-const RESULT_KINDS: ReadonlySet<unknown> = new Set(['RESPONSE_ONLY', 'SOURCE_CHANGED', 'SOURCE_CHANGED_BUILD_FAILED', null])
+const RUN_STATES: ReadonlySet<unknown> = new Set(BUILDER_RUN_STATES)
+const RUN_PHASES: ReadonlySet<unknown> = new Set([...BUILDER_RUN_PHASES, null])
+const RESULT_KINDS: ReadonlySet<unknown> = new Set([...BUILDER_RUN_RESULT_KINDS, null])
 const isText = (value: unknown): value is string => typeof value === 'string'
 const isTextOrNull = (value: unknown): boolean => value === null || typeof value === 'string'
 

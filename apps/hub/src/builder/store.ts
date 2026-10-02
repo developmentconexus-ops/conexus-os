@@ -1,20 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
+import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import type { PostgresPool } from '../platform/postgres.js'
-
-export type BuilderRunningPhase = 'PREPARING' | 'AGENT' | 'PARKED' | 'SOURCE_ADMISSION' | 'COMPILING' | 'FINALIZING'
-type BuilderRunPhase = BuilderRunningPhase | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
 
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
   projectId: string
   conversationId: string
-  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
-  phase: BuilderRunningPhase | null
+  state: BuilderRunState
+  phase: BuilderRunPhase | null
   baseSourceRevision: string
   resultSourceRevision: string | null
-  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+  resultKind: BuilderRunResultKind | null
   failureCode: string | null
   requestText: string | null
   createdAt: string
@@ -26,7 +24,7 @@ type BuilderCodeChangingRun = Readonly<{
   conversationId: string
   baseSourceRevision: string
   resultSourceRevision: string
-  resultKind: 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED'
+  resultKind: Exclude<BuilderRunResultKind, 'RESPONSE_ONLY'>
 }>
 // The Preview a Project serves. `main` is not here: the Conexus Git holds it.
 type BuilderPreview = Readonly<{
