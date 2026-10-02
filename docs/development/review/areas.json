@@ -36,7 +36,13 @@
       "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/identity-session.md",
-    "flows": []
+    "flows": [
+      {
+        "id": "identity.sign-out-asks-password",
+        "nome": "Sair do Conexus e entrar de novo pede a senha",
+        "test": "tests/live/identity-sign-out-asks-password.test.mjs"
+      }
+    ]
   },
   {
     "area": "data-migrations",
