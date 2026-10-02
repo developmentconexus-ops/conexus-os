@@ -89,6 +89,11 @@ async function mockHub(page, hub) {
       return json(route, 200, invitation)
     }
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
+    if (p.endsWith('/thumbnail') && method === 'GET') {
+      const projectId = p.split('/')[4]
+      if (!hub.summaries.find((summary) => summary.projectId === projectId)?.hasPreview || projectId === ids.visits) return json(route, 404, { type: 'project-thumbnail-not-found' })
+      return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'cache-control': 'private, no-cache', etag: '"rev-001"' }, body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') })
+    }
     if (p.endsWith('/builder-session/preview')) {
       const projectId = p.split('/')[4]
       const name = hub.summaries.find((summary) => summary.projectId === projectId)?.name ?? 'App'
@@ -231,6 +236,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 
   await t.test('the Projects home shows cards most recent first, with state and last change', async () => {
     await reset()
+    const previewRequests = []
+    const onRequest = (request) => { if (/\/builder-session\/preview|\/__preview\//.test(request.url())) previewRequests.push(request.url()) }
+    page.on('request', onRequest)
     await page.goto(`${origin}/workspaces/${ids.operations}/projects`)
     await expect(page.locator('.cx-project-card')).toHaveCount(4)
     assert.deepEqual(await page.locator('.cx-project-card h3').allTextContents(), ['Pedidos de férias', 'Visitas a clientes', 'Checklist de abertura da loja', 'Estoque do almoxarifado'])
@@ -238,8 +246,11 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     assert.equal(await page.locator('.cx-project-card').first().locator('.cx-project-time').textContent(), 'Alterado há 5 min.')
     assert.equal(await page.locator('.cx-project-card').first().getAttribute('href'), `/projects/${ids.vacation}`)
     await page.locator('.cx-thumb[data-loaded]').first().waitFor()
-    assert.equal(await page.locator('.cx-thumb iframe').first().getAttribute('tabindex'), '-1')
-    assert.match(await page.frameLocator(`iframe[name="cx-thumb-${ids.vacation}"]`).locator('body').innerText(), /Pedidos de férias/)
+    assert.equal(await page.locator('.cx-thumb img').first().getAttribute('loading'), 'lazy')
+    assert.equal(await page.locator('.cx-thumb iframe').count(), 0)
+    await expect(page.locator(`.cx-project-card[href="/projects/${ids.visits}"] .cx-thumb[data-loaded]`)).toHaveCount(0)
+    assert.deepEqual(previewRequests, [], 'the Projects list never requests a live preview')
+    page.off('request', onRequest)
     assert.equal(await page.locator('.cx-project-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length), 3,
       'the grid is a uniform 3-column layout, with no card spanning more than one')
     const cardHeights = await page.locator('.cx-project-card').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))

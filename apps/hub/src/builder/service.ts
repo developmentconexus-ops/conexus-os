@@ -260,6 +260,22 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
+        if (result.applicationBuild.compiledApplication.thumbnail && applicationArtifacts.retainApplicationThumbnail) {
+          const thumbnail = result.applicationBuild.compiledApplication.thumbnail
+          if (thumbnail.bytes.byteLength > 0 && thumbnail.bytes.byteLength <= 512000) {
+            await applicationArtifacts.retainApplicationThumbnail({
+              accountId: input.accountId,
+              projectId: claimed.projectId,
+              executionId: result.applicationBuild.compiledApplication.executionId,
+              sourceRevision: admitted,
+              artifactRevisionId: artifact.artifactRevisionId,
+              mediaType: thumbnail.mediaType,
+              bytes: thumbnail.bytes,
+            }).catch(() => {
+              // Best-effort thumbnail retention: failure to retain does not fail the build settlement.
+            })
+          }
+        }
         if (result.applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', result.applicationBuild.bootProblems)
       } catch (error) {
         const code = failureCode(error)
