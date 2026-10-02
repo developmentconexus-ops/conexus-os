@@ -81,9 +81,8 @@ jobs:
       - name: Verify the documentation checks only
         if: steps.scope.outputs.docs_only == 'true'
         run: npm run verify:docs
-      - name: Verify
+      - run: npm run verify
         if: steps.scope.outputs.docs_only != 'true'
-        run: npm run verify
         env:
           CONEXUS_TEST_DB_CONTAINER: ${{ job.services.postgres.id }}
           CONEXUS_TEST_APP_TLS_DIR: ${{ runner.temp }}/conexus-app-tls
