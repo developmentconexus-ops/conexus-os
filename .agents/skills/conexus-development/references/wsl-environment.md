@@ -43,7 +43,7 @@ So:
 
 ## Keep worktrees intact
 
-The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`.
+The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `npm run worktree:new -- <name> <branch>` from inside an existing worktree; it reclaims every worktree whose work is already safely on GitHub (the same check as `worktree:reap --apply`) before creating `~/wt-<name>` on `<branch>`. The raw form, `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`, still works but skips that reclaiming.
 
 Remove worktrees only with `npm run worktree:reap`. It prints what it would remove and why it keeps the rest, and `npm run worktree:reap -- --apply` removes. It removes a worktree only when its pull request is closed or merged, its HEAD is that pull request's head commit, and it holds nothing but regenerable build output. Never run `git worktree prune` or `git worktree remove --force`.
 
@@ -54,7 +54,7 @@ Build and test only in WSL. The `node_modules` of a WSL worktree is a Linux inst
 The Ubuntu disk is `D:\WSL\Ubuntu\ext4.vhdx`. It only grows. Deleting files inside WSL returns no space to D:. When D: fills, the ext4 file system turns read-only and Ubuntu refuses to start.
 
 - Before work that pulls Docker images, runs `npm ci` in a new worktree, or builds templates, check D: from PowerShell with `(Get-Volume -DriveLetter D).SizeRemaining`. Below 20 GB, stop and tell the operator.
-- When a pull request merges, run `npm run worktree:reap`. Each worktree's `node_modules` takes about 1.5 GB.
+- `npm run worktree:new` reclaims merged/closed worktrees automatically before creating the next one, so space returns the next time you start new work. Each worktree's `node_modules` takes about 1.5 GB; run `npm run worktree:reap -- --apply` directly if you need space back sooner.
 - To return space to D:, the operator compacts the disk as administrator: `wsl --shutdown`, then in `diskpart` run `select vdisk file=D:\WSL\Ubuntu\ext4.vhdx`, `attach vdisk readonly`, `compact vdisk`, and `detach vdisk`.
 - Do not force a sparse disk with `wsl --manage Ubuntu --set-sparse true --allow-unsafe`. WSL refuses it because of possible data corruption.
 - If Conexus feels slow, measure the disk before blaming the code.
