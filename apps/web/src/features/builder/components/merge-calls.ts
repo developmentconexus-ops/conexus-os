@@ -10,19 +10,20 @@ const emptyArgs = (args: unknown): boolean =>
 // finished turn's stored copy repeats the live one. The call keeps the place and the arguments of
 // its first snapshot and takes the state of its last; later snapshots leave their message.
 export const mergeCalls = (messages: readonly MastraDBMessage[]): readonly MastraDBMessage[] => {
-  const parts = messages.map((message) => [...message.content.parts])
-  const first = new Map<string, readonly [number, number]>()
+  const copies = messages.map((message) => ({ message, parts: [...message.content.parts] }))
+  const first = new Map<string, readonly [MessagePart[], number]>()
   const dropped = new Set<MessagePart>()
-  for (const [messageIndex, list] of parts.entries()) {
-    for (const [partIndex, part] of list.entries()) {
+  for (const { parts } of copies) {
+    for (const [partIndex, part] of parts.entries()) {
       if (part.type !== 'tool-invocation') continue
       const at = first.get(part.toolInvocation.toolCallId)
-      if (!at) { first.set(part.toolInvocation.toolCallId, [messageIndex, partIndex]); continue }
-      const earlier = parts[at[0]]?.[at[1]]
+      if (!at) { first.set(part.toolInvocation.toolCallId, [parts, partIndex]); continue }
+      const [earlierParts, earlierIndex] = at
+      const earlier = earlierParts[earlierIndex]
       if (earlier?.type !== 'tool-invocation') continue
-      parts[at[0]]![at[1]] = { ...part, toolInvocation: { ...part.toolInvocation, args: emptyArgs(part.toolInvocation.args) ? earlier.toolInvocation.args : part.toolInvocation.args } }
+      earlierParts[earlierIndex] = { ...part, toolInvocation: { ...part.toolInvocation, args: emptyArgs(part.toolInvocation.args) ? earlier.toolInvocation.args : part.toolInvocation.args } }
       dropped.add(part)
     }
   }
-  return messages.map((message, index) => ({ ...message, content: { ...message.content, parts: parts[index]!.filter((part) => !dropped.has(part)) } }))
+  return copies.map(({ message, parts }) => ({ ...message, content: { ...message.content, parts: parts.filter((part) => !dropped.has(part)) } }))
 }

@@ -3,7 +3,7 @@ import type { AskUserAnswer, AskUserOption } from '@mastra/playground-ui/compone
 import { AskUserPt, type AskUserQuestionData } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
-import type { PendingReply, PromptEntry } from '../mastra-session'
+import type { AnswerOutcome, PendingReply, PromptEntry } from '../mastra-session'
 import { PlanPt } from './plan-pt'
 import { toolRequest } from './tool-sentences'
 
@@ -49,6 +49,13 @@ const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
   return [FALLBACK_QUESTION]
 }
 
+// Why an answer did not take the run back to work, in the person's words.
+const REFUSAL_TEXT: Readonly<Record<Exclude<AnswerOutcome, 'RESUMED'>, string>> = {
+  ALREADY_ANSWERED: 'Esta pergunta já foi respondida.',
+  NOT_PARKED: 'O agente não está mais esperando esta resposta.',
+  UNAVAILABLE: 'A resposta não chegou ao agente. Tente de novo.',
+}
+
 /**
  * A call the run parked on the person. An approval offers Permitir and Recusar and nothing that
  * widens the policy; a question renders through AskUserPt, playground-ui's AskUser parts in pt-BR (free text, or the
@@ -56,18 +63,19 @@ const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
  */
 export function PendingCard({ pending, onAnswer }: Readonly<{
   pending: PromptEntry
-  onAnswer: (answer: PendingReply) => Promise<void>
+  onAnswer: (answer: PendingReply) => Promise<AnswerOutcome>
 }>) {
-  const [state, setState] = useState<'OPEN' | 'SENDING' | 'FAILED'>('OPEN')
+  const [state, setState] = useState<AnswerOutcome | 'OPEN' | 'SENDING'>('OPEN')
   const answer = (value: PendingReply) => {
     setState('SENDING')
-    onAnswer(value).catch(() => setState('FAILED'))
+    onAnswer(value).then(setState, () => setState('UNAVAILABLE'))
   }
+  const refusal = state === 'OPEN' || state === 'SENDING' || state === 'RESUMED' ? null : REFUSAL_TEXT[state]
   const detail = presentTool(pending.toolName, pending.args).detail
   const technical = stringifyToolValue(pending.args)
 
   if (pending.ask === 'PLAN') {
-    return <PlanPt title={planField(pending, 'title')} plan={planField(pending, 'plan')} sending={state === 'SENDING'} failed={state === 'FAILED'} onAnswer={answer} />
+    return <PlanPt title={planField(pending, 'title')} plan={planField(pending, 'plan')} sending={state === 'SENDING'} refusal={refusal} onAnswer={answer} />
   }
 
   if (pending.ask === 'QUESTION') {
@@ -77,7 +85,7 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
       questions={askUserQuestions(pending)}
       isSubmitting={state === 'SENDING'}
       onSubmit={submit}
-      footer={state === 'FAILED' ? <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p> : undefined}
+      footer={refusal ? <p className="cx-pending-error" role="alert">{refusal}</p> : undefined}
     />
   }
 
@@ -91,6 +99,6 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
       <Button className="cx-button-ink" size="sm" disabled={state === 'SENDING'} onClick={() => answer({ approved: true })}>Permitir</Button>
       <Button variant="default" size="sm" disabled={state === 'SENDING'} onClick={() => answer({ approved: false })}>Recusar</Button>
     </div>
-    {state === 'FAILED' && <p className="cx-pending-error" role="alert">A resposta não chegou ao agente. Tente de novo.</p>}
+    {refusal && <p className="cx-pending-error" role="alert">{refusal}</p>}
   </section>
 }

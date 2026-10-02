@@ -39,7 +39,7 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], model: modelOf = model } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = async () => 'RESUMED', model: modelOf = model } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
@@ -69,7 +69,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         runContext: () => undefined,
-        answerParked: async (input) => { answered.push(input) },
+        answerParked: async (input) => { answered.push(input); return answerOutcome(input) },
       })
       return []
     },
@@ -222,11 +222,25 @@ test("an answer to a run's call goes to the Hub, which resumes the parked run, a
   const runScope = `builder:${conversationA}`
   const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=${runScope}`, ...authentic, payload })
   const first = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
-  const repeated = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
-  assert.deepEqual([first.statusCode, first.json(), repeated.statusCode], [200, { ok: true }, 200])
-  assert.deepEqual(answered, new Array(2).fill({ accountId: accountA, projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }))
+  assert.deepEqual([first.statusCode, first.json()], [200, { ok: true }])
+  assert.deepEqual(answered, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
   assert.equal((await answer({ resumeData: ['Azul'] })).statusCode, 400, 'an answer names its call')
-  assert.equal(answered.length, 2)
+  assert.equal(answered.length, 1)
+})
+
+test('each outcome of an answer has its own HTTP status and problem type, which the web card reads', async (t) => {
+  const outcomes = { 'call-resumed': async () => 'RESUMED', 'call-again': async () => 'ALREADY_ANSWERED', 'call-forged': async () => 'NOT_PARKED', 'call-down': async () => { throw new Error('BUILDER_STORE_UNAVAILABLE') } }
+  const { app } = await createBuilderApp(t, { answerOutcome: ({ toolCallId }) => outcomes[toolCallId]() })
+  const answer = async (toolCallId) => {
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=builder:${conversationA}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
+    return [response.statusCode, response.json().type ?? response.json()]
+  }
+  assert.deepEqual(await Promise.all(Object.keys(outcomes).map(answer)), [
+    [200, { ok: true }],
+    [409, 'urn:conexus:problem:tool-answer-already-given'],
+    [404, 'urn:conexus:problem:parked-call-not-found'],
+    [503, 'urn:conexus:problem:builder-answer-unavailable'],
+  ])
 })
 
 test('a tool answer other than approve or decline is refused on the Builder mount before Mastra runs it', async (t) => {

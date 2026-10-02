@@ -20,7 +20,7 @@ import {
   answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { localMessageId, type TaskSnapshot } from '../transcript.ts'
+import { localMessageId, promptIsOpenFor, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
@@ -146,7 +146,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
   // A call stays parked on the person only while the run that parked it is still going.
-  const pending = runHere && isActive(runHere) ? transcript.entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
+  // A card the thread kept from an earlier run is not open for this one.
+  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || (runHere !== null && promptIsOpenFor(entry, runHere, runs)))
+  const pending = runHere && isActive(runHere) ? openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the
@@ -216,8 +218,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
   const switchConversation = (id: string) => { if (id !== conversationId) onConversationChange(id) }
 
-  if (session.isError) {
-    const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  // Only a first load that failed replaces the screen; a failed refetch keeps the session already read.
+  // A 403 denied error always replaces the screen (even on refetch) because permission was revoked.
+  const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
       <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
@@ -230,7 +234,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
-        : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
+        : modelReady ? { kind: 'READY' }
+          : (models.isPending || sessionModel.state.isPending) ? { kind: 'LOADING_MODEL' }
+            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR' }
+              : { kind: 'NO_MODEL' }
   const hereView = viewRun(runHere)
   const headerLine = working
     ? `${runHere ? statusLine(view) : `${statusLine(view)} em outra conversa`}${pending.length ? ' · Aguardando você' : ''}`
@@ -317,7 +324,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
                 : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
                   : <BuilderConversation
-                    entries={transcript.entries}
+                    entries={openEntries}
                     persistedRequests={persisted}
                     failure={runHere ?? null}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
@@ -326,9 +333,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                       renderPrompt: (entry: PromptEntry) => <PendingCard
                         pending={entry}
                         onAnswer={async (answer) => {
-                          await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          const outcome = await answerPendingCall(projectId, runHere.conversationId, entry, answer)
+                          if (outcome !== 'RESUMED') return outcome
                           void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
                           dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
+                          return outcome
                         }}
                       />,
                     } : {})}
@@ -351,6 +360,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         <ChatShell.Dock className="cx-dock">
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
+        {session.isRefetchError && <div className="cx-note" data-tone="warning" role="status">
+          <p>Sem conexão com o Conexus. Tentando de novo…</p>
+          <Button size="sm" onClick={() => void session.refetch()}>Tentar agora</Button>
+        </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own
             task_write/task_update/task_check/task_complete calls, never the settled result of a
@@ -376,6 +389,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           memory={shownMemory}
           memoryFailed={runtime.memoryFailed}
+          onRetryModels={() => {
+            void models.refetch()
+            void sessionModel.state.refetch()
+          }}
         />
       </ChatShell.Column>
         </ChatShell.Dock>

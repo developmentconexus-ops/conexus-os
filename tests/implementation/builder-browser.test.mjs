@@ -1998,3 +1998,166 @@ for (const width of [1536, 1700]) {
     )
   })
 }
+
+const MODELS_FAILED = 'Não foi possível carregar os modelos'
+const modelsAlert = (page) => page.getByRole('alert').filter({ hasText: MODELS_FAILED })
+const sendButton = (page) => page.getByRole('button', { name: 'Enviar', exact: true })
+
+test('the composer says models are loading, and keeps Send off until they arrive', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000230', projectId: '70000000-0000-4000-8000-000000000231', conversationId: 'conversation-models-loading',
+  })
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  await page.route('**/api/control/model-accounts/models', async (route) => {
+    await gate
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) })
+  })
+  await page.reload()
+  await messageBox(page).waitFor()
+  assert.equal(await messageBox(page).getAttribute('placeholder'), 'Carregando modelos…')
+  await messageBox(page).fill('Crie uma agenda')
+  assert.equal(await sendButton(page).isDisabled(), true)
+  assert.equal(await modelsAlert(page).count(), 0)
+  release()
+  await page.waitForFunction(() => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== 'Carregando modelos…')
+  assert.equal(await sendButton(page).isDisabled(), false)
+})
+
+test('a list with no usable model stays "choose a model", with no failure alert and no retry', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000232', projectId: '70000000-0000-4000-8000-000000000233', conversationId: 'conversation-models-empty',
+  })
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [BUILDER_MODELS[2]], defaultThinkingLevel: 'medium' }) }))
+  await page.reload()
+  await messageBox(page).waitFor()
+  await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') === placeholder, NO_MODEL_PLACEHOLDER)
+  await messageBox(page).fill('Crie uma agenda')
+  assert.equal(await sendButton(page).isDisabled(), true)
+  assert.equal(await modelsAlert(page).count(), 0)
+  assert.equal(await page.getByRole('button', { name: 'Tentar novamente' }).count(), 0)
+})
+
+test('a failed model list is said so and retried on request, then Send works', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000234', projectId: '70000000-0000-4000-8000-000000000235', conversationId: 'conversation-models-failing',
+  })
+  let failing = true
+  let reads = 0
+  await page.route('**/api/control/model-accounts/models', (route) => {
+    reads += 1
+    return failing
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ type: 'unavailable' }) })
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) })
+  })
+  await page.reload()
+  await messageBox(page).waitFor()
+  await modelsAlert(page).waitFor({ timeout: 30_000 })
+  assert.equal(await messageBox(page).getAttribute('placeholder'), MODELS_FAILED)
+  await messageBox(page).fill('Crie uma agenda')
+  assert.equal(await sendButton(page).isDisabled(), true)
+  failing = false
+  const before = reads
+  await page.getByRole('button', { name: 'Tentar novamente' }).first().click()
+  await modelsAlert(page).waitFor({ state: 'detached' })
+  assert.ok(reads > before)
+  assert.equal(await sendButton(page).isDisabled(), false)
+})
+
+test('a failed read of the conversation\'s own model is said so too, and retried', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000236', projectId: '70000000-0000-4000-8000-000000000237', conversationId: 'conversation-session-model-failing',
+  })
+  let failing = true
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) => failing
+    ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+    : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: SELECTED_MODEL, threadId: 'conversation-session-model-failing' }) }))
+  await page.reload()
+  await messageBox(page).waitFor()
+  await modelsAlert(page).waitFor({ timeout: 30_000 })
+  failing = false
+  await page.getByRole('button', { name: 'Tentar novamente' }).first().click()
+  await modelsAlert(page).waitFor({ state: 'detached' })
+})
+
+const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: null, runHistory: [] })
+const stubSessionReads = async (page, accountId, projectId, answer) => {
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
+    const status = answer()
+    return route.fulfill(status === 200
+      ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
+      : { status, contentType: 'application/json', body: '{}' })
+  })
+}
+// The session is polled again whenever the page regains focus, which makes a poll deterministic.
+const pollNow = (page) => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+
+test('failed background polls keep the chat and show a note until a poll succeeds', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000071'
+  const projectId = '70000000-0000-4000-8000-000000000072'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+  const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
+  assert.equal(await note.count(), 0)
+
+  status = 503
+  await pollNow(page)
+  await note.waitFor()
+  assert.equal(await page.getByText('Não foi possível abrir o Construir').count(), 0)
+  assert.equal(await messageBox(page).count(), 1, 'the composer stays')
+
+  status = 200
+  await pollNow(page)
+  await note.waitFor({ state: 'detached' })
+  assert.equal(await messageBox(page).count(), 1)
+})
+
+test('a 403 poll after a good load shows the denied screen', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000075'
+  const projectId = '70000000-0000-4000-8000-000000000076'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 403
+  await pollNow(page)
+  await page.getByText('Você não pode construir neste Project').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a 401 poll after a good load signs the user out', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000077'
+  const projectId = '70000000-0000-4000-8000-000000000078'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  let status = 200
+  await stubSessionReads(page, accountId, projectId, () => status)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await messageBox(page).waitFor()
+
+  status = 401
+  await pollNow(page)
+  await page.getByText('Sessão encerrada').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})
+
+test('a first load that fails still shows the error page', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000073'
+  const projectId = '70000000-0000-4000-8000-000000000074'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  await stubSessionReads(page, accountId, projectId, () => 503)
+
+  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.getByText('Não foi possível abrir o Construir').waitFor()
+  assert.equal(await messageBox(page).count(), 0)
+})

@@ -54,6 +54,10 @@ const oneModeDigest = 'f3947f61bdcc47936af47c4491a7b9e55e457a80fcb16b10e6766f5f9
 const compilerTemplateEnumDigest = '6ede27869772c62a255a970f6cdb92d88db166dd1ba565d0147a031192412f8c'
 const runParkedDigest = 'fd6a7fb76d8f738ad4fcebb8b4b16ba87907821a98e009b5c5ab755190496c2e'
 const modelAccountSharingHistoryDigest = 'c01d71477794fcbe974b1a239ec0e90d65e11cc4ecf4b83079d7f3036ec04f4f'
+const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba798fceb05a77dbcf4'
+const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
+const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
+const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -100,6 +104,10 @@ const migrationDigests = new Map([
   ['0042_compiler_template_enum.sql', compilerTemplateEnumDigest],
   ['0043_builder_run_parked.sql', runParkedDigest],
   ['0044_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
+  ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
+  ['0046_builder_open_run_conversations.sql', openRunConversationsDigest],
+  ['0047_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
+  ['0048_application_thumbnail.sql', applicationThumbnailDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -160,40 +168,28 @@ const ledgerState = async (client, migrations) => {
   return { applied, maximum: rows.at(-1)?.version ?? null }
 }
 
+// Every pending migration and the catalog check run in one transaction, so a failure at any
+// point, including a catalog that does not match the snapshot once the last migration ran, leaves
+// the database exactly as it was. The migration bodies are already transactional DDL (the
+// envelope check refuses anything else), and the advisory lock is held until the single commit.
+// The catalog is compared only after the last migration, because before that the database is not
+// yet the one the snapshot describes.
 export const runMigrations = async ({ connectionString, migrations, catalogSnapshot = readCommittedSnapshot() }) => {
   const client = new pg.Client({ connectionString })
   await client.connect()
-  const appliedNow = []
   try {
-    for (const migration of migrations) {
-      await client.query('BEGIN')
-      try {
-        await takeAdvisoryLock(client)
-        const ledger = await ledgerState(client, migrations)
-        if (ledger.applied.has(migration.version)) {
-          await client.query('COMMIT')
-          continue
-        }
-        if (migration.version === baselineVersion && await schemaExists(client, 'iam')) fail('MIGRATION_DIRTY_BASELINE_REFUSED')
-        await client.query(migrationBody(migration))
-        await client.query('INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [migration.version, migration.checksum])
-        await client.query('COMMIT')
-        appliedNow.push(migration.version)
-      } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
-      }
-    }
-    // Every pending migration has now run, so this is the one point where the database is the one
-    // the snapshot describes. The catalog and role invariants are asserted here, once, rather than
-    // on every loop iteration: checking them earlier would compare a database that still has
-    // migrations left to run against a snapshot of the finished one, which refuses every upgrade
-    // and every fresh install of more than one migration. The cost is that a catalog that drifted
-    // independently of the ledger is now caught after pending migrations run rather than before;
-    // a ledger that is already complete still runs no migration bodies, so that case is unaffected.
     await client.query('BEGIN')
     try {
       await takeAdvisoryLock(client)
+      const appliedNow = []
+      for (const migration of migrations) {
+        const ledger = await ledgerState(client, migrations)
+        if (ledger.applied.has(migration.version)) continue
+        if (migration.version === baselineVersion && await schemaExists(client, 'iam')) fail('MIGRATION_DIRTY_BASELINE_REFUSED')
+        await client.query(migrationBody(migration))
+        await client.query('INSERT INTO iam.schema_migration(version, checksum_sha256) VALUES ($1, $2)', [migration.version, migration.checksum])
+        appliedNow.push(migration.version)
+      }
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)

@@ -43,15 +43,17 @@ const runner = async (t) => {
   })
   await controller.init()
   t.after(() => controller.destroy?.())
+  const runContexts = new Map()
+  const runTools = new Map()
   const openSession = createControllerRunSessions({
-    controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model',
+    controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: async () => 'anthropic/default-model',
   })
-  const open = (conversationId, builderRunId) => openSession({
-    projectId, conversationId, builderRunId, workspace, runCheck: async () => { throw new Error('not used') },
+  const open = (conversationId, builderRunId, customWorkspace = workspace) => openSession({
+    projectId, conversationId, builderRunId, workspace: customWorkspace, runCheck: async () => { throw new Error('not used') },
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
   const live = (conversationId) => controller.getSessionByResource(resourceId, `builder:${conversationId}`)
-  return { controller, open, live }
+  return { controller, open, live, runContexts, conversationWorkspaces, runTools, root }
 }
 
 test('runs deleting their session leave none in the controller, however many turns a conversation takes', async (t) => {
@@ -86,6 +88,74 @@ test('releasing twice, or after the session is already gone, is not an error', a
   await controller.deleteSession({ resourceId, scope: `builder:${conversation(1)}` })
   await second.release()
   assert.equal(await live(conversation(1)), undefined)
+})
+
+test("a late release of a prior run never removes a subsequent run's session or workspace entry", async (t) => {
+  const { open, live, controller, conversationWorkspaces, runContexts, root } = await runner(t)
+  const workspaceA = new Workspace({ id: 'lifecycle-ws-a', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const workspaceB = new Workspace({ id: 'lifecycle-ws-b', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const runA = await open(conversation(1), runId(1), workspaceA)
+  const sessionA = await live(conversation(1))
+  assert.notEqual(sessionA, undefined)
+
+  // Simulate run A's session being deleted (e.g. by stall path or service cleanup) before run B starts
+  await controller.deleteSession({ resourceId, scope: `builder:${conversation(1)}` })
+
+  // Run B opens a new session on the same conversation
+  const runB = await open(conversation(1), runId(2), workspaceB)
+  const sessionB = await live(conversation(1))
+  assert.notEqual(sessionB, undefined)
+  assert.notEqual(sessionB, sessionA)
+
+  // Late release from run A arrives
+  await runA.release()
+
+  // Run B's session and context/workspace mappings must still be intact
+  assert.equal(await live(conversation(1)), sessionB, "run B's session is still live after run A's late release")
+  assert.equal(conversationWorkspaces.has(conversation(1)), true, "conversationWorkspaces entry for run B is preserved")
+  assert.equal(runContexts.has(`builder:${conversation(1)}`), true, "runContexts entry for run B is preserved")
+
+  // Run B can still execute turns
+  assert.equal((await runB.sendTurn('olá')).reason, 'complete')
+
+  // Run B's own release cleans up properly
+  await runB.release()
+  assert.equal(await live(conversation(1)), undefined)
+  assert.equal(conversationWorkspaces.has(conversation(1)), false)
+  assert.equal(runContexts.has(`builder:${conversation(1)}`), false)
+})
+
+test("a late release of a prior run that shares the next run's session object leaves that run's session, workspace entry and context", async (t) => {
+  const { open, live, conversationWorkspaces, runContexts, runTools } = await runner(t)
+  const scope = `builder:${conversation(1)}`
+  const runA = await open(conversation(1), runId(1))
+  const runB = await open(conversation(1), runId(2))
+  const sessionB = await live(conversation(1))
+  assert.notEqual(sessionB, undefined)
+
+  await runA.release()
+
+  assert.equal(await live(conversation(1)), sessionB, "run B's session is still live after run A's late release")
+  assert.equal(conversationWorkspaces.has(conversation(1)), true)
+  assert.equal(runContexts.has(scope), true)
+  assert.equal(runTools.has(runId(2)), true)
+  assert.equal(runTools.has(runId(1)), false)
+  assert.equal((await runB.sendTurn('olá')).reason, 'complete')
+
+  await runB.release()
+  assert.equal(await live(conversation(1)), undefined)
+  assert.equal(conversationWorkspaces.has(conversation(1)), false)
+  assert.equal(runContexts.has(scope), false)
+  assert.equal(runTools.has(runId(2)), false)
+})
+
+test("a late park of a prior run that shares the next run's session object leaves that run's session", async (t) => {
+  const { open, live } = await runner(t)
+  const runA = await open(conversation(1), runId(1))
+  await open(conversation(1), runId(2))
+  const sessionB = await live(conversation(1))
+  await runA.park()
+  assert.equal(await live(conversation(1)), sessionB)
 })
 
 test("a Project's deletion deletes both sessions of each of its conversations and no other Project's, and closing deletes the conversation sessions in use", async (t) => {
@@ -127,11 +197,12 @@ test("the idle sweep deletes a conversation's session after the limit and never 
 })
 
 // The production sandbox cache with E2B stubbed out: every instance it builds records its pause and its kill.
-const sandboxCache = () => {
+const sandboxCache = ({ killProvider } = {}) => {
   const built = []
   const log = []
   const cache = e2bConversationSandboxes({
     apiKey: 'test-key', templateId: 'conexus:template', log: (line) => log.push(line),
+    ...(killProvider ? { killProvider } : {}),
     create: (input) => {
       const sandbox = createConversationSandbox(input)
       const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, paused: 0, killed: 0, finishPause: null }
@@ -190,4 +261,19 @@ test('a killed VM is forgotten, and a Project deletion kills the VMs its convers
   await destroy([conversation(1), conversation(2), conversation(4)])
   assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 1], ['1', 1], ['2', 1], ['3', 0]])
   assert.equal(built.length, 4, 'one instance per open, none rebuilt for the conversations that were not asked for')
+})
+
+test('#413 a Project deletion kills every VM its conversations recorded at E2B, and a kill that fails is logged without stopping the rest', async () => {
+  const asked = []
+  const { killRecorded, log } = sandboxCache({
+    killProvider: async (providerSandboxId) => {
+      asked.push(providerSandboxId)
+      if (providerSandboxId === 'ivm-unreachable') throw new Error('E2B_TIMEOUT')
+      return providerSandboxId !== 'ivm-gone'
+    },
+  })
+  await killRecorded(['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
+  assert.deepEqual(asked, ['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
+  assert.deepEqual(log, ['BUILDER_SANDBOX_KILL_FAILED:ivm-unreachable:E2B_TIMEOUT'], 'a VM E2B no longer has is not a failure')
+  await killRecorded([])
 })

@@ -1,0 +1,18 @@
+[Unit]
+Description=Conexus pilot application runner
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@CHECKOUT@
+Environment=CONEXUS_PILOT_RUNNER_ENV=@RUNNER_ENV@
+Environment=CONEXUS_PILOT_LOGS=@LOGS@
+ExecStart=@CHECKOUT@/infra/pilot/runner.sh
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=78
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

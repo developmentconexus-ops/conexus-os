@@ -1,5 +1,5 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
-import { MastraClient } from '@mastra/client-js'
+import { MastraClient, MastraClientError } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -229,6 +229,13 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   }
 }
 
+/** What became of an answer, as the Hub's answer route says it: only `RESUMED` took the run back to work. */
+export type AnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED' | 'UNAVAILABLE'
+const ANSWER_REFUSAL_BY_PROBLEM: Readonly<Partial<Record<string, AnswerOutcome>>> = {
+  'urn:conexus:problem:tool-answer-already-given': 'ALREADY_ANSWERED',
+  'urn:conexus:problem:parked-call-not-found': 'NOT_PARKED',
+}
+
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
 type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
@@ -241,10 +248,17 @@ export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers:
  */
 // A question card resumes the Hub's ask_user with one answer per question, in order: a string (free
 // text, or the option chosen in a single-select question) or a string array (a multi-select one).
-export const answerPendingCall = (projectId: string, conversationId: string, pending: PromptEntry, answer: PendingReply): Promise<void> => {
+export const answerPendingCall = async (projectId: string, conversationId: string, pending: PromptEntry, answer: PendingReply): Promise<AnswerOutcome> => {
   const session = runSession(projectId, conversationId)
-  if ('approved' in answer) return session.approveTool(pending.toolCallId, answer.approved)
-  if ('plan' in answer) return session.respondToToolSuspension(pending.toolCallId, answer.plan)
-  // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
-  return session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
+  try {
+    if ('approved' in answer) await session.approveTool(pending.toolCallId, answer.approved)
+    else if ('plan' in answer) await session.respondToToolSuspension(pending.toolCallId, answer.plan)
+    // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
+    else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
+    return 'RESUMED'
+  } catch (error) {
+    const body = error instanceof MastraClientError && typeof error.body === 'object' && error.body !== null ? error.body : {}
+    const type = 'type' in body && typeof body.type === 'string' ? body.type : ''
+    return ANSWER_REFUSAL_BY_PROBLEM[type] ?? 'UNAVAILABLE'
+  }
 }

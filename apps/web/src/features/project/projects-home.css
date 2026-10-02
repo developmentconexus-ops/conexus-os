@@ -44,9 +44,8 @@ a.cx-project-card:focus-visible { outline: 2px solid var(--cx-accent); outline-o
 .cx-thumb { position: relative; height: 136px; overflow: hidden; border-bottom: 1px solid var(--cx-line); background: var(--cx-surface-3); }
 .cx-thumb-placeholder { position: absolute; inset: 0; display: grid; place-items: center; background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--cx-line) 45%, transparent) 14px 15px), var(--cx-surface-3); transition: opacity .3s; }
 .cx-thumb-placeholder .cx-mark { opacity: .7; }
-/* The live Preview renders at desktop width and is scaled down; it never takes focus or clicks. */
-.cx-thumb iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 1600px; border: 0; transform: scale(var(--cx-thumb-scale, .25)); transform-origin: 0 0; pointer-events: none; opacity: 0; transition: opacity .4s; color-scheme: light; }
-.cx-thumb[data-loaded] iframe { opacity: 1; }
+.cx-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; opacity: 0; transition: opacity .3s; }
+.cx-thumb[data-loaded] img { opacity: 1; }
 .cx-thumb[data-loaded] .cx-thumb-placeholder { opacity: 0; }
 
 .cx-project-body { display: grid; gap: .5rem; padding: .85rem 1rem 1rem; }

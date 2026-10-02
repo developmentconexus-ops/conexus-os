@@ -1,0 +1,297 @@
+import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { createApplicationRunnerClient } from './app-runner/module.js'
+import { createConnectorModule } from './connectors/module.js'
+import { createHttpApp } from './http/app.js'
+import { createIdentityAccessModule } from './identity-access/module.js'
+import { createMarModule } from './mar/module.js'
+import { readHubConfig } from './platform/config.js'
+import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
+import { createPostgresPool } from './platform/postgres.js'
+import { assertSchemaCurrent, takeInstanceLock } from './platform/lifecycle.js'
+import { logLine } from './platform/logger.js'
+import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
+import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
+import { createWorkspaceModule } from './workspace/module.js'
+
+// Mastra is loaded only after the production entrypoint has disabled its
+// optional telemetry. Keep this before the dynamic Project-module import.
+process.env.MASTRA_TELEMETRY_DISABLED = '1'
+const { createConfiguredProjectModule } = await import('./project/module.js')
+const { createConfiguredBuilderModule } = await import('./builder/module.js')
+
+export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
+
+/** Composes and starts the Hub. The ports are what a test stands in for; the production entry passes none. */
+export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
+  const config = readHubConfig()
+  const mainConnection = {
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.database,
+    user: config.database.user,
+    password: readSecretFile(config.database.passwordFile),
+  }
+  const pool = createPostgresPool(mainConnection)
+  // Before anything that touches shared state (handler sockets, runs): a second Hub, or a database
+  // behind this code, ends here with a named line and leaves the live Hub alone.
+  const releaseInstanceLock = await takeInstanceLock(mainConnection)
+  await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
+  const s2ReadPool = config.database.workspace ? createPostgresPool({
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.database,
+    user: 'hub_workspace_read',
+    password: readSecretFile(config.database.workspace.readPasswordFile),
+  }) : undefined
+  const identityAccessDependencies = {
+    pool,
+    workspaceReadPool: s2ReadPool,
+    origin: config.origin,
+    issuer: config.oidc.issuer,
+    clientId: config.oidc.clientId,
+    clientSecret: readSecretFile(config.oidc.clientSecretFile),
+    bootstrapSubject: config.bootstrapSubject,
+    // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's credential key.
+    envelope: createSecretEnvelope(readSecretFile(config.secretKey.file), config.secretKey.previousFiles.map(readSecretFile)),
+    application: config.application ? { address: config.application } : undefined,
+    allowInsecureForTest: config.oidc.allowInsecureForTest,
+  } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
+  const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
+  // The Connector Connection's credential is sealed with the same installation key as an application
+  // session's refresh token, so the module needs no login role of its own: connector.* functions run
+  // as hub_iam_runtime, like application-access's do.
+  const connectors = createConnectorModule({
+    pool,
+    envelope: identityAccessDependencies.envelope,
+    origin: config.origin,
+    resolveCurrentSession: identityAccess.resolveCurrentSession,
+    isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+    gatewayOrigin: config.connectors.gatewayOrigin,
+    socketDirectory: config.connectors.socketDirectory,
+  })
+  // A restarted Hub leaves no orphan handler socket still answering.
+  await connectors.sweepHandlerPorts()
+  const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
+    commandPool: createPostgresPool({
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.database,
+      user: 'hub_workspace_command',
+      password: readSecretFile(config.database.workspace.commandPasswordFile),
+    }),
+    readPool: s2ReadPool,
+    origin: config.origin,
+    resolveCurrentSession: identityAccess.resolveCurrentSession,
+  }) : undefined
+  const project = config.project ? createConfiguredProjectModule({
+    database: {
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.database,
+    },
+    project: config.project,
+    // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
+    repository: {
+      prepare: async (projectId) => {
+        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        return builder.prepareProjectRepository(projectId)
+      },
+    },
+    // Every deletion port reaches a module composed below through the same request-time indirection
+    // as repository.prepare above, since the Project module is composed before the Builder module is.
+    deletion: {
+      releaseApplicationData: async (projectId) => {
+        if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
+        return applicationRunner.release({ projectId })
+      },
+      killSandboxes: async (projectId) => {
+        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        return builder.killProjectSandboxes(projectId)
+      },
+      deleteRepository: async (projectId) => {
+        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        return builder.deleteProjectRepository(projectId)
+      },
+    },
+    origin: config.origin,
+    resolveCurrentSession: identityAccess.resolveCurrentSession,
+    thumbnailReader: {
+      readThumbnail: async (input) => {
+        if (servedApplications) {
+          return servedApplications.readThumbnail(input)
+        }
+        const reader = builder?.getApplicationThumbnail
+        if (!reader) throw new Error('BUILDER_THUMBNAIL_READER_UNAVAILABLE')
+        return reader(input)
+      },
+    },
+  }) : undefined
+  let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
+  const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
+  // The application host reads only the artifact an application serves, gated by access to it.
+  const servedPool = config.application && config.builder ? createPostgresPool({
+    host: config.database.host,
+    port: config.database.port,
+    database: config.database.database,
+    user: 'hub_builder_executor',
+    password: readSecretFile(config.builder.executorPasswordFile),
+  }) : undefined
+  const servedApplications = servedPool ? createServedApplicationReader(servedPool) : undefined
+  const mar = config.preview ? createMarModule({
+    sessions: identityAccess.hostSessions,
+    exactHubOrigin: config.origin,
+    previewPort: config.preview.port,
+    registryReader: (input) => {
+      if (!builder) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+      return builder.readApplicationFileBySource({
+        accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
+        artifactRevisionId: input.artifactRevisionId, path: input.path,
+      })
+    },
+    // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
+    // The MAR module bounds in-flight work and the tree's total size before any file is read, ahead of
+    // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
+    ...(applicationRunner ? {
+      applicationRunner: {
+        readFile: ({ source, path }) => {
+          if (source.via === 'APPLICATION') {
+            if (!servedApplications) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+            return servedApplications.readFile({ accountId: source.accountId, projectId: source.projectId, artifactRevisionId: source.artifactRevisionId, path })
+          }
+          const reader = builder
+          if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+          return reader.readApplicationFileBySource({
+            accountId: source.accountId, projectId: source.projectId, sourceRevision: source.sourceRevision, artifactRevisionId: source.artifactRevisionId, path,
+          })
+        },
+        invoke: applicationRunner.invoke,
+        // Each invocation gets its own connector port, minted by the Connector owner from the source.
+        openConnectorPort: (source) => connectors.openHandlerPort(source),
+      },
+    } : {}),
+    ...(config.application && servedApplications ? {
+      applicationHost: { sessions: identityAccess.hostSessions, reader: servedApplications, application: config.application },
+    } : {}),
+  }) : undefined
+  const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
+    const address = mar.previewAddress(input.artifactRevisionId)
+    const opened = await identityAccess.openPreview(request, {
+      accountId: input.accountId,
+      projectId: input.projectId,
+      sourceRevision: input.artifact.sourceRevision,
+      artifactRevisionId: input.artifactRevisionId,
+      artifactDigest: input.artifactDigest,
+      exactHost: address.exactHost,
+      manifest: { entryPath: input.artifact.entryPath, files: input.artifact.files },
+    })
+    return {
+      entryUrl: address.entryUrl,
+      previewUrl: address.previewUrl,
+      entryGrant: opened.entryGrant,
+      artifactRevisionId: input.artifactRevisionId,
+      artifactDigest: input.artifactDigest,
+      expiresAt: new Date(opened.expiresAt).toISOString(),
+    }
+  } : undefined
+  let preparing: Promise<unknown> = Promise.resolve()
+  builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
+    database: {
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.database,
+    },
+    builder: config.builder,
+    factory: config.factory,
+    secretKey: config.secretKey,
+    ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
+    applicationArtifacts: createApplicationArtifactStore(),
+    // A Project with an application keeps its Preview data: a divergent migration history is refused, never
+    // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
+    // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.
+    ...(applicationRunner ? {
+      applicationServer: {
+        invoke: applicationRunner.invoke,
+        prepare: (input) => {
+          const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
+            (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))
+          preparing = prepared
+          return prepared
+        },
+      },
+    } : {}),
+    ...(launchPreview ? { launchPreview } : {}),
+    origin: config.origin,
+    resolveCurrentSession: identityAccess.resolveCurrentSession,
+    isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
+    readProjectName: async (input) => {
+      const name = await project?.readProjectName(input)
+      if (!name) throw new Error('BUILDER_PROJECT_NOT_FOUND')
+      return name
+    },
+    connectors: {
+      openRun: connectors.openBuilderRun,
+      tools: connectors.builderTools,
+      toolPayloadProjection: connectors.toolPayloadProjection,
+    },
+    connectorObservability: connectors.observability,
+    ...(conversationSandboxes ? { conversationSandboxes } : {}),
+  }) : undefined
+  const app = await createHttpApp({
+    registerRoutes: async (server) => [
+      ...await identityAccess.registerIdentityAccessRoutes(server),
+      ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
+      ...(project ? await project.registerProjectRoutes(server) : []),
+      ...(builder ? await builder.registerBuilderRoutes(server) : []),
+      ...(await connectors.registerConnectorRoutes(server)),
+    ],
+    staticRoot: resolve(import.meta.dirname, '../public'),
+    ...(config.preview ? {
+      previewCspSource: `https://*.conexus.localhost:${config.preview.port}`,
+      https: {
+        cert: readFileSync(config.preview.certFile),
+        key: readFileSync(config.preview.keyFile),
+      },
+    } : {}),
+  })
+  const previewApp = mar && config.preview ? await createHttpApp({
+    registerRoutes: mar.registerPreviewRoutes,
+    staticRoot: null,
+    https: {
+      cert: readFileSync(config.preview.certFile),
+      key: readFileSync(config.preview.keyFile),
+    },
+  }) : undefined
+  const applicationApp = mar?.registerApplicationHostRoutes && config.preview && config.application ? await createHttpApp({
+    registerRoutes: mar.registerApplicationHostRoutes,
+    staticRoot: null,
+    https: {
+      cert: readFileSync(config.preview.certFile),
+      key: readFileSync(config.preview.keyFile),
+    },
+  }) : undefined
+  await builder?.recover()
+
+  // Read-only, and it never stops the Hub. One capability holding a bad credential must not
+  // take the others down, and it must be named here rather than surfacing as a 28P01 inside
+  // somebody's request.
+  reportConnectionCensus(
+    await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
+    line => logLine(line),
+  )
+
+  await app.listen({ host: '127.0.0.1', port: config.port })
+  if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
+  if (applicationApp && config.application) await applicationApp.listen({ host: '127.0.0.1', port: config.application.port })
+
+  let closed = false
+  const close = async (): Promise<void> => {
+    if (closed) return
+    closed = true
+    await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
+    await mar?.close()
+    await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close(), servedPool?.end()])
+    await releaseInstanceLock()
+  }
+  return { close }
+}

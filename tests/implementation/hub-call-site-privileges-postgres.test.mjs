@@ -75,6 +75,8 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.record_conversation_session': 'hub_builder_executor',
     'builder.record_conversation_sandbox': 'hub_builder_executor',
     'builder.read_conversation_sandbox': 'hub_builder_executor',
+    'builder.read_project_sandboxes': 'hub_builder_executor',
+    'builder.read_open_run_conversations': 'hub_builder_executor',
   }),
   'identity-access/application-access.ts': Object.freeze({
     'iam.list_application_access': 'hub_iam_runtime',
@@ -137,10 +139,13 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',
     'reg.get_application_by_source': 'hub_builder_executor',
     'reg.read_application_file_by_source': 'hub_builder_executor',
+    'reg.retain_application_thumbnail': 'hub_builder_executor',
+    'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'registry/served-application.ts': Object.freeze({
     'reg.get_served_application': 'hub_builder_executor',
     'reg.read_served_application_file': 'hub_builder_executor',
+    'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'workspace/store.ts': Object.freeze({
     'workspace.reserve_or_replay_create_workspace': 'hub_workspace_command',

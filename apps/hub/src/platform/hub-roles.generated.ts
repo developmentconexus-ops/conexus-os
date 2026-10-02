@@ -1,6 +1,6 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "41e4fdbe50cde8f2abb60272639befcb98d79338f4d38247c3961656f99f7d08"
+export const HUB_ROLE_REGISTER_DIGEST = "2187dbd2c7ece2a33c4d02ade775183a973dcd92947a8a4ac39096021b329fe7"
 
 export type HubRoleRow = Readonly<{
   role: string
@@ -13,9 +13,9 @@ export type HubRoleRow = Readonly<{
 }>
 
 export const HUB_ROLES: readonly HubRoleRow[] = Object.freeze([
-  Object.freeze({ role: "hub_iam_runtime", capability: "identity-and-access", passwordFileVariable: "CONEXUS_DB_PASSWORD_FILE", roleVariable: "CONEXUS_DB_USER", connectsFrom: ["apps/hub/src/server.ts"] }),
-  Object.freeze({ role: "hub_workspace_read", capability: "workspace-read", passwordFileVariable: "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
-  Object.freeze({ role: "hub_workspace_command", capability: "workspace-command", passwordFileVariable: "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/server.ts"] }),
+  Object.freeze({ role: "hub_iam_runtime", capability: "identity-and-access", passwordFileVariable: "CONEXUS_DB_PASSWORD_FILE", roleVariable: "CONEXUS_DB_USER", connectsFrom: ["apps/hub/src/hub.ts"] }),
+  Object.freeze({ role: "hub_workspace_read", capability: "workspace-read", passwordFileVariable: "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/hub.ts"] }),
+  Object.freeze({ role: "hub_workspace_command", capability: "workspace-command", passwordFileVariable: "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/hub.ts"] }),
   Object.freeze({ role: "hub_project_read", capability: "project-read", passwordFileVariable: "CONEXUS_DB_PROJECT_READ_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
   Object.freeze({ role: "hub_project_command", capability: "project-command", passwordFileVariable: "CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE", connectsFrom: ["apps/hub/src/project/module.ts"] }),
   Object.freeze({ role: "hub_builder_ingress", capability: "builder-request", passwordFileVariable: "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE", connectsFrom: ["apps/hub/src/builder/module.ts"] }),

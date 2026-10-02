@@ -12,7 +12,8 @@ import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { builderErrorProcessors, BUILDER_MAX_PROCESSOR_RETRIES } from './error-processors.js'
 import { conexusInstructions } from './prompt.js'
-import { createTool, webFetchTool, webSearchTool } from '@mastra/core/tools'
+import { createTool, webSearchTool } from '@mastra/core/tools'
+import { guardedWebFetchTool } from './web-fetch.js'
 import { z } from 'zod'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
@@ -171,7 +172,7 @@ export type BuilderControllerDeps = Readonly<{
 
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
- * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, `web_fetch`,
+ * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, the guarded `web_fetch`,
  * the `context7_*` documentation tools when `docsTools` is given, and `web_search` when the run's model has a provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
  * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
@@ -196,7 +197,7 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
       ...runToolsInput(deps.runTools?.(ctx)),
       ...(await webSearchFor(deps.model, searchOnly, ctx)),
       ...(deps.docsTools ? await deps.docsTools.tools() : {}),
-      web_fetch: webFetchTool,
+      web_fetch: guardedWebFetchTool,
     }),
     skills: [skillsRoot],
     // The default catalog names each skill by its path on the Hub host, which the workspace tools (E2B) cannot read. Name it by skill instead; `skill` and `skill_read` resolve that name.

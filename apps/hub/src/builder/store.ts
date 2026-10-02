@@ -36,6 +36,9 @@ type BuilderPreview = Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
+/** A run a restart interrupted after it had started. */
+type RestartedRun = Readonly<{ builderRunId: string; projectId: string; conversationId: string }>
+
 /** A run left running with a candidate; `main` in the Conexus Git says whether it was admitted. */
 type AdmissionRun = Readonly<{
   builderRunId: string
@@ -72,13 +75,16 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
   // mainRevision is `main` as the Hub just read it from the Conexus Git.
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
-  recoverAndListQueuedBuilderRuns(): Promise<readonly string[]>
+  // Interrupts what a restart left running and answers the runs that had started, so the Hub can settle what each left open.
+  recoverBuilderRuns(): Promise<readonly RestartedRun[]>
   listAdmissionRuns(): Promise<readonly AdmissionRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
   recordConversationSandbox(input: Readonly<{ projectId: string; conversationId: string; providerSandboxId: string }>): Promise<void>
   readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
+  readProjectSandboxes(projectId: string): Promise<readonly string[]>
+  readOpenRunConversations(): Promise<ReadonlySet<string>>
   close(): Promise<void>
 }>
 
@@ -233,11 +239,9 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.admitted === true
   },
-  recoverAndListQueuedBuilderRuns: async () => {
-    const result = await executorPool.query<QueryResultRow & Readonly<{ builder_run_id: string }>>(
-      'SELECT builder.recover_builder_runs() AS builder_run_id',
-    )
-    return result.rows.map((row) => row.builder_run_id)
+  recoverBuilderRuns: async () => {
+    const result = await executorPool.query<JsonRow<readonly RestartedRun[]>>('SELECT builder.recover_builder_runs() AS value')
+    return result.rows[0]?.value ?? []
   },
   listAdmissionRuns: async () => {
     const result = await executorPool.query<JsonRow<readonly AdmissionRun[]>>('SELECT builder.list_admission_runs() AS value')
@@ -254,6 +258,14 @@ export const createBuilderStore = ({
   readConversationSandbox: async ({ projectId, conversationId }) => {
     const result = await executorPool.query<Readonly<{ value: string | null }>>('SELECT builder.read_conversation_sandbox($1,$2) AS value', [projectId, conversationId])
     return result.rows[0]?.value ?? null
+  },
+  readProjectSandboxes: async (projectId) => {
+    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_project_sandboxes($1) AS value', [projectId])
+    return result.rows[0]?.value ?? []
+  },
+  readOpenRunConversations: async () => {
+    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_open_run_conversations() AS value')
+    return new Set(result.rows[0]?.value ?? [])
   },
   close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

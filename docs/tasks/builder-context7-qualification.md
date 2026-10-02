@@ -1,12 +1,13 @@
 # Builder Context7 documentation tools
 
-**Status:** READY FOR OPERATOR VERDICT. Branch `feat/builder-context7`, pull request #386.\
+**Status:** DONE. Merged in pull request #386.\
 **Type:** dependency and trust-boundary qualification. Q-b: the Hub gains an outbound call to a
 third party. Q-d: `@mastra/mcp` becomes a direct dependency
 ([delivery rules](../development/delivery.md#pick-the-lane-by-risk)).\
 **Aprovo:** required, because the change touches security: a new egress and an optional bearer
 credential.\
-**Verdict:** ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK, from the operator.
+**Verdict:** ACCEPT_WITH_BOUNDARY, from the operator on 2026-10-02 (#392). The boundary: no real
+Builder run has used Context7 yet, so the first real run that does is recorded as its evidence.
 
 ## Question
 
