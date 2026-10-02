@@ -13,6 +13,18 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
     { parts: [{ text: REPLY }] },
   )
 
+  // Every stream the page opens, and whether it is still open.
+  const streams = []
+  page.on('request', (request) => {
+    if (!new URL(request.url()).pathname.endsWith('/stream')) return
+    const stream = { status: null, open: true }
+    streams.push(stream)
+    request.response().then((response) => { stream.status = response?.status() ?? null }, () => undefined)
+    const closed = (ended) => { if (ended === request) stream.open = false }
+    page.on('requestfinished', closed)
+    page.on('requestfailed', closed)
+  })
+
   await page.goto(`/workspaces/${hub.workspaceId}/projects`)
   await page.getByLabel('Mensagem para o agente').fill(REQUEST)
   await page.getByRole('button', { name: 'Enviar', exact: true }).click()
@@ -27,6 +39,9 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
 
   const waiting = `select state, phase, result_kind from builder.builder_run where request_text = '${REQUEST}'`
   await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'RUNNING', phase: 'PARKED', result_kind: null }])
+  // Past one slow read of the run (15 s with the stream open), the page still follows the parked run's live session.
+  await page.waitForTimeout(16_000)
+  assert.deepEqual(streams.filter(({ status }) => status === 200).map(({ open }) => open), [true], 'one stream, open while the run is parked')
 
   await card.getByRole('textbox').fill(ANSWER)
   await card.getByRole('button', { name: 'Enviar resposta' }).click()
@@ -35,6 +50,7 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
   await expect(page.getByTestId('ask-user')).toHaveCount(0)
   await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY' }])
 
+  assert.equal(streams.filter(({ status }) => status === 200).length, 1, 'the answer reached the page on the stream that followed the park')
   await expect(page.getByRole('combobox', { name: 'Conversa' })).toContainText('Contador simples', { timeout: 30_000 })
 
   assert.equal(model.calls.length, 2)

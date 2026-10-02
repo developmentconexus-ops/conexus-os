@@ -29,7 +29,7 @@ const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
 export const isActive = (run: BuilderRun | null | undefined): run is BuilderRun =>
   run?.state === 'QUEUED' || run?.state === 'RUNNING'
 
-/** A run waiting on the person's answer holds nothing in the Hub: no stream to follow and no clock running. */
+/** A run waiting on the person's answer: its stream stays open for the answer, and no clock runs. */
 export const isParked = (run: BuilderRun | null | undefined): boolean => isActive(run) && run.phase === 'PARKED'
 
 const settledOutcome = (run: BuilderRun): SettledOutcome => {

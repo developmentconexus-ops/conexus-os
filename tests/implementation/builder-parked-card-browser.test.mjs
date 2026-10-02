@@ -4,8 +4,8 @@ import { chromium } from '@playwright/test'
 import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, userMessage } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
-// A run that parked on a question: the Hub holds no session for it, so its stream answers 409, and the
-// open call lives in the thread message's metadata until the answer clears it.
+// A run that parked on a question, with its stream down (the Hub answers 409, as once it let the
+// parked session go): the open call lives in the thread message's metadata until the answer clears it.
 const parkedAsk = (question) => {
   const args = { questions: [{ question }] }
   return {
@@ -81,12 +81,14 @@ test('typing in the composer while a parked run shows its card is never taken ov
   assert.equal(await composer.evaluate((node) => node === document.activeElement), true, 'the composer keeps focus')
 })
 
-test('a parked run is read at most once in 5 s and its stream is not chased', async (t) => {
+test('a parked run whose stream is down is read every 15 s, retrying its stream with each read, never every second', async (t) => {
   const { page, requests } = await openParkedCard(t)
   await page.waitForTimeout(1_000)
   const before = { ...requests }
-  await page.waitForTimeout(5_000)
-  assert.deepEqual({ session: requests.session - before.session <= 1, stream: requests.stream - before.stream }, { session: true, stream: 0 })
+  await page.waitForTimeout(16_000)
+  const reads = requests.session - before.session
+  const retries = requests.stream - before.stream
+  assert.deepEqual({ reads: reads >= 1 && reads <= 2, retries: retries >= 1 && retries <= 2 }, { reads: true, retries: true })
 })
 
 test('a page that read the thread before the run parked draws the card once the run turns parked', async (t) => {

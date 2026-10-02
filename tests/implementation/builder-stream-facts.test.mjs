@@ -159,6 +159,15 @@ test("a run's session state written by the Hub reaches the browser's stream thro
   assert.deepEqual(changed?.state.conexusRun, { builderRunId: 'run-1', state: 'RUNNING', phase: 'AGENT' })
 })
 
+test("a stream opened after the Hub published the run starts with that run, as state_changed", async (t) => {
+  const { base, session } = await startMount(t)
+  await session.state.set({ conexusRun: { builderRunId: 'run-1', state: 'RUNNING', phase: 'PARKED' } })
+  const stream = await openStream(base)
+  const opened = await stream.event((event) => event.type === 'state_changed')
+  await stream.close()
+  assert.deepEqual([opened?.changedKeys, opened?.state.conexusRun], [['conexusRun'], { builderRunId: 'run-1', state: 'RUNNING', phase: 'PARKED' }])
+})
+
 test("deleting a run's session ends the browser's stream on it, so the browser reads the run again", async (t) => {
   const { base, controller } = await startMount(t)
   const stream = await openStream(base)
