@@ -142,14 +142,21 @@ Phase 1 guards land before any structural wave: a browser test harness against a
 the Builder flows a person uses; a list of flows per review area that CI requires for every change
 to that area; and the run states from one source that the Hub, the web app and SQL import.
 
-Phase 3 waves, in order:
+Phase 3 waves, in this order, which the code quality diagnosis of 2026-10-02 set (cheap removals
+and security first; S2 before S1 and S5, which depend on it):
 
-1. **S1.** One generated contract between the web app and the Hub for every Builder route.
-2. **S2.** The run as one state machine. It is designed before it is built.
-3. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
+1. **Subtract.** Delete what has no consumer: unused package scripts, proofs of closed gates,
+   failure codes nothing produces, web routes with no screen, retired configuration.
+2. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
    the session lifetimes.
-4. **S4.** One reaper for everything that expires: parked runs, idle E2B machines, expired sessions.
-5. **S5.** The Builder screen holds one record of the conversation.
+3. **S4.** One runner for every periodic job, and one reaper for everything that expires: parked
+   runs, idle E2B machines, expired sessions.
+4. **CI under five minutes.** The Hub builds once, independent checks run together, and no test is
+   removed.
+5. **S2.** The run as one state machine, with one SQL builder for the run summary and a candidate
+   checked once. It is designed before it is built.
+6. **S1.** One generated contract between the web app and the Hub for every Builder route.
+7. **S5.** The Builder screen holds one record of the conversation.
 
 After S2, the Builder moves out of the Hub process, as the runner already is. That move gets its
 own design first, because it depends on how the sandbox and the session belong to each
