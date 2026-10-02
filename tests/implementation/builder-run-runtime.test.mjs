@@ -1540,6 +1540,7 @@ test('#423 the conversation of an idle machine that the sweep deleted runs its n
   await run.service.close()
   assert.deepEqual(seen[1], ['AGENTS.md', 'app/index.html', 'stray.txt'], 'the new machine holds the mirror\'s files')
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox').map(([, id]) => id).at(-1), 'sbx-new', 'the run recorded the new machine')
+})
 
 test("a turn's end logs the hosts its sandbox reached, and the recorders start once per sandbox", async (t) => {
   const run = await harness(t, { turn: async () => completed() })
