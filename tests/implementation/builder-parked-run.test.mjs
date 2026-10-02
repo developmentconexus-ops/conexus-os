@@ -207,6 +207,35 @@ test('a run parked with no leg in this process, as after a restart, is answered 
   assert.deepEqual(calls, ['resume', 'settle'])
 })
 
+test('a reconcile pass while an answer is moving the run out of PARKED does not fail the run', async () => {
+  const { store, row, calls } = parkedStore()
+  row.state = 'RUNNING'
+  row.phase = 'PARKED'
+  let resumeRow
+  const resumed = new Promise((wake) => { resumeRow = wake })
+  const resumeInDatabase = store.resumeBuilderRun
+  store.resumeBuilderRun = async (id) => { const result = await resumeInDatabase(id); await resumed; return result }
+  // A candidate run the database keeps refusing keeps the reconcile timer running.
+  store.listAdmissionRuns = async () => [{ builderRunId: 'stuck', projectId, candidateRevision: 'b'.repeat(40), resultSourceRevision: null }]
+  store.advanceBuilderRunSource = async () => { throw new Error('DATABASE_DOWN') }
+  store.recoverBuilderRuns = async () => []
+  store.listUnownedRunCandidates = async () => (row.state === 'RUNNING' && row.phase !== 'PARKED' ? [{ builderRunId: runId, projectId, conversationId }] : [])
+  const legs = []
+  const service = createBuilderService({
+    store, applicationArtifacts: {},
+    runs: { ...runsOver(async (input) => { legs.push(input.resume); return settled('RESPONSE_ONLY') }), git: { readMain: async () => 'a'.repeat(40), mainContains: async () => true }, reconcileEveryMs: 5 },
+  })
+  await service.recover()
+  const answering = service.answerBuilderRun({ accountId, projectId, builderRunId: runId, toolCallId: 'c1', resumeData: ['Azul'] })
+  await new Promise((wake) => { setTimeout(wake, 100) })
+  assert.deepEqual(calls, ['resume'], 'the row is running again and no leg is registered yet')
+  resumeRow()
+  assert.equal(await answering, 'RESUMED')
+  await service.close()
+  assert.deepEqual(calls, ['resume', 'settle'], 'the sweep did not fail the resumed run')
+  assert.deepEqual(legs, [{ toolCallId: 'c1', resumeData: ['Azul'] }])
+})
+
 // The Hub's service over the run's row and a real Mastra thread: the web app's answer reaches
 // `answerBuilderRun`, and a resumed leg answers the call through a new run session, as in production.
 const serviceOverThread = async (t) => {

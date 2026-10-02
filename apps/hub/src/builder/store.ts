@@ -78,6 +78,8 @@ export type BuilderStore = Readonly<{
   // Interrupts what a restart left running and answers the runs that had started, so the Hub can settle what each left open.
   recoverBuilderRuns(): Promise<readonly RestartedRun[]>
   listAdmissionRuns(): Promise<readonly AdmissionRun[]>
+  // Runs running with no candidate and not parked; the ones no leg owns lost their ending to a failed write.
+  listUnownedRunCandidates(): Promise<readonly RestartedRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
@@ -245,6 +247,10 @@ export const createBuilderStore = ({
   },
   listAdmissionRuns: async () => {
     const result = await executorPool.query<JsonRow<readonly AdmissionRun[]>>('SELECT builder.list_admission_runs() AS value')
+    return result.rows[0]?.value ?? []
+  },
+  listUnownedRunCandidates: async () => {
+    const result = await executorPool.query<JsonRow<readonly RestartedRun[]>>('SELECT builder.list_unowned_run_candidates() AS value')
     return result.rows[0]?.value ?? []
   },
   recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
