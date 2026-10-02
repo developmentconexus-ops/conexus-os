@@ -105,3 +105,22 @@ test('closing the schedule waits for the sweep in flight, so the database can cl
   events.push('closed')
   assert.deepEqual(events, ['listed', 'closed'])
 })
+
+test('closing the schedule stops a sweep before it kills anything', async () => {
+  const killed = []
+  let release
+  const listed = new Promise((resolve) => { release = resolve })
+  const schedule = scheduleIdleMachineSweep({
+    listPaused: async () => {
+      await listed
+      return [machine('c1', 'sbx-1', 30)]
+    },
+    openRunConversations: async () => new Set(),
+    kill: async (ids) => { killed.push(...ids); return ids },
+    log: () => {},
+  })
+  const closing = schedule.close()
+  release()
+  await closing
+  assert.deepEqual(killed, [])
+})

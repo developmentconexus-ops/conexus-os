@@ -215,7 +215,7 @@ export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
 // Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
 // `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
 // waits for the store's own init, which creates the tables a fresh installation does not have yet.
-// `close()` stops the timer and settles after the prune in flight, so the pool it uses can end after it.
+// `close()` stops the timer, aborts the prune in flight between batches, and settles after it, so the pool it uses can end after it.
 type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
 
 /** @public Tests import this at runtime from the built module. */
@@ -225,9 +225,10 @@ export const scheduleRetentionPrune = (
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
   const inFlight = new Set<Promise<void>>()
+  const stop = new AbortController()
   const run = async (): Promise<void> => {
     await storage.init()
-    for (const result of await storage.prune()) {
+    for (const result of await storage.prune({ signal: stop.signal })) {
       log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
@@ -247,6 +248,7 @@ export const scheduleRetentionPrune = (
     tick,
     close: async () => {
       clearInterval(timer)
+      stop.abort()
       await Promise.allSettled([...inFlight])
     },
   })
@@ -518,9 +520,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     getApplicationBySource: service.getApplicationBySource,
     recover: service.recover,
     close: async () => {
-      await Promise.all([retentionPrune.close(), idleMachineSweep.close()])
+      let drained: Promise<unknown> = Promise.resolve()
       try {
         service.stopLegs()
+        drained = Promise.all([retentionPrune.close(), idleMachineSweep.close()])
         await service.close()
       } finally {
         try {
@@ -530,6 +533,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           await docsTools.close()
           await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
+          await drained
           await Promise.all([storagePool.end(), modelAccountPool.end()])
         }
       }

@@ -332,6 +332,29 @@ test('closing the retention schedule waits for the prune in flight, so the pool 
   assert.deepEqual(events, ['pruned', 'closed'])
 })
 
+test('closing the retention schedule aborts a prune that never ends on its own and returns inside the shutdown deadline', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const logs = []
+  let seen
+  const storage = {
+    init: async () => undefined,
+    prune: ({ signal }) => new Promise((settle) => {
+      seen = signal
+      signal.addEventListener('abort', () => settle([{ domain: 'observability', table: 'mastra_ai_spans', deleted: 1000, done: false }]))
+    }),
+  }
+  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  await new Promise((r) => setImmediate(r))
+  const started = Date.now()
+  await schedule.close()
+  assert.equal(seen.aborted, true)
+  assert.ok(Date.now() - started < 1_000, 'close returned without waiting for the backlog')
+  assert.deepEqual(logs, [
+    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:1000',
+    'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
+  ])
+})
+
 test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
   const { scheduleRetentionPrune } = await import(built('builder/module.js'))
   const logs = []
