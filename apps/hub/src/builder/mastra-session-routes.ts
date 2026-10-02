@@ -66,6 +66,7 @@ const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/mo
 // policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
 const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
+const ABORT_KEY = sessionRoute('POST', '/abort')
 // The web card reads the problem type to say why its answer did not resume the run.
 const ANSWER_REFUSALS: Readonly<Record<Exclude<BuilderAnswerOutcome, 'RESUMED'> | 'UNAVAILABLE', readonly [number, string, string]>> = {
   ALREADY_ANSWERED: [409, 'tool-answer-already-given', 'This call was already answered'],
@@ -297,8 +298,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
       const runConversation = sessionScope === undefined ? undefined : RUN_SCOPE.exec(sessionScope)?.[1]
       if (runConversation !== undefined) {
-        // A run waiting on the person holds no session, so its answer is not Mastra's to take: the
-        // Hub resumes the run from the answer, whenever it comes and whichever process asked.
+        // The answer is not Mastra's to take, even while the parked run's session is live: the Hub
+        // resumes the run from the answer, whenever it comes and whichever process asked.
         if (key === TOOL_SUSPENSION_KEY) {
           const answer = typeof body === 'object' && body !== null ? body : {}
           if (typeof answer.toolCallId !== 'string' || answer.toolCallId.length === 0 || answer.toolCallId.length > 200 || !('resumeData' in answer)) {
@@ -311,6 +312,9 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
           return sendProblem(reply, status, type, title)
         }
         if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
+        // Mastra's abort would deny the question a parked run's live session waits on and leave the
+        // run parked on nothing; a run stops through the Hub's cancel, which settles both.
+        if (key === ABORT_KEY) return sendProblem(reply, 409, 'builder-run-stop-refused', 'A run stops through its cancel route')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
           return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
         }

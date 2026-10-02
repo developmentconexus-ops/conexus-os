@@ -190,6 +190,14 @@ test('only the Builder controller id is served, the Factory mount is gone, and t
   assert.deepEqual(answers.map((response) => response.statusCode), [404, 404, 404, 404, 404, 404])
 })
 
+test("a run's own session takes no abort: a parked run's question is settled only by the Hub's stop", async (t) => {
+  const { app, controller } = await createBuilderApp(t)
+  const liveRun = `builder:${randomUUID()}`
+  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
+  const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?sessionScope=${liveRun}`, ...authentic, payload: {} })
+  assert.deepEqual([response.statusCode, response.json().type], [409, 'urn:conexus:problem:builder-run-stop-refused'])
+})
+
 test('a run whose session does not exist yet is a conflict, never a fresh empty session', async (t) => {
   const { app } = await createBuilderApp(t)
   const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${randomUUID()}`, ...authentic })

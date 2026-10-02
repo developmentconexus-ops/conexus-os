@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { RequestContext } from '@mastra/core/request-context'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions, createParkedDiscard } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions, createParkedDiscard, deleteSessionLeavingParked } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 const { createBuilderMemory } = await import(hubModuleUrl('builder/memory.js'))
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
 const { parkedCallStanding, readParkedCalls } = await import(hubModuleUrl('builder/runtime.js'))
@@ -46,7 +48,8 @@ const askingModel = ({ asks = 1 } = {}) => {
 const hubOver = async (t, storage, model) => {
   const root = mkdtempSync(resolve(tmpdir(), 'builder-parked-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  const workspace = new Workspace({ id: 'parked-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const workspaceOn = (id) => new Workspace({ id, filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
+  const workspace = workspaceOn('parked-ws')
   const conversationWorkspaces = new Map()
   const controller = createBuilderController({
     workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
@@ -55,22 +58,22 @@ const hubOver = async (t, storage, model) => {
   await controller.init()
   t.after(() => controller.destroy?.())
   const openSession = createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })
-  const open = () => openSession({
-    projectId, conversationId, builderRunId: runId, workspace, runCheck: async () => { throw new Error('not used') },
+  const open = (on = workspace) => openSession({
+    projectId, conversationId, builderRunId: runId, workspace: on, runCheck: async () => { throw new Error('not used') },
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', runId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
   const live = () => controller.getSessionByResource(resourceId, `builder:${conversationId}`)
-  return { controller, open, live }
+  return { controller, open, live, workspaceOn }
 }
 
 const storedToolResult = async (hub) => {
   const session = await hub.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
   const parts = (await session.thread.listActiveMessages()).flatMap((message) => message.content.parts)
-  await hub.controller.deleteSession({ resourceId, scope: 'reader' })
+  await deleteSessionLeavingParked(hub.controller, resourceId, 'reader')
   return parts.filter((part) => part.type === 'tool-invocation').map((part) => ({ name: part.toolInvocation.toolName, state: part.toolInvocation.state, result: part.toolInvocation.result }))
 }
 
-test('a run parked on a question releases its session, and after a restart the answer resumes the same call to completion', async (t) => {
+test('a run parked on a question keeps its session live, and after a restart the answer resumes the same call to completion', async (t) => {
   const storage = new InMemoryStore()
   await storage.init()
   const { model, prompts } = askingModel()
@@ -80,8 +83,10 @@ test('a run parked on a question releases its session, and after a restart the a
   const asked = await before.open()
   const first = await asked.sendTurn('faça um app')
   assert.equal(first.reason, 'suspended', 'the turn ends at the question instead of waiting for the answer')
-  await asked.park()
-  assert.equal(await before.live(), undefined, 'parking leaves no session in the controller')
+  const parkedSession = await before.live()
+  await asked.end()
+  assert.equal(await before.live() === parkedSession, true, 'parking keeps the session live in the controller')
+  assert.deepEqual([...parkedSession.displayState.get().pendingSuspensions.keys()], ['c1'], 'the live session itself says what the run is parked on')
 
   // A restart: a new controller over the same store, which knows nothing of the first one's memory.
   const after = await hubOver(t, storage, model)
@@ -105,11 +110,71 @@ test('the answer resumes the run in the same Hub too, with the controller that p
   await hub.controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId })
   const asked = await hub.open()
   assert.equal((await asked.sendTurn('faça um app')).reason, 'suspended')
-  await asked.park()
+  await asked.end()
   const resumed = await hub.open()
   assert.equal((await resumed.resumeTurn({ toolCallId: 'c1', resumeData: ['Verde'] })).reason, 'complete')
   assert.ok(prompts[1].includes('User answered'))
   await resumed.release()
+})
+
+test('an answer on a new VM remakes the session and resumes the parked call from storage instead of losing it', async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const { model, prompts } = askingModel()
+  const hub = await hubOver(t, storage, model)
+  const asked = await hub.open()
+  assert.equal((await asked.sendTurn('faça um app')).reason, 'suspended')
+  await asked.end()
+  const parked = await hub.live()
+  const resumed = await hub.open(hub.workspaceOn('replaced-vm'))
+  assert.equal(await hub.live() === parked, false, 'the session is made again on the new workspace')
+  assert.equal((await resumed.resumeTurn({ toolCallId: 'c1', resumeData: ['Azul'] })).reason, 'complete')
+  assert.equal(prompts.length, 2)
+  assert.deepEqual(await storedToolResult(hub), [{ name: 'ask_user', state: 'result', result: { content: 'User answered:\nQual cor?: Azul', isError: false } }])
+  await resumed.release()
+})
+
+test('a leg that ends before its turn deletes the parked session and leaves the question open for the next answer', async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const { model } = askingModel()
+  const hub = await hubOver(t, storage, model)
+  const asked = await hub.open()
+  await asked.sendTurn('faça um app')
+  await asked.end()
+  const failedLeg = await hub.open()
+  await failedLeg.release()
+  assert.equal(await hub.live(), undefined, 'the failed leg deleted the session')
+  assert.deepEqual((await storedToolResult(hub)).map(({ state }) => state), ['call'], 'deleting the session answered nothing')
+  const answered = await hub.open()
+  assert.equal((await answered.resumeTurn({ toolCallId: 'c1', resumeData: ['Verde'] })).reason, 'complete')
+  await answered.release()
+})
+
+test("a conversation session the idle sweep or the Hub's close deletes leaves the parked question open, though it held the call", async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const { model } = askingModel()
+  const hub = await hubOver(t, storage, model)
+  const clock = { now: 0 }
+  const sessions = createConversationSessions({ controller: hub.controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
+  t.after(() => sessions.close())
+  const asked = await hub.open()
+  await asked.sendTurn('faça um app')
+  await asked.end()
+  const browser = await sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
+  await new Promise((wake) => { setTimeout(wake, 300) })
+  assert.equal(browser.suspensions.has({ toolCallId: 'c1' }), true, 'a session on the thread is told of the call while the run is warm')
+  clock.now += 60 * 60_000
+  await sessions.sweep()
+  await sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
+  await new Promise((wake) => { setTimeout(wake, 300) })
+  await sessions.close()
+  await new Promise((wake) => { setTimeout(wake, 300) })
+  assert.deepEqual((await storedToolResult(hub)).map(({ state }) => state), ['call'])
+  const answered = await hub.open()
+  assert.equal((await answered.resumeTurn({ toolCallId: 'c1', resumeData: ['Azul'] })).reason, 'complete')
+  await answered.release()
 })
 
 test('a call the thread does not hold is refused, and a stop settles the parked call as denied', async (t) => {
@@ -119,7 +184,7 @@ test('a call the thread does not hold is refused, and a stop settles the parked 
   const hub = await hubOver(t, storage, model)
   const asked = await hub.open()
   await asked.sendTurn('faça um app')
-  await asked.park()
+  await asked.end()
   const wrong = await hub.open()
   await assert.rejects(() => wrong.resumeTurn({ toolCallId: 'other', resumeData: ['x'] }), /BUILDER_SUSPENSION_NOT_FOUND/)
   await wrong.release()
@@ -127,7 +192,7 @@ test('a call the thread does not hold is refused, and a stop settles the parked 
   assert.deepEqual((await storedToolResult(hub)).map(({ state }) => state), ['output-denied'])
   const reader = await hub.controller.createSession({ resourceId, scope: 'reader', threadId: conversationId })
   assert.equal(await parkedCallStanding(reader, 'c1'), 'ABSENT', 'a call a stop denied waits on no answer')
-  await hub.controller.deleteSession({ resourceId, scope: 'reader' })
+  await deleteSessionLeavingParked(hub.controller, resourceId, 'reader')
 })
 
 const summary = (state, phase) => ({ builderRunId: runId, projectId, conversationId, state, phase, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'faça um app', createdAt: '2026-10-01T00:00:00.000Z', cancellationRequested: false })
@@ -246,7 +311,7 @@ const serviceOverThread = async (t) => {
   const browser = await hub.controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId })
   const asked = await hub.open()
   assert.equal((await asked.sendTurn('faça um app')).reason, 'suspended')
-  await asked.park()
+  await asked.end()
   const { store, row, calls } = parkedStore()
   row.state = 'RUNNING'
   row.phase = 'PARKED'
@@ -297,7 +362,8 @@ const endingOverThread = async (t, { asks = 1 } = {}) => {
   store.requestBuilderRunCancellation = async () => { stopped.requested = true; return summary('RUNNING', row.phase) }
   store.interruptBuilderRun = async (_id, reason) => { row.state = 'INTERRUPTED'; row.phase = null; calls.push(['interrupt', reason]) }
   store.setBuilderRunPhase = async (_id, phase) => {
-    if (phase === 'PARKED' && stopped.requested) throw new Error('BUILDER_LATE_RESULT_REFUSED')
+    // What the store throws when the database refuses the phase of a run whose stop it recorded.
+    if (phase === 'PARKED' && stopped.requested) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
     row.phase = phase
   }
   store.recoverBuilderRuns = async () => []
@@ -307,7 +373,7 @@ const endingOverThread = async (t, { asks = 1 } = {}) => {
       const results = (await reader.thread.listActiveMessages()).flatMap((message) => message.content.parts)
         .filter((part) => part.type === 'tool-invocation').map((part) => `${part.toolInvocation.toolCallId}:${part.toolInvocation.state}`)
       return { open: (await readParkedCalls(reader)).map((call) => call.toolCallId), results }
-    } finally { await hub.controller.deleteSession({ resourceId, scope: 'reader' }) }
+    } finally { await deleteSessionLeavingParked(hub.controller, resourceId, 'reader') }
   }
   const serviceOver = (execute, over = {}) => createBuilderService({
     store, applicationArtifacts: {},
@@ -327,7 +393,7 @@ test('a stop during the park settles the question as denied, and the next run sh
     assert.equal((await leg.sendTurn('faça um app')).reason, 'suspended')
     reachPark()
     await mayPark
-    await leg.park()
+    await leg.end()
     return settled('PARKED')
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'k', content: 'faça um app', conversationId })
@@ -345,7 +411,7 @@ test('a park the database refuses settles the question as denied, and the run en
     const leg = await hub.open()
     await leg.sendTurn('faça um app')
     stopped.requested = true
-    await leg.park()
+    await leg.end()
     return settled('PARKED')
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'k', content: 'faça um app', conversationId })
@@ -358,7 +424,7 @@ test('a Hub that crashes while a resumed leg waits on a second question settles 
   const { hub, store, row, open, serviceOver, storage } = await endingOverThread(t, { asks: 2 })
   const first = await hub.open()
   await first.sendTurn('faça um app')
-  await first.park()
+  await first.end()
   row.state = 'RUNNING'
   row.phase = 'PARKED'
   // The answer resumes the run; its leg reaches the model's second question and the Hub dies there.
@@ -386,7 +452,32 @@ test('a Hub that crashes while a resumed leg waits on a second question settles 
   const states = (await reader.thread.listActiveMessages()).flatMap((message) => message.content.parts)
     .filter((part) => part.type === 'tool-invocation').map((part) => `${part.toolInvocation.toolCallId}:${part.toolInvocation.state}`)
   assert.deepEqual(states, ['c1:result', 'c2:output-denied'])
-  await after.controller.deleteSession({ resourceId, scope: 'reader' })
+  await deleteSessionLeavingParked(after.controller, resourceId, 'reader')
+})
+
+test('a stop on a parked run tells the stream that follows its live session before the discard deletes it', async (t) => {
+  const { hub, store, row, open, serviceOver } = await endingOverThread(t)
+  const told = []
+  const service = serviceOver(async () => {
+    const leg = await hub.open()
+    await leg.sendTurn('faça um app')
+    await leg.end()
+    return settled('PARKED')
+  }, {
+    publishRun: async (run) => {
+      const session = await hub.live()
+      told.push(`${run.state}:${run.phase}:${session ? 'live' : 'gone'}`)
+    },
+  })
+  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'k', content: 'faça um app', conversationId })
+  await new Promise((wake) => { setTimeout(wake, 100) })
+  assert.equal(row.phase, 'PARKED')
+  store.requestBuilderRunCancellation = async () => { row.state = 'INTERRUPTED'; row.phase = null; return summary('INTERRUPTED', null) }
+  await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  await service.close()
+  assert.deepEqual(told.slice(-1), ['INTERRUPTED:null:live'])
+  assert.equal(await hub.live(), undefined, 'the discard deleted the parked session after the stream heard the stop')
+  assert.deepEqual(await open(), { open: [], results: ['c1:output-denied'] })
 })
 
 test('a failed discard never fails the stop that asked for it', async (t) => {
@@ -397,4 +488,30 @@ test('a failed discard never fails the stop that asked for it', async (t) => {
     runtime: { execute: async () => { throw new Error('not used') }, discardParked: async () => { throw new Error('thread unreachable') } },
   })
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+})
+
+test('a stop that lands once the park is written, while the leg still lets go, settles the question as denied', async (t) => {
+  const { hub, store, row, open, serviceOver } = await endingOverThread(t)
+  const stop = { service: null, done: null }
+  store.requestBuilderRunCancellation = async () => {
+    Object.assign(row, { state: 'INTERRUPTED', phase: null })
+    return summary('INTERRUPTED', null)
+  }
+  store.setBuilderRunPhase = async (_id, phase) => {
+    row.phase = phase
+    if (phase === 'PARKED') {
+      stop.done = stop.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+      await stop.done
+    }
+  }
+  stop.service = serviceOver(async () => {
+    const leg = await hub.open()
+    await leg.sendTurn('faça um app')
+    await leg.end()
+    return settled('PARKED')
+  })
+  await stop.service.createBuilderRun({ accountId, projectId, idempotencyKey: 'k', content: 'faça um app', conversationId })
+  await stop.service.close()
+  assert.equal(row.state, 'INTERRUPTED')
+  assert.deepEqual(await open(), { open: [], results: ['c1:output-denied'] })
 })

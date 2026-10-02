@@ -41,7 +41,10 @@ export const localConversationSandboxes = (root, workspaceTools) => {
     return join(base, conversationId)
   }
 
-  const open = ({ conversationId }) => {
+  // As in the E2B pool, a parked run's instance, and so the workspace its live session holds, is kept for the answer.
+  const kept = new Map()
+  const open = ({ conversationId }) => kept.get(conversationId) ?? build(conversationId)
+  const build = (conversationId) => {
     const vm = directoryOf(conversationId)
     const local = (text) => text.replace(VM_PATH, (_, folder) => `${vm}/${folder}`)
     const inside = (path) => {
@@ -59,7 +62,7 @@ export const localConversationSandboxes = (root, workspaceTools) => {
     }
     const shell = (script, cwd) => execute('sh', ['-c', local(script)], { cwd, env: environment })
 
-    return Object.freeze({
+    const instance = Object.freeze({
       sandboxId: `local-${conversationId}`,
       workspace: new Workspace({
         id: `conexus-run-workspace-local-${conversationId}`,
@@ -95,9 +98,16 @@ export const localConversationSandboxes = (root, workspaceTools) => {
       // A flow that needs the application check must say so loudly; a stand-in report would pass on nothing.
       runCheck: async () => { throw new Error('LIVE_SANDBOX_HAS_NO_APPLICATION_CHECK') },
       holdOpen: async () => () => {},
-      pause: async () => {},
-      kill: async () => { rmSync(vm, { recursive: true, force: true }) },
+      pause: async (parked = false) => {
+        if (parked) kept.set(conversationId, instance)
+        else kept.delete(conversationId)
+      },
+      kill: async () => {
+        kept.delete(conversationId)
+        rmSync(vm, { recursive: true, force: true })
+      },
     })
+    return instance
   }
 
   const remove = (conversationId) => rmSync(directoryOf(conversationId), { recursive: true, force: true })

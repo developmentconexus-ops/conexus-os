@@ -110,7 +110,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
 }>): BuilderService => {
   // Runs an answer is moving out of PARKED: owned from before the database transition until the leg is registered.
   const resuming = new Set<string>()
-  // A run's legs: the work now in flight for it. A parked run has none, in this process or after a restart.
+  // A run's legs: the work now in flight for it. A parked run has none; its session stays live for the answer.
   const builderActive = new Map<string, Readonly<{
     controller: AbortController
     work: Promise<void>
@@ -253,6 +253,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         // The leg is over: an answer starts the next one, which this entry must not shadow.
         builderActive.delete(run.builderRunId)
         endParking(true)
+        // A stop that found this leg still letting go left the discard to it.
+        if (controller.signal.aborted) await settleRun(run, 'USER_CANCELLED')
         return
       }
       if (result.kind === 'RESPONSE_ONLY') {
@@ -342,7 +344,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // The operator's cancellation or the Hub's own stop aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
       const hubStopping = controller.signal.reason === HUB_STOPPING
-      const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED'
+      const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED' || code === 'BUILDER_RUN_PHASE_UPDATE_REFUSED'
       const terminal: SettleTerminal = hubStopping ? 'HUB_RESTART' : cancelled ? 'USER_CANCELLED' : 'FAILED'
       if (terminal === 'HUB_RESTART') {
         await writeEnding(run.builderRunId, () => store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
@@ -404,9 +406,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const result = await store.requestBuilderRunCancellation(input)
       const leg = builderActive.get(input.builderRunId)
       leg?.controller.abort()
-      // With a leg, its catch settles once the leg has let go of the thread.
-      if (!leg && result.state === 'INTERRUPTED') await settleRun(result, 'USER_CANCELLED')
+      // A parked run's live session carries the stop to the stream that follows it before the
+      // discard deletes it. With a leg, its catch settles once the leg has let go of the thread.
       await publishRun(result)
+      if (!leg && result.state === 'INTERRUPTED') await settleRun(result, 'USER_CANCELLED')
       return result
     },
     answerBuilderRun: async ({ accountId, projectId, builderRunId, toolCallId, resumeData }) => {

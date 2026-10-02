@@ -41,8 +41,11 @@ type RunSandbox = Readonly<{
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
-  /** The turn's end: the VM pauses with its files and its checkout, and the next `start()` resumes it. */
-  pause(): Promise<void>
+  /**
+   * The turn's end: the VM pauses with its files and its checkout, and the next `start()` resumes it.
+   * A parked run's instance stays for its answer, since its live session holds this workspace.
+   */
+  pause(parked?: boolean): Promise<void>
   /** A broken VM: it is killed, and the conversation's next turn gets a new one. */
   kill(): Promise<void>
 }>
@@ -64,12 +67,13 @@ type RunSession = Readonly<{
   sendTurn(content: string, signal?: AbortSignal): Promise<AgentTurn>
   /** The same turn, going on from the answer to the call a parked run waited on. */
   resumeTurn(resume: ParkedAnswer, signal?: AbortSignal): Promise<AgentTurn>
-  /** The agent's turn is over: its context and tools are forgotten, and the session stays for the run's remaining phases. */
+  /**
+   * The agent's turn is over: its context and tools are forgotten, and the session stays for the
+   * run's remaining phases. A run parked on a call keeps it live for the answer, as Mastra's Factory does.
+   */
   end(): Promise<void>
   /** The run is over: ends the turn and deletes the session, which Mastra keeps in memory until it is deleted. */
   release(): Promise<void>
-  /** The run parks on a call: the session goes, and the call stays in Mastra's storage for the answer to resume. */
-  park(): Promise<void>
 }>
 
 /** The person's answer to the call a parked run waits on. */
@@ -616,15 +620,16 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       const failed = (code: string) => (error: unknown): void => {
         ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
       }
-      // The run owns the session it opened, whatever way it ended: Mastra frees none by itself.
+      // The run owns the session it opened, whatever way it ended: Mastra frees none by itself. A
+      // parked run keeps it live for the answer.
       connectorRun?.end()
       const closeSession = async (): Promise<void> => {
-        await (parked ? session?.park() : session?.release())?.catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
+        if (!parked) await session?.release().catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
       }
       if (input.holdSession) input.holdSession(closeSession)
       else await closeSession()
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
-      if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
+      if (live) void sandbox.pause(parked).catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       // A run that started and is not live kills its VM, a failed start included: no VM it made or
       // resumed is left running or paused behind it.
       else if (started) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
@@ -645,10 +650,36 @@ type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }
 const TURN_SILENCE_MS = 10 * 60_000
 const STALLED_SESSION_DELETE_MS = 5_000
 
+type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
+
+/**
+ * Lets a session go of the calls it is parked on, so deleting it answers none of them. Mastra's
+ * `deleteSession` aborts the session, and the abort settles its parked calls as denied and marks the
+ * thread's run aborted, so no answer could resume it. Any session on the thread holds the call, not
+ * only the run's own: while the suspended run is warm in this process, a session opened on its
+ * thread is told of the call within moments. Here the session's list of parked calls is cleared, an
+ * abort is marked as already made, and the stream is detached without an abort; the call and its
+ * snapshot stay in storage, and an answer resumes them on a new session.
+ */
+const letGoOfParked = (session: ControllerSession): void => {
+  // The registry, not the display state, is what Mastra's abort settles: a session opened again for
+  // the answer may show no pending suspension while it still holds the call.
+  if (session.suspensions.clear().length === 0) return
+  session.displayState.clearPendingSuspensions()
+  session.run.requestAbort({ deferSignal: true })
+  session.stream.detach()
+}
+
+/** Deletes the session of a scope without settling a call it holds: only a discard settles one. */
+export const deleteSessionLeavingParked = async (controller: Pick<AgentController, 'getSessionByResource' | 'deleteSession'>, resourceId: string, scope: string): Promise<void> => {
+  const session = await controller.getSessionByResource(resourceId, scope)
+  if (!session) return
+  letGoOfParked(session)
+  await controller.deleteSession({ resourceId, scope })
+}
+
 /** The conversation's own session scope: never the browser's `conversation:<id>`, which has no workspace. */
 export const conversationRunScope = (conversationId: string): string => `builder:${conversationId}`
-
-type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /**
  * The conversation's session on the Builder controller for one run (spec 0002 amendment, B3): one
@@ -656,8 +687,8 @@ type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
  * tool allowed without asking (the workspace lists the tools the Builder has), and a turn that
  * lasts until the agent is done, including while it waits for the person to answer a question
  * (AC-16). The context, the check and the operation run are the turn's own. Mastra keeps a live
- * session until it is deleted, so the run deletes its own; the thread, which holds the
- * conversation, is in storage.
+ * session until it is deleted, so the run deletes its own, and a parked run keeps it for the answer;
+ * the thread, which holds the conversation, is in storage.
  */
 export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
   controller: AgentController
@@ -696,7 +727,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   }
   const deleteSession = async (): Promise<void> => {
     if (!session || (await controller.getSessionByResource(resourceId, scope)) !== session) return
-    await controller.deleteSession({ resourceId, scope })
+    await deleteSessionLeavingParked(controller, resourceId, scope)
     if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
   // The agent's turn ends, but the run keeps the session for its remaining phases and still owns it.
@@ -704,9 +735,10 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     forget(true)
   }
   try {
+    // A parked run's answer gets the session the run parked in, still live on the same workspace.
     session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     // A session resolves its workspace once, when it is made; one made on a VM the conversation no
-    // longer has is made again on this one.
+    // longer has is made again on this one, and the call it is parked on resumes from storage.
     if (session.getWorkspace() !== workspace) {
       if (owners.get(scope) === builderRunId) await deleteSession()
       session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
@@ -778,26 +810,13 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     release: async () => {
       if (forget()) await deleteSession()
     },
-    // Mastra's `deleteSession` aborts the session, and the abort reaches the thread's run, parked or
-    // not: it settles the session's parked calls as denied and marks the run aborted, so no answer
-    // could resume it. The call is parked on purpose, so the session lets go of it first: its list of
-    // parked calls is cleared, an abort is marked as already made, and the stream is detached
-    // without an abort. The call and its snapshot stay in storage for the answer.
-    park: async () => {
-      if (!forget()) return
-      session.suspensions.clear()
-      session.displayState.clearPendingSuspensions()
-      session.run.requestAbort({ deferSignal: true })
-      session.stream.detach()
-      await deleteSession()
-    },
   })
   }
 }
 
 /**
- * Settles every call a run left open on its thread: the run holds no session, so one is opened on
- * its thread, and Mastra marks each call as denied, as a stop on a run waiting in a session always
+ * Settles every call a run left open on its thread: the session is the parked run's own while it is
+ * live, else one opened on its thread, and Mastra marks each call as denied, as a stop on a run waiting in a session always
  * did. With no call open it only reads the thread, so every ending of a run can call it and a second
  * call changes nothing.
  */
@@ -808,7 +827,7 @@ export const createParkedDiscard = ({ controller }: Readonly<{ controller: Agent
   try {
     await session.runEngine.settleSuspendedToolCallsAsDenied((await readParkedCalls(session)).map((call) => ({ ...call, threadId: conversationId, resourceId })))
   } finally {
-    await controller.deleteSession({ resourceId, scope })
+    await deleteSessionLeavingParked(controller, resourceId, scope)
   }
 }
 
@@ -817,7 +836,8 @@ export const createParkedDiscard = ({ controller }: Readonly<{ controller: Agent
  * While a conversation has a run, or a pause still pending, that run's instance is the one every
  * run of it gets, so the next `start()` waits for the pause. Once the VM is paused the Hub drops
  * the instance, with the workspace and the process handles it holds (Mastra's Factory does the
- * same when it retires a session): the paused VM stays at E2B, and the next run builds an instance
+ * same when it retires a session), unless the run parked: its live session holds the workspace, so
+ * the answer resumes the same instance. The paused VM stays at E2B, and the next run builds an instance
  * that resumes it by the provider id the Hub recorded. A workspace is never destroyed on a pause,
  * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
  * gets a new one.
@@ -873,12 +893,12 @@ export const e2bConversationSandboxes = ({
         readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
         runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-        pause: async () => {
+        pause: async (parked = false) => {
           const opened = entry.opened
           try {
             await sandbox.pause()
           } finally {
-            if (kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
+            if (!parked && kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
           }
         },
         kill: async () => {

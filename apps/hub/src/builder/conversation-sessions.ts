@@ -1,6 +1,6 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
-import { conversationRunScope } from './run-runtime.js'
+import { conversationRunScope, deleteSessionLeavingParked } from './run-runtime.js'
 
 /**
  * How long a conversation's session may go unused before the Hub deletes it. Mastra keeps a live
@@ -13,7 +13,7 @@ const SWEEP_EVERY_MS = 60_000
 const conversationSessionScope = (conversationId: string): string => `conversation:${conversationId}`
 
 type Use = Readonly<{ resourceId: string; scope: string; at: number }>
-type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession'>
+type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'getSessionByResource'>
 
 /**
  * The owner of the sessions on `conversation:<id>`, which the browser and the Hub open on their own
@@ -35,7 +35,8 @@ export const createConversationSessions = ({ controller, idleMs = CONVERSATION_S
   }
   const remove = async (resourceId: string, scope: string): Promise<void> => {
     uses.delete(key(resourceId, scope))
-    await controller.deleteSession({ resourceId, scope }).catch((error: unknown) => {
+    // A conversation's session holds the call a parked run of it waits on, and deleting it must not answer it.
+    await deleteSessionLeavingParked(controller, resourceId, scope).catch((error: unknown) => {
       log(`BUILDER_SESSION_DELETE_FAILED:${scope}:${error instanceof Error ? error.message : String(error)}`)
     })
   }

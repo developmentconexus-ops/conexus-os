@@ -149,15 +149,6 @@ test("a late release of a prior run that shares the next run's session object le
   assert.equal(runTools.has(runId(2)), false)
 })
 
-test("a late park of a prior run that shares the next run's session object leaves that run's session", async (t) => {
-  const { open, live } = await runner(t)
-  const runA = await open(conversation(1), runId(1))
-  await open(conversation(1), runId(2))
-  const sessionB = await live(conversation(1))
-  await runA.park()
-  assert.equal(await live(conversation(1)), sessionB)
-})
-
 test("a Project's deletion deletes both sessions of each of its conversations and no other Project's, and closing deletes the conversation sessions in use", async (t) => {
   const { controller, open } = await runner(t)
   const sessions = createConversationSessions({ controller, sweepEveryMs: 3_600_000 })
@@ -231,6 +222,16 @@ test("a conversation's sandbox instance is dropped once its VM is paused, and th
   const kept = open({ conversationId: conversation(3), providerSandboxId: null })
   assert.equal(open({ conversationId: conversation(3), providerSandboxId: null }), kept, 'until its pause, every run of the conversation gets the one instance')
   assert.equal(built.length, 53)
+})
+
+test("a parked run's paused VM keeps its instance, so the answer gets the workspace its live session holds", async () => {
+  const { open, built } = sandboxCache()
+  const parked = open({ conversationId: conversation(1), providerSandboxId: null })
+  await parked.pause(true)
+  const answering = open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' })
+  assert.deepEqual({ same: answering === parked, workspace: answering.workspace === parked.workspace, built: built.length, paused: built[0].paused }, { same: true, workspace: true, built: 1, paused: 1 })
+  await answering.pause()
+  assert.equal(open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' }) === parked, false, 'the answer\'s own turn end drops it')
 })
 
 test('a pause that finishes after the next run took the instance drops nothing, and a workspace is never destroyed on a pause', async () => {

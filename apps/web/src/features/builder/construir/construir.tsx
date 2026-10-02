@@ -141,7 +141,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     enabled: Boolean(diffBasis),
   })
 
-  const thread = useBuilderConversation(projectId, conversationId, isParked(runHere) ? 0 : session.dataUpdatedAt)
+  const thread = useBuilderConversation(projectId, conversationId, session.dataUpdatedAt)
   const { history, transcript, runtime } = thread
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory

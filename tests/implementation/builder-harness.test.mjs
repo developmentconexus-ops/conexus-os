@@ -395,10 +395,11 @@ test("a turn lasts through the person's answer on the conversation's session and
   const asked = await run.sendTurn('faça um app')
   assert.equal(asked.reason, 'suspended', 'the turn ends at the question')
   assert.equal(typeof asked.userMessageId, 'string')
-  await run.park()
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'a run parked on the question holds no session')
-  // The answer opens the run's session again and resumes the call the question left in storage.
+  await run.end()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'a run parked on the question keeps its session live for the answer')
+  // The answer gets the parked run's live session again and resumes the call on it.
   const answering = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'the answer resumes on the same session object')
   const turn = await answering.resumeTurn({ toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] })
   assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
   assert.equal(typeof turn.userMessageId, 'string')
