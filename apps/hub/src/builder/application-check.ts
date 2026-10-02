@@ -178,11 +178,12 @@ for (const entry of limitFlags) {
   if (step in LIMIT_MS && Number.isInteger(Number(ms))) LIMIT_MS[step] = Number(ms)
 }
 if (!flags['--root'] || !flags['--out']) {
-  process.stderr.write('usage: check.mjs --root <checkout> --out <dist> [--as <uid>:<gid>]\n')
+  process.stderr.write('usage: check.mjs --root <checkout> --out <dist> [--thumbnail <png>] [--as <uid>:<gid>]\n')
   process.exit(2)
 }
 const root = resolve(flags['--root'])
 const out = resolve(flags['--out'])
+const thumbnailPath = flags['--thumbnail'] ? resolve(flags['--thumbnail']) : null
 const tools = flags['--tools'] ?? '/opt/conexus'
 const compiler = join(tools, 'compiler')
 const chromiumPath = flags['--chromium'] ?? '/usr/bin/chromium'
@@ -381,7 +382,6 @@ const stubValue = (schema) => {
   }
 }
 
-const THUMBNAIL_FILE = 'conexus-thumbnail.png'
 const runBoot = async () => {
   const problems = []
   const seen = new Set()
@@ -515,7 +515,11 @@ const runBoot = async () => {
         try {
           await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 0.5, mobile: false })
           const shot = await send('Page.captureScreenshot', { format: 'png' })
-          if (typeof shot?.data === 'string' && shot.data.length > 0) writeFileSync(join(out, '..', THUMBNAIL_FILE), Buffer.from(shot.data, 'base64'), { mode: 0o644 })
+          if (thumbnailPath && typeof shot?.data === 'string' && shot.data.length > 0) {
+            // The picture goes to a path the Hub chose outside the candidate's tree, replaced and never followed.
+            rmSync(thumbnailPath, { force: true })
+            writeFileSync(thumbnailPath, Buffer.from(shot.data, 'base64'), { flag: 'wx', mode: 0o644 })
+          }
         } catch {}
       }
       return {}

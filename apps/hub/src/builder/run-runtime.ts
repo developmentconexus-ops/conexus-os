@@ -35,7 +35,7 @@ type RunSandbox = Readonly<{
   readAgentFile(path: string): Promise<Uint8Array>
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
-  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
+  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
@@ -553,7 +553,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         // The Preview is built by the steps the model saw. A source the check refuses, or a page
         // that threw or drew nothing, leaves the admitted source in place without a Preview.
-        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, user: 'root' })
+        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, thumbnail: `${BUILD_ROOT}/${input.executionId}.png`, user: 'root' })
         ports.log(`BUILDER_CHECK:preview:${input.executionId}:${checkSummary(built.report)}`)
         const refused = refusingStep(built.report)
         const notBooting = unrenderedBootStep(built.report)
@@ -852,7 +852,7 @@ export const e2bConversationSandboxes = ({
         runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
         writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
         readAgentFile: (path: string) => sandbox.readAgentFile(path),
-        runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+        runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
         pause: async () => {
           const opened = entry.opened

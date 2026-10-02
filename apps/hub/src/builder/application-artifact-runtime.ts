@@ -182,10 +182,8 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortS
 const THUMBNAIL_MAX_BYTES = 512_000
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
 
-const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<CompiledApplicationThumbnail | null> => {
+const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, path: string, signal: AbortSignal | undefined): Promise<CompiledApplicationThumbnail | null> => {
   try {
-    const path = `${place.out.slice(0, place.out.lastIndexOf('/'))}/conexus-thumbnail.png`
-    if (!SAFE_ABSOLUTE_PATH.test(path)) return null
     const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(signal, place) })
     if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
     return Object.freeze({ mediaType: 'image/png' as const, bytes: new Uint8Array(bytes) })
@@ -210,15 +208,15 @@ export type ApplicationCheckRun = Readonly<{
  */
 export const checkApplicationInSandbox = async (
   sandbox: Sandbox,
-  input: Readonly<{ root: string; out: string; collect: boolean; user?: CheckUser; signal?: AbortSignal }>,
+  input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user?: CheckUser; signal?: AbortSignal }>,
 ): Promise<ApplicationCheckRun> => {
-  if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out)) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
+  if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out) || (input.thumbnail !== undefined && !SAFE_ABSOLUTE_PATH.test(input.thumbnail))) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
   const place: BuildPlace = { out: input.out, ...(input.user ? { user: input.user } : {}) }
   assertNotAborted(input.signal)
   let result: CommandResult
   try {
     result = await sandbox.commands.run(
-      `${CHECK_NODE_PATH} ${CHECK_SCRIPT_PATH} --root '${input.root}' --out '${input.out}' --as ${CHECK_AGENT_IDENTITY}`,
+      `${CHECK_NODE_PATH} ${CHECK_SCRIPT_PATH} --root '${input.root}' --out '${input.out}'${input.thumbnail ? ` --thumbnail '${input.thumbnail}'` : ''} --as ${CHECK_AGENT_IDENTITY}`,
       { cwd: '/', timeoutMs: CHECK_COMMAND_TIMEOUT_MS, ...(input.signal ? { signal: input.signal } : {}), ...(place.user ? { user: place.user } : {}) },
     )
   } catch (error) {
@@ -233,6 +231,6 @@ export const checkApplicationInSandbox = async (
   const report = parseCheckReport(result.stdout)
   const files = input.collect && report.ok ? await collectOutput(sandbox, place, input.signal) : null
   assertNotAborted(input.signal)
-  const thumbnail = files ? await readThumbnail(sandbox, place, input.signal) : null
+  const thumbnail = files && input.thumbnail ? await readThumbnail(sandbox, place, input.thumbnail, input.signal) : null
   return Object.freeze({ report, files, thumbnail })
 }
