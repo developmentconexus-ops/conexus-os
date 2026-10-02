@@ -27,6 +27,7 @@ const FORBIDDEN = ['clientSecret', 'xToken', 'client_secret', 'X-Token', 'x-toke
 const line = (name, connectorId) => `- \`${name}\`: ${connectorId} (skill \`conexus-${connectorId}\`)`
 const readSkill = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const sankhyaSkill = readSkill('../../builder-skills/conexus-sankhya/SKILL.md')
+const sankhyaReferences = ['topics.md', 'traps.md'].map((name) => [name, readSkill(`../../builder-skills/conexus-sankhya/references/${name}`)])
 
 test('a Project with no binding is told to change nothing and say a Conexão can be added; every binding is listed with its integrator skill', async () => {
   assert.equal(await briefOf(storeOf([]))(scope), CONNECTOR_BRIEF_UNBOUND)
@@ -98,7 +99,7 @@ test('the brief and the Skill carry no credential material and no gateway origin
   const text = await brief(scope)
   for (const term of FORBIDDEN) {
     assert.equal(text.includes(term), false, `brief must not contain ${term}`)
-    assert.equal(sankhyaSkill.includes(term), false, `Skill must not contain ${term}`)
+    for (const [path, text] of [['SKILL.md', sankhyaSkill], ...sankhyaReferences]) assert.equal(text.includes(term), false, `Skill ${path} must not contain ${term}`)
   }
 })
 
@@ -117,8 +118,11 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
 
 test('the Sankhya guide teaches how to find any data, and carries no one-app recipe or real value', () => {
   const guide = sankhyaSkill
-  for (const method of ['TDDCAM', 'USER_TAB_COLUMNS', 'hasMoreResult', 'https://developer.sankhya.com.br/reference']) assert.ok(guide.includes(method), method)
-  assert.equal(guide.includes('`total` conta as linhas desta página, não da lista inteira'), true, 'total is the page count')
-  for (const recipe of ['pedidos de compra', 'TIPMOV', 'acompanhamento']) assert.equal(guide.includes(recipe), false, recipe)
-  assert.equal(/(=|\$:) ?'?\d/.test(guide), false, 'no example value is a real number')
+  for (const method of ['TDDCAM', 'TDDOPC', 'USER_TAB_COLUMNS', 'hasMoreResult', 'DHALTER', '.conexus/memory/', 'https://developer.sankhya.com.br/reference']) assert.ok(guide.includes(method), method)
+  assert.equal(guide.includes('`total` counts the rows of this page, not of the whole list'), true, 'total is the page count')
+  for (const [path, text] of [['SKILL.md', guide], ...sankhyaReferences]) {
+    for (const recipe of ['pedidos de compra', 'acompanhamento']) assert.equal(text.includes(recipe), false, `${path}: ${recipe}`)
+    assert.equal(/TIPMOV\s*(=|IN\b)/i.test(text), false, `${path}: a kind of movement is discovered per company, never stated`)
+    assert.equal(/(=|\$:) ?'?\d/.test(text), false, `${path}: no example value is a real number`)
+  }
 })
