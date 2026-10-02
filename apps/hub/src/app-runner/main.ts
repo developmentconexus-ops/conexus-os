@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { createApplicationRunnerApp } from './http.js'
+import { logLine } from '../platform/logger.js'
 import { readRelayTls } from './pg-relay.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
 import { createSupervisor } from './supervisor.js'
@@ -39,7 +40,7 @@ const supervisor = createSupervisor({
 
 await supervisor.checkProvisioner()
 
-const app = createApplicationRunnerApp({ supervisor, log: (line) => process.stderr.write(`${line}\n`) })
+const app = createApplicationRunnerApp({ supervisor, log: (line) => logLine(line) })
 
 rmSync(socketPath, { force: true })
 await app.listen({ path: socketPath })

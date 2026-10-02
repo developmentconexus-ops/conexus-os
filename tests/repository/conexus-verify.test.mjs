@@ -52,7 +52,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'c020-browser', 'settings-browser', 'application-access-browser', 'connector-integrations-browser', 'c020-e2b-template', 'c020-compiler-v2', 'c020-web-typecheck', 'c020-web-build',
   'db-catalog-snapshot', 'db-baseline-file', 'hub-postgres-pool', 'db-role-register', 'db-role-provision-postgres',
   'hub-build-shared',
-  'repository-check', 'repository-import-law', 'repository-agent-context',
+  'repository-check', 'repository-import-law', 'hub-log-sinks', 'telemetry', 'repository-agent-context',
   'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector',
   'repository-contract-checks', 'knip', 'biome',
   'brand-wordmark-csp', 'builder-tool-sentences', 'builder-skills-guard', 'builder-guidance-neutral', 'conexus-preflight',

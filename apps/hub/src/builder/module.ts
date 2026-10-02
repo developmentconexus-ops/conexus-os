@@ -12,6 +12,7 @@ import type { Workspace } from '@mastra/core/workspace'
 import { Observability, MastraStorageExporter } from '@mastra/observability'
 import { PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
+import { logLine } from '../platform/logger.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
@@ -185,7 +186,7 @@ export const createBuilderObservability = (serviceName: string, connectorObserva
         exporters: [new MastraStorageExporter()],
         spanOutputProcessors: [compactProcessorRunPayloads],
         serializationOptions: { maxStringLength: 32_768 },
-        // The Postgres store keeps spans but has no log table; the Hub's logs stay on its console.
+        // The Postgres store keeps spans but has no log table; the Hub's logs go through its pino logger.
         logging: { enabled: false },
       },
     },
@@ -280,7 +281,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   connectorObservability?: ObservabilityInstance
 }>) => {
   assertBuilderSkillsAvailable()
-  const log = (line: string): void => { process.stderr.write(`${line}\n`) }
+  const log = (line: string): void => logLine(line)
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
