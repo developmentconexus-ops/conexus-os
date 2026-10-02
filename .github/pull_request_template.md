@@ -8,6 +8,10 @@
 
 ## Proof
 
+## Wire ratchet
+
+<!-- Only for a pull request that fixes an off-table Builder route or a problem type the web compares by hand. Lower the number in contracts/technical/wire-ratchet.json; `npm run wire:ratchet` fails until you do. -->
+
 ## Needs "Aprovo"?
 
 - [ ] Yes
