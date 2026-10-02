@@ -34,7 +34,8 @@ export const createBuilderMemory = ({ storage, memoryModel }: Readonly<{ storage
       lastMessages: 40,
       semanticRecall: false,
       // Mastra Code names threads the same way (`agents/memory.js`: `generateTitle: { model }`, the memory model); `instructions` is ours, for Portuguese.
-      generateTitle: { model, instructions: TITLE_INSTRUCTIONS },
+      // `emitEvent` makes a turn wait until its title is stored, so the browser's reread at the turn's end finds it.
+      generateTitle: { model, instructions: TITLE_INSTRUCTIONS, emitEvent: true },
       observationalMemory: {
         enabled: true,
         scope: 'thread',
