@@ -174,7 +174,7 @@ async function pollForSettledRun(page, projectId, excludeRunId, cards) {
   fail(`timed out after ${RUN_SETTLE_TIMEOUT_MS}ms waiting for a BuilderRun to settle; last session: ${JSON.stringify(session)}`)
 }
 
-const PLAN_CARD = 'section[aria-label="Plano para aprovar"]'
+const PLAN_CARD = '[aria-label="Plano para aprovar"]'
 const QUESTION_CARD = '[aria-label="Pergunta do agente"]'
 const FALLBACK_ANSWER = 'Pode seguir com o que achar mais simples.'
 
@@ -284,7 +284,7 @@ async function claim(card, cards) {
  * Hub route of its own. The approval card is recognized by its options, "Aprovar e construir" and
  * "Pedir ajustes", and never reaches the scripted person: it is approved, unless the case scripts
  * one round of "Pedir ajustes" (then the free-text question that follows gets the case's change).
- * The plan card (`section` "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
+ * The plan card (region "Plano para aprovar", from `submit_plan`) is approved too; with a scripted
  * request for one change it first sends that change with "Pedir ajustes", then approves the resubmitted plan.
  * Any other card holds 1 to 4 questions; each is answered by the scripted person or, with none, gets
  * its first (recommended) option or, with no options, a fixed "do the simplest" reply; the card shows
@@ -306,7 +306,7 @@ export async function answerPendingCard(page, cards, answering = null) {
   if (await plan.count() > 0) {
     const card = await claim(plan.first(), cards)
     const title = await card.locator('strong').first().innerText().catch(() => '')
-    const shown = await card.locator('pre, .cx-plan-clamp').first().innerText().catch(() => '')
+    const shown = await card.locator('pre, [data-slot="plan-content"]').first().innerText().catch(() => '')
     const text = await readFullPlan(page, card) ?? shown
     if (cards.stopAtPlan) {
       cards.stopAtPlan = 'plan-seen'

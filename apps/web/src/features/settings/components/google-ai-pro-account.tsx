@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
+import { hubFetch } from '../../../app/http'
 import { Chip, SectionError, StatusLine } from './states'
 
 type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
@@ -38,13 +39,10 @@ const startFailureText = (error: unknown): string => {
     : 'Outra entrada do Google está em andamento nesta instalação; tente de novo em até 5 minutos.'
 }
 
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
-
 const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> => {
-  const response = await fetch(url, {
+  const response = await hubFetch(url, {
     method,
-    credentials: 'same-origin',
-    headers: method === 'GET' ? {} : { 'content-type': 'application/json', 'x-conexus-csrf': csrf() },
+    headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {

@@ -48,7 +48,8 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
   // The step is a question's index; `total` is the review after the last question.
   const [step, setStep] = useState(0)
   const byPointer = useRef(false)
-  const entered = useRef(false)
+  const focusedStep = useRef(step)
+  const panel = useRef<HTMLDivElement>(null)
   const update = (index: number, change: (draft: Draft) => Draft) => setDrafts((current) => current.map((draft, at) => (at === index ? change(draft) : draft)))
   const answers = questions.map((entry, index) => answerOf(entry, drafts[index] ?? emptyDraft))
   const complete = answers.every((answer) => answer !== null)
@@ -75,13 +76,15 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
   }, [])
 
   // Each step is a new panel, and its keyboard lands on the answer: the chosen option, else the first input,
-  // else (the review) the send button. The card's first panel keeps focus where it was.
-  const enter = (node: HTMLDivElement | null) => {
-    if (!node) return
-    if (!entered.current) { entered.current = true; return }
-    const target = node.querySelector<HTMLElement>('input:checked') ?? node.querySelector<HTMLElement>('input') ?? node.querySelector<HTMLElement>('button')
+  // else (the review) the send button. The card's first panel keeps focus where it was. A new render of the
+  // same step never moves focus, so typing elsewhere is never taken over.
+  useEffect(() => {
+    if (focusedStep.current === step) return
+    focusedStep.current = step
+    const node = panel.current
+    const target = node?.querySelector<HTMLElement>('input:checked') ?? node?.querySelector<HTMLElement>('input') ?? node?.querySelector<HTMLElement>('button')
     target?.focus()
-  }
+  }, [step])
 
   const entry = questions[step]
   const draft = drafts[step] ?? emptyDraft
@@ -153,7 +156,7 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
           className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${reviewing ? 'border-accent1 text-neutral6' : 'border-border1 text-neutral4'}`}
         >{copy.review}</button>
       </div> : null}
-      <div key={step} ref={enter} role={stepped ? 'tabpanel' : undefined} className="space-y-4">
+      <div key={step} ref={panel} role={stepped ? 'tabpanel' : undefined} className="space-y-4">
         {reviewing
           ? <dl data-ask-review className="space-y-2">
             {questions.map((item, index) => <div key={item.question}>
