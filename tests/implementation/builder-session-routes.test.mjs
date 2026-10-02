@@ -449,13 +449,17 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   t.after(() => { stream.write = originalWrite })
 
   const runId = '88888888-8888-4888-8888-888888888888'
+  let failRunRead = false
   const { app } = await createBuilderRoutesApp(t, {
     session: {
       read: async () => { throw new Error('SESSION_READ_FAIL') },
       readTrace: async () => { throw new Error('TRACE_READ_FAIL') },
     },
     store: {
-      readBuilderRun: async () => ({ builderRunId: runId, accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k', content: 'c', state: 'PENDING', resultKind: null, runSequence: 1, baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
+      readBuilderRun: async () => {
+        if (failRunRead) throw new Error('RUN_READ_FAIL')
+        return { builderRunId: runId, accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k', content: 'c', state: 'PENDING', resultKind: null, runSequence: 1, baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      },
       readPreviewSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
     },
     service: {
@@ -488,13 +492,15 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   assert.equal(cancelLog['conexus.project_id'], projectA)
   assert.equal(cancelLog['conexus.builder_run_id'], runId)
 
-  // 3. GET /runs/:id/trace -> BUILDER_TRACE_FAILED
+  // 3. GET /runs/:id/trace -> BUILDER_TRACE_FAILED (the run read is the only failure the route's catch handles)
+  failRunRead = true
   const traceRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${runId}/trace`, ...authentic })
+  failRunRead = false
   assert.equal(traceRes.statusCode, 503)
   const traceLog = logs.find((r) => r.msg === 'BUILDER_TRACE_FAILED')
   assert.ok(traceLog, 'BUILDER_TRACE_FAILED was logged')
   assert.equal(traceLog.level, 50)
-  assert.equal(traceLog['exception.message'], 'TRACE_READ_FAIL')
+  assert.equal(traceLog['exception.message'], 'RUN_READ_FAIL')
   assert.equal(traceLog['conexus.project_id'], projectA)
   assert.equal(traceLog['conexus.builder_run_id'], runId)
 
