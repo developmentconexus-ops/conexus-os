@@ -1,17 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { chromium } from '@playwright/test'
-import { startWebServer } from './web-dev-server.mjs'
+import { useWebBrowser } from './web-dev-server.mjs'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 const WORKSPACE = { workspaceId: 'w1', name: 'Operações' }
 const PROJECT = { projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento', projectRevision: 'r1', archived: false }
 
+const web = useWebBrowser()
+
 const withServer = async (t) => {
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   return { page, origin }
 }
 
