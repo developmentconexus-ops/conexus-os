@@ -18,7 +18,7 @@ const parkedAsk = (question) => {
   }
 }
 
-const openParkedRun = async (t, { phase, messages }) => {
+const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
   const conversationId = 'conversation-parked'
@@ -47,6 +47,7 @@ const openParkedRun = async (t, { phase, messages }) => {
   })
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     requests.answers.push(route.request().postDataJSON())
+    if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: 'refused', status: refusal.status }) })
     run.phase = 'PREPARING'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
@@ -105,4 +106,19 @@ test('answering the card of a parked run shows the run going again without the s
   await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
   await page.getByText('Preparando o ambiente').first().waitFor({ timeout: 4_000 })
   assert.deepEqual(requests.answers, [{ toolCallId: 'call_parked', resumeData: ['144118'] }])
+})
+
+test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {
+  const said = []
+  for (const refusal of [{ status: 409, type: 'tool-answer-already-given' }, { status: 404, type: 'parked-call-not-found' }, { status: 503, type: 'builder-answer-unavailable' }]) {
+    const { page } = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)], refusal })
+    await card(page).getByRole('textbox').fill('144118')
+    await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
+    said.push(await card(page).getByRole('alert').innerText())
+  }
+  assert.deepEqual(said, [
+    'Esta pergunta já foi respondida.',
+    'O agente não está mais esperando esta resposta.',
+    'A resposta não chegou ao agente. Tente de novo.',
+  ])
 })

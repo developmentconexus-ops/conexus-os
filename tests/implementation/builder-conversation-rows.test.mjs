@@ -148,3 +148,13 @@ test('a tool call whose stored result is {error: true, message} stays a failed r
   assert.notEqual(failedLive, shown({ isError: false, message }), 'a failed row does not read as a finished one')
   assert.equal(shown({ error: true, message }), failedLive)
 })
+
+test('a call resolved in a later message keeps its first place and arguments and takes the later state', () => {
+  const call = (state, args, extra = {}) => ({ type: 'tool-invocation', toolInvocation: { state, toolCallId: 'q1', toolName: 'ask_user', args, ...extra } })
+  const asking = assistant('m1', [{ type: 'text', text: 'Antes, uma pergunta.' }, call('call', { questions: [{ question: 'Qual cor?' }] })])
+  const resolved = assistant('m2', [call('result', {}, { result: { content: 'azul', isError: false } }), { type: 'text', text: 'Feito.' }])
+  assert.deepEqual(mergeCalls([asking, resolved]).map((message) => [message.id, message.content.parts]), [
+    ['m1', [{ type: 'text', text: 'Antes, uma pergunta.' }, call('result', { questions: [{ question: 'Qual cor?' }] }, { result: { content: 'azul', isError: false } })]],
+    ['m2', [{ type: 'text', text: 'Feito.' }]],
+  ])
+})

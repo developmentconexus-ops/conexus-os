@@ -10,6 +10,7 @@ import { sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { ConversationSessions } from './conversation-sessions.js'
+import type { BuilderAnswerOutcome } from './service.js'
 
 type ServerRoute = typeof SERVER_ROUTES[number]
 
@@ -65,6 +66,12 @@ const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/mo
 // policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
 const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
+// The web card reads the problem type to say why its answer did not resume the run.
+const ANSWER_REFUSALS: Readonly<Record<Exclude<BuilderAnswerOutcome, 'RESUMED'> | 'UNAVAILABLE', readonly [number, string, string]>> = {
+  ALREADY_ANSWERED: [409, 'tool-answer-already-given', 'This call was already answered'],
+  NOT_PARKED: [404, 'parked-call-not-found', 'The run is not waiting on this call'],
+  UNAVAILABLE: [503, 'builder-answer-unavailable', 'The answer could not reach the run'],
+}
 const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), TOOL_SUSPENSION_KEY]
 const POLICY_CHANGING_DECISION = 'always_allow_category'
 const carriesPolicyChangingAnswer = (value: unknown): boolean => {
@@ -212,7 +219,7 @@ type GuardedMount = Readonly<{
   /** The live run's context, which every request the mount serves that run's session carries. */
   runContext(scope: string): ((requestContext: RequestContext) => void) | undefined
   /** The person's answer to the call the conversation's parked run waits on; resumes the run. A second answer to the same call changes nothing. */
-  answerParked(input: Readonly<{ accountId: string; projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): Promise<void>
+  answerParked(input: Readonly<{ accountId: string; projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): Promise<BuilderAnswerOutcome>
   toolPayloads?: ToolPayloadProjection
 }>
 
@@ -297,12 +304,11 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
           if (typeof answer.toolCallId !== 'string' || answer.toolCallId.length === 0 || answer.toolCallId.length > 200 || !('resumeData' in answer)) {
             return sendProblem(reply, 400, 'tool-answer-refused', 'An answer names its call and carries its data')
           }
-          try {
-            await mount.answerParked({ accountId, projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
-          } catch {
-            return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
-          }
-          return reply.send({ ok: true })
+          const outcome = await mount.answerParked({ accountId, projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
+            .catch(() => 'UNAVAILABLE' as const)
+          if (outcome === 'RESUMED') return reply.send({ ok: true })
+          const [status, type, title] = ANSWER_REFUSALS[outcome]
+          return sendProblem(reply, status, type, title)
         }
         if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {

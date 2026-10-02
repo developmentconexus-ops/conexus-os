@@ -1,5 +1,6 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
+import { Sandbox } from 'e2b'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
@@ -17,6 +18,7 @@ import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_
 import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
+import { collectEgress, ensureEgressLog } from './egress-log.js'
 import { admitApplicationTree, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
@@ -300,6 +302,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     // Set once the checkout holds the turn's start; the turn end mirrors it however the run ends.
     let mirror: TurnMirror | undefined
     let incarnation: string | undefined
+    // Set before the run's `start()`: from then on the instance may hold a VM this run made or resumed.
+    let started = false
     let unusable = false
     // The leg ended on a question for the person, so the session is parked, not released.
     let parked = false
@@ -345,6 +349,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
 
       // The conversation's VM resumes when E2B still has it; a new one is created only when it has none.
+      started = true
       await sandbox.start()
       // The first command replaces a VM E2B already reaped, so the run records the incarnation
       // that will actually run it.
@@ -381,6 +386,11 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path) }
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
+      // Recording which hosts the sandbox reaches is evidence, never a gate: a recorder that will not
+      // start is logged and the turn goes on.
+      await ensureEgressLog({ asRoot, writeRootFile }).catch((error: unknown) => {
+        ports.log(`BUILDER_SANDBOX_EGRESS_START_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+      })
 
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
@@ -583,6 +593,17 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         })
         live = sandbox.sandboxId === incarnation
       }
+      if (live) {
+        await collectEgress({
+          asRoot: (script) => sandbox.runAsRoot(script, {}),
+          writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes),
+          readAgentFile: (path) => sandbox.readAgentFile(path),
+          log: ports.log,
+          executionId: input.executionId,
+          conversationId: input.conversationId,
+        })
+        live = sandbox.sandboxId === incarnation
+      }
       if (live) await Promise.race([endMirror(null), new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
       else mirror?.abandon()
       const failed = (code: string) => (error: unknown): void => {
@@ -597,7 +618,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       else await closeSession()
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
-      else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
+      // A run that started and is not live kills its VM, a failed start included: no VM it made or
+      // resumed is left running or paused behind it.
+      else if (started) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
       ports.log(timing.line(input.executionId))
     }
   },
@@ -781,15 +804,31 @@ export const createParkedDiscard = ({ controller }: Readonly<{ controller: Agent
  * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
  * gets a new one.
  */
-export const e2bConversationSandboxes = ({ apiKey, templateId, create = createConversationSandbox, log = () => undefined }: Readonly<{
+// A deleted Project's kill waits on E2B at most this long per VM, so an unreachable provider never holds the deletion.
+const PROVIDER_KILL_TIMEOUT_MS = 15_000
+
+export const e2bConversationSandboxes = ({
+  apiKey,
+  templateId,
+  create = createConversationSandbox,
+  killProvider = (providerSandboxId) => Sandbox.kill(providerSandboxId, { apiKey, requestTimeoutMs: PROVIDER_KILL_TIMEOUT_MS }),
+  log = () => undefined,
+}: Readonly<{
   apiKey: string
   templateId: string
   create?: typeof createConversationSandbox
+  killProvider?: (providerSandboxId: string) => Promise<boolean>
   log?: (line: string) => void
 }>): Readonly<{
   open: BuilderRunPorts['openSandbox']
   /** The conversations are gone for good: their instances are dropped, and the VMs they hold are killed. */
   destroy(conversationIds: readonly string[]): Promise<void>
+  /**
+   * Kills the VMs by the provider ids the Hub recorded, running, paused or held by an earlier Hub
+   * process. A VM E2B no longer has counts as killed; a kill that fails is logged and never throws.
+   * Answers the ids that are gone.
+   */
+  killRecorded(providerSandboxIds: readonly string[]): Promise<readonly string[]>
 }> => {
   // `opened` counts the runs that took the instance, so a pause that finishes after a later run took it drops nothing.
   const kept = new Map<string, { readonly sandbox: RunSandbox; opened: number }>()
@@ -839,6 +878,13 @@ export const e2bConversationSandboxes = ({ apiKey, templateId, create = createCo
           log(`BUILDER_SANDBOX_KILL_FAILED:${conversationId}:${error instanceof Error ? error.message : String(error)}`)
         })
       }
+    },
+    killRecorded: async (providerSandboxIds) => {
+      const gone = await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).then(() => true, (error: unknown) => {
+        log(`BUILDER_SANDBOX_KILL_FAILED:${providerSandboxId}:${error instanceof Error ? error.message : String(error)}`)
+        return false
+      })))
+      return providerSandboxIds.filter((_, index) => gone[index])
     },
   })
 }

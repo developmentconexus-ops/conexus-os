@@ -134,6 +134,16 @@ export const readParkedCalls = async (session: BuilderSession): Promise<readonly
   return []
 }
 
+/** Where a call stands on its thread: still waiting on the person, answered, or neither (never asked there, or denied by a stop). */
+export type ParkedCallStanding = 'PARKED' | 'ANSWERED' | 'ABSENT'
+
+export const parkedCallStanding = async (session: BuilderSession, toolCallId: string): Promise<ParkedCallStanding> => {
+  if ((await readParkedCalls(session)).some((call) => call.toolCallId === toolCallId)) return 'PARKED'
+  const answered = (await session.thread.listActiveMessages()).some((message) => message.content.parts.some((part) =>
+    part.type === 'tool-invocation' && part.toolInvocation.toolCallId === toolCallId && part.toolInvocation.state === 'result'))
+  return answered ? 'ANSWERED' : 'ABSENT'
+}
+
 /** Tells a new session of the calls a run parked on: Mastra's own list of them lives in the session that saw the suspension. */
 const registerParkedCalls = (session: BuilderSession, calls: readonly ParkedCall[]): void => {
   for (const call of calls) session.suspensions.register({ ...call, threadId: session.thread.requireId(), resourceId: session.identity.getResourceId() })
