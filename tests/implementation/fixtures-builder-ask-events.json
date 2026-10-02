@@ -1,0 +1,229 @@
+[
+ {
+  "type": "agent_start"
+ },
+ {
+  "type": "message_start",
+  "message": {
+   "id": "1575ce24-a216-4f7e-b465-d5e9e818b985",
+   "role": "signal",
+   "content": {
+    "format": 2,
+    "parts": [
+     {
+      "type": "data-user-message",
+      "data": {
+       "id": "1575ce24-a216-4f7e-b465-d5e9e818b985",
+       "type": "user",
+       "tagName": "user",
+       "contents": "oi",
+       "createdAt": "2026-10-01T14:35:55.023Z",
+       "acceptedAt": "2026-10-01T14:35:55.014Z"
+      }
+     }
+    ],
+    "metadata": {
+     "signal": {
+      "id": "1575ce24-a216-4f7e-b465-d5e9e818b985",
+      "type": "user",
+      "tagName": "user",
+      "contents": "oi",
+      "createdAt": "2026-10-01T14:35:55.023Z",
+      "acceptedAt": "2026-10-01T14:35:55.014Z"
+     }
+    }
+   },
+   "createdAt": "2026-10-01T14:35:55.023Z"
+  }
+ },
+ {
+  "type": "message_end",
+  "id": "1575ce24-a216-4f7e-b465-d5e9e818b985"
+ },
+ {
+  "type": "message_start",
+  "message": {
+   "id": "afc81af1-6d6b-43b0-a33e-4a5888eb56ee",
+   "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+   "role": "assistant",
+   "content": {
+    "format": 2,
+    "parts": [
+     {
+      "type": "text",
+      "text": ""
+     }
+    ]
+   },
+   "createdAt": "2026-10-01T14:35:55.057Z"
+  }
+ },
+ {
+  "type": "message_update",
+  "id": "afc81af1-6d6b-43b0-a33e-4a5888eb56ee",
+  "event": {
+   "type": "text-delta",
+   "delta": "Perguntas:"
+  }
+ },
+ {
+  "type": "message_update",
+  "id": "afc81af1-6d6b-43b0-a33e-4a5888eb56ee",
+  "event": {
+   "type": "part",
+   "index": 1,
+   "part": {
+    "type": "tool-invocation",
+    "toolInvocation": {
+     "state": "call",
+     "toolCallId": "q1",
+     "toolName": "ask_user",
+     "args": {
+      "questions": [
+       {
+        "question": "Qual cor?",
+        "options": [
+         {
+          "label": "azul"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "tool_start",
+  "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+  "toolCallId": "q1",
+  "toolName": "ask_user",
+  "args": {
+   "questions": [
+    {
+     "question": "Qual cor?",
+     "options": [
+      {
+       "label": "azul"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "type": "tool_suspended",
+  "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+  "toolCallId": "q1",
+  "toolName": "ask_user",
+  "args": {
+   "questions": [
+    {
+     "question": "Qual cor?",
+     "options": [
+      {
+       "label": "azul"
+      }
+     ]
+    }
+   ]
+  },
+  "suspendPayload": {
+   "questions": [
+    {
+     "question": "Qual cor?",
+     "options": [
+      {
+       "label": "azul"
+      }
+     ]
+    }
+   ]
+  },
+  "resumeSchema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"array\",\"items\":{\"type\":\"string\"}}]}}"
+ },
+ {
+  "type": "agent_end",
+  "reason": "suspended"
+ },
+ {
+  "type": "agent_start"
+ },
+ {
+  "type": "message_start",
+  "message": {
+   "id": "1a438050-251c-498f-8d2b-afada3141e40",
+   "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+   "role": "assistant",
+   "content": {
+    "format": 2,
+    "parts": [
+     {
+      "type": "tool-invocation",
+      "toolInvocation": {
+       "state": "result",
+       "toolCallId": "q1",
+       "toolName": "ask_user",
+       "args": {},
+       "result": {
+        "content": "User answered:\nQual cor?: azul",
+        "isError": false
+       },
+       "isError": false
+      }
+     }
+    ]
+   },
+   "createdAt": "2026-10-01T14:35:55.144Z"
+  }
+ },
+ {
+  "type": "tool_end",
+  "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+  "toolCallId": "q1",
+  "result": {
+   "content": "User answered:\nQual cor?: azul",
+   "isError": false
+  },
+  "isError": false
+ },
+ {
+  "type": "message_end",
+  "id": "1a438050-251c-498f-8d2b-afada3141e40"
+ },
+ {
+  "type": "message_start",
+  "message": {
+   "id": "19cf21a9-73a9-49e7-9038-5b5825d5957d",
+   "threadId": "951efcfb-4d15-4525-8010-bc13792ba0ae",
+   "role": "assistant",
+   "content": {
+    "format": 2,
+    "parts": [
+     {
+      "type": "text",
+      "text": ""
+     }
+    ]
+   },
+   "createdAt": "2026-10-01T14:35:55.152Z"
+  }
+ },
+ {
+  "type": "message_update",
+  "id": "19cf21a9-73a9-49e7-9038-5b5825d5957d",
+  "event": {
+   "type": "text-delta",
+   "delta": "ok"
+  }
+ },
+ {
+  "type": "message_end",
+  "id": "19cf21a9-73a9-49e7-9038-5b5825d5957d"
+ },
+ {
+  "type": "agent_end",
+  "reason": "complete"
+ }
+]

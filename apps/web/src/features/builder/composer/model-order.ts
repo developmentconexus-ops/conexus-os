@@ -42,7 +42,7 @@ const byNewestFirst = (left: BuilderModel, right: BuilderModel): number => {
   return left.id.localeCompare(right.id)
 }
 
-export type ModelGroup = Readonly<{ provider: string; models: readonly BuilderModel[] }>
+export type ModelGroup = Readonly<{ provider: string; providerName: string; models: readonly BuilderModel[] }>
 
 /** Provider groups in first-seen order, each newest first by the version the model's own id carries. */
 export const groupModelsByProvider = (models: readonly BuilderModel[]): readonly ModelGroup[] => {
@@ -52,5 +52,5 @@ export const groupModelsByProvider = (models: readonly BuilderModel[]): readonly
     if (!byProvider.has(model.provider)) { byProvider.set(model.provider, []); order.push(model.provider) }
     byProvider.get(model.provider)?.push(model)
   }
-  return order.map((provider) => ({ provider, models: [...(byProvider.get(provider) ?? [])].sort(byNewestFirst) }))
+  return order.map((provider) => ({ provider, providerName: byProvider.get(provider)?.[0]?.providerName ?? provider, models: [...(byProvider.get(provider) ?? [])].sort(byNewestFirst) }))
 }

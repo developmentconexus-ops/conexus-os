@@ -1,0 +1,39 @@
+{
+  "alert": "Process heap above 80% of its old-space cap",
+  "alertType": "METRIC_BASED_ALERT",
+  "ruleType": "threshold_rule",
+  "evalWindow": "2m0s",
+  "frequency": "1m0s",
+  "severity": "critical",
+  "labels": { "conexus.alert": "heap-used-ratio" },
+  "annotations": {
+    "summary": "{{ $labels.service_name }} heap is at {{ $value }} of its old-space cap",
+    "description": "conexus.process.heap.used_ratio (used heap divided by the old-space cap, --max-old-space-size) stayed above 0.8 for 2 minutes. The process also logs PROCESS_HEAP_HIGH."
+  },
+  "condition": {
+    "compositeQuery": {
+      "queryType": "builder",
+      "panelType": "graph",
+      "unit": "percentunit",
+      "builderQueries": {
+        "A": {
+          "queryName": "A",
+          "dataSource": "metrics",
+          "aggregateOperator": "avg",
+          "aggregateAttribute": { "key": "conexus.process.heap.used_ratio", "dataType": "float64", "type": "Gauge", "isColumn": true },
+          "timeAggregation": "avg",
+          "spaceAggregation": "max",
+          "groupBy": [{ "key": "service.name", "dataType": "string", "type": "resource", "isColumn": false }],
+          "expression": "A",
+          "disabled": false,
+          "stepInterval": 60
+        }
+      }
+    },
+    "op": "1",
+    "target": 0.8,
+    "matchType": "1",
+    "targetUnit": "percentunit",
+    "selectedQueryName": "A"
+  }
+}

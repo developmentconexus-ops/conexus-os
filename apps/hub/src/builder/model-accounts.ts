@@ -1,7 +1,13 @@
+import { createAnthropicThinkingMiddleware } from '@mastra/code-sdk/providers/claude-max'
+import { resolveGoogleThinkingConfig } from '@mastra/code-sdk/providers/google-thinking'
+import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@mastra/code-sdk/providers/openai-codex'
+import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import type { AvailableModel } from '@mastra/core/agent-controller'
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
 import { sendProblem } from '../http/problem.js'
-import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_MODELS, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
+import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
@@ -23,28 +29,83 @@ const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> 
 }
 
 type Caller = Readonly<{ accountId: AccountId }>
-type OfferedModel = Readonly<{ id: string; provider: string; modelName: string; hasApiKey: boolean }>
+/** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
+type OfferedModel = Readonly<Pick<AvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ThinkingLevelSetting[] }>
 type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
+
+/**
+ * The name a person reads for a provider: Mastra's catalog name, except for the providers the Hub
+ * signs in to by subscription, whose catalog name says nothing of how the person pays.
+ */
+const PROVIDER_NAME_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
+  [ANTHROPIC_PROVIDER]: 'Anthropic (Claude)',
+  [OPENAI_CODEX_PROVIDER]: 'OpenAI (ChatGPT)',
+  [OPENAI_MODEL_PROVIDER]: 'OpenAI (ChatGPT)',
+  [GOOGLE_AI_PRO_PROVIDER]: 'Google AI Pro',
+})
+const providerNameOf = (provider: string): string => PROVIDER_NAME_OVERRIDES[provider] ?? getProviderConfig(provider)?.name ?? provider
+
+const shapeOf = (option: unknown): string => JSON.stringify(option) ?? 'undefined'
+
+/**
+ * The levels the composer offers for a model: Mastra Code's own for it
+ * (`getAvailableThinkingLevelsForModel`), each kept only when the provider's Mastra Code mapping
+ * (`optionAt`) sends a setting that differs from the level below's, so Gemini Flash, which runs
+ * `xhigh` and `max` as `high`, offers neither, and `pro-agent`, which has no thinking, offers none.
+ * `off` is offered when what Mastra sends for it differs from the lowest level that thinks.
+ */
+const thinkingLevelsOf = async (modelId: string, optionAt: (level: ThinkingLevelSetting) => unknown): Promise<readonly ThinkingLevelSetting[]> => {
+  const available: readonly string[] = getAvailableThinkingLevelsForModel(modelId)
+  const levels: ThinkingLevelSetting[] = []
+  let below: string | undefined
+  for (const level of THINKING_LEVEL_VALUES.filter((each) => each !== 'off' && available.includes(each))) {
+    const option = await optionAt(level)
+    if (option === undefined) continue
+    const shape = shapeOf(option)
+    if (shape !== below) levels.push(level)
+    below = shape
+  }
+  const [lowest] = levels
+  if (lowest && available.includes('off') && shapeOf(await optionAt('off')) !== shapeOf(await optionAt(lowest))) levels.unshift('off')
+  return Object.freeze(levels)
+}
 
 // Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
 /** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
-const GOOGLE_AI_PRO_OFFER: Offer = Object.freeze(GOOGLE_AI_PRO_MODELS.map((model) => Object.freeze({
-  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, modelName: model,
+const googleAiProOffer = (): Promise<Offer> => Promise.all(GOOGLE_AI_PRO_MODELS.map(async (model) => Object.freeze({
+  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, providerName: providerNameOf(GOOGLE_AI_PRO_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${GOOGLE_AI_PRO_PROVIDER}/${model}`, (level) => resolveGoogleThinkingConfig(model, level)),
 })))
 
-// Mastra's model router catalog lists every OpenAI model, and Mastra Code offers all of them on a
-// ChatGPT subscription. The catalog carries no capability field, so the ones that cannot chat are
+// Mastra's model router catalog lists every model of a provider, and Mastra Code offers all of them
+// on a subscription. The catalog carries no capability field, so the ones that cannot chat are
 // left out by name, as the Hub did for the Factory catalog, with the retired ones the catalog marks.
 const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|transcribe|realtime|rerank|moderation)([-_.]|$)/i
-const openaiCatalog = getProviderConfig(OPENAI_MODEL_PROVIDER)
-const retired = new Set(openaiCatalog?.deprecatedModels ?? [])
-/** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
-const OPENAI_CODEX_OFFER: Offer = Object.freeze((openaiCatalog?.models ?? [])
-  .filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
-  .map((model) => Object.freeze({ id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, modelName: model })))
+const chatModelsOf = (provider: string): readonly string[] => {
+  const catalog = getProviderConfig(provider)
+  const retired = new Set(catalog?.deprecatedModels ?? [])
+  return (catalog?.models ?? []).filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
+}
 
-const ANTHROPIC_OFFER: Offer = Object.freeze(ANTHROPIC_MODELS.map((model) =>
-  Object.freeze({ id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, modelName: model })))
+/** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
+const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_MODEL_PROVIDER).map(async (model) => Object.freeze({
+  id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, providerName: providerNameOf(OPENAI_MODEL_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${OPENAI_MODEL_PROVIDER}/${model}`, (level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
+})))
+
+/** What Mastra Code's Claude middleware writes into the request's Anthropic options for a level; nothing when it writes none. */
+const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
+  const middleware = createAnthropicThinkingMiddleware(model, level)
+  if (!middleware?.transformParams) return undefined
+  const call = { type: 'stream', params: { prompt: [], providerOptions: {} }, model: {} } as unknown as Parameters<NonNullable<typeof middleware.transformParams>>[0]
+  return (await middleware.transformParams(call)).providerOptions?.anthropic
+}
+
+/** Both kinds of Anthropic account serve every chat model of Mastra's catalog, by the `anthropic/<model>` id a thread stores and a run resolves. */
+const anthropicOffer = (): Promise<Offer> => Promise.all(chatModelsOf(ANTHROPIC_PROVIDER).map(async (model) => Object.freeze({
+  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, providerName: providerNameOf(ANTHROPIC_PROVIDER), modelName: model,
+  thinkingLevels: await thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => anthropicSetting(model, level)),
+})))
 
 /** The providers a person connects by pasting a key, and the shape each key must have. */
 const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })
@@ -52,7 +113,7 @@ const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHRO
 /** The accounts the Settings screen lists, by `model.model_account` provider. */
 const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
 
-type Connection = Readonly<{ provider: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
+type Connection = Readonly<{ provider: string; providerName: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
 
 /**
  * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
@@ -94,19 +155,19 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     const usable = async (provider: string): Promise<boolean> => scope === 'installation'
       ? modelAccounts.hasShared(provider)
       : modelAccounts.connection(accountId, provider).then(({ mine, shared }) => mine !== null || shared)
-    const offers: readonly (readonly [string, Offer])[] = [
-      ...(googleAiProAccounts ? [[GOOGLE_AI_PRO_PROVIDER, GOOGLE_AI_PRO_OFFER] as const] : []),
-      [OPENAI_CODEX_PROVIDER, OPENAI_CODEX_OFFER],
-      [ANTHROPIC_PROVIDER, ANTHROPIC_OFFER],
+    const offers: readonly (readonly [string, () => Promise<Offer>])[] = [
+      ...(googleAiProAccounts ? [[GOOGLE_AI_PRO_PROVIDER, googleAiProOffer] as const] : []),
+      [OPENAI_CODEX_PROVIDER, openaiCodexOffer],
+      [ANTHROPIC_PROVIDER, anthropicOffer],
     ]
-    return (await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? offer : []))).flat()
+    return (await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? await offer() : []))).flat()
   }
   app.get<{ Querystring: { scope?: 'installation' } }>('/api/control/model-accounts/models', {
     schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } },
   }, async (request, reply) => {
     const caller = await admit(request, reply)
     if (!caller) return reply
-    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })) }
+    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
   })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
@@ -117,7 +178,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
       isInstallationAdministrator(caller.accountId),
       Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
         const { mine, shared } = await modelAccounts.connection(caller.accountId, provider)
-        return { provider, mine: mine !== null, kind: mine, shared }
+        return { provider, providerName: providerNameOf(provider), mine: mine !== null, kind: mine, shared }
       })),
     ])
     return { administrator, accounts }

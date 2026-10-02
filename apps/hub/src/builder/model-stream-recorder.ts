@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LanguageModelMiddleware } from 'ai'
+import { logger } from '../platform/logger.js'
 
 type WrapStream = NonNullable<LanguageModelMiddleware['wrapStream']>
 type CallOptions = Parameters<WrapStream>[0]['params']
@@ -72,7 +73,7 @@ const openCallRecord = (directory: string, model: Readonly<{ provider: string; m
       appendFileSync(path, pending.join(''))
     } catch (error) {
       broken = true
-      console.warn(`builder stream recorder stopped: ${(error as Error).message}`)
+      logger.warn(`builder stream recorder stopped: ${(error as Error).message}`)
     }
     pending = []
   }

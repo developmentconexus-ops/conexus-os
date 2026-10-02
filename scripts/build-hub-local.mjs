@@ -1,5 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
@@ -12,6 +13,18 @@ const run = (command, args) => {
   })
   if (result.status !== 0) throw new Error(result.stdout || result.stderr || `${command} failed`)
 }
+
+// The heap snapshot flag sits on the process that dies of the OOM, which is this child and not the
+// script that launches it. Telemetry loads first with --import and starts only when the endpoint is set.
+export const hubNodeArguments = ({ buildRoot, diagnosticDir }) => [
+  '--max-old-space-size=512',
+  '--heapsnapshot-near-heap-limit=1',
+  `--diagnostic-dir=${diagnosticDir}`,
+  '--report-on-fatalerror',
+  `--report-directory=${diagnosticDir}`,
+  '--import', pathToFileURL(join(buildRoot, 'telemetry/register.js')).href,
+  join(buildRoot, 'server.js'),
+]
 
 export const buildHubLocal = async () => {
   run(process.execPath, [
@@ -33,7 +46,9 @@ export const buildHubLocal = async () => {
 
 const main = async () => {
   const buildRoot = await buildHubLocal()
-  const server = spawnSync(process.execPath, ['--max-old-space-size=512', join(buildRoot, 'server.js')], { cwd: repositoryRoot, stdio: 'inherit' })
+  const diagnosticDir = resolve(process.env.CONEXUS_DIAGNOSTIC_DIR ?? join(repositoryRoot, '.audit/diagnostics'))
+  await mkdir(diagnosticDir, { recursive: true })
+  const server = spawnSync(process.execPath, hubNodeArguments({ buildRoot, diagnosticDir }), { cwd: repositoryRoot, stdio: 'inherit' })
   await rm(buildRoot, { recursive: true, force: true })
   process.exitCode = server.status ?? 1
 }

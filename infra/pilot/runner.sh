@@ -3,7 +3,8 @@
 # the checkout that holds this script. The build is removed when the runner exits. README.md says which
 # checkout that is and how to deploy main to it.
 #
-# Env: CONEXUS_PILOT_RUNNER_ENV (default ~/q3/runner.env), CONEXUS_PILOT_LOGS (default ~/conexus-pilot-logs).
+# Env: CONEXUS_PILOT_RUNNER_ENV (default ~/q3/runner.env), CONEXUS_PILOT_LOGS (default ~/conexus-pilot-logs),
+# CONEXUS_DIAGNOSTIC_DIR (default $CONEXUS_PILOT_LOGS/diagnostics: heap snapshots and fatal reports).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source "$HOME/.nvm/nvm.sh" >/dev/null
@@ -20,4 +21,9 @@ set -a
 source "$env_file"
 set +a
 echo "runner starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
-node --max-old-space-size=512 "$build/app-runner/main.js"
+export CONEXUS_SERVICE_VERSION="$(git rev-parse --short HEAD)"
+diagnostics="${CONEXUS_DIAGNOSTIC_DIR:-$logs/diagnostics}"
+mkdir -p "$diagnostics"
+node --max-old-space-size=512 --heapsnapshot-near-heap-limit=1 --diagnostic-dir="$diagnostics" \
+  --report-on-fatalerror --report-directory="$diagnostics" \
+  --import "file://$PWD/$build/telemetry/register.js" "$build/app-runner/main.js"

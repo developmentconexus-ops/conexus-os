@@ -69,7 +69,7 @@ async function mockHub(page, hub) {
       return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
-    if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', modelName: 'claude-opus-4-5', hasApiKey: true }] })
+    if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], hasApiKey: true }], defaultThinkingLevel: 'medium' })
     if (p === '/api/control/accounts' && method === 'POST') return json(route, 201, { accountId: ids.account, displayName: body.displayName })
     if (p === '/api/control/workspaces' && method === 'POST') return json(route, 201, { workspaceId: ids.sales, name: body.name, initialAccessEstablished: true, creatorAccountId: ids.account })
     const summaries = p.match(/^\/api\/control\/workspaces\/([^/]+)\/project-summaries$/)

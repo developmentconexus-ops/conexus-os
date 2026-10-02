@@ -23,6 +23,7 @@ const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/defi
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
+const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 const { sendBuilderSessionMessage } = await import(hubModuleUrl('builder/runtime.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -222,7 +223,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'code', controller, origin,
+        mastra, controllerId: 'code', controller, sessions: createConversationSessions({ controller }), origin,
         resolveCurrentSession: async (request) => (request.cookies['__Host-conexus_session'] ? { account: { accountId: randomUUID(), displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null),
         admitProject: async ({ projectId }) => projectId === PROJECT,
         admitConversation: async () => true,

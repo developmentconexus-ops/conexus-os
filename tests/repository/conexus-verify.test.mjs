@@ -125,6 +125,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-postgres-pool',
   'db-role-provision-postgres',
   'hub-build-shared',
+  'hub-log-sinks',
+  'telemetry',
   'brand-wordmark-csp',
   'builder-tool-sentences',
   'builder-skills-guard',
@@ -570,4 +572,11 @@ test('step summary is a markdown table sorted slowest first with each share of t
     '| quick | succeeded | 1.0 | 10.0% |',
     '',
   ].join('\n'))
+})
+
+test('the CI helper tests run in the graph, so the census and the checks see them', () => {
+  const agentContext = CANDIDATE_GRAPH.find(entry => entry.scope === 'repository-agent-context')
+  for (const file of ['tests/repository/ci-change-scope.test.mjs', 'tests/repository/ci-install.test.mjs']) {
+    assert.equal(agentContext.command.split(' ').includes(file), true, file)
+  }
 })
