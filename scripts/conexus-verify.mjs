@@ -29,7 +29,8 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
 const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
 
 // What a step shares with the others decides when it may run beside them:
-//   locks  names of exclusive resources. Two steps that hold the same lock never overlap.
+//   locks  names of shared resources. Two steps that hold the same lock never overlap, except a
+//          lock with a larger capacity in LOCK_CAPACITY.
 //   after  scopes that must have succeeded first, because this step reads what they write.
 //          AFTER_ALL waits for every other step of the run.
 // A step with none of these, and a class that needs no cluster, runs whenever a slot is free.
@@ -56,7 +57,19 @@ const candidateStep = (scope, command, environmentClass = 'static', sharing = {}
   ...sharing,
 })
 
-export const locksOf = (step) => [...(step.locks ?? []), ...(POSTGRES_CLASSES.has(step.environmentClass) ? [HUB_CLUSTER_LOCK] : [])]
+// A browser step starts Chromium, a Vite server or a Hub app and often compiles a generated app, so it
+// keeps about two cores busy. Measured on the 4 vCPU runner (run 36999833242 and 37000512417), four
+// at once starved each other: browser steps ran twice as long and Playwright waits of 30 s expired in
+// tests that take 5 s alone. The capacity is how many such steps may run at once.
+export const BROWSER_LOAD = 'browser-load'
+export const LOCK_CAPACITY = Object.freeze({ [BROWSER_LOAD]: 2 })
+const BROWSER_CLASSES = new Set(['browser', 'browser-postgres'])
+
+export const locksOf = (step) => [
+  ...(step.locks ?? []),
+  ...(POSTGRES_CLASSES.has(step.environmentClass) ? [HUB_CLUSTER_LOCK] : []),
+  ...(BROWSER_CLASSES.has(step.environmentClass) ? [BROWSER_LOAD] : []),
+]
 
 const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
 
@@ -558,7 +571,7 @@ function isReady(entries, index, { finished, heldLocks }) {
       if (target !== -1 && !finished.has(target)) return false
     }
   }
-  return locksOf(entry).every(lock => !heldLocks.has(lock))
+  return locksOf(entry).every(lock => (heldLocks.get(lock) ?? 0) < (LOCK_CAPACITY[lock] ?? 1))
 }
 
 function formatOutput(entry, record, result, processEnvironment) {
@@ -611,7 +624,7 @@ export async function runVerification({
 
   const startedRun = clock()
   const abort = new AbortController()
-  const state = { finished: new Set(), running: new Map(), heldLocks: new Set() }
+  const state = { finished: new Set(), running: new Map(), heldLocks: new Map() }
   const waiting = new Set(entries.keys())
   let firstFailure = null
 
@@ -649,7 +662,7 @@ export async function runVerification({
       for (const [name, path] of Object.entries(entry.publishes ?? {})) published[name] = resolve(root, path)
       state.finished.add(index)
     }
-    for (const lock of locksOf(entry)) state.heldLocks.delete(lock)
+    for (const lock of locksOf(entry)) state.heldLocks.set(lock, state.heldLocks.get(lock) - 1)
     state.running.delete(index)
   }
 
@@ -659,7 +672,7 @@ export async function runVerification({
         if (state.running.size >= concurrency) break
         if (!isReady(entries, index, state)) continue
         waiting.delete(index)
-        for (const lock of locksOf(entries[index])) state.heldLocks.add(lock)
+        for (const lock of locksOf(entries[index])) state.heldLocks.set(lock, (state.heldLocks.get(lock) ?? 0) + 1)
         state.running.set(index, runStep(index))
       }
     }

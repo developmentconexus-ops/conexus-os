@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   ALLOWED_ALIASES,
   AFTER_ALL,
+  BROWSER_LOAD,
   HUB_CLUSTER_LOCK,
   locksOf,
   verificationConcurrency,
@@ -639,6 +640,15 @@ test('every step that needs PostgreSQL holds the one cluster lock, and no other 
     const needsPostgres = entry.environmentClass === 'postgres' || entry.environmentClass === 'browser-postgres'
     assert.equal(locksOf(entry).includes(HUB_CLUSTER_LOCK), needsPostgres, entry.scope)
   }
+})
+
+test('browser steps share a load budget of two, and no other step spends it', async () => {
+  for (const entry of CANDIDATE_GRAPH) {
+    const browser = entry.environmentClass === 'browser' || entry.environmentClass === 'browser-postgres'
+    assert.equal(locksOf(entry).includes(BROWSER_LOAD), browser, entry.scope)
+  }
+  const { peak } = await scheduleOf(['a', 'b', 'c', 'd', 'e'].map(scope => step(scope, { locks: [BROWSER_LOAD] })), { concurrency: 4 })
+  assert.equal(peak, 2)
 })
 
 test('a step runs after what it reads, and the Hub build publisher runs before everything', async () => {
