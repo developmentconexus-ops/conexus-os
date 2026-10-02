@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
-# Back up one Hub database and the Conexus Git root into one dated folder.
+# A folder is named <stamp>.partial while it is written. It becomes <stamp> when complete, or stays .partial
+# with --partial, so the caller can rename it after its own check.
+# Back up one Hub database, the Conexus Git root, the sealing key files and the identity provider's
+# realm export into one dated folder.
 # Read-only against the database. The dump and the per-table row counts in manifest.txt
 # share one exported snapshot, so they describe the same point in time.
 set -euo pipefail
 umask 077
 
 usage() {
-  echo "usage: conexus-backup.sh --container NAME --database NAME --git-root DIR --out-root DIR [--user postgres] [--password-file FILE]" >&2
+  echo "usage: conexus-backup.sh --container NAME --database NAME --git-root DIR --out-root DIR --key-file FILE [--key-file FILE ...] --keycloak-container NAME --keycloak-realm NAME [--partial] [--stamp STAMP] [--user postgres] [--password-file FILE]" >&2
   exit 2
 }
 
-container= database= git_root= out_root= db_user=postgres password_file=
+container= database= git_root= out_root= db_user=postgres password_file= keycloak_container= keycloak_realm= partial= stamp=
+key_files=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --container) container=${2:-}; shift 2 ;;
@@ -19,18 +23,31 @@ while [ $# -gt 0 ]; do
     --out-root) out_root=${2:-}; shift 2 ;;
     --user) db_user=${2:-}; shift 2 ;;
     --password-file) password_file=${2:-}; shift 2 ;;
+    --partial) partial=1; shift ;;
+    --stamp) stamp=${2:-}; shift 2 ;;
+    --key-file) key_files+=("${2:-}"); shift 2 ;;
+    --keycloak-container) keycloak_container=${2:-}; shift 2 ;;
+    --keycloak-realm) keycloak_realm=${2:-}; shift 2 ;;
     *) usage ;;
   esac
 done
 [ -n "$container" ] && [ -n "$database" ] && [ -n "$git_root" ] && [ -n "$out_root" ] || usage
+[ ${#key_files[@]} -gt 0 ] && [ -n "$keycloak_container" ] && [ -n "$keycloak_realm" ] || usage
 [ -d "$git_root" ] || { echo "git root not found: $git_root" >&2; exit 1; }
+declare -A seen_key_names=()
+for key_file in "${key_files[@]}"; do
+  [ -f "$key_file" ] || { echo "BACKUP_KEY_FILE_MISSING $(basename "$key_file")" >&2; exit 1; }
+  [ -z "${seen_key_names[$(basename "$key_file")]:-}" ] || { echo "BACKUP_KEY_FILE_DUPLICATE_NAME $(basename "$key_file")" >&2; exit 1; }
+  seen_key_names[$(basename "$key_file")]=1
+done
 
 if [ -n "$password_file" ]; then
   PGPASSWORD="$(cat "$password_file")"
   export PGPASSWORD
 fi
 
-folder="$out_root/$(date -u +%Y%m%dT%H%M%SZ)"
+final="$out_root/${stamp:-$(date -u +%Y%m%dT%H%M%SZ)}"
+folder="$final.partial"
 mkdir -p "$out_root"
 mkdir "$folder"
 
@@ -63,15 +80,28 @@ wait "$SNAP_PID"
 
 tar -C "$(dirname "$(realpath "$git_root")")" -czf "$folder/git.tar.gz" "$(basename "$(realpath "$git_root")")"
 
+mkdir "$folder/keys"
+key_names=()
+for key_file in "${key_files[@]}"; do
+  key_names+=("$(basename "$key_file")")
+  install -m 600 "$key_file" "$folder/keys/$(basename "$key_file")"
+done
+"$(dirname "$0")/../infra/keycloak/export-realm.sh" --from-container "$keycloak_container" --from-realm "$keycloak_realm" --out "$folder/identity-realm.json"
+
 {
   echo "# sha256  bytes  file"
-  for f in database.dump git.tar.gz; do
+  for f in database.dump git.tar.gz identity-realm.json "${key_names[@]/#/keys/}"; do
     echo "$(sha256sum "$folder/$f" | cut -d' ' -f1)  $(stat -c %s "$folder/$f")  $f"
   done
   echo "# git-root-name $(basename "$(realpath "$git_root")")"
   echo "# database $database"
+  echo "# identity-realm $keycloak_realm"
   echo "$counts" | sed 's/^/rows /'
 } > "$folder/manifest.txt"
 
 cat "$folder/manifest.txt"
+if [ -z "$partial" ]; then
+  mv "$folder" "$final"
+  folder="$final"
+fi
 echo "BACKUP $folder"

@@ -8,6 +8,7 @@ import { createMarModule } from './mar/module.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
+import { assertSchemaCurrent, exitOnSignals, installFatalHandlers, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
@@ -19,14 +20,20 @@ process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
+installFatalHandlers()
 const config = readHubConfig()
-const pool = createPostgresPool({
+const mainConnection = {
   host: config.database.host,
   port: config.database.port,
   database: config.database.database,
   user: config.database.user,
   password: readSecretFile(config.database.passwordFile),
-})
+}
+const pool = createPostgresPool(mainConnection)
+// Before anything that touches shared state (handler sockets, runs): a second Hub, or a database
+// behind this code, ends here with a named line and leaves the live Hub alone.
+const releaseInstanceLock = await takeInstanceLock(mainConnection)
+await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
 const s2ReadPool = config.database.workspace ? createPostgresPool({
   host: config.database.host,
   port: config.database.port,
@@ -280,6 +287,6 @@ const close = async (): Promise<void> => {
   await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
   await mar?.close()
   await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close(), servedPool?.end()])
+  await releaseInstanceLock()
 }
-process.once('SIGINT', close)
-process.once('SIGTERM', close)
+exitOnSignals(close)
