@@ -43,7 +43,7 @@ So:
 
 ## Keep worktrees intact
 
-The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`.
+The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `npm run worktree:new -- <name> <branch>` from inside an existing worktree; it reclaims every worktree whose work is already safely on GitHub (the same check as `worktree:reap --apply`) before creating `~/wt-<name>` on `<branch>`. The raw form, `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`, still works but skips that reclaiming.
 
 Remove worktrees only with `npm run worktree:reap`. It prints what it would remove and why it keeps the rest, and `npm run worktree:reap -- --apply` removes. It removes a worktree only when its pull request is closed or merged, its HEAD is that pull request's head commit, and it holds nothing but regenerable build output. Never run `git worktree prune` or `git worktree remove --force`.
 
