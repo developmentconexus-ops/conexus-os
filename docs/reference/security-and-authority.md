@@ -66,7 +66,7 @@ by server configuration.
 I&A OIDC adapter   → the exact configured Keycloak issuer and client
 Builder runtime    → E2B
 Builder docs       → Context7, mcp.context7.com, over MCP; the installation's key is optional
-Builder web        → any host, through `web_fetch` from the Hub and the model provider's own search
+Builder web        → any public host, through a guarded `web_fetch` from the Hub and the model provider's own search
 Builder sandbox    → any host, from the E2B guest (C-023)
 Project Git        → the Git provider
 ```
@@ -74,9 +74,12 @@ Project Git        → the Git provider
 The Context7 adapter is the Hub's own MCP client, refusing every other host. It sends the
 library name and a one-line question the Builder wrote, refused when long or shaped like data, never a Hub credential, and it does not run
 in the sandbox.
-`web_fetch` is Mastra's `webFetchTool`. It takes any http or https URL the model writes and
-sends no credential, so data the model holds can leave in the URL. C-023, as amended on
-2026-10-02, puts a guard on it and an allowlist on the sandbox before Q5.
+`web_fetch` is Mastra's `webFetchTool` behind the Hub's guard. It sends no credential and only
+GET, and Mastra refuses private, loopback and link-local addresses, also after DNS and on each
+redirect. The guard refuses a URL with a query string, a `#` part or a user or password, one
+longer than 300 characters or with a path segment over 80, and a path shaped like an email or a
+long number. It narrows what can leave in the URL; it cannot prove a URL is free of company data,
+so a short path of company words still passes. C-023 keeps the sandbox allowlist before Q5.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
