@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict'
+import { expect } from '@playwright/test'
+import { liveFlow } from './harness.mjs'
+
+const REQUEST = 'Crie um controle de estoque'
+const QUESTION = 'Qual número de orçamento podemos usar?'
+const ANSWER = '144118'
+const REPLY = 'Anotei o orçamento 144118 e sigo com o estoque.'
+
+liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma pergunta e responder depois' }, async ({ page, model, hub }) => {
+  model.script(
+    { parts: [{ call: { name: 'ask_user', args: { questions: [{ question: QUESTION }] } } }] },
+    { parts: [{ text: REPLY }] },
+  )
+
+  await page.goto(`/workspaces/${hub.workspaceId}/projects`)
+  await page.getByLabel('Mensagem para o agente').fill(REQUEST)
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await page.getByRole('button', { name: 'Criar e começar' }).click()
+  await page.waitForURL(/\/projects\/[^/]+\/c\/[^/]+$/)
+
+  const card = page.getByLabel('Pergunta do agente')
+  await expect(card.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByTestId('ask-user')).toHaveCount(1)
+  await expect(page.getByText(QUESTION, { exact: true })).toHaveCount(1)
+  await expect(page.locator('.cx-working')).toHaveText('Esperando a sua resposta · Aguardando você')
+
+  const waiting = `select state, phase, result_kind from builder.builder_run where request_text = '${REQUEST}'`
+  await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'RUNNING', phase: 'PARKED', result_kind: null }])
+
+  await card.getByRole('textbox').fill(ANSWER)
+  await card.getByRole('button', { name: 'Enviar resposta' }).click()
+
+  await expect(page.getByRole('log')).toContainText(REPLY, { timeout: 60_000 })
+  await expect(page.getByTestId('ask-user')).toHaveCount(0)
+  await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY' }])
+
+  assert.equal(model.calls.length, 2)
+  assert.ok(JSON.stringify(model.calls[1].contents).includes(ANSWER), "the model's second call carries the person's answer")
+})
