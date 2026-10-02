@@ -307,12 +307,29 @@ test("the retention prune at boot on a fresh installation waits for the store's 
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
   const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
-  t.after(() => schedule.close())
   await schedule.tick()
+  await schedule.close()
   assert.deepEqual(logs, [
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
   ])
+})
+
+test('closing the retention schedule waits for the prune in flight, so the pool can end after it', async () => {
+  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const events = []
+  const storage = {
+    init: async () => undefined,
+    prune: async () => {
+      await new Promise((release) => setTimeout(release, 50))
+      events.push('pruned')
+      return []
+    },
+  }
+  const schedule = scheduleRetentionPrune(storage, () => {}, 60_000)
+  await schedule.close()
+  events.push('closed')
+  assert.deepEqual(events, ['pruned', 'closed'])
 })
 
 test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {

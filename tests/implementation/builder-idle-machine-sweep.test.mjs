@@ -88,3 +88,20 @@ test('#423 a sweep that fails is logged with its code and the schedule keeps run
   assert.ok(calls >= 2, 'it swept at boot and again on the timer')
   assert.equal(log[0], 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:E2B_UNREACHABLE')
 })
+
+test('closing the schedule waits for the sweep in flight, so the database can close after it', async () => {
+  const events = []
+  const schedule = scheduleIdleMachineSweep({
+    listPaused: async () => {
+      await new Promise((release) => { setTimeout(release, 50) })
+      events.push('listed')
+      return []
+    },
+    openRunConversations: async () => new Set(),
+    kill: async () => [],
+    log: () => {},
+  })
+  await schedule.close()
+  events.push('closed')
+  assert.deepEqual(events, ['listed', 'closed'])
+})
