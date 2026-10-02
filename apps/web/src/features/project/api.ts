@@ -7,6 +7,7 @@ import type {
   ProjectSummary,
 } from '../../generated/project-client'
 import { projectClient } from '../../generated/project-client'
+import type { BuilderRunResultKind, BuilderRunState } from '../../generated/builder-run-vocabulary'
 
 export const projectListQueryKey = (workspaceId: string) => ['projects', workspaceId] as const
 export const projectQueryKey = (projectId: string) => ['project', projectId] as const
@@ -36,13 +37,12 @@ export async function listProjects(workspaceId: string): Promise<ProjectSummary[
   return response.json() as Promise<ProjectSummary[]>
 }
 
-type ProjectRunState = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
 export type ProjectCardSummary = Readonly<{
   projectId: string
   name: string
   archived: boolean
   lastActivityAt: string
-  latestRun: Readonly<{ state: ProjectRunState; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null }> | null
+  latestRun: Readonly<{ state: BuilderRunState; resultKind: BuilderRunResultKind | null }> | null
   hasPreview: boolean
   deleting: boolean
 }>

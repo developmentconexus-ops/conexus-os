@@ -7,6 +7,7 @@ import type {
   Prj03Body,
   Prj03Response,
 } from '../generated/s3-routes.js'
+import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
@@ -51,8 +52,8 @@ type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 // activity, so the Hub answers one read instead of the browser paging one builder-session call
 // per Project.
 type ProjectLatestRunSummary = Readonly<{
-  state: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED'
-  resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' | 'SOURCE_CHANGED_BUILD_FAILED' | null
+  state: BuilderRunState
+  resultKind: BuilderRunResultKind | null
 }>
 export type ProjectSummaryWithActivity = Readonly<{
   projectId: string
