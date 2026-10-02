@@ -1,6 +1,8 @@
 // The caller's model accounts as `GET /api/control/model-accounts` lists them, and the one way the
 // Settings cards call the model account routes. No answer ever carries a key or a token.
 
+import { hubFetch } from '../../app/http'
+
 type AccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
 type Account = Readonly<{ provider: string; providerName: string; mine: boolean; kind: AccountKind | null; shared: boolean }>
 export type Accounts = Readonly<{ administrator: boolean; accounts: readonly Account[] }>
@@ -14,13 +16,10 @@ export class ModelAccountsRequestError extends Error {
   }
 }
 
-const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
-
 export const callModelAccounts = async <T,>(method: 'GET' | 'POST' | 'PUT', url: string, body?: unknown): Promise<T> => {
-  const response = await fetch(url, {
+  const response = await hubFetch(url, {
     method,
-    credentials: 'same-origin',
-    headers: method === 'GET' ? {} : { 'content-type': 'application/json', 'x-conexus-csrf': csrf() },
+    headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
     ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
   })
   if (!response.ok) throw new ModelAccountsRequestError(response.status)

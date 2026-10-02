@@ -25,6 +25,9 @@ const failureReasons: Readonly<Record<BuilderFailureCategory, string>> = Object.
   INTERNAL_ERROR: 'Ocorreu um erro interno inesperado. Tente novamente.',
 })
 
+export const isBuilderFailureCategory = (value: unknown): value is BuilderFailureCategory =>
+  typeof value === 'string' && Object.hasOwn(failureReasons, value)
+
 // A code inside INTERNAL_ERROR whose cause is known says so, instead of the generic sentence.
 const failureReasonsByCode: Readonly<Record<string, string>> = Object.freeze({
   BUILDER_AGENT_PLATFORM_FAILED: 'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
@@ -37,3 +40,11 @@ export const failureReason = (failure: Readonly<{ failureCategory: BuilderFailur
   if (category === 'INTERNAL_ERROR' && failure?.failureCode) return failureReasonsByCode[failure.failureCode] ?? failureReasons.INTERNAL_ERROR
   return category ? failureReasons[category] : failureReasons.INTERNAL_ERROR
 }
+
+// The thread's notices about the model, in place of the provider's own words, which name sandboxes,
+// ids and stack frames. The run's own failure, once it settles, says the rest.
+export const modelRetryNotice = (attempt: number, maxRetries: number | null): string =>
+  `O modelo não respondeu. Tentando de novo (${attempt}${maxRetries === null ? '' : ` de ${maxRetries}`}).`
+
+export const modelStoppedNotice = (attempts: number | null): string =>
+  `${attempts === null ? 'O modelo parou com um erro.' : `O modelo não respondeu depois de ${attempts} tentativas.`} Seu pedido continua nesta conversa.`

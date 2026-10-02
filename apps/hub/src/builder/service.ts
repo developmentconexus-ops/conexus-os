@@ -47,6 +47,8 @@ export type BuilderRunDependencies = Readonly<{
   conversations: Pick<Conversations, 'ownerOf'>
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
+  /** Hands the run, as the builder-session read serves it, to a browser following its conversation. */
+  publishRun(run: BuilderRunSummary): Promise<void>
   reconcileEveryMs?: number
 }>
 
@@ -116,6 +118,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     }, runs.reconcileEveryMs ?? 30_000)
     reconcileTimer.unref?.()
   }
+  // A browser that misses a publish still reads the run from the builder-session poll, so a failed
+  // one never stops a run or a stop request.
+  const publishRun = async (run: BuilderRunSummary): Promise<void> => {
+    try { await runs.publishRun(run) } catch { /* the poll still serves the run */ }
+  }
   const failureCode = (error: unknown): string => {
     const code = error instanceof Error ? error.message : ''
     return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
@@ -123,16 +130,30 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
+    // A browser following the conversation learns each step from its stream; the builder-session
+    // read stays the record, so a run a newer one replaced, or a failed publish, changes nothing.
+    const publish = async (): Promise<void> => {
+      let latest: BuilderRunSummary | null = null
+      try { latest = await store.readBuilderRun({ accountId: input.accountId, projectId: run.projectId }) } catch { return }
+      if (latest?.builderRunId === run.builderRunId) await publishRun(latest)
+    }
     let endParking: (parked: boolean) => void = () => undefined
     const parking = new Promise<boolean>((resolve) => { endParking = resolve })
-    // The browser reads run.phase from the builder-session poll; the live turn itself is Mastra's.
     const setPhase = async (phase: BuilderRunningPhase): Promise<void> => {
       if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
+      await publish()
     }
     // A run whose agent ran has tool calls in its conversation thread until its source is
     // admitted; if it never is, the thread gets a note that its files are kept for the next turn.
     let unadmittedAgentRun: BuilderRunSummary | null = null
     let candidateRecorded = false
+    // The run's session stays open until its last state is published to the stream that follows it.
+    let closeHeldSession: (() => Promise<void>) | undefined
+    const closeSession = async (): Promise<void> => {
+      const close = closeHeldSession
+      closeHeldSession = undefined
+      await close?.()
+    }
     const work = (async () => {
       // An answered run was taken out of PARKED by the answer, which is its claim.
       const claimed = input.resume ? run : await store.claimBuilderRun(run.builderRunId)
@@ -143,6 +164,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         executionId: claimed.builderRunId, intent: input.content, ...(input.resume ? { resume: input.resume } : {}), baseSourceRevision: claimed.baseSourceRevision,
         providerSandboxId: await store.readConversationSandbox(conversation),
         signal: controller.signal,
+        holdSession: (close) => { closeHeldSession = close },
         setPhase: async (phase: BuilderRunningPhase) => {
           await setPhase(phase)
           if (phase === 'AGENT') unadmittedAgentRun = claimed
@@ -163,6 +185,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if (result.kind === 'PARKED') {
         if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
         await setPhase('PARKED')
+        await closeSession()
         // The leg is over: an answer starts the next one, which this entry must not shadow.
         builderActive.delete(run.builderRunId)
         endParking(true)
@@ -244,7 +267,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
       }
     })
-      .finally(() => {
+      .finally(async () => {
+        await publish()
+        await closeSession()
         if (builderActive.get(run.builderRunId)?.controller === controller) builderActive.delete(run.builderRunId)
         endParking(false)
       })
@@ -288,8 +313,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const result = await store.requestBuilderRunCancellation(input)
       const leg = builderActive.get(input.builderRunId)
       leg?.controller.abort()
-      // A parked run was interrupted by the database, with no leg to tell: its open call is settled here.
       if (!leg && result.state === 'INTERRUPTED') await runs.runtime.discardParked({ projectId: result.projectId, conversationId: result.conversationId }).catch(() => undefined)
+      await publishRun(result)
       return result
     },
     answerBuilderRun: async ({ accountId, projectId, builderRunId, toolCallId, resumeData }) => {
