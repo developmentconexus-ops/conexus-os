@@ -7,8 +7,11 @@ import type { IssuedToken, Redacted } from './token-cache.js'
 /** Not yet implemented: Sankhya's Definition declares no events. */
 type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
 
+/** A closed set, so a provider-chosen status value never reaches the record; any other value is 'other'. */
+export type EnvelopeStatus = '0' | '1' | '2' | '3' | '4' | 'other'
+
 /** No provider text becomes a field here: a detailed error code comes only from content capture (C-029). */
-export type ProviderAnswer = { httpStatus?: number; bytes?: number }
+export type ProviderAnswer = { httpStatus?: number; envelopeStatus?: EnvelopeStatus; bytes?: number }
 
 export type RequestTrace = Readonly<{
   request<T>(name: string, send: (answer: ProviderAnswer) => Promise<T>, resultOf?: (value: T) => 'OK' | BrokerErrorCode): Promise<T>
@@ -29,7 +32,11 @@ export type NativeProtocol = Readonly<{
     /** `service`: the rule's own constant for records, never caller text. */
     | Readonly<{ ok: true; service: string }>
     | Readonly<{ ok: false; code: 'SERVICE_REFUSED' | 'INPUT_REFUSED'; issues?: readonly string[] }>
-  answer(body: unknown): Readonly<{ kind: 'success' }> | Readonly<{ kind: 'vendor-error'; vendorStatus: string }> | Readonly<{ kind: 'unreadable' }>
+  /** `envelopeStatus` is what the record keeps of the vendor envelope's status (C-029); an integrator with no envelope gives none. */
+  answer(body: unknown):
+    | Readonly<{ kind: 'success'; envelopeStatus?: EnvelopeStatus }>
+    | Readonly<{ kind: 'vendor-error'; vendorStatus: string; envelopeStatus?: EnvelopeStatus }>
+    | Readonly<{ kind: 'unreadable' }>
   /** One request in flight per token (Sankhya). */
   oneRequestPerToken: boolean
 }>

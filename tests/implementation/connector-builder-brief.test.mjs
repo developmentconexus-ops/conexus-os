@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { connectorRecord } from './connector-record.mjs'
+import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { CONNECTOR_BRIEF_UNAVAILABLE, CONNECTOR_BRIEF_UNBOUND, createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
@@ -80,7 +80,7 @@ test('an unreadable store answers the fixed notice, and records a code with no s
   const text = await brief(scope)
   assert.equal(text, CONNECTOR_BRIEF_UNAVAILABLE)
   assert.deepEqual(await record.facts(), [{ name: 'connector.brief', root: true, error: true, projectId: PROJECT, result: 'STORE_UNAVAILABLE' }])
-  assert.equal(JSON.stringify(record.exporter.events).includes('STORE_DETAIL_MARKER') || record.lines.join('').includes('STORE_DETAIL_MARKER'), false, 'no store detail is recorded')
+  assert.equal(recordText(record).includes('STORE_DETAIL_MARKER'), false, 'no store detail is recorded')
   for (const term of ['STORE_DETAIL_MARKER', ...FORBIDDEN]) assert.equal(text.includes(term), false, term)
 
   const sinkFails = briefOf({ listBindings: async () => { throw new Error('down') } }, connectorRecord({ log: () => { throw new Error('sink down') } }))

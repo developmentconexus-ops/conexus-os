@@ -166,6 +166,7 @@ export const sendNative = async (
     return failed('RESPONSE_REFUSED', status)
   }
   const verdict = protocol.answer(vendorBody)
+  if (verdict.kind !== 'unreadable' && verdict.envelopeStatus) answer.envelopeStatus = verdict.envelopeStatus
   switch (verdict.kind) {
     case 'success': return Object.freeze({ ok: true, status, bytes: bytes.byteLength, body: vendorBody })
     case 'vendor-error': return failed('PROVIDER_ERROR', status, { vendorStatus: verdict.vendorStatus, body: vendorBody })

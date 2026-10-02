@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { AdapterFailure, transportFailure } from '../errors.js'
 import type { AdapterFailureReason } from '../errors.js'
-import type { Adapter, NativeProtocol, ProviderAnswer, RequestTrace } from '../integrator.js'
+import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../integrator.js'
 import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
@@ -35,6 +35,7 @@ const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
 
 const RESPONSE_CAP_BYTES = 256 * 1024
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
+const RECORDED_ENVELOPE_STATUSES: ReadonlySet<string> = new Set(['0', '1', '2', '3', '4'])
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
 export const pinnedGatewayOrigin = (value: string): string => {
@@ -95,7 +96,7 @@ const tokenResponse = z.object({
 })
 
 const jsonObject = z.record(z.string(), z.unknown())
-const envelopeStatus = z.object({ status: z.string() })
+const envelope = z.object({ status: z.string() })
 
 const SERVICE_REFUSED = Object.freeze({ ok: false, code: 'SERVICE_REFUSED' } as const)
 const inputRefused = (issue: string) => Object.freeze({ ok: false, code: 'INPUT_REFUSED', issues: Object.freeze([issue]) } as const)
@@ -124,10 +125,11 @@ export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
     return Object.freeze({ ok: true, service })
   },
   answer(body: unknown) {
-    const parsed = envelopeStatus.safeParse(body)
+    const parsed = envelope.safeParse(body)
     if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
     const { status } = parsed.data
-    return status === '1' ? Object.freeze({ kind: 'success' }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status })
+    const envelopeStatus = RECORDED_ENVELOPE_STATUSES.has(status) ? status as EnvelopeStatus : 'other'
+    return status === '1' ? Object.freeze({ kind: 'success', envelopeStatus }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status, envelopeStatus })
   },
   oneRequestPerToken: true,
 })

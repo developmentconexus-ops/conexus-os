@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { EXPECTED_NATIVE_CONSULT, EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, startFakeRest } from './connector-fake-rest.mjs'
-import { connectorRecord } from './connector-record.mjs'
+import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -399,12 +399,12 @@ test('P2: the records carry the binding name, the integrator and closed facts, n
   assert.deepEqual(await facts(), [
     { name: 'connector.fetch', root: true, error: false, ...call, result: 'OK' },
     { name: 'authenticate', root: false, error: false, ...call, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), result: 'OK' },
+    { name: LOAD, root: false, error: false, ...call, step: 2, attempt: 1, httpStatus: 200, envelopeStatus: '1', bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), result: 'OK' },
     { name: 'connector.fetch', root: true, error: true, ...call, result: 'PROVIDER_ERROR' },
-    { name: LOAD, root: false, error: true, ...call, step: 1, attempt: 1, httpStatus: 200, bytes: Buffer.byteLength(errorAnswer), result: 'PROVIDER_ERROR' },
+    { name: LOAD, root: false, error: true, ...call, step: 1, attempt: 1, httpStatus: 200, envelopeStatus: '0', bytes: Buffer.byteLength(errorAnswer), result: 'PROVIDER_ERROR' },
     { name: 'connector.fetch', root: true, error: true, ...call, connection: null, connector: null, result: 'NOT_GRANTED' },
   ])
-  const seen = JSON.stringify(exporter.events) + lines.join('')
+  const seen = recordText({ exporter, lines })
   const forbidden = [ROUTE, 'service.sbr', 'outputType', 'CabecalhoNota', 'NUMNOTA', '22790', '9001', '1520.50', 'MARKER-VALUE-5e1', 'crm-marker', SECRET_MARKER, 'CORE_E01234', 'fake-token-', ...Object.values(FAKE_CREDENTIAL)]
   for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} reached the record`)
 })
@@ -419,7 +419,7 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
     },
     credentials: { [CONNECTION_A]: await sealedRest('account-a'), [CONNECTION_B]: await sealedRest('account-b') },
   })
-  const { fake, broker } = await setup(t, { store, extra: [{ definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) }] })
+  const { fake, broker, facts } = await setup(t, { store, extra: [{ definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) }] })
   const records = (connection) => ({ connection, method: 'GET', path: '/v1/records' })
 
   assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-b')), { ok: false, code: 'NOT_GRANTED' })
@@ -439,4 +439,6 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
   assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), records('crm-b')), { ok: false, code: 'NOT_GRANTED' })
   assert.equal(rest.requests.length, 5)
   assert.deepEqual(fake.requests, [])
+  const reads = (await facts()).filter(({ name }) => name === 'rest.get').map((span) => [span.result, span.httpStatus, 'envelopeStatus' in span])
+  assert.deepEqual(reads, [['OK', 200, false], ['OK', 200, false], ['OK', 200, false]], 'an integrator with no envelope records no envelope status')
 })

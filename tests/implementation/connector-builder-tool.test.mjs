@@ -11,7 +11,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
-import { connectorRecord } from './connector-record.mjs'
+import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -319,7 +319,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
   // stored thread keeps the raw arguments and result. Only the routes' projection keeps them from the browser.
   const stored = await (await storage.getStore('memory')).listMessages({ threadId: conversation, perPage: false })
   const values = [SECRET_MARKER, '1520.50', FAKE_CREDENTIAL.clientSecret, FAKE_CREDENTIAL.xToken, FAKE_CREDENTIAL.clientId, 'fake-token-']
-  const carriers = { 'browser stream': served, 'messages route': JSON.stringify(history), 'session events': JSON.stringify(sessionEvents), 'stored thread': JSON.stringify(stored), 'connector spans': JSON.stringify([record.exporter.events, record.lines]) }
+  const carriers = { 'browser stream': served, 'messages route': JSON.stringify(history), 'session events': JSON.stringify(sessionEvents), 'stored thread': JSON.stringify(stored), 'connector spans': recordText(record) }
   assert.deepEqual(Object.fromEntries(Object.entries(carriers).map(([name, text]) => [name, values.filter((value) => text.includes(value))])), {
     'browser stream': [], 'messages route': [], 'session events': [SECRET_MARKER], 'stored thread': [SECRET_MARKER, '1520.50'], 'connector spans': [],
   })

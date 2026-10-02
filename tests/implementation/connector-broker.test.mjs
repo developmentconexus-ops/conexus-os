@@ -5,7 +5,7 @@ import { SpanType } from '@mastra/core/observability'
 import { InMemoryStore } from '@mastra/core/storage'
 import { MastraStorageExporter } from '@mastra/observability'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
-import { connectorRecord } from './connector-record.mjs'
+import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -71,7 +71,6 @@ const ORDER_READ = Object.freeze({ ok: true, status: 200, bytes: ORDER_BYTES, bo
 const errorBytes = (status, statusMessage) => Buffer.byteLength(JSON.stringify({ serviceName: LOAD, status, statusMessage, pendingPrinting: 'false' }))
 
 const FETCH = Object.freeze({ consumer: 'handler', projectId: PROJECT, connection: 'erp', connector: 'sankhya' })
-const withoutRandomHexIds = (value) => JSON.stringify(value, (key, field) => (['traceId', 'id', 'spanId', 'parentSpanId'].includes(key) ? undefined : field))
 const serviceAuthorizations = (fake) => fake.requests.filter((request) => request.path === ROUTE).map((request) => request.authorization)
 
 test('the Connection\'s sealed credential authenticates at the vendor, and only its bearer reaches the service request', async (t) => {
@@ -85,7 +84,7 @@ test('the Connection\'s sealed credential authenticates at the vendor, and only 
   assert.deepEqual(await facts(), [
     { name: 'connector.fetch', root: true, error: false, ...FETCH, result: 'OK' },
     { name: 'authenticate', root: false, error: false, ...FETCH, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: false, ...FETCH, step: 2, attempt: 1, httpStatus: 200, bytes: ORDER_BYTES, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...FETCH, step: 2, attempt: 1, httpStatus: 200, envelopeStatus: '1', bytes: ORDER_BYTES, result: 'OK' },
   ])
 })
 
@@ -173,12 +172,12 @@ test('P9 and P2: each vendor failure maps to its literal result and its spans, a
     ]],
     [{ service: 'envelope-error' }, { ok: false, code: 'PROVIDER_ERROR', status: 200, vendorStatus: '0', body: { serviceName: LOAD, status: '0', statusMessage: failedMessage, pendingPrinting: 'false' } }, [
       authenticated,
-      load({ error: true, httpStatus: 200, bytes: errorBytes('0', failedMessage), result: 'PROVIDER_ERROR' }),
+      load({ error: true, httpStatus: 200, envelopeStatus: '0', bytes: errorBytes('0', failedMessage), result: 'PROVIDER_ERROR' }),
     ]],
     [{ service: 'oversized' }, { ok: false, code: 'RESPONSE_TOO_LARGE', status: 200 }, [authenticated, load({ error: true, httpStatus: 200, result: 'RESPONSE_TOO_LARGE' })]],
   ]
   for (const [mode, expected, requests] of cases) {
-    const { fake, broker, facts, lines } = await setup(t, { deadlineMs: 300 })
+    const { fake, broker, facts, exporter, lines } = await setup(t, { deadlineMs: 300 })
     Object.assign(fake.mode, mode)
     const result = await broker.fetch(consumer, read())
     assert.deepEqual(result, expected, JSON.stringify(mode))
@@ -186,17 +185,17 @@ test('P9 and P2: each vendor failure maps to its literal result and its spans, a
     assert.deepEqual(spans, [{ name: 'connector.fetch', root: true, error: true, ...FETCH, result: expected.code }, ...requests], JSON.stringify(mode))
     const custody = [FAKE_CREDENTIAL.clientSecret, FAKE_CREDENTIAL.xToken, FAKE_CREDENTIAL.clientId, 'fake-token-']
     for (const secret of custody) assert.equal(JSON.stringify(result).includes(secret), false, `${secret} reached the result for ${JSON.stringify(mode)}`)
-    const recorded = JSON.stringify(spans) + lines.join('')
+    const recorded = recordText({ exporter, lines })
     for (const secret of [...custody, SECRET_MARKER]) assert.equal(recorded.includes(secret), false, `${secret} reached the record for ${JSON.stringify(mode)}`)
   }
 })
 
-test('a failing vendor request is recorded with its HTTP status, step and attempt, as a child of the fetch', async (t) => {
+test('a failing vendor request is recorded with its HTTP status, envelope status, step and attempt, as a child of the fetch', async (t) => {
   const cases = [
     [{ service: 400 }, { httpStatus: 400 }],
     [{ service: 'stalled-400' }, { httpStatus: 400 }],
-    [{ service: 'envelope-error' }, { httpStatus: 200, bytes: errorBytes('0', `[CORE_E01234] Falha ${SECRET_MARKER}`) }],
-    [{ service: 'envelope-status-47' }, { httpStatus: 200, bytes: errorBytes('47', `Falha ${SECRET_MARKER}`) }],
+    [{ service: 'envelope-error' }, { httpStatus: 200, envelopeStatus: '0', bytes: errorBytes('0', `[CORE_E01234] Falha ${SECRET_MARKER}`) }],
+    [{ service: 'envelope-status-47' }, { httpStatus: 200, envelopeStatus: 'other', bytes: errorBytes('47', `Falha ${SECRET_MARKER}`) }],
   ]
   for (const [mode, answered] of cases) {
     const { fake, broker, facts, exporter } = await setup(t, { deadlineMs: 200 })
@@ -250,7 +249,7 @@ test('a credential shaped like a provider code, even a documented one, echoed in
     { name: 'connector.fetch', root: true, error: true, ...FETCH, result: 'CREDENTIAL_REFUSED' },
     { name: 'authenticate', root: false, error: true, ...FETCH, step: 1, attempt: 1, httpStatus: 401, result: 'AUTHENTICATION_REFUSED' },
   ], 'the failure records its status only')
-  const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
+  const seen = recordText({ exporter, lines })
   for (const value of [...Object.values(shaped), SECRET_MARKER]) assert.equal(seen.includes(value), false, `${value} reached the record`)
 })
 
@@ -261,7 +260,7 @@ test('an input refusal names schema paths only: a caller\'s own key never comes 
   assert.equal(JSON.stringify(result).includes(SECRET_MARKER), false, 'no caller key comes back')
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(await facts(), [{ name: 'connector.fetch', root: true, error: true, consumer: 'handler', projectId: PROJECT, connection: null, connector: null, result: 'INPUT_REFUSED' }])
-  assert.equal(JSON.stringify(exporter.events).includes(SECRET_MARKER) || lines.join('').includes(SECRET_MARKER), false, 'no input key reaches the record')
+  assert.equal(recordText({ exporter, lines }).includes(SECRET_MARKER), false, 'no input key reaches the record')
 })
 
 test('a refused first token is recorded as its attempt, and the retry as the next one', async (t) => {
@@ -274,7 +273,7 @@ test('a refused first token is recorded as its attempt, and the retry as the nex
     { name: 'authenticate', root: false, error: false, ...FETCH, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
     { name: LOAD, root: false, error: true, ...FETCH, step: 2, attempt: 1, httpStatus: 403, result: 'TOKEN_REFUSED' },
     { name: 'authenticate', root: false, error: false, ...FETCH, step: 3, attempt: 2, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, error: false, ...FETCH, step: 4, attempt: 2, httpStatus: 200, bytes: ORDER_BYTES, result: 'OK' },
+    { name: LOAD, root: false, error: false, ...FETCH, step: 4, attempt: 2, httpStatus: 200, envelopeStatus: '1', bytes: ORDER_BYTES, result: 'OK' },
   ])
 })
 
@@ -302,8 +301,10 @@ test('no credential, token, request or vendor text reaches a tracing event or a 
     await broker.checkCredential('sankhya', CONNECTION)
     await settled()
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
-    const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(lines.map((line) => JSON.parse(line)))
+    const seen = recordText({ exporter, lines })
     for (const value of forbidden) assert.equal(seen.includes(value), false, `${value} leaked for ${JSON.stringify(mode)}`)
+    const statuses = [...exporter.events.map((event) => event.exportedSpan.metadata), ...lines.map((line) => JSON.parse(line))].flatMap((fields) => ('envelopeStatus' in fields ? [fields.envelopeStatus] : []))
+    for (const status of statuses) assert.ok(['0', '1', '2', '3', '4', 'other'].includes(status), `${status} is not a closed envelope status, for ${JSON.stringify(mode)}`)
   }
 })
 
@@ -315,7 +316,7 @@ test('a credential or token field a span carries by mistake is redacted by the C
   const redacted = { clientId: '[REDACTED]', clientSecret: '[REDACTED]', xToken: '[REDACTED]', access_token: '[REDACTED]' }
   assert.deepEqual(exporter.events.map((event) => [event.type, event.exportedSpan.metadata]), [['span_started', redacted], ['span_ended', redacted]])
   assert.deepEqual(lines.map((line) => JSON.parse(line)).map(({ clientId, clientSecret, xToken, access_token }) => ({ clientId, clientSecret, xToken, access_token })), [redacted])
-  const seen = JSON.stringify(exporter.events) + lines.join('')
+  const seen = recordText({ exporter, lines })
   for (const value of Object.values(secrets)) assert.equal(seen.includes(value), false, `${value} reached the record`)
 })
 
@@ -354,7 +355,7 @@ test('the Hub\'s Mastra keeps the Connector record in its own storage, and the B
   assert.deepEqual(stored, [
     { name: 'connector.fetch', root: true, ...FETCH, result: 'OK' },
     { name: 'authenticate', root: false, ...FETCH, step: 1, attempt: 1, httpStatus: 200, result: 'OK' },
-    { name: LOAD, root: false, ...FETCH, step: 2, attempt: 1, httpStatus: 200, bytes: ORDER_BYTES, result: 'OK' },
+    { name: LOAD, root: false, ...FETCH, step: 2, attempt: 1, httpStatus: 200, envelopeStatus: '1', bytes: ORDER_BYTES, result: 'OK' },
   ])
   assert.equal(observability.getDefaultInstance().getConfig().serviceName, 'conexus-builder-factory')
 })
@@ -402,7 +403,7 @@ test('connector spans record consumer kind only when in the closed set, and conn
   const logged = lines.map((line) => JSON.parse(line))
   assert.equal(logged.find((entry) => entry.span === 'connector.fetch').consumer, 'other')
   assert.equal(logged.find((entry) => entry.span === 'connector.check').connector, 'unknown')
-  const seen = withoutRandomHexIds(exporter.events) + withoutRandomHexIds(logged)
+  const seen = recordText({ exporter, lines })
   assert.equal(seen.includes(rawKind), false, `${rawKind} reached the record`)
   assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
 })
