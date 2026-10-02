@@ -59,6 +59,8 @@ export type BuilderRunDependencies = Readonly<{
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation. */
   publishRun(run: BuilderRunSummary): Promise<void>
   reconcileEveryMs?: number
+  /** The wait before a failed settle write is tried again; it is tried three times. */
+  settleRetryMs?: number
 }>
 
 /**
@@ -121,8 +123,25 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const recover = (active: ReadonlySet<string>): Promise<readonly string[]> => recoverAdmissions({ store, git: runs.git, active })
   // Candidate runs left running are settled here, again and again until the Conexus Git and the database answer.
   const reconcile = async (): Promise<void> => {
-    const unsettled = await recover(new Set(builderActive.keys())).then((ids) => ids.length > 0, () => true)
-    if (unsettled) reconcileSoon()
+    const active = new Set(builderActive.keys())
+    const unsettled = await recover(active).then((ids) => ids.length > 0, () => true)
+    if (await settleUnowned(active).then((left) => left, () => true) || unsettled) reconcileSoon()
+  }
+  // A run still running that no leg of this Hub owns lost its ending to a failed write. Answers
+  // whether one is left unsettled. A leg dispatched since the list was read owns its run.
+  const settleUnowned = async (active: ReadonlySet<string>): Promise<boolean> => {
+    let left = false
+    for (const run of await store.listUnownedRunCandidates()) {
+      if (active.has(run.builderRunId) || builderActive.has(run.builderRunId)) continue
+      try {
+        await store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST')
+        logLine(`BUILDER_RUN_SETTLED_BY_RECONCILE:${run.builderRunId}`, 'warn')
+        await settleRun(run, 'FAILED')
+      } catch {
+        left = true
+      }
+    }
+    return left
   }
   const reconcileSoon = (): void => {
     if (reconcileTimer || serviceClosing) return
@@ -151,6 +170,20 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       await runs.runtime.discardParked({ projectId: run.projectId, conversationId: run.conversationId })
     } catch {
       logLine(`BUILDER_PARKED_DISCARD_FAILED:${run.builderRunId}:${terminal}`, 'warn')
+    }
+  }
+  // A run's ending is written again after a short wait, as a database blip is common and the
+  // Project answers PROJECT_BUSY while its row stays running. When every try fails the timer settles the row.
+  const writeEnding = async (builderRunId: string, write: () => Promise<void>): Promise<void> => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try { await write(); return } catch (error) {
+        if (attempt === 3) {
+          logLine(`BUILDER_RUN_SETTLE_FAILED:${builderRunId}:${failureCode(error)}`, 'error')
+          reconcileSoon()
+          return
+        }
+        await new Promise((wake) => { setTimeout(wake, runs.settleRetryMs ?? 500) })
+      }
     }
   }
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
@@ -293,11 +326,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED'
       const terminal: SettleTerminal = hubStopping ? 'HUB_RESTART' : cancelled ? 'USER_CANCELLED' : 'FAILED'
       if (terminal === 'HUB_RESTART') {
-        await store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART').catch(() => undefined)
+        await writeEnding(run.builderRunId, () => store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
       } else if (terminal === 'USER_CANCELLED') {
-        await store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED').catch(() => undefined)
+        await writeEnding(run.builderRunId, () => store.interruptBuilderRun(run.builderRunId, 'USER_CANCELLED'))
       } else {
-        await store.failBuilderRun(run.builderRunId, code).catch(() => undefined)
+        await writeEnding(run.builderRunId, () => store.failBuilderRun(run.builderRunId, code))
       }
       // The stream that follows the run hears how it ended before its session is closed; the session
       // then lets go of the thread, and only then are the run's open calls settled.

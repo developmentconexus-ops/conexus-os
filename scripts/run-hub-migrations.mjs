@@ -56,6 +56,7 @@ const runParkedDigest = 'fd6a7fb76d8f738ad4fcebb8b4b16ba87907821a98e009b5c5ab755
 const modelAccountSharingHistoryDigest = 'c01d71477794fcbe974b1a239ec0e90d65e11cc4ecf4b83079d7f3036ec04f4f'
 const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba798fceb05a77dbcf4'
 const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
+const listUnownedRunsDigest = 'b4653fc811f6bde04150b561aa240130cbe3da2ce2c93a954faf702ec3307dd9'
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
 
 const migrationDigests = new Map([
@@ -106,6 +107,7 @@ const migrationDigests = new Map([
   ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
   ['0046_builder_open_run_conversations.sql', openRunConversationsDigest],
   ['0047_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
+  ['0048_builder_list_unowned_runs.sql', listUnownedRunsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

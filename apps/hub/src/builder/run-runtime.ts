@@ -579,7 +579,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     } catch (error) {
       const failure = keepaliveFailure ?? error
       // The run records only its failure code; a failure that carries command evidence says why.
+      // A failure without a cause logs only its code, never a message that may carry text or a tool result.
+      const failureCode = failure instanceof Error && /^[A-Z0-9_]{1,120}$/.test(failure.message) ? failure.message : 'BUILDER_PREPARATION_FAILED'
       if (failure instanceof Error && failure.cause !== undefined) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${failure.message} ${JSON.stringify(failure.cause)}`)
+      else if (!input.signal?.aborted) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${failureCode}`)
       throw failure
     } finally {
       release?.()

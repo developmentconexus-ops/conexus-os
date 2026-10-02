@@ -187,3 +187,15 @@ test('a parked run survives recovery, one answer takes it out of PARKED, and a s
   assert.equal(await store.resumeBuilderRun(stopped.builderRunId), null, 'a stopped run is not answered')
   assert.equal(working.name, 'working')
 })
+
+test('the list of runs no leg may own holds the running runs with no candidate and none parked or admitted', async (t) => {
+  const crashes = [
+    { name: 'compiled', phase: 'COMPILING', candidate: false, main: 'BASE' },
+    { name: 'preparing', phase: 'PREPARING', candidate: false, main: 'BASE' },
+    { name: 'offered', phase: 'SOURCE_ADMISSION', candidate: true, main: 'BASE' },
+    { name: 'parked', phase: 'PARKED', candidate: false, main: 'BASE' },
+  ]
+  const { runs, store } = await recoveryHarness(t, 'conexus_run_unowned_list', crashes)
+  const listed = new Set((await store.listUnownedRunCandidates()).map(({ builderRunId }) => builderRunId))
+  assert.deepEqual(runs.filter(({ builderRunId }) => listed.has(builderRunId)).map(({ name }) => name), ['compiled', 'preparing'])
+})
