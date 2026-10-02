@@ -91,3 +91,5 @@ export function projectDeleteMessage(error: unknown): string {
   if (!(error instanceof ProjectDeleteError)) return 'O servidor não respondeu desta vez. Nada foi excluído.'
   return deleteFailureMessage(error.status, error.type)
 }
+
+export const projectThumbnailUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`

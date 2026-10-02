@@ -6,13 +6,15 @@ import { readSecretFile } from '../platform/secrets.js'
 import { registerProjectRoutes } from './routes.js'
 import { registerProjectSummaryRoutes } from './summary-routes.js'
 import type { ProjectSummaryOperationId } from './summary-routes.js'
+import { registerProjectThumbnailRoutes } from './thumbnail-routes.js'
+import type { ProjectThumbnailOperationId, ProjectThumbnailReader } from './thumbnail-routes.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
 import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
-  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04' | ProjectSummaryOperationId)[]>
+  registerProjectRoutes(app: FastifyInstance): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04' | ProjectSummaryOperationId | ProjectThumbnailOperationId)[]>
   /** The display name of a Project the account may see, or null when it may not. */
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string | null>
   close(): Promise<void>
@@ -25,6 +27,7 @@ const createProjectModule = ({
   deletion,
   origin,
   resolveCurrentSession,
+  thumbnailReader,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
@@ -32,12 +35,14 @@ const createProjectModule = ({
   deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
+  thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => {
   const store = createProjectStore({ commandPool, readPool, repository, deletion })
   return Object.freeze({
     registerProjectRoutes: async (app: FastifyInstance) => [
       ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
       ...await registerProjectSummaryRoutes(app, { store, resolveCurrentSession }),
+      ...(thumbnailReader ? await registerProjectThumbnailRoutes(app, { reader: thumbnailReader, resolveCurrentSession }) : []),
     ],
     readProjectName: async (input) => (await store.getProject(input))?.name ?? null,
     close: async () => {
@@ -53,6 +58,7 @@ export const createConfiguredProjectModule = ({
   deletion,
   origin,
   resolveCurrentSession,
+  thumbnailReader,
 }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
@@ -60,6 +66,7 @@ export const createConfiguredProjectModule = ({
   deletion: ProjectDeletionPorts
   origin: string
   resolveCurrentSession: ResolveCurrentSession
+  thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => createProjectModule({
   commandPool: createPostgresPool({
     ...database,
@@ -75,4 +82,5 @@ export const createConfiguredProjectModule = ({
   deletion,
   origin,
   resolveCurrentSession,
+  ...(thumbnailReader ? { thumbnailReader } : {}),
 })

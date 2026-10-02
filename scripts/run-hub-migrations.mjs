@@ -58,6 +58,7 @@ const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba7
 const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
 const listUnownedRunsDigest = 'b4653fc811f6bde04150b561aa240130cbe3da2ce2c93a954faf702ec3307dd9'
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
+const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -107,6 +108,7 @@ const migrationDigests = new Map([
   ['0045_builder_project_sandboxes.sql', projectSandboxesDigest],
   ['0046_builder_open_run_conversations.sql', openRunConversationsDigest],
   ['0047_builder_recovery_lists_interrupted_runs.sql', recoveryListsInterruptedRunsDigest],
+  ['0048_application_thumbnail.sql', applicationThumbnailDigest],
   ['0049_builder_list_unowned_runs.sql', listUnownedRunsDigest],
 ])
 
