@@ -145,7 +145,7 @@ Realm, bootstrap and Microsoft
   `realm-conexus.json` plus `identity.session.*`, `identity.source`, `mail.smtp`, `CONEXUS_ORIGIN`
   and the operator secrets directory. A second run changes nothing and says so, and each run writes
   `settings.enforcement`. It refuses to run with `mail.smtp` unset, and fails when any user of the
-  realm holds a `realm-management` role other than the service account's two, or when any
+  realm holds a `realm-management` role other than `query-users` of the `conexus-hub-provisioner` service account, or when any
   permission or policy of the `admin-permissions` client is not one it created.
   [`keycloak-people-probe`, live]
 - **AC-19**: `conexus-settings first-person --email --name --hub-env` creates the first person with no
@@ -366,7 +366,7 @@ binding), moved to one shared function. Lookups use `exact=true`. `createUser` r
 | `adminPermissionsEnabled` | `true` | Turns on admin permissions v2 for the realm, which *Provisioner authority* configures. |
 
 `apply keycloak` (0008) applies the same file to a running realm: realm attributes, missing clients
-created from the file, the service account's two roles, the permissions of *Provisioner authority*,
+created from the file, the service account's single role `query-users` (any other `realm-management` role is removed), the permissions of *Provisioner authority*,
 the client secret generated once and written to `keycloak-provisioner` in the operator secrets
 directory (mode 600) when that file is absent, and replaced by `--init --rotate`. It also sets the per-installation parts no file in the repository holds, from settings:
 the session fields from `identity.session.*`, the `conexus-hub` redirect URIs and `baseUrl` from
