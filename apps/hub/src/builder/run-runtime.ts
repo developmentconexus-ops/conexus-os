@@ -826,8 +826,9 @@ export const e2bConversationSandboxes = ({
   /**
    * Kills the VMs by the provider ids the Hub recorded, running, paused or held by an earlier Hub
    * process. A VM E2B no longer has counts as killed; a kill that fails is logged and never throws.
+   * Answers the ids that are gone.
    */
-  killRecorded(providerSandboxIds: readonly string[]): Promise<void>
+  killRecorded(providerSandboxIds: readonly string[]): Promise<readonly string[]>
 }> => {
   // `opened` counts the runs that took the instance, so a pause that finishes after a later run took it drops nothing.
   const kept = new Map<string, { readonly sandbox: RunSandbox; opened: number }>()
@@ -879,9 +880,11 @@ export const e2bConversationSandboxes = ({
       }
     },
     killRecorded: async (providerSandboxIds) => {
-      await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).catch((error: unknown) => {
+      const gone = await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).then(() => true, (error: unknown) => {
         log(`BUILDER_SANDBOX_KILL_FAILED:${providerSandboxId}:${error instanceof Error ? error.message : String(error)}`)
+        return false
       })))
+      return providerSandboxIds.filter((_, index) => gone[index])
     },
   })
 }

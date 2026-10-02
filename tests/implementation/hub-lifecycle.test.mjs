@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-database.mjs'
 
@@ -14,7 +15,7 @@ const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
 const { assertSchemaCurrent, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 
-const latestVersion = '0045'
+const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
 
 test('a database one migration behind the code refuses to serve and names the missing version', async (t) => {
   const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_behind')
@@ -94,11 +95,20 @@ test('a rejected promise nobody handled logs HUB_FATAL and exits non-zero', asyn
 })
 
 test('a boot step that rejects at the top level logs HUB_FATAL and exits non-zero', async () => {
-  const { status, output } = await runFixture('top-level', 'lifecycle.installFatalHandlers()\nawait Promise.reject(new Error("HUB_SCHEMA_BEHIND:0045"))\n')
+  const { status, output } = await runFixture('top-level', 'lifecycle.installFatalHandlers()\nawait Promise.reject(new Error("HUB_TEST_BOOM"))\n')
   assert.equal(status, 1)
   assert.match(output, /"msg":"HUB_FATAL"/)
-  assert.match(output, /HUB_SCHEMA_BEHIND:0045/)
+  assert.match(output, /HUB_TEST_BOOM/)
 })
+
+for (const refusal of ['HUB_SCHEMA_BEHIND:0045', 'HUB_ALREADY_RUNNING']) {
+  test(`a refused start (${refusal}) exits 78 so a supervisor does not retry it`, async () => {
+    const { status, output } = await runFixture(`refused-${refusal.slice(4, 9)}`, `lifecycle.installFatalHandlers()\nawait Promise.reject(new Error(${JSON.stringify(refusal)}))\n`)
+    assert.equal(status, 78)
+    assert.match(output, /"msg":"HUB_FATAL"/)
+    assert.match(output, new RegExp(refusal))
+  })
+}
 
 test('SIGTERM closes the Hub and exits 0', async () => {
   const { status, output } = await runFixture('sigterm', `
