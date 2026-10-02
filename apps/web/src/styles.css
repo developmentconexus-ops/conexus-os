@@ -84,7 +84,7 @@ label span { color: var(--cx-text-2); }
 .builder-pane-actions label { display: inline-flex; align-items: center; gap: .35rem; color: var(--cx-text-2); font-size: .8rem; }
 .builder-pane-actions input { width: 6rem; }
 .builder-collapse-chat { justify-self: end; font-size: .82rem; }
-button:disabled { opacity: .6; cursor: wait; }
+button:disabled { opacity: .6; cursor: not-allowed; }
 .build-lenses { display: flex; gap: .35rem; border-bottom: 1px solid var(--cx-line); }
 .build-lenses button { border: 0; border-bottom: .2rem solid transparent; border-radius: .35rem .35rem 0 0; background: transparent; padding: .55rem .75rem; color: var(--cx-text-2); }
 .build-lenses button[aria-pressed="true"] { border-bottom-color: var(--cx-accent); background: var(--cx-accent-soft); color: var(--cx-text); font-weight: 700; }

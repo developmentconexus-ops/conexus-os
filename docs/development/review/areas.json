@@ -153,6 +153,11 @@
         "test": "tests/live/builder-park-and-answer.test.mjs"
       },
       {
+        "id": "builder.question-card",
+        "nome": "Ver a pergunta do agente sem a tela pular e sem cursor de espera",
+        "test": "tests/live/builder-question-card.test.mjs"
+      },
+      {
         "id": "builder.reload-while-parked",
         "nome": "Recarregar a página com uma pergunta esperando resposta",
         "test": "tests/live/builder-reload-while-parked.test.mjs"

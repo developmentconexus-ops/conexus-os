@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { ESCAPE_LABEL } from '../../scripts/check-patch-churn.mjs'
 import { LABELS_FILE, parseLabels, planLabels } from '../../scripts/labels.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
@@ -18,6 +19,10 @@ test('labels.yml declares the lean set and the labels the Factory adds', () => {
     'effort:low', 'effort:medium', 'effort:high', 'impact:low', 'impact:medium', 'impact:high',
     'needs-triage', 'premise-checked',
   ])
+})
+
+test('the label that turns off the patch churn check is declared, so it can be applied to GitHub', () => {
+  assert.equal(declared.some(label => label.name === ESCAPE_LABEL), true)
 })
 
 test('the plan creates missing labels, updates drifted ones and leaves undeclared ones alone', () => {
