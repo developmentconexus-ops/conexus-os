@@ -91,7 +91,7 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 
 - **Patch churn guard.** A pull request whose title starts with `fix` fails the `patch-churn` check
   (`scripts/check-patch-churn.mjs`, its own workflow) when it touches a file with three or more `fix(` or `fix:` commits on `main` in
-  the last 30 days. Lockfiles, generated files, the catalog snapshot and the weak-test ratchet are excluded. The message lists the
+  the last 30 days. Only production source under `apps/*/src` and `packages/*/src` counts, generated files excluded, so registries and tests that every fix touches do not trip it. The message lists the
   commits and asks you to check the premise first. If a redesign was considered, add the label `premise-checked`. `npm run verify:quick`
   prints the ten hottest files without failing.
 - **Test quarantine.** A test that fails only sometimes may be listed in `tests/quarantine.json` as

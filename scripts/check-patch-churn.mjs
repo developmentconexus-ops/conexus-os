@@ -11,14 +11,12 @@ export const WINDOW_DAYS = 30
 export const ESCAPE_LABEL = 'premise-checked'
 const REPORT_LIMIT = 10
 
-const EXCLUDED_FILES = new Set([
-  'package-lock.json',
-  'contracts/technical/hub-catalog-snapshot.json',
-  'scripts/weak-tests-ratchet.json',
-])
-const EXCLUDED_PATTERN = /(^|\/)(package-lock\.json|generated\/.*)$|\.generated\.[a-z]+$/
+// Only production source counts. Registries every fix must touch (the migration digest map, the test
+// graph, package.json) and test files would trip every fix and turn the label into a reflex.
+const PRODUCTION_SOURCE = /^(apps|packages)\/[^/]+\/src\//
+const GENERATED = /(^|\/)generated\/|\.generated\.[a-z]+$/
 
-export const isExcluded = (file) => EXCLUDED_FILES.has(file) || EXCLUDED_PATTERN.test(file)
+export const isCounted = (file) => PRODUCTION_SOURCE.test(file) && !GENERATED.test(file)
 
 export const isFixSubject = (subject) => /^fix(\(|:)/.test(subject)
 
@@ -34,7 +32,7 @@ export const findHotFiles = ({ commits, changedFiles, threshold = HOT_THRESHOLD 
     for (const file of files) fixesByFile.set(file, [...(fixesByFile.get(file) ?? []), subject])
   }
   return changedFiles
-    .filter((file) => !isExcluded(file) && (fixesByFile.get(file)?.length ?? 0) >= threshold)
+    .filter((file) => isCounted(file) && (fixesByFile.get(file)?.length ?? 0) >= threshold)
     .map((file) => ({ file, count: fixesByFile.get(file).length, subjects: fixesByFile.get(file) }))
 }
 
