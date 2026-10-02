@@ -97,7 +97,7 @@ const migrationDigests = new Map([
   ['0040_builder_conversation_sandbox.sql', conversationSandboxDigest],
   ['0041_builder_one_mode.sql', oneModeDigest],
   ['0042_compiler_template_enum.sql', compilerTemplateEnumDigest],
-  ['0043_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
+  ['0044_model_account_sharing_history.sql', modelAccountSharingHistoryDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
