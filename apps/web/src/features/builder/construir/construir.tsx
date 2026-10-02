@@ -232,7 +232,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
-        : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
+        : modelReady ? { kind: 'READY' }
+          : (models.isPending || sessionModel.state.isPending) ? { kind: 'LOADING_MODEL' }
+            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR' }
+              : { kind: 'NO_MODEL' }
   const hereView = viewRun(runHere)
   const headerLine = working
     ? `${runHere ? statusLine(view) : `${statusLine(view)} em outra conversa`}${pending.length ? ' · Aguardando você' : ''}`
@@ -384,6 +387,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           onReasoningChange={(level) => sessionModel.chooseReasoning.mutate(level)}
           memory={shownMemory}
           memoryFailed={runtime.memoryFailed}
+          onRetryModels={() => {
+            void models.refetch()
+            void sessionModel.state.refetch()
+          }}
         />
       </ChatShell.Column>
         </ChatShell.Dock>
