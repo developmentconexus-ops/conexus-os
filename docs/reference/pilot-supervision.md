@@ -11,7 +11,7 @@ and no secret is in a unit.
 | Stop on purpose | `systemctl --user stop` exits 0, which is not a failure, so nothing restarts it. |
 | Start limit | Five failures inside 300 s leave the unit `failed` and stop restarting it. |
 | Refused start | Exit 78 never restarts. The Hub exits 78 when another Hub holds the database (`HUB_ALREADY_RUNNING`) or the schema is behind the code (`HUB_SCHEMA_BEHIND`). |
-| Recovery | The next Hub boot runs `recover()`, which interrupts only the runs the dead process left RUNNING. |
+| Recovery | Each Hub heartbeats the runs it works every 10 s. At boot and every 30 s it takes over each run whose heartbeat is older than 30 s and settles it, so a run the dead process left in flight ends INTERRUPTED with `HUB_RESTART`, or against main when it has a candidate. A parked run has no owner and keeps waiting for its answer. |
 
 Install, once, after the operator's ok for the issue that names the pilot proof:
 
