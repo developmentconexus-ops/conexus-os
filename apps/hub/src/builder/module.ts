@@ -505,6 +505,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       retentionPrune.close()
       idleMachineSweep.close()
       try {
+        service.stopLegs()
         await service.close()
       } finally {
         try {
