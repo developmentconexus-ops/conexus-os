@@ -56,14 +56,13 @@ export const openConversation = async (projectId: string, conversationId: string
 }
 
 /**
- * The Project's conversations. The Hub titles a conversation from its first request once a run has
- * saved it, so while `awaitingTitleOf` has a run working and no title yet, the list is read again.
+ * The Project's conversations. A title reaches the list when the conversation's stream says the
+ * thread was titled or a turn ended; the list is never polled.
  */
-export const useProjectConversations = (projectId: string, awaitingTitleOf?: string | null) => useQuery({
+export const useProjectConversations = (projectId: string) => useQuery({
   queryKey: conversationsKey(projectId),
   queryFn: () => listConversations(projectId),
   enabled: Boolean(projectId),
-  refetchInterval: (query) => awaitingTitleOf && !query.state.data?.find((entry) => entry.id === awaitingTitleOf)?.title?.trim() ? 1_000 : false,
 })
 
 export const useConversationActions = (projectId: string) => {
@@ -193,6 +192,7 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   }, [history.data])
 
   const rereadThread = (): void => { void queryClient.invalidateQueries({ queryKey: builderThreadMessagesKey(projectId, conversationId) }) }
+  const rereadConversations = (): void => { void queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) }) }
   const rereadSession = (): void => { void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) }) }
   useSessionStream({
     key: streamKey,
@@ -206,8 +206,11 @@ export const useBuilderConversation = (projectId: string, conversationId: string
         const run = parseRunState(event.state.conexusRun)
         if (run) writeStreamedRun(queryClient, projectId, run)
       }
+      if (event.type === 'thread_title_updated') rereadConversations()
       if (event.type === 'agent_end') {
         rereadThread()
+        // Mastra stores the title of a first turn that parks on a question without announcing it.
+        rereadConversations()
         // The run stored memory for the conversation; read it again once the run is truly over.
         if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
       }

@@ -177,7 +177,7 @@ test("the title memory gives a conversation reaches the browser's stream on the 
 })
 
 // Mastra stores the title of a first turn that parks on the person without telling the stream, so the
-// conversation list reads titles by polling. When this flips, the poll can go.
+// conversation list rereads the thread list when the turn's agent_end arrives instead.
 test('a first turn that parks on a question stores its title but sends the stream no thread_title_updated', async (t) => {
   const { base, session } = await startMount(t, { generateTitle: { model: titleModel() } })
   const stream = await openStream(base)
