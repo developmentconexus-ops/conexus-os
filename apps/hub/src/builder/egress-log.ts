@@ -260,7 +260,9 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   if (polled.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
   const stored = await readOffsets(ports)
   const offsets = stored ?? { dns: 0, tcp: 0 }
-  const tcp = readJsonl(await ports.readAgentFile(TCP_LOG_PATH), offsets.tcp)
+  let tcpBytes: Uint8Array | null = null
+  try { tcpBytes = await ports.readAgentFile(TCP_LOG_PATH) } catch { /* the poller writes the log on first sighting: no file means no destinations */ }
+  const tcp = tcpBytes ? readJsonl(tcpBytes, offsets.tcp) : { rows: [], offset: offsets.tcp }
   let dnsBytes: Uint8Array | null = null
   try { dnsBytes = await ports.readAgentFile(DNS_LOG_PATH) } catch { /* no forwarder log: addresses go unnamed */ }
   const dns = dnsBytes ? readJsonl(dnsBytes, offsets.dns) : { rows: [], offset: offsets.dns }
@@ -270,7 +272,7 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   }
   await ports.writeRootFile(OFFSET_PATH, new TextEncoder().encode(JSON.stringify({ dns: dns.offset, tcp: tcp.offset })))
   const capped = [...dns.rows, ...tcp.rows].some((row) => isObject(row) && row.capped === true)
-  const status: EgressStatus = stored === null || dnsBytes === null || capped || records.length > MAX_EGRESS_LINES ? 'partial' : 'complete'
+  const status: EgressStatus = (stored === null && tcpBytes !== null) || dnsBytes === null || capped || records.length > MAX_EGRESS_LINES ? 'partial' : 'complete'
   ports.log(`BUILDER_SANDBOX_EGRESS_SUMMARY:${ports.executionId}:${status}:${Math.min(records.length, MAX_EGRESS_LINES)}`)
   return status
 }

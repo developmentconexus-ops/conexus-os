@@ -103,6 +103,21 @@ test('a turn logs each destination once and the next turn logs only what happene
   ])
 })
 
+test('a turn whose poller wrote no file is complete with no destinations, and the next turn logs its destination', async () => {
+  const held = ports()
+  held.files.set(DNS, bytes([]))
+  await collectEgress(held.ports)
+  assert.deepEqual(held.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:0'])
+  assert.deepEqual(JSON.parse(held.files.get('/var/log/conexus-egress/offset.json').toString('utf8')), { dns: 0, tcp: 0 })
+  held.lines.length = 0
+  held.files.set(TCP, bytes([{ t: 3000, ip: '10.0.0.1', port: 443 }]))
+  await collectEgress(held.ports)
+  assert.deepEqual(held.lines, [
+    `BUILDER_SANDBOX_EGRESS:run-1:conv-1:10.0.0.1:443:tcp:${new Date(3000).toISOString()}:1`,
+    'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:complete:1',
+  ])
+})
+
 test('a collection that fails or hangs is logged, never thrown, and never waits past its timeout', async () => {
   const failing = ports({ asRoot: async () => ({ exitCode: 1, stdout: '', stderr: 'no' }) })
   await collectEgress(failing.ports)
