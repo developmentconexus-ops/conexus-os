@@ -87,10 +87,10 @@ The standard
   registry default), validates every such invariant against the new value, calls `settings.write`
   and commits. A broken invariant is refused with `SETTING_INVARIANT` naming the rule, and nothing is
   written. The lock is released at commit or rollback. A test runs two connections in parallel against
-  the same database: from `identity.session.max` 1 h and `idle` 30 min, one writes `max` 20 min and
-  the other `idle` 45 min. The first to take the lock commits and the second is refused with
-  `SETTING_INVARIANT`, whichever is first, and the stored rows satisfy `idle <= max` after both
-  finish. A second pair, `max` 40 min and `idle` 35 min, commits both. [`settings-postgres`]
+  the same database: from `identity.session.max` 1 h and `idle` 30 min, one writes `max` 40 min and
+  the other `idle` 45 min. Each write is valid alone and invalid together. The first to take the lock
+  commits and the second is refused with `SETTING_INVARIANT`, whichever is first, and the stored rows
+  satisfy `idle <= max` after both finish. A second pair, `max` 40 min and `idle` 35 min, commits both. [`settings-postgres`]
 - **AC-4**: `resolve(definition, reader)` is the only read path for the Hub, the CLI and the
   reconcilers. `reader` is a `SettingsReader` port: the Hub passes one backed by its
   `hub_iam_runtime` pool, the CLI one backed by its `settings_operator` connection, and the registry
@@ -734,9 +734,10 @@ rows valid (AC-3); a row edited by hand so that idle exceeds max: the Hub opens 
 max (AC-4, AC-17); an invalid
 `identity.session.max` row: sign-in refused, `apply` refused, `set` recovers (AC-4); `apply` twice
 after a hand change, and after a replaced SMTP password file (AC-9, AC-25); the SMTP password and
-the provisioner client secret each changed directly in Keycloak: `apply --check` marks the first
-`não verificável` and the second `drifted`, and the next `apply` restores both (a fake Keycloak records
-the body sent; AC-9, AC-25); a session opened at
+the provisioner client secret each changed directly in Keycloak: `apply --check` marks the SMTP
+password `não verificável`; the client secret is `drifted` when the `manage-clients` probe let
+`observe` read it, and `não verificável` when the probe was refused. The next `apply` restores both
+(a fake Keycloak records the body sent and runs once per probe outcome; AC-9, AC-25); a session opened at
 8 hours before the migration and read after it (AC-16); a planted secret in each reconciler input
 (AC-7); a new `process.env` read in a module (AC-8); a `master` realm user added by hand, and a role
 added by hand to `conexus-settings` (AC-13); the check loop stopped for 30 minutes (AC-11, stale).
