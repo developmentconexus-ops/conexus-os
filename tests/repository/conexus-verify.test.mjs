@@ -9,6 +9,9 @@ import {
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
   FAST_CHECK_SCOPES,
+  VERIFY_GROUPS,
+  graphForGroup,
+  groupsOf,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
   executionEnvironment,
@@ -187,6 +190,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
     dryRun: true,
     json: true,
     help: false,
+    group: null,
   })
 
   const calls = []
@@ -580,4 +584,34 @@ test('the CI helper tests run in the graph, so the census and the checks see the
   for (const file of ['tests/repository/ci-change-scope.test.mjs', 'tests/repository/ci-install.test.mjs']) {
     assert.equal(agentContext.command.split(' ').includes(file), true, file)
   }
+})
+
+test('every graph step belongs to exactly one group, except the two every group runs', () => {
+  const shared = ['c020-hub-typecheck', 'only-opt-in-skips']
+  for (const entry of CANDIDATE_GRAPH) {
+    const groups = groupsOf(entry)
+    assert.ok(groups.every(group => VERIFY_GROUPS.includes(group)), `${entry.scope} has a known group`)
+    assert.equal(groups.length, shared.includes(entry.scope) ? VERIFY_GROUPS.length : 1, entry.scope)
+  }
+  const owned = VERIFY_GROUPS.flatMap(group => graphForGroup(CANDIDATE_GRAPH, group).map(entry => entry.scope).filter(scope => !shared.includes(scope)))
+  assert.deepEqual([...owned].sort(), CANDIDATE_GRAPH.map(entry => entry.scope).filter(scope => !shared.includes(scope)).sort())
+  assert.equal(new Set(owned).size, owned.length)
+})
+
+test('a group runs the Hub build first and the skip check last, and keeps graph order between', () => {
+  for (const group of VERIFY_GROUPS) {
+    const scopes = graphForGroup(CANDIDATE_GRAPH, group).map(entry => entry.scope)
+    assert.equal(scopes[0], 'c020-hub-typecheck', group)
+    assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
+  }
+  assert.equal(graphForGroup(CANDIDATE_GRAPH, 'browser').some(entry => entry.environmentClass === 'postgres'), false)
+  assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
+})
+
+test('--group narrows the candidate graph and refuses an unknown group', async () => {
+  assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
+  assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest/)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
+  assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

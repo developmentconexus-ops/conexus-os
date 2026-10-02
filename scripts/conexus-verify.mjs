@@ -215,6 +215,18 @@ export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
 
 export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
 
+// CI runs the graph as three jobs, each on its own machine with its own PostgreSQL and CPU, so no
+// step shares a host resource with a step of another group. A step's group follows from what it
+// needs: a browser (with or without PostgreSQL), PostgreSQL alone, or neither. Two steps belong to
+// every group: the Hub build, which publishes the compiled Hub the suites import, and the skip
+// check, which reads the ledger of the job it runs in.
+export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', 'browser-postgres': 'browser', postgres: 'postgres', static: 'rest' })
+const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
+
+export const groupsOf = (step) => EVERY_GROUP.has(step.scope) ? VERIFY_GROUPS : [GROUP_OF_CLASS[step.environmentClass]]
+export const graphForGroup = (graph, group) => graph.filter(step => groupsOf(step).includes(group))
+
 // A change that touches only documentation runs these steps: every step that reads a Markdown file,
 // plus the OpenAPI bundle the bijection check reads, the census and the skip check that close every run. The path test lives in
 // scripts/ci-change-scope.mjs.
@@ -261,7 +273,7 @@ export function loadPackageScripts(root = repositoryRoot) {
 }
 
 export function parseArguments(argv = process.argv.slice(2)) {
-  const options = { scopes: [], list: false, dryRun: false, json: false, help: false }
+  const options = { scopes: [], list: false, dryRun: false, json: false, help: false, group: null }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -280,6 +292,14 @@ export function parseArguments(argv = process.argv.slice(2)) {
     }
     if (argument === '--json') {
       options.json = true
+      continue
+    }
+
+    if (argument === '--group' || argument.startsWith('--group=')) {
+      if (argument === '--group') index += 1
+      const value = argument === '--group' ? argv[index] : argument.slice('--group='.length)
+      if (!VERIFY_GROUPS.includes(value)) throw new VerificationCliError(`--group must be one of ${VERIFY_GROUPS.join(', ')}`)
+      options.group = value
       continue
     }
 
@@ -479,6 +499,7 @@ export function runVerification({
   packageScripts,
   root = repositoryRoot,
   dryRun = false,
+  group = null,
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
@@ -487,7 +508,8 @@ export function runVerification({
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
-  const entries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const graphEntries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
+  const entries = group ? graphForGroup(graphEntries, group) : graphEntries
   const records = []
   const published = {}
   const testLedger = newTestLedger(root)
@@ -543,7 +565,7 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group browser|postgres|rest] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',
@@ -619,6 +641,7 @@ export function main(argv = process.argv.slice(2)) {
       scopes: options.scopes,
       packageScripts,
       dryRun: options.dryRun,
+      group: options.group,
     })
     printResult(result, options.json)
     writeStepSummary(result)
