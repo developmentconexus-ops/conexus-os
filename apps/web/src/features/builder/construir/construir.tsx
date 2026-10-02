@@ -113,7 +113,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const session = useBuilderSession(queryClient, projectId, conversationId, useConversationStreamOpen(projectId, conversationId))
   const latestRun = session.data?.latestBuilderRun
-  const conversations = useProjectConversations(projectId, latestRun?.conversationId === conversationId && isActive(latestRun) ? conversationId : null)
+  const conversations = useProjectConversations(projectId, latestRun?.conversationId === conversationId && isActive(latestRun) && !isParked(latestRun) ? conversationId : null)
   const conversationActions = useConversationActions(projectId)
   const conversation = conversations.data?.find((entry) => entry.id === conversationId) ?? null
   const models = useBuilderModels()
