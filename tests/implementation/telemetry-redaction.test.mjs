@@ -9,6 +9,8 @@ test('redactAttributes keeps only allowlisted keys, drops exception.message and 
   const kept = redactAttributes({
     'http.request.method': 'GET',
     'http.route': '/x',
+    'url.path': '/__conexus/api/PLANTED_PATH_SECRET',
+    'user_agent.original': 'PLANTED_AGENT_SECRET/1.0',
     'url.full': 'https://m.test/?key=SECRET',
     'db.query.text': 'SELECT SECRET',
     'db.system.name': 'postgresql',
@@ -39,6 +41,8 @@ test('a log body leaves as its leading code, or UNCODED_LOG when it has none', (
   assert.equal(logBodyCode('HTTP_SERVER_ERROR'), 'HTTP_SERVER_ERROR')
   assert.equal(logBodyCode('BUILDER_RETENTION_PRUNED:builder.runs:12'), 'BUILDER_RETENTION_PRUNED')
   assert.equal(logBodyCode('BUILDER_RUN_FAILED SECRET cause'), 'BUILDER_RUN_FAILED')
+  assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789:detail'), 'UNCODED_LOG')
   assert.equal(logBodyCode('builder stream recorder stopped: SECRET'), 'UNCODED_LOG')
   assert.equal(logBodyCode('ACME failed'), 'UNCODED_LOG')
   assert.equal(logBodyCode('HTTP_SERVER_ERROR-SECRET'), 'UNCODED_LOG')
@@ -110,6 +114,7 @@ const LOG_PLANT = {
   uncodedText: 'PLANTED_UNCODED_TEXT_19ad',
   errorMessage: 'PLANTED_ERROR_MESSAGE_d03c',
   pinoMessage: 'PLANTED_PINO_MESSAGE_8f21',
+  upperLine: 'PLANTED_CUSTOMER_NAME_123456789',
 }
 
 test('log lines and logged errors export their codes, types and frames, and none of the planted text', async () => {
@@ -120,18 +125,42 @@ const P = JSON.parse(process.env.PLANT)
 const { logLine, logger, recordFailure } = await import(process.env.HUB_BUILD + '/platform/logger.js')
 logLine('BUILDER_RUN_FAILED:run-1:' + P.lineText + '\\n')
 logLine('runner said ' + P.uncodedText, 'warn')
-logger.info({ code: 'PLAIN_CODE_FIELD' }, 'HEAP_PROBE_DONE ' + P.pinoMessage)
+logLine(P.upperLine)
+logger.info({ code: 'PLAIN_CODE_FIELD' }, 'PROCESS_HEAP_HIGH ' + P.pinoMessage)
 recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', new Error('provider echoed ' + P.errorMessage), { 'conexus.project_id': 'project-1' })
 `, { endpoint: collector.endpoint, env: { PLANT: JSON.stringify(LOG_PLANT) } })
     assert.equal(result.code, 0, result.stderr)
     const stdout = result.stdout
     for (const value of Object.values(LOG_PLANT)) assert.ok(stdout.includes(value), `${value} stays on stdout`)
     const logs = Buffer.concat(collector.bodies('/v1/logs'))
-    for (const expected of ['BUILDER_RUN_FAILED', 'UNCODED_LOG', 'HEAP_PROBE_DONE', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
+    for (const expected of ['BUILDER_RUN_FAILED', 'UNCODED_LOG', 'PROCESS_HEAP_HIGH', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
       assert.ok(logs.includes(expected), `the log export holds ${JSON.stringify(expected)}`)
     }
     const exported = collector.everything()
     for (const [name, value] of Object.entries(LOG_PLANT)) assert.equal(exported.includes(value), false, `${name} was exported`)
     assert.equal(exported.includes('exception.message'), false, 'no error message key was exported')
+  } finally { await collector.close() }
+})
+
+test('a request path and a user agent chosen by the caller never leave the process', async () => {
+  const collector = await startCollector()
+  try {
+    const result = await runWithTelemetry(`
+import { createServer, request } from 'node:http'
+const server = createServer((_, reply) => reply.end('ok'))
+await new Promise((done) => server.listen(0, '127.0.0.1', done))
+await new Promise((done, fail) => {
+  const call = request({ host: '127.0.0.1', port: server.address().port, path: '/__conexus/api/PLANTED_PATH_SECRET_77?token=PLANTED_QUERY_SECRET_78', headers: { 'user-agent': 'PLANTED_AGENT_SECRET_79/1.0' } }, (reply) => { reply.resume(); reply.on('end', done) })
+  call.on('error', fail)
+  call.end()
+})
+server.close()
+const { trace } = await import('@opentelemetry/api')
+await trace.getTracerProvider().getDelegate().forceFlush()
+`, { endpoint: collector.endpoint })
+    assert.equal(result.code, 0, result.stderr)
+    const exported = collector.everything()
+    assert.ok(exported.includes('http.request.method'), 'the HTTP spans were exported')
+    for (const planted of ['PLANTED_PATH_SECRET_77', 'PLANTED_QUERY_SECRET_78', 'PLANTED_AGENT_SECRET_79']) assert.equal(exported.includes(planted), false, `${planted} was exported`)
   } finally { await collector.close() }
 })

@@ -30,14 +30,14 @@ test('with the endpoint set the Hub exports traces, logs and metrics for the hub
   try {
     const result = await runWithTelemetry(`
 const { logger } = await import(process.env.HUB_BUILD + '/platform/logger.js')
-logger.info('TELEMETRY_REGISTER_LOG_LINE')
+logger.info('PROCESS_HEAP_HIGH')
 ${SERVE_ONE_REQUEST}`, { endpoint: collector.endpoint, env: { OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=test,service.version=abc1234' } })
     assert.equal(result.code, 0, result.stderr)
     const paths = [...new Set(collector.requests.map((entry) => entry.path))].sort()
     assert.deepEqual(paths, ['/v1/logs', '/v1/metrics', '/v1/traces'])
     const traces = Buffer.concat(collector.bodies('/v1/traces'))
     for (const expected of ['conexus-hub', 'abc1234', 'deployment.environment.name', '/ping']) assert.ok(traces.includes(expected), `trace export holds ${expected}`)
-    assert.ok(Buffer.concat(collector.bodies('/v1/logs')).includes('TELEMETRY_REGISTER_LOG_LINE'))
+    assert.ok(Buffer.concat(collector.bodies('/v1/logs')).includes('PROCESS_HEAP_HIGH'))
     for (const name of ['conexus.process.heap.used_ratio', 'process.memory.usage', 'v8js.memory.heap.used']) {
       assert.ok(Buffer.concat(collector.bodies('/v1/metrics')).includes(name), `metrics export holds ${name}`)
     }

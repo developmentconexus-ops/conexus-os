@@ -1,9 +1,10 @@
 import { metrics } from '@opentelemetry/api'
 import type { core, logs, tracing } from '@opentelemetry/sdk-node'
+import { LOG_CODES } from './log-codes.generated.js'
 
 const EXACT: ReadonlySet<string> = new Set([
-  'http.request.method', 'http.response.status_code', 'http.route', 'url.path', 'url.scheme',
-  'server.address', 'server.port', 'user_agent.original',
+  'http.request.method', 'http.response.status_code', 'http.route', 'url.scheme',
+  'server.address', 'server.port',
   'db.system.name', 'db.operation.name', 'db.collection.name', 'db.namespace', 'db.response.status_code',
   'gen_ai.operation.name', 'gen_ai.provider.name', 'gen_ai.request.model', 'gen_ai.response.model',
   'gen_ai.response.finish_reasons', 'gen_ai.agent.name', 'gen_ai.tool.name', 'gen_ai.tool.type',
@@ -24,10 +25,11 @@ const framesOf = (stack: string): string | undefined => {
 
 const CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?=$|[:\s])/
 
-/** @public Tests import this at runtime from the built module. A log body leaves as its leading code, never as its text. */
+/** @public Tests import this at runtime from the built module. A log body leaves as its leading code when the Hub's own source defines that code, never as its text. */
 export const logBodyCode = (body: unknown): string | undefined => {
   if (body === undefined) return undefined
-  return (typeof body === 'string' ? CODE.exec(body)?.[0] : undefined) ?? 'UNCODED_LOG'
+  const code = typeof body === 'string' ? CODE.exec(body)?.[0] : undefined
+  return code !== undefined && LOG_CODES.has(code) ? code : 'UNCODED_LOG'
 }
 
 const allowed = (key: string): boolean => EXACT.has(key) || PREFIXES.some((prefix) => key.startsWith(prefix))
