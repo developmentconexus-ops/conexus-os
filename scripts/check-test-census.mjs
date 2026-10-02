@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const EXEMPT_TESTS = Object.freeze([
+export const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-e2b-live.test.mjs',
   'tests/implementation/builder-sandbox-e2b-live.test.mjs',
   'tests/implementation/builder-production-composed-live.test.mjs',
