@@ -101,7 +101,10 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
   // the same disabled, non-empty-draft state a blocked repository would show, which this never is.
   const mode: ComposerMode = mutation.isPending ? { kind: 'SENDING' }
     : confirming ? { kind: 'BLOCKED' }
-      : modelReady ? { kind: 'READY' } : { kind: 'NO_MODEL' }
+      : modelReady ? { kind: 'READY' }
+        : models.isPending ? { kind: 'LOADING_MODEL' }
+          : models.isError ? { kind: 'MODEL_ERROR' }
+            : { kind: 'NO_MODEL' }
 
   return <section className="cx-prompt" aria-labelledby={`${promptId}-title`}>
     <p className="cx-prompt-note">Workspace {workspaceName}{returning ? ' · você voltou para onde parou' : ''}</p>
@@ -120,6 +123,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       onModelChange={setModelId}
       reasoning={reasoning ?? models.data?.defaultThinkingLevel ?? null}
       onReasoningChange={setReasoning}
+      onRetryModels={() => void models.refetch()}
     />
 
     {confirming && (

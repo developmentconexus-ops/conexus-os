@@ -1998,3 +1998,27 @@ for (const width of [1536, 1700]) {
     )
   })
 }
+
+test('the composer reports when models are loading or failed, and retries on request', async (t) => {
+  const { page } = await openAgenda(t, {
+    accountId: '70000000-0000-4000-8000-000000000230', projectId: '70000000-0000-4000-8000-000000000231', conversationId: 'conversation-models-failing',
+  })
+  let failing = true
+  let reads = 0
+  await page.route('**/api/control/model-accounts/models', (route) => {
+    reads += 1
+    return failing
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ type: 'unavailable' }) })
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) })
+  })
+  await page.reload()
+  await messageBox(page).waitFor()
+  await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).waitFor({ timeout: 30_000 })
+  assert.equal(await messageBox(page).getAttribute('placeholder'), 'Não foi possível carregar os modelos')
+  failing = false
+  const before = reads
+  await page.getByRole('button', { name: 'Tentar novamente' }).first().click()
+  await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') !== placeholder, 'Não foi possível carregar os modelos')
+  assert.ok(reads > before)
+  assert.equal(await page.getByRole('alert').filter({ hasText: 'Não foi possível carregar os modelos' }).count(), 0)
+})
