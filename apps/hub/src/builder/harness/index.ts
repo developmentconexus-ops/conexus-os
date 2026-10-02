@@ -8,3 +8,4 @@ export {
   CONEXUS_TURN_DATE_KEY,
 } from './request-context.js'
 export { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot, type RunTools } from './controller.js'
+export { createContext7Docs } from './context7.js'

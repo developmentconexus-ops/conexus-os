@@ -115,13 +115,29 @@ export type ToolPayloadProjection = Readonly<{ value(value: unknown): unknown; s
 // as it receives them.
 const PROJECTED_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/stream'), sessionRoute('GET', '/threads/:threadId/messages')])
 
-const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection): ServerRoute => ({
+/**
+ * What the browser is served of a failure. Mastra's wire event, and the error part it stores in the
+ * assistant message of a failed turn, carry the provider error's name and message, and a provider
+ * can echo the account key in that message. The browser knows why a run failed from the run's own
+ * failure code, so every error keeps its type and retry fields and loses its text. Retry notices
+ * are already built from safe facts and keep theirs.
+ */
+const FAILURE_MESSAGE = 'MODEL_CALL_FAILED'
+const withoutErrorText = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(withoutErrorText)
+  if (typeof value !== 'object' || value === null) return value
+  const node = value as Readonly<Record<string, unknown>>
+  const failure = node.type === 'error' && typeof node.error === 'object' && node.error !== null && node.retryable !== true
+  return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, failure && key === 'error' ? { name: 'Error', message: FAILURE_MESSAGE } : withoutErrorText(item)]))
+}
+
+const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | undefined): ServerRoute => ({
   ...route,
   handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
     const served: unknown = await route.handler(params)
-    if (!(served instanceof ReadableStream)) return projection.value(served)
-    const project = projection.stream()
-    return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(event)) }))
+    if (!(served instanceof ReadableStream)) return projection ? projection.value(withoutErrorText(served)) : withoutErrorText(served)
+    const project = projection?.stream() ?? ((event: unknown) => event)
+    return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(withoutErrorText(event))) }))
   },
 } as ServerRoute)
 
@@ -318,7 +334,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
     for (const served of SERVER_ROUTES) {
       const routeKey = `${served.method} ${served.path}`
       if (!mount.routes.has(routeKey)) continue
-      const projected = mount.toolPayloads && PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served
+      const projected = PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served
       await server.registerRoute(scope, routeKey === STREAM_ROUTE ? followedRoute(projected, mount.controller, following) : projected, { prefix: mount.prefix })
     }
   })

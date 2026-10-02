@@ -39,11 +39,11 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [] } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], model: modelOf = model } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
-  const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
+  const controller = createBuilderController({ id: 'conexus-builder', model: modelOf, storage, memory, modelRetryDelayMs: () => 1, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
@@ -403,3 +403,49 @@ test("the browser reaches exactly ten of Mastra's agent-controller routes, each 
     'PUT /:resourceId/state',
   ])
 })
+
+const apiKey = `sk-ant-api03-${'k'.repeat(40)}`
+const echoed = (status, type) => () => new Response(JSON.stringify({ type: 'error', error: { type, message: `rejected ${apiKey}` } }), { status, headers: { 'content-type': 'application/json' } })
+
+for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503', 503, 'api_error']]) {
+  test(`the stream the browser is served, over a real Anthropic ${label} that echoes the account key, carries the key in no frame`, async (t) => {
+    const { createModelRouting } = await import(built('builder/model-routing.js'))
+    const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
+    const { createClaudeHolds } = await import(built('builder/anthropic/credential.js'))
+    const routing = createModelRouting({
+      routes: { anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })) },
+      modelAccounts: { usable: async () => ({ modelAccountId: 'row-anthropic', kind: 'api_key', secret: apiKey }) },
+      conversationModel: async () => null, readDefault: async () => null, record: async () => {},
+    })
+    const original = globalThis.fetch
+    globalThis.fetch = async (input, init) => {
+      const url = new Request(input, init).url
+      if (url.startsWith('https://api.anthropic.com/')) return echoed(status, type)()
+      return original(input, init)
+    }
+    t.after(() => { globalThis.fetch = original })
+    const { app, controller } = await createBuilderApp(t, { model: (context) => routing.resolve(context) })
+    const address = await app.listen({ port: 0, host: '127.0.0.1' })
+    const closing = new AbortController()
+    const response = await original(`${address}${sessionBase()}/stream?${inConversation()}`, { headers: { cookie: '__Host-conexus_session=session-1; __Host-conexus_csrf=csrf-1' }, signal: closing.signal })
+    const frames = []
+    const reading = (async () => { for await (const chunk of response.body) frames.push(Buffer.from(chunk).toString()) })().catch(() => undefined)
+    const session = await controller.getSessionByResource(`project:${projectA}`, `conversation:${conversationA}`)
+    const requestContext = new (await import('@mastra/core/request-context')).RequestContext()
+    requestContext.setRaw('conexusBuilderAccountId', accountA)
+    requestContext.setRaw('conexusBuilderRunId', randomUUID())
+    await session.model.switch({ modelId: 'anthropic/claude-test' })
+    requestContext.setRaw('conexusBuilderConversationId', conversationA)
+    const ended = new Promise((done) => { session.subscribe((event) => { if (event.type === 'agent_end') setTimeout(done, 50) }) })
+    await session.sendMessage({ content: 'Faça o app.', requestContext }).catch(() => undefined)
+    await ended
+    closing.abort()
+    await reading
+    const text = frames.join('')
+    assert.equal(text.includes('"type":"error"'), true, 'the stream carried the failure')
+    assert.equal(text.includes(apiKey), false, 'the key is in no frame the browser reads')
+    const stored = await app.inject({ method: 'GET', url: `${sessionBase()}/threads/${conversationA}/messages`, ...authentic })
+    assert.equal(stored.statusCode, 200)
+    assert.equal(stored.body.includes(apiKey), false, 'the key is in no message the thread serves')
+  })
+}
