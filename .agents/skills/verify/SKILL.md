@@ -7,7 +7,7 @@ description: Drive the real Conexus app the way a person does, to prove a change
 
 `scripts/control.mjs` runs one disposable Conexus and drives it. No Hub route is stubbed: the browser talks to the real Hub, which talks to a real PostgreSQL and a real Keycloak. Two external boundaries are replaced, and a proof must say so:
 
-- **Model.** The Hub's Google AI Pro proxy binary is `scripts/fake-cliproxy.mjs`. It streams a fixed reasoning line and answer. No provider is called and no real credential exists.
+- **Model.** The Hub's Google AI Pro proxy binary is `scripts/fake-cliproxy.mjs`. It serves the Google sign-in and readiness routes, so a model account can be connected. It does not answer model calls. No provider is called and no real credential exists.
 - **E2B.** The Hub's E2B SDK points at a closed loopback port. A Builder turn opens its sandbox before the model's first token, so every turn ends with `BUILDER_PREPARATION_FAILED`. The streamed answer can't be proven here yet. See [the Construir feature](features/construir.md).
 
 Never drive another instance: the branch Hub, the pilot (port 3443), the operator's Chromium (CDP 9333 and 9334), the Factory (port 5873), or the `conexus-keycloak` container. Each run has its own ports, containers named `conexus-verify-*-<run>`, and state in `~/.cache/conexus-verify/<run>/`.
@@ -30,7 +30,7 @@ Launch starts a throwaway CA, PostgreSQL 17 with the migrations and the nine Hub
 
 ## Drive
 
-Start every drive with `node $C sign-in`. It submits Keycloak's form for the run's person. On the first sign-in it also creates the account at `/setup`. Then use these commands:
+Start every drive with `node $C sign-in`. It submits Keycloak's form for the run's person, or returns at once while Keycloak still holds a session. On the first sign-in it also creates the account at `/setup`. Then use these commands:
 
 | Command | Does |
 | --- | --- |

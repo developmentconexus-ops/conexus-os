@@ -30,8 +30,9 @@ Each feature file starts with an H1 and one paragraph on the user-visible behavi
 
 ## Features
 
-- [Sign-in and first account](./sign-in.md) covers Keycloak sign-in, the first account at `/setup`, and the entry redirect.
-- [Workspaces and Projects](./projects.md) covers creating a Workspace, starting a Project from the composer, and the Projects list.
+- [Sign-in and first account](./sign-in.md) covers Keycloak sign-in, the first account at `/setup`, the entry redirect and sign-out.
+- [Workspaces and Projects](./projects.md) covers creating a Workspace, starting a Project from the composer or the form, the Projects list, and the Workspace's people.
 - [Construir](./construir.md) covers the conversation screen: send a message, the turn's outcome, reasoning, question and plan cards, and the model and reasoning picker.
-- [Model accounts](./settings-models.md) covers Settings, Modelos de IA: connecting Google AI Pro through the fake proxy.
-- [Built app and app runner](./app-host.md) covers opening a built app as a user. This harness can't reach it yet.
+- [Settings and model accounts](./settings-models.md) covers Settings: `Minha conta`, `Administradores`, and connecting Google AI Pro through the fake proxy.
+- [Project settings and integrations](./project-settings.md) covers `Sobre o Projeto`, deleting a Project, and Sankhya connections bound to a Project.
+- [Built app and app runner](./app-host.md) covers who may use the app and inviting them. Opening a built app is not reachable yet.

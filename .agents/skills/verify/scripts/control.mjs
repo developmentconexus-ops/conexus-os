@@ -392,10 +392,15 @@ const signIn = async () => {
   const page = pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]
   logAction(state, 'sign-in')
   await page.goto(new URL('/protocol/oidc/login', state.origin).href)
-  await page.locator('#username').fill(state.person.username)
-  await page.locator('#password').fill(readFileSync(join(state.stateDir, 'secrets/person-password'), 'utf8').trim())
-  await page.locator('#kc-login').click()
-  await page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })
+  // Signing out of the Hub leaves Keycloak's own session alive, and Keycloak then returns at once.
+  const form = page.locator('#username')
+  await Promise.race([form.waitFor({ timeout: 30_000 }), page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })].map((wait) => wait.catch(() => {})))
+  if (new URL(page.url()).origin !== state.origin) {
+    await form.fill(state.person.username)
+    await page.locator('#password').fill(readFileSync(join(state.stateDir, 'secrets/person-password'), 'utf8').trim())
+    await page.locator('#kc-login').click()
+    await page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })
+  }
   await page.waitForLoadState('networkidle')
   if (new URL(page.url()).pathname === '/setup') {
     await page.getByLabel('Seu nome').fill(`${PERSON.firstName} ${PERSON.lastName}`)
