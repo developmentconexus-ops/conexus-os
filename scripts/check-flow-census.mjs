@@ -12,7 +12,7 @@ const LIVE_TESTS = 'tests/live/*.test.mjs'
 export const declaredFlows = (source) => [...source.matchAll(DECLARATION)].map((match) => ({ id: match[2], nome: match[4] }))
 
 // Calls the census cannot read as { id: '...', nome: '...' } string literals. They are reported, never skipped.
-export const unreadableFlowCalls = (source) => [...source.matchAll(CALL)].length - declaredFlows(source).length
+const unreadableFlowCalls = (source) => [...source.matchAll(CALL)].length - declaredFlows(source).length
 
 function listLiveTests(root) {
   const output = execFileSync('git', ['ls-files', LIVE_TESTS], { cwd: root, encoding: 'utf8' })
