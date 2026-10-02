@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -53,7 +53,7 @@ const hubBuildStep = Object.freeze({
  * explicitly by its own repository command; it is not a required-main CI
  * property while the candidate remains unadmitted.
  */
-export const CANDIDATE_GRAPH = Object.freeze([
+const GRAPH_STEPS = Object.freeze([
   hubBuildStep,
   candidateStep('hub-baseline', 'node --test --test-concurrency=1 tests/implementation/hub-baseline.test.mjs tests/implementation/hub-database-cleanup-postgres.test.mjs', 'postgres'),
   candidateStep('c020-migration-selection', 'node --test tests/implementation/hub-migration-selection.test.mjs'),
@@ -70,7 +70,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('connector-broker-postgres', 'node --test --test-concurrency=1 tests/implementation/connector-broker-postgres.test.mjs tests/implementation/connector-fetch-postgres.test.mjs', 'postgres'),
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
-  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-conversation-rows.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs'),
+  candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-model-stream-recorder.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs'),
   candidateStep('c020-builder-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('c020-builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),
@@ -80,9 +80,9 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('google-ai-pro', 'node --test --test-concurrency=1 tests/implementation/builder-google-ai-pro.test.mjs'),
   candidateStep('openai-codex', 'node --test --test-concurrency=1 tests/implementation/builder-openai-codex.test.mjs'),
   candidateStep('anthropic', 'node --test --test-concurrency=1 tests/implementation/builder-anthropic.test.mjs'),
-  candidateStep('run-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-run-runtime.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-trace-summary.test.mjs tests/implementation/builder-session-tripwire.test.mjs tests/implementation/builder-agent-retry.test.mjs tests/implementation/builder-runaway-step.test.mjs tests/implementation/builder-parallel-tools.test.mjs tests/implementation/builder-run-timing.test.mjs tests/implementation/builder-turn-stall.test.mjs tests/implementation/builder-session-lifecycle.test.mjs tests/implementation/builder-stream-backlog.test.mjs tests/implementation/builder-parked-run.test.mjs'),
+  candidateStep('run-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-run-runtime.test.mjs tests/implementation/builder-diagnostic-appender.test.mjs tests/implementation/builder-trace-summary.test.mjs tests/implementation/builder-session-tripwire.test.mjs tests/implementation/builder-agent-retry.test.mjs tests/implementation/builder-runaway-step.test.mjs tests/implementation/builder-parallel-tools.test.mjs tests/implementation/builder-run-timing.test.mjs tests/implementation/builder-turn-stall.test.mjs tests/implementation/builder-session-lifecycle.test.mjs tests/implementation/builder-parked-run.test.mjs tests/implementation/builder-stream-backlog.test.mjs'),
   candidateStep('run-recovery-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-recovery-postgres.test.mjs', 'postgres'),
-  candidateStep('builder-session-routes', 'node --test --test-concurrency=1 tests/implementation/builder-session-routes.test.mjs'),
+  candidateStep('builder-session-routes', 'node --test --test-concurrency=1 tests/implementation/builder-session-routes.test.mjs tests/implementation/builder-stream-facts.test.mjs'),
   candidateStep('conexus-git', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git.test.mjs'),
   candidateStep('application-data-postgres', 'node --test --test-concurrency=1 tests/implementation/application-data-postgres.test.mjs tests/implementation/application-cluster-installation.test.mjs', 'postgres'),
   candidateStep('application-runner-sandbox', 'node --test --test-concurrency=1 tests/implementation/application-runner-sandbox.test.mjs', 'postgres'),
@@ -96,7 +96,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('c020-source-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs tests/implementation/builder-run-dispatch.test.mjs'),
   candidateStep('c020-failure-vocabulary', 'node --test --test-concurrency=1 tests/implementation/builder-failure-vocabulary.test.mjs'),
   candidateStep('c020-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs tests/implementation/builder-application-check.test.mjs', 'browser'),
-  candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs tests/implementation/builder-live-turn.test.mjs tests/implementation/builder-memory-status.test.mjs tests/implementation/builder-plan-sections.test.mjs', 'browser'),
+  candidateStep('c020-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs tests/implementation/builder-parked-card-browser.test.mjs tests/implementation/builder-transcript.test.mjs tests/implementation/builder-conversation-rows.test.mjs tests/implementation/builder-memory-status.test.mjs tests/implementation/builder-plan-sections.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs', 'browser'),
   candidateStep('application-access-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-access-browser.test.mjs', 'browser'),
   candidateStep('connector-integrations-browser', 'node --test --test-concurrency=1 tests/implementation/connector-integrations-browser.test.mjs', 'browser-postgres'),
@@ -115,7 +115,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
   candidateStep('hub-log-sinks', 'node --test tests/repository/hub-log-sinks.test.mjs'),
   candidateStep('telemetry', 'node --test tests/implementation/telemetry-register.test.mjs tests/implementation/telemetry-redaction.test.mjs tests/implementation/telemetry-logs.test.mjs tests/implementation/telemetry-metrics.test.mjs tests/implementation/telemetry-trace-trust.test.mjs tests/implementation/telemetry-log-codes.test.mjs tests/implementation/hub-launch-flags.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -143,6 +143,7 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('project-settings-deletion-browser', 'node --test --test-concurrency=1 tests/implementation/project-settings-deletion-browser.test.mjs', 'browser'),
   candidateStep('project-name', 'node --test tests/implementation/project-name.test.mjs'),
   candidateStep('shell-browser-boundary', 'node --test tests/implementation/shell-browser-boundary.test.mjs'),
+  candidateStep('web-dev-server', 'node --test tests/implementation/web-dev-server.test.mjs'),
   candidateStep('brand-tokens', 'node --test tests/implementation/brand-tokens.test.mjs'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs && node --test tests/repository/web-style.test.mjs'),
   candidateStep('preview-form-policy', 'node --test tests/implementation/preview-form-policy.test.mjs', 'browser'),
@@ -169,6 +170,69 @@ export const CANDIDATE_GRAPH = Object.freeze([
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
+
+// The cheap static checks (typechecks, lint, repository and agent-context checks, contract
+// projections, wire checks, census) run before the browser and PostgreSQL suites, so a run that is
+// going to fail on them fails in seconds instead of after minutes. Nothing is dropped, only moved.
+export const FAST_CHECK_SCOPES = Object.freeze([
+  'c020-hub-typecheck',
+  'c020-web-typecheck',
+  'biome',
+  'knip',
+  'repository-check',
+  'repository-import-law',
+  'repository-agent-context',
+  'repository-contract-checks',
+  'contract-projection-check-iam',
+  'contract-projection-check-workspace',
+  'contract-projection-check-project',
+  'contract-projection-check-connector',
+  'conexus-preflight',
+  'web-style',
+  'builder-guidance-neutral',
+  'db-role-register',
+  'wire-openapi-lint',
+  'wire-openapi-bundle',
+  'wire-bijection',
+  'wire-bijection-gate',
+  'wire-carriers',
+  'wire-identity-workspace',
+  'wire-project',
+  'wire-builder',
+  'wire-connector',
+  'wire-technical-lint',
+  'wire-technical-ingress',
+  'test-census',
+])
+
+// A stable partition: fast checks first in graph order, then the rest in graph order. The Hub build
+// step stays first (it publishes the compiled Hub) and the skip check stays last (it reads the
+// ledger of the whole run), because each is first or last in GRAPH_STEPS and the partition keeps order.
+export function failFastOrder(steps, fastScopes = FAST_CHECK_SCOPES) {
+  const fast = new Set(fastScopes)
+  return Object.freeze([...steps.filter(step => fast.has(step.scope)), ...steps.filter(step => !fast.has(step.scope))])
+}
+
+export const CANDIDATE_GRAPH = failFastOrder(GRAPH_STEPS)
+
+// A change that touches only documentation runs these steps: every step that reads a Markdown file,
+// plus the OpenAPI bundle the bijection check reads, the census and the skip check that close every run. The path test lives in
+// scripts/ci-change-scope.mjs.
+export const DOCS_CHECK_SCOPES = Object.freeze([
+  'repository-check',
+  'repository-agent-context',
+  'repository-contract-checks',
+  'conexus-preflight',
+  'wire-openapi-bundle',
+  'wire-bijection',
+  'wire-bijection-gate',
+  'test-census',
+  'only-opt-in-skips',
+])
+
+export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
+
+const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH })
 
 // Descriptive aliases make the manifest easy to discover for tests and small
 // callers without creating another mutable allowlist.
@@ -262,8 +326,8 @@ export function resolveScope(scope, packageScripts = loadPackageScripts()) {
   }
 
   const normalized = scope.trim()
-  if (normalized === 'candidate') {
-    return { scope: normalized, command: null, graph: 'candidate' }
+  if (own(GRAPHS, normalized)) {
+    return { scope: normalized, command: null, graph: normalized }
   }
   const alias = manifestEntry(normalized)
   if (alias) return alias
@@ -293,7 +357,7 @@ export function resolveScopes(scopes, packageScripts = loadPackageScripts()) {
 
 export function assertExecutionEnvironment(entries, { platform = process.platform, dryRun = false } = {}) {
   if (dryRun) return
-  if (platform !== 'linux' && entries.some(entry => entry.npmScript === 'verify' || entry.graph === 'candidate')) {
+  if (platform !== 'linux' && entries.some(entry => entry.npmScript === 'verify' || own(GRAPHS, entry.graph ?? ''))) {
     throw new VerificationCliError(
       'final verification requires Linux; local Conexus proof must run in WSL Ubuntu with the pinned Node/npm toolchain',
     )
@@ -423,7 +487,7 @@ export function runVerification({
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
-  const entries = requestedEntries.flatMap(entry => entry.graph === 'candidate' ? CANDIDATE_GRAPH : [entry])
+  const entries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
   const records = []
   const published = {}
   const testLedger = newTestLedger(root)
@@ -486,6 +550,31 @@ function helpText() {
   ].join('\n')
 }
 
+export function renderStepSummary(records) {
+  const total = records.reduce((sum, record) => sum + record.durationMs, 0)
+  const rows = [...records]
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .map(record => {
+      const share = total === 0 ? 0 : (record.durationMs / total) * 100
+      return `| ${record.scope} | ${record.status} | ${(record.durationMs / 1000).toFixed(1)} | ${share.toFixed(1)}% |`
+    })
+  return [
+    '### Verification step timings',
+    '',
+    `${records.length} steps, ${(total / 1000).toFixed(1)} s in total, slowest first.`,
+    '',
+    '| Step | Status | Seconds | Share |',
+    '| --- | --- | ---: | ---: |',
+    ...rows,
+    '',
+  ].join('\n')
+}
+
+function writeStepSummary(result, env = process.env) {
+  if (!env.GITHUB_STEP_SUMMARY || result.records.length === 0) return
+  appendFileSync(env.GITHUB_STEP_SUMMARY, `${renderStepSummary(result.records)}\n`)
+}
+
 function printResult(result, json) {
   if (json) {
     process.stdout.write(`${JSON.stringify(result)}\n`)
@@ -532,6 +621,7 @@ export function main(argv = process.argv.slice(2)) {
       dryRun: options.dryRun,
     })
     printResult(result, options.json)
+    writeStepSummary(result)
     return result.exitCode
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

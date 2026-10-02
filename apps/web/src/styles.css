@@ -97,7 +97,6 @@ button:disabled { opacity: .6; cursor: wait; }
 .builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: .8rem; background: var(--cx-surface-3); }
 .builder-run-status { display: flex; align-items: center; gap: .5rem; padding: .5rem .65rem; border: 1px solid var(--cx-line); border-radius: .6rem; background: var(--cx-surface-3); color: var(--cx-text-2); font-size: .86rem; }
 .builder-run-status-elapsed { margin-left: auto; color: var(--cx-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.builder-turn-error { margin: 0; padding: .6rem .8rem; border-radius: .5rem; background: color-mix(in srgb, var(--cx-danger) 8%, var(--cx-surface)); color: var(--cx-danger); }
 .builder-turn-reason { justify-self: end; max-width: 88%; margin: 0; padding: .5rem .8rem; border-radius: .5rem; background: color-mix(in srgb, var(--cx-warning) 8%, var(--cx-surface)); color: var(--cx-warning); font-size: .9rem; }
 .builder-mode-toggle { grid-template-columns: 1fr 1fr; }
 .builder-mode-toggle legend { grid-column: 1 / -1; }

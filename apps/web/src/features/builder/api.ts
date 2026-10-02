@@ -1,5 +1,6 @@
+import { hubFetch } from '../../app/http'
 import { clearAuthorityCache } from '../../app/query-client'
-import type { BuilderFailureCategory } from './failure-reasons'
+import { type BuilderFailureCategory, isBuilderFailureCategory } from './failure-reasons'
 export type SourceTree = Readonly<{
   sourceRevision: string
   entries: readonly Readonly<{ path: string; kind: 'FILE' | 'DIRECTORY' }>[]
@@ -74,15 +75,9 @@ export class BuilderRequestError extends Error {
   }
 }
 
-const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
 const request = async (url: string, init: RequestInit = {}): Promise<Response> => {
   try {
-    const method = (init.method ?? 'GET').toUpperCase()
-    return await fetch(url, {
-      ...init,
-      credentials: 'same-origin',
-      headers: { ...(init.headers ?? {}), ...(method === 'POST' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) },
-    })
+    return await hubFetch(url, init)
   } catch {
     throw new BuilderRequestError(null)
   }
@@ -156,4 +151,24 @@ export const getBuilderRunTrace =async (projectId: string, builderRunId: string)
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
   if (!response.ok) await reject(response)
   return response.json() as Promise<BuilderTraceSummary>
+}
+
+const RUN_STATES: ReadonlySet<unknown> = new Set(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'])
+const RUN_PHASES: ReadonlySet<unknown> = new Set(['PREPARING', 'AGENT', 'PARKED', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING', null])
+const RESULT_KINDS: ReadonlySet<unknown> = new Set(['RESPONSE_ONLY', 'SOURCE_CHANGED', 'SOURCE_CHANGED_BUILD_FAILED', null])
+const isText = (value: unknown): value is string => typeof value === 'string'
+const isTextOrNull = (value: unknown): boolean => value === null || typeof value === 'string'
+
+/**
+ * The run the Hub wrote into its session state, as the builder-session read serves it, or null for
+ * anything else. Session state is the controller's free-form map, so it is checked here, once.
+ */
+export const parseRunState = (value: unknown): BuilderRun | null => {
+  if (typeof value !== 'object' || value === null) return null
+  const run = value as Record<string, unknown>
+  const valid = isText(run.builderRunId) && isText(run.projectId) && isText(run.conversationId) && isText(run.baseSourceRevision) && isText(run.createdAt)
+    && RUN_STATES.has(run.state) && RUN_PHASES.has(run.phase) && RESULT_KINDS.has(run.resultKind)
+    && isTextOrNull(run.resultSourceRevision) && isTextOrNull(run.failureCode) && (run.failureCategory === null || isBuilderFailureCategory(run.failureCategory)) && isTextOrNull(run.requestText)
+    && (run.cancellationRequested === undefined || typeof run.cancellationRequested === 'boolean')
+  return valid ? run as BuilderRun : null
 }

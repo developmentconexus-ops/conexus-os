@@ -27,11 +27,12 @@ import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
-import { createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
+import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
+import { projectBuilderRun } from './failure-vocabulary.js'
 import { createConversationSessions } from './conversation-sessions.js'
 import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
@@ -398,6 +399,12 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     conversations,
     source: createProjectSourceReads({ git }),
     appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
+    // Into the session the run's turns go through, which the browser's stream follows. The
+    // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
+    publishRun: async (run) => {
+      const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationRunScope(run.conversationId))
+      await session?.state.set({ conexusRun: projectBuilderRun(run) })
+    },
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,

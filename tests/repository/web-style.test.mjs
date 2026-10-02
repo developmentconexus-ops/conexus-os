@@ -135,3 +135,14 @@ test('a title prop that renders a heading, and an iframe title, pass', context =
   }))
   assert.equal(result.status, 0, result.stderr)
 })
+
+test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails, a generated client passes', context => {
+  const reader = "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))\n"
+  const result = check(tree(context, {
+    'apps/web/src/app/http.ts': reader,
+    'apps/web/src/generated/iam-client.ts': reader,
+    'apps/web/src/features/builder/api.ts': `export const a = 1\n${reader}`,
+  }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
+})
