@@ -9,7 +9,7 @@ and no secret is in a unit.
 | --- | --- |
 | Restart after a crash | `Restart=on-failure`, 10 s apart. A `kill -9`, an OOM and a non-zero exit all count. |
 | Stop on purpose | `systemctl --user stop` exits 0, which is not a failure, so nothing restarts it. |
-| Start limit | Five failures inside 300 s stop the unit in the `failed` state with result `start-limit-hit`. |
+| Start limit | Five failures inside 300 s leave the unit `failed` and stop restarting it. |
 | Refused start | Exit 78 never restarts. The Hub exits 78 when another Hub holds the database (`HUB_ALREADY_RUNNING`) or the schema is behind the code (`HUB_SCHEMA_BEHIND`). |
 | Recovery | The next Hub boot runs `recover()`, which interrupts only the runs the dead process left RUNNING. |
 
@@ -38,16 +38,19 @@ systemctl --user restart conexus-hub.service                   # a deploy: the H
 A unit stopped on purpose is `inactive (dead)`. It does not come back until you start it, or until the next boot
 if it is enabled. `systemctl --user disable --now conexus-hub.service` stops it for good.
 
-**Start-limit state.** After five crashes in 300 s the status reads:
+**Start-limit state.** After five crashes in 300 s the unit stays down and the status reads:
 
 ```text
-Active: failed (Result: start-limit-hit)
+× conexus-hub.service - Conexus pilot Hub
+     Active: failed (Result: exit-code)
+    Process: ExecStart=.../infra/pilot/hub.sh (code=exited, status=137)
 ```
 
-and the journal says `Start request repeated too quickly` and `Failed with result 'start-limit-hit'`. After exit
-78 the status reads `Active: failed (Result: exit-code)` with `status=78/CONFIG` and no further start. In both
-cases read the last lines of `hub.log` first. A Postgres that was not up yet at boot is the common cause of the
-first. Fix the cause, then:
+`NRestarts` is 5, and the journal says `Start request repeated too quickly` and `Failed to start`. A manual
+`start` inside the window gets the same refusal. After exit 78 the status reads `Active: failed (Result: exit-code)`
+with `status=78/CONFIG`, `NRestarts` is 0, and the Hub logged `HUB_FATAL` with `HUB_SCHEMA_BEHIND` or
+`HUB_ALREADY_RUNNING`. In both cases read the last lines of `hub.log` first. A Postgres that was not up yet at boot
+is the common cause of the first. Fix the cause, then:
 
 ```bash
 systemctl --user reset-failed conexus-hub.service
