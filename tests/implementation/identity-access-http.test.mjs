@@ -74,6 +74,78 @@ test('a refused refresh names why Keycloak refused it: a disabled user, an ended
   ])
 })
 
+test('ending the Keycloak session posts the refresh token to the logout endpoint and says ENDED only when Keycloak does', async (t) => {
+  const posted = []
+  const answers = {
+    'live-token': [204, ''],
+    'gone-token': [400, JSON.stringify({ error: 'invalid_grant', error_description: 'Session not active' })],
+    'client-token': [400, JSON.stringify({ error: 'invalid_request' })],
+    'broken-token': [500, 'oops'],
+    'unauthorized-token': [401, JSON.stringify({ error: 'unauthorized_client' })],
+  }
+  const logoutEndpoint = createServer((request, response) => {
+    let body = ''
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => {
+      const form = Object.fromEntries(new URLSearchParams(body))
+      posted.push({ method: request.method, url: request.url, contentType: request.headers['content-type'], form })
+      if (form.refresh_token === 'silent-token') return
+      const [status, payload] = answers[form.refresh_token]
+      response.writeHead(status, { 'content-type': 'application/json' })
+      response.end(payload)
+    })
+  })
+  await new Promise((resolve) => logoutEndpoint.listen(0, '127.0.0.1', resolve))
+  t.after(() => { logoutEndpoint.closeAllConnections(); logoutEndpoint.close() })
+  const base = `http://127.0.0.1:${logoutEndpoint.address().port}`
+  const adapterFor = async (metadata) => {
+    const discovery = async (issuer, clientId, clientSecret, _authentication, options) => {
+      const configuration = new openidClient.Configuration({ issuer: issuer.href, ...metadata }, clientId, clientSecret)
+      for (const hook of options.execute) hook(configuration)
+      return configuration
+    }
+    const adapter = await createOidcAdapter({ issuer: 'http://identity.test/realms/r1', clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`, allowInsecureForTest: true }, { discovery })
+    t.after(() => adapter.close())
+    return adapter
+  }
+  const adapter = await adapterFor({ end_session_endpoint: `${base}/logout` })
+  const end = (refreshToken, signal = AbortSignal.timeout(2_000)) => adapter.endProviderSession({ refreshToken, signal })
+
+  assert.equal(await end('live-token'), 'ENDED')
+  assert.deepEqual(posted, [{ method: 'POST', url: '/logout', contentType: 'application/x-www-form-urlencoded', form: { client_id: 'client', client_secret: 'secret', refresh_token: 'live-token' } }])
+  assert.equal(await end('gone-token'), 'ENDED', 'Keycloak has no session left for the token')
+  assert.equal(await end('client-token'), 'UNCONFIRMED', 'another 400 is no answer about the session')
+  assert.equal(await end('broken-token'), 'UNCONFIRMED')
+  assert.equal(await end('unauthorized-token'), 'UNCONFIRMED')
+  const started = Date.now()
+  assert.equal(await end('silent-token', AbortSignal.timeout(200)), 'UNCONFIRMED', 'a deadline that passes')
+  assert.ok(Date.now() - started < 1_500)
+  assert.equal(await (await adapterFor({ end_session_endpoint: 'http://127.0.0.1:1/logout' })).endProviderSession({ refreshToken: 'live-token', signal: AbortSignal.timeout(2_000) }), 'UNCONFIRMED', 'an unreachable Keycloak')
+  const before = posted.length
+  assert.equal(await (await adapterFor({})).endProviderSession({ refreshToken: 'live-token', signal: AbortSignal.timeout(2_000) }), 'UNCONFIRMED', 'a provider that names no logout endpoint')
+  assert.equal(posted.length, before)
+})
+
+const capturePinoLogs = async (fn) => {
+  const { logger } = await import(built('platform/logger.js'))
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const originalWrite = stream.write.bind(stream)
+  const logs = []
+  stream.write = (chunk) => {
+    try {
+      logs.push(JSON.parse(chunk))
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    return await fn(logs)
+  } finally {
+    stream.write = originalWrite
+  }
+}
+
 const makeStore = ({ eligible = true } = {}) => {
   const state = { sessions: new Map(), oidc: new Map(), bootstrap: new Map(), accounts: new Map(), ended: [], claimed: [], opened: [] }
   return {
@@ -98,12 +170,14 @@ const makeStore = ({ eligible = true } = {}) => {
     async endHub({ sessionToken, csrfToken }) {
       const value = state.sessions.get(sessionToken)
       if (!value || value.csrfToken !== csrfToken) return false
-      state.sessions.delete(sessionToken); state.ended.push(sessionToken); return true
+      state.sessions.delete(sessionToken); state.ended.push(sessionToken); return { refreshToken: value.refreshToken ?? null }
     },
   }
 }
 
-const makeOidc = (identity = {}) => ({
+const makeOidc = (identity = {}, { providerLogout = async () => 'ENDED', calls = [] } = {}) => ({
+  calls,
+  async endProviderSession(input) { calls.push(input); return providerLogout(input) },
   async begin() { return { state: 'state-1', nonce: 'nonce-1', pkceVerifier: 'pkce-1', location: 'https://issuer.test/authorize?state=state-1' } },
   async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: 'keycloak-refresh', ...identity } },
 })
@@ -206,23 +280,66 @@ test('bootstrap IAM-03 derives subject server-side and authenticity failures fir
   assert.equal(injectedSubject.statusCode, 400)
 })
 
-test('IAM-01 and IAM-02 use current opaque session and never claim provider logout', async (t) => {
+const signedInStore = () => {
   const store = makeStore()
-  store.state.sessions.set('session-1', { account: { accountId: 'account-1', displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: 'csrf-1' })
-  const app = await createHubApp({ store, oidc: makeOidc(), config })
+  store.state.sessions.set('session-1', { account: { accountId: 'account-1', displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: 'csrf-1', refreshToken: 'keycloak-refresh-1' })
+  return store
+}
+const signOut = (app, csrf = 'csrf-1', requestOrigin = origin) => app.inject({ method: 'DELETE', url: '/api/session', headers: { origin: requestOrigin, 'x-conexus-csrf': csrf }, cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' } })
+const clearedCookies = (response) => [response.headers['set-cookie']].flat().filter((cookie) => /Max-Age=0|Expires=Thu, 01 Jan 1970/.test(cookie)).map((cookie) => cookie.split('=')[0]).sort()
+
+test('IAM-01 uses the current opaque session; IAM-02 ends it first, then asks Keycloak to end the SSO session behind it', async (t) => {
+  const store = signedInStore()
+  const order = []
+  const oidc = makeOidc({}, { providerLogout: async () => { order.push(`keycloak after ${JSON.stringify(store.state.ended)}`); return 'ENDED' } })
+  const app = await createHubApp({ store, oidc, config })
   t.after(() => app.close())
   const context = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })
   assert.equal(context.statusCode, 200)
   assert.deepEqual(context.json(), { account: { accountId: 'account-1', displayName: 'Leandro' }, workspaces: [], projects: [] })
-  const wrongOrigin = await app.inject({ method: 'DELETE', url: '/api/session', headers: { origin: 'https://attacker.test', 'x-conexus-csrf': 'csrf-1' }, cookies: { '__Host-conexus_session': 'session-1' } })
-  assert.equal(wrongOrigin.statusCode, 403)
-  const wrongCsrf = await app.inject({ method: 'DELETE', url: '/api/session', headers: { origin, 'x-conexus-csrf': 'wrong' }, cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' } })
-  assert.equal(wrongCsrf.statusCode, 403)
-  const ended = await app.inject({ method: 'DELETE', url: '/api/session', headers: { origin, 'x-conexus-csrf': 'csrf-1' }, cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' } })
+  assert.equal((await signOut(app, 'csrf-1', 'https://attacker.test')).statusCode, 403)
+  assert.equal((await signOut(app, 'wrong')).statusCode, 403)
+  assert.deepEqual(oidc.calls, [], 'a refused sign-out never reaches Keycloak')
+  const ended = await signOut(app)
   assert.equal(ended.statusCode, 204)
+  assert.equal(ended.body, '', 'the answer says the Conexus session ended, nothing about Keycloak')
   assert.deepEqual(store.state.ended, ['session-1'])
+  assert.deepEqual(oidc.calls.map(({ refreshToken, signal }) => ({ refreshToken, bounded: signal instanceof AbortSignal })), [{ refreshToken: 'keycloak-refresh-1', bounded: true }],
+    'Keycloak is asked once, with that sign-in\'s refresh token and a deadline')
+  assert.deepEqual(order, ['keycloak after ["session-1"]'], 'only after the Conexus session ended')
   const after = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })
   assert.equal(after.statusCode, 401)
+  assert.equal((await signOut(app)).statusCode, 401, 'signing out again ends nothing')
+  assert.equal(oidc.calls.length, 1, 'and asks Keycloak nothing')
+})
+
+test('IAM-02 still ends the Conexus session when Keycloak does not confirm, and says so only in the log', async (t) => {
+  const store = signedInStore()
+  const app = await createHubApp({ store, oidc: makeOidc({}, { providerLogout: async () => 'UNCONFIRMED' }), config })
+  t.after(() => app.close())
+  await capturePinoLogs(async (logs) => {
+    const ended = await signOut(app)
+    assert.equal(ended.statusCode, 204)
+    assert.deepEqual(clearedCookies(ended), ['__Host-conexus_csrf', '__Host-conexus_session'])
+    assert.deepEqual(store.state.ended, ['session-1'])
+    const warnings = logs.filter((record) => record.level === 40)
+    assert.deepEqual(warnings.map((record) => record.event), ['hub_sign_out_provider_logout_unconfirmed'])
+    assert.doesNotMatch(JSON.stringify(logs), /keycloak-refresh-1|account-1/, 'the log carries neither the token nor the account')
+  })
+  assert.equal((await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })).statusCode, 401)
+})
+
+test('IAM-02 waits on a silent Keycloak only until its deadline', async (t) => {
+  const store = signedInStore()
+  const oidc = makeOidc({}, { providerLogout: ({ signal }) => new Promise((resolve) => signal.addEventListener('abort', () => resolve('UNCONFIRMED'))) })
+  const app = await createHubApp({ store, oidc, config })
+  t.after(() => app.close())
+  const started = Date.now()
+  const ended = await signOut(app)
+  const waited = Date.now() - started
+  assert.equal(ended.statusCode, 204)
+  assert.ok(waited >= 2_900 && waited < 4_500, `waited ${waited} ms`)
+  assert.deepEqual(store.state.ended, ['session-1'])
 })
 
 test('malformed IAM-03 body fires the generated schema before owner code', async (t) => {
@@ -398,25 +515,6 @@ test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 
   assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
 })
 
-const capturePinoLogs = async (fn) => {
-  const { logger } = await import(built('platform/logger.js'))
-  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
-  const stream = logger[pinoStreamSym]
-  const originalWrite = stream.write.bind(stream)
-  const logs = []
-  stream.write = (chunk) => {
-    try {
-      logs.push(JSON.parse(chunk))
-    } catch {
-      // ignore
-    }
-  }
-  try {
-    return await fn(logs)
-  } finally {
-    stream.write = originalWrite
-  }
-}
 
 test('OIDC begin, callback failures, and missing tokens log registered error codes and keep 503 status', async (t) => {
   const store = makeStore()
