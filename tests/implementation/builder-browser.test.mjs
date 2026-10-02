@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { useWebBrowser } from './web-dev-server.mjs'
+import { shareWebBrowser } from './web-dev-server.mjs'
 import { answerPendingCard, createCards } from '../../scripts/builder-eval/run.mjs'
 import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
 
-const web = useWebBrowser()
+const web = shareWebBrowser()
 
 // The formatter has no Mastra field to read a display name from (see model-display-name.ts's own
 // comment and the PR description for the file:line citations), so its output is pinned here against

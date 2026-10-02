@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { useWebBrowser } from './web-dev-server.mjs'
+import { shareWebBrowser } from './web-dev-server.mjs'
 
-const web = useWebBrowser()
+const web = shareWebBrowser()
 
 const withServer = async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })

@@ -1,10 +1,10 @@
 import test from 'node:test'
-import { useWebBrowser } from './web-dev-server.mjs'
+import { shareWebBrowser } from './web-dev-server.mjs'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 const WORKSPACE = { workspaceId: 'w1', name: 'Operações' }
 
-const web = useWebBrowser()
+const web = shareWebBrowser()
 
 const withServer = async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })

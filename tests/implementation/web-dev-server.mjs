@@ -28,7 +28,7 @@ export const startWebServer = async (t, options = {}) => {
 // One Vite server and one Chromium per test file, closed by the file's after hook even when a test
 // fails. Every test still gets its own browser context, so cookies, storage and routes never leak
 // from one test into the next. Call it once at the top level of the file.
-export const useWebBrowser = (serverOptions = {}) => {
+export const shareWebBrowser = (serverOptions = {}) => {
   let web = null
   let browser = null
   before(async () => {
