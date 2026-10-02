@@ -30,14 +30,18 @@ maps perfis to cargos; perfis control operations (platform) and rows. Keycloak o
 
 ## Options considered
 
-### Option 1: Access in code, `defineOperation({ allow, run })`, rows filtered by the handler
+### Option 1: Access in handler code, rows filtered by the handler
 
-**Pros**:
-- The nicest authoring; common in SDKs.
+**Cons**: rows stay protected only by generated filters (the CVE case); the guard lives where the
+platform cannot read it. Rejected.
 
-**Cons**:
-- The platform must run or parse generated code to learn the guard.
-- Rows stay protected only by generated filters: the CVE case.
+### Authoring B (open, see E1): Option 2's enforcement, contract written in TypeScript
+
+Same server manifest, guard, binding and row floor as Option 2. The Builder writes
+`defineOperation` and `defineAccess`; the server build, which already runs in the build sandbox,
+emits the manifest. It removes the `handler`/`export` strings and the regenerate step, and it adds
+an extractor and a schema builder. Under both forms the Builder authors the contract, so neither is
+more trusted. E1 decides.
 
 ### Option 2: Access as manifest data, runner guard, pid binding, platform policies (chosen)
 

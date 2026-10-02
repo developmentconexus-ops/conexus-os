@@ -102,6 +102,17 @@ Manifest v2 and the guard
 - **AC-14**: The acting principal is narrowed per operation: its perfis are `principal.perfis ∩
   operation.allow`. The handler's `caller.perfis` and the database binding both carry exactly that
   set. [`app-access-guard`, `application-row-scope-postgres`]
+- **AC-30**: When a served revision's `reg.artifact_access` grants more than the last approved one
+  (a perfil added to an operation's `allow`, to `seeAll`, `editAll` or `edit`; a `reads` added; a
+  table moved from `OWNER` or `INHERIT` to `SHARED` or dropped from `tables`; a perfil declared
+  again that has live assignments), the app host answers `403 ACCESS_APPROVAL_PENDING` to app users
+  until the owner of the Project's Workspace approves that exact revision on the Access tab, which
+  shows the difference. The Preview is not affected. A revision that only narrows is approved
+  automatically. Each approval appends an `iam.access_event`. `accessWidening(previous, next)` is
+  pure. [`app-access-manifest`, `application-host`, `project-settings-access-browser`]
+- **AC-31**: The principal the guard uses is resolved after the call leaves the admission queue
+  (`application-invoker.ts:134-137`), so an unassign or a disable committed while a call waits
+  refuses that call. [`application-invoker`]
 
 Identity in Postgres
 - **AC-15**: Every invoke session is bound before its first query: the relay holds client bytes
@@ -174,6 +185,14 @@ Screens and the Builder skill
 **Chosen option**: Option 2 of [rationale.md](rationale.md): access as manifest data, a runner
 guard, a principal narrowed per operation, identity bound to the backend pid by the relay, and row
 policies the platform generates and checks with a census.
+
+**Open: the authoring form.** The runtime contract is fixed: the server-stage manifest v2 the
+build emits and the runner admits, `reg.artifact_access`, the guard, the binding and the row floor.
+How the Builder writes it is open. A: `conexus/manifest.json` beside the handlers, as *Manifest v2*
+shows. B: `defineOperation` and `defineAccess` in TypeScript, from which the server build, inside
+the build sandbox, emits the same server manifest. Experiment E1 (*Build plan*) decides before
+slice 4 starts. AC-11, AC-12, AC-22 and AC-28 name `manifest.json`; under B they read "the access
+declaration", and the server stage is unchanged.
 
 **Implementation skills**: `conexus-development` (`.agents/skills/conexus-development/`) · `mastra`
 (`.agents/skills/mastra/`, to confirm no installed Mastra mechanism applies)
@@ -404,11 +423,17 @@ The `conexus-server` skill teaches the method, not a rule list:
   the runtime role: the census rolls it back and quarantines the Project.
 - The binding needs no secret: the relay and the provisioner know the pid, and nothing enters the
   sandbox. No SQL the runtime role may run inserts a binding, changes its pid or its `session_user`.
-- Stated limits: `connectors.fetch` uses the company's credential and is guarded only by `allow`,
-  never by the row floor. An administrator who joins a cargo reaches every app mapped to it; this is
-  recorded in `iam.access_event`. Builder runs and view-as write into Preview data, which is the live
-  data until an environment axis exists. Catalog row counts and unique or foreign key errors still
-  reveal that rows exist, as today.
+- Stated limits: connectors are bound per Project, not per operation. A handler may call any
+  operation of the Project's connections over its socket, with the company's credential, guarded
+  only by `allow` and never by the row floor. An app must not promise per-person segregation of ERP
+  data until per-operation connector binding exists. There is no column-level rule; a sensitive
+  column needs its own table. An invoke already past the guard finishes after an unassign or a
+  disable; its binding ends at the invoke timeout plus 10 seconds, and what it wrote stays. Until an
+  environment axis exists, every Workspace member can read and change all live rows of the
+  Workspace's apps (the Preview acts with every perfil by default, and migrations run as the table
+  owner). The row floor protects app users from each other, not from developers. An administrator
+  who joins a cargo reaches every app mapped to it; this is recorded in `iam.access_event`. Catalog
+  row counts and unique or foreign key errors still reveal that rows exist, as today.
 - `reg.artifact_access` is derived: written only from the manifest when the Hub admits an artifact
   revision, with no human write path. Perfis and `allow` change by a commit to the app.
 - No Mastra RBAC or FGA (0008 decision 5). Both need Mastra's Enterprise licence in production: the
@@ -436,7 +461,8 @@ must end in `RULE_PRESENT`, a rollback and a 503 (AC-18); a cascade into an `OWN
 and into an `INHERIT` child by `via` (no finding) (AC-18); a gestor calling a vendedor only operation
 (AC-14); a gestor adding an item to a vendedor's deal (AC-20); a Workspace member with no perfil,
 refused on the app host and admitted to the Preview (AC-8); a broken guard test double failing the
-matrix (AC-26).
+matrix (AC-26); the Builder adds `vendedor` to `seeAll`, and person a still gets 403
+`ACCESS_APPROVAL_PENDING` until the owner approves (AC-30).
 
 ## Build plan
 
@@ -453,14 +479,26 @@ as one Hub and runner image (the door needs declared perfis and an Access tab to
 3. IAM: migration `0045`, the IAM functions and `identity-access` module code, the operation ledger
    and wire contract rows replacing `IAM-11` to `IAM-13`, the catalog snapshot, and the updated
    tests and proof scripts that named the dropped tables. Satisfies **AC-1** to **AC-9**.
+E1, before slice 4. In the Builder eval, the Builder builds three requests under A and under B,
+three runs each: the AC-29 app; an app with an `INHERIT` table; a change that adds a perfil to an
+existing app. Measured against a literal expected access matrix: wrong `allow`, row scope or
+`reads`; check refusals; repair turns; time to a passing check. B must also show that extraction
+runs only in the build sandbox, that `admitManifest(..., 'server')` accepts its output, that a
+schema it cannot represent is refused, and that each operation is bound to its bundled export with
+no string link. B is chosen only if it makes fewer wrong access declarations or fewer repairs. On a
+tie, A stays.
+
 4. Manifest v2 and generation: `admitManifest` v2, the one normalization, `reg.artifact_access` at
    admission, `generate-client.mjs`, the template rebuild and migration `0046`, the boot stubs, the
    starter manifest. Satisfies **AC-11**, **AC-12**, **AC-22**, **AC-23**.
 5. Runner enforcement: `authorizeOperation`, narrowing, binding of acting perfis, `policiesFor`,
    converge and census in the migration transaction, quarantine, the default privilege removal, the
-   matrix at prepare. Satisfies **AC-13**, **AC-14**, **AC-17** to **AC-20**, **AC-26**.
+   matrix at prepare, the access widening comparison and the door, the principal resolved after
+   the queue. Satisfies **AC-13**, **AC-14**, **AC-17** to **AC-20**, **AC-26**, **AC-30**,
+   **AC-31**.
 6. Surfaces: `/__conexus/me`, `/__conexus/people`, view-as, `run-operation as`, the Cargos screen and
-   the Access tab. Satisfies **AC-21**, **AC-24**, **AC-25**, **AC-27**.
+   the Access tab with the widening approval. Satisfies **AC-21**, **AC-24**, **AC-25**, **AC-27**,
+   **AC-30**.
 7. Knowledge: the `conexus-server` section and handler example. Satisfies **AC-28**.
 8. Proof: AC-29 in the driven browser, then the Builder eval cases that touch data. Satisfies
    **AC-29**.
