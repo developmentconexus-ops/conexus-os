@@ -73,3 +73,46 @@ test('a 200 reply resolves normally, refusal-shaping never runs', async (t) => {
   const client = await fakeRunner(t, { status: 200, body: { state: 'READY', reset: false, applied: [] } })
   assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { state: 'READY', reset: false, applied: [] })
 })
+
+test('call rejections preserve underlying causes', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'conexus-app-runner-causes-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const socketPath = join(dir, 'runner.sock')
+
+  let mode = 'invalid-json'
+  const server = createServer((request, response) => {
+    if (mode === 'invalid-json') {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end('not json')
+    } else if (mode === 'socket-error') {
+      request.destroy(new Error('simulated-network-fault'))
+    }
+  })
+  await new Promise((resolve) => server.listen(socketPath, resolve))
+  t.after(() => new Promise((resolve) => server.close(resolve)))
+
+  const client = createApplicationRunnerClient(socketPath)
+
+  // 1. JSON parse error
+  mode = 'invalid-json'
+  await assert.rejects(
+    async () => client.invoke({ projectId: 'p1', method: 'GET', path: '/test', headers: {}, body: null }),
+    (error) => {
+      assert.equal(error.message, 'APPLICATION_RUNNER_UNAVAILABLE')
+      assert.ok(error.cause instanceof SyntaxError)
+      return true
+    }
+  )
+
+  // 2. Request/connection error
+  mode = 'socket-error'
+  await assert.rejects(
+    async () => client.invoke({ projectId: 'p1', method: 'GET', path: '/test', headers: {}, body: null }),
+    (error) => {
+      assert.equal(error.message, 'APPLICATION_RUNNER_UNAVAILABLE')
+      assert.ok(error.cause)
+      return true
+    }
+  )
+})
+

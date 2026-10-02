@@ -5,6 +5,16 @@ import { hubModuleUrl } from './hub-build.mjs'
 test('GET project-summaries authenticates, sorts by lastActivityAt, and answers the store as-is', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectSummaryRoutes } = await import(hubModuleUrl('project/summary-routes.js'))
+  const { logger } = await import(hubModuleUrl('platform/logger.js'))
+
+  const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
+  const stream = logger[pinoStreamSym]
+  const logs = []
+  const originalWrite = stream.write.bind(stream)
+  stream.write = (chunk) => {
+    try { logs.push(JSON.parse(chunk)) } catch {}
+  }
+  t.after(() => { stream.write = originalWrite })
 
   const workspaceId = '20000000-0000-4000-8000-000000000101'
   const summaries = [
@@ -48,6 +58,11 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   const unavailable = await list()
   assert.equal(unavailable.statusCode, 503)
   assert.equal(unavailable.json().type.endsWith('project-summaries-unavailable'), true)
+  const failure = logs.find((record) => record.msg === 'PROJECT_SUMMARIES_FAILED')
+  assert.ok(failure, 'PROJECT_SUMMARIES_FAILED was logged')
+  assert.equal(failure.level, 50)
+  assert.equal(failure['exception.message'], 'PROJECT_READ_POOL_NOT_CONFIGURED')
+  assert.equal(failure['conexus.workspace_id'], workspaceId)
 })
 
 test('GET project thumbnail streams PNG bytes with ETag and cache control, handles 401, 404, 503', async (t) => {
