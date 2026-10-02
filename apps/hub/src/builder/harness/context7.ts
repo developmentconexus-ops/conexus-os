@@ -41,20 +41,25 @@ const isCleanText = (value: unknown, maxLength: number): boolean =>
 /**
  * The tool boundary's check on what leaves for Context7. The Hub holds no list of the values the
  * Builder read through Conexões, so this cannot prove a query is free of company data. It bounds
- * what can leave to a short single-line technical phrase, and refuses the shapes company data
+ * what can leave to a short single-line technical phrase, sends only the checked fields so nothing else the model adds travels, and refuses the shapes company data
  * usually takes: pasted rows, emails and long numbers. A short sentence of company words still
  * passes; the tool descriptions and the Builder prompt forbid it, and the first real uses are watched.
  */
-const leavesCleanly = (input: unknown): boolean => {
-  if (typeof input !== 'object' || input === null) return false
+const outboundArguments = (input: unknown): Readonly<{ query: string; libraryName?: string; libraryId?: string }> | undefined => {
+  if (typeof input !== 'object' || input === null) return undefined
   const { query, libraryName, libraryId } = input as Record<string, unknown>
-  if (!isCleanText(query, MAX_QUERY_LENGTH)) return false
+  if (!isCleanText(query, MAX_QUERY_LENGTH)) return undefined
+  const outbound: { query: string; libraryName?: string; libraryId?: string } = { query: query as string }
   if (libraryName !== undefined) {
-    if (!isCleanText(libraryName, MAX_LIBRARY_NAME_LENGTH)) return false
-    if ((libraryName as string).trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return false
+    if (!isCleanText(libraryName, MAX_LIBRARY_NAME_LENGTH)) return undefined
+    if ((libraryName as string).trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return undefined
+    outbound.libraryName = libraryName as string
   }
-  if (libraryId !== undefined && !(typeof libraryId === 'string' && LIBRARY_ID.test(libraryId))) return false
-  return true
+  if (libraryId !== undefined) {
+    if (!(typeof libraryId === 'string' && LIBRARY_ID.test(libraryId))) return undefined
+    outbound.libraryId = libraryId
+  }
+  return outbound
 }
 
 const REMOTE_TOOLS: Readonly<Record<string, Readonly<{ name: string; description: string }>>> = Object.freeze({
@@ -111,9 +116,10 @@ export const createContext7Docs = (options: Context7Options = {}): DocsTools => 
         id: exposed.name,
         description: exposed.description,
         execute: async (input: unknown, context: Parameters<typeof call>[1]) => {
-          if (!leavesCleanly(input)) return { content: REFUSAL, isError: true }
+          const outbound = outboundArguments(input)
+          if (!outbound) return { content: REFUSAL, isError: true }
           try {
-            return await call(input, context)
+            return await call(outbound, context)
           } catch {
             return { content: 'Context7 could not answer now. Go on without it and read the code in the checkout.', isError: true }
           }

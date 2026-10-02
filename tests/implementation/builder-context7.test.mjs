@@ -136,3 +136,17 @@ test('a query that could carry company data is refused before it leaves the Hub'
 test('Context7\'s default endpoint is its remote MCP', () => {
   assert.equal(CONTEXT7_URL, 'https://mcp.context7.com/mcp')
 })
+
+test('only the validated fields leave the Hub, whatever else the model adds to the call', async () => {
+  const fake = await startFake(FAKE_TOOLS)
+  const docs = createContext7Docs({ url: fake.url })
+  try {
+    const tools = await docs.tools()
+    await callTool(tools, 'context7_query_docs', { libraryId: '/honojs/hono', query: 'routing', customerRecord: 'sensitive tenant data' })
+    await callTool(tools, 'context7_resolve_library_id', { libraryName: 'hono', query: 'routing', customerRecord: 'sensitive tenant data' })
+    assert.deepEqual(fake.received, [{ query: 'routing', libraryId: '/honojs/hono' }, { query: 'routing', libraryName: 'hono' }])
+  } finally {
+    await docs.close()
+    await fake.stop()
+  }
+})
