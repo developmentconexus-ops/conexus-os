@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-database.mjs'
 
@@ -14,7 +15,7 @@ const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
 const { assertSchemaCurrent, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 
-const latestVersion = '0045'
+const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
 
 test('a database one migration behind the code refuses to serve and names the missing version', async (t) => {
   const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_behind')
