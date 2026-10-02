@@ -60,14 +60,15 @@ type RunStart = Readonly<{ builderRunId: string; createdAt: string }>
 /**
  * The run that raised a prompt the thread stored: the latest run that began no later than the call.
  * The thread does not name the run, so the card is placed by time. A prompt on the live stream
- * (`raisedAt` null) belongs to the run being followed.
+ * (`raisedAt` null), and one no known run began before (clocks differ a little between the Hub and
+ * its database), has no known owner and stays with the run being followed.
  */
 const promptRunId = (prompt: PromptEntry, runs: readonly RunStart[]): string | null => {
   if (prompt.raisedAt === null) return null
   const raised = Date.parse(prompt.raisedAt)
   const began = (run: RunStart): number => Date.parse(run.createdAt)
   const owner = runs.filter((run) => began(run) <= raised).sort((left, right) => began(right) - began(left))[0]
-  return owner?.builderRunId ?? ''
+  return owner?.builderRunId ?? null
 }
 
 /** A card is open only for the run it was raised under; one left by an earlier run is not shown. */

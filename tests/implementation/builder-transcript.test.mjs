@@ -722,3 +722,12 @@ test('a call a stop denied draws no card even though its record stays on the mes
   })
   assert.deepEqual(hydrate([denied]).entries.map((entry) => entry.kind), ['message'])
 })
+
+test('a stored prompt slightly older than the only run stays open', () => {
+  const message = { ...dbMessage('assistant-skew', 'assistant', [toolPart('q1', 'call', { toolName: 'ask_user' })], {
+    suspendedTools: { q1: { toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'Which?' } } },
+  }), createdAt: new Date('2026-10-01T11:59:59.000Z') }
+  const only = { builderRunId: 'run-1', createdAt: '2026-10-01T12:00:00.000Z' }
+  const prompt = hydrate([message]).entries.find((entry) => entry.kind === 'prompt')
+  assert.equal(promptIsOpenFor(prompt, only, [only]), true)
+})

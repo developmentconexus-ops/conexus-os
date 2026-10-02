@@ -36,10 +36,10 @@ type BuilderPreview = Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-/** A run left running with a candidate; `main` in the Conexus Git says whether it was admitted. */
 /** A run a restart interrupted after it had started. */
 type RestartedRun = Readonly<{ builderRunId: string; projectId: string; conversationId: string }>
 
+/** A run left running with a candidate; `main` in the Conexus Git says whether it was admitted. */
 type AdmissionRun = Readonly<{
   builderRunId: string
   projectId: string
