@@ -84,7 +84,7 @@ test('a dry run only reads, --apply converges, and a second run has nothing to d
 
   const applied = gh.run('--apply')
   assert.equal(applied.status, 0, applied.stderr)
-  assert.equal(gh.calls().filter(call => call === 'label create').length, 20)
+  assert.equal(gh.calls().filter(call => call === 'label create').length, 21)
   assert.match(applied.stdout, /^Labels converged: a second run has nothing to do\.$/m)
 
   const again = gh.run()
