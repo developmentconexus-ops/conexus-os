@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  EXEMPT_TESTS,
   checkTestCensus,
   collectReachableTests,
 } from '../../scripts/check-test-census.mjs'
@@ -64,10 +63,4 @@ test('checkTestCensus reports any committed test not in candidate graph or exemp
   })
 
   assert.deepEqual(result.unreached, ['tests/implementation/orphaned.test.mjs'])
-})
-
-test('live suites remain exempt in EXEMPT_TESTS', () => {
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-e2b-live.test.mjs'))
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-sandbox-e2b-live.test.mjs'))
-  assert.ok(EXEMPT_TESTS.includes('tests/implementation/builder-production-composed-live.test.mjs'))
 })

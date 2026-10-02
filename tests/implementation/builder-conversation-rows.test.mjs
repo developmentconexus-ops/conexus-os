@@ -148,3 +148,10 @@ test('a tool call whose stored result is {error: true, message} stays a failed r
   assert.notEqual(failedLive, shown({ isError: false, message }), 'a failed row does not read as a finished one')
   assert.equal(shown({ error: true, message }), failedLive)
 })
+
+test('a later snapshot of a call without arguments keeps the arguments of the first and takes the last result', () => {
+  const call = (state, args, result) => ({ type: 'tool-invocation', toolInvocation: { state, toolCallId: 'q9', toolName: 'ask_user', args, ...(result ? { result } : {}) } })
+  const first = assistant('m1', [call('call', { questions: [{ question: 'Qual tamanho?' }] })])
+  const resolved = assistant('m2', [call('result', {}, { content: 'User answered:\nQual tamanho?: grande', isError: false })])
+  assert.deepEqual(asked([first, resolved]), [[['Qual tamanho?'], 'User answered:\nQual tamanho?: grande']])
+})

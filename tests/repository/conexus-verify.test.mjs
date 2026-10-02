@@ -153,6 +153,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
+  'weak-tests-ratchet',
   'only-opt-in-skips',
 ])
 

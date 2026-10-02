@@ -8,10 +8,10 @@ import { TASK_TOOL_NAMES, groupSummary, toolRequest, toolSentence } from '../../
 // ran before /task|plan|todo/i and matched the "ask" inside "task", so every task update rendered
 // as "Perguntou a você" although the agent never asked anything.
 test('task_update, task_check and task_complete never read as a question, running or done', () => {
-  for (const toolName of ['task_update', 'task_check', 'task_complete']) {
-    assert.notEqual(toolSentence(toolName, true), 'Perguntando a você')
-    assert.notEqual(toolSentence(toolName, false), 'Perguntou a você')
-  }
+  assert.deepEqual(
+    ['task_update', 'task_check', 'task_complete'].map((toolName) => [toolSentence(toolName, true), toolSentence(toolName, false)]),
+    [['Atualizando as tarefas', 'Atualizou as tarefas'], ['Conferindo as tarefas', 'Conferiu as tarefas'], ['Concluindo uma tarefa', 'Concluiu uma tarefa']],
+  )
 })
 
 test('task_update, task_check and task_complete have their own pt-BR sentence, not the generic fallback', () => {
