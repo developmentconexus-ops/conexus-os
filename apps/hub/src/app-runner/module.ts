@@ -38,14 +38,14 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
     response.on('end', () => {
       try {
         resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown })
-      } catch {
-        reject(new Error('APPLICATION_RUNNER_UNAVAILABLE'))
+      } catch (cause) {
+        reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
       }
     })
-    response.on('error', () => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE')))
+    response.on('error', (cause) => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
   })
   outgoing.on('timeout', () => outgoing.destroy(new Error('APPLICATION_RUNNER_UNAVAILABLE')))
-  outgoing.on('error', () => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE')))
+  outgoing.on('error', (cause) => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
   outgoing.end(payload)
 })
 

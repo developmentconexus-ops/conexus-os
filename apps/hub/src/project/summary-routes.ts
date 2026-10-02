@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
+import { recordFailure } from '../platform/logger.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { ProjectStore, ProjectSummaryWithActivity } from './store.js'
 
@@ -37,6 +38,7 @@ export const registerProjectSummaryRoutes = async (
         return { projects }
       } catch (error) {
         if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')
+        recordFailure(request.log, 'PROJECT_SUMMARIES_FAILED', error, { 'conexus.workspace_id': request.params.workspaceId })
         return sendProblem(reply, 503, 'project-summaries-unavailable', 'Project summaries unavailable')
       }
     },

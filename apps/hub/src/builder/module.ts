@@ -216,7 +216,8 @@ export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
 // Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
 // `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
 // waits for the store's own init, which creates the tables a fresh installation does not have yet.
-type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): void }>
+// `close()` stops the timer, aborts the prune in flight between batches, and settles after it, so the pool it uses can end after it.
+type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
 
 /** @public Tests import this at runtime from the built module. */
 export const scheduleRetentionPrune = (
@@ -224,17 +225,34 @@ export const scheduleRetentionPrune = (
   log: (line: string) => void,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
-  const tick = async (): Promise<void> => {
+  const inFlight = new Set<Promise<void>>()
+  const stop = new AbortController()
+  const run = async (): Promise<void> => {
     await storage.init()
-    for (const result of await storage.prune()) {
+    for (const result of await storage.prune({ signal: stop.signal })) {
       log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
       if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
     }
   }
-  tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`))
-  const timer = setInterval(() => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }, intervalMs)
+  const tick = (): Promise<void> => {
+    const pass = run()
+    inFlight.add(pass)
+    const settled = (): void => { inFlight.delete(pass) }
+    pass.then(settled, settled)
+    return pass
+  }
+  const tickLogged = (): void => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }
+  tickLogged()
+  const timer = setInterval(tickLogged, intervalMs)
   timer.unref()
-  return Object.freeze({ tick, close: () => clearInterval(timer) })
+  return Object.freeze({
+    tick,
+    close: async () => {
+      clearInterval(timer)
+      stop.abort()
+      await Promise.allSettled([...inFlight])
+    },
+  })
 }
 
 // Kills what a crashed Hub left running before the router takes calls.
@@ -304,9 +322,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
+  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
+  const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
+    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(executorPool, input) } : {}),
+    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(executorPool, input) } : {}),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
@@ -509,12 +531,16 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
+    getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     recover: service.recover,
     close: async () => {
-      retentionPrune.close()
-      idleMachineSweep?.close()
+      let drained: Promise<unknown> = Promise.resolve()
       try {
-        service.stopLegs()
+        try {
+          service.stopLegs()
+        } finally {
+          drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
+        }
         await service.close()
       } finally {
         try {
@@ -524,6 +550,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           await docsTools.close()
           await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
+          await drained
           await Promise.all([storagePool.end(), modelAccountPool.end()])
         }
       }

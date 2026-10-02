@@ -65,6 +65,21 @@ test('the check runs the Hub script as root with the agent identity named, then 
   assert.deepEqual(calls.filter((call) => call.kind !== 'run').map(({ kind, options }) => [kind, options.user]), [['list', 'root'], ['read', 'root']])
 })
 
+test('the thumbnail is read only from the path the Hub names, and that path is handed to the check', async () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3])
+  const thumbnail = '/var/lib/conexus-build/run-1.png'
+  const { sandbox, calls } = fakeSandbox(new Map([[`${out}/index.html`, Buffer.from('<!doctype html>')]]))
+  const read = sandbox.files.read
+  sandbox.files.read = async (path, options) => (path === thumbnail ? png : read(path, options))
+  const run = await checkApplicationInSandbox(sandbox, { root, out, collect: true, thumbnail, user: 'root' })
+  assert.deepEqual([...run.thumbnail.bytes], [...png])
+  assert.match(calls.find((call) => call.kind === 'run').command, new RegExp(`--out '${out}' --thumbnail '${thumbnail}' --as `))
+  assert.equal(calls.some((call) => call.path === `${root}/conexus-thumbnail.png`), false)
+  const none = fakeSandbox(new Map([[`${out}/index.html`, Buffer.from('<!doctype html>')]]))
+  assert.equal((await checkApplicationInSandbox(none.sandbox, { root, out, collect: true, user: 'root' })).thumbnail, null)
+  assert.deepEqual(none.calls.filter((call) => call.kind === 'read').map((call) => call.path), [`${out}/index.html`])
+})
+
 test('a check that did not pass its blocking steps reads no build', async () => {
   const report = { ...PASSING_REPORT, ok: false, steps: [
     PASSING_REPORT.steps[0],

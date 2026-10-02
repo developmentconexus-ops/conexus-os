@@ -137,9 +137,34 @@
     "page": "docs/development/review/builder-factory.md",
     "flows": [
       {
+        "id": "builder.ask-and-answer",
+        "nome": "Responder a uma pergunta do agente e ver o trabalho seguir",
+        "test": "tests/live/builder-ask-and-answer.test.mjs"
+      },
+      {
+        "id": "builder.park-and-answer",
+        "nome": "Deixar o pedido esperando uma pergunta e responder depois",
+        "test": "tests/live/builder-park-and-answer.test.mjs"
+      },
+      {
+        "id": "builder.reload-while-parked",
+        "nome": "Recarregar a página com uma pergunta esperando resposta",
+        "test": "tests/live/builder-reload-while-parked.test.mjs"
+      },
+      {
+        "id": "builder.second-question",
+        "nome": "Ver a segunda pergunta numa página já aberta",
+        "test": "tests/live/builder-second-question.test.mjs"
+      },
+      {
         "id": "builder.send-and-reply",
         "nome": "Enviar um pedido e ler a resposta do agente",
         "test": "tests/live/builder-send-and-reply.test.mjs"
+      },
+      {
+        "id": "builder.typing-while-parked",
+        "nome": "Digitar no campo de mensagem enquanto o pedido espera",
+        "test": "tests/live/builder-typing-while-parked.test.mjs"
       }
     ]
   },
@@ -184,6 +209,8 @@
       "scripts/conexus-verify.mjs",
       "scripts/labels.mjs",
       "scripts/check-test-skips.mjs",
+      "scripts/check-weak-tests.mjs",
+      "scripts/weak-tests-ratchet.json",
       "scripts/test-ledger-reporter.mjs",
       ".github/workflows/**",
       "package.json",
@@ -199,6 +226,7 @@
       "tests/implementation/application-server-*",
       "tests/implementation/hub-build.mjs",
       "tests/implementation/guard-mutations.mjs",
+      "tests/implementation/guard-web-mutations.mjs",
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
@@ -211,6 +239,12 @@
       "docs/tasks/specs/0008-configuration-model/**"
     ],
     "page": "docs/development/review/platform.md",
-    "flows": []
+    "flows": [
+      {
+        "id": "project.delete-wrong-name",
+        "nome": "Excluir um Projeto digitando o nome errado",
+        "test": "tests/live/project-delete-wrong-name.test.mjs"
+      }
+    ]
   }
 ]

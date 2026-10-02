@@ -55,7 +55,7 @@ const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0 } = {}) => {
+const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0 } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -69,6 +69,10 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   const moveMain = (revision) => inBare('update-ref', 'refs/heads/main', revision)
   const git = {
     ...conexusGit,
+    acceptSnapshot: async (...args) => {
+      await beforeAcceptSnapshot?.()
+      return conexusGit.acceptSnapshot(...args)
+    },
     fastForwardMain: async (...args) => {
       await beforeFastForward?.({ moveMain, outside })
       const moved = await conexusGit.fastForwardMain(...args)
@@ -155,6 +159,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       if (!held) throw new Error(`ENOENT: ${path}`)
       return held
     },
+    readAgentFileIfPresent: async (path) => egress.files.get(path) ?? null,
     executeCommand: async (command, args = [], options = {}) => {
       const line = [command, ...args].join(' ')
       onCommand?.(sandbox, line)
@@ -1305,6 +1310,22 @@ test('a sandbox that dies mid-turn leaves every file the write tool wrote in the
   assert.equal(run.inBare('rev-list', '--parents', '-n', '1', run.MIRROR), `${run.mirror()} ${run.base}`)
   assert.equal(await run.main(), run.base)
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [])
+})
+
+test('a mirror write in flight when the sandbox dies lands before the run ends', async (t) => {
+  let held = 0
+  const run = await harness(t, {
+    beforeAcceptSnapshot: () => new Promise((release) => { held += 1; setTimeout(release, 150) }),
+    turn: async ({ sandbox, write }) => {
+      await write('app/a.ts', 'export const a = 1\n')
+      await until(() => held > 0, 'the mirror write reached its accept')
+      sandbox.sandboxId = 'sbx-2'
+      return completed()
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.mirrorFiles().includes('app/a.ts'), true)
 })
 
 test('a turn the person stops keeps its file in the mirror, written at the turn end', async (t) => {
