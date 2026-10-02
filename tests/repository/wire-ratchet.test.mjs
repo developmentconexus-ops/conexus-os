@@ -70,10 +70,8 @@ test('fails when a route is added through a named constant', (t) => {
 
 test('fails on a swap: one route fixed and another added keeps the count and still fails', (t) => {
   const result = run(fixture(t, { routes: ['/a', '/c'] }))
-  assert.equal(errorLines(result), [
-    'Error: builderRoutes: new gap routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json',
-    'builderRoutes: routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json',
-  ].join('\n'))
+  assert.equal(errorLines(result), `Error: builderRoutes: new gap routes.ts GET /c; put it on the generated contract instead of adding it to contracts/technical/wire-ratchet.json
+builderRoutes: routes.ts GET /b is no longer in the code; delete its line from contracts/technical/wire-ratchet.json`)
 })
 
 test('fails and names the line to delete when a gap is fixed', (t) => {
