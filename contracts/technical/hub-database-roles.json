@@ -6,19 +6,19 @@
       "capability": "identity-and-access",
       "passwordFileVariable": "CONEXUS_DB_PASSWORD_FILE",
       "roleVariable": "CONEXUS_DB_USER",
-      "connectsFrom": ["apps/hub/src/server.ts"]
+      "connectsFrom": ["apps/hub/src/hub.ts"]
     },
     {
       "role": "hub_workspace_read",
       "capability": "workspace-read",
       "passwordFileVariable": "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/server.ts"]
+      "connectsFrom": ["apps/hub/src/hub.ts"]
     },
     {
       "role": "hub_workspace_command",
       "capability": "workspace-command",
       "passwordFileVariable": "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/server.ts"]
+      "connectsFrom": ["apps/hub/src/hub.ts"]
     },
     {
       "role": "hub_project_read",

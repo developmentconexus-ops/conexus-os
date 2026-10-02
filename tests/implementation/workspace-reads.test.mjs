@@ -246,7 +246,7 @@ test('one shared pool object serves both operation-specific ports and I&A does n
   assert.equal(identityPool.ends, 1)
   assert.equal(sharedReadPool.ends, 0)
 
-  const server = readFileSync(resolve(repositoryRoot, 'apps/hub/src/server.ts'), 'utf8')
+  const server = readFileSync(resolve(repositoryRoot, 'apps/hub/src/hub.ts'), 'utf8')
   assert.match(server, /workspaceReadPool:\s*s2ReadPool/)
   const sharedWorkspacePool = /\breadPool:\s*s2ReadPool\s*[,}]/
   assert.match(server, sharedWorkspacePool)
