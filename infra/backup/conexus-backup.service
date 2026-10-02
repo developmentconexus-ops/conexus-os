@@ -1,6 +1,5 @@
 [Unit]
 Description=Conexus daily backup with restore check
-After=docker.service
 
 [Service]
 Type=oneshot

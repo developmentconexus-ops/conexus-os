@@ -21,7 +21,7 @@ printed. The script runs `pg_dump` in the named container and does not write to 
 `CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES`. Without them a restored database cannot unseal its secrets.
 Key file names must differ.
 
-It writes one folder named for the UTC time, `<out-root>/YYYYMMDDTHHMMSSZ`. The script sets
+It writes one folder named for the UTC time, `<out-root>/YYYYMMDDTHHMMSSZ`, built as `.partial` first and renamed when complete (`--partial` leaves the rename to the caller). The script sets
 `umask 077`, so the folders are `0700` and the files are `0600`: owner-only, whatever the caller's umask.
 
 - `database.dump` is a `pg_dump` custom-format dump.
@@ -62,12 +62,14 @@ Each problem is one line, `CODE detail`, after `FAIL`: `MISSING_FILE`, `CHECKSUM
 
 ## Schedule
 
-There is a schedule. `scripts/conexus-backup-run.sh` takes the backup arguments, runs the backup, then the
-restore check. On `PASS` it keeps the folder and deletes all but the newest 7 dated folders. On `FAIL` it renames
-the new folder to `<name>.failed`, keeps every earlier good folder, keeps only the newest `.failed` folder, exits 1
-and logs one line, `BACKUP_RUN code=<CODE> ...`. The code is `OK`, `BACKUP_FAILED` or `RESTORE_CHECK_FAILED`.
-A backup that cannot start (a missing key file, an unreachable Keycloak container) is `BACKUP_FAILED` and the
-log line ends with the error code the script printed.
+There is a schedule. `scripts/conexus-backup-run.sh` takes the backup arguments. It writes the backup into
+`<stamp>.partial`, runs the restore check on it, and renames it to `<stamp>` only when the check passes. A
+dated folder with a `manifest.txt` is therefore always a verified backup. Retention keeps the newest 7 of them
+and deletes the older ones. Any failure, before or after the folder exists, renames the partial folder to
+`<stamp>.failed`, keeps every verified folder, keeps only the newest `.failed` folder, exits 1 and logs one line,
+`BACKUP_RUN code=<CODE> ...`. The code is `OK`, `BACKUP_FAILED` (the backup did not finish, such as a missing key
+file, an unreachable Keycloak container, a `pg_dump` error or a full disk; the line ends with the last message)
+or `RESTORE_CHECK_FAILED` (the line carries the first coded problem).
 
 `infra/backup/` holds the systemd user timer (every day at 03:00) and its service. `infra/backup/README.md`
 says how to install it. The repository installs nothing.

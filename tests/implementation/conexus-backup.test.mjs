@@ -114,17 +114,32 @@ test('a restore check fails loudly when Projects exist and the Git root is empty
   psql('DROP SCHEMA project CASCADE')
 })
 
-test('the scheduled run keeps seven good folders and a corrupted dump keeps the older ones and logs a code', () => {
+test('the scheduled run keeps seven verified folders through a failed backup and a corrupted dump', () => {
   void sourceReady
   const root = join(scratch, 'backups-run')
   mkdirSync(root)
-  for (let day = 1; day <= 7; day++) mkdirSync(join(root, `2026010${day}T030000Z`))
+  for (let day = 1; day <= 7; day++) {
+    mkdirSync(join(root, `2026010${day}T030000Z`))
+    writeFileSync(join(root, `2026010${day}T030000Z`, 'manifest.txt'), '# sha256  bytes  file\n')
+  }
+  const seeded = readdirSync(root).sort()
+  const failedOf = () => readdirSync(root).filter((name) => name.endsWith('.failed'))
+
+  const noKeycloak = backupArgs(root).map((a) => (a === KEYCLOAK ? 'conexus-backup-test-no-such-container' : a))
+  const broken = sh(script('conexus-backup-run.sh'), noKeycloak)
+  assert.equal(broken.status, 1, broken.stdout)
+  assert.match(broken.stdout.trim(), /^BACKUP_RUN code=BACKUP_FAILED REALM_EXPORT_COPY_FAILED$/)
+  assert.deepEqual(readdirSync(root).filter((name) => !name.endsWith('.failed')).sort(), seeded)
+  assert.equal(failedOf().length, 1)
+
   const ok = sh(script('conexus-backup-run.sh'), backupArgs(root))
   assert.equal(ok.status, 0, ok.stderr)
   assert.match(ok.stdout.trim(), /^BACKUP_RUN code=OK folder=.+ PASS tables=2 repositories=1$/)
-  const good = readdirSync(root).filter((name) => !name.endsWith('.failed')).sort()
-  assert.equal(good.length, 7)
-  assert.equal(good.includes('20260101T030000Z'), false)
+  const verified = readdirSync(root).filter((name) => !name.endsWith('.failed')).sort()
+  assert.deepEqual(verified.slice(0, 6), seeded.slice(1))
+  assert.equal(verified.length, 7)
+  assert.equal(statSync(join(root, verified[6], 'manifest.txt')).isFile(), true)
+  assert.equal(failedOf().length, 1)
 
   const shim = join(scratch, 'shim')
   mkdirSync(shim)
@@ -133,7 +148,6 @@ test('the scheduled run keeps seven good folders and a corrupted dump keeps the 
   const bad = sh('bash', ['-c', `PATH="${shim}:$PATH" exec ${script('conexus-backup-run.sh')} "$@"`, '_', ...backupArgs(root)])
   assert.equal(bad.status, 1, bad.stdout)
   assert.match(bad.stdout.trim(), /^BACKUP_RUN code=RESTORE_CHECK_FAILED folder=\S+\.failed RESTORE_FAILED /)
-  const after = readdirSync(root).sort()
-  assert.deepEqual(after.filter((name) => !name.endsWith('.failed')), good)
-  assert.equal(after.filter((name) => name.endsWith('.failed')).length, 1)
+  assert.deepEqual(readdirSync(root).filter((name) => !name.endsWith('.failed')).sort(), verified)
+  assert.equal(failedOf().length, 1)
 })

@@ -28,6 +28,9 @@ not installed by the repository. The operator installs them once, after the pull
    A good run logs `BACKUP_RUN code=OK` and the restore check's `PASS`. A bad run logs `BACKUP_RUN code=<CODE>`
    with the codes `docs/reference/backup.md` lists.
 
+A Docker that is not ready when the timer fires at boot shows up as `BACKUP_FAILED`. The next day's run is
+unaffected.
+
 ## Remove
 
 ```bash

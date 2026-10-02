@@ -14,18 +14,33 @@ done
 [ -n "$out_root" ] || { echo "usage: conexus-backup-run.sh <conexus-backup.sh arguments>" >&2; exit 2; }
 keep=7
 
-if ! output="$("$here/conexus-backup.sh" "$@" 2>&1)"; then
-  echo "BACKUP_RUN code=BACKUP_FAILED $(printf '%s' "$output" | tail -1)"
+fail() {
+  ls -d "$out_root"/*.failed 2>/dev/null | head -n -1 | xargs -r rm -rf
+  echo "BACKUP_RUN code=$1 $2"
   exit 1
-fi
-folder="$(printf '%s\n' "$output" | sed -n 's/^BACKUP //p')"
+}
 
-if ! check="$("$here/conexus-restore-check.sh" --backup "$folder" 2>&1)"; then
-  mv "$folder" "$folder.failed"
-  ls -d "$out_root"/*.failed | head -n -1 | xargs -r rm -rf
-  echo "BACKUP_RUN code=RESTORE_CHECK_FAILED folder=$folder.failed $(printf '%s' "$check" | sed -n '2p')"
-  exit 1
+if ! output="$("$here/conexus-backup.sh" --partial "$@" 2>&1)"; then
+  for partial in "$out_root"/*.partial; do
+    [ -d "$partial" ] && mv "$partial" "${partial%.partial}.failed"
+  done
+  fail BACKUP_FAILED "$(printf '%s' "$output" | tail -1)"
 fi
+partial="$(printf '%s\n' "$output" | sed -n 's/^BACKUP //p')"
+final="${partial%.partial}"
 
-ls -d "$out_root"/[0-9]*T*Z | head -n -"$keep" | xargs -r rm -rf
-echo "BACKUP_RUN code=OK folder=$folder $check"
+if ! check="$("$here/conexus-restore-check.sh" --backup "$partial" 2>&1)"; then
+  mv "$partial" "$final.failed"
+  fail RESTORE_CHECK_FAILED "folder=$final.failed $(printf '%s' "$check" | sed -n '2p')"
+fi
+mv "$partial" "$final"
+
+verified=()
+for dir in "$out_root"/[0-9]*T*Z; do
+  [ -f "$dir/manifest.txt" ] && verified+=("$dir")
+done
+if [ ${#verified[@]} -gt "$keep" ]; then
+  rm -rf "${verified[@]:0:${#verified[@]}-keep}"
+fi
+ls -d "$out_root"/*.failed 2>/dev/null | head -n -1 | xargs -r rm -rf
+echo "BACKUP_RUN code=OK folder=$final $check"
