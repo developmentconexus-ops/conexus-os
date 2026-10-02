@@ -108,6 +108,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   runs: BuilderRunDependencies
 }>): BuilderService => {
   // A run's legs: the work now in flight for it. A parked run has none, in this process or after a restart.
+  // Runs an answer is moving out of PARKED: owned from before the database transition until the leg is registered.
+  const resuming = new Set<string>()
   const builderActive = new Map<string, Readonly<{
     controller: AbortController
     work: Promise<void>
@@ -132,7 +134,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const settleUnowned = async (active: ReadonlySet<string>): Promise<boolean> => {
     let left = false
     for (const run of await store.listUnownedRunCandidates()) {
-      if (active.has(run.builderRunId) || builderActive.has(run.builderRunId)) continue
+      if (active.has(run.builderRunId) || builderActive.has(run.builderRunId) || resuming.has(run.builderRunId)) continue
       try {
         await store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST')
         logLine(`BUILDER_RUN_SETTLED_BY_RECONCILE:${run.builderRunId}`, 'warn')
@@ -425,11 +427,16 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         case 'PARKED': break
         default: { const unhandled: never = standing; return unhandled }
       }
-      const resumed = await store.resumeBuilderRun(builderRunId)
-      // Another answer took the run out of PARKED since the check.
-      if (!resumed) return answeredByLeg() ? 'ALREADY_ANSWERED' : 'NOT_PARKED'
-      dispatchBuilderRun(resumed, { accountId, content: resumed.requestText ?? '', resume: { toolCallId, resumeData } })
-      return 'RESUMED'
+      resuming.add(builderRunId)
+      try {
+        const resumed = await store.resumeBuilderRun(builderRunId)
+        // Another answer took the run out of PARKED since the check.
+        if (!resumed) return answeredByLeg() ? 'ALREADY_ANSWERED' : 'NOT_PARKED'
+        dispatchBuilderRun(resumed, { accountId, content: resumed.requestText ?? '', resume: { toolCallId, resumeData } })
+        return 'RESUMED'
+      } finally {
+        resuming.delete(builderRunId)
+      }
     },
     listSourceTree: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
