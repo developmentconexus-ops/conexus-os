@@ -15,7 +15,9 @@ const { registerBuilderSessionRoutes } = await import(built('builder/mastra-sess
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
+const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 
+const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const origin = 'https://conexus.test'
 const accountA = '22222222-2222-4222-8222-222222222222'
 const accountB = '55555555-5555-4555-8555-555555555555'
@@ -37,14 +39,16 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], model: modelOf = model } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
-  const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
+  const controller = createBuilderController({ id: 'conexus-builder', model: modelOf, storage, memory, modelRetryDelayMs: () => 1, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
+  const clock = { now: 0 }
+  const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
   const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
@@ -60,23 +64,25 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, origin, resolveCurrentSession,
+        mastra, controllerId: 'conexus-builder', controller, sessions, origin, resolveCurrentSession,
         admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         runContext: () => undefined,
+        answerParked: async (input) => { answered.push(input) },
       })
       return []
     },
     staticRoot: null,
   })
   t.after(async () => {
+    await sessions.close()
     await app.close()
     await controller.destroy()
     await storage.close()
     rmSync(root, { recursive: true, force: true })
   })
-  return { app, controller, conversations, reachedContexts }
+  return { app, controller, conversations, memory, reachedContexts, sessions, clock }
 }
 
 const authentic = {
@@ -210,6 +216,19 @@ test('a conversation takes no message, steer or follow-up, not even inside a run
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
 })
 
+test("an answer to a run's call goes to the Hub, which resumes the parked run, and never to a session that no longer exists", async (t) => {
+  const answered = []
+  const { app } = await createBuilderApp(t, { answered })
+  const runScope = `builder:${conversationA}`
+  const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=${runScope}`, ...authentic, payload })
+  const first = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
+  const repeated = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
+  assert.deepEqual([first.statusCode, first.json(), repeated.statusCode], [200, { ok: true }, 200])
+  assert.deepEqual(answered, new Array(2).fill({ accountId: accountA, projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }))
+  assert.equal((await answer({ resumeData: ['Azul'] })).statusCode, 400, 'an answer names its call')
+  assert.equal(answered.length, 2)
+})
+
 test('a tool answer other than approve or decline is refused on the Builder mount before Mastra runs it', async (t) => {
   const { app, reachedContexts } = await createBuilderApp(t)
   const approvalUrl = `${sessionBase()}/tool-approval?${inConversation()}`
@@ -247,7 +266,7 @@ test('a session-state write outside the reasoning level is refused before it rea
   const { app, reachedContexts } = await createBuilderApp(t)
   const stateUrl = `${sessionBase()}/state?${inConversation()}`
   const yolo = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { yolo: true } } })
-  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'max' } } })
+  const badLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'extreme' } } })
   const mixed = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low', yolo: true } } })
   const extraTopLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low' }, extra: 1 } })
   assert.deepEqual([yolo.statusCode, badLevel.statusCode, mixed.statusCode, extraTopLevel.statusCode], [400, 400, 400, 400])
@@ -255,17 +274,50 @@ test('a session-state write outside the reasoning level is refused before it rea
   assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/state')), [])
 })
 
+test("the reasoning level write admits each of Mastra Code's six levels", async (t) => {
+  const { app } = await createBuilderApp(t)
+  const stateUrl = `${sessionBase()}/state?${inConversation()}`
+  const statuses = []
+  for (const thinkingLevel of ['off', 'low', 'medium', 'high', 'xhigh', 'max']) {
+    statuses.push((await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel } } })).statusCode)
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200])
+})
+
 test("deleting a Project's conversations removes its threads and their messages, leaves another Project's, and repeating it converges", async (t) => {
-  const { app, controller, conversations } = await createBuilderApp(t)
+  const { app, controller, conversations, memory } = await createBuilderApp(t)
   const elsewhere = randomUUID()
   await controller.createSession({ resourceId: `project:${projectB}`, scope: `conversation:${elsewhere}`, threadId: elsewhere })
   const second = randomUUID()
   assert.equal((await openConversation(app, projectA, second)).statusCode, 200)
-  await conversations.appendMessage({ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } })
-  await conversations.deleteAll(projectA)
-  await conversations.deleteAll(projectA)
+  await memory.saveMessages({ messages: [{ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } }] })
+  assert.deepEqual([...await conversations.deleteAll(projectA)].sort(), [conversationA, second].sort(), 'it answers the ids it deleted, which the Hub deletes the sessions of')
+  assert.deepEqual(await conversations.deleteAll(projectA), [])
   assert.deepEqual(await listConversations(app), [])
   assert.deepEqual(await Promise.all([conversationA, second, elsewhere].map((id) => conversations.ownerOf(projectA, id))), ['NONE', 'NONE', 'OTHER'])
+})
+
+test("a conversation's session the browser stops using is deleted by the idle sweep, and its next request opens it again from the thread", async (t) => {
+  const { app, controller, sessions, clock } = await createBuilderApp(t)
+  const conversation = randomUUID()
+  const resource = `project:${projectA}`
+  const live = (id) => controller.getSessionByResource(resource, `conversation:${id}`)
+  assert.equal((await openConversation(app, projectA, conversation)).statusCode, 200)
+  assert.notEqual(await live(conversation), undefined, 'the browser opened the session')
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  await sessions.sweep()
+  assert.notEqual(await live(conversation), undefined, 'a session idle for less than the limit stays')
+  clock.now += 1
+  await sessions.sweep()
+  assert.equal(await live(conversation), undefined, 'a session idle for the limit is deleted')
+  const read = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })
+  assert.equal(read.statusCode, 200)
+  assert.notEqual(await live(conversation), undefined, 'the next request opens it from the thread')
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  assert.equal((await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })).statusCode, 200)
+  clock.now += CONVERSATION_SESSION_IDLE_MS - 1
+  await sessions.sweep()
+  assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 
 const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun } = {}) => {
@@ -337,3 +389,63 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
 })
+
+test("the browser reaches exactly ten of Mastra's agent-controller routes, each one Mastra's own route table names", async (t) => {
+  const { SERVER_ROUTES } = await import('@mastra/server/server-adapter')
+  const { app } = await createBuilderApp(t)
+  const mounted = SERVER_ROUTES
+    .filter((route) => route.path.startsWith('/agent-controller/'))
+    .filter((route) => app.hasRoute({ method: route.method, url: `/api/builder${route.path}` }))
+    .map((route) => `${route.method} ${route.path.replace('/agent-controller/:controllerId/sessions', '')}`)
+  assert.deepEqual(mounted.sort(), [
+    'GET /:resourceId', 'GET /:resourceId/stream', 'GET /:resourceId/threads', 'GET /:resourceId/threads/:threadId/messages',
+    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-approval', 'POST /:resourceId/tool-suspension',
+    'PUT /:resourceId/state',
+  ])
+})
+
+const apiKey = `sk-ant-api03-${'k'.repeat(40)}`
+const echoed = (status, type) => () => new Response(JSON.stringify({ type: 'error', error: { type, message: `rejected ${apiKey}` } }), { status, headers: { 'content-type': 'application/json' } })
+
+for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503', 503, 'api_error']]) {
+  test(`the stream the browser is served, over a real Anthropic ${label} that echoes the account key, carries the key in no frame`, async (t) => {
+    const { createModelRouting } = await import(built('builder/model-routing.js'))
+    const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
+    const { createClaudeHolds } = await import(built('builder/anthropic/credential.js'))
+    const routing = createModelRouting({
+      routes: { anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })) },
+      modelAccounts: { usable: async () => ({ modelAccountId: 'row-anthropic', kind: 'api_key', secret: apiKey }) },
+      conversationModel: async () => null, readDefault: async () => null, record: async () => {},
+    })
+    const original = globalThis.fetch
+    globalThis.fetch = async (input, init) => {
+      const url = new Request(input, init).url
+      if (url.startsWith('https://api.anthropic.com/')) return echoed(status, type)()
+      return original(input, init)
+    }
+    t.after(() => { globalThis.fetch = original })
+    const { app, controller } = await createBuilderApp(t, { model: (context) => routing.resolve(context) })
+    const address = await app.listen({ port: 0, host: '127.0.0.1' })
+    const closing = new AbortController()
+    const response = await original(`${address}${sessionBase()}/stream?${inConversation()}`, { headers: { cookie: '__Host-conexus_session=session-1; __Host-conexus_csrf=csrf-1' }, signal: closing.signal })
+    const frames = []
+    const reading = (async () => { for await (const chunk of response.body) frames.push(Buffer.from(chunk).toString()) })().catch(() => undefined)
+    const session = await controller.getSessionByResource(`project:${projectA}`, `conversation:${conversationA}`)
+    const requestContext = new (await import('@mastra/core/request-context')).RequestContext()
+    requestContext.setRaw('conexusBuilderAccountId', accountA)
+    requestContext.setRaw('conexusBuilderRunId', randomUUID())
+    await session.model.switch({ modelId: 'anthropic/claude-test' })
+    requestContext.setRaw('conexusBuilderConversationId', conversationA)
+    const ended = new Promise((done) => { session.subscribe((event) => { if (event.type === 'agent_end') setTimeout(done, 50) }) })
+    await session.sendMessage({ content: 'Faça o app.', requestContext }).catch(() => undefined)
+    await ended
+    closing.abort()
+    await reading
+    const text = frames.join('')
+    assert.equal(text.includes('"type":"error"'), true, 'the stream carried the failure')
+    assert.equal(text.includes(apiKey), false, 'the key is in no frame the browser reads')
+    const stored = await app.inject({ method: 'GET', url: `${sessionBase()}/threads/${conversationA}/messages`, ...authentic })
+    assert.equal(stored.statusCode, 200)
+    assert.equal(stored.body.includes(apiKey), false, 'the key is in no message the thread serves')
+  })
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Stands in for CLIProxyAPI v7.3.12 with the shapes the probe of 2026-09-22 recorded: the OpenAI
-// routes behind the config's api key, and the management routes behind MANAGEMENT_PASSWORD.
+// routes behind the config's api key as a bearer, Gemini's own routes (`/v1beta`, probed 2026-10-01)
+// behind it as `x-goog-api-key`, and the management routes behind MANAGEMENT_PASSWORD.
 // A record with `unavailableForMs` behaves like a stored token that has expired: the proxy refreshes
 // it after that many milliseconds (-1: never), and until then reports the account unavailable.
 import { randomBytes } from 'node:crypto'
@@ -69,17 +70,20 @@ createServer(async (request, response) => {
     }
     return json(response, 404, { error: 'not found' })
   }
-  if (request.headers.authorization !== `Bearer ${apiKey}`) return json(response, 401, { error: 'Invalid API key' })
-  if (url.pathname === '/v1/models') return json(response, 200, { object: 'list', pid: process.pid, data: authFiles().map((name) => ({ id: 'gemini-3.1-pro-low', owned_by: name })) })
-  if (url.pathname === '/v1/chat/completions') {
-    const body = await readBody(request)
-    if (authFiles().some(accountUnavailable)) return json(response, 503, { error: { message: 'auth_unavailable: no auth available (providers=antigravity, model=gemini-3.1-pro-low)', type: 'server_error' } })
-    if (body.model === 'unauthorized') return json(response, 401, { error: { message: 'google refused the refresh token' } })
+  if (url.pathname.startsWith('/v1beta/')) {
+    if (request.headers['x-goog-api-key'] !== apiKey) return json(response, 401, { error: { code: 401, message: 'Invalid API key', status: 'UNAUTHENTICATED' } })
+    if (url.pathname === '/v1beta/models') return json(response, 200, { pid: process.pid, models: authFiles().map((name) => ({ name: 'models/gemini-3.1-pro-low', displayName: name })) })
+    const generate = /^\/v1beta\/models\/([^:]+):streamGenerateContent$/.exec(url.pathname)
+    if (!generate) return json(response, 404, { error: { code: 404, message: 'not found', status: 'NOT_FOUND' } })
+    if (authFiles().some(accountUnavailable)) return json(response, 503, { error: { code: 503, message: 'auth_unavailable: no auth available', status: 'UNAVAILABLE' } })
+    if (generate[1] === 'unauthorized') return json(response, 401, { error: { code: 401, message: 'google refused the refresh token', status: 'UNAUTHENTICATED' } })
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     response.write(`data: ${JSON.stringify({ files: authFiles() })}\n\n`)
-    setTimeout(() => response.end('data: [DONE]\n\n'), 600)
+    setTimeout(() => response.end(`data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP' }] })}\n\n`), 600)
     return
   }
+  if (request.headers.authorization !== `Bearer ${apiKey}`) return json(response, 401, { error: 'Invalid API key' })
+  if (url.pathname === '/v1/models') return json(response, 200, { object: 'list', pid: process.pid, data: authFiles().map((name) => ({ id: 'gemini-3.1-pro-low', owned_by: name })) })
   json(response, 404, { error: 'not found' })
 }).listen(port, '127.0.0.1')
 

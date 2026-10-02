@@ -12,7 +12,6 @@ const makeRuns = ({ execute, appendDiagnostic }) => ({
   runtime: { execute },
   conversations: {
     ownerOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? 'NONE' : 'PROJECT'),
-    titleFromRequest: async () => {},
   },
   git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
   appendDiagnostic: appendDiagnostic ?? (async () => {}),

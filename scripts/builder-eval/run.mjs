@@ -16,6 +16,7 @@ import { ac13Metrics, ADJUST_LABEL, APPROVE_LABEL, foldLabel, isApprovalOptions 
 import { correctionMessage, createPerson, fillSheet, fillValues, hiddenRuleOutcomes, loadValues, parseSheet } from './person.mjs'
 import { createEvalMastra, evalStorage, findTraceIds, gradeRefusal } from './scorers.mjs'
 import { hubTimingFromLog, timingBlock } from './timing.mjs'
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from './tool-names.mjs'
 
 export const DEFAULT_BASE_URL = 'https://hub.conexus.localhost:3443'
 export const DEFAULT_MAX_REPAIRS = 2
@@ -242,7 +243,7 @@ async function readFullPlan(page, plan) {
   }
 }
 
-const CARD_TOOLS = new Set(['ask_user', 'submit_plan'])
+const CARD_TOOLS = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL])
 const UNANSWERED = ':not([data-eval-answered])'
 
 /** The cards the driver answers: its record (`answers`, shared with result.answers), the scripted person, the case's scripted

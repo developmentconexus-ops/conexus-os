@@ -391,3 +391,11 @@ test('findTraceIds answers the finished root of each Builder run and null for on
 
   assert.deepEqual(await findTraceIds(mastra, { projectId: 'p-1', builderRunIds: ['run-1', 'run-2', 'run-3'] }, { waitMs: 0 }), ['tr-1', null, null])
 })
+
+test("the tool names the scorers read are the ones Mastra gives its own tools, as a trace carries them", async () => {
+  const names = await import('../../scripts/builder-eval/tool-names.mjs')
+  assert.deepEqual({ ...names }, {
+    ASK_USER_TOOL: 'ask_user', SUBMIT_PLAN_TOOL: 'submit_plan',
+    READ_FILE_TOOL: 'mastra_workspace_read_file', WRITE_FILE_TOOL: 'mastra_workspace_write_file', EDIT_FILE_TOOL: 'mastra_workspace_edit_file',
+  })
+})

@@ -39,6 +39,7 @@
     "apps/hub/src/builder/handler-kit/sankhya.ts",
     "apps/hub/src/server.ts",
     "apps/hub/src/app-runner/main.ts",
+    "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
     "apps/hub/compiler-template/**"
   ],

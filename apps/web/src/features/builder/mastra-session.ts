@@ -1,3 +1,4 @@
+import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -73,7 +74,8 @@ export const useConversationActions = (projectId: string) => {
   return { create }
 }
 
-export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'>>
+/** A model the person can pick, with the reasoning levels it honors, lowest first; none when it has no reasoning level to choose. */
+export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ReasoningLevel[] }>
 
 /**
  * The models this person can reach with their own model account or the installation's shared one.
@@ -81,18 +83,28 @@ export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | '
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
-  queryFn: async (): Promise<readonly BuilderModel[]> => {
+  queryFn: async (): Promise<Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>> => {
     const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
     const response = await fetch(url, { credentials: 'same-origin' })
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
-    return (await response.json() as Readonly<{ models: readonly BuilderModel[] }>).models
+    return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
   },
 })
 
-export const reasoningLevels = ['low', 'medium', 'high', 'xhigh'] as const
-export type ReasoningLevel = typeof reasoningLevels[number]
+/** Mastra Code's own thinking levels, lowest first; the Hub offers each model the ones it honors. */
+export type ReasoningLevel = ThinkingLevelSetting
 const asReasoningLevel = (value: unknown): ReasoningLevel | null =>
-  reasoningLevels.find((level) => level === value) ?? null
+  THINKING_LEVEL_VALUES.find((level) => level === value) ?? null
+
+/**
+ * The level a model runs at for the conversation's level (the Hub's default until the person picks one): the
+ * choice itself when the model honors it, else the closest level below it that the model honors
+ * (Gemini runs `xhigh` as `high`). Null for a model with no reasoning level.
+ */
+export const levelForModel = (levels: readonly ReasoningLevel[], chosen: ReasoningLevel): ReasoningLevel | null => {
+  const wanted = THINKING_LEVEL_VALUES.indexOf(chosen)
+  return levels.filter((level) => THINKING_LEVEL_VALUES.indexOf(level) <= wanted).at(-1) ?? levels[0] ?? null
+}
 
 // The choices made before a Project exists have nowhere to live yet: the controller only persists
 // them on a conversation's own thread. Once the home prompt opens that first conversation, this
