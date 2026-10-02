@@ -129,6 +129,11 @@ type BuilderRunInput = Readonly<{
   recordCandidate(sourceRevision: string): Promise<void>
   /** Records the conversation's mirror head as the turn ends; the Git ref stays the truth. */
   recordMirror(head: string): Promise<void>
+  /**
+   * Hands over the closing of the run's session instead of doing it as `execute` ends, so the caller
+   * can publish the state the run ended in to the session's stream first, and then closes it.
+   */
+  holdSession?(close: () => Promise<void>): void
   signal?: AbortSignal
 }>
 
@@ -585,7 +590,11 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       // The run owns the session it opened, whatever way it ended: Mastra frees none by itself.
       connectorRun?.end()
-      await (parked ? session?.park() : session?.release())?.catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
+      const closeSession = async (): Promise<void> => {
+        await (parked ? session?.park() : session?.release())?.catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
+      }
+      if (input.holdSession) input.holdSession(closeSession)
+      else await closeSession()
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
       if (live) void sandbox.pause().catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       else if (incarnation !== undefined) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
