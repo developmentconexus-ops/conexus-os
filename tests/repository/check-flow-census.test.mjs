@@ -60,6 +60,15 @@ test('a live test file with no flow declaration fails', () => {
   assert.match(run({ sources }).problems.join('\n'), /bare\.test\.mjs declares no flow/)
 })
 
+test('a liveFlow call the census cannot read fails instead of being skipped', () => {
+  for (const unreadable of ["liveFlow({ id: 'builder.ghost', nome: `Fantasma` }, f)", "liveFlow({ id: 'builder.ghost2', timeoutMs: 1, nome: 'X' }, f)"]) {
+    const sources = { [LIVE]: `${SOURCES[LIVE]}\n${unreadable}` }
+    const { problems } = run({ sources })
+    assert.equal(problems.length, 1)
+    assert.match(problems[0], /1 liveFlow call\(s\) whose id or nome is not a quoted string literal/)
+  }
+})
+
 test('a duplicate id, a malformed flow and a missing flows array fail', () => {
   const { problems } = run({
     areas: [

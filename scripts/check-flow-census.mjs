@@ -6,9 +6,13 @@ import { EXEMPT_TESTS, collectReachableTests } from './check-test-census.mjs'
 // A live flow is declared in its test file as liveFlow({ id: '<area>.<flow>', nome: '...' }, ...)
 // (tests/live/harness.mjs). The census reads that literal; it never imports the test.
 const DECLARATION = /\bliveFlow\(\s*\{\s*id:\s*(['"])([^'"]+)\1\s*,\s*nome:\s*(['"])(.*?)\3/g
+const CALL = /\bliveFlow\(/g
 const LIVE_TESTS = 'tests/live/*.test.mjs'
 
 export const declaredFlows = (source) => [...source.matchAll(DECLARATION)].map((match) => ({ id: match[2], nome: match[4] }))
+
+// Calls the census cannot read as { id: '...', nome: '...' } string literals. They are reported, never skipped.
+export const unreadableFlowCalls = (source) => [...source.matchAll(CALL)].length - declaredFlows(source).length
 
 function listLiveTests(root) {
   const output = execFileSync('git', ['ls-files', LIVE_TESTS], { cwd: root, encoding: 'utf8' })
@@ -26,6 +30,8 @@ export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, l
   for (const path of live) {
     const flows = declaredFlows(read(path))
     if (flows.length === 0) problems.push(`${path} declares no flow: wrap each scenario in liveFlow({ id, nome }, ...)`)
+    const unreadable = unreadableFlowCalls(read(path))
+    if (unreadable > 0) problems.push(`${path} has ${unreadable} liveFlow call(s) whose id or nome is not a quoted string literal in that order: write liveFlow({ id: '...', nome: '...' }, ...)`)
     declaredIn.set(path, new Map(flows.map((declared) => [declared.id, declared.nome])))
   }
   const allDeclared = new Set([...declaredIn.values()].flatMap((names) => [...names.keys()]))
