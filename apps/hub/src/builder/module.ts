@@ -28,6 +28,7 @@ import type { AccountId, ResolveCurrentSession } from '../identity-access/curren
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
+import type { ConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
@@ -258,7 +259,7 @@ export type BuilderConnectorPort = Readonly<{
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
@@ -279,6 +280,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
+  /** The conversations' sandboxes; absent, the Hub uses E2B. Only a test composition passes one. */
+  conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
   const log = (line: string): void => logLine(line)
@@ -375,7 +378,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
   const discardParked = createParkedDiscard({ controller })
-  const sandboxes = e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
+  const sandboxes = conversationSandboxes ?? e2bConversationSandboxes({ apiKey: readSecretFile(builder.e2bApiKeyFile), templateId: builder.e2bTemplateId, log })
   const runtime = createBuilderRunRuntime({
     openSandbox: sandboxes.open,
     openSession: async (input) => {

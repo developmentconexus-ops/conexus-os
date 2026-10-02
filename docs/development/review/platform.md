@@ -10,7 +10,7 @@ root configuration.
 ## What to check
 
 - [ ] Platform code does not import an application layer, and the
-      composition root's allowlist names every platform module `server.ts` imports.
+      composition root's allowlist names every platform module `hub.ts` imports.
       `tests/repository/import-law.test.mjs` enforces it.
 - [ ] Generated application code never runs in the Hub process.
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
