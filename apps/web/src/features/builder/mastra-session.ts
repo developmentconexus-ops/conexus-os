@@ -216,8 +216,9 @@ export const useBuilderConversation = (projectId: string, conversationId: string
         if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
       }
     },
-    // The stream sends nothing on subscribe and replays nothing after a gap, so opening it reads the
-    // thread again, and reopening it reads the run too. While it is down the poll keeps the run.
+    // The stream opens with the run the Hub last published into the session and replays nothing
+    // else, so opening it reads the thread again, and reopening it reads the run too, as a deleted
+    // session's stream carries none. While it is down the poll keeps the run.
     onStateChange: (next: StreamState, previous: StreamState) => {
       if (next !== 'connected') return
       rereadThread()

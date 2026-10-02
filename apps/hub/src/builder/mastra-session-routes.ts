@@ -187,7 +187,14 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
     if (!(served instanceof ReadableStream)) return served
     const { resourceId, sessionScope } = params as Readonly<{ resourceId?: string; sessionScope?: string }>
     const session = resourceId === undefined ? undefined : await controller.getSessionByResource(resourceId, sessionScope)
-    return closableStream(served, (close) => {
+    // Mastra's stream sends nothing on subscribe, so a run that changed phase before the browser
+    // subscribed (a fast run parks before the page's next try) would go unseen until the slow read.
+    // The stream opens with the run the Hub last published, as the state_changed Mastra sends.
+    const state = session?.state.get()
+    const opening = state && 'conexusRun' in state
+      ? served.pipeThrough(new TransformStream({ start: (stream) => { stream.enqueue({ type: 'state_changed', state, changedKeys: ['conexusRun'] }) } }))
+      : served
+    return closableStream(opening, (close) => {
       if (!session) {
         close()
         return () => {}
