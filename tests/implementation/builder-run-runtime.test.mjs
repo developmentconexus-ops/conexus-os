@@ -1052,6 +1052,35 @@ test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_
   assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a checkout that cannot take the start takes its VM with it')
 })
 
+test('a start that fails, or a first command that fails on the VM it started, kills that VM and keeps the run failure', async (t) => {
+  const startFailed = await harness(t, { onStart: () => { throw new Error('E2B_START_FAILED') } })
+  await startFailed.start()
+  await startFailed.service.close()
+  const firstCommandFailed = await harness(t, {
+    onCommand: (_sandbox, line) => { if (line === 'true') throw new Error('E2B_COMMAND_FAILED') },
+  })
+  await firstCommandFailed.start()
+  await firstCommandFailed.service.close()
+  for (const [run, code] of [[startFailed, 'E2B_START_FAILED'], [firstCommandFailed, 'E2B_COMMAND_FAILED']]) {
+    assert.deepEqual(run.calls.at(-1)[0], 'fail', code)
+    assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, `${code}: the VM the start holds is killed, never paused`)
+    assert.equal(run.calls.some(([kind]) => kind === 'sandbox'), false, `${code}: no incarnation was recorded`)
+  }
+})
+
+test('a failed start whose kill fails logs BUILDER_SANDBOX_KILL_FAILED and still fails the run', async (t) => {
+  const run = await harness(t, {
+    onStart: (sandbox) => {
+      sandbox.kill = async () => { throw new Error('E2B_UNREACHABLE') }
+      throw new Error('E2B_START_FAILED')
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.calls.at(-1)[0], 'fail')
+  assert.ok(run.logs.includes(`BUILDER_SANDBOX_KILL_FAILED:${runId}:E2B_UNREACHABLE`), JSON.stringify(run.logs))
+})
+
 test('a VM whose commands run as root, from a template before the agent user, is refused before the seed', async (t) => {
   const run = await harness(t, { agentUser: 'root' })
   await run.start()

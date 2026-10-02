@@ -479,6 +479,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
+    // Runs before the Project's purge, which drops the rows that name its VMs.
+    killProjectSandboxes: async (projectId: string) => sandboxes.killRecorded(await store.readProjectSandboxes(projectId)),
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
       const conversationIds = await conversations.deleteAll(projectId)

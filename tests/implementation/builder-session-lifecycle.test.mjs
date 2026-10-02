@@ -127,11 +127,12 @@ test("the idle sweep deletes a conversation's session after the limit and never 
 })
 
 // The production sandbox cache with E2B stubbed out: every instance it builds records its pause and its kill.
-const sandboxCache = () => {
+const sandboxCache = ({ killProvider } = {}) => {
   const built = []
   const log = []
   const cache = e2bConversationSandboxes({
     apiKey: 'test-key', templateId: 'conexus:template', log: (line) => log.push(line),
+    ...(killProvider ? { killProvider } : {}),
     create: (input) => {
       const sandbox = createConversationSandbox(input)
       const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, paused: 0, killed: 0, finishPause: null }
@@ -190,4 +191,19 @@ test('a killed VM is forgotten, and a Project deletion kills the VMs its convers
   await destroy([conversation(1), conversation(2), conversation(4)])
   assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 1], ['1', 1], ['2', 1], ['3', 0]])
   assert.equal(built.length, 4, 'one instance per open, none rebuilt for the conversations that were not asked for')
+})
+
+test('#413 a Project deletion kills every VM its conversations recorded at E2B, and a kill that fails is logged without stopping the rest', async () => {
+  const asked = []
+  const { killRecorded, log } = sandboxCache({
+    killProvider: async (providerSandboxId) => {
+      asked.push(providerSandboxId)
+      if (providerSandboxId === 'ivm-unreachable') throw new Error('E2B_TIMEOUT')
+      return providerSandboxId !== 'ivm-gone'
+    },
+  })
+  await killRecorded(['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
+  assert.deepEqual(asked, ['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
+  assert.deepEqual(log, ['BUILDER_SANDBOX_KILL_FAILED:ivm-unreachable:E2B_TIMEOUT'], 'a VM E2B no longer has is not a failure')
+  await killRecorded([])
 })
