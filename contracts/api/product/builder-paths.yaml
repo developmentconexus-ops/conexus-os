@@ -131,6 +131,7 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
         '422': { $ref: './openapi.yaml#/components/responses/Problem422' }
+        '503': { $ref: './openapi.yaml#/components/responses/Problem503' }
 
   /api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel:
     parameters:

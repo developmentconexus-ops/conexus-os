@@ -46,6 +46,11 @@ type RunSandbox = Readonly<{
    * A parked run's instance stays for its answer, since its live session holds this workspace.
    */
   pause(parked?: boolean): Promise<void>
+  /**
+   * A parked run let go of its instance: it is dropped from memory, the VM stays paused, and the
+   * conversation's next `start()` resumes it by the provider id the Hub recorded.
+   */
+  release(): void
   /** A broken VM: it is killed, and the conversation's next turn gets a new one. */
   kill(): Promise<void>
 }>
@@ -117,6 +122,8 @@ export type BuilderRunPorts = Readonly<{
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
   invokeOperation?: CandidateOperationPorts['invoke']
+  /** How long a parked run keeps its session and its sandbox instance in memory for the answer. */
+  warmParkedMs?: number
   log(line: string): void
 }>
 
@@ -146,9 +153,11 @@ type BuilderRunInput = Readonly<{
 }>
 
 export type BuilderRunRuntime = Readonly<{
-  /** A stop on a parked run: its open call is settled as denied in the thread. */
+  /** A stop on a parked run: its open call is settled as denied in the thread, and what it kept in memory is let go. */
   discardParked: BuilderRunPorts['discardParked']
   execute(input: BuilderRunInput): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult>
+  /** Lets go of every parked run's session and sandbox instance held in memory; each answer then resumes from storage. Answers how many. */
+  evictParked(): Promise<number>
 }>
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
@@ -283,9 +292,62 @@ const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
   })
 }
 
-export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => Object.freeze({
-  discardParked: ports.discardParked,
-  execute: async (input) => {
+/**
+ * Mastra keeps a suspended run's own warm state, the bulk of what a parked run holds, for the same
+ * half hour (MASTRA_SUSPENDED_RUN_TTL_MS) and has no way to drop it sooner short of aborting the run.
+ * An answer within it resumes the live session, a later one resumes from storage.
+ */
+const WARM_PARKED_MS = 30 * 60_000
+
+/** What a parked run keeps in memory for its answer. */
+type WarmParked = Readonly<{ builderRunId: string; session: RunSession; sandbox: RunSandbox; paused: Promise<void>; timer: ReturnType<typeof setTimeout> }>
+
+export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => {
+  // By conversation: one run of a Project at a time, so one parked run per conversation.
+  const warm = new Map<string, WarmParked>()
+  // A letting go still in flight, which the conversation's next leg waits on before it opens anything.
+  const lettingGo = new Map<string, Promise<void>>()
+  const take = (conversationId: string): WarmParked | undefined => {
+    const entry = warm.get(conversationId)
+    if (!entry) return undefined
+    warm.delete(conversationId)
+    clearTimeout(entry.timer)
+    return entry
+  }
+  // The session is deleted leaving its call in storage, and the instance dropped with the VM paused.
+  const letGo = (conversationId: string, entry: WarmParked, reason: 'TTL' | 'HEAP' | 'ENDED'): Promise<void> => {
+    const done = (async () => {
+      await entry.paused
+      await entry.session.release().catch((error: unknown) => {
+        ports.log(`BUILDER_SESSION_RELEASE_FAILED:${entry.builderRunId}:${error instanceof Error ? error.message : String(error)}`)
+      })
+      entry.sandbox.release()
+      ports.log(`BUILDER_PARKED_SESSION_EVICTED:${entry.builderRunId}:${reason}`)
+    })()
+    lettingGo.set(conversationId, done)
+    const settled = (): void => { if (lettingGo.get(conversationId) === done) lettingGo.delete(conversationId) }
+    done.then(settled, settled)
+    return done
+  }
+  const evict = async (conversationId: string, reason: 'TTL' | 'HEAP'): Promise<void> => {
+    const entry = take(conversationId)
+    if (entry) await letGo(conversationId, entry, reason)
+  }
+  const discardParked: BuilderRunRuntime['discardParked'] = async (input) => {
+    const entry = take(input.conversationId)
+    await lettingGo.get(input.conversationId)
+    try {
+      await ports.discardParked(input)
+    } finally {
+      if (entry) await letGo(input.conversationId, entry, 'ENDED')
+    }
+  }
+  const evictParked: BuilderRunRuntime['evictParked'] = async () => {
+    const conversations = [...warm.keys()]
+    await Promise.all(conversations.map((conversationId) => evict(conversationId, 'HEAP')))
+    return conversations.length
+  }
+  const execute: BuilderRunRuntime['execute'] = async (input) => {
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
     const base = input.baseSourceRevision
@@ -303,6 +365,9 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId,
     })
     const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
+    // The answer's leg takes over what its parked run kept warm, or waits until it was let go.
+    take(input.conversationId)
+    await lettingGo.get(input.conversationId)
     const sandbox = ports.openSandbox({ conversationId: input.conversationId, providerSandboxId: input.providerSandboxId })
     let session: RunSession | undefined
     let release: (() => void) | undefined
@@ -629,14 +694,21 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (input.holdSession) input.holdSession(closeSession)
       else await closeSession()
       // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
-      if (live) void sandbox.pause(parked).catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
+      let paused: Promise<void> = Promise.resolve()
+      if (live) paused = sandbox.pause(parked).catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
       // A run that started and is not live kills its VM, a failed start included: no VM it made or
       // resumed is left running or paused behind it.
       else if (started) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
+      if (parked && session) {
+        const timer = setTimeout(() => { void evict(input.conversationId, 'TTL') }, ports.warmParkedMs ?? WARM_PARKED_MS)
+        timer.unref?.()
+        warm.set(input.conversationId, { builderRunId: input.executionId, session, sandbox, paused, timer })
+      }
       ports.log(timing.line(input.executionId))
     }
-  },
-})
+  }
+  return Object.freeze({ discardParked, evictParked, execute })
+}
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
 
@@ -900,6 +972,9 @@ export const e2bConversationSandboxes = ({
           } finally {
             if (!parked && kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
           }
+        },
+        release: () => {
+          if (kept.get(conversationId) === entry) kept.delete(conversationId)
         },
         kill: async () => {
           if (kept.get(conversationId) === entry) kept.delete(conversationId)

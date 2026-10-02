@@ -55,7 +55,7 @@ const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0 } = {}) => {
+const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, warmParkedMs } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -119,6 +119,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   const agentChecks = []
   const paused = []
   const killed = []
+  const discards = []
   // What the service read and recorded of the conversation's sandbox.
   const sandboxRefs = []
   let recordedSandbox = null
@@ -133,6 +134,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     sandboxId: 'sbx-1',
     workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
     pause: async () => { events.push('pause'); paused.push(sandbox.sandboxId) },
+    release: () => { events.push('instance-release') },
     kill: async () => { events.push('kill'); killed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
@@ -217,6 +219,9 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     },
     git,
     mirrorDebounceMs,
+    ...(warmParkedMs === undefined ? {} : { warmParkedMs }),
+    // Whether the parked run's session was still live when its open call was settled.
+    discardParked: async () => { discards.push(!events.includes('session-release')) },
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
     readProjectName: async () => 'Compras',
@@ -255,6 +260,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     recordConversationSession: async (input) => { sessions.push(input) },
     // A run a leg of this Hub works is beating; one with a candidate and no beat is stale.
     heartbeatBuilderRuns: async (_owner, ids) => { row.beating = ids.includes(runId) },
+    expireParkedBuilderRuns: async () => [],
     takeOverStaleBuilderRuns: async () => row.running && row.candidate && !row.beating
       ? [{ builderRunId: runId, projectId, conversationId, started: true, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
       : [],
@@ -311,7 +317,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     }
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
+  return { runtime, discards, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -1615,4 +1621,55 @@ test('a failed run without a cause still logs BUILDER_RUN_FAILED with its code a
   await prose.service.close()
   assert.deepEqual(prose.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:BUILDER_PREPARATION_FAILED'])
   assert.equal(prose.logs.some((line) => line.includes('sk-secret-token')), false)
+})
+
+const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', summary: '' }
+const parkedLife = (run) => run.events.filter((event) => ['pause', 'session-release', 'instance-release', 'kill'].includes(event))
+const evictions = (run) => run.logs.filter((line) => line.startsWith('BUILDER_PARKED_SESSION_EVICTED'))
+const parks = async (run) => {
+  await run.start()
+  await until(() => run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'PARKED') && run.events.includes('pause'), 'the park')
+}
+
+test('a parked run keeps its session and sandbox instance until the warm limit, then lets both go with the VM left paused', async (t) => {
+  const run = await harness(t, { warmParkedMs: 40, turn: async () => SUSPENDED })
+  await parks(run)
+  assert.deepEqual(parkedLife(run), ['pause'], 'parking pauses the VM and keeps the session and the instance')
+  await until(() => evictions(run).length > 0, 'the warm limit')
+  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
+  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:TTL`])
+  await run.service.close()
+})
+
+test("the answer's leg takes over what its parked run kept warm, so the warm limit lets nothing go under it", async (t) => {
+  let turns = 0
+  const run = await harness(t, { warmParkedMs: 40, turn: async () => (turns++ === 0 ? SUSPENDED : completed()) })
+  await parks(run)
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await new Promise((wake) => { setTimeout(wake, 120) })
+  assert.deepEqual(evictions(run), [])
+  assert.deepEqual(parkedLife(run), ['pause', 'pause', 'session-release'], 'only the answering leg released the session, once its end was published')
+  await run.service.close()
+})
+
+test('the heap check lets go of every warm parked run at once and answers how many, and a second call finds none', async (t) => {
+  const run = await harness(t, { turn: async () => SUSPENDED })
+  await parks(run)
+  assert.equal(await run.runtime.evictParked(), 1)
+  assert.equal(await run.runtime.evictParked(), 0)
+  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
+  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:HEAP`])
+  await run.service.close()
+})
+
+test('a discard settles the open call first and then lets go of what the parked run kept warm', async (t) => {
+  const run = await harness(t, { turn: async () => SUSPENDED })
+  await parks(run)
+  await run.runtime.discardParked({ projectId, conversationId })
+  assert.deepEqual(run.discards, [true], 'the call was settled on the live session')
+  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
+  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:ENDED`])
+  assert.equal(await run.runtime.evictParked(), 0, 'nothing is left warm')
+  await run.service.close()
 })

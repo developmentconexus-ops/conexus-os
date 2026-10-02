@@ -102,6 +102,9 @@ export const localConversationSandboxes = (root, workspaceTools) => {
         if (parked) kept.set(conversationId, instance)
         else kept.delete(conversationId)
       },
+      release: () => {
+        if (kept.get(conversationId) === instance) kept.delete(conversationId)
+      },
       kill: async () => {
         kept.delete(conversationId)
         rmSync(vm, { recursive: true, force: true })

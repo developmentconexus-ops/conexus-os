@@ -11,6 +11,7 @@ import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from '
 import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { logLine } from '../platform/logger.js'
+import { heapUsedRatio } from '../platform/heap.js'
 
 /** What became of a person's answer to a parked run. Only `RESUMED` took the run out of PARKED. */
 export type BuilderAnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED'
@@ -72,10 +73,23 @@ export type BuilderRunDependencies = Readonly<{
   staleAfterMs?: number
   /** This Hub process as the owner of the runs its legs work; a new one at every start. */
   ownerId?: string
+  /** Used heap over the old-space cap, read once as a run is asked for. */
+  heapUsedRatio?: () => number
 }>
 
 /** Three heartbeats missed. */
 const RUN_STALE_AFTER_MS = 30_000
+/**
+ * A parked run nobody answered for 7 days is interrupted, so its Project is free again. The paused
+ * VM sweep has the same limit and its own constant.
+ */
+const PARKED_RUN_IDLE_MS = 7 * 24 * 60 * 60_000
+/**
+ * Above this a new run is refused. The heap watch warns at 0.8 held over two samples 15 s apart;
+ * this is one read, which can land on a peak before a collection, so it sits above that. What is left
+ * of a 512 MB cap, about 77 MB, is for the runs already working.
+ */
+const HEAP_REFUSE_RATIO = 0.85
 
 /**
  * Settles a run with a candidate whatever phase it stopped in; the candidate may be on `main`. When
@@ -97,7 +111,7 @@ const settleAdmission = async ({ store, git }: Readonly<{
 }
 
 // How a run ended, for the settle of its open question.
-type SettleTerminal = 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART'
+type SettleTerminal = 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART' | 'PARKED_EXPIRED'
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
 // The abort reason of a leg the Hub stops: it settles INTERRUPTED HUB_RESTART, not as the operator's stop.
@@ -363,6 +377,14 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   }
   return Object.freeze({
     createBuilderRun: async (input) => {
+      // Near the heap limit a new run could take the Hub down with every run in it. The refusal does
+      // not wait on the parked runs' warm sessions being let go, which waits on their VMs' pauses.
+      const ratio = (runs.heapUsedRatio ?? heapUsedRatio)()
+      if (ratio > HEAP_REFUSE_RATIO) {
+        logLine(`BUILDER_RUN_REFUSED_HEAP:${ratio.toFixed(3)}`, 'warn')
+        void runs.runtime.evictParked().catch(() => undefined)
+        throw new Error('BUILDER_HEAP_PRESSURE')
+      }
       if (await runs.conversations.ownerOf(input.projectId, input.conversationId) !== 'PROJECT') throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
       // The base is `main`, read only once the database holds the Project's run lock.
       const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
@@ -443,6 +465,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         } catch (error) {
           logLine(`BUILDER_RUN_SWEEP_SETTLE_FAILED:${run.builderRunId}:${failureCode(error)}`, 'error')
         }
+      }
+      for (const run of await store.expireParkedBuilderRuns(PARKED_RUN_IDLE_MS)) {
+        logLine(`BUILDER_RUN_PARKED_EXPIRED:${run.builderRunId}`, 'warn')
+        await publishRun(run)
+        await settleRun(run, 'PARKED_EXPIRED')
       }
     },
     stopLegs: () => { for (const { controller } of builderActive.values()) controller.abort(HUB_STOPPING) },
