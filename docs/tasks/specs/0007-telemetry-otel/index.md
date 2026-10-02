@@ -6,8 +6,10 @@
 `infra/pilot/runner.sh`, `scripts/build-hub-local.mjs`) and the connector record's output channel
 under C-029 (the record stays; its stderr line goes). The records it adds or amends are listed
 under *Follow-up* and need the operator's approval before this spec is Accepted.
-**Depends on**: nothing. It runs beside [0005](../0005-app-access-perfis/index.md): when 0005's
-`Principal` replaces `caller`, the account id attribute reads from the principal.
+**Depends on**: nothing for slices 1 to 3 and 5 to 8. It runs beside
+[0005](../0005-app-access-perfis/index.md): when 0005's `Principal` replaces `caller`, the account
+id attribute reads from the principal. Slice 4 lands with
+[0008](../0008-configuration-model/index.md) slice 4, which owns `apply signoz`, the settings `telemetry.retention` and `alerts.telegram.chat`, and the drift gauge.
 
 ## Summary
 
@@ -101,12 +103,15 @@ Attributes and redaction
 - **AC-10**: Every span, span event and log record passes the redaction of *Redaction* before
   export. Only keys on the allowlist leave the process; every other key is dropped and counted in
   `conexus.telemetry.attributes_dropped` by key. A log record's body leaves as its leading code
-  (`PROJECT_DELETION_INCOMPLETE` of `PROJECT_DELETION_INCOMPLETE:<id> ...`) or as `UNCODED_LOG`,
-  never as its text. An error leaves as its type and its stack frames, never as its message. A
+  (`PROJECT_DELETION_INCOMPLETE` of `PROJECT_DELETION_INCOMPLETE:<id> ...`) when the Hub's own
+  source defines that code, or as `UNCODED_LOG`, never as its text. Request paths and user agents
+  are chosen by the caller, so `url.path` and `user_agent.original` never leave; the route is
+  `http.route`, the template. An error leaves as its type and its stack frames, never as its message. A
   recorded Builder run, an app invoke with a connector fetch, a model request to a URL with `?key=`,
   a log line written through `logLine` or `logger`, and an error logged with `recordFailure` export
   none of the strings planted in their prompts, tool arguments, tool results, handler input,
-  handler output, SQL, URL query, log text or error message. [`telemetry-redaction`]
+  handler output, SQL, URL query, request path, user agent, log text, uppercase log text shaped
+  like a code or error message. [`telemetry-redaction`]
 - **AC-11**: The thrown message and the stdout and stderr of a handler are never exported. A
   failing handler exports `error.type` (the worker's result code, or `CRASHED`, `TIMEOUT`,
   `RESULT_TOO_LARGE`) and nothing of its text. [`telemetry-redaction`]
@@ -136,19 +141,23 @@ Metrics and the heap alarm
   sizes, `conexus.process.heap.used_ratio` (used heap divided by the old-space cap, see *Metrics*),
   RSS, event loop delay and utilization, GC duration, and on the
   Hub controller sessions, active runs, open session streams, pool connections by pool and state,
-  app invocations in flight and queued. The runner adds sandboxes running. The export interval is
-  15 seconds. [`telemetry-metrics`]
+  app invocations in flight and queued. The runner adds sandboxes running. The Hub also exports
+  `conexus.settings.drifted`, read through `settings.drift_count`, which 0008's slice 4 grants to
+  `hub_iam_runtime` (0008 AC-30). The export interval is 15 seconds. [`telemetry-metrics`]
 - **AC-17**: When `conexus.process.heap.used_ratio` (used heap divided by the old-space cap) is
   above 0.8 on two samples in a row, the
   process logs one `PROCESS_HEAP_HIGH` record at `warn` with the ratio, RSS, sessions, active runs
   and open streams. It logs again only after the ratio fell below 0.7. This works with no Collector.
   [`telemetry-metrics`]
 - **AC-18**: The installation's SigNoz holds the alert rules in `infra/telemetry/alerts/`, applied
-  by `scripts/telemetry-alerts.mjs` (idempotent): heap ratio above 0.8 for 2 minutes, event loop
-  delay p99 above 1 second for 2 minutes, a Hub or runner with no metrics for 2 minutes, and the
-  SigNoz data volume above 80%. Each rule notifies a Telegram bot chat (operator decision of
-  2026-10-01; bot token and chat id read from files, never printed), with an email copy once the
-  installation's sender exists.
+  by `conexus-settings apply signoz` ([0008](../0008-configuration-model/index.md) AC-29,
+  idempotent; it writes `settings.enforcement`): heap ratio above 0.8 for 2 minutes, event loop delay p99 above 1 second
+  for 2 minutes, a Hub or runner with no metrics for 2 minutes, the SigNoz data volume above 80%,
+  and `conexus.settings.drifted` above 0 (0008 AC-30). Each rule notifies a Telegram bot chat
+  (operator decision of 2026-10-01): the chat id is the setting `alerts.telegram.chat`, the bot token
+  the secret file `telegram-bot-token` in the operator secrets directory, never printed. An email
+  copy follows once the installation's sender exists. `apply signoz` is built and owned by 0008's
+  slice 4; this spec references it and does not specify it again.
   [live check on the pilot: a child process held above 0.8 raises the alert]
 
 Builder and connectors through Mastra
@@ -189,16 +198,19 @@ Browser errors
   `conexus.account_id`, `conexus.project_id` and `conexus.app_slug` from the session, never from
   the body, and records the report as an OTLP log record with `error.type` and a span event.
   [`browser-error-reporter`]
-- **AC-25**: With `CONEXUS_SENTRY_DSN` set, the Hub sends each admitted report to that Sentry
-  project as an envelope with the same fields, with `user.id` set to `conexus.account_hash`, and not
-  to the Collector. Unset, nothing goes to Sentry. [`browser-error-sentry`, live check against a
+- **AC-25**: With `CONEXUS_SENTRY_DSN_FILE` set (0008 AC-31), the Hub sends each admitted report to
+  that Sentry project as an envelope with the same fields, with `user.id` set to
+  `conexus.account_hash`, and not to the Collector. Unset, nothing goes to Sentry. [`browser-error-sentry`, live check against a
   test Sentry project]
 
 Deployment and retention
 - **AC-26**: `infra/telemetry/` holds the Collector config, the dev backend compose, the SigNoz
   Foundry `casting.yaml` with its generated compose, and a README with the start, stop and upgrade
-  commands. The pilot runs SigNoz with traces and logs kept 15 days and metrics 30 days, on a data
-  volume capped at 20 GB. [live check on the pilot]
+  commands. The pilot runs SigNoz with traces and logs kept 15 days and metrics 30 days, from the
+  setting `telemetry.retention` applied and observed by `apply signoz` (0008 AC-29), not set by hand
+  in the SigNoz UI, on a data volume capped at 20 GB. Whether SigNoz v0.144.0 sets retention through
+  its API is UNVERIFIED; if it does not, `apply signoz` observes it and the README names the manual
+  step. [live check on the pilot]
 - **AC-27**: End to end on the pilot: a page of a generated app calls an operation that reads the
   app database and fetches from a connector, the handler throws, and the operator finds the trace
   in SigNoz by `conexus.app_slug`, sees every span of AC-5, the `error.type`, and the log record of
@@ -349,7 +361,8 @@ Privacy choice, account id: inside the installation the raw account uuid is expo
 pseudonymous, the installation's own database already maps it to a person, and the operator needs
 to answer "what did this person hit". Email and display name are never exported. Toward Sentry,
 which is a third party, the Hub sends `conexus.account_hash`: HMAC-SHA256 of the account id with the
-installation's `CONEXUS_TELEMETRY_SALT`, first 16 hex characters.
+installation's salt, read from the file `CONEXUS_TELEMETRY_SALT_FILE` names, first 16 hex
+characters.
 
 ### Redaction (AC-10, AC-11)
 
@@ -366,8 +379,12 @@ code. What an exported record may carry, exactly:
 | Resource | `service.name`, `service.version`, `deployment.environment.name`, `conexus.installation`, the SDK's host and process attributes | nothing of the environment beyond `OTEL_RESOURCE_ATTRIBUTES` and `CONEXUS_SERVICE_VERSION` |
 
 A code is a run of capital letters, digits and underscores with at least one underscore, at the
-start of the message and followed by its end, a colon or a space: `HTTP_SERVER_ERROR`,
-`BUILDER_RETENTION_PRUNED` of `BUILDER_RETENTION_PRUNED:builder.runs:12`. The platform already
+start of the message and followed by its end, a colon or a space, and it is exported only when it
+is in the registry: `HTTP_SERVER_ERROR`, `BUILDER_RETENTION_PRUNED` of
+`BUILDER_RETENTION_PRUNED:builder.runs:12`. The shape alone proves nothing, since a caller's text
+can be `CUSTOMER_NAME_123`. The registry is `telemetry/log-codes.generated.ts`, generated by
+`scripts/generate-log-codes.mjs` from the code literals in the Hub source, so a log call that
+names a new code registers it on the next generation and a test fails while the file is stale. The platform already
 writes its log lines this way (`builder/run-runtime.ts`, `platform/postgres.ts`,
 `platform/connection-census.ts`). A line with no code, such as the runner's JSON lines until slice 2
 writes them as fields, leaves as `UNCODED_LOG` with its allowlisted fields. The full text stays on
@@ -376,7 +393,7 @@ stdout and in `hub.log` on the installation's own disk, found by the record's tr
 The allowlist is exact keys and prefixes:
 
 - Resource and HTTP: `http.request.method`, `http.response.status_code`, `http.route`,
-  `url.path`, `url.scheme`, `server.address`, `server.port`, `network.*`, `user_agent.original`.
+  `url.scheme`, `server.address`, `server.port`, `network.*`.
 - Database: `db.system.name`, `db.operation.name`, `db.collection.name`, `db.namespace`,
   `db.response.status_code`.
 - GenAI and Mastra: `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.request.model`,
@@ -394,7 +411,8 @@ What this removes, by name: `gen_ai.input.messages`, `gen_ai.output.messages`,
 `gen_ai.system_instructions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`,
 `gen_ai.tool.definitions` and every `mastra.<span type>.input` and `.output` (probe P2: the bridge
 exports all of these, prompts and tool results included); `db.query.text`; `url.full` and
-`url.query` (a Google model URL carries `?key=`); `exception.message`; any `mastra.metadata.*`
+`url.query` (a Google model URL carries `?key=`); `url.path` and `user_agent.original` (the caller
+picks both, and application-host routes take any path); `exception.message`; any `mastra.metadata.*`
 not listed. Handler stdout, stderr, thrown messages, input and output never become attributes: the
 runner already logs only codes (`app-runner/http.ts:48-57`), and AC-11 keeps that rule for spans.
 
@@ -431,6 +449,7 @@ has no log table, and Mastra's internal logs are out of scope here.
 | `conexus.app.invocations.in_flight`, `conexus.app.invocations.queued` | observable gauges | the two gates of `mar/application-invoker.ts:122,128` |
 | `conexus.runner.sandboxes.running` | observable gauge | the `running` count checked at `app-runner/supervisor.ts:266` |
 | `conexus.telemetry.attributes_dropped` (`key`) | counter | `redactAttributes` |
+| `conexus.settings.drifted` | observable gauge | Hub only; `settings.drift_count(p_now)` (0008 AC-30) |
 
 The heap ratio divides used heap by the old-space cap, read once at start, and falls back to
 `heap_size_limit` only when no flag is set. V8 dies when used heap reaches the cap, not
@@ -501,8 +520,8 @@ when it serves `index.html`, so the Builder cannot remove it, and `script-src 's
 `connect-src 'self'` (`platform/application-csp.ts:4`) already admit it. Generated stacks point at
 the minified bundle; mapping them through source maps is later work.
 
-Sentry is an installation setting, `CONEXUS_SENTRY_DSN`. The browser code is the same either way;
-the Hub decides where an admitted report goes. It sends the envelope from the server
+Sentry is the company's opt-in, its DSN a secret file named by `CONEXUS_SENTRY_DSN_FILE`. The
+browser code is the same either way; the Hub decides where an admitted report goes. It sends the envelope from the server
 (`POST https://<host>/api/<project>/envelope/`), so the CSP stays `'self'`, no third party script
 runs in a generated app, and the redaction above runs before data leaves. Browser errors go to one
 destination only: Sentry when the company opted in, the Collector otherwise.
@@ -514,14 +533,15 @@ destination only: Sentry when the company opted in, the Collector otherwise.
 | Collector | `otel/opentelemetry-collector-contrib:0.162.0`, `127.0.0.1:4318` | same image and config |
 | Backend | `grafana/otel-lgtm:0.34.0` in one container (Grafana on `127.0.0.1:3000`); 1 to 2 GB | SigNoz v0.144.0 installed by Foundry (`foundryctl forge` and `cast` from a committed `casting.yaml`): ClickHouse, ZooKeeper, SigNoz, SigNoz's ingestion collector; 4 GB minimum, 8 GB planned |
 | Ports | loopback only | loopback only; SigNoz UI through the same reverse proxy and sign-in the operator uses for the Hub |
-| Alerts | none | `infra/telemetry/alerts/*.json` applied by `scripts/telemetry-alerts.mjs` through SigNoz's API |
+| Alerts | none | `infra/telemetry/alerts/*.json` applied by `apply signoz` (0008 slice 4) through SigNoz's API |
 
 SigNoz stopped publishing compose files in `deploy/` (its v0.144.0 README); Foundry generates
 them from `casting.yaml`. The repository keeps both the casting and the generated compose, so a
 diff shows what an upgrade changes.
 
-Retention and disk budget, pilot: traces and logs 15 days, metrics 30 days, set in SigNoz's
-retention settings. The data volume is capped at 20 GB and alarmed at 80%. The estimate to check in
+Retention and disk budget, pilot: traces and logs 15 days, metrics 30 days, the setting
+`telemetry.retention` (`{ tracesAndLogsDays: 15, metricsDays: 30 }`) that `apply signoz` applies.
+The data volume is capped at 20 GB and alarmed at 80%. The estimate to check in
 slice 4: about 300,000 spans a day (Hub HTTP including Builder polling, about 5,000 invokes at 12
 spans each, 20 Builder runs at about 500 spans each) at about 0.5 KB a span after compression is
 about 150 MB a day, or 2.3 GB for 15 days of traces, with logs below that. The measured number
@@ -556,7 +576,9 @@ Building the tool and its prompt is later work.
 | tokens, cost, durations | Mastra metric events |
 | run id and Project of a usage record | the metric event's `metadata` (`conexusBuilderRunId`, `conexusBuilderProjectId`) |
 | heap ratio | `v8.getHeapStatistics()` |
-| account hash | HMAC-SHA256 with `CONEXUS_TELEMETRY_SALT` |
+| account hash | HMAC-SHA256 with the salt of `CONEXUS_TELEMETRY_SALT_FILE` |
+| retention | `telemetry.retention`, applied by `apply signoz` |
+| alert chat; bot token | `alerts.telegram.chat`; `telegram-bot-token` in the operator secrets directory |
 
 ### Key invariants
 
@@ -593,8 +615,12 @@ Building the tool and its prompt is later work.
 | `CONEXUS_SERVICE_VERSION` | launch scripts | the git short head, the resource's `service.version` |
 | `CONEXUS_DIAGNOSTIC_DIR` | launch scripts | heap snapshots and fatal reports |
 | `LOG_LEVEL` | Hub and runner env | default `info` |
-| `CONEXUS_TELEMETRY_SALT` | Hub env | 32 random bytes, per installation |
-| `CONEXUS_SENTRY_DSN` | Hub env | optional; set only when the company opts in |
+| `CONEXUS_TELEMETRY_SALT_FILE` | Hub env | path of a mode 600 file holding 32 random bytes, per installation |
+| `CONEXUS_SENTRY_DSN_FILE` | Hub env | optional path of a mode 600 file holding the DSN; set only when the company opts in |
+
+The OpenTelemetry variables stay boot env. Retention and the alert chat are settings of
+[0008](../0008-configuration-model/index.md), `telemetry.retention` and `alerts.telegram.chat`;
+the bot token is the `telegram-bot-token` file of the operator secrets directory.
 
 ### Critical test scenarios
 
@@ -605,7 +631,9 @@ port closed during a burst (AC-4); a worker that reports 500 timings and timings
 (AC-6); a session stream cancelled by the browser and one closed by session delete (AC-16); the
 heap ratio crossing 0.8, staying, dropping to 0.75 and crossing again (one record, AC-17); a
 browser report of 9 KiB and the 21st report in a minute (AC-24); a report body that claims another
-account id (AC-24); a log line `CODE:PLANTED` and an error whose message is planted, through
+account id (AC-24); a request whose path, query and user agent hold planted strings (AC-10); an uppercase
+underscore line such as `PLANTED_CUSTOMER_NAME_123` through `logLine` (AC-10); a log line
+`CODE:PLANTED` and an error whose message is planted, through
 `logLine`, `logger` and `recordFailure` (AC-10); a request with a forged `traceparent` on each TCP
 listener and one over the runner's unix socket (AC-28); two concurrent Builder runs on one model
 (AC-29); `NODE_OPTIONS` and the command line both setting `--max-old-space-size` (AC-17).
@@ -626,9 +654,10 @@ Each slice is one pull request, merged and checked on the dev installation befor
 3. **Mastra in the same trace.** `OtelBridge` on both instances, the Builder run root, the
    `MastraMetricForwarder`, `SpanLineExporter` removal, the redaction cases for Builder content.
    The study's item 4. Satisfies **AC-19** to **AC-22** and **AC-29**.
-4. **SigNoz on the pilot.** Foundry casting and generated compose, retention, data volume cap, the
-   alert rules and their script, the measured disk number in the README. Needs the operator's
-   Telegram bot and the pilot's memory. Satisfies **AC-18**, **AC-26**.
+4. **SigNoz on the pilot**, with 0008's slice 4, which builds `apply signoz`, the two settings and
+   the drift gauge. Foundry casting and generated compose, data volume cap, the alert rules, the
+   measured disk number in the README. Needs the operator's Telegram bot and the pilot's memory.
+   Satisfies **AC-18**, **AC-26**, and the drift gauge of **AC-16**.
 5. **Business gauges.** Sessions, runs, streams, pools, gates, sandboxes. Satisfies the rest of
    **AC-16**.
 6. **Browser errors.** The Hub web reporter, `/__conexus/report.js` and its injection, the two
