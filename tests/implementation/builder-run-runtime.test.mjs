@@ -11,6 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
+const { sweepIdleMachines } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
 const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
@@ -1505,6 +1506,41 @@ test("a local edit that main also changed makes the resumed checkout seed again 
   await run.service.close()
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')).at(-1), `BUILDER_TURN_CHECKOUT:${runId}:RESEEDED:sbx-1`)
   assert.deepEqual(seen, [{ knowledge, a: 'export const a = 1\n' }])
+})
+
+test('#423 the conversation of an idle machine that the sweep deleted runs its next turn on a new machine, with the files its mirror kept', async (t) => {
+  const seen = []
+  const run = await harness(t, {
+    turn: ({ checkout }) => {
+      seen.push(listFiles(checkout).filter((path) => !path.startsWith('.git/')))
+      if (seen.length === 1) {
+        writeFileSync(join(checkout, 'stray.txt'), 'left behind\n')
+        return { reason: 'error', userMessageId: 'user-message', summary: '' }
+      }
+      return completed()
+    },
+  })
+  await run.start()
+  assert.equal(await run.settled(), true)
+  assert.equal(run.mirror() === null, false, 'the first turn left its files in the mirror')
+  const deleted = []
+  const log = []
+  const day = 86_400_000
+  const now = Date.now()
+  await sweepIdleMachines({
+    listPaused: async () => [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }],
+    openRunConversations: async () => new Set(),
+    kill: async (ids) => { deleted.push(...ids); run.loseVm('sbx-new'); return ids },
+    log: (line) => log.push(line),
+    now: () => now,
+  })
+  assert.deepEqual(deleted, ['ivm-idle'])
+  assert.deepEqual(log, [`BUILDER_IDLE_MACHINE_DELETED:${conversationId}:ivm-idle:8d`])
+  await run.again()
+  assert.equal(await run.settled(), true)
+  await run.service.close()
+  assert.deepEqual(seen[1], ['AGENTS.md', 'app/index.html', 'stray.txt'], 'the new machine holds the mirror\'s files')
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox').map(([, id]) => id).at(-1), 'sbx-new', 'the run recorded the new machine')
 })
 
 test("a turn's end logs the hosts its sandbox reached, and the recorders start once per sandbox", async (t) => {
