@@ -37,8 +37,8 @@ Reasoning and options: see [rationale.md](rationale.md).
   the Hub and Keycloak follow it, without editing SQL, a realm file or a shell script.
 - As the Conexus operator, I ask "what is the session limit and who set it" and get one answer with
   its source, its history and whether Keycloak agrees.
-- As the Conexus operator, I learn within 15 minutes when someone changed a value directly in
-  Keycloak, and I decide whether to put ours back. Slice 1 records and logs the difference and
+- As the Conexus operator, I learn within 15 minutes when someone changed a value that Keycloak
+  shows (not its secrets, which it never shows; the next `apply` overwrites those), and I decide whether to put ours back. Slice 1 records and logs the difference and
   `explain` shows it; the Telegram notice arrives with the alert bot in slice 4.
 - As a company administrator, I know that nobody at my company can change how people sign in by
   accident, and that every change Conexus makes is recorded with who and why.
@@ -71,12 +71,26 @@ The standard
 - **AC-3**: `settings.write(key, scope, subject, value, default_value, expected_version, actor,
   reason)` updates or inserts the row, adds 1 to its `version` and appends one `settings.change` row
   with the old and new value, actor, channel and reason, in one transaction. `expected_version` 0
-  means "no row yet". On a first write the old value is `default_value`, the registry default the
+  means "no row yet". Cross-key invariants are written inside the same transaction under one shared lock (below). On a first write the old value is `default_value`, the registry default the
   caller passes, so a revert to the default is a normal write; `set <key> <default>` creates a row
   whose source is `set`. The channel is not a parameter: the function derives it from the calling
   role (*Database roles*). A stale `expected_version` is refused with `SETTING_VERSION_CONFLICT` and
   changes nothing. An empty reason is refused with `SETTING_REASON_REQUIRED`. A revert is a new write
-  of the old value and is recorded like any other. [`settings-postgres`]
+  of the old value and is recorded like any other. A same-key conflict stays decided by
+  `expected_version`; a write to different keys is serialized by the lock, so the invariant check below
+  never reads a value another write is about to change.
+
+  Every write goes through one store function, `writeSetting`, which opens one transaction, calls
+  `settings.lock_invariants()` (`pg_advisory_xact_lock` on one fixed key for the whole settings table:
+  writes are rare, so one lock is enough and no per-invariant lock ordering exists), reads the
+  committed rows of every key named by an invariant that names the written key (a missing row is its
+  registry default), validates every such invariant against the new value, calls `settings.write`
+  and commits. A broken invariant is refused with `SETTING_INVARIANT` naming the rule, and nothing is
+  written. The lock is released at commit or rollback. A test runs two connections in parallel against
+  the same database: from `identity.session.max` 1 h and `idle` 30 min, one writes `max` 20 min and
+  the other `idle` 45 min. The first to take the lock commits and the second is refused with
+  `SETTING_INVARIANT`, whichever is first, and the stored rows satisfy `idle <= max` after both
+  finish. A second pair, `max` 40 min and `idle` 35 min, commits both. [`settings-postgres`]
 - **AC-4**: `resolve(definition, reader)` is the only read path for the Hub, the CLI and the
   reconcilers. `reader` is a `SettingsReader` port: the Hub passes one backed by its
   `hub_iam_runtime` pool, the CLI one backed by its `settings_operator` connection, and the registry
@@ -90,7 +104,8 @@ The standard
   - for any other setting, the registry default with `source: 'default'`.
   It reads the row at each call, with no cache. [`settings-resolve`]
 - **AC-5**: `npm run conexus:settings -- set <key> <value> --reason <text>` parses the value with the
-  key's schema and checks every registry invariant before any write. A value out of bounds, an
+  key's schema and checks every registry invariant before any write, to name the rule early; the check that decides is
+  the one `writeSetting` repeats under the lock (AC-3). A value out of bounds, an
   unknown key or a broken invariant is refused with the field and the rule named, exit code 1, and no
   row written. [`settings-cli`]
 - **AC-6**: A key whose `editor` is `operator` is written only by the CLI, connected as
@@ -114,8 +129,9 @@ The standard
   the real system and an `apply` that writes only the fields it owns (*Reconciler*). For Keycloak,
   `apply` reads the realm representation, replaces only the owned fields and sends one
   `PUT /admin/realms/conexus`; a test asserts the body differs from the representation read only in
-  those fields. Running `apply` twice in a row changes nothing the second time, prints
-  `nada a aplicar` and exits 0. Each run writes `settings.enforcement` with the setting version it
+  those fields. Running `apply` twice in a row changes nothing observable the second time, prints
+  `nada a aplicar` and exits 0, and after it a second line `segredos reescritos: <nomes>` names the
+  opaque secrets it sent again (*Secrets Keycloak will not show*). Each run writes `settings.enforcement` with the setting version it
   applied, the observed value and a status of `in_sync`, `drifted` or `failed`. The CLI messages and
   exit codes are the table of *CLI output*. [`settings-reconcile-keycloak`]
 - **AC-10**: `set` commits the row first, then runs `apply` for the key's enforcers, and prints
@@ -223,13 +239,16 @@ Slice 3: sign-in source and email sender (with 0006)
   reads `identity.source.kind` where 0006 reads `CONEXUS_INTERNAL_SIGN_IN`, which is deleted.
   `apply keycloak` creates or updates the identity provider and the flow
   `conexus-first-broker-login` from the setting, with the alias from the setting, and the client
-  secret from the operator secrets directory. `--entra-file` is deleted. [`settings-reconcile-keycloak`,
+  secret from the operator secrets directory, an opaque secret like the SMTP password (AC-25).
+  `--entra-file` is deleted. [`settings-reconcile-keycloak`,
   `keycloak-people-probe`]
 - **AC-25**: `mail.smtp` (`{ host, port, from, fromDisplayName, starttls, ssl, auth, user }`, editor
   `operator`, enforced by `keycloak`) holds the sender; its password is a file in the operator
   secrets directory. In the pilot every installation uses one Conexus email account (decision 3).
   `apply keycloak` refuses to run with `mail.smtp` unset from slice 3 on. Replacing the password file shows as
-  `drifted` by fingerprint and the next `apply` converges. `--smtp-file` is deleted.
+  `drifted` by fingerprint and the next `apply` converges. Keycloak shows this password masked, so it
+  is an opaque secret: `apply` sends it on every run, and a direct change in Keycloak is not seen
+  but is overwritten at the next `apply` (*Secrets Keycloak will not show*). `--smtp-file` is deleted.
   [`settings-reconcile-keycloak`, live check]
 - **AC-26**: The Keycloak client `redirectUris` and `baseUrl` of `conexus-hub` are derived from
   `CONEXUS_ORIGIN` by `apply keycloak`; the pilot literal leaves `realm-conexus.json`. A second Hub
@@ -286,8 +305,9 @@ Leandro decided on 2026-10-01, and this spec records:
    company's own. Switching later is one setting change.
 4. Conexus is the only admin place. Keycloak is a hidden engine: its admin console is closed to
    customers and to the network outside the operator, with one break-glass operator account. A change
-   made directly in Keycloak is detected every 15 minutes, recorded and alerted; the operator runs
-   apply. No automatic correction.
+   made directly in Keycloak to a value it shows is detected every 15 minutes, recorded and alerted;
+   the operator runs apply. No automatic correction. The few secrets Keycloak never shows are
+   overwritten by every apply instead.
 5. Mastra RBAC and FGA are not used now. Conexus keeps its own roles (cargos to perfis to operation
    `allow`, spec 0005) and its own row rules (OWNER, SHARED, INHERIT, enforced by Postgres row level
    security). A "manager of" row rule is added only when a real app needs it.
@@ -368,6 +388,7 @@ settings.change      (change_id uuid, key, scope, subject, old_value jsonb, new_
                       channel text CHECK (channel IN ('cli','ui')), reason text, at timestamptz)  -- append only
 settings.enforcement (enforcer text, key text, desired_version int, observed jsonb,
                       status text CHECK (status IN ('in_sync','drifted','failed')), detail text,
+                      unverified text[] NOT NULL DEFAULT '{}',   -- opaque secrets only the file fingerprint speaks for
                       checked_at timestamptz, PRIMARY KEY (enforcer, key))
 settings.administrator_key (key text PRIMARY KEY)   -- keys the Hub may write with channel 'ui'
 ```
@@ -426,7 +447,7 @@ each run, rather than replaying events) and idempotent. `apply` reads the realm 
 replaces only the fields it owns and sends one `PUT` (AC-9). `apply --check` receives only a
 `KeycloakReadClient` (AC-11). `apply keycloak` runs in the CLI with the `master` realm service
 account `conexus-settings`, never inside the Hub: 0006 AC-17 makes the Hub refuse to start unless its
-credential holds exactly `query-users` and `view-events`, and widening it to write the realm would
+credential holds exactly `query-users`, and widening it to write the realm would
 undo that. The break-glass account is not used for routine applies, so its use stays visible in
 Keycloak's admin events as an emergency.
 
@@ -505,9 +526,26 @@ The operator starts it beside `hub.sh` and `runner.sh`, in a terminal tab or det
 `settings-check.log` in the pilot log directory, with a `settings-check heartbeat <time>` line each
 run. When it is not running, rows go stale after 30 minutes and show as `stale` (AC-11).
 
-Keycloak never returns some secrets (the SMTP password, the broker client secret). The reconciler
-compares the fingerprint of the file it last applied with the file now present, so a replaced file
-shows as `drifted` and the next `apply` converges. The fixed realm attributes (registration,
+#### Secrets Keycloak will not show
+
+Checked in the Keycloak 26 documentation and source (Context7, `/keycloak/keycloak`). Three kinds exist.
+
+| Secret | Keycloak admin API | Drift check |
+|---|---|---|
+| `keycloak-provisioner`, the `conexus-hub-provisioner` client secret | readable: `GET /admin/realms/conexus/clients/<id>/client-secret` returns it to a caller with `manage` on the client (`manage-clients`); with less, the same endpoint and the client representation return `**********` | `observe` reads it and compares it with the file; a difference is `drifted`. Slice 1 probe (with 0006): if `manage-realm` of `conexus-settings` does not read it, `manage-clients` joins the AC-13 role set and the widening is stated like `manage-realm`'s; if that is refused, the secret joins the next row. |
+| `smtp-password` (realm `smtpServer.password`) and `entra-client-secret` (identity provider `config.clientSecret`) | masked: the stripping that Keycloak applies to representations replaces a stored secret with `**********` | not observable |
+
+For the opaque row the reconciler does two things and claims nothing more. It compares the fingerprint
+of the file it last applied with the file now present, so a replaced file shows as `drifted` and the
+next `apply` converges. And `apply` sends these secrets on every run, even when the file did not
+change, so a hand change made in Keycloak is overwritten at the next `apply` and is not detected before.
+`apply --check` has no write method (AC-11), so it cannot rewrite; it records the secrets in
+`settings.enforcement.unverified` and `explain` prints them as `não verificável: smtp-password
+(reescrito no último apply, <hora>)`. The status reports the observable fields only, and `unverified`
+sits beside it, so `in_sync` is never read as proof about an opaque secret. The 15 minute drift guarantee covers observable fields and the
+local file; it does not cover the Keycloak side of an opaque secret. The run is idempotent: sending
+the same value again changes nothing. Keycloak's admin events record each send without the value
+(AC-7). The fixed realm attributes (registration,
 duplicate emails, verify email, reset password, theme, locale, events) stay code constants in
 `realm-conexus.json`, applied by `apply keycloak`.
 
@@ -691,9 +729,14 @@ while Keycloak is down: the row is saved, exit code 2, and a Hub session opened 
 Keycloak's old max, so the first provider recheck after that max answers `Token is not active` and
 ends it early through `SESSION_ENDED`, the safe direction (AC-10, AC-18); lowered while Keycloak is
 down: the Hub ends new sessions at the new max on its own (AC-10, AC-17); `max` lowered and `idle`
-raised by two interleaved `set` calls: the Hub opens with idle clamped to max (AC-17); an invalid
+raised by two concurrent `set` calls on two connections: one refused with `SETTING_INVARIANT`, stored
+rows valid (AC-3); a row edited by hand so that idle exceeds max: the Hub opens with idle clamped to
+max (AC-4, AC-17); an invalid
 `identity.session.max` row: sign-in refused, `apply` refused, `set` recovers (AC-4); `apply` twice
-after a hand change, and after a replaced SMTP password file (AC-9, AC-25); a session opened at
+after a hand change, and after a replaced SMTP password file (AC-9, AC-25); the SMTP password and
+the provisioner client secret each changed directly in Keycloak: `apply --check` marks the first
+`não verificável` and the second `drifted`, and the next `apply` restores both (a fake Keycloak records
+the body sent; AC-9, AC-25); a session opened at
 8 hours before the migration and read after it (AC-16); a planted secret in each reconciler input
 (AC-7); a new `process.env` read in a module (AC-8); a `master` realm user added by hand, and a role
 added by hand to `conexus-settings` (AC-13); the check loop stopped for 30 minutes (AC-11, stale).
@@ -793,7 +836,7 @@ Each change is made in that spec's own pull request, before it is Accepted.
 - AC-4: stays a hard rule. Its wording names admission `SCREEN` as the only value until admission by
   group exists (decision 6).
 - AC-15: unchanged; settings changes go to `settings.change`, not `iam.access_event`.
-- AC-17: unchanged; the Hub credential keeps exactly `query-users` and `view-events`. The wider
+- AC-17: unchanged; the Hub credential keeps exactly `query-users` (0006 removed `view-events` with its admin-event sweep). The wider
   `master` role of `conexus-settings` is held outside the Hub and checked by AC-13 here.
 - AC-21: adds the silent re-login of AC-27 here.
 
@@ -829,7 +872,7 @@ Each change is made in that spec's own pull request, before it is Accepted.
 - The session limit, and every later setting, has one answer to "what is it, who set it, when, why,
   and does Keycloak agree".
 - Changing the session limit is one command, not a migration, a realm edit and a README margin.
-- A hand change in Keycloak is recorded within 15 minutes instead of never, and from slice 4 it
+- A hand change in Keycloak to a value it shows is recorded within 15 minutes instead of never, and from slice 4 it
   reaches the operator's Telegram.
 - Secrets that sat in env values or mixed JSON files become files with fingerprints.
 - The Hub keeps its narrow Keycloak credential.
