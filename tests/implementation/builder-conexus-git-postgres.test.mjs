@@ -119,6 +119,17 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.equal(await read(projectId), 'ivm2second')
   })
 
+  await t.test('read_project_sandboxes names every VM the Project recorded and no other Project\'s, for the executor only', async () => {
+    const readAll = async (project) => one(connectionString, 'hub_builder_executor', 'SELECT builder.read_project_sandboxes($1)', [project])
+    const before = await readAll(projectId)
+    const another = randomUUID()
+    await callAs(connectionString, 'hub_builder_executor', 'SELECT builder.record_conversation_sandbox($1,$2,$3)', [projectId, another, 'ivm4another'])
+    assert.deepEqual(await readAll(projectId), [...before, 'ivm4another'].sort())
+    assert.ok(before.includes('ivm2second'))
+    assert.deepEqual(await readAll(unregistered), [])
+    assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.read_project_sandboxes($1)', [projectId]), /permission denied/)
+  })
+
   await t.test('lock_project_for_run admits a builder of a registered Project and refuses the rest', async () => {
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, projectId]), true)
     assert.match(await refusalAs(connectionString, 'hub_builder_ingress', 'SELECT builder.lock_project_for_run($1,$2)', [owner, unregistered]), /BUILDER_SUBJECT_NOT_FOUND/)

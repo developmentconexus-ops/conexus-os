@@ -216,8 +216,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
   const switchConversation = (id: string) => { if (id !== conversationId) onConversationChange(id) }
 
-  if (session.isError) {
-    const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  // Only a first load that failed replaces the screen; a failed refetch keeps the session already read.
+  // A 403 denied error always replaces the screen (even on refetch) because permission was revoked.
+  const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
       <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
@@ -351,6 +353,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         <ChatShell.Dock className="cx-dock">
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
+        {session.isRefetchError && <div className="cx-note" data-tone="warning" role="status">
+          <p>Sem conexão com o Conexus. Tentando de novo…</p>
+          <Button size="sm" onClick={() => void session.refetch()}>Tentar agora</Button>
+        </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own
             task_write/task_update/task_check/task_complete calls, never the settled result of a
