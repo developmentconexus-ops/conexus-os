@@ -2,10 +2,13 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const EXEMPT_TESTS = Object.freeze([
+export const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-e2b-live.test.mjs',
   'tests/implementation/builder-sandbox-e2b-live.test.mjs',
   'tests/implementation/builder-production-composed-live.test.mjs',
+  // Manual Playwright proofs against a real Keycloak and PostgreSQL; they need secrets CI does not hold.
+  'tests/implementation/r1-s1-live-browser.spec.mjs',
+  'tests/implementation/r1-s2-live-browser.spec.mjs',
 ])
 
 export function collectReachableTests(candidateGraph, packageScripts) {
@@ -14,7 +17,7 @@ export function collectReachableTests(candidateGraph, packageScripts) {
 
   function scanCommand(command) {
     if (!command) return
-    const matches = command.match(/\S+\.test\.mjs/g) ?? []
+    const matches = command.match(/\S+\.(?:test|spec)\.mjs/g) ?? []
     for (const match of matches) {
       const normalized = match.replace(/^\.\//, '')
       reachable.add(normalized)
@@ -38,7 +41,7 @@ export function collectReachableTests(candidateGraph, packageScripts) {
 }
 
 function listCommittedTests(root) {
-  const output = execFileSync('git', ['ls-files', 'tests/**/*.test.mjs'], {
+  const output = execFileSync('git', ['ls-files', 'tests/**/*.test.mjs', 'tests/**/*.spec.mjs'], {
     cwd: root,
     encoding: 'utf8',
   })

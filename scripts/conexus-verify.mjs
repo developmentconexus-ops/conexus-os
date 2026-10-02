@@ -116,7 +116,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('repository-import-law', 'node --test tests/repository/import-law.test.mjs'),
   candidateStep('hub-log-sinks', 'node --test tests/repository/hub-log-sinks.test.mjs'),
   candidateStep('telemetry', 'node --test tests/implementation/telemetry-register.test.mjs tests/implementation/telemetry-redaction.test.mjs tests/implementation/telemetry-logs.test.mjs tests/implementation/telemetry-metrics.test.mjs tests/implementation/telemetry-trace-trust.test.mjs tests/implementation/telemetry-log-codes.test.mjs tests/implementation/hub-launch-flags.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-weak-tests.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-flow-census.test.mjs tests/repository/check-weak-tests.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-r1-s1-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-r1-s2-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-r1-s3-contracts.mjs --check'),
@@ -173,6 +173,7 @@ const GRAPH_STEPS = Object.freeze([
 
   candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
+  candidateStep('flow-census', 'node scripts/check-flow-census.mjs'),
   candidateStep('weak-tests-ratchet', 'node scripts/check-weak-tests.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
@@ -210,6 +211,7 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'flow-census',
   'weak-tests-ratchet',
 ])
 
@@ -254,6 +256,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
   'wire-bijection',
   'wire-bijection-gate',
   'test-census',
+  'flow-census',
   'only-opt-in-skips',
 ])
 
@@ -261,7 +264,7 @@ export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHEC
 
 // The fast check to run before every push: the static gates CI otherwise reports minutes later, with
 // no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'knip', 'weak-tests-ratchet'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'weak-tests-ratchet'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
