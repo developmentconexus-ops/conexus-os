@@ -28,6 +28,8 @@ liveFlow({ id: 'project.delete-wrong-name', nome: 'Excluir um Projeto digitando 
   await expect(confirm).toBeDisabled()
   await page.getByLabel('Nome do Projeto').fill(name.toLowerCase() === name ? name.toUpperCase() : name.toLowerCase())
   await expect(confirm).toBeDisabled()
+  await page.getByLabel('Nome do Projeto').fill(name)
+  await expect(confirm).toBeEnabled()
 
   await page.getByRole('button', { name: 'Cancelar' }).click()
   await expect(page.getByRole('heading', { name: `Excluir ${name}?` })).toHaveCount(0)
