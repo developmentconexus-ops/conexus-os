@@ -77,6 +77,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'weak-tests-ratchet',
   'hub-baseline',
   'c020-migration-selection',
   'c020-migration-postgres',
@@ -161,7 +162,6 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
-  'weak-tests-ratchet',
   'only-opt-in-skips',
 ])
 
