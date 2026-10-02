@@ -1,8 +1,11 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createWriteStream } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
 
 /**
@@ -49,6 +52,12 @@ const NO_OBJECT = '0'.repeat(40)
 const STARTER_MESSAGE = 'Start the Conexus application'
 const BUILDER_IDENTITY = { name: 'Conexus Builder', email: 'builder@conexus.invalid' } as const
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024
+/** @public Tests import this at runtime from the built module. The largest result bundle the Hub takes from a sandbox, measured in the sandbox and again while it streams. */
+export const MAX_RESULT_BUNDLE_BYTES = 64 * 1024 * 1024
+/** @public Tests import this at runtime from the built module. The largest file a result may hold: 12 MiB, the same bound as the build-output total in `application-artifact-runtime.ts`. */
+export const MAX_RESULT_FILE_BYTES = 12 * 1024 * 1024
+/** @public Tests import this at runtime from the built module. The most files a result may hold: 256, the file count `application-artifact-runtime.ts` allows in a build output; the starter holds 41. */
+export const MAX_RESULT_FILES = 256
 
 class GitCommandError extends Error {
   constructor(readonly exitCode: number, readonly stderr: string) {
@@ -106,6 +115,18 @@ const withTemporaryDirectory = async <T>(work: (directory: string) => Promise<T>
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
+}
+
+// Counts the bytes through and fails the stream the moment they pass `limit`, so a file that grew
+// after the sandbox reported its size still cannot reach the Hub's disk.
+const limitBytes = (limit: number): Transform => {
+  let seen = 0
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      seen += chunk.byteLength
+      done(seen > limit ? new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE') : null, chunk)
+    },
+  })
 }
 
 const requireOid = (value: string, code: string): string => {
@@ -226,22 +247,28 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * parent. Then the snapshot's ref moves to it under git's ref lock: from `expected` when given
      * (null creates it), or unconditionally when omitted, as for a run's own candidate ref.
      */
-    acceptSnapshot: async (projectId: string, { ref, parent, bundle, expected }: Snapshot & Readonly<{ bundle: Uint8Array; expected?: string | null }>): Promise<string> => {
+    acceptSnapshot: async (projectId: string, { ref, parent, bundle, expected }: Snapshot & Readonly<{ bundle: Uint8Array | ReadableStream<Uint8Array>; expected?: string | null }>): Promise<string> => {
       if (!SNAPSHOT_REF.test(ref) || !OID.test(parent) || (expected && !OID.test(expected))) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
       const staging = `refs/conexus/staging/${randomUUID()}`
       try {
         await withTemporaryDirectory(async (directory) => {
           const file = join(directory, 'snapshot.bundle')
-          await writeFile(file, bundle, { mode: 0o600 })
+          if (bundle instanceof Uint8Array) await writeFile(file, bundle, { mode: 0o600 })
+          else {
+            await pipeline(Readable.from(bundle), limitBytes(MAX_RESULT_BUNDLE_BYTES), createWriteStream(file, { mode: 0o600 }))
+          }
           await git(projectId, [
             '-c', 'transfer.fsckObjects=true', '-c', 'fetch.fsckObjects=true',
             'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', file, `+${ref}:${staging}`,
-          ])
-        }).catch((error: unknown) => {
-          throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+          ]).catch((error: unknown) => {
+            throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+          })
         })
         const [commit, ...parents] = (await text(git(projectId, ['rev-list', '--parents', '-n', '1', staging]))).split(' ')
         if (!commit || !OID.test(commit) || parents.length !== 1 || parents[0] !== parent) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+        const tree = (await git(projectId, ['ls-tree', '-r', '-l', '-z', staging])).toString('utf8').split('\0').filter(Boolean)
+        const sizes = tree.map((entry) => /^\d+ blob [0-9a-f]{40} +(\d+)\t/.exec(entry)?.[1]).map(Number)
+        if (tree.length > MAX_RESULT_FILES || sizes.some((size) => size > MAX_RESULT_FILE_BYTES)) throw new Error('BUILDER_RESULT_CONTENT_TOO_LARGE')
         await moveRef(projectId, ref, commit, expected)
         return commit
       } finally {
@@ -349,6 +376,8 @@ export type RunSourceSandbox = Readonly<{
   writeRootFile(path: string, bytes: Uint8Array): Promise<void>
   /** Reads a file with the agent user's own permissions. */
   readAgentFile(path: string): Promise<Uint8Array>
+  /** The same read as a stream, for a file the Hub must not hold in memory. */
+  readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
 }>
 
 const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
@@ -455,14 +484,19 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
     `git update-ref ${quoted(ref)} "$commit"`,
     `rm -f ${quoted(bundleFile)}`,
     `git bundle create --quiet ${quoted(bundleFile)} ${quoted(ref)} ${quoted(`^${parent}`)}`,
+    `echo "size=$(stat -c %s ${quoted(bundleFile)})"`,
     'echo "$commit"',
   ].join('\n')])
-  const reported = committed.stdout.trim().split('\n').pop() ?? ''
+  const lines = committed.stdout.trim().split('\n')
+  const reported = lines.pop() ?? ''
   if (committed.exitCode !== 0 || (reported !== 'UNCHANGED' && !OID.test(reported))) {
     throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
   }
   if (reported === 'UNCHANGED') return null
-  const accepted = await git.acceptSnapshot(projectId, { ...snapshot, bundle: await sandbox.readAgentFile(bundleFile), ...(expected === undefined ? {} : { expected }) })
+  const size = Number(/^size=(\d+)$/.exec(lines.pop() ?? '')?.[1])
+  if (!Number.isSafeInteger(size)) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+  if (size > MAX_RESULT_BUNDLE_BYTES) throw new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE')
+  const accepted = await git.acceptSnapshot(projectId, { ...snapshot, bundle: await sandbox.readAgentFileStream(bundleFile), ...(expected === undefined ? {} : { expected }) })
   if (accepted !== reported) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
   return accepted
 }
