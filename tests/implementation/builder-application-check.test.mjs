@@ -385,7 +385,7 @@ await fetch('/conexus-server/manifest.json')
   ])
 })
 
-test('a page that draws after the load event, once a request settles, still passes boot', (t) => {
+test('a page that draws more than 300 ms after the load event still passes boot', (t) => {
   const { report } = check(t, withMain(`setTimeout(() => document.getElementById('root')!.append(document.createElement('p')), 1200)
 `))
   assert.equal(report.ok, true, JSON.stringify(report.steps))
