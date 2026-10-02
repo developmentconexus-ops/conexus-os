@@ -70,6 +70,7 @@ const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.interrupt_builder_run': 'hub_builder_executor',
     'builder.heartbeat_builder_runs': 'hub_builder_executor',
     'builder.take_over_stale_builder_runs': 'hub_builder_executor',
+    'builder.expire_parked_builder_runs': 'hub_builder_executor',
     'builder.lock_project_for_run': 'hub_builder_ingress',
     'builder.record_builder_run_model_account': 'hub_builder_executor',
     'builder.record_conversation_session': 'hub_builder_executor',

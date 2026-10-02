@@ -127,7 +127,13 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     if (new RegExp(`/api/control/projects/${projectId}/(?:session/turns|changes(?:/|$)|preview(?:$|-preparations|-launches))`).test(path)) forbiddenRequests.push(request.url())
     if (/\/builder-session\/runs\/[^/]+\/stream$/.test(path)) forbiddenRequests.push(request.url())
   })
+  // The Hub's first answer is a refusal near its heap limit, which creates no run.
+  let capacityFull = true
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
+    if (capacityFull) {
+      capacityFull = false
+      return route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:builder-capacity-full', title: 'Builder at capacity', status: 503 }) })
+    }
     const body = route.request().postDataJSON()
     requests.push({ body, key: route.request().headers()['idempotency-key'] })
     buildCount += 1
@@ -180,8 +186,13 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   // straight onto its most recent conversation.
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').waitFor()
-  const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
+  const refused = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 503)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador até 100 interativo')
+  await page.getByRole('button', { name: 'Enviar' }).click()
+  await refused
+  await page.getByText('O Conexus está com muitas execuções abertas agora. Tente em instantes.', { exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Mensagem para o agente').inputValue(), 'Crie um contador até 100 interativo', 'the refused words go back to the composer')
+  const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByRole('button', { name: 'Enviar' }).click()
   await firstSend
   assert.equal(requests.length, 1)

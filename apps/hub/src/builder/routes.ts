@@ -128,6 +128,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       const detail = message(error)
       if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
       if (detail === 'BUILDER_CONVERSATION_NOT_FOUND') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
+      if (detail === 'BUILDER_HEAP_PRESSURE') return sendProblem(reply, 503, 'builder-capacity-full', 'Builder at capacity')
       if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
       if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
       recordFailure(request.log, 'BUILDER_RUN_START_FAILED', error, { 'conexus.project_id': request.params.projectId })

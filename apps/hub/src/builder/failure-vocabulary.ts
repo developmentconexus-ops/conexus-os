@@ -125,6 +125,8 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
 
   USER_CANCELLED: 'RUN_CANCELLED',
   HUB_RESTART: 'RUN_INTERRUPTED',
+  // A question nobody answered for 7 days: the Hub let the run go so the Project is free.
+  BUILDER_RUN_PARKED_EXPIRED: 'RUN_INTERRUPTED',
   BUILDER_RUN_CANCELLED: 'RUN_CANCELLED',
   APPLICATION_COMPILER_CANCELLED: 'RUN_CANCELLED',
   BUILDER_APPLICATION_CANCELLED: 'RUN_CANCELLED',
@@ -176,6 +178,7 @@ export const builderFailureCategory = (code: string | null): BuilderFailureCateg
 /** The one place a run becomes wire shape: an unmapped internal code never survives it. */
 export const projectBuilderRun = (run: BuilderRunSummary): WireBuilderRun => Object.freeze({
   ...run,
-  failureCategory: run.state === 'INTERRUPTED' && run.failureCode !== 'HUB_RESTART' ? 'RUN_CANCELLED' : builderFailureCategory(run.failureCode),
+  // An interruption the Hub made says so; any other is the person's stop.
+  failureCategory: run.state === 'INTERRUPTED' && builderFailureCategory(run.failureCode) !== 'RUN_INTERRUPTED' ? 'RUN_CANCELLED' : builderFailureCategory(run.failureCode),
   failureCode: declared(run.failureCode) ? run.failureCode : null,
 })

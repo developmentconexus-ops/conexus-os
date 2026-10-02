@@ -552,6 +552,7 @@ const settleHarness = async ({ failures }) => {
       written.push(code)
     },
     heartbeatBuilderRuns: async (_owner, ids) => { beating = ids.includes(runId) },
+    expireParkedBuilderRuns: async () => [],
     takeOverStaleBuilderRuns: async (owner) => (beating || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId: 'conv-build', started: true, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
     close: async () => {},
   }
@@ -589,4 +590,36 @@ test('a settle write that keeps failing is logged with a code, and once the leg 
   h.restore()
   assert.deepEqual(h.lines, [`BUILDER_RUN_SETTLE_FAILED:${h.runId}:BUILDER_RUN_FAILURE_REFUSED`])
   assert.deepEqual(h.written, ['BUILDER_RUN_SETTLE_LOST'])
+})
+
+test('near the heap limit a new run is refused before any row exists and the warm parked sessions are let go; at the limit the run starts', async (t) => {
+  const projectId = '22222222-2222-4222-8222-222222222222'
+  const queued = { builderRunId: '11111111-1111-4111-8111-111111111111', projectId, conversationId: 'conv-heap', state: 'QUEUED', phase: null, baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
+  const rows = []
+  const evictions = []
+  const warnings = []
+  t.mock.method(logger, 'warn', (line) => { warnings.push(line) })
+  let ratio = 0.86
+  const runs = makeRuns({ execute: async () => ({ projectId, executionId: queued.builderRunId, sandboxId: 'vm', baseSourceRevision: queued.baseSourceRevision, summary: '', kind: 'RESPONSE_ONLY' }) })
+  const service = createBuilderService({
+    store: {
+      createBuilderRun: async () => { rows.push('row'); return queued },
+      claimBuilderRun: async () => ({ ...queued, state: 'RUNNING', phase: 'PREPARING' }),
+      setBuilderRunPhase: async () => {},
+      readConversationSandbox: async () => null,
+      bindBuilderRunMessage: async () => {},
+      settleBuilderRun: async () => {},
+      readBuilderRun: async () => null,
+      close: async () => {},
+    },
+    runs: { ...runs, runtime: { ...runs.runtime, evictParked: async () => { evictions.push('evict'); return 2 } }, heapUsedRatio: () => ratio },
+    applicationArtifacts: {},
+  })
+  const ask = () => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: 'key', content: 'Faça um app', conversationId: 'conv-heap' })
+  await assert.rejects(ask(), { message: 'BUILDER_HEAP_PRESSURE' })
+  assert.deepEqual({ rows, evictions, warnings }, { rows: [], evictions: ['evict'], warnings: ['BUILDER_RUN_REFUSED_HEAP:0.860'] })
+  ratio = 0.85
+  assert.equal((await ask()).state, 'QUEUED')
+  await service.close()
+  assert.deepEqual({ rows, evictions }, { rows: ['row'], evictions: ['evict'] }, 'at the threshold the run is created and nothing more is let go')
 })

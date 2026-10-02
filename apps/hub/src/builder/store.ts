@@ -77,6 +77,8 @@ export type BuilderStore = Readonly<{
   heartbeatBuilderRuns(ownerId: string, builderRunIds: readonly string[]): Promise<void>
   // Takes over the queued and working runs whose owner's heartbeat is older than the limit; a parked run has no owner and is never taken.
   takeOverStaleBuilderRuns(ownerId: string, staleAfterMs: number): Promise<readonly TakenOverRun[]>
+  // Interrupts the runs parked for longer than the limit with BUILDER_RUN_PARKED_EXPIRED, answering each as it ended.
+  expireParkedBuilderRuns(idleMs: number): Promise<readonly BuilderRunSummary[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
@@ -243,6 +245,10 @@ export const createBuilderStore = ({
   },
   takeOverStaleBuilderRuns: async (ownerId, staleAfterMs) => {
     const result = await executorPool.query<JsonRow<readonly TakenOverRun[]>>('SELECT builder.take_over_stale_builder_runs($1,$2) AS value', [ownerId, staleAfterMs])
+    return result.rows[0]?.value ?? []
+  },
+  expireParkedBuilderRuns: async (idleMs) => {
+    const result = await executorPool.query<JsonRow<readonly BuilderRunSummary[]>>('SELECT builder.expire_parked_builder_runs($1) AS value', [idleMs])
     return result.rows[0]?.value ?? []
   },
   recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
