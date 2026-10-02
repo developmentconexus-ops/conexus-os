@@ -7,7 +7,7 @@ import type { HandlerPort, HandlerPorts } from './handler-port.js'
 import { BROKER_ERROR_CODES } from './errors.js'
 import { CONNECTOR_FETCH_TOOL, FAILURE_PROJECTION, projectRequest, projectResult } from './fetch-projection.js'
 import { nativeRequestSchema } from './native.js'
-import type { Consumer } from './operation.js'
+import type { Consumer } from './integrator.js'
 import { revokeScope, scopeForBuilderRun } from './scope.js'
 
 /**

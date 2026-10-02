@@ -20,7 +20,7 @@ export class AccessToken extends Redacted<string> {
 }
 
 // A Sankhya token is one session, and a session cancels a second service in flight (envelope status "4",
-// https://developer.sankhya.com.br/docs/09_service). One lane per token serves the operation and the native paths alike.
+// https://developer.sankhya.com.br/docs/09_service), so each token has one lane its requests take in turn.
 const lanes = new WeakMap<AccessToken, Promise<unknown>>()
 
 export const inLane = <T>(token: AccessToken, work: () => Promise<T>): Promise<T> => {
@@ -37,7 +37,7 @@ type Entry =
   | Readonly<{ state: 'live'; live: Live }>
 
 /** Resolves a live token when first asked for, so work that is refused before its first request never authenticates. */
-export type TokenLease = () => Promise<AccessToken>
+type TokenLease = () => Promise<AccessToken>
 
 export type TokenCache = Readonly<{
   /**

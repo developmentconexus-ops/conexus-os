@@ -296,9 +296,9 @@ Protected question:
 > platform operation?
 
 The amendment's closure set says what closes Q4. The Connection, the Project binding and the
-executor are on `main` (#369, #372, #378). What remains: delete the per-operation path
-(`connectors.call`, `/v1/call`), run the pilot on `main`, record one autonomous investigation and
-one useful application with a later change, and freeze the verdict. The phase 1 fixes and guards of
+executor are on `main` (#369, #372, #378), and the per-operation path (`connectors.call`, `/v1/call`
+and `sankhya.purchase-order.read`) is deleted. What remains: run the pilot on `main`, record one
+autonomous investigation and one useful application with a later change, and freeze the verdict. The phase 1 fixes and guards of
 the [order of work](#order-of-work-to-q5) run inside this gate. Spike branches never merge.
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).

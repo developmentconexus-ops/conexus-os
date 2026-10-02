@@ -181,7 +181,7 @@ shows it. "Partly" names the missing piece. "Not proven" means a live proof that
 | AC-24 | `@mastra/factory`, the `factory` schema, the `hub_factory` role, the GitHub App code and model packs are gone, and `@mastra/code-sdk` stays pinned (`0002:126-129`) | not built | `package.json` still lists `@mastra/factory`. `@mastra/code-sdk` stays under the amendment of 2026-10-01. `/settings/installation/github` is still routed (`apps/hub/src/http/app.ts:120`) |
 | AC-25 | Every copied file carries the Apache 2.0 notice and names its source and version (`0002:130-131`) | partly | Notices in the copied files. The ChatGPT and Claude sign-ins are imported from `@mastra/code-sdk`, as the amendment of 2026-10-01 decides. Complete when AC-24 finishes the copy list |
 | AC-26 | C-032 is recorded, superseding C-022 and C-025 and amending C-027 (`0002:132-133`) | met | The operator accepted C-032 on 2026-09-29. The [register](../decisions/index.md#decided-on-2026-09-29-the-builder-off-the-factory-c-032-and-the-app-stack-v2-c-033) records it as current |
-| AC-27 | The eval passes `todo-reload`, `erp/sankhya-not-connected` and `erp/sales-dashboard`, one run each and one rerun per failed case (`0002:136-141`) | not proven | Declared in section 6. `erp/sales-dashboard` is blocked (section 7, limit 1) |
+| AC-27 | The eval passes `todo-reload`, `erp/sankhya-not-connected` and `erp/sales-dashboard`, one run each and one rerun per failed case (`0002:136-141`) | not proven | Declared in section 6. `erp/sales-dashboard` waits for its pass rule (section 7, limit 1) |
 | AC-28 | Driving Chromium as a person: create a Project, ask for an app, approve the plan, see the app in the Preview (`0002:142-143`) | not proven | Declared in section 6. The run is in progress |
 | AC-29 | An app built by the new Builder reads the pilot's Sankhya and shows the data in the Preview, values masked (`0002:144-145`) | not proven | The branch Hub has no gateway origin and no Connection (`S21:59`) |
 | AC-30 | The operator reads the model input the AC-1 script prints, for both modes, and his yes is recorded in the pull request (`0002:146-147`) | not proven | The operator's reading of both printed inputs and his yes are not recorded in the pull request |
@@ -229,11 +229,9 @@ screenshots with every business value masked, and the `CheckReport`s go to the
 
 ## 7. Open limits
 
-1. **`erp/sales-dashboard` cannot pass on any branch today.** An app handler can only call
-   `sankhya.purchase-order.read`. The handler `connectors.fetch` (Q4 closure item 2) is not built
-   (`apps/hub/src/app-runner/worker.ts:42-49`; `S21:15-17`). The same gap limits AC-29 to one
-   purchase order. The branch has had `connectors.fetch` since `12aeb4f3` (section 10, item 2).
-   The case still waits for its pass rule (limit 7).
+1. **`erp/sales-dashboard` waits for its pass rule (limit 7).** An app handler reaches a company
+   system only through `connectors.fetch`, in the vendor's own request format, so neither this case
+   nor AC-29 is limited to one purchase order.
 2. **Factory pull request #373 collides with the branch.** It adds
    `0032_application_thumbnail.sql` and edits `factory-runtime.ts`, which the branch deletes. Merging
    it first forces seven renamed migrations (`S21:141-148`). #370 overlaps the Modelos de IA screen

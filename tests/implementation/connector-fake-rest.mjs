@@ -64,9 +64,7 @@ export const REST_CONNECTOR_ID = 'synthetic-rest'
 export const restDefinition = Object.freeze({
   id: REST_CONNECTOR_ID,
   credential: z.strictObject({ clientId: z.string().min(1), clientSecret: z.string().min(1) }),
-  operations: Object.freeze([]),
   events: Object.freeze([]),
- 
   secretFields: Object.freeze(['clientId', 'clientSecret']),
   native: Object.freeze({
     services: Object.freeze(['rest.get']),
@@ -104,7 +102,4 @@ export const createRestAdapter = ({ origin }) => Object.freeze({
     const issued = await response.json()
     return { token: new AccessToken(issued.access_token), expiresInSeconds: issued.expires_in }
   }),
-  open: () => {
-    throw new Error('the synthetic REST integrator has no operations')
-  },
 })

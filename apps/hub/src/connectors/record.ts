@@ -3,7 +3,7 @@ import type { AnySpan, ObservabilityExporter, ObservabilityInstance, TracingEven
 import { BaseExporter, DefaultObservabilityInstance, SensitiveDataFilter } from '@mastra/observability'
 import { AdapterFailure } from './errors.js'
 import type { AdapterFailureReason, BrokerErrorCode } from './errors.js'
-import type { ProviderAnswer, RequestTrace } from './operation.js'
+import type { ProviderAnswer, RequestTrace } from './integrator.js'
 
 export type SpanResult = 'OK' | 'UNEXPECTED' | 'STORE_UNAVAILABLE' | BrokerErrorCode | AdapterFailureReason
 
