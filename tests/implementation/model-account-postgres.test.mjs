@@ -110,6 +110,48 @@ test('the app-facing functions: upsert keeps the row\'s sharing on a write-back,
   await assert.rejects(upsert(alice, 'google-ai-pro', 'google_ai_pro', sealedOf('x'), 'bogus'), /MODEL_ACCOUNT_SHARING_REFUSED/)
 })
 
+test('every change of a model account\'s sharing level writes an append-only history row, with the actor who made it', async (t) => {
+  const { connectionString } = await buildHubDatabase(t, 'conexus_model_account_sharing_history')
+  const alice = await account(connectionString, 'alice')
+  const administrator = await account(connectionString, 'administrator')
+
+  const upsert = (owner, secret, sharing, actor) =>
+    callAs(connectionString, 'hub_model_account', 'SELECT model.upsert_model_account($1,$2,$3,$4,$5,$6) AS id',
+      [owner, 'google-ai-pro', 'google_ai_pro', secret, sharing ?? null, actor ?? null])
+  const history = () => query(connectionString,
+    'SELECT previous_sharing, new_sharing, changed_by_account_id, changed_at FROM model.model_account_sharing_history ORDER BY changed_at')
+
+  // The first write names a sharing level, but there is no prior row to change from: not a change.
+  await upsert(alice, sealedOf('alice-1'), 'just_me', administrator)
+  assert.deepEqual((await history()).rows, [])
+
+  // just_me -> everyone, by an actor distinct from the account's owner.
+  await upsert(alice, sealedOf('alice-2'), 'everyone', administrator)
+  const afterFirstChange = (await history()).rows
+  assert.equal(afterFirstChange.length, 1)
+  assert.equal(afterFirstChange[0].previous_sharing, 'just_me')
+  assert.equal(afterFirstChange[0].new_sharing, 'everyone')
+  assert.equal(afterFirstChange[0].changed_by_account_id, administrator)
+
+  // A credential refresh that names no sharing level changes nothing, so it writes no row.
+  await upsert(alice, sealedOf('alice-refreshed'))
+  assert.equal((await history()).rows.length, 1)
+
+  // everyone -> just_me, recorded as a second row after the first.
+  await upsert(alice, sealedOf('alice-3'), 'just_me', administrator)
+  const rows = (await history()).rows
+  assert.equal(rows.length, 2)
+  assert.equal(rows[1].previous_sharing, 'everyone')
+  assert.equal(rows[1].new_sharing, 'just_me')
+  assert.equal(rows[1].changed_by_account_id, administrator)
+  assert.ok(rows[1].changed_at >= rows[0].changed_at)
+
+  // No Hub role reaches the history table directly, only through the function: the same
+  // invariant model.model_account itself holds.
+  const direct = await refusalAs(connectionString, 'hub_model_account', 'SELECT 1 FROM model.model_account_sharing_history LIMIT 1')
+  assert.equal(direct.code, '42501')
+})
+
 test('Google AI Pro credential read and write through model.model_account, sealed with the Conexus envelope', async (t) => {
   const { connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_model_account_gap')
   const alice = await account(connectionString, 'alice')
