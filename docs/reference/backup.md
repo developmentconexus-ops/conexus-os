@@ -65,7 +65,9 @@ Each problem is one line, `CODE detail`, after `FAIL`: `MISSING_FILE`, `CHECKSUM
 There is a schedule. `scripts/conexus-backup-run.sh` takes the backup arguments. It writes the backup into
 `<stamp>.partial`, runs the restore check on it, and renames it to `<stamp>` only when the check passes. A
 dated folder with a `manifest.txt` is therefore always a verified backup. Retention keeps the newest 7 of them
-and deletes the older ones. Any failure, before or after the folder exists, renames the partial folder to
+and deletes the older ones. At the start of each run it deletes any `.partial` folder an earlier run left behind (the run was killed, so the
+folder was never verified and holds secrets) and logs `BACKUP_RUN code=PARTIAL_REMOVED folder=<path>`. Any failure
+of this run, before or after its folder exists, renames that run's own partial folder to
 `<stamp>.failed`, keeps every verified folder, keeps only the newest `.failed` folder, exits 1 and logs one line,
 `BACKUP_RUN code=<CODE> ...`. The code is `OK`, `BACKUP_FAILED` (the backup did not finish, such as a missing key
 file, an unreachable Keycloak container, a `pg_dump` error or a full disk; the line ends with the last message)

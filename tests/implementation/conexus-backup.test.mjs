@@ -34,8 +34,8 @@ const sourceReady = (() => {
   execFileSync('docker', ['exec', SOURCE, 'createdb', '-U', 'postgres', 'app'])
   psql("CREATE TABLE notes (id int PRIMARY KEY, body text); INSERT INTO notes VALUES (1,'a'),(2,'b'),(3,'c'); CREATE TABLE tags (name text); INSERT INTO tags VALUES ('x'),('y');")
   execFileSync('docker', ['run', '--rm', '-d', '--name', KEYCLOAK, '-e', 'KC_BOOTSTRAP_ADMIN_USERNAME=admin', '-e', 'KC_BOOTSTRAP_ADMIN_PASSWORD=scratch-pw-1', KEYCLOAK_IMAGE, 'start-dev'])
-  writeFileSync(keyFile, 'k'.repeat(64) + '\n', { mode: 0o644 })
-  writeFileSync(keyFile2, 'p'.repeat(64) + '\n', { mode: 0o644 })
+  writeFileSync(keyFile, `${'k'.repeat(64)}\n`, { mode: 0o644 })
+  writeFileSync(keyFile2, `${'p'.repeat(64)}\n`, { mode: 0o644 })
   for (let i = 0; i < 120; i++) {
     if (sh('docker', ['logs', KEYCLOAK]).stdout.includes('Listening on') || sh('docker', ['logs', KEYCLOAK]).stderr.includes('Listening on')) break
     execFileSync('sleep', ['1'])
@@ -65,7 +65,7 @@ test('the backup describes itself: it passes after the source changed and fails 
   assert.equal(statSync(dir).mode & 0o777, 0o700)
   for (const name of ['database.dump', 'git.tar.gz', 'identity-realm.json', 'manifest.txt', 'keys/secret.key', 'keys/previous.key']) assert.equal(statSync(join(dir, name)).mode & 0o777, 0o600, name)
   assert.deepEqual(readdirSync(join(dir, 'keys')).sort(), ['previous.key', 'secret.key'])
-  assert.equal(readFileSync(join(dir, 'keys/secret.key'), 'utf8'), 'k'.repeat(64) + '\n')
+  assert.equal(readFileSync(join(dir, 'keys/secret.key'), 'utf8'), `${'k'.repeat(64)}\n`)
   assert.equal(JSON.parse(readFileSync(join(dir, 'identity-realm.json'), 'utf8')).realm, 'master')
   const manifest = readFileSync(join(dir, 'manifest.txt'), 'utf8')
   assert.match(manifest, /^[0-9a-f]{64} {2}\d+ {2}database\.dump$/m)
@@ -125,10 +125,13 @@ test('the scheduled run keeps seven verified folders through a failed backup and
   const seeded = readdirSync(root).sort()
   const failedOf = () => readdirSync(root).filter((name) => name.endsWith('.failed'))
 
+  mkdirSync(join(root, '20260108T030000Z.partial'))
+  writeFileSync(join(root, '20260108T030000Z.partial', 'database.dump'), 'leftover')
   const noKeycloak = backupArgs(root).map((a) => (a === KEYCLOAK ? 'conexus-backup-test-no-such-container' : a))
   const broken = sh(script('conexus-backup-run.sh'), noKeycloak)
   assert.equal(broken.status, 1, broken.stdout)
-  assert.match(broken.stdout.trim(), /^BACKUP_RUN code=BACKUP_FAILED REALM_EXPORT_COPY_FAILED$/)
+  assert.match(broken.stdout.trim(), /^BACKUP_RUN code=BACKUP_FAILED REALM_EXPORT_COPY_FAILED$/m)
+  assert.match(broken.stdout, /^BACKUP_RUN code=PARTIAL_REMOVED folder=\S+20260108T030000Z\.partial$/m)
   assert.deepEqual(readdirSync(root).filter((name) => !name.endsWith('.failed')).sort(), seeded)
   assert.equal(failedOf().length, 1)
 

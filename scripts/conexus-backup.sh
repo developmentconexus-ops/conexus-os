@@ -9,11 +9,11 @@ set -euo pipefail
 umask 077
 
 usage() {
-  echo "usage: conexus-backup.sh --container NAME --database NAME --git-root DIR --out-root DIR --key-file FILE [--key-file FILE ...] --keycloak-container NAME --keycloak-realm NAME [--partial] [--user postgres] [--password-file FILE]" >&2
+  echo "usage: conexus-backup.sh --container NAME --database NAME --git-root DIR --out-root DIR --key-file FILE [--key-file FILE ...] --keycloak-container NAME --keycloak-realm NAME [--partial] [--stamp STAMP] [--user postgres] [--password-file FILE]" >&2
   exit 2
 }
 
-container= database= git_root= out_root= db_user=postgres password_file= keycloak_container= keycloak_realm= partial=
+container= database= git_root= out_root= db_user=postgres password_file= keycloak_container= keycloak_realm= partial= stamp=
 key_files=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -24,6 +24,7 @@ while [ $# -gt 0 ]; do
     --user) db_user=${2:-}; shift 2 ;;
     --password-file) password_file=${2:-}; shift 2 ;;
     --partial) partial=1; shift ;;
+    --stamp) stamp=${2:-}; shift 2 ;;
     --key-file) key_files+=("${2:-}"); shift 2 ;;
     --keycloak-container) keycloak_container=${2:-}; shift 2 ;;
     --keycloak-realm) keycloak_realm=${2:-}; shift 2 ;;
@@ -45,7 +46,7 @@ if [ -n "$password_file" ]; then
   export PGPASSWORD
 fi
 
-final="$out_root/$(date -u +%Y%m%dT%H%M%SZ)"
+final="$out_root/${stamp:-$(date -u +%Y%m%dT%H%M%SZ)}"
 folder="$final.partial"
 mkdir -p "$out_root"
 mkdir "$folder"

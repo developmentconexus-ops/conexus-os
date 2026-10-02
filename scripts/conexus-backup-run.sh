@@ -2,6 +2,7 @@
 # One scheduled run: back up, prove the restore, keep the result only when the check passes.
 # Takes the arguments of conexus-backup.sh. A failed run renames its folder to <name>.failed, keeps every
 # earlier good folder, and exits 1. Logs one line, "BACKUP_RUN code=<CODE> ...", that a person can search.
+# A .partial folder left by an earlier run that was killed is deleted at the start, with a PARTIAL_REMOVED line.
 # Only the newest .failed folder is kept. Only the newest 7 good folders are kept.
 set -euo pipefail
 
@@ -20,10 +21,15 @@ fail() {
   exit 1
 }
 
-if ! output="$("$here/conexus-backup.sh" --partial "$@" 2>&1)"; then
-  for partial in "$out_root"/*.partial; do
-    [ -d "$partial" ] && mv "$partial" "${partial%.partial}.failed"
-  done
+for leftover in "$out_root"/*.partial; do
+  [ -d "$leftover" ] || continue
+  rm -rf "$leftover"
+  echo "BACKUP_RUN code=PARTIAL_REMOVED folder=$leftover"
+done
+
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+if ! output="$("$here/conexus-backup.sh" --partial --stamp "$stamp" "$@" 2>&1)"; then
+  [ ! -d "$out_root/$stamp.partial" ] || mv "$out_root/$stamp.partial" "$out_root/$stamp.failed"
   fail BACKUP_FAILED "$(printf '%s' "$output" | tail -1)"
 fi
 partial="$(printf '%s\n' "$output" | sed -n 's/^BACKUP //p')"
