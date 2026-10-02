@@ -9,6 +9,7 @@ import {
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
   FAST_CHECK_SCOPES,
+  QUICK_GRAPH,
   VERIFY_GROUPS,
   graphForGroup,
   groupsOf,
@@ -74,6 +75,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-connector',
   'wire-technical-lint',
   'wire-technical-ingress',
+  'log-codes-check',
   'test-census',
   'hub-baseline',
   'c020-migration-selection',
@@ -559,6 +561,14 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
+})
+
+test('the quick graph is the log code registry check and the test census, both static and fast-checked', () => {
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['log-codes-check', 'test-census'])
+  assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
+  assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
+  const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
+  assert.deepEqual(result.records.map(record => record.scope), ['log-codes-check', 'test-census'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {

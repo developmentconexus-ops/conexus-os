@@ -170,6 +170,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
   candidateStep('conexus-backup', 'node --test tests/implementation/conexus-backup.test.mjs'),
 
+  candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
 ])
@@ -205,6 +206,7 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'wire-connector',
   'wire-technical-lint',
   'wire-technical-ingress',
+  'log-codes-check',
   'test-census',
 ])
 
@@ -254,7 +256,13 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH })
+// The fast check to run before every push: the two failures CI otherwise reports minutes later, with
+// no Docker, browser or network.
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census'])
+
+export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
+
+const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH, 'candidate-quick': QUICK_GRAPH })
 
 // Descriptive aliases make the manifest easy to discover for tests and small
 // callers without creating another mutable allowlist.
