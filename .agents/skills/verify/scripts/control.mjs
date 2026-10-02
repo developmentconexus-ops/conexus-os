@@ -139,11 +139,16 @@ const startKeycloak = async (state, realm) => {
   const importDir = join(state.stateDir, 'keycloak-import')
   mkdirSync(importDir, { recursive: true, mode: 0o700 })
   writeSecret(join(importDir, 'realm-conexus.json'), JSON.stringify(realm))
+  // The TLS key and the realm are readable by this user alone. Keycloak's image runs under any uid in
+  // group 0, so it runs as this user: under another uid (a CI runner's is 1001) it cannot read them.
   run('docker', ['run', '--rm', '-d', '--name', state.containers.keycloak, '-p', `127.0.0.1:${state.ports.keycloak}:8443`,
-    '-e', 'JAVA_OPTS_KC_HEAP=-Xms128m -Xmx384m', '--memory=640m',
+    '--user', `${process.getuid()}:0`, '-e', 'JAVA_OPTS_KC_HEAP=-Xms128m -Xmx384m', '--memory=640m',
     '-v', `${importDir}:/opt/keycloak/data/import:ro`, '-v', `${join(state.stateDir, 'tls')}:/tls:ro`,
     KEYCLOAK_IMAGE, 'start-dev', '--import-realm', `--hostname=https://127.0.0.1:${state.ports.keycloak}`,
     '--https-port=8443', '--https-certificate-file=/tls/server.pem', '--https-certificate-key-file=/tls/server-key.pem'])
+  // Followed from the start: a container that exits is removed (--rm) and its log with it.
+  const out = openSync(evidence(state, 'keycloak.log'), 'a')
+  spawn('docker', ['logs', '-f', state.containers.keycloak], { detached: true, stdio: ['ignore', out, out] }).unref()
   await waitFor('KEYCLOAK', async () => (await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')).status === 200, 180_000)
 }
 
@@ -513,9 +518,6 @@ export const cleanup = async (state) => {
   if (hubIsOurs(state)) done.push(await stop(state.pids.hub, 'hub'))
   if (state.pids.browser && cmdline(state.pids.browser).includes('__browser-host')) done.push(await stop(state.pids.browser, 'browser'))
   for (const container of Object.values(state.containers)) {
-    if (container === state.containers.keycloak) {
-      try { writeFileSync(evidence(state, 'keycloak.log'), run('docker', ['logs', container])) } catch {}
-    }
     try {
       run('docker', ['stop', container])
       done.push(`${container} stopped`)
