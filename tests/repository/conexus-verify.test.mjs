@@ -53,6 +53,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'db-role-register',
   'repository-check',
   'repository-import-law',
+  'import-law-check',
   'repository-agent-context',
   'contract-projection-check-iam',
   'contract-projection-check-workspace',
@@ -79,6 +80,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'test-census',
   'flow-census',
   'weak-tests-ratchet',
+  'test-quarantine',
+  'patch-churn-report',
   'hub-baseline',
   'c020-migration-selection',
   'c020-migration-postgres',
@@ -567,11 +570,11 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
 })
 
 test('the quick graph is the knip, log code registry, test census, flow census and weak-test ratchet checks, all static and fast-checked', () => {
-  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['knip', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet'])
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['import-law-check', 'knip', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
-  assert.deepEqual(result.records.map(record => record.scope), ['knip', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet'])
+  assert.deepEqual(result.records.map(record => record.scope), ['import-law-check', 'knip', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {

@@ -159,3 +159,33 @@ test('an allowlisted nested node --test passes', context => {
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'no unexecuted test outside opt-in live runs (tests=1, opt-in skips=0, opt-in todos=0)\n')
 })
+
+const quarantineFixture = (context, prefix, entries, skipLine) => fixture(context, prefix, {
+  'tests/quarantine.json': JSON.stringify(entries),
+  'tests/flaky.test.mjs': ["import test from 'node:test'", skipLine, ''].join('\n'),
+})
+const quarantinedSkip = "test('flaky', { skip: 'opt-in: quarantined, see #7 until 2099-01-01' }, () => {})"
+
+test('a quarantined skip with a live entry passes, whatever form skipped it', context => {
+  const candidate = quarantineFixture(context, 'conexus-quarantine-live-', [{ test: 'tests/flaky.test.mjs:flaky', issue: 7, until: '2099-01-01' }], quarantinedSkip)
+  const result = runWithLedger(candidate, 'tests/flaky.test.mjs')
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stdout, [
+    'opt-in skip: tests/flaky.test.mjs › flaky: opt-in: quarantined, see #7 until 2099-01-01',
+    'no unexecuted test outside opt-in live runs (tests=1, opt-in skips=1, opt-in todos=0)',
+    '',
+  ].join('\n'))
+})
+
+test('a quarantined skip with no entry, or an expired one, fails and is named', context => {
+  for (const entries of [[], [{ test: 'tests/flaky.test.mjs:flaky', issue: 7, until: '2000-01-01' }]]) {
+    const candidate = quarantineFixture(context, 'conexus-quarantine-dead-', entries, "const reason = 'opt-in: quarantined, see #7 until 2099-01-01'\ntest('flaky', (t) => t.skip(reason))")
+    const result = runWithLedger(candidate, 'tests/flaky.test.mjs')
+    assert.equal(result.status, 1)
+    assert.equal(result.stderr, [
+      '1 test(s) skipped as quarantined without a live entry in tests/quarantine.json:',
+      'tests/flaky.test.mjs › flaky: opt-in: quarantined, see #7 until 2099-01-01',
+      '',
+    ].join('\n'))
+  }
+})
