@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
+import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { createWorkspaceTools, LocalFilesystem, Workspace } from '@mastra/core/workspace'
 import { connectorRecord } from './connector-record.mjs'
@@ -151,6 +152,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       mkdirSync(dirname(local(path)), { recursive: true })
       writeFileSync(local(path), corruptSeed && path.endsWith('.bundle') ? Buffer.from('not a bundle') : bytes)
     },
+    readAgentFileStream: async (path) => Readable.toWeb(createReadStream(local(path))),
     readAgentFile: async (path) => {
       if (!path.startsWith('/var/log/conexus-egress/')) return readFileSync(local(path))
       const held = egress.files.get(path)

@@ -33,9 +33,10 @@ type RunSandbox = Readonly<{
   runAsRoot(script: string, env: Record<string, string>): Promise<CommandResult>
   writeRootFile(path: string, bytes: Uint8Array): Promise<void>
   readAgentFile(path: string): Promise<Uint8Array>
+  readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
-  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
+  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
@@ -385,7 +386,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (sandbox.sandboxId !== incarnation) throw new Error('BUILDER_SANDBOX_INCARNATION_CHANGED')
         await sandbox.writeRootFile(path, bytes)
       }
-      const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path) }
+      const source: RunSourceSandbox = { direct, writeRootFile, readAgentFile: (path) => sandbox.readAgentFile(path), readAgentFileStream: (path) => sandbox.readAgentFileStream(path) }
       if ((await direct('id', ['-un'])).stdout.trim() !== SANDBOX_AGENT_USER) throw new Error('BUILDER_SANDBOX_AGENT_USER_REQUIRED')
       // Recording which hosts the sandbox reaches is evidence, never a gate: a recorder that will not
       // start is logged and the turn goes on.
@@ -554,7 +555,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
         // The Preview is built by the steps the model saw. A source the check refuses, or a page
         // that threw or drew nothing, leaves the admitted source in place without a Preview.
-        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, user: 'root' })
+        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, thumbnail: `${BUILD_ROOT}/${input.executionId}.png`, user: 'root' })
         ports.log(`BUILDER_CHECK:preview:${input.executionId}:${checkSummary(built.report)}`)
         const refused = refusingStep(built.report)
         const notBooting = unrenderedBootStep(built.report)
@@ -566,6 +567,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
+          ...(built.thumbnail ? { thumbnail: built.thumbnail } : {}),
         }, ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
         else throw new Error('APPLICATION_CHECK_UNREADABLE')
       } catch (error) {
@@ -665,7 +667,10 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   conversationWorkspaces: Map<string, Workspace>
   /** The live runs' checks and operation runs by run id, which the controller's `conexus_check` and `conexus_run_operation` read. */
   runTools: Map<string, RunTools>
-}>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
+}>): BuilderRunPorts['openSession'] => {
+  /** The run that owns each scope now. Two runs on one conversation can share one session object, so only the owner may end it. */
+  const owners = new Map<string, string>()
+  return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
   const resourceId = projectResourceId(projectId)
   const scope = conversationRunScope(conversationId)
   const requestContext = new RequestContext()
@@ -673,25 +678,33 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   conversationWorkspaces.set(conversationId, workspace)
   runTools.set(builderRunId, { check: runCheck, runOperation })
   runContexts.set(scope, bindContext)
-  const forget = (): void => {
-    runContexts.delete(scope)
-    conversationWorkspaces.delete(conversationId)
+  owners.set(scope, builderRunId)
+  let session: ControllerSession | undefined
+  // Lets go of what this run holds and says whether it still owned the scope. A run that a later
+  // run took the scope from leaves the session and the scope's entries to that run.
+  const forget = (keepOwnership = false): boolean => {
     runTools.delete(builderRunId)
+    if (owners.get(scope) !== builderRunId) return false
+    if (!keepOwnership) owners.delete(scope)
+    if (runContexts.get(scope) === bindContext) runContexts.delete(scope)
+    if (conversationWorkspaces.get(conversationId) === workspace) conversationWorkspaces.delete(conversationId)
+    return true
   }
   const deleteSession = async (): Promise<void> => {
+    if (!session || (await controller.getSessionByResource(resourceId, scope)) !== session) return
     await controller.deleteSession({ resourceId, scope })
     if (await controller.getSessionByResource(resourceId, scope)) throw new Error('BUILDER_SESSION_DELETE_FAILED')
   }
+  // The agent's turn ends, but the run keeps the session for its remaining phases and still owns it.
   const end = async (): Promise<void> => {
-    forget()
+    forget(true)
   }
-  let session: ControllerSession
   try {
     session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     // A session resolves its workspace once, when it is made; one made on a VM the conversation no
     // longer has is made again on this one.
     if (session.getWorkspace() !== workspace) {
-      await deleteSession()
+      if (owners.get(scope) === builderRunId) await deleteSession()
       session = await controller.createSession({ resourceId, scope, threadId: conversationId, requestContext })
     }
     if (session.getWorkspace() !== workspace) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
@@ -705,8 +718,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     }
     await session.state.set({ yolo: true })
   } catch (error) {
-    forget()
-    await deleteSession().catch(() => undefined)
+    if (forget()) await deleteSession().catch(() => undefined)
     throw error
   }
   const takeTurn = async (step: BuilderStep, signal?: AbortSignal): Promise<AgentTurn> => {
@@ -746,8 +758,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       // The stuck run still holds the session, so the next turn must not find it: the session is
       // deleted, waiting only briefly, since the store that hung may not answer the delete either.
       if (error instanceof Error && error.message === 'BUILDER_AGENT_STALLED') {
-        forget()
-        await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
+        if (forget()) await Promise.race([deleteSession().catch(() => undefined), new Promise((settle) => { setTimeout(settle, STALLED_SESSION_DELETE_MS).unref?.() })])
       }
       throw error
     } finally {
@@ -761,8 +772,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     resumeTurn: (resume: ParkedAnswer, signal?: AbortSignal) => takeTurn({ resume }, signal),
     end,
     release: async () => {
-      forget()
-      await deleteSession()
+      if (forget()) await deleteSession()
     },
     // Mastra's `deleteSession` aborts the session, and the abort reaches the thread's run, parked or
     // not: it settles the session's parked calls as denied and marks the run aborted, so no answer
@@ -770,7 +780,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     // parked calls is cleared, an abort is marked as already made, and the stream is detached
     // without an abort. The call and its snapshot stay in storage for the answer.
     park: async () => {
-      forget()
+      if (!forget()) return
       session.suspensions.clear()
       session.displayState.clearPendingSuspensions()
       session.run.requestAbort({ deferSignal: true })
@@ -778,11 +788,14 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       await deleteSession()
     },
   })
+  }
 }
 
 /**
- * A stop on a parked run. The run holds no session, so one is opened on its thread to settle its
- * calls; Mastra marks each as denied in the thread, as a stop on a run waiting in a session always did.
+ * Settles every call a run left open on its thread: the run holds no session, so one is opened on
+ * its thread, and Mastra marks each call as denied, as a stop on a run waiting in a session always
+ * did. With no call open it only reads the thread, so every ending of a run can call it and a second
+ * call changes nothing.
  */
 export const createParkedDiscard = ({ controller }: Readonly<{ controller: AgentController }>): BuilderRunPorts['discardParked'] => async ({ projectId, conversationId }) => {
   const resourceId = projectResourceId(projectId)
@@ -852,7 +865,8 @@ export const e2bConversationSandboxes = ({
         runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
         writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
         readAgentFile: (path: string) => sandbox.readAgentFile(path),
-        runCheck: ({ root, out, collect, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+        readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
+        runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
         pause: async () => {
           const opened = entry.opened
@@ -889,3 +903,6 @@ export const e2bConversationSandboxes = ({
     },
   })
 }
+
+/** What the Hub needs of its conversations' sandboxes: E2B's in production, a test composition's own otherwise. */
+export type ConversationSandboxes = ReturnType<typeof e2bConversationSandboxes>

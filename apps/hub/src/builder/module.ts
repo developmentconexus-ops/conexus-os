@@ -28,6 +28,7 @@ import type { AccountId, ResolveCurrentSession } from '../identity-access/curren
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
+import type { ConversationSandboxes } from './run-runtime.js'
 import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
@@ -278,7 +279,7 @@ export type BuilderConnectorPort = Readonly<{
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
 
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
@@ -299,6 +300,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
+  /** The conversations' sandboxes; absent, the Hub uses E2B. Only a test composition passes one. */
+  conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
   const log = (line: string): void => logLine(line)
@@ -319,9 +322,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
+  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
+  const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
+    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(executorPool, input) } : {}),
+    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(executorPool, input) } : {}),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
@@ -395,14 +402,20 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
 
   const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
   const discardParked = createParkedDiscard({ controller })
-  const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-  const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
-  const idleMachineSweep = scheduleIdleMachineSweep({
-    listPaused: () => listPausedConversationMachines(e2bApiKey),
-    openRunConversations: store.readOpenRunConversations,
-    kill: sandboxes.killRecorded,
-    log,
-  })
+  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
+  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
+  const e2bSandboxes = () => {
+    const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
+    const idleMachineSweep = scheduleIdleMachineSweep({
+      listPaused: () => listPausedConversationMachines(e2bApiKey),
+      openRunConversations: store.readOpenRunConversations,
+      kill: sandboxes.killRecorded,
+      log,
+    })
+    return { sandboxes, idleMachineSweep }
+  }
+  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
   const runtime = createBuilderRunRuntime({
     openSandbox: sandboxes.open,
     openSession: async (input) => {
@@ -518,12 +531,16 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
+    getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     recover: service.recover,
     close: async () => {
       let drained: Promise<unknown> = Promise.resolve()
       try {
-        service.stopLegs()
-        drained = Promise.all([retentionPrune.close(), idleMachineSweep.close()])
+        try {
+          service.stopLegs()
+        } finally {
+          drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
+        }
         await service.close()
       } finally {
         try {

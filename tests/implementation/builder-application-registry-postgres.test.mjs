@@ -77,6 +77,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const migrated = await runHubMigrations({ connectionString: url.toString() })
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
+  const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
@@ -87,17 +88,21 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
     has_function_privilege('hub_builder_executor', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS executor_execution_retain,
     has_function_privilege('hub_builder_executor', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS executor_source_get,
     has_function_privilege('hub_builder_executor', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS executor_source_read,
+    has_function_privilege('hub_builder_executor', 'reg.retain_application_thumbnail(uuid,uuid,uuid,text,uuid,text,bytea)', 'EXECUTE') AS executor_thumbnail_retain,
+    has_function_privilege('hub_builder_executor', 'reg.get_application_thumbnail(uuid,uuid)', 'EXECUTE') AS executor_thumbnail_get,
     has_function_privilege('public', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS public_source_get,
     has_function_privilege('public', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS public_source_read,
     has_function_privilege('public', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS public_execution_retain,
+    has_function_privilege('public', 'reg.retain_application_thumbnail(uuid,uuid,uuid,text,uuid,text,bytea)', 'EXECUTE') AS public_thumbnail_retain,
+    has_function_privilege('public', 'reg.get_application_thumbnail(uuid,uuid)', 'EXECUTE') AS public_thumbnail_get,
     has_table_privilege('builder_owner', 'reg.artifact', 'SELECT') AS builder_artifact_select,
     has_table_privilege('builder_owner', 'reg.artifact_revision', 'SELECT') AS builder_revision_select,
     pg_has_role('builder_owner', 'registry_owner', 'member') AS builder_registry_member,
     to_regprocedure('reg.get_application_execution(uuid,uuid,uuid,text)')::text AS execution_get,
     to_regprocedure('reg.read_application_file_execution(uuid,uuid,uuid,text,uuid,text)')::text AS execution_read`)).rows, [{
     builder_reg_usage: true, builder_artifact_match: true, builder_source_get: false, builder_execution_retain: false, builder_source_read: false,
-    executor_execution_retain: true, executor_source_get: true, executor_source_read: true,
-    public_source_get: false, public_source_read: false, public_execution_retain: false,
+    executor_execution_retain: true, executor_source_get: true, executor_source_read: true, executor_thumbnail_retain: true, executor_thumbnail_get: true,
+    public_source_get: false, public_source_read: false, public_execution_retain: false, public_thumbnail_retain: false, public_thumbnail_get: false,
     builder_artifact_select: false, builder_revision_select: false, builder_registry_member: false,
     execution_get: null, execution_read: null,
   }])
@@ -118,6 +123,15 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060', recipeSha256: '4ce6f3a6b1233edb4a3f8741751239c7d43bf70c0b8e75318106ac08543ab05d', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
+  const thumbnailBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
+  const retainedThumbnail = await store.retainApplicationThumbnail(runtime, {
+    accountId, projectId, executionId: builderRunId, sourceRevision: sourceB,
+    artifactRevisionId: retained.artifactRevisionId, mediaType: 'image/png', bytes: thumbnailBytes,
+  })
+  assert.deepEqual(retainedThumbnail, {
+    projectId, artifactRevisionId: retained.artifactRevisionId, mediaType: 'image/png',
+    byteLength: thumbnailBytes.length, sha256: createHash('sha256').update(thumbnailBytes).digest('hex'),
+  })
   // Settlement records work the run already performed, so it does not ask for authority. A
   // refusal here would leave a run that ran and cannot say so.
   await setup.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
@@ -131,8 +145,20 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   // While the membership is gone the artifact reads disclose nothing, and restoring it reopens
   // them, because both derive from that one row.
   assert.equal(await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB }), null)
+  assert.equal(await store.getApplicationThumbnail(runtime, { accountId, projectId }), null)
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   assert.deepEqual((await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })).artifactRevisionId, retained.artifactRevisionId)
   const file = await store.readApplicationFileBySource(runtime, { accountId, projectId, sourceRevision: sourceB, artifactRevisionId: retained.artifactRevisionId, path: 'index.html' })
   assert.equal(Buffer.from(file.bytes).toString(), bytes.toString())
+  await setup.query("INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'settlement-app', $2)", [projectId, accountId])
+  const thumbnail = await store.getApplicationThumbnail(runtime, { accountId, projectId })
+  assert.equal(thumbnail?.artifactRevisionId, retained.artifactRevisionId)
+  assert.equal(thumbnail?.mediaType, 'image/png')
+  assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
+  assert.equal(await store.getApplicationThumbnail(runtime, { accountId: randomUUID(), projectId }), null)
+
+  const served = await createServedApplicationReader(runtime).readThumbnail({ accountId, projectId })
+  assert.equal(served?.artifactRevisionId, retained.artifactRevisionId)
+  assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
+  assert.equal(await createServedApplicationReader(runtime).readThumbnail({ accountId: randomUUID(), projectId }), null)
 })

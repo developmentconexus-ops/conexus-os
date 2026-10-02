@@ -43,6 +43,7 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
     direct: (command, args) => sandbox.executeCommand(command, args, { env: {}, cwd: '/workspace' }),
     writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes),
     readAgentFile: (path) => sandbox.readAgentFile(path),
+    readAgentFileStream: (path) => sandbox.readAgentFileStream(path),
   }
   try {
     await sandbox.start()

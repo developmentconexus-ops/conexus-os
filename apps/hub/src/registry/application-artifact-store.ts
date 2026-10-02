@@ -93,6 +93,20 @@ const readRowSchema = z.object({
   bytes: z.instanceof(Uint8Array),
   sha256: sha256Schema,
 }).strict()
+const retainedThumbnailRowSchema = z.object({
+  out_project_id: uuidSchema,
+  out_artifact_revision_id: uuidSchema,
+  out_media_type: z.literal('image/png'),
+  out_byte_length: z.number().int().positive().max(512000),
+  out_sha256: sha256Schema,
+}).strict()
+const thumbnailRowSchema = z.object({
+  artifact_revision_id: uuidSchema,
+  media_type: z.literal('image/png'),
+  bytes: z.instanceof(Uint8Array),
+  byte_length: z.number().int().positive().max(512000),
+  sha256: sha256Schema,
+}).strict()
 
 type ApplicationPayload = z.infer<typeof payloadSchema>
 type ApplicationMetadata = Readonly<{
@@ -110,6 +124,22 @@ type ApplicationMetadata = Readonly<{
     byteLength: number
     sha256: string
   }>[]
+}>
+
+type RetainedApplicationThumbnail = Readonly<{
+  projectId: string
+  artifactRevisionId: string
+  mediaType: string
+  byteLength: number
+  sha256: string
+}>
+
+type ApplicationArtifactThumbnail = Readonly<{
+  artifactRevisionId: string
+  mediaType: 'image/png'
+  bytes: Uint8Array
+  byteLength: number
+  sha256: string
 }>
 
 export type ApplicationArtifactStore = Readonly<{
@@ -134,6 +164,19 @@ export type ApplicationArtifactStore = Readonly<{
     bytes: Uint8Array
     sha256: string
   }> | null>
+  retainApplicationThumbnail(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
+    executionId: string
+    sourceRevision: string
+    artifactRevisionId: string
+    mediaType: string
+    bytes: Uint8Array
+  }>): Promise<RetainedApplicationThumbnail>
+  getApplicationThumbnail(client: RegistryQueryClient, input: Readonly<{
+    accountId: string
+    projectId: string
+  }>): Promise<ApplicationArtifactThumbnail | null>
 }>
 
 const refuseInput = (): never => {
@@ -276,6 +319,32 @@ const parseReadFile = (value: unknown, expected: Readonly<{
   return Object.freeze({ path: parsed.path, mediaType: parsed.media_type, bytes, sha256: digest })
 }
 
+const parseRetainedThumbnail = (value: unknown): RetainedApplicationThumbnail => {
+  const parsed = parseResponseOrRefuse(retainedThumbnailRowSchema, value)
+  return Object.freeze({
+    projectId: parsed.out_project_id,
+    artifactRevisionId: parsed.out_artifact_revision_id,
+    mediaType: parsed.out_media_type,
+    byteLength: parsed.out_byte_length,
+    sha256: parsed.out_sha256,
+  })
+}
+
+const parseThumbnail = (value: unknown): ApplicationArtifactThumbnail => {
+  const parsed = parseResponseOrRefuse(thumbnailRowSchema, value)
+  const bytes = Uint8Array.from(parsed.bytes)
+  if (bytes.byteLength > 512000 || bytes.byteLength !== parsed.byte_length) refuseResponse()
+  const digest = createHash('sha256').update(bytes).digest('hex')
+  if (digest !== parsed.sha256) refuseResponse()
+  return Object.freeze({
+    artifactRevisionId: parsed.artifact_revision_id,
+    mediaType: parsed.media_type,
+    bytes,
+    byteLength: parsed.byte_length,
+    sha256: digest,
+  })
+}
+
 export const createApplicationArtifactStore = (): ApplicationArtifactStore => Object.freeze({
   async retainApplication(client, input) {
     const parsedInput = parseOrRefuse(z.object({ accountId: uuidSchema, compiled: z.unknown() }).strict(), input)
@@ -316,5 +385,38 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
     )
     const row = rows[0]
     return row ? parseReadFile(row, parsed) : null
+  },
+
+  async retainApplicationThumbnail(client, input) {
+    const parsed = parseOrRefuse(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
+      executionId: uuidSchema,
+      sourceRevision: sourceRevisionSchema,
+      artifactRevisionId: uuidSchema,
+      mediaType: z.literal('image/png'),
+      bytes: z.instanceof(Uint8Array),
+    }).strict(), input)
+    if (parsed.bytes.byteLength <= 0 || parsed.bytes.byteLength > 512000) refuseInput()
+    const rows = await queryRows(client,
+      'SELECT * FROM reg.retain_application_thumbnail($1, $2, $3, $4, $5, $6, $7)',
+      [parsed.accountId, parsed.projectId, parsed.executionId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.mediaType, parsed.bytes],
+    )
+    const row = rows[0]
+    if (!row) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+    return parseRetainedThumbnail(row)
+  },
+
+  async getApplicationThumbnail(client, input) {
+    const parsed = parseOrRefuse(z.object({
+      accountId: uuidSchema,
+      projectId: uuidSchema,
+    }).strict(), input)
+    const rows = await queryRows(client,
+      'SELECT * FROM reg.get_application_thumbnail($1, $2)',
+      [parsed.accountId, parsed.projectId],
+    )
+    const row = rows[0]
+    return row ? parseThumbnail(row) : null
   },
 })

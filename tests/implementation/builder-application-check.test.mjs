@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -49,7 +49,7 @@ const withMain = (main) => ({ ...STARTER, 'app/src/main.tsx': main })
 // Runs the real script against a real install of the template's compiler (its lockfile, its allowlist
 // view of node_modules) and the Playwright Chromium, in a folder laid out like the sandbox:
 // /opt/conexus is `tools`.
-const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
+const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, chromiumPath = () => chromium.executablePath() } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const root = join(scratch, 'repo')
@@ -72,8 +72,9 @@ const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
   const script = join(scratch, 'check.mjs')
   writeFileSync(script, checkScriptSource())
   const ran = spawnSync(process.execPath, [
-    script, '--root', root, '--out', out, '--tools', tools, '--home', scratch, '--chromium', chromium.executablePath(),
+    script, '--root', root, '--out', out, '--tools', tools, '--home', scratch, '--chromium', chromiumPath(scratch),
     ...limits.flatMap((limit) => ['--limit', limit]),
+    ...(thumbnail ? ['--thumbnail', thumbnail(scratch)] : []),
   ], { encoding: 'utf8', timeout: 120_000 })
   assert.equal(ran.status, 0, ran.stderr)
   return { report: parseCheckReport(ran.stdout), raw: JSON.parse(ran.stdout.trim().split('\n').pop()), root, out, scratch }
@@ -81,6 +82,24 @@ const check = (t, files, { limits = [], compilerFiles = {}, before } = {}) => {
 
 const stepsOf = (report) => report.steps.map((step) => [step.step, step.status])
 const failedStep = (report, id) => report.steps.find((step) => step.step === id && step.status === 'failed')
+
+test('the browser is launched with the background Google services switched off', (t) => {
+  const argvFile = join(tmpdir(), `conexus-chromium-argv-${process.pid}-${Date.now()}`)
+  t.after(() => rmSync(argvFile, { force: true }))
+  const { report } = check(t, STARTER, {
+    chromiumPath: (scratch) => {
+      const wrapper = join(scratch, 'chromium-recorder.sh')
+      writeFileSync(wrapper, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(argvFile)}\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`, { mode: 0o755 })
+      return wrapper
+    },
+  })
+  assert.deepEqual(report.steps.find((step) => step.step === 'boot')?.status, 'passed')
+  const argv = readFileSync(argvFile, 'utf8').split('\n').filter(Boolean)
+  for (const flag of ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run', '--disable-default-apps']) {
+    assert.ok(argv.includes(flag), flag)
+  }
+  assert.deepEqual(argv.filter((arg) => arg.startsWith('--disable-features=')), ['--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication'])
+})
 
 test('a starter with no server half passes all five steps and reports what it built', (t) => {
   const { report } = check(t, STARTER)
@@ -191,6 +210,35 @@ test('generate never writes through a symlink the candidate planted at a generat
   const { report } = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER, 'conexus/types.gen.ts': 'placeholder' }, { before: (root) => { rmSync(join(root, 'conexus/types.gen.ts')); symlinkSync(victim, join(root, 'conexus/types.gen.ts')) } })
   assert.equal(report.ok, true, JSON.stringify(report.steps))
   assert.equal(readFileSync(victim, 'utf8'), 'untouched')
+})
+
+test('boot writes the thumbnail only to the path the Hub names, outside the candidate tree', (t) => {
+  const { report, root, scratch } = check(t, STARTER, { thumbnail: (dir) => join(dir, 'thumbnail.png') })
+  assert.equal(report.ok, true)
+  assert.deepEqual([...readFileSync(join(scratch, 'thumbnail.png')).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47])
+  assert.equal(existsSync(join(root, 'conexus-thumbnail.png')), false)
+  assert.equal(existsSync(join(scratch, 'conexus-thumbnail.png')), false)
+})
+
+test('the thumbnail replaces a symlink at its path and never writes through it', (t) => {
+  const victim = join(tmpdir(), `conexus-victim-${process.pid}-${Date.now()}`)
+  t.after(() => rmSync(victim, { force: true }))
+  writeFileSync(victim, 'untouched')
+  const { report, scratch } = check(t, STARTER, { thumbnail: (dir) => join(dir, 'thumbnail.png'), before: (root) => symlinkSync(victim, join(dirname(root), 'thumbnail.png')) })
+  assert.equal(report.ok, true)
+  assert.equal(readFileSync(victim, 'utf8'), 'untouched')
+  assert.equal(lstatSync(join(scratch, 'thumbnail.png')).isSymbolicLink(), false)
+})
+
+test('a symlink or PNG the candidate commits as conexus-thumbnail.png is neither written through nor published', (t) => {
+  const victim = join(tmpdir(), `conexus-victim-${process.pid}-${Date.now()}`)
+  t.after(() => rmSync(victim, { force: true }))
+  writeFileSync(victim, 'untouched')
+  const { report, root, scratch } = check(t, STARTER, { thumbnail: (dir) => join(dir, 'thumbnail.png'), before: (dir) => symlinkSync(victim, join(dir, 'conexus-thumbnail.png')) })
+  assert.equal(report.ok, true)
+  assert.equal(readFileSync(victim, 'utf8'), 'untouched')
+  assert.equal(lstatSync(join(root, 'conexus-thumbnail.png')).isSymbolicLink(), true)
+  assert.equal(existsSync(join(scratch, 'thumbnail.png')), true)
 })
 
 test('the facts count operations and migrations from the source', (t) => {

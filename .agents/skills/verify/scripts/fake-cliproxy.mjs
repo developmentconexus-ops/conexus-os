@@ -3,10 +3,12 @@
 // (CONEXUS_CLIPROXY_BIN). It is the provider boundary: nothing in the Hub is stubbed, and no request
 // leaves this machine, because the verify browser cannot resolve accounts.google.com. It serves the
 // sign-in and readiness routes only. The Hub calls models on Gemini's /v1beta API, which this does not
-// answer, and no turn reaches a model while E2B is closed.
+// answer, and no turn reaches a model while E2B is closed. With CONEXUS_FAKE_MODEL_URL set (tests/live
+// does, through a wrapper, because the Hub spawns this with a scrubbed environment) it forwards
+// `streamGenerateContent` and `generateContent` there, so a scripted model answers as Gemini would.
 import { randomBytes } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { createServer } from 'node:http'
+import { createServer, request as forward } from 'node:http'
 import { join } from 'node:path'
 
 const AUTH_FILE = 'antigravity-verify@conexus.test.json'
@@ -16,6 +18,7 @@ const port = Number(/^port: (\d+)$/m.exec(config)[1])
 const authDir = JSON.parse(/^auth-dir: (.+)$/m.exec(config)[1])
 const apiKey = JSON.parse(/^ {2}- (.+)$/m.exec(config)[1])
 const managementKey = process.env.MANAGEMENT_PASSWORD
+const modelUrl = process.env.CONEXUS_FAKE_MODEL_URL ? new URL(process.env.CONEXUS_FAKE_MODEL_URL) : undefined
 const pending = new Set()
 
 const json = (response, status, body) => {
@@ -51,6 +54,17 @@ createServer(async (request, response) => {
       return json(response, 200, { files: readdirSync(authDir).filter((name) => !name.startsWith('.')).map((name) => ({ name, provider: 'antigravity', status: 'active', unavailable: false })) })
     }
     return json(response, 404, { error: 'not found' })
+  }
+  if (modelUrl && /^\/v1beta\/models\/[^:/]+:(?:stream)?[gG]enerateContent$/.test(url.pathname)) {
+    if (request.headers['x-goog-api-key'] !== apiKey) return json(response, 401, { error: { code: 401, message: 'Invalid API key', status: 'UNAUTHENTICATED' } })
+    const outgoing = forward({ hostname: modelUrl.hostname, port: modelUrl.port, method: request.method, path: request.url, headers: { ...request.headers, host: modelUrl.host } }, (answer) => {
+      response.writeHead(answer.statusCode ?? 502, answer.headers)
+      answer.pipe(response)
+    })
+    outgoing.once('error', () => { if (response.headersSent) response.destroy(); else json(response, 502, { error: { code: 502, message: 'model server unreachable', status: 'UNAVAILABLE' } }) })
+    response.once('close', () => { if (!response.writableFinished) outgoing.destroy() })
+    request.pipe(outgoing)
+    return
   }
   if (request.headers.authorization !== `Bearer ${apiKey}`) return json(response, 401, { error: 'Invalid API key' })
   if (url.pathname === '/v1/models') return json(response, 200, { object: 'list', data: [{ id: 'gemini-3-flash', owned_by: AUTH_FILE }] })

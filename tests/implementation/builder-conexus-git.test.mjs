@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createReadStream, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { MAX_RESULT_BUNDLE_BYTES, MAX_RESULT_FILE_BYTES, MAX_RESULT_FILES, candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(hubModuleUrl('builder/source.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -64,6 +65,7 @@ const localSandbox = () => ({
     writeFileSync(path, bytes)
   },
   readAgentFile: async (path) => readFileSync(path),
+  readAgentFileStream: async (path) => Readable.toWeb(createReadStream(path)),
 })
 
 test('ensuring a repository creates main with the starter once and leaves it alone after', async (t) => {
@@ -362,4 +364,111 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   run(work, ['push', '--quiet', 'origin', `${linked}:refs/conexus/runs/${OTHER_RUN}`])
   await assert.rejects(source.listSourceTree(PROJECT, linked), { message: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
   await assert.rejects(source.readSourceFile(PROJECT, linked, 'app/index.html'), { message: 'BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE' })
+})
+
+const MIB = 1024 * 1024
+const refs = (root) => bare(root, 'for-each-ref', '--format=%(refname) %(objectname)')
+const zeros = (bytes) => new ReadableStream({
+  pull(controller) {
+    const chunk = Math.min(MIB, bytes.left)
+    if (chunk === 0) return controller.close()
+    bytes.left -= chunk
+    controller.enqueue(new Uint8Array(chunk))
+  },
+})
+
+test('a result bundle the sandbox reports above the cap is refused before the Hub reads it', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const checkout = join(directory, 'sandbox', 'workspace', 'repo')
+  const seedFile = join(directory, 'sandbox', 'seed', `${RUN}.bundle`)
+  const local = localSandbox()
+  await startCheckout({ git, projectId: PROJECT, turn: fromMain(base), sandbox: local, checkout, seedFile })
+  writeFileSync(join(checkout, 'app/index.html'), '<main>ok</main>\n')
+  const reads = []
+  const sandbox = {
+    ...local,
+    direct: async (command, args) => {
+      const result = await local.direct(command, args)
+      return { ...result, stdout: result.stdout.replace(/^size=\d+$/m, `size=${MAX_RESULT_BUNDLE_BYTES + 1}`) }
+    },
+    readAgentFile: async (path) => { reads.push(path); return local.readAgentFile(path) },
+    readAgentFileStream: async (path) => { reads.push(path); return local.readAgentFileStream(path) },
+  }
+  const before = refs(root)
+
+  await assert.rejects(pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout }), { message: 'BUILDER_RESULT_BUNDLE_TOO_LARGE' })
+  assert.deepEqual(reads, [])
+  assert.equal(refs(root), before)
+})
+
+test('a bundle that grows past the cap while it streams is cut off and leaves nothing behind', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const before = refs(root)
+  const temporary = () => readdirSync(tmpdir()).filter((name) => name.startsWith('conexus-git-'))
+  const leftover = temporary()
+
+  await assert.rejects(
+    git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: zeros({ left: MAX_RESULT_BUNDLE_BYTES + MIB }) }),
+    { message: 'BUILDER_RESULT_BUNDLE_TOO_LARGE' },
+  )
+  assert.equal(refs(root), before)
+  assert.deepEqual(temporary().filter((name) => !leftover.includes(name)), [])
+})
+
+test('a small bundle holding a file above the per-file cap is refused and its staging ref is gone', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const work = cloneOf(root, directory)
+  const stage = (bytes) => {
+    const candidate = commitIn(work, { 'app/blob.bin': Buffer.alloc(bytes) })
+    run(work, ['update-ref', `refs/conexus/runs/${RUN}`, candidate])
+    const bundle = bundleOf(work, directory, [`refs/conexus/runs/${RUN}`, `^${base}`])
+    run(work, ['reset', '--quiet', '--hard', base])
+    return { candidate, bundle }
+  }
+  const before = refs(root)
+
+  const over = stage(MAX_RESULT_FILE_BYTES + 1)
+  assert.ok(over.bundle.byteLength < MIB, 'zeros compress, so the transport check cannot see this one')
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: over.bundle }), { message: 'BUILDER_RESULT_CONTENT_TOO_LARGE' })
+  assert.equal(refs(root), before)
+  assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
+
+  const exact = stage(MAX_RESULT_FILE_BYTES)
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
+  assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
+})
+
+test('a result holding more files than the cap is refused and its staging ref is gone', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const work = cloneOf(root, directory)
+  const held = bare(root, 'ls-tree', '-r', '--name-only', base).split('\n').filter(Boolean).length
+  const stage = (count) => {
+    const files = Object.fromEntries(Array.from({ length: count }, (_, index) => [`app/many/f${index}.txt`, `${index}`]))
+    const candidate = commitIn(work, files)
+    run(work, ['update-ref', `refs/conexus/runs/${RUN}`, candidate])
+    const bundle = bundleOf(work, directory, [`refs/conexus/runs/${RUN}`, `^${base}`])
+    run(work, ['reset', '--quiet', '--hard', base])
+    return { candidate, bundle }
+  }
+  const before = refs(root)
+
+  const over = stage(MAX_RESULT_FILES - held + 1)
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: over.bundle }), { message: 'BUILDER_RESULT_CONTENT_TOO_LARGE' })
+  assert.equal(refs(root), before)
+  assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
+
+  const exact = stage(MAX_RESULT_FILES - held)
+  assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
 })

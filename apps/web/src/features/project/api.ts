@@ -1,4 +1,5 @@
 import { clearAuthorityCache } from '../../app/query-client'
+import { deleteFailureMessage } from './delete-problem'
 import type {
   CreateProjectInput,
   CreateProjectResponse,
@@ -88,10 +89,7 @@ export async function deleteProject(projectId: string, confirmName: string): Pro
 
 export function projectDeleteMessage(error: unknown): string {
   if (!(error instanceof ProjectDeleteError)) return 'O servidor não respondeu desta vez. Nada foi excluído.'
-  if (error.type === 'project-name-mismatch') return 'O nome digitado não corresponde ao Projeto. Confira e digite exatamente como aparece.'
-  if (error.type === 'project-busy') return 'O Projeto está processando uma tarefa agora. Espere terminar e tente de novo.'
-  if (error.status === 403) return 'Só administradores da instalação podem excluir Projetos.'
-  if (error.status === 404) return 'Este Projeto já não existe.'
-  if (error.status === 503) return 'A exclusão não terminou. O que já foi apagado não volta atrás; tente de novo para concluir.'
-  return 'O servidor não respondeu desta vez. Nada foi excluído.'
+  return deleteFailureMessage(error.status, error.type)
 }
+
+export const projectThumbnailUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`
