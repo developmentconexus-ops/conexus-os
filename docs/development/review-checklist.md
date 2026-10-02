@@ -49,6 +49,29 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
 - [ ] Each meaning has one owner. The change adds no second source of truth.
 - [ ] A new dependency comes with the evidence the technology rule asks for.
 
+## Types
+
+These items judge the TypeScript the diff adds or changes. Biome in `biome.json` already fails
+`any`, a non-null `!`, a `switch` that misses a union member, and `console` in `apps/web/src` and
+`packages/*/src`. `tests/repository/hub-log-sinks.test.mjs` keeps the Hub's logs on its logger.
+
+- [ ] A value with variants is a union on one literal field such as `kind`, not optional fields or
+      flags whose valid combinations need a comment. A `default` arm on that union assigns the
+      value to a `never` local, so a new variant fails the compile. Owner: Type System Discipline.
+- [ ] Where the loose type forced a `!`, a cast or a "cannot happen" throw, the type is built so
+      the illegal value cannot be written: `[T, ...T[]]` for non-empty, a start and a duration
+      for a range. A plain `T[]` stays where every use is total. Owner: Type System Discipline.
+- [ ] Two values that share a primitive but mean different things, such as two ids, are branded
+      with `string & { readonly __brand: 'X' }` and created once by a parse function. Owner: Type
+      System Discipline.
+- [ ] A new `as` other than `as const` follows the validation that proves it. A literal checked
+      against a type uses `satisfies`. A guard named `isX` or `hasX` checks every field its type
+      claims. Owner: Type System Discipline.
+- [ ] A type that repeats a shape another file owns derives from it with `Pick`, `Omit`,
+      `ReturnType`, `Awaited`, `typeof` or `z.infer`, not a new interface. A new function whose
+      positional arguments could be swapped unnoticed takes one object, except on a hot path.
+      Owner: Type System Discipline.
+
 ## Tests and secrets
 
 - [ ] Each new or changed test calls the code as its users do and asserts a literal value the code computes, never one that restates a hand-maintained constant, digest or prompt. A value an owner outside the code approved, such as a brand token in `DESIGN.md`, is not a restatement.
