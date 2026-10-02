@@ -66,12 +66,17 @@ by server configuration.
 I&A OIDC adapter   → the exact configured Keycloak issuer and client
 Builder runtime    → E2B
 Builder docs       → Context7, mcp.context7.com, over MCP; the installation's key is optional
+Builder web        → any host, through `web_fetch` from the Hub and the model provider's own search
+Builder sandbox    → any host, from the E2B guest (C-023)
 Project Git        → the Git provider
 ```
 
 The Context7 adapter is the Hub's own MCP client, refusing every other host. It sends the
 library name and a one-line question the Builder wrote, refused when long or shaped like data, never a Hub credential, and it does not run
 in the sandbox.
+`web_fetch` is Mastra's `webFetchTool`. It takes any http or https URL the model writes and
+sends no credential, so data the model holds can leave in the URL. C-023, as amended on
+2026-10-02, puts a guard on it and an allowlist on the sandbox before Q5.
 There is no universal privileged `fetch(url, secret)` and no egress proxy. The generated
 application and the E2B guest never receive a durable privileged credential.
 
@@ -267,3 +272,13 @@ reconciled through I&A.
 
 The recovery posture is deny only. It may prevent normal ingress. Neither its presence
 nor its clearing grants authority.
+
+## 8. Risks accepted for the pilot
+
+The operator accepted these two risks for the pilot on 2026-10-02
+([decision register](../decisions/index.md#decided-on-2026-10-02-the-order-of-work-to-q5)).
+
+| Risk | Why it exists | Reopen |
+| --- | --- | --- |
+| A Project's handler can read the schema, table and column names of another Project's application. It cannot read their rows. | Every Project has its schemas in one shared application database. `app-runner/data-plane.ts` revokes schema and table rights from `PUBLIC`, but every role can read the PostgreSQL catalog (`pg_namespace`, `pg_class`, `pg_attribute`), and handler SQL runs as the Project's runtime role. | A second company's data shares the Applications cluster, a table name itself carries data that must not be seen, or the Stage 2 platform gives each Project its own database. |
+| The prompts, tool inputs and outputs, and source text of a deleted Project stay in the Builder's trace spans for up to 30 days. | Deleting a Project does not delete its spans. The Builder's Mastra storage keeps every span for 30 days (`OBSERVABILITY_SPAN_RETENTION` in `builder/module.ts`), and the daily prune removes it after that. | A person or a company asks for its data to be erased at once, or the traces move to a store with a different retention. |
