@@ -1,0 +1,499 @@
+#!/usr/bin/env node
+// Launches, inspects, drives and tears down one isolated Conexus instance for verification: its own
+// PostgreSQL and Keycloak containers, its own Hub built from this checkout, and its own headless
+// Chromium. See ../SKILL.md for the commands and ../features/ for what to drive.
+import { execFileSync, spawn } from 'node:child_process'
+import { createHash, randomBytes, randomUUID, X509Certificate } from 'node:crypto'
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { request as httpsRequest } from 'node:https'
+import { createServer } from 'node:net'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+
+const SKILL_DIR = resolve(import.meta.dirname, '..')
+const REPO = resolve(SKILL_DIR, '../../..')
+const STATE_ROOT = process.env.CONEXUS_VERIFY_STATE ?? join(homedir(), '.cache/conexus-verify')
+const EVIDENCE_ROOT = process.env.CONEXUS_VERIFY_EVIDENCE ?? join(homedir(), 'conexus-study/verify-evidence')
+const POSTGRES_IMAGE = 'postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
+const KEYCLOAK_IMAGE = 'quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0'
+const DATABASE = 'conexus_verify'
+const HUB_HOST = 'hub.conexus.localhost'
+// The Builder opens its E2B sandbox before the model's first token. Pointing the SDK at a closed
+// loopback port makes every E2B call fail on this machine, so a verification run can never create,
+// resume or bill a real sandbox.
+const E2B_CLOSED = { E2B_API_URL: 'http://127.0.0.1:9', E2B_DOMAIN: 'e2b-disabled.invalid' }
+const PERSON = { username: 'verify-operator', firstName: 'Verify', lastName: 'Operator', email: 'verify-operator@conexus.test' }
+const ROLE_FILES = {
+  CONEXUS_DB_PASSWORD_FILE: 'hub_iam_runtime',
+  CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: 'hub_workspace_command',
+  CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: 'hub_workspace_read',
+  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: 'hub_project_command',
+  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: 'hub_project_read',
+  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: 'hub_builder_ingress',
+  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: 'hub_builder_executor',
+  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: 'hub_model_account',
+  CONEXUS_DB_FACTORY_PASSWORD_FILE: 'hub_factory',
+}
+
+const fail = (message) => { throw new Error(message) }
+const today = () => new Date().toLocaleDateString('sv')
+const writeSecret = (path, value) => { writeFileSync(path, `${value}\n`, { mode: 0o600 }); chmodSync(path, 0o600) }
+const run = (file, args, options = {}) => execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim()
+const alive = (pid) => { if (!pid) return false; try { process.kill(pid, 0); return true } catch { return false } }
+const cmdline = (pid) => { try { return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' ') } catch { return '' } }
+const children = (pid) => { try { return run('pgrep', ['-P', String(pid)]).split('\n').filter(Boolean).map(Number) } catch { return [] } }
+
+const freePort = () => new Promise((settle, reject) => {
+  const probe = createServer()
+  probe.on('error', reject)
+  probe.listen(0, '127.0.0.1', () => { const { port } = probe.address(); probe.close(() => settle(port)) })
+})
+
+const statePath = (runId) => join(STATE_ROOT, runId, 'state.json')
+const readState = (runId) => JSON.parse(readFileSync(statePath(runId), 'utf8'))
+const saveState = (state) => writeFileSync(statePath(state.runId), `${JSON.stringify(state, null, 2)}\n`)
+const listRuns = () => existsSync(STATE_ROOT) ? readdirSync(STATE_ROOT).filter((id) => existsSync(statePath(id))).sort() : []
+const currentRun = () => {
+  const runId = process.env.CONEXUS_VERIFY_RUN ?? listRuns().at(-1)
+  if (!runId || !existsSync(statePath(runId))) fail('NO_RUN: launch one first, or set CONEXUS_VERIFY_RUN')
+  return readState(runId)
+}
+const evidence = (state, ...parts) => { const path = join(state.evidenceDir, ...parts); mkdirSync(dirname(path), { recursive: true }); return path }
+const logAction = (state, line) => appendFileSync(evidence(state, 'actions.log'), `${new Date().toISOString()} ${line}\n`)
+
+// One throwaway CA per run, trusted by this run's Hub (NODE_EXTRA_CA_CERTS) and nothing else.
+
+const makeTls = (dir) => {
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  const at = (name) => join(dir, name)
+  run('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=Conexus verify CA', '-keyout', at('ca-key.pem'), '-out', at('ca.pem')])
+  writeFileSync(at('san.ext'), `subjectAltName=DNS:${HUB_HOST},DNS:*.conexus.localhost,DNS:localhost,IP:127.0.0.1\n`)
+  run('openssl', ['req', '-newkey', 'rsa:2048', '-nodes', '-subj', '/CN=localhost', '-keyout', at('server-key.pem'), '-out', at('server.csr')])
+  run('openssl', ['x509', '-req', '-in', at('server.csr'), '-CA', at('ca.pem'), '-CAkey', at('ca-key.pem'), '-CAcreateserial', '-days', '2', '-extfile', at('san.ext'), '-out', at('server.pem')])
+  chmodSync(at('server-key.pem'), 0o600)
+  return new X509Certificate(readFileSync(at('server.pem'))).fingerprint256
+}
+
+// Without a servername the certificate is checked against 127.0.0.1, which its SAN also holds.
+const httpsGet = (state, port, path, servername) => new Promise((settle, reject) => {
+  const request = httpsRequest({ host: '127.0.0.1', port, path, ...(servername ? { servername } : {}), ca: readFileSync(join(state.stateDir, 'tls/ca.pem')), timeout: 5000 }, (response) => {
+    const fingerprint = response.socket.getPeerX509Certificate()?.fingerprint256
+    let body = ''
+    response.on('data', (piece) => { body += piece })
+    response.on('end', () => settle({ status: response.statusCode, body, fingerprint }))
+  })
+  request.on('timeout', () => request.destroy(new Error('timeout')))
+  request.on('error', reject)
+  request.end()
+})
+
+const waitFor = async (label, check, timeoutMs) => {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try { if (await check()) return } catch {}
+    await delay(1000)
+  }
+  fail(`TIMEOUT_${label}`)
+}
+
+const realmFor = ({ origin, clientSecret, subject, password }) => {
+  const realm = JSON.parse(readFileSync(join(REPO, 'infra/keycloak/realm-conexus.json'), 'utf8'))
+  // The Conexus login theme is a separate jar build; the run uses Keycloak's own login page.
+  delete realm.loginTheme
+  realm.clients = realm.clients.map((client) => ({ ...client, secret: clientSecret, redirectUris: [`${origin}/protocol/oidc/callback`] }))
+  realm.users = [{ id: subject, ...PERSON, enabled: true, emailVerified: true, credentials: [{ type: 'password', value: password, temporary: false }] }]
+  return realm
+}
+
+const startPostgres = async (state, secrets) => {
+  writeSecret(join(secrets, 'postgres.env'), `POSTGRES_PASSWORD=${randomBytes(18).toString('hex')}\nPOSTGRES_DB=${DATABASE}`)
+  run('docker', ['run', '--rm', '-d', '--name', state.containers.postgres, '--env-file', join(secrets, 'postgres.env'),
+    '-p', `127.0.0.1:${state.ports.postgres}:5432`, '--memory=512m', POSTGRES_IMAGE])
+  await waitFor('POSTGRES', () => run('docker', ['exec', state.containers.postgres, 'pg_isready', '-U', 'postgres', '-d', DATABASE, '-h', '127.0.0.1']).includes('accepting'), 90_000)
+}
+
+const adminUrl = (state) => {
+  const password = /POSTGRES_PASSWORD=(.+)/.exec(readFileSync(join(state.stateDir, 'secrets/postgres.env'), 'utf8'))[1]
+  return `postgresql://postgres:${password}@127.0.0.1:${state.ports.postgres}/${DATABASE}`
+}
+
+const prepareDatabase = async (state, secrets, hubEnv) => {
+  const { runHubMigrations } = await import(join(REPO, 'scripts/run-hub-migrations.mjs'))
+  const { provisionRoles, readRegister, readDatabase } = await import(join(REPO, 'scripts/provision-hub-roles.mjs'))
+  const migrated = await runHubMigrations({ connectionString: adminUrl(state) })
+  writeSecret(join(secrets, 'provision-password'), /POSTGRES_PASSWORD=(.+)/.exec(readFileSync(join(secrets, 'postgres.env'), 'utf8'))[1])
+  const environment = { ...hubEnv, CONEXUS_PROVISION_USER: 'postgres', CONEXUS_PROVISION_PASSWORD_FILE: join(secrets, 'provision-password') }
+  const provisioned = await provisionRoles(readDatabase(environment), environment, readRegister(REPO))
+  return { migrated, provisioned: provisioned.verdict }
+}
+
+const startKeycloak = async (state, realm) => {
+  const importDir = join(state.stateDir, 'keycloak-import')
+  mkdirSync(importDir, { recursive: true, mode: 0o700 })
+  writeSecret(join(importDir, 'realm-conexus.json'), JSON.stringify(realm))
+  run('docker', ['run', '--rm', '-d', '--name', state.containers.keycloak, '-p', `127.0.0.1:${state.ports.keycloak}:8443`,
+    '-e', 'JAVA_OPTS_KC_HEAP=-Xms128m -Xmx384m', '--memory=640m',
+    '-v', `${importDir}:/opt/keycloak/data/import:ro`, '-v', `${join(state.stateDir, 'tls')}:/tls:ro`,
+    KEYCLOAK_IMAGE, 'start-dev', '--import-realm', `--hostname=https://127.0.0.1:${state.ports.keycloak}`,
+    '--https-port=8443', '--https-certificate-file=/tls/server.pem', '--https-certificate-key-file=/tls/server-key.pem'])
+  await waitFor('KEYCLOAK', async () => (await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')).status === 200, 180_000)
+}
+
+const hubEnvironment = (state, secrets) => {
+  const fake = join(SKILL_DIR, 'scripts/fake-cliproxy.mjs')
+  const environment = {
+    NODE_EXTRA_CA_CERTS: join(state.stateDir, 'tls/ca.pem'),
+    CONEXUS_ORIGIN: state.origin,
+    CONEXUS_PORT: String(state.ports.hub),
+    CONEXUS_BOOTSTRAP_SUBJECT: state.person.subject,
+    CONEXUS_DB_HOST: '127.0.0.1',
+    CONEXUS_DB_PORT: String(state.ports.postgres),
+    CONEXUS_DB_NAME: DATABASE,
+    CONEXUS_DB_USER: 'hub_iam_runtime',
+    CONEXUS_BUILDER_E2B_API_KEY_FILE: join(secrets, 'e2b-api-key'),
+    CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'verify-e2b-disabled',
+    ...E2B_CLOSED,
+    CONEXUS_FACTORY_SECRET_KEY_FILE: join(secrets, 'secret-key'),
+    CONEXUS_OIDC_ISSUER: state.issuer,
+    CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
+    CONEXUS_OIDC_CLIENT_SECRET_FILE: join(secrets, 'oidc-client-secret'),
+    CONEXUS_PREVIEW_PORT: String(state.ports.preview),
+    CONEXUS_PREVIEW_CERT_FILE: join(state.stateDir, 'tls/server.pem'),
+    CONEXUS_PREVIEW_KEY_FILE: join(state.stateDir, 'tls/server-key.pem'),
+    CONEXUS_GIT_ROOT: join(state.stateDir, 'git'),
+    CONEXUS_CONNECTOR_SOCKET_DIR: join(state.stateDir, 'connectors'),
+    XDG_STATE_HOME: join(state.stateDir, 'xdg'),
+    CONEXUS_CLIPROXY_BIN: fake,
+    CONEXUS_CLIPROXY_SHA256: createHash('sha256').update(readFileSync(fake)).digest('hex'),
+  }
+  for (const [variable, role] of Object.entries(ROLE_FILES)) environment[variable] = join(secrets, `db-${role}`)
+  return environment
+}
+
+const buildDirs = () => readdirSync(join(REPO, 'apps/hub')).filter((name) => name.startsWith('.conexus-build-local-'))
+
+const startHub = async (state, environment) => {
+  const before = new Set(buildDirs())
+  const log = evidence(state, 'hub.log')
+  const out = openSync(log, 'a')
+  const base = Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER', 'SHELL', 'TZ'].filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
+  const hub = spawn(process.execPath, ['--max-old-space-size=512', join(REPO, 'scripts/build-hub-local.mjs')],
+    { cwd: REPO, env: { ...base, ...environment }, detached: true, stdio: ['ignore', out, out] })
+  hub.unref()
+  state.pids.hub = hub.pid
+  saveState(state)
+  await waitFor('HUB', async () => {
+    if (!alive(hub.pid)) fail('HUB_EXITED: see hub.log')
+    return (await httpsGet(state, state.ports.hub, '/', HUB_HOST)).status === 200
+  }, 420_000)
+  state.hubBuildDir = buildDirs().find((name) => !before.has(name)) ?? null
+  state.pids.hubServer = children(hub.pid).find((pid) => cmdline(pid).includes('server.js')) ?? null
+}
+
+const startBrowser = async (state) => {
+  const out = openSync(evidence(state, 'browser.log'), 'a')
+  const browser = spawn(process.execPath, [import.meta.filename, '__browser-host', state.runId],
+    { cwd: REPO, env: process.env, detached: true, stdio: ['ignore', out, out] })
+  browser.unref()
+  state.pids.browser = browser.pid
+  saveState(state)
+  await waitFor('BROWSER', async () => (await fetch(`http://127.0.0.1:${state.ports.cdp}/json/version`)).ok, 60_000)
+}
+
+const browserHost = async (runId) => {
+  const state = readState(runId)
+  const { chromium } = await import('@playwright/test')
+  const context = await chromium.launchPersistentContext(join(state.stateDir, 'chromium-profile'), {
+    headless: true, ignoreHTTPSErrors: true, locale: 'pt-BR', viewport: { width: 1440, height: 900 },
+    // accounts.google.com never resolves: the Google AI Pro sign-in tab must not reach Google.
+    args: [`--remote-debugging-port=${state.ports.cdp}`, '--ignore-certificate-errors', '--host-resolver-rules=MAP accounts.google.com ~NOTFOUND'],
+  })
+  const record = (page) => page.on('console', (message) => console.log(`${new Date().toISOString()} console.${message.type()} ${page.url()} ${message.text()}`))
+  for (const page of context.pages()) record(page)
+  context.on('page', record)
+  process.once('SIGTERM', () => { context.close().finally(() => process.exit(0)) })
+  console.log('browser-ready')
+}
+
+const launch = async () => {
+  const runId = `${new Date().toTimeString().slice(0, 8).replaceAll(':', '')}-${randomBytes(2).toString('hex')}`
+  const stateDir = join(STATE_ROOT, runId)
+  const secrets = join(stateDir, 'secrets')
+  mkdirSync(secrets, { recursive: true, mode: 0o700 })
+  for (const dir of ['git', 'connectors', 'xdg']) mkdirSync(join(stateDir, dir), { recursive: true, mode: 0o700 })
+  const ports = { postgres: await freePort(), keycloak: await freePort(), hub: await freePort(), preview: await freePort(), cdp: await freePort() }
+  const gitHead = run('git', ['rev-parse', 'HEAD'], { cwd: REPO })
+  const state = {
+    runId, stateDir, evidenceDir: join(EVIDENCE_ROOT, today(), runId), repo: REPO, gitHead,
+    gitDirty: run('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: REPO }) !== '',
+    ports, origin: `https://${HUB_HOST}:${ports.hub}`, issuer: `https://127.0.0.1:${ports.keycloak}/realms/conexus`,
+    containers: { postgres: `conexus-verify-pg-${runId}`, keycloak: `conexus-verify-kc-${runId}` },
+    person: { ...PERSON, subject: randomUUID() }, pids: {}, tlsFingerprint: null, cleanedAt: null,
+  }
+  mkdirSync(state.evidenceDir, { recursive: true })
+  saveState(state)
+  const step = (name) => { logAction(state, `launch ${name}`); console.error(`launch: ${name}`) }
+
+  step('tls')
+  state.tlsFingerprint = makeTls(join(stateDir, 'tls'))
+  writeSecret(join(secrets, 'oidc-client-secret'), randomBytes(24).toString('hex'))
+  writeSecret(join(secrets, 'secret-key'), randomBytes(32).toString('hex'))
+  writeSecret(join(secrets, 'e2b-api-key'), 'e2b_verify_disabled')
+  writeSecret(join(secrets, 'person-password'), randomBytes(12).toString('hex'))
+  for (const role of Object.values(ROLE_FILES)) writeSecret(join(secrets, `db-${role}`), randomBytes(18).toString('hex'))
+  saveState(state)
+
+  step('postgres')
+  await startPostgres(state, secrets)
+  const environment = hubEnvironment(state, secrets)
+  step('migrations and roles')
+  state.database = await prepareDatabase(state, secrets, environment)
+  saveState(state)
+
+  step('keycloak')
+  await startKeycloak(state, realmFor({
+    origin: state.origin,
+    clientSecret: readFileSync(join(secrets, 'oidc-client-secret'), 'utf8').trim(),
+    subject: state.person.subject,
+    password: readFileSync(join(secrets, 'person-password'), 'utf8').trim(),
+  }))
+
+  step('hub build and start (a few minutes)')
+  writeFileSync(evidence(state, 'hub.env'), Object.entries(environment).map(([name, value]) => `${name}=${value}`).join('\n'))
+  await startHub(state, environment)
+  saveState(state)
+
+  step('browser')
+  await startBrowser(state)
+  saveState(state)
+  writeFileSync(evidence(state, 'run.json'), `${JSON.stringify({ runId, gitHead, gitDirty: state.gitDirty, origin: state.origin, issuer: state.issuer, ports, containers: state.containers, person: state.person.username }, null, 2)}\n`)
+  console.log(JSON.stringify({ runId, origin: state.origin, evidence: state.evidenceDir }, null, 2))
+}
+
+const doctor = async () => {
+  const state = currentRun()
+  const checks = []
+  const check = async (name, probe) => {
+    try { const detail = await probe(); checks.push({ name, ok: true, ...(detail ? { detail } : {}) }) } catch (error) { checks.push({ name, ok: false, detail: error.message }) }
+  }
+  await check('not cleaned up', () => { if (state.cleanedAt) fail(`cleaned at ${state.cleanedAt}`) })
+  for (const [name, container] of Object.entries(state.containers)) {
+    await check(`${name} container running`, () => { if (run('docker', ['inspect', '-f', '{{.State.Running}}', container]) !== 'true') fail('not running') })
+  }
+  await check('hub process ours', () => { if (!alive(state.pids.hub) || !cmdline(state.pids.hub).includes('build-hub-local.mjs')) fail(`pid ${state.pids.hub} is not our Hub`) })
+  await check('hub answers with this run certificate', async () => {
+    const answer = await httpsGet(state, state.ports.hub, '/', HUB_HOST)
+    if (answer.status !== 200) fail(`status ${answer.status}`)
+    if (answer.fingerprint !== state.tlsFingerprint) fail('another server holds the port')
+  })
+  await check('E2B unreachable from the hub', () => {
+    const environ = readFileSync(`/proc/${state.pids.hubServer}/environ`, 'utf8')
+    if (!environ.includes(`E2B_API_URL=${E2B_CLOSED.E2B_API_URL}`)) fail('hub environment does not close E2B')
+  })
+  await check('keycloak issuer', async () => {
+    const answer = await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')
+    if (JSON.parse(answer.body).issuer !== state.issuer) fail('issuer differs')
+  })
+  await check('browser reachable over CDP', async () => {
+    if (!alive(state.pids.browser)) fail('browser host exited')
+    if (!(await fetch(`http://127.0.0.1:${state.ports.cdp}/json/version`)).ok) fail('CDP did not answer')
+  })
+  await check('hub runs this checkout', () => {
+    const head = run('git', ['rev-parse', 'HEAD'], { cwd: REPO })
+    if (head !== state.gitHead) fail(`launched at ${state.gitHead.slice(0, 8)}, checkout is now ${head.slice(0, 8)}: relaunch`)
+    return state.gitDirty ? 'launched with uncommitted changes' : undefined
+  })
+  const ok = checks.every((entry) => entry.ok)
+  console.log(JSON.stringify({ runId: state.runId, origin: state.origin, ok, checks }, null, 2))
+  if (!ok) process.exitCode = 1
+}
+
+const option = (args, name) => { const index = args.indexOf(`--${name}`); return index === -1 ? undefined : args[index + 1] }
+
+const connect = async (state) => {
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.ports.cdp}`)
+  const [context] = browser.contexts()
+  const pages = context.pages()
+  return { context, pages }
+}
+
+const locate = (page, args) => {
+  const role = option(args, 'role')
+  const name = option(args, 'name')
+  const exact = args.includes('--exact')
+  if (role) return page.getByRole(role, name ? { name, exact } : {}).first()
+  if (option(args, 'label')) return page.getByLabel(option(args, 'label'), { exact }).first()
+  if (option(args, 'text')) return page.getByText(option(args, 'text'), { exact }).first()
+  if (option(args, 'css')) return page.locator(option(args, 'css')).first()
+  fail('LOCATOR_REQUIRED: --role [--name], --label, --text or --css')
+}
+
+const browserCommand = async ([action, ...args]) => {
+  const state = currentRun()
+  const { context, pages } = await connect(state)
+  // CDP lists tabs in no stable order, so the default is the first tab on the Hub's origin.
+  const page = (option(args, 'page') === undefined ? pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0] : pages[Number(option(args, 'page'))]) ?? fail('NO_SUCH_PAGE')
+  const timeout = Number(option(args, 'timeout') ?? 15_000)
+  logAction(state, `browser ${action} ${args.join(' ')}`)
+  const shot = async (name) => {
+    const path = evidence(state, 'screens', `${name}.png`)
+    await page.screenshot({ path, fullPage: false })
+    return path
+  }
+  switch (action) {
+    case 'goto': await page.goto(new URL(args[0], state.origin).href, { waitUntil: 'domcontentloaded' }); break
+    case 'click': await locate(page, args).click({ timeout }); break
+    case 'fill': await locate(page, args).fill(option(args, 'value') ?? fail('VALUE_REQUIRED'), { timeout }); break
+    case 'focus': await locate(page, args).focus({ timeout }); break
+    case 'press': await page.keyboard.press(option(args, 'key') ?? fail('KEY_REQUIRED')); break
+    case 'wait': await locate(page, args).waitFor({ state: args.includes('--gone') ? 'detached' : 'visible', timeout }); break
+    case 'attr': console.log(await locate(page, args).getAttribute(option(args, 'attr') ?? fail('ATTR_REQUIRED'), { timeout })); break
+    case 'text': console.log(await locate(page, args).innerText({ timeout })); break
+    case 'screenshot': console.log(await shot(args[0] ?? fail('NAME_REQUIRED'))); break
+    case 'snapshot': {
+      const path = evidence(state, 'aria', `${args[0] ?? fail('NAME_REQUIRED')}.aria.yml`)
+      writeFileSync(path, await page.locator('body').ariaSnapshot())
+      console.log(path)
+      break
+    }
+    case 'pages': for (const [index, each] of context.pages().entries()) console.log(`${index} ${each.url()}`); break
+    case 'close-page':
+      for (const each of option(args, 'page') === undefined ? context.pages().filter((tab) => !tab.url().startsWith(state.origin)) : [page]) await each.close()
+      break
+    case 'url': break
+    default: fail(`UNKNOWN_BROWSER_ACTION ${action}`)
+  }
+  if (!['pages', 'close-page'].includes(action)) console.log(page.url())
+}
+
+// The repeated first stretch of every drive: Keycloak's form, then /setup on the first sign-in.
+const signIn = async () => {
+  const state = currentRun()
+  const { pages } = await connect(state)
+  const page = pages.find((each) => each.url().startsWith(state.origin)) ?? pages[0]
+  logAction(state, 'sign-in')
+  await page.goto(new URL('/protocol/oidc/login', state.origin).href)
+  await page.locator('#username').fill(state.person.username)
+  await page.locator('#password').fill(readFileSync(join(state.stateDir, 'secrets/person-password'), 'utf8').trim())
+  await page.locator('#kc-login').click()
+  await page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })
+  await page.waitForLoadState('networkidle')
+  if (new URL(page.url()).pathname === '/setup') {
+    await page.getByLabel('Seu nome').fill(`${PERSON.firstName} ${PERSON.lastName}`)
+    await page.getByRole('button', { name: 'Criar minha conta' }).click()
+    await page.getByRole('heading', { name: 'Conta criada' }).waitFor({ timeout: 30_000 })
+    await page.screenshot({ path: evidence(state, 'screens', 'sign-in-account-created.png') })
+    await page.getByRole('link', { name: 'Entrar' }).click()
+    await page.waitForURL((url) => url.origin === state.origin && url.pathname !== '/setup', { timeout: 30_000 })
+    await page.waitForLoadState('networkidle')
+  }
+  await page.screenshot({ path: evidence(state, 'screens', 'sign-in-landed.png') })
+  console.log(page.url())
+}
+
+const db = async (args) => {
+  const state = currentRun()
+  const sql = args.find((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--save') ?? fail('SQL_REQUIRED')
+  const { default: pg } = await import('pg')
+  const client = new pg.Client({ connectionString: adminUrl(state) })
+  await client.connect()
+  try {
+    await client.query('BEGIN READ ONLY')
+    const { rows } = await client.query(sql)
+    await client.query('ROLLBACK')
+    const text = `${JSON.stringify(rows, null, 2)}\n`
+    logAction(state, `db ${sql}`)
+    if (option(args, 'save')) writeFileSync(evidence(state, 'db', `${option(args, 'save')}.json`), `-- ${sql}\n${text}`)
+    process.stdout.write(text)
+  } finally {
+    await client.end()
+  }
+}
+
+const seedModelDefaults = async (args) => {
+  const state = currentRun()
+  const model = option(args, 'model') ?? 'google-ai-pro/gemini-3-flash'
+  const { default: pg } = await import('pg')
+  const client = new pg.Client({ connectionString: adminUrl(state) })
+  await client.connect()
+  try {
+    const { rows: [account] } = await client.query('SELECT account_id FROM iam.account WHERE external_subject = $1', [state.person.subject])
+    if (!account) fail('NO_ACCOUNT: sign in first')
+    for (const role of ['build', 'memory']) {
+      await client.query(`INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ($1, $2, $3)
+        ON CONFLICT (role) DO UPDATE SET model_id = EXCLUDED.model_id, updated_by = EXCLUDED.updated_by`, [role, model, account.account_id])
+    }
+    logAction(state, `seed model-defaults ${model}`)
+    console.log(`build and memory default: ${model}`)
+  } finally {
+    await client.end()
+  }
+}
+
+const stop = async (pid, label, graceMs = 15_000) => {
+  if (!pid || !alive(pid)) return `${label} already gone`
+  process.kill(pid, 'SIGTERM')
+  const deadline = Date.now() + graceMs
+  while (alive(pid) && Date.now() < deadline) await delay(250)
+  if (alive(pid)) { process.kill(pid, 'SIGKILL'); return `${label} killed` }
+  return `${label} stopped`
+}
+
+const cleanup = async () => {
+  const state = currentRun()
+  const done = []
+  // The server first: build-hub-local.mjs then removes its own build directory and exits.
+  if (state.pids.hubServer && cmdline(state.pids.hubServer).includes('server.js')) done.push(await stop(state.pids.hubServer, 'hub server'))
+  if (state.pids.hub && cmdline(state.pids.hub).includes('build-hub-local.mjs')) done.push(await stop(state.pids.hub, 'hub launcher'))
+  if (state.pids.browser && cmdline(state.pids.browser).includes('__browser-host')) done.push(await stop(state.pids.browser, 'browser'))
+  for (const container of Object.values(state.containers)) {
+    if (container === state.containers.keycloak) {
+      try { writeFileSync(evidence(state, 'keycloak.log'), run('docker', ['logs', container])) } catch {}
+    }
+    try {
+      run('docker', ['stop', container])
+      done.push(`${container} stopped`)
+    } catch { done.push(`${container} already gone`) }
+  }
+  if (state.hubBuildDir && existsSync(join(REPO, 'apps/hub', state.hubBuildDir))) {
+    rmSync(join(REPO, 'apps/hub', state.hubBuildDir), { recursive: true, force: true })
+    done.push(`removed apps/hub/${state.hubBuildDir}`)
+  }
+  state.cleanedAt = new Date().toISOString()
+  writeFileSync(evidence(state, 'cleanup.json'), `${JSON.stringify({ cleanedAt: state.cleanedAt, done }, null, 2)}\n`)
+  cpSync(statePath(state.runId), evidence(state, 'state.json'))
+  rmSync(state.stateDir, { recursive: true, force: true })
+  console.log(JSON.stringify({ runId: state.runId, done, evidence: state.evidenceDir, evidenceKept: existsSync(join(state.evidenceDir, 'cleanup.json')) }, null, 2))
+}
+
+const list = () => {
+  for (const runId of listRuns()) {
+    const state = readState(runId)
+    console.log(`${runId} ${state.origin} hub ${alive(state.pids.hub) ? 'up' : 'down'} evidence ${state.evidenceDir}`)
+  }
+}
+
+const [command, ...rest] = process.argv.slice(2)
+const commands = {
+  launch, doctor, list, cleanup,
+  'sign-in': signIn,
+  browser: () => browserCommand(rest),
+  db: () => db(rest),
+  'seed-model-defaults': () => seedModelDefaults(rest),
+  '__browser-host': () => browserHost(rest[0]),
+}
+if (!commands[command]) {
+  console.error(`usage: control.mjs ${Object.keys(commands).filter((name) => !name.startsWith('__')).join('|')}`)
+  process.exitCode = 2
+} else {
+  try {
+    await commands[command]()
+  } catch (error) {
+    console.error(error.message)
+    process.exitCode = 1
+  }
+  // A CDP connection keeps the event loop alive; leaving drops it and the browser keeps running.
+  if (command !== '__browser-host') process.exit()
+}
