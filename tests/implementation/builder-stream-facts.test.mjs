@@ -40,10 +40,11 @@ const askingModel = () => {
 }
 
 // The model memory names a thread with, answering every call with one title.
-const titleModel = () => ({
+const titleModel = (delayMs = 0) => ({
   specificationVersion: 'v2', provider: 'anthropic', modelId: 'title-1', supportedUrls: {},
-  async doGenerate() { return { content: [{ type: 'text', text: 'Lista de compras' }], finishReason: 'stop', usage, warnings: [] } },
+  async doGenerate() { await new Promise((done) => setTimeout(done, delayMs)); return { content: [{ type: 'text', text: 'Lista de compras' }], finishReason: 'stop', usage, warnings: [] } },
   async doStream() {
+    await new Promise((done) => setTimeout(done, delayMs))
     return { stream: streamOf([{ type: 'stream-start', warnings: [] }, { type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: 'Lista de compras' }, { type: 'text-end', id: 't' }, { type: 'finish', finishReason: 'stop', usage }]) }
   },
 })
@@ -176,10 +177,11 @@ test("the title memory gives a conversation reaches the browser's stream on the 
   assert.deepEqual(titled && { threadId: titled.threadId, title: titled.title }, { threadId: conversationId, title: 'Lista de compras' })
 })
 
-// Mastra stores the title of a first turn that parks on the person without telling the stream, so the
-// conversation list rereads the thread list when the turn's agent_end arrives instead.
-test('a first turn that parks on a question stores its title but sends the stream no thread_title_updated', async (t) => {
-  const { base, session } = await startMount(t, { generateTitle: { model: titleModel() } })
+// The title of a first turn that parks is made on the turn that resumes it; Mastra sends no
+// thread_title_updated for that turn, so the browser rereads the list at its agent_end. With
+// emitEvent the turn waits for the title, so even a slow title model has stored it by then.
+test('a first turn that parks and is answered has its title stored when the resumed turn ends, however slow the title model', async (t) => {
+  const { base, session } = await startMount(t, { generateTitle: { model: titleModel(800), emitEvent: true } })
   const stream = await openStream(base)
   const parked = nextEvent(session, 'agent_end')
   void session.sendMessage({ content: 'faça uma lista de compras' })
@@ -187,7 +189,7 @@ test('a first turn that parks on a question stores its title but sends the strea
   const ended = nextEvent(session, 'agent_end')
   await session.respondToToolSuspension({ toolCallId: 'ask-1', resumeData: ['Azul'] })
   await ended
-  const titled = await stream.event((event) => event.type === 'thread_title_updated', 1_500)
+  const titled = await stream.event((event) => event.type === 'thread_title_updated', 500)
   await stream.close()
   assert.equal(titled, null)
   const listed = await fetch(`${base}/threads`, { headers }).then((response) => response.json())

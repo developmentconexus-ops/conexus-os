@@ -209,7 +209,8 @@ export const useBuilderConversation = (projectId: string, conversationId: string
       if (event.type === 'thread_title_updated') rereadConversations()
       if (event.type === 'agent_end') {
         rereadThread()
-        // Mastra stores the title of a first turn that parks on a question without announcing it.
+        // A first turn that parks is titled on the turn that resumes it, with no thread_title_updated; the Hub's memory
+        // makes that turn wait for the title, so the list read at its end carries it.
         rereadConversations()
         // The run stored memory for the conversation; read it again once the run is truly over.
         if (event.reason !== 'suspended') void queryClient.invalidateQueries({ queryKey: sessionModelKey(projectId) })
