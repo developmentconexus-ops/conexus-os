@@ -95,6 +95,10 @@ const project = config.project ? createConfiguredProjectModule({
       if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
       return applicationRunner.release({ projectId })
     },
+    killSandboxes: async (projectId) => {
+      if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+      return builder.killProjectSandboxes(projectId)
+    },
     deleteRepository: async (projectId) => {
       if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
       return builder.deleteProjectRepository(projectId)
