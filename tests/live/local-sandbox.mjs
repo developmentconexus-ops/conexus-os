@@ -8,7 +8,9 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 // tests/implementation/builder-run-runtime.test.mjs, but its commands run for real, in a real Hub process.
 const AGENT_USER = 'conexus-agent'
 const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-// A path the runtime names inside the VM; the lookbehind keeps `app/workspace` out.
+// A path the runtime names inside the VM; the lookbehind keeps `app/workspace` out. The egress
+// recorder's folders (egress-log.ts) stay unmapped on purpose: writeRootFile refuses them, so its
+// background processes never start on the host, and the run logs BUILDER_SANDBOX_EGRESS_START_FAILED and goes on.
 const VM_PATH = /(?<![\w./-])\/(workspace|var\/lib\/|opt\/conexus|tmp\/conexus)/g
 // Any kill aimed at every process: the VM's turn-end sweep, which on a host would end the person's session.
 const KILLS_EVERYTHING = /\bkill\b[^\n;&|]*\s-1(?:\s|$)/

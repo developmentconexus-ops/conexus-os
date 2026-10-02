@@ -90,6 +90,15 @@ let suite
 let started
 const timing = { launch: 0, setup: 0 }
 
+// The page's console, uncaught errors, failed requests and main-frame navigations, for the evidence directory.
+const recordPage = (page, log) => {
+  const line = (text) => log.push(`${new Date().toISOString()} ${text}`)
+  page.on('console', (message) => line(`console.${message.type()} ${page.url()} ${message.text()}`))
+  page.on('pageerror', (error) => line(`pageerror ${page.url()} ${error.stack ?? error.message}`))
+  page.on('requestfailed', (request) => line(`requestfailed ${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`))
+  page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) line(`navigated ${frame.url()}`) })
+}
+
 const connectGoogle = async (page) => {
   await page.goto('/settings/models')
   await page.getByRole('button', { name: 'Conectar com o Google' }).click()
@@ -114,6 +123,7 @@ export const globalSetup = async () => {
   started = Date.now()
   let state
   let page
+  const setupLog = []
   try {
     const model = await startScriptedModel()
     suite = { model, sandboxRoot: mkdtempSync(join(tmpdir(), 'conexus-live-sandboxes-')) }
@@ -126,6 +136,7 @@ export const globalSetup = async () => {
     suite.browser = await chromium.launch({ headless, args: [...args] })
     const context = await suite.browser.newContext(suite.contextOptions)
     page = await context.newPage()
+    recordPage(page, setupLog)
     await signIn(page, state)
     await connectGoogle(page)
     await seedModelDefaults(state)
@@ -134,7 +145,10 @@ export const globalSetup = async () => {
     await context.close()
     timing.setup = Date.now() - setupStarted
   } catch (error) {
-    if (state) await page?.screenshot({ path: evidence(state, 'live', 'setup.failure.png') }).catch(() => undefined)
+    if (state) {
+      await page?.screenshot({ path: evidence(state, 'live', 'setup.failure.png') }).catch(() => undefined)
+      writeFileSync(evidence(state, 'live', 'setup.console.log'), `${setupLog.join('\n')}\n`)
+    }
     await globalTeardown()
     throw error
   }
@@ -177,8 +191,8 @@ export const liveFlow = (declaration, body) => {
     const page = await context.newPage()
     const log = []
     const pageErrors = []
-    page.on('console', (message) => log.push(`${new Date().toISOString()} console.${message.type()} ${page.url()} ${message.text()}`))
-    page.on('pageerror', (error) => { pageErrors.push(error.message); log.push(`${new Date().toISOString()} pageerror ${page.url()} ${error.stack ?? error.message}`) })
+    recordPage(page, log)
+    page.on('pageerror', (error) => { pageErrors.push(error.message) })
     model.reset()
     try {
       await body({
