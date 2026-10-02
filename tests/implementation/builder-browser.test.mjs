@@ -701,10 +701,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   const accountId = '70000000-0000-4000-8000-000000000091'
   const projectId = '70000000-0000-4000-8000-000000000092'
   const conversationId = 'conversation-levels'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const models = [
     { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
     { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
@@ -767,10 +764,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
   const conversationId = 'conversation-run-notice'
-  const origin = await startWebServer(t)
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await browser.newPage({ viewport: { width: 1100, height: 850 } })
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const notice = {
     id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
     content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
