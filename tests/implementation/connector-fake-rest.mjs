@@ -64,7 +64,6 @@ export const REST_CONNECTOR_ID = 'synthetic-rest'
 export const restDefinition = Object.freeze({
   id: REST_CONNECTOR_ID,
   credential: z.strictObject({ clientId: z.string().min(1), clientSecret: z.string().min(1) }),
-  events: Object.freeze([]),
   secretFields: Object.freeze(['clientId', 'clientSecret']),
   native: Object.freeze({
     services: Object.freeze(['rest.get']),

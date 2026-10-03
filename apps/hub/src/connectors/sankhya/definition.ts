@@ -10,7 +10,6 @@ export type { SankhyaCredential } from './credential.js'
 export const sankhyaDefinition: ConnectorDefinition<SankhyaCredential> = Object.freeze({
   id: 'sankhya',
   credential: sankhyaCredentialSchema,
-  events: Object.freeze([]),
   secretFields: Object.freeze([...Object.keys(sankhyaCredentialSchema.shape), 'access_token']),
   native: sankhyaNativeProtocol,
 })

@@ -4,9 +4,6 @@ import type { ConnectorId } from './model.js'
 import type { ConsumerScope } from './scope.js'
 import type { IssuedToken, Redacted } from './token-cache.js'
 
-/** Not yet implemented: Sankhya's Definition declares no events. */
-type ConnectorEvent<P> = Readonly<{ id: string; payload: z.ZodType<P> }>
-
 /** A closed set, so a provider-chosen status value never reaches the record; any other value is 'other'. */
 export type EnvelopeStatus = '0' | '1' | '2' | '3' | '4' | 'other'
 
@@ -44,8 +41,6 @@ export type NativeProtocol = Readonly<{
 export type ConnectorDefinition<Cred> = Readonly<{
   id: ConnectorId
   credential: z.ZodType<Cred>
-  // biome-ignore lint/suspicious/noExplicitAny: design only, no event exists yet
-  events: readonly ConnectorEvent<any>[]
   secretFields: readonly string[]
   native: NativeProtocol
 }>
