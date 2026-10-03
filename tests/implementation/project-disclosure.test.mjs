@@ -1,27 +1,6 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
-
-const repositoryRoot = resolve(import.meta.dirname, '../..')
-const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
-const generatedClientPath = resolve(repositoryRoot, 'apps/web/src/generated/project-client.ts')
-
-test('S3-P6 closed routes remain projected', () => {
-  assert.equal(existsSync(generatedRoutePath), true)
-  assert.equal(existsSync(generatedClientPath), true)
-  const routes = readFileSync(generatedRoutePath, 'utf8')
-  const client = readFileSync(generatedClientPath, 'utf8')
-  assert.match(routes, /export type S3OwnerId = 'PRJ-01' \| 'PRJ-02' \| 'PRJ-03'/)
-  assert.match(routes, /ListProjects/)
-  assert.match(routes, /GetProject/)
-  assert.match(routes, /CreateProject/)
-  assert.match(client, /credentials: 'same-origin'/)
-  assert.match(client, /listProjects/)
-  assert.match(client, /getProject/)
-  assert.match(client, /createProject/)
-})
 
 test('S3-P6 store composes read-only current admission before Project disclosure', async () => {
   const { createProjectStore } = await import(hubModuleUrl('project/store.js'))

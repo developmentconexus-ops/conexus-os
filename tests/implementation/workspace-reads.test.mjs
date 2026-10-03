@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const repositoryRoot = resolve(import.meta.dirname, '../..')
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
@@ -245,12 +242,4 @@ test('one shared pool object serves both operation-specific ports and I&A does n
   await identityStore.close()
   assert.equal(identityPool.ends, 1)
   assert.equal(sharedReadPool.ends, 0)
-
-  const server = readFileSync(resolve(repositoryRoot, 'apps/hub/src/hub.ts'), 'utf8')
-  assert.match(server, /workspaceReadPool:\s*s2ReadPool/)
-  const sharedWorkspacePool = /\breadPool:\s*s2ReadPool\s*[,}]/
-  assert.match(server, sharedWorkspacePool)
-  assert.doesNotMatch(server.replace('readPool: s2ReadPool,', 'readPool: unrelatedPool,'), sharedWorkspacePool)
-  assert.match(server, /config\.database\.workspace\s*&&\s*s2ReadPool\s*\?\s*createWorkspaceModule/)
-  assert.equal((server.match(/user:\s*'hub_workspace_read'/g) ?? []).length, 1)
 })

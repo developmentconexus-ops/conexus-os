@@ -13,10 +13,11 @@ const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/tech
 
 const buildRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/hub-role-register-build-'))
 const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
-  resolve(repositoryRoot, 'apps/hub/src/platform/postgres.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
+  resolve(repositoryRoot, 'apps/hub/src/platform/postgres.ts'), resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 if (result.status !== 0) throw new Error(result.stdout || result.stderr)
 const { capabilityFor, createPostgresPool } = await import(pathToFileURL(resolve(buildRoot, 'postgres.js')).href)
+const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.js')).href)
 
 test.after(() => rm(buildRoot, { recursive: true, force: true }))
 
@@ -53,20 +54,30 @@ test('the generated module is the current projection of the register', async () 
   assert.equal(committed, generateRegister())
 })
 
-test('every password file variable in the register is read by the Hub config', () => {
-  const config = readFileSync(resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), 'utf8')
-  const unread = register.roles.filter((row) => !config.includes(row.passwordFileVariable)).map((row) => row.passwordFileVariable)
-  assert.deepEqual(unread, [])
-})
-
-test('every registered role is the user of a pool in the module the register names', () => {
-  const unconnected = register.roles.filter((row) => {
-    const sources = row.connectsFrom.map((path) => readFileSync(resolve(repositoryRoot, path), 'utf8'))
-    const expected = row.roleVariable ? `required(environment, '${row.roleVariable}')` : `user: '${row.role}'`
-    const searched = row.roleVariable ? [readFileSync(resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), 'utf8')] : sources
-    return !searched.some((source) => source.includes(expected))
-  }).map((row) => row.role)
-  assert.deepEqual(unconnected, [])
+test('the Hub config reads the password file and the role of every registered role from its variable', () => {
+  const environment = {
+    CONEXUS_ORIGIN: 'https://hub.conexus.localhost:3443',
+    CONEXUS_BOOTSTRAP_SUBJECT: 'bootstrap-subject',
+    CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/key',
+    CONEXUS_DB_HOST: 'db.internal',
+    CONEXUS_DB_PORT: '5432',
+    CONEXUS_DB_NAME: 'hub',
+    CONEXUS_DB_USER: 'hub_iam_runtime',
+    CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
+    CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'template',
+    CONEXUS_OIDC_ISSUER: 'https://issuer.example',
+    CONEXUS_OIDC_CLIENT_ID: 'client',
+    CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
+    ...Object.fromEntries(register.roles.map((row) => [row.passwordFileVariable, `/secrets/${row.role}`])),
+  }
+  const config = readHubConfig(environment)
+  assert.equal(config.database.user, 'hub_iam_runtime')
+  assert.deepEqual(
+    [config.database.passwordFile, config.database.workspace.readPasswordFile, config.database.workspace.commandPasswordFile,
+      config.project.readPasswordFile, config.project.commandPasswordFile, config.builder.ingressPasswordFile,
+      config.builder.executorPasswordFile, config.factory.databasePasswordFile, config.builder.modelAccountPasswordFile],
+    register.roles.map((row) => `/secrets/${row.role}`),
+  )
 })
 
 test('the register refuses a second role claiming one capability', () => {

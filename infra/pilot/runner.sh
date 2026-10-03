@@ -24,6 +24,8 @@ echo "runner starting $(date -u +%FT%TZ) head $(git rev-parse --short HEAD)"
 export CONEXUS_SERVICE_VERSION="$(git rev-parse --short HEAD)"
 diagnostics="${CONEXUS_DIAGNOSTIC_DIR:-$logs/diagnostics}"
 mkdir -p "$diagnostics"
-node --max-old-space-size=512 --heapsnapshot-near-heap-limit=1 --diagnostic-dir="$diagnostics" \
-  --report-on-fatalerror --report-directory="$diagnostics" \
-  --import "file://$PWD/$build/telemetry/register.js" "$build/app-runner/main.js"
+mapfile -t node_args < <(node --input-type=module -e "
+import { hubNodeArguments } from './scripts/build-hub-local.mjs'
+console.log(hubNodeArguments({ buildRoot: process.argv[1], diagnosticDir: process.argv[2], entry: 'app-runner/main.js' }).join('\\n'))
+" "$PWD/$build" "$diagnostics")
+node "${node_args[@]}"
