@@ -55,7 +55,7 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
 
 /**
  * @param {string} root the host directory that holds one directory per conversation
- * @param {object} workspaceTools the `tools` option of the agent's workspace (BUILDER_WORKSPACE_TOOLS_CONFIG of the built Hub)
+ * @param {object} workspaceTools the `tools` option of the agent's workspace (the built Hub's `createRunWorkspace(...).getToolsConfig()`)
  * @param {(stdout: string) => object} readCheckReport the built Hub's reader of check.mjs output
  */
 export const localConversationSandboxes = (root, workspaceTools, readCheckReport) => {

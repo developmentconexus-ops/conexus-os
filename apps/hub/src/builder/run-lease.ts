@@ -12,7 +12,6 @@ export type RunLeasePorts = Readonly<{
 }>
 
 /**
- * @public Tests import this at runtime from the built module.
  * The run ownership lease: a sweep at boot, a heartbeat every 10 s, and a sweep after every third.
  * A sweep runs after the heartbeat of its own tick, so a leg of this Hub is never stale to it, and
  * never beside another: a sweep that outlasts the interval would take its own unsettled runs again.

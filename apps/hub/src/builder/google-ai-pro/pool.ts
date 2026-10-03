@@ -67,8 +67,7 @@ const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   })
 })
 
-/** @public Tests import this at runtime from the built module. */
-export const configYaml = ({ port, authDir, proxyKey }: Readonly<{ port: number; authDir: string; proxyKey: string }>): string => [
+const configYaml = ({ port, authDir, proxyKey }: Readonly<{ port: number; authDir: string; proxyKey: string }>): string => [
   'host: "127.0.0.1"',
   `port: ${port}`,
   `auth-dir: ${JSON.stringify(authDir)}`,

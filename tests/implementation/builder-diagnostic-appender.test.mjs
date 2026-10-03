@@ -19,7 +19,7 @@ const bundle = (relativeSourcePath) => {
   return import(pathToFileURL(outfile).href)
 }
 
-const { createDiagnosticAppender } = await bundle('apps/hub/src/builder/module.ts')
+const { createDiagnosticAppender } = await bundle('apps/hub/src/builder/diagnostic-appender.ts')
 const { createBuilderController } = await bundle('apps/hub/src/builder/harness/controller.ts')
 const { createBuilderMemory } = await bundle('apps/hub/src/builder/memory.ts')
 

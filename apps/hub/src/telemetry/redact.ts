@@ -25,8 +25,8 @@ const framesOf = (stack: string): string | undefined => {
 
 const CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?=$|[:\s])/
 
-/** @public Tests import this at runtime from the built module. A log body leaves as its leading code when the Hub's own source defines that code, never as its text. */
-export const logBodyCode = (body: unknown): string | undefined => {
+/** A log body leaves as its leading code when the Hub's own source defines that code, never as its text. */
+const logBodyCode = (body: unknown): string | undefined => {
   if (body === undefined) return undefined
   const code = typeof body === 'string' ? CODE.exec(body)?.[0] : undefined
   return code !== undefined && LOG_CODES.has(code) ? code : 'UNCODED_LOG'
@@ -34,8 +34,8 @@ export const logBodyCode = (body: unknown): string | undefined => {
 
 const allowed = (key: string): boolean => EXACT.has(key) || PREFIXES.some((prefix) => key.startsWith(prefix))
 
-/** @public Tests import this at runtime from the built module. Only allowlisted keys leave the process; everything else, known or new, is dropped. */
-export const redactAttributes = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | undefined> => {
+/** Only allowlisted keys leave the process; everything else, known or new, is dropped. */
+const redactAttributes = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | undefined> => {
   const kept: Record<string, V | undefined> = {}
   for (const [key, value] of Object.entries(attributes)) {
     if (!allowed(key)) continue

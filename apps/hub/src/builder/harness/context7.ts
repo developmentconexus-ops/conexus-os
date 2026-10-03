@@ -1,8 +1,7 @@
 import { MCPClient } from '@mastra/mcp'
 import type { ToolsInput } from '@mastra/core/agent'
 
-/** @public Tests import this at runtime from the built module. */
-export const CONTEXT7_URL = 'https://mcp.context7.com/mcp'
+const CONTEXT7_URL = 'https://mcp.context7.com/mcp'
 const CONTEXT7_RESOLVE_TOOL = 'context7_resolve_library_id'
 const CONTEXT7_QUERY_TOOL = 'context7_query_docs'
 

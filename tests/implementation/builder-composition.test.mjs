@@ -7,7 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { ConexusRunSandbox, createConversationSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
-const { createBuilderStorage } = await import(built('builder/module.js'))
+const { createBuilderStorage } = await import(built('builder/storage.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
 const baseEnvironment = {
@@ -296,7 +296,7 @@ test("the Builder's spans persist, and the 30-day retention prunes only stale sp
 })
 
 test("the retention prune at boot on a fresh installation waits for the store's tables instead of failing on them", async (t) => {
-  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
   const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
@@ -309,7 +309,7 @@ test("the retention prune at boot on a fresh installation waits for the store's 
 })
 
 test('closing the retention schedule waits for the prune in flight, so the pool can end after it', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const events = []
   const storage = {
     init: async () => undefined,
@@ -326,7 +326,7 @@ test('closing the retention schedule waits for the prune in flight, so the pool 
 })
 
 test('closing the retention schedule aborts a prune that never ends on its own and returns inside the shutdown deadline', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const logs = []
   let seen
   const storage = {
@@ -349,7 +349,7 @@ test('closing the retention schedule aborts a prune that never ends on its own a
 })
 
 test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/module.js'))
+  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const logs = []
   let pruneCalls = 0
   let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
@@ -394,8 +394,9 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
   failingSchedule.close()
 })
 
-test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output message arrays to messageCount', async () => {
-  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+test('the Builder observability compacts PROCESSOR_RUN input and output message arrays to messageCount', async () => {
+  const { createBuilderObservability } = await import(built('builder/observability.js'))
+  const [compactProcessorRunPayloads] = createBuilderObservability('conexus-builder-test').getDefaultInstance().getConfig().spanOutputProcessors
   const { SpanType } = await import('@mastra/core/observability')
 
   assert.equal(compactProcessorRunPayloads.name, 'builder-compact-processor-run-payloads')
@@ -434,8 +435,9 @@ test('compactProcessorRunPayloads condenses PROCESSOR_RUN input and output messa
   assert.equal(compactProcessorRunPayloads.process(undefined), undefined)
 })
 
-test('compactProcessorRunPayloads deterministically compacts processor_run span bytes', async () => {
-  const { compactProcessorRunPayloads } = await import(built('builder/module.js'))
+test('the Builder observability deterministically compacts processor_run span bytes', async () => {
+  const { createBuilderObservability } = await import(built('builder/observability.js'))
+  const [compactProcessorRunPayloads] = createBuilderObservability('conexus-builder-test').getDefaultInstance().getConfig().spanOutputProcessors
   const { SpanType } = await import('@mastra/core/observability')
 
   // Synthetic Builder turn with 25 conversation messages of typical turn context size (~1.5 KB each)

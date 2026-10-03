@@ -11,7 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const {
   CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
 } = await import(hubModuleUrl('builder/harness/request-context.js'))
-const { conexusInstructions, fillPrompt, turnDate } = await import(hubModuleUrl('builder/harness/prompt.js'))
+const { conexusInstructions, turnDate } = await import(hubModuleUrl('builder/harness/prompt.js'))
 const { BUILDER_SKILL_NAMES, createBuilderController, defaultBuilderSkillsRoot } = await import(hubModuleUrl('builder/harness/controller.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -29,9 +29,19 @@ const VALUES = {
   connections: '- `erp`: sankhya (skill `conexus-sankhya`)', instructions: 'Responda sempre em inglês {index}.', memory: '## Regras\n- [Prazo](prazo.md): 30 dias',
 }
 
+const fill = (values) => {
+  const requestContext = new RequestContext()
+  for (const [key, value] of [
+    [CONEXUS_PROJECT_NAME_KEY, values.projectName], [CONEXUS_PROJECT_NEW_KEY, String(values.isNew)], [CONEXUS_TURN_DATE_KEY, values.date], [CONEXUS_CONNECTOR_BRIEF_KEY, values.connections],
+    [CONEXUS_PROJECT_INSTRUCTIONS_KEY, values.instructions], [CONEXUS_PROJECT_MEMORY_KEY, values.memory],
+  ]) requestContext.setRaw(key, value)
+  requestContext.set('controller', { session: { modelId: 'test/model' } })
+  return conexusInstructions(undefined, values.cutoff ? { 'test/model': values.cutoff } : {})({ requestContext })
+}
+
 test('AC-1: builder.md holds every placeholder once, and filling them leaves none of the template behind', () => {
   for (const placeholder of PLACEHOLDERS) assert.equal(template.split(placeholder).length - 1, 1, `${placeholder} appears once`)
-  const filled = fillPrompt(template, VALUES)
+  const filled = fill(VALUES)
   assert.ok(filled.includes('- Project: Compras. Today: 2026-09-30. Your knowledge cutoff: Março 2026.'))
   assert.ok(filled.includes('- `erp`: sankhya (skill `conexus-sankhya`)\n'))
   assert.ok(filled.includes('<!-- AGENTS.md -->\nResponda sempre em inglês {index}.\n\n## Project memory'), 'text a placeholder brings in is never read as another placeholder')
@@ -40,10 +50,10 @@ test('AC-1: builder.md holds every placeholder once, and filling them leaves non
 })
 
 test('AC-1: a model with no cutoff loses the cutoff clause and nothing else', () => {
-  const without = fillPrompt(template, { ...VALUES, cutoff: null })
+  const without = fill({ ...VALUES, cutoff: null })
   assert.ok(without.includes('- Project: Compras. Today: 2026-09-30.\n'))
   assert.equal(without.includes('knowledge cutoff'), false)
-  assert.equal(fillPrompt(template, VALUES).replace(' Your knowledge cutoff: Março 2026.', ''), without)
+  assert.equal(fill(VALUES).replace(' Your knowledge cutoff: Março 2026.', ''), without)
 })
 
 test('AC-1, AC-2: the model input holds the approved text and no word of a mode or of submit_plan', () => {
@@ -54,7 +64,7 @@ test('AC-1, AC-2: the model input holds the approved text and no word of a mode 
   ]) requestContext.setRaw(key, value)
   requestContext.set('controller', { session: { modelId: 'anthropic/known' } })
   const text = conexusInstructions(undefined, { 'anthropic/known': 'Março 2026' })({ requestContext })
-  assert.equal(text, fillPrompt(template, VALUES))
+  assert.ok(text.includes('- Project: Compras. Today: 2026-09-30. Your knowledge cutoff: Março 2026.'))
   assert.doesNotMatch(text, /Planejar|Construir|submit_plan/)
   assert.ok(text.startsWith('You are the Conexus Builder, running inside Conexus.'))
   requestContext.set('controller', { session: { modelId: 'anthropic/unknown' } })
@@ -85,9 +95,9 @@ test('an openai gpt-5.5 or gpt-5.4 conversation gets Mastra Code\'s model prompt
 
 test('the new-app line is in the Environment of a new Project and absent, with no empty bullet, after a saved version', () => {
   const line = '- This app is new: it has only the starter screen.\n'
-  const fresh = fillPrompt(template, VALUES)
+  const fresh = fill(VALUES)
   assert.ok(fresh.includes(`Your knowledge cutoff: Março 2026.\n${line}- The sandbox runs Debian 12`))
-  const saved = fillPrompt(template, { ...VALUES, isNew: false })
+  const saved = fill({ ...VALUES, isNew: false })
   assert.equal(saved.includes('This app is new'), false)
   assert.ok(saved.includes('Your knowledge cutoff: Março 2026.\n- The sandbox runs Debian 12'))
   assert.equal(fresh.replace(line, ''), saved)

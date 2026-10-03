@@ -1,12 +1,11 @@
 import type { PausedConversationMachine } from './sandbox.js'
 
 /**
- * @public Tests import this at runtime from the built module.
  * A paused conversation machine nobody resumed for this long is deleted (spec 0002, B6). The files
  * stay in the conversation's branch mirror, so the limit decides speed and never loss. It is not the
  * limit on a parked run: the two numbers are the same today and stay separate.
  */
-export const IDLE_MACHINE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const IDLE_MACHINE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export type IdleMachineSweepPorts = Readonly<{
   listPaused(): Promise<readonly PausedConversationMachine[]>
@@ -19,12 +18,11 @@ export type IdleMachineSweepPorts = Readonly<{
 }>
 
 /**
- * @public Tests import this at runtime from the built module.
  * Deletes the paused machines that are idle past the limit, unless their conversation has a run.
  * The run read comes after the E2B list and right before the kill, so a run that started meanwhile
  * keeps its machine. Safe to repeat: a deleted machine is no longer listed.
  */
-export const sweepIdleMachines = async ({ listPaused, openRunConversations, kill, log, now = Date.now }: IdleMachineSweepPorts, signal?: AbortSignal): Promise<number> => {
+const sweepIdleMachines = async ({ listPaused, openRunConversations, kill, log, now = Date.now }: IdleMachineSweepPorts, signal?: AbortSignal): Promise<number> => {
   const cutoff = now() - IDLE_MACHINE_MAX_AGE_MS
   const idle = (await listPaused()).filter((machine) => machine.idleSince.getTime() <= cutoff)
   if (idle.length === 0 || signal?.aborted) return 0

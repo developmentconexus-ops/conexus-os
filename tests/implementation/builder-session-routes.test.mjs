@@ -51,9 +51,14 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
-  const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const keycloakDown = createHostSessions({
+    pool: { query: async () => ({ rows: [{ account_id: accountId, issuer: 'https://issuer.test', subject: 'subject-1', display_name: 'Operator', email: null, provider_checked_at: new Date(0), due_provider_refresh_token: 'sealed-refresh-token' }] }) },
+    refresh: async () => ({ kind: 'UNAVAILABLE' }),
+    envelope: { open: async () => 'refresh-token', seal: async (value) => value },
+  })
   const resolveCurrentSession = async (request) => {
-    if (providerDown) throw providerUnavailable()
+    if (providerDown) return keycloakDown.resolveHub({ sessionToken: 's'.repeat(43) })
     return request.cookies['__Host-conexus_session']
       ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
       : null

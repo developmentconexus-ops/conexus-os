@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { IDLE_MACHINE_MAX_AGE_MS, scheduleIdleMachineSweep, sweepIdleMachines } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
+const { scheduleIdleMachineSweep } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
 const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
 
 const DAY = 86_400_000
@@ -10,6 +10,13 @@ const NOW = Date.UTC(2026, 9, 2)
 const machine = (conversationId, providerSandboxId, days) => ({ conversationId, providerSandboxId, idleSince: new Date(NOW - days * DAY) })
 
 // The production sandbox cache with E2B's kill stubbed out, so a sweep's kill is the real killRecorded.
+// The schedule's boot pass lists nothing, so the tick is the one sweep that sees the machines.
+const sweepOnce = async (ports) => {
+  let listed = 0
+  const schedule = scheduleIdleMachineSweep({ ...ports, listPaused: async () => (listed++ === 0 ? [] : ports.listPaused()) }, 3_600_000)
+  try { return await schedule.tick() } finally { await schedule.close() }
+}
+
 const sweepWith = ({ machines, open = [], failKill = [] }) => {
   const killed = []
   const log = []
@@ -21,7 +28,7 @@ const sweepWith = ({ machines, open = [], failKill = [] }) => {
       return true
     },
   })
-  const sweep = () => sweepIdleMachines({
+  const sweep = () => sweepOnce({
     listPaused: async () => machines,
     openRunConversations: async () => new Set(open),
     kill: cache.killRecorded,
@@ -38,9 +45,8 @@ test('#423 machines idle 6 and 8 days: only the older is deleted, and one line s
   assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-8:ivm-8:8d'])
 })
 
-test('#423 a machine idle exactly 7 days is deleted, and the limit is 7 days', async () => {
-  assert.equal(IDLE_MACHINE_MAX_AGE_MS, 7 * DAY)
-  const { sweep, killed } = sweepWith({ machines: [machine('conv-7', 'ivm-7', 7)] })
+test('#423 a machine idle exactly 7 days is deleted, and one idle a millisecond less is kept', async () => {
+  const { sweep, killed } = sweepWith({ machines: [machine('conv-7', 'ivm-7', 7), machine('conv-edge', 'ivm-edge', 7 - 1 / DAY)] })
   await sweep()
   assert.deepEqual(killed, ['ivm-7'])
 })
@@ -64,7 +70,7 @@ test('#423 a kill that fails is not logged as a deletion, and the next sweep tri
 
 test('#423 a sweep with nothing idle never reads the runs', async () => {
   let reads = 0
-  await sweepIdleMachines({
+  await sweepOnce({
     listPaused: async () => [machine('conv-1', 'ivm-1', 1)],
     openRunConversations: async () => { reads += 1; return new Set() },
     kill: async () => { throw new Error('not called') },

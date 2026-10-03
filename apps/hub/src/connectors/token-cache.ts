@@ -52,11 +52,8 @@ export type TokenCache = Readonly<{
 
 const isTokenRefused = (error: unknown): boolean => error instanceof AdapterFailure && error.reason === 'TOKEN_REFUSED'
 
-/**
- * Reuse until `expires_in − max(60 s, 10 %)`; a token shorter than the margin serves only the call that issued it.
- * @public Tests import this at runtime from the built module.
- */
-export const refreshAt = (issuedAt: number, expiresInSeconds: number): number => {
+/** Reuse until `expires_in − max(60 s, 10 %)`; a token shorter than the margin serves only the call that issued it. */
+const refreshAt = (issuedAt: number, expiresInSeconds: number): number => {
   const lifetime = expiresInSeconds * 1000
   return issuedAt + lifetime - Math.max(60_000, lifetime / 10)
 }
