@@ -220,8 +220,6 @@ const parkedStore = () => {
       recordConversationSandbox: async () => {},
       settleBuilderRun: async () => { row.state = 'SUCCEEDED'; row.phase = null; calls.push('settle') },
       failBuilderRun: async (_id, code) => { row.state = 'FAILED'; calls.push(['fail', code]) },
-      readLatestCodeChangingBuilderRun: async () => null,
-      settleBuilderRunPublishFailed: async () => { throw new Error('not reached') },
       close: async () => {},
     },
   }

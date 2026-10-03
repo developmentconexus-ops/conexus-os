@@ -53,7 +53,7 @@ export function LensPreview({ preview, view, wait, history, lastGoodSourceRevisi
   }, [lease, leaseKeyId])
   const frameOpen = navigated !== null && navigated === leaseKeyId
   const version = versionNumber(history, lastGoodSourceRevision)
-  const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'PUBLISH_FAILED' || view.outcome === 'FAILED') ? view.run : null
+  const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
   if (!preview.ready && !lease) {
     if (wait) return <PreviewWaiting wait={wait} />
@@ -136,9 +136,7 @@ function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
 function FailureNote({ run }: Readonly<{ run: BuilderRun }>) {
   const sentence = run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED'
     ? 'A última alteração não compilou. A prévia continua na versão anterior.'
-    : run.resultKind === 'SOURCE_CHANGED_PUBLISH_FAILED'
-      ? 'O Conexus não conseguiu publicar a última versão. A alteração está guardada: use "Tentar de novo" na conversa.'
-      : failureReason(run)
+    : failureReason(run)
   return <div className="cx-note" data-tone="warning" role="alert">
     <p>{sentence}</p>
     {run.failureCode && <details>

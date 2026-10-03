@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect } from '@playwright/test'
 import { liveFlow } from './harness.mjs'
@@ -105,38 +105,4 @@ liveFlow({ id: 'builder.done-gate-budget', nome: 'Depois de três verificações
   await expect(page.getByRole('log')).not.toContainText(run.builder_run_id)
   await expect(page.getByRole('log')).toContainText('Agora sim, terminei.')
   await shot(page, hub, 'budget-stops-after-three')
-})
-
-liveFlow({ id: 'builder.done-gate-publish-retry', nome: 'Uma falha do Conexus depois da verificação verde não volta ao agente, e "Tentar de novo" publica a mesma versão' }, async ({ page, model, hub }) => {
-  const REQUEST = 'Crie um total que o Conexus não publica'
-  model.script(write('app/src/total.ts', FIXED), say('Pronto, o total está criado.'))
-  // While this file is in the sandbox root the registry refuses every build (tests/live/hub-entry.mjs).
-  const registryRefuses = join(hub.sandboxRoot, 'registry-refuses')
-  writeFileSync(registryRefuses, '')
-  try {
-    await startProject(page, hub, REQUEST)
-    await settled(hub, REQUEST)
-  } finally {
-    rmSync(registryRefuses, { force: true })
-  }
-  const failed = await runOf(hub, REQUEST)
-  assert.deepEqual([failed.state, failed.result_kind, failed.failure_code], ['FAILED', 'SOURCE_CHANGED_PUBLISH_FAILED', 'APPLICATION_ARTIFACT_INPUT_REFUSED'])
-  assert.equal(model.calls.length, 2, 'the agent was not sent back to work')
-  await expect(page.getByText('Não publicada por uma falha do Conexus')).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByRole('log')).toContainText('Pronto, o total está criado.')
-  // The run's note tells the agent to change nothing, and where the person publishes again. A run
-  // note reaches an open page on its next read of the thread, so the page is read again here.
-  await page.reload()
-  await expect(notices(page).filter({ hasText: 'APPLICATION_ARTIFACT_INPUT_REFUSED' })).toContainText('"Tentar de novo" no cartão da versão', { timeout: 60_000 })
-  await expect(page.getByRole('log')).toContainText('Pronto, o total está criado.')
-  await shot(page, hub, 'publish-retry-1-failed')
-
-  await page.getByRole('button', { name: 'Tentar de novo' }).click()
-  await expect(page.getByText('versão 1 · Build passou')).toBeVisible({ timeout: 120_000 })
-  await shot(page, hub, 'publish-retry-2-published')
-  const retried = await runOf(hub, REQUEST)
-  assert.deepEqual([retried.state, retried.result_kind, retried.result_source_revision], ['SUCCEEDED', 'SOURCE_CHANGED', failed.result_source_revision])
-  const [working] = await hub.db(`select current_state, last_preview_source_revision from builder.project_working_state where project_id = (select project_id from builder.builder_run where builder_run_id = '${failed.builder_run_id}')`)
-  assert.deepEqual(working, { current_state: 'PREVIEW_READY', last_preview_source_revision: failed.result_source_revision })
-  assert.equal(model.calls.length, 2, 'the retry ran no agent turn')
 })

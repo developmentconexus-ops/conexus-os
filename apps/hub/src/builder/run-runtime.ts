@@ -161,8 +161,6 @@ export type BuilderRunRuntime = Readonly<{
   execute(input: BuilderRunInput): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult>
   /** Lets go of every parked run's session and sandbox instance held in memory; each answer then resumes from storage. Answers how many. */
   evictParked(): Promise<number>
-  /** Checks an admitted revision again on its conversation's VM, with no agent, for a publish retry. */
-  rebuild(input: Readonly<{ projectId: string; conversationId: string; executionId: string; revision: string; providerSandboxId: string | null }>): Promise<CandidateVerdict>
 }>
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
@@ -192,65 +190,7 @@ const FAILED_TURN_MIRROR_MS = 30_000
 // One seed bundle per VM, replaced at every turn that fetches one.
 const SEED_FILE = `${SEED_ROOT}/turn.bundle`
 
-/** Places the Hub's check and server build where only root can write, so nothing in the VM can change the gate. */
-const installCheck = async (asRoot: (script: string) => Promise<CommandResult>): Promise<void> => {
-  const installed = await asRoot([
-    `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
-    serverBuildScriptSource(),
-    'CONEXUS_SERVER_BUILD_EOF',
-    `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
-    checkScriptSource(),
-    'CONEXUS_CHECK_EOF',
-    `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
-    `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
-  ].join('\n'))
-  if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
-}
-
 const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; app/ e conexus/ aceitam só arquivos comuns (sem links), até 256 arquivos, cada um até 1 MiB e 12 MiB no total.'
-
-/**
- * The one check of a candidate revision: the admission check and the Preview build in one, on the
- * application tree from the Conexus Git, as root, from a root-only copy, with the build and its
- * picture collected. The run's finish gate and a publish retry both call it.
- */
-const judgeCandidate = async ({ git, projectId, executionId, revision, writeRootFile, asRoot, runCheck, log }: Readonly<{
-  git: Pick<ConexusGit, 'listFilesLong' | 'archive'>
-  projectId: string
-  executionId: string
-  revision: string
-  writeRootFile(path: string, bytes: Uint8Array): Promise<void>
-  asRoot(script: string): Promise<CommandResult>
-  runCheck: RunSandbox['runCheck']
-  log(line: string): void
-}>): Promise<CandidateVerdict> => {
-  // The tree's own limits are the app's to fix: a symlink, an oversized file or no app/index.html.
-  let admitted: readonly string[]
-  try {
-    admitted = admitApplicationTree(await git.listFilesLong(projectId, revision, APPLICATION_TREE_ROOTS.map((root) => `${root}/`)))
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== 'BUILDER_APPLICATION_SOURCE_REFUSED') throw error
-    return { kind: 'RED_APP', revision, detail: APPLICATION_TREE_LIMITS }
-  }
-  const roots = APPLICATION_TREE_ROOTS.filter((root) => admitted.some((path) => path.startsWith(`${root}/`)))
-  const candidateTar = `${SEED_ROOT}/${executionId}.candidate.tar`
-  await writeRootFile(candidateTar, await git.archive(projectId, revision, roots))
-  const checkRoot = `${BUILD_ROOT}/${executionId}`
-  const unpacked = await asRoot([
-    `rm -rf ${quoted(BUILD_ROOT)}`,
-    `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
-    `mkdir -m 755 ${quoted(checkRoot)}`,
-    `tar -x -C ${quoted(checkRoot)} -f ${quoted(candidateTar)}`,
-    `rm -f ${quoted(candidateTar)}`,
-  ].join(' && '))
-  if (unpacked.exitCode !== 0) throw new Error('BUILDER_CANDIDATE_UNPACK_FAILED')
-  const checked = await runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${executionId}.png`, user: 'root' })
-  log(`BUILDER_CHECK:gate:${executionId}:${revision.slice(0, 12)}:${checkSummary(checked.report)}`)
-  const verdict = classifyCheck(revision, checked)
-  const renderedWithProblems = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null
-  if (renderedWithProblems) log(`BUILDER_CHECK_BOOT_PROBLEMS:${executionId}:${JSON.stringify(renderedWithProblems.problems).slice(0, 2_000)}`)
-  return verdict
-}
 
 type TurnMirror = Readonly<{
   schedule(): void
@@ -557,7 +497,17 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // The Hub's check and its server build run from paths only root can write, so the agent and
       // the admission below see exactly the refusal the Conexus build would give, and neither can
       // change the gate.
-      await installCheck(asRoot)
+      const installed = await asRoot([
+        `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
+        serverBuildScriptSource(),
+        'CONEXUS_SERVER_BUILD_EOF',
+        `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
+        checkScriptSource(),
+        'CONEXUS_CHECK_EOF',
+        `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
+        `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
+      ].join('\n'))
+      if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
       await (ports.materializeStarter ?? materializeRunStarter)({
         repositoryRoot: SANDBOX_CHECKOUT,
         directCommand: (command, args) => direct(command, [...args]),
@@ -581,14 +531,44 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         openConnectorPort: async () => (connectorRun ? connectorRun.openHandlerPort() : null),
         invoke: invokeOperation,
       }) : undefined
-      let pulled: string | null = null
-      const judge = (revision: string): Promise<CandidateVerdict> => judgeCandidate({
-        git: ports.git, projectId: input.projectId, executionId: input.executionId, revision, writeRootFile, asRoot,
-        runCheck: (check) => sandbox.runCheck(check), log: ports.log,
-      })
       // The gate's phases are written in order: checking, then back to the agent on a red check.
       let gatePhases: Promise<void> = Promise.resolve()
       const gatePhase = (phase: BuilderRunPhase): void => { gatePhases = gatePhases.then(() => input.setPhase(phase)).catch(() => undefined) }
+      // The one check of a candidate revision, which is both its admission (AC-9, AC-14) and its
+      // Preview build: the application tree from the Conexus Git, checked as root from a root-only
+      // copy that drops to the agent's user for every step that runs the app's code.
+      const judge = async (revision: string): Promise<CandidateVerdict> => {
+        if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
+        ports.log(`BUILDER_GATE_CHECKING:${input.executionId}:${revision.slice(0, 12)}`)
+        gatePhase('COMPILING')
+        // The tree's own limits are the app's to fix: a symlink, an oversized file or no app/index.html.
+        let admitted: readonly string[]
+        try {
+          admitted = admitApplicationTree(await ports.git.listFilesLong(input.projectId, revision, APPLICATION_TREE_ROOTS.map((root) => `${root}/`)))
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'BUILDER_APPLICATION_SOURCE_REFUSED') throw error
+          return { kind: 'RED_APP', revision, detail: APPLICATION_TREE_LIMITS }
+        }
+        const roots = APPLICATION_TREE_ROOTS.filter((root) => admitted.some((path) => path.startsWith(`${root}/`)))
+        const candidateTar = `${SEED_ROOT}/${input.executionId}.candidate.tar`
+        await writeRootFile(candidateTar, await ports.git.archive(input.projectId, revision, roots))
+        const checkRoot = `${BUILD_ROOT}/${input.executionId}`
+        const unpacked = await asRoot([
+          `rm -rf ${quoted(BUILD_ROOT)}`,
+          `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
+          `mkdir -m 755 ${quoted(checkRoot)}`,
+          `tar -x -C ${quoted(checkRoot)} -f ${quoted(candidateTar)}`,
+          `rm -f ${quoted(candidateTar)}`,
+        ].join(' && '))
+        if (unpacked.exitCode !== 0) throw new Error('BUILDER_CANDIDATE_UNPACK_FAILED')
+        const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${input.executionId}.png`, user: 'root' })
+        ports.log(`BUILDER_CHECK:gate:${input.executionId}:${revision.slice(0, 12)}:${checkSummary(checked.report)}`)
+        const verdict = classifyCheck(revision, checked)
+        const boot = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null
+        if (boot) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(boot.problems).slice(0, 2_000)}`)
+        return verdict
+      }
+      let pulled: string | null = null
       const gate = createCandidateGate({
         // A checkout back at the turn's start is no change; one the agent left as it was reuses the
         // revision already pulled, so its verdict is not checked again.
@@ -604,10 +584,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         onRedFinish: (count) => {
           redFinishes.set(input.conversationId, { builderRunId: input.executionId, count })
           if (count < GATE_RED_BUDGET) gatePhase('AGENT')
-        },
-        onChecking: (revision) => {
-          ports.log(`BUILDER_GATE_CHECKING:${input.executionId}:${revision.slice(0, 12)}`)
-          gatePhase('COMPILING')
         },
       })
       session = await ports.openSession({
@@ -648,10 +624,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       timing.mark('agent')
 
       // The gate judged the candidate when the agent said it was done; settling reads that verdict,
-      // and checks only a revision the gate never saw (a turn the loop ended without its check).
-      // Every agent process goes first, so nothing changes the checkout after the last pull.
+      // and checks only a revision the gate never saw: a turn the loop ended without its check, or a
+      // tree an agent process changed after it. Every agent process goes first, so the settled tree
+      // is the last one.
       await sh('kill -KILL -1 2>/dev/null; true')
       const verdict = await gate.settle()
+      if (verdict?.kind === 'RED_PLATFORM') throw verdict.error
       const result = verdict?.revision ?? null
       await endMirror(result)
       timing.mark('pull')
@@ -670,7 +648,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       ports.log(`BUILDER_GATE_SETTLED:${input.executionId}:${verdict.kind}`)
       // Not admitted: the files stay in the conversation and `main` does not move.
-      if (verdict.kind === 'RED_PLATFORM') throw new Error(verdict.code)
       if (verdict.kind === 'RED_APP') throw new CandidateRefused(gate.gaveUp() ? 'BUILDER_APP_NOT_FIXED' : 'BUILDER_CHECK_FAILED', verdict.detail)
       const admitted = verdict.revision
 
@@ -752,25 +729,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       ports.log(timing.line(input.executionId))
     }
   }
-  const rebuild: BuilderRunRuntime['rebuild'] = async ({ projectId, conversationId, executionId, revision, providerSandboxId }) => {
-    await lettingGo.get(conversationId)
-    const sandbox = ports.openSandbox({ conversationId, providerSandboxId })
-    let live = false
-    try {
-      await sandbox.start()
-      await sandbox.executeCommand('true', [], { env: {}, cwd: '/' })
-      live = true
-      const asRoot = (script: string): Promise<CommandResult> => sandbox.runAsRoot(script, {})
-      await installCheck(asRoot)
-      return await judgeCandidate({
-        git: ports.git, projectId, executionId, revision, writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes), asRoot,
-        runCheck: (check) => sandbox.runCheck(check), log: ports.log,
-      })
-    } finally {
-      if (live) await sandbox.pause().catch(() => undefined)
-    }
-  }
-  return Object.freeze({ discardParked, evictParked, execute, rebuild })
+  return Object.freeze({ discardParked, evictParked, execute })
 }
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>

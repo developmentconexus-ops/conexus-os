@@ -20,7 +20,10 @@ test('a check is labelled where it fails: the app, a page that did not render, C
   })
   const unrendered = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', [{ code: 'BOOT_NO_ROOT_CHILD', message: 'nothing drawn' }])])
   assert.equal(classifyCheck(REVISION, { report: unrendered, files }).kind, 'UNRENDERED')
-  assert.deepEqual(classifyCheck(REVISION, { report: green, files: null }), { kind: 'RED_PLATFORM', revision: REVISION, code: 'APPLICATION_CHECK_UNREADABLE' })
+  const unreadable = classifyCheck(REVISION, { report: green, files: null })
+  assert.deepEqual([unreadable.kind, unreadable.error.message], ['RED_PLATFORM', 'APPLICATION_CHECK_UNREADABLE'])
+  const slow = classifyCheck(REVISION, { report: report([passed('generate'), failed('typecheck', [{ code: 'STEP_TIMEOUT', message: 'typecheck exceeded 60 s and was stopped' }])]), files: null })
+  assert.deepEqual([slow.kind, slow.error.message], ['RED_PLATFORM', 'APPLICATION_CHECK_TIMEOUT'], 'a blocking step stopped on its clock is not charged to the app')
   const consoleError = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', [{ code: 'BOOT_CONSOLE_ERROR', message: 'oops' }])])
   const built = classifyCheck(REVISION, { report: consoleError, files, thumbnail: { mediaType: 'image/png', bytes: new Uint8Array([1]) } })
   assert.equal(built.kind, 'GREEN')
@@ -55,8 +58,7 @@ test('a red finish goes back to the agent with the check in its words, counted a
 
 test('the budget counts each red finish, an unchanged revision included, and the last one stops the loop', async () => {
   const counts = []
-  const checking = []
-  const { gate, judged } = gateOver([RED], { onRedFinish: (count) => counts.push(count), onChecking: (revision) => checking.push(revision) })
+  const { gate, judged } = gateOver([RED], { onRedFinish: (count) => counts.push(count) })
   assert.match(await gate.finish(), /\(1 de 3\)/)
   assert.equal(gate.gaveUp(), false)
   assert.match(await gate.finish(), /\(2 de 3\)/)
@@ -66,7 +68,6 @@ test('the budget counts each red finish, an unchanged revision included, and the
   assert.equal(gate.gaveUp(), true)
   assert.deepEqual(counts, [1, 2, 3])
   assert.deepEqual(judged, [REVISION], 'one revision is checked once')
-  assert.deepEqual(checking, [REVISION, REVISION, REVISION], 'each finish says the run is checking, a known verdict included')
   assert.deepEqual(await gate.settle(), { kind: 'RED_APP', revision: REVISION, detail: RED.detail })
 })
 
@@ -86,16 +87,42 @@ test('a green finish ends the turn, and the verdict it judged is the one the run
   assert.deepEqual(judged, [REVISION, OTHER], 'settling reuses the finish check')
 })
 
-test('a Conexus failure never goes back to the agent: the finish stands and the run settles it', async () => {
-  const { gate } = gateOver([new Error('BUILDER_CANDIDATE_UNPACK_FAILED')])
+test('a Conexus failure never goes back to the agent, and is checked again rather than kept', async () => {
+  const unpack = new Error('BUILDER_CANDIDATE_UNPACK_FAILED')
+  const { gate, judged } = gateOver([unpack, unpack])
   assert.equal(await gate.finish(), null)
-  assert.deepEqual(await gate.settle(), { kind: 'RED_PLATFORM', revision: REVISION, code: 'BUILDER_CANDIDATE_UNPACK_FAILED' })
+  assert.deepEqual(await gate.settle(), { kind: 'RED_PLATFORM', error: unpack })
+  assert.deepEqual(judged, [REVISION, REVISION])
 })
 
-test('a candidate that cannot be read is Conexus failing, with no revision to keep', async () => {
-  const gate = createCandidateGate({ candidate: async () => { throw new Error('a message, not a code') }, judge: async () => assert.fail('nothing to judge') })
+test('a candidate that cannot be read is Conexus failing', async () => {
+  const unreadable = new Error('a message, not a code')
+  const gate = createCandidateGate({ candidate: async () => { throw unreadable }, judge: async () => assert.fail('nothing to judge') })
   assert.equal(await gate.finish(), null)
-  assert.deepEqual(await gate.settle(), { kind: 'RED_PLATFORM', revision: null, code: 'BUILDER_CANDIDATE_CHECK_FAILED' })
+  assert.deepEqual(await gate.settle(), { kind: 'RED_PLATFORM', error: unreadable })
+})
+
+test('a checkout too large to take back goes to the agent to fix', async () => {
+  const gate = createCandidateGate({ candidate: async () => { throw new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE') }, judge: async () => assert.fail('nothing to judge') })
+  assert.match(await gate.finish(), /^Verificação do Conexus: o app não passou \(1 de 3\)\.\nO Conexus não aceita esta versão: os arquivos do projeto passam do tamanho máximo/)
+  assert.equal((await gate.settle()).revision, null)
+})
+
+test('a finish asked again while its check still runs shares that one check', async () => {
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  const judged = []
+  const gate = createCandidateGate({
+    candidate: async () => REVISION,
+    judge: async (revision) => { judged.push(revision); await held; return { kind: 'RED_APP', revision, detail: 'typecheck failed:\nboom' } },
+  })
+  const first = gate.finish()
+  const second = gate.finish()
+  release()
+  assert.deepEqual(await Promise.all([first, second]).then((all) => all.map((feedback) => feedback.split('\n')[0])), [
+    'Verificação do Conexus: o app não passou (1 de 3).', 'Verificação do Conexus: o app não passou (1 de 3).',
+  ])
+  assert.deepEqual(judged, [REVISION])
 })
 
 test('a turn that left nothing new settles with no change and no check', async () => {

@@ -16,7 +16,6 @@ Construir is the Project's conversation with the Builder. The person sends a mes
 - `lenses` shows the Stage tabs `Prévia`, `Código`, `Alterações` and `Sobre`.
 - `retry` offers `Tentar de novo` in the `Sobre` lens, which puts a failed request back in the composer.
 - `done-check` shows the Conexus check's verdict as a `note` that starts `Verificação do Conexus: o app não passou (N de 3).` while the agent repairs its own app, inside the same run. Not reachable under this harness.
-- `publish-retry` marks a version Conexus failed to publish with `Não publicada por uma falha do Conexus` on its result card, and its `Tentar de novo` publishes the same source again with no agent turn. Not reachable under this harness.
 - `memory-status` shows `Memória da conversa` under the composer: how full the message window is before the Builder observes it.
 - `composer-states` changes the composer when it can't send: `Carregando modelos…`, `Não foi possível carregar os modelos` with a `Tentar novamente` alert, `Nenhum modelo disponível para você`, `Outra conversa está construindo este Projeto` and `Parar` while a turn runs. Not reachable under this harness.
 
@@ -44,7 +43,7 @@ Preconditions:
 
 ## Gotchas
 
-- `tests/live/` (`npm run test:live`) drives the same launch with a scripted model and a local sandbox, and reaches `stream`, `question-card`, `plan-card`, `done-check` and `publish-retry`. This CLI doesn't.
+- `tests/live/` (`npm run test:live`) drives the same launch with a scripted model and a local sandbox, and reaches `stream`, `question-card`, `plan-card` and `done-check`. This CLI doesn't.
 - `composer-states` is source-only (`composer.tsx`, `model-picker.tsx`). The fake proxy always lists models, and a failed turn ends before a stop button can be clicked.
 - While a conversation is open, `browser.log` gains a `409 (Conflict)` console error on the conversation URL about every ten seconds, because the Builder's session never becomes ready without a sandbox (cause read from `mastra-session-routes.ts`, not observed). On a Project in deletion, `settings` logs `503`. Both are expected here.
 - The Builder opens its E2B sandbox before the model's first token, and this harness closes E2B on purpose. So `stream`, `reasoning`, the parked cards and every lens that needs a built app can't be proven here. The fake model proxy does not answer model calls either, so even with a sandbox these need a model stand-in on Gemini's `/v1beta` API. Report these sub-features as skipped, with "E2B closed" as the unmet precondition.

@@ -39,7 +39,7 @@ const timelineTone = (run: BuilderRun): 'ok' | 'fail' | 'active' | 'neutral' => 
   if (view.kind === 'ACTIVE') return 'active'
   if (view.kind === 'IDLE') return 'neutral'
   if (view.outcome === 'CHANGED' || view.outcome === 'RESPONDED') return 'ok'
-  if (view.outcome === 'FAILED' || view.outcome === 'BUILD_FAILED' || view.outcome === 'PUBLISH_FAILED') return 'fail'
+  if (view.outcome === 'FAILED' || view.outcome === 'BUILD_FAILED') return 'fail'
   return 'neutral'
 }
 
@@ -48,7 +48,6 @@ const timelinePillText = (run: BuilderRun): string => {
   if (view.kind === 'ACTIVE') return 'Em andamento'
   if (view.kind === 'IDLE') return ''
   if (view.outcome === 'FAILED' || view.outcome === 'BUILD_FAILED') return 'Falhou'
-  if (view.outcome === 'PUBLISH_FAILED') return 'Não publicada'
   if (view.outcome === 'BASE_MOVED') return 'Não aplicado'
   if (view.outcome === 'STOPPED') return 'Parado'
   if (view.outcome === 'DISCARDED') return 'Interrompido'

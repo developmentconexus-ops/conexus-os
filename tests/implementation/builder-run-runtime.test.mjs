@@ -272,7 +272,6 @@ const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate
       row.result = revision
     },
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
-    settleBuilderRunPublishFailed: async (input) => { calls.push(['settlePublishFailed', input.sourceRevision, input.failureCode]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
@@ -340,7 +339,7 @@ const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate
   return { runtime, runtimeInput: { projectId, accountId, conversationId, executionId: runId, intent: 'Mostre UNIT1-nonce', baseSourceRevision: base }, discards, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
-const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'settlePublishFailed', 'fail', 'interrupt'].includes(kind))
+const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
 
 test('a run commits the checkout as one commit on its base and fast forwards main to it', async (t) => {
   const run = await harness(t)
@@ -448,7 +447,7 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   const unconfigured = await harness(t, { build: withServerTree })
   await unconfigured.start()
   await unconfigured.service.close()
-  assert.deepEqual(unconfigured.calls.filter(([kind]) => kind === 'settleBuild' || kind === 'settlePublishFailed'), [['settlePublishFailed', unconfigured.result(), 'APPLICATION_RUNNER_UNAVAILABLE']])
+  assert.deepEqual(unconfigured.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', unconfigured.result(), 'APPLICATION_RUNNER_UNAVAILABLE']])
   // A runner the Hub cannot reach is not the source's fault: the note tells the agent to change nothing.
   assert.deepEqual(unconfigured.diagnostics.map(({ code, outcome }) => [code, outcome]), [['APPLICATION_RUNNER_UNAVAILABLE', 'PLATFORM_FAILED']])
 })
@@ -460,7 +459,7 @@ test('a fast forward that moved main and then failed is admitted by a sweep, nev
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)
-  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settlePublishFailed', result, 'BUILDER_PREVIEW_NOT_BUILT']])
+  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, 'BUILDER_PREVIEW_NOT_BUILT']])
   assert.deepEqual(run.diagnostics, [])
 })
 
@@ -480,7 +479,7 @@ test('a database failure recording the advance after main moved leaves the run p
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)
-  assert.deepEqual(admissionCalls(run).filter(([kind]) => kind !== 'candidate'), [['advance', result], ['settlePublishFailed', result, 'BUILDER_PREVIEW_NOT_BUILT']])
+  assert.deepEqual(admissionCalls(run).filter(([kind]) => kind !== 'candidate'), [['advance', result], ['settleBuild', result, 'BUILDER_PREVIEW_NOT_BUILT']])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advanceLost'), [['advanceLost', result]])
 })
 
@@ -562,7 +561,7 @@ test("a check that fails in Conexus fails the run with its code, keeps the files
   assert.equal(await run.main(), run.base)
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_COMPILATION_FAILED']])
   assert.equal(run.mirror(), run.result())
-  assert.equal(run.checks.length, 1, 'the check ran once and nothing sent the agent back to work')
+  assert.equal(run.checks.length, 2, 'a Conexus failure is not kept: settling checks once more, and nothing sent the agent back to work')
   assert.deepEqual(run.feedbacks, [])
 })
 

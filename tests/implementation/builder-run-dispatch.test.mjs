@@ -9,8 +9,8 @@ const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabul
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
 // so each test only overrides the pieces it exercises.
 // A conversation is the Project's when its thread is; these tests name the missing one through the conversation id.
-const makeRuns = ({ execute, appendDiagnostic, publishRun, discardParked, rebuild }) => ({
-  runtime: { execute, discardParked: discardParked ?? (async () => {}), rebuild: rebuild ?? (async () => { throw new Error('not reached') }) },
+const makeRuns = ({ execute, appendDiagnostic, publishRun, discardParked }) => ({
+  runtime: { execute, discardParked: discardParked ?? (async () => {}) },
   publishRun: publishRun ?? (async () => {}),
   conversations: {
     ownerOf: async (_projectId, conversationId) => (conversationId === 'conv-missing' ? 'NONE' : 'PROJECT'),
@@ -38,7 +38,6 @@ test('BuilderRun message dispatch claims, executes and settles without Change pi
     readConversationSandbox: async (input) => { calls.push(['read-conversation-sandbox', input]); return 'vm-before' },
     recordConversationSandbox: async (input) => calls.push(['conversation-sandbox', input]),
     settleBuilderRun: async (input) => calls.push(['settle', input.resultKind]),
-    readLatestCodeChangingBuilderRun: async () => null,
     failBuilderRun: async () => calls.push('fail'),
     close: async () => {},
   }
@@ -431,7 +430,7 @@ test('a source-shape refusal from the application server settles with the runner
   ])
 })
 
-test('a platform-side prepare fault settles as a publish failure whose note tells the agent to change nothing, and keeps its code', async () => {
+test('a platform-side prepare fault settles as a platform failure, not a build failure, and still carries its reason', async () => {
   const runId = '44444444-4444-4444-8444-444444444448'
   const projectId = '55555555-5555-4555-8555-555555555557'
   const accountId = '66666666-6666-4666-8666-666666666666'
@@ -446,8 +445,7 @@ test('a platform-side prepare fault settles as a publish failure whose note tell
     bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => calls.push(['fail', code]), close: async () => {},
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
-    settleBuilderRunBuild: async () => { throw new Error('must not settle a platform fault as a build') },
-    settleBuilderRunPublishFailed: async (input) => calls.push(['publish-failed-settle', input.sourceRevision, input.failureCode]),
+    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
   const service = createBuilderService({
     store,
@@ -466,85 +464,9 @@ test('a platform-side prepare fault settles as a publish failure whose note tell
   await service.close()
   assert.deepEqual(calls, [
     ['advance', resultRevision],
-    ['publish-failed-settle', resultRevision, 'APPLICATION_SERVER_REFUSED'],
-    ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', undefined],
+    ['build-settle', 'APPLICATION_SERVER_REFUSED'],
+    ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
     ['fail', 'APPLICATION_SERVER_REFUSED'],
-  ])
-})
-
-// A Project whose latest code-changing run, made by `ownerAccountId`, was admitted and failed to publish.
-const publishFailedFixture = ({ rebuild, ownerAccountId = '66666666-6666-4666-8666-666666666666' }) => {
-  const failedRunId = '44444444-4444-4444-8444-44444444444a'
-  const projectId = '55555555-5555-4555-8555-555555555558'
-  const revision = 'a'.repeat(40)
-  const calls = []
-  const failedRun = { builderRunId: failedRunId, projectId, accountId: ownerAccountId, state: 'SUCCEEDED', baseSourceRevision: 'b'.repeat(40), resultSourceRevision: revision, resultKind: 'SOURCE_CHANGED_PUBLISH_FAILED', failureCode: 'BUILDER_PREVIEW_NOT_BUILT', conversationId: 'conv-3' }
-  const store = {
-    readConversationSandbox: async () => 'vm-before',
-    readLatestCodeChangingBuilderRun: async () => failedRun,
-    reopenBuilderRunPublish: async (id) => { calls.push(['reopen', id]); return true },
-    readBuilderRun: async () => ({ ...failedRun, state: 'RUNNING' }),
-    requestBuilderRunCancellation: async () => ({ ...failedRun, state: 'RUNNING', cancellationRequested: true }),
-    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.sourceRevision, input.failureCode ?? null]),
-    settleBuilderRunPublishFailed: async (input) => calls.push(['publish-failed-settle', input.sourceRevision, input.failureCode]),
-    close: async () => {},
-  }
-  const service = createBuilderService({
-    store,
-    runs: makeRuns({
-      execute: async () => { throw new Error('not reached') },
-      rebuild: async (input) => {
-        calls.push(['rebuild', input.executionId, input.revision, input.providerSandboxId])
-        return rebuild(input)
-      },
-      appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
-    }),
-    applicationArtifacts: { retainApplication: async (input) => { calls.push(['retain', input.accountId]); return { artifactRevisionId: '77777777-0000-4000-8000-000000000001', artifactDigest: 'd'.repeat(64) } } },
-  })
-  return { service, calls, projectId, revision, failedRunId }
-}
-const greenVerdict = (input) => ({ kind: 'GREEN', revision: input.revision, build: { files: [] } })
-
-test("a retry publishes as the run's own account, even when another account asks for it", async () => {
-  const owner = '66666666-6666-4666-8666-666666666666'
-  const { service, calls, projectId, failedRunId } = publishFailedFixture({ rebuild: async (input) => greenVerdict(input), ownerAccountId: owner })
-  assert.equal(await service.retryBuilderRunPublish({ accountId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', projectId, builderRunId: failedRunId }), 'RETRYING')
-  await service.close()
-  assert.deepEqual(calls.filter(([kind]) => kind === 'retain'), [['retain', owner]])
-})
-
-test('a retry whose page does not render settles a build failure with the smoke code and a note the next turn reads', async () => {
-  const { service, calls, projectId, revision, failedRunId } = publishFailedFixture({
-    rebuild: async (input) => ({ kind: 'UNRENDERED', revision: input.revision, detail: 'boot failed:\nBOOT_NO_ROOT_CHILD nada na tela' }),
-  })
-  await service.retryBuilderRunPublish({ accountId: '66666666-6666-4666-8666-666666666666', projectId, builderRunId: failedRunId })
-  await service.close()
-  assert.deepEqual(calls.filter(([kind]) => kind === 'build-settle' || kind === 'note' || kind === 'retain'), [
-    ['build-settle', revision, 'APPLICATION_SMOKE_FAILED'],
-    ['note', 'APPLICATION_SMOKE_FAILED', 'BUILD_FAILED', 'boot failed:\nBOOT_NO_ROOT_CHILD nada na tela'],
-  ])
-})
-
-test('a retry the person stops while its check runs settles as a publish failure, cancelled, and never publishes', async () => {
-  let checking
-  const inCheck = new Promise((resolve) => { checking = resolve })
-  let finishCheck
-  const checkDone = new Promise((resolve) => { finishCheck = resolve })
-  const { service, calls, projectId, failedRunId } = publishFailedFixture({
-    rebuild: async (input) => {
-      checking()
-      await checkDone
-      return greenVerdict(input)
-    },
-  })
-  const accountId = '66666666-6666-4666-8666-666666666666'
-  await service.retryBuilderRunPublish({ accountId, projectId, builderRunId: failedRunId })
-  await inCheck
-  await service.cancelBuilderRun({ accountId, projectId, builderRunId: failedRunId })
-  finishCheck()
-  await service.close()
-  assert.deepEqual(calls.filter(([kind]) => kind === 'publish-failed-settle' || kind === 'build-settle' || kind === 'retain'), [
-    ['publish-failed-settle', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'BUILDER_RUN_CANCELLED'],
   ])
 })
 
@@ -575,7 +497,6 @@ test('a run publishes the state it parks in, and the state it ends in, before it
       setBuilderRunPhase: async (_id, phase) => { Object.assign(row, { phase }) },
       settleBuilderRun: async () => { Object.assign(row, { state: 'SETTLED', phase: null, resultKind: 'RESPONSE_ONLY' }) },
       failBuilderRun: async () => { Object.assign(row, { state: 'FAILED', phase: null }) },
-      readLatestCodeChangingBuilderRun: async () => null,
       interruptBuilderRun: async () => { Object.assign(row, { state: 'INTERRUPTED', phase: null }) },
       bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {}, close: async () => {},
     }

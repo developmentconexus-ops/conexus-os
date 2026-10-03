@@ -157,29 +157,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  // "Tentar de novo" for a version Conexus failed to publish. No agent turn, no new commit.
-  app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/retry-publish', {
-    schema: {
-      params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } },
-      body: { type: 'object', additionalProperties: false },
-    },
-  }, async (request, reply) => {
-    const csrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-    const session = await dependencies.resolveCurrentSession(request, true)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    try {
-      const outcome = await dependencies.service.retryBuilderRunPublish({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
-      return outcome === 'RETRYING' ? reply.code(202).send({ outcome }) : sendProblem(reply, 409, 'builder-run-not-retryable', 'BuilderRun not retryable')
-    } catch (error) {
-      const detail = message(error)
-      if (detail.includes('NOT_AUTHORIZED') || detail.includes('NOT_FOUND')) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
-      if (detail.includes('PROJECT_DELETING') || detail.includes('NOT_ADMITTED')) return sendProblem(reply, 409, 'builder-run-not-retryable', 'BuilderRun not retryable')
-      recordFailure(request.log, 'BUILDER_PUBLISH_RETRY_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })
-      return sendProblem(reply, 503, 'builder-publish-retry-unavailable', 'Builder publish retry unavailable')
-    }
-  })
-
   app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', {
     schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } },
   }, async (request, reply) => {

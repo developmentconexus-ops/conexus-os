@@ -20,10 +20,10 @@ process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
-export type HubPorts = Partial<Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes' | 'applicationArtifacts'>>
+export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
 
 /** Composes and starts the Hub. The ports are what a test stands in for; the production entry passes none. */
-export const startHub = async ({ conversationSandboxes, applicationArtifacts = createApplicationArtifactStore() }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
+export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
   const config = readHubConfig()
   const mainConnection = {
     host: config.database.host,
@@ -205,7 +205,7 @@ export const startHub = async ({ conversationSandboxes, applicationArtifacts = c
     factory: config.factory,
     secretKey: config.secretKey,
     ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
-    applicationArtifacts,
+    applicationArtifacts: createApplicationArtifactStore(),
     // A Project with an application keeps its Preview data: a divergent migration history is refused, never
     // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
     // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.

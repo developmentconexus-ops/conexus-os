@@ -158,11 +158,6 @@
         "test": "tests/live/builder-done-gate.test.mjs"
       },
       {
-        "id": "builder.done-gate-publish-retry",
-        "nome": "Uma falha do Conexus depois da verificação verde não volta ao agente, e \"Tentar de novo\" publica a mesma versão",
-        "test": "tests/live/builder-done-gate.test.mjs"
-      },
-      {
         "id": "builder.done-gate-repairs",
         "nome": "Um erro do app volta para o agente no mesmo pedido, e a pessoa vê a verificação enquanto ele corrige",
         "test": "tests/live/builder-done-gate.test.mjs"

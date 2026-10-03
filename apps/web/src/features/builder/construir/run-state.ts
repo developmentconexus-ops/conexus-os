@@ -12,7 +12,6 @@ type SettledOutcome =
   | 'RESPONDED'
   | 'CHANGED'
   | 'BUILD_FAILED'
-  | 'PUBLISH_FAILED'
   | 'BASE_MOVED'
   | 'STOPPED'
   | 'DISCARDED'
@@ -39,7 +38,6 @@ const settledOutcome = (run: BuilderRun): SettledOutcome => {
     if (run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'BUILD_FAILED'
     return 'RESPONDED'
   }
-  if (run.resultKind === 'SOURCE_CHANGED_PUBLISH_FAILED') return 'PUBLISH_FAILED'
   if (run.failureCategory === 'SOURCE_BASE_MOVED') return 'BASE_MOVED'
   if (run.failureCategory === 'RUN_CANCELLED' || run.cancellationRequested) return 'STOPPED'
   if (run.state === 'INTERRUPTED' || run.failureCategory === 'RUN_INTERRUPTED') return 'DISCARDED'
@@ -59,7 +57,6 @@ const settledLines: Readonly<Record<Exclude<SettledOutcome, 'FAILED'>, string>> 
   RESPONDED: 'Respondeu',
   CHANGED: 'Alterou o app',
   BUILD_FAILED: 'Alterou o código, mas não compilou',
-  PUBLISH_FAILED: 'A falha foi do Conexus, não do app. A alteração está guardada.',
   BASE_MOVED: 'Não aplicado: o app mudou antes',
   STOPPED: 'Parado',
   DISCARDED: 'Interrompido',

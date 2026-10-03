@@ -79,7 +79,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   assert.equal(await admit(working, project, unauthorized), false)
 
   const projected = (await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, project])).rows[0].value
-  assert.deepEqual(projected, { builderRunId: runTwo, projectId: project, accountId: account, conversationId: `conversa-${project}`, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })
+  assert.deepEqual(projected, { builderRunId: runTwo, projectId: project, conversationId: `conversa-${project}`, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [unauthorized, project])).rows[0].value, null)
   assert.equal((await query('SELECT builder.read_latest_code_changing_builder_run($1, $2) AS value', [account, otherProject])).rows[0].value.builderRunId, otherRun)
   await query('DELETE FROM builder.builder_run WHERE project_id = $1', [otherProject])

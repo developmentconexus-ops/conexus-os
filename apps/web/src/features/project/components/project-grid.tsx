@@ -5,13 +5,12 @@ import { useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { projectThumbnailUrl, type ProjectCardSummary } from '../api'
 
-export type ProjectActivity = 'BUILDING' | 'FAILED' | 'PUBLISH_FAILED' | 'LIVE' | 'NEW'
+export type ProjectActivity = 'BUILDING' | 'FAILED' | 'LIVE' | 'NEW'
 
 // The chip reads the latest run the Hub reports, and falls back to whether a Preview exists.
 export function projectActivity(summary: ProjectCardSummary): ProjectActivity {
   const run = summary.latestRun
   if (run?.state === 'QUEUED' || run?.state === 'RUNNING') return 'BUILDING'
-  if (run?.resultKind === 'SOURCE_CHANGED_PUBLISH_FAILED') return 'PUBLISH_FAILED'
   if (run?.state === 'FAILED' || run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'FAILED'
   return summary.hasPreview ? 'LIVE' : 'NEW'
 }
@@ -19,7 +18,6 @@ export function projectActivity(summary: ProjectCardSummary): ProjectActivity {
 const CHIPS: Record<ProjectActivity, Readonly<{ label: string; tone: string }>> = {
   BUILDING: { label: 'Construindo', tone: 'working' },
   FAILED: { label: 'Falhou: build do aplicativo', tone: 'failed' },
-  PUBLISH_FAILED: { label: 'Não publicada: falha do Conexus', tone: 'failed' },
   LIVE: { label: 'Em uso', tone: 'live' },
   NEW: { label: 'Sem prévia ainda', tone: 'neutral' },
 }
