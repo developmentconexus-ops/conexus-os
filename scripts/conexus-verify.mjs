@@ -268,9 +268,10 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-// The fast check to run before every push: the static gates CI otherwise reports minutes later, with
-// no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'ratchets', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
+// The fast check to run before every push: the static gates CI fails on most, with no Docker, browser
+// or network. It runs both typechecks, the style and repository checks and the contract projections,
+// so a push does not wait for CI to report them.
+export const QUICK_CHECK_SCOPES = Object.freeze(['hub-typecheck', 'web-typecheck', 'repository-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'web-style', 'log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'ratchets', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
