@@ -10,7 +10,6 @@ import { Link2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
 import {
-  applicationAccessMessage,
   applicationAccessQueryKey,
   getApplicationAccess,
   grantApplicationAccess,
@@ -19,6 +18,7 @@ import {
 } from '../application-access-api'
 import type { GrantEntry, InvitationEntry } from '../application-access-api'
 import '../people.css'
+import { failureText } from '../../../app/http'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
@@ -40,7 +40,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   const [pending, setPending] = useState<Pending | null>(null)
   const access = useQuery({ queryKey: applicationAccessQueryKey(projectId), queryFn: () => getApplicationAccess(projectId) })
   const refresh = () => queryClient.invalidateQueries({ queryKey: applicationAccessQueryKey(projectId) })
-  const fail = (error: unknown) => setMessage(applicationAccessMessage(error))
+  const fail = (error: unknown) => setMessage(failureText(error))
 
   const revoke = useMutation({
     mutationFn: ({ kind, id }: { kind: 'grant' | 'invitation'; id: string }) => revokeApplicationAccessEntry(projectId, kind, id),
@@ -57,7 +57,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   if (access.isError) {
     if (isApplicationAccessForbidden(access.error)) {
       return <div className="cx-state" role="alert">
-        <h2>Só Owners do Workspace decidem quem usa este aplicativo.</h2>
+        <h2>{failureText(access.error)}</h2>
       </div>
     }
     return <div className="cx-state" role="alert">
@@ -175,7 +175,7 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
       await onGranted()
       setGranted(access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`)
     },
-    onError: (error) => setMessage(applicationAccessMessage(error)),
+    onError: (error) => setMessage(failureText(error)),
   })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {

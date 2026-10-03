@@ -11,24 +11,21 @@ import { BINDING_NAME_PATTERN } from '../../../generated/connector-client'
 import {
   type BindableConnection,
   bindProjectConnection,
-  checkConnectionMessage,
   checkOutcomeMessage,
   checkWorkspaceConnection,
   createWorkspaceConnection,
-  disableConnectionMessage,
   disableWorkspaceConnection,
   isConnectorAdminRequired,
   isConnectorBindingsForbidden,
   listProjectConnectionBindings,
   listWorkspaceConnections,
   type ProjectConnectionBinding,
-  projectBindingsMessage,
   projectConnectionBindingsQueryKey,
   unbindProjectConnection,
-  workspaceConnectionsMessage,
   workspaceConnectionsQueryKey,
 } from '../connector-api'
 import '../connector.css'
+import { failureText } from '../../../app/http'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
@@ -92,12 +89,12 @@ function ConnectionRow({ workspaceId, connection, onChanged }: Readonly<{ worksp
   const check = useMutation({
     mutationFn: () => checkWorkspaceConnection(workspaceId, connection.connectionId),
     onSuccess: (outcome: CheckWorkspaceConnectionOutcome['outcome']) => setOutcomeMessage(checkOutcomeMessage(outcome)),
-    onError: (error) => setOutcomeMessage(checkConnectionMessage(error)),
+    onError: (error) => setOutcomeMessage(failureText(error)),
   })
   const disable = useMutation({
     mutationFn: () => disableWorkspaceConnection(workspaceId, connection.connectionId),
     onSuccess: () => { setConfirmingDisable(false); onChanged() },
-    onError: (error) => { setConfirmingDisable(false); setOutcomeMessage(disableConnectionMessage(error)) },
+    onError: (error) => { setConfirmingDisable(false); setOutcomeMessage(failureText(error)) },
   })
   const disabled = Boolean(connection.disabledAt)
 
@@ -146,7 +143,7 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
     mutationFn: (input: Readonly<{ connectionId: string; connectorId: 'sankhya'; label: string; credential: Readonly<{ clientId: string; clientSecret: string; xToken: string }> }>) =>
       createWorkspaceConnection(workspaceId, input),
     onSuccess: () => { pendingConnectionId.current = null; setMessage(''); setCreated(true); onCreated() },
-    onError: (error) => { setCreated(false); setMessage(workspaceConnectionsMessage(error)) },
+    onError: (error) => { setCreated(false); setMessage(failureText(error)) },
   })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -256,7 +253,7 @@ function BindingRow({ projectId, binding, onChanged }: Readonly<{ projectId: str
   const unbind = useMutation({
     mutationFn: () => unbindProjectConnection(projectId, binding.bindingId),
     onSuccess: () => { setConfirming(false); onChanged() },
-    onError: (error) => { setConfirming(false); setMessage(projectBindingsMessage(error)) },
+    onError: (error) => { setConfirming(false); setMessage(failureText(error)) },
   })
 
   return <li className="cx-connection">
@@ -291,7 +288,7 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
   const bind = useMutation({
     mutationFn: (name: string) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
     onSuccess: () => onChanged(),
-    onError: (error) => setMessage(projectBindingsMessage(error)),
+    onError: (error) => setMessage(failureText(error)),
   })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {

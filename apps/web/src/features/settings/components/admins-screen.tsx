@@ -6,9 +6,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useId, useState } from 'react'
 import { accessContextQueryKey, getAccessContext } from '../../identity-access/api'
-import { administratorErrorMessage } from '../error-messages'
+import { failureText } from '../../../app/http'
 import {
-  type Administrator, administratorsQueryKey, grantAdministrator, InstallationRequestError, installationQueryKey,
+  type Administrator, administratorsQueryKey, grantAdministrator, installationQueryKey,
   listAdministrators, revokeAdministrator,
 } from '../installation-api'
 import { PageHeader } from './page-header'
@@ -28,7 +28,7 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
   const grant = useMutation({
     mutationFn: () => grantAdministrator(email.trim()),
     onSuccess: () => { setEmail(''); setMessage(null); onGranted() },
-    onError: (error) => setMessage(administratorErrorMessage(error instanceof InstallationRequestError ? error.type : null)),
+    onError: (error) => setMessage(failureText(error)),
   })
   return <form className="cxs-form" onSubmit={(event: FormEvent) => { event.preventDefault(); grant.mutate() }}>
     <label htmlFor={emailId}>E-mail</label>
@@ -55,7 +55,7 @@ export function AdminsScreen() {
       refresh()
       if (accountId === access.data?.account.accountId) void navigate({ to: '/settings/account' })
     },
-    onError: (error) => setRevokeMessage(administratorErrorMessage(error instanceof InstallationRequestError ? error.type : null)),
+    onError: (error) => setRevokeMessage(failureText(error)),
   })
 
   return <main className="cxs-page">

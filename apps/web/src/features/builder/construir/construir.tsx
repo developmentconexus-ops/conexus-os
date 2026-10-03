@@ -11,7 +11,7 @@ import { AppWindow, MessageSquare, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
+import { type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
 import { builderSessionKey, useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
@@ -31,6 +31,7 @@ import { ResultCard, showsResultCard } from './result-card'
 import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
+import { failureText, isFailure } from '../../../app/http'
 
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]
@@ -181,17 +182,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     },
     onError: (error, { content, key }) => {
       // No status means the response never arrived, so the Hub may have the message.
-      const unknown = error instanceof BuilderRequestError && error.status === null
+      const unknown = isFailure(error, 'HUB_UNREACHABLE')
       dispatch({ type: unknown ? 'unknownLocalUser' : 'failLocalUser', id: localMessageId(key) })
       unsent.current = localMessageId(key)
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
       if (!unknown) retainedKey.current = null
-      if (error instanceof BuilderRequestError && error.problemType === 'urn:conexus:problem:BUILDER_CAPACITY_FULL') setSendError('O Conexus está com muitas execuções abertas agora. Tente em instantes.')
-      else if (error instanceof BuilderRequestError && error.status === 409) setSendError('O Project está ocupado ou recebeu outra alteração. Aguarde e envie de novo.')
-      else if (error instanceof BuilderRequestError && error.status === 403) setSendError('Você não tem permissão para construir neste Project.')
-      else if (unknown) setSendError('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.')
-      else setSendError('Não foi possível enviar o pedido. Tente de novo.')
+      setSendError(failureText(error))
     },
   })
   // The message joins the thread the moment it is sent; the thread confirms it once the Hub has it.
@@ -221,7 +218,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   // Only a first load that failed replaces the screen; a failed refetch keeps the session already read.
   // A 403 denied error always replaces the screen (even on refetch) because permission was revoked.
-  const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  const denied = isFailure(session.error, 'PROJECT_BUILD_DENIED')
   if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />

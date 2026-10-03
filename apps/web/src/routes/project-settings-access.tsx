@@ -5,9 +5,10 @@ import { createRoute, Link } from '@tanstack/react-router'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { ApplicationAccess } from '../features/identity-access/components/application-access'
-import { getProject, ProjectRequestError, projectQueryKey } from '../features/project/api'
+import { getProject, projectQueryKey } from '../features/project/api'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
+import { isFailure } from '../app/http'
 
 export const projectSettingsAccessRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -39,7 +40,7 @@ function ProjectSettingsAccessRoute() {
 }
 
 function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
-  const hidden = error instanceof ProjectRequestError && (error.status === 403 || error.status === 404)
+  const hidden = isFailure(error, 'PROJECT_NOT_FOUND')
   return <div className="cx-state" role="alert">
     <h2>{hidden ? 'Projeto indisponível' : 'Não foi possível carregar o Projeto'}</h2>
     <p>{hidden ? 'Este Projeto não existe ou você não faz parte do Workspace dele.' : 'O servidor não respondeu desta vez. Nada foi alterado.'}</p>

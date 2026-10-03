@@ -153,7 +153,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'project-browser',
   'project-settings-deletion-browser',
   'project-name',
-  'project-delete-problem',
+  'web-failure-edge',
   'shell-browser-boundary',
   'web-dev-server',
   'brand-tokens',

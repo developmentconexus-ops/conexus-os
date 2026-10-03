@@ -16,13 +16,13 @@ import {
   cancelWorkspaceInvitation,
   getWorkspaceRoster,
   inviteWorkspaceMember,
-  membershipMessage,
   removeWorkspaceMember,
   setWorkspaceMemberRole,
   workspaceRosterQueryKey,
 } from '../membership-api'
 import type { InvitationEntry, MemberEntry } from '../membership-api'
 import '../people.css'
+import { failureText } from '../../../app/http'
 
 type Role = 'member' | 'owner'
 const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', member: 'Membro' }
@@ -59,7 +59,7 @@ export function WorkspaceMembers({
   const [pending, setPending] = useState<Pending | null>(null)
   const roster = useQuery({ queryKey: workspaceRosterQueryKey(workspaceId), queryFn: () => getWorkspaceRoster(workspaceId) })
   const refresh = () => queryClient.invalidateQueries({ queryKey: workspaceRosterQueryKey(workspaceId) })
-  const fail = (error: unknown) => setMessage(membershipMessage(error))
+  const fail = (error: unknown) => setMessage(failureText(error))
 
   const changeRole = useMutation({
     mutationFn: ({ accountId, role }: { accountId: string; role: Role }) => setWorkspaceMemberRole(workspaceId, accountId, role),
@@ -210,7 +210,7 @@ function InviteForm({ workspaceId, onInvited }: Readonly<{ workspaceId: string; 
       await onInvited()
       setInvited(invitation.email)
     },
-    onError: (error) => setMessage(membershipMessage(error)),
+    onError: (error) => setMessage(failureText(error)),
   })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {

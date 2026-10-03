@@ -6,9 +6,10 @@ import { ConexusMark } from '../../../../packages/brand/src/index'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listConversations, openConversation } from '../features/builder/mastra-session'
-import { getProject, ProjectRequestError, projectQueryKey } from '../features/project/api'
+import { getProject, projectQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { rootRoute } from './__root'
+import { isFailure } from '../app/http'
 
 // The chat, editor and diff code is most of the application's weight, so it loads when Construir opens.
 const Construir = lazy(() => import('../features/builder/construir/construir').then((module) => ({ default: module.Construir })))
@@ -29,7 +30,7 @@ function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; chi
 function ProjectScope({ context, projectId, children }: Readonly<{ context: AccessContext; projectId: string; children: ReactNode }>) {
   const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
   if (project.isError) {
-    const hidden = project.error instanceof ProjectRequestError && [403, 404].includes(project.error.status ?? 0)
+    const hidden = isFailure(project.error, 'PROJECT_NOT_FOUND')
     return <Shell context={context}><Status title={hidden ? 'Projeto indisponível' : 'Não foi possível abrir o Projeto'}>
       {hidden ? <p>Este Projeto não existe ou não está disponível para você.</p> : <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
     </Status></Shell>

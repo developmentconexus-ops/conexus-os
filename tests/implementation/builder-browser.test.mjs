@@ -132,7 +132,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     if (capacityFull) {
       capacityFull = false
-      return route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:BUILDER_CAPACITY_FULL', title: 'BUILDER_CAPACITY_FULL', status: 503 }) })
+      return route.fulfill(problem(503, 'BUILDER_CAPACITY_FULL'))
     }
     const body = route.request().postDataJSON()
     requests.push({ body, key: route.request().headers()['idempotency-key'] })
@@ -190,7 +190,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador até 100 interativo')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await refused
-  await page.getByText('O Conexus está com muitas execuções abertas agora. Tente em instantes.', { exact: true }).waitFor()
+  await page.getByText('O Conexus está com muitas execuções abertas agora. Tente novamente mais tarde.', { exact: true }).waitFor()
   assert.equal(await page.getByLabel('Mensagem para o agente').inputValue(), 'Crie um contador até 100 interativo', 'the refused words go back to the composer')
   const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByRole('button', { name: 'Enviar' }).click()
@@ -545,7 +545,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.', { exact: true }).waitFor()
+  await page.getByText('A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
   await user.getByText('Sem confirmação', { exact: true }).waitFor()
   assert.equal(await user.getByText('Não enviado', { exact: true }).count(), 0, 'a lost response is not a refusal')
@@ -579,7 +579,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   // The Hub answers the first attempt with a refusal, so the message certainly did not take.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     keys.push(route.request().headers()['idempotency-key'])
-    return keys.length === 1 ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'about:blank', status: 500 }) }) : route.fulfill({
+    return keys.length === 1 ? route.fulfill(problem(500, 'INTERNAL_UNEXPECTED')) : route.fulfill({
       status: 201, contentType: 'application/json',
       body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
     })
@@ -588,7 +588,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  await page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
   await user.getByText('Não enviado', { exact: true }).waitFor()
   assert.equal(await user.getByText('Sem confirmação', { exact: true }).count(), 0)
@@ -2096,6 +2096,8 @@ test('a failed read of the conversation\'s own model is said so too, and retried
 })
 
 const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: null, runHistory: [] })
+// A refusal as the Hub sends it: problem+json that names its row by code.
+const problem = (status, code) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
 const stubSessionReads = async (page, accountId, projectId, answer) => {
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
@@ -2106,7 +2108,7 @@ const stubSessionReads = async (page, accountId, projectId, answer) => {
     const status = answer()
     await route.fulfill(status === 200
       ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
-      : { status, contentType: 'application/json', body: '{}' })
+      : problem(status, { 401: 'AUTHENTICATION_REQUIRED', 403: 'PROJECT_BUILD_DENIED' }[status] ?? 'INTERNAL_UNEXPECTED'))
     answered()
   })
   return { firstRead }

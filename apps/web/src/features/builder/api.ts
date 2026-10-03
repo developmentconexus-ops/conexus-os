@@ -1,5 +1,4 @@
-import { hubFetch } from '../../app/http'
-import { clearAuthorityCache } from '../../app/query-client'
+import { hubCall, hubFetch } from '../../app/http'
 import { type BuilderFailureCategory, isBuilderFailureCategory } from './failure-reasons'
 import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind, type BuilderRunState } from '../../generated/builder-run-vocabulary'
 export type SourceTree = Readonly<{
@@ -70,35 +69,12 @@ export type BuilderTraceSummary = Readonly<{
   scores: readonly BuilderTraceScore[]
 }>
 
-export class BuilderRequestError extends Error {
-  constructor(readonly status: number | null, readonly problemType: string | null = null) {
-    super(status === null ? 'Builder request did not complete' : `Builder request failed with ${status}`)
-  }
-}
-
-const request = async (url: string, init: RequestInit = {}): Promise<Response> => {
-  try {
-    return await hubFetch(url, init)
-  } catch {
-    throw new BuilderRequestError(null)
-  }
-}
-const readProblemType = async (response: Response): Promise<string | null> => {
-  const body: unknown = await response.json().catch(() => null)
-  if (typeof body !== 'object' || body === null || !('type' in body) || typeof body.type !== 'string') return null
-  return body.type
-}
-
-const reject = async (response: Response): Promise<never> => {
-  if (response.status === 401) clearAuthorityCache()
-  throw new BuilderRequestError(response.status, await readProblemType(response))
-}
+const request = (url: string, init: RequestInit = {}, expected: 'ok' | number = 'ok'): Promise<Response> => hubCall(hubFetch(url, init), expected)
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
 
 export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
   const response = await request(sessionBase(projectId))
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderSession>
 }
@@ -109,22 +85,19 @@ export const sendBuilderMessage = async (
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
     body: JSON.stringify({ content, conversationId }),
-  })
-  if (response.status !== 201) await reject(response)
+  }, 201)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderMessageAccepted>
 }
 export const listProjectSourceTree = async (projectId: string, sourceRevision: string): Promise<SourceTree> => {
   const query = new URLSearchParams({ sourceRevision })
   const response = await request(`${sourceBase(projectId)}/tree?${query}`)
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceTree>
 }
 export const getProjectSourceFile = async (projectId: string, sourceRevision: string, path: string): Promise<SourceFile> => {
   const query = new URLSearchParams({ sourceRevision, path })
   const response = await request(`${sourceBase(projectId)}/file?${query}`)
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceFile>
 }
@@ -133,15 +106,13 @@ export type SourceComparison = Readonly<{ baseSourceRevision: string; resultSour
 export const compareProjectSource = async (projectId: string, baseSourceRevision: string, resultSourceRevision: string): Promise<SourceComparison> => {
   const query = new URLSearchParams({ baseSourceRevision, resultSourceRevision })
   const response = await request(`${sourceBase(projectId)}/compare?${query}`)
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceComparison>
 }
 export const launchBuilderPreview =async (projectId: string): Promise<PreviewLaunch> => {
   const response = await request(`${sessionBase(projectId)}/preview`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
-  })
-  if (response.status !== 201) await reject(response)
+  }, 201)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<PreviewLaunch>
 }
@@ -150,14 +121,12 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/cancel`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderMessageAccepted>
 }
 
 export const getBuilderRunTrace =async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
-  if (!response.ok) await reject(response)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderTraceSummary>
 }

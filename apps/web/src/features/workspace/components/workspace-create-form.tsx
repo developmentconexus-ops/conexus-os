@@ -7,15 +7,10 @@ import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import type { CreateWorkspaceResponse } from '../../../generated/workspace-client'
 import { accessContextQueryKey } from '../../identity-access/api'
-import { createWorkspace, WorkspaceRequestError } from '../api'
+import { createWorkspace } from '../api'
+import { failureText } from '../../../app/http'
 
 type Attempt = { name: string; idempotencyKey: string }
-
-const refusal = (error: unknown): string => {
-  if (error instanceof WorkspaceRequestError && error.status === 403) return 'Sua conta não pode criar Workspaces nesta instalação.'
-  if (error instanceof WorkspaceRequestError && error.status === 409) return 'A criação ainda não foi confirmada. Envie de novo com o mesmo nome.'
-  return 'O Workspace não foi criado. Envie de novo com o mesmo nome.'
-}
 
 export function WorkspaceCreateForm({
   currentAccountId,
@@ -44,7 +39,7 @@ export function WorkspaceCreateForm({
       await queryClient.invalidateQueries({ queryKey: accessContextQueryKey })
       onCreated(workspace)
     },
-    onError: (error) => setMessage(refusal(error)),
+    onError: (error) => setMessage(failureText(error)),
     onSettled: () => {
       createInFlight.current = false
     },

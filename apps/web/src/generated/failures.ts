@@ -84,7 +84,7 @@ export const FAILURES = {
   'ACCOUNT_EMAIL_AMBIGUOUS': { message: 'Mais de uma conta usa este e-mail. Fale com quem opera o Conexus.', action: 'ASK_ADMIN' },
   'LAST_INSTALLATION_ADMINISTRATOR': { message: 'Não é possível revogar o último administrador. Torne outra pessoa administradora antes.', action: 'NONE' },
   'CONNECTOR_CONNECTION_NOT_AVAILABLE': { message: 'Esta conexão não está disponível para o Projeto.', action: 'NONE' },
-  'CONNECTOR_BINDING_CONFLICT': { message: 'Este Projeto já usa essa conexão com esse nome.', action: 'NONE' },
+  'CONNECTOR_BINDING_CONFLICT': { message: 'Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.', action: 'NONE' },
   'CONNECTOR_BINDING_MANAGE_REQUIRED': { message: 'Você não tem permissão para gerenciar as conexões deste Projeto.', action: 'ASK_ADMIN' },
   'CONNECTOR_WORKSPACE_NOT_FOUND': { message: 'Não encontramos o Workspace dessa conexão.', action: 'NONE' },
   'CONNECTOR_LABEL_REFUSED': { message: 'O Conexus não aceitou esse nome para a conexão.', action: 'NONE' },
@@ -97,6 +97,8 @@ export const FAILURES = {
   'MODEL_LOGIN_UNAVAILABLE': { message: 'A entrada na conta do modelo não está disponível agora.', action: 'RETRY_LATER' },
   'MODEL_LOGIN_BUSY': { message: 'Outra entrada na conta do modelo está em andamento.', action: 'RETRY_LATER' },
   'MODEL_LOGIN_CALLBACK_REFUSED': { message: 'O Conexus não aceitou esse endereço de retorno da entrada.', action: 'NONE' },
+  'HUB_UNREACHABLE': { message: 'A tela não conseguiu falar com o Conexus agora.', action: 'RETRY_LATER' },
+  'HUB_RESPONSE_UNREADABLE': { message: 'A resposta que chegou à tela não veio do Conexus.', action: 'RETRY_LATER' },
 } as const satisfies Readonly<Record<string, Readonly<{ message: string; action: FailureAction }>>>
 
 export type FailureCode = keyof typeof FAILURES
