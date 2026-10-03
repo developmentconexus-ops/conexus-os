@@ -106,7 +106,7 @@ The sequence is a commitment order, not a dependency chain. Q5 depends on Q1's m
 
 Specs 0005 to 0008 build people, access, configuration and telemetry before the Q5 task exists.
 They prepare Q5, whose proof needs an employee who is not a developer and signs in with their own
-access. They are not the Q5 task, which still waits for the Q4 verdict.
+access. They are not the Q5 task, which starts once that preparation is done.
 
 ## Order of work to Q5
 
