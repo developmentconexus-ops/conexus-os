@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BROWSER_CLASSES } from './conexus-verify.mjs'
 
+// What a test file is, for the census and for the ratchets alike.
+export const TEST_FILE = /\.(?:test|spec)\.mjs$/
+
 export const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-e2b-live.test.mjs',
   'tests/implementation/builder-sandbox-e2b-live.test.mjs',
@@ -20,7 +23,7 @@ export function collectReachableTests(candidateGraph, packageScripts) {
 
   function scanCommand(command) {
     if (!command) return
-    const matches = command.match(/\S+\.(?:test|spec)\.mjs/g) ?? []
+    const matches = command.match(new RegExp(`\\S+${TEST_FILE.source.slice(0, -1)}`, 'g')) ?? []
     for (const match of matches) {
       const normalized = match.replace(/^\.\//, '')
       reachable.add(normalized)
@@ -44,11 +47,11 @@ export function collectReachableTests(candidateGraph, packageScripts) {
 }
 
 function listCommittedTests(root) {
-  const output = execFileSync('git', ['ls-files', 'tests/**/*.test.mjs', 'tests/**/*.spec.mjs'], {
+  const output = execFileSync('git', ['ls-files', 'tests'], {
     cwd: root,
     encoding: 'utf8',
   })
-  return output.split('\n').filter(Boolean).sort()
+  return output.split('\n').filter(path => TEST_FILE.test(path)).sort()
 }
 
 export function checkTestCensus({ root, candidateGraph, packageScripts, committedTests, optionalScripts = [] }) {

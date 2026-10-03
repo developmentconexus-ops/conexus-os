@@ -102,3 +102,9 @@ test('a test that reads production source through a variable or a function of it
   t.after(() => rmSync(root, { recursive: true }))
   assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/walk.test.mjs: 0 -> 1\n')
 })
+
+test('a .spec.mjs file is measured like a .test.mjs file', (t) => {
+  const { root } = fixture({ 'tests/a.spec.mjs': "test('weak', () => { assert.ok(x) })\n" })
+  t.after(() => rmSync(root, { recursive: true }))
+  assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  weakTests tests/a.spec.mjs: 0 -> 1\n')
+})

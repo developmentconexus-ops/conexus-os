@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
+import { TEST_FILE } from './check-test-census.mjs'
 
 // Five per-file counts that may only fall: `as` casts (not `as const`), functions over 80 lines,
 // lines of a file over 500, tests whose every assertion is weak, and tests that read production
@@ -178,7 +179,7 @@ const countSourceReads = (source) => {
 
 export const measureTest = (file, text) => {
   const source = parse(file, text)
-  return { weakTests: file.endsWith('.test.mjs') ? countWeakTests(source) : 0, sourceReads: file.endsWith('.test.mjs') ? countSourceReads(source) : 0 }
+  return TEST_FILE.test(file) ? { weakTests: countWeakTests(source), sourceReads: countSourceReads(source) } : { weakTests: 0, sourceReads: 0 }
 }
 
 export const measureRepository = (root) => {
