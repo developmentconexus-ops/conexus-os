@@ -2,10 +2,19 @@ import { resolve } from 'node:path'
 import { after, before } from 'node:test'
 import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
+import { BROWSER_CLASSES } from '../../scripts/conexus-verify.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-const real = { createServer, launch: (options) => chromium.launch(options) }
+// The verify graph names the class of the step it runs. A test that reaches a real browser from a step
+// of another class fails here, where it launches, not minutes later in a group without Chromium.
+const launchReal = (options) => {
+  const stepClass = process.env.CONEXUS_VERIFY_STEP_CLASS
+  if (stepClass && !BROWSER_CLASSES.has(stepClass)) throw new Error(`BROWSER_IN_NON_BROWSER_STEP:${stepClass}`)
+  return chromium.launch(options)
+}
+
+const real = { createServer, launch: launchReal }
 
 // The cleanup is registered as soon as Vite has created the server, before it listens: a listen
 // that rejects must still close what Vite already opened.

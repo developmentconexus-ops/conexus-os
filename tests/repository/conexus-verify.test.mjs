@@ -430,7 +430,7 @@ test('candidate graph labels execution environments and passes shell argv correc
       stdio: ['ignore', 'inherit', 'inherit'],
       timeout: STEP_TIMEOUT_MS,
       killSignal: 'SIGKILL',
-      env: { PATH: '/fixture/bin' },
+      env: { PATH: '/fixture/bin', CONEXUS_VERIFY_STEP_CLASS: 'static' },
     },
   })
 
@@ -442,6 +442,7 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_NAME: 'conexus_test',
     CONEXUS_TEST_DB_USER: 'postgres',
     CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
+    CONEXUS_VERIFY_STEP_CLASS: 'postgres',
   })
   const selectedPostgres = {
     CONEXUS_TEST_DB_HOST: 'db.internal',
@@ -450,10 +451,10 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_USER: 'runner',
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
-  assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), selectedPostgres)
+  assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), { ...selectedPostgres, CONEXUS_VERIFY_STEP_CLASS: 'postgres' })
   const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
   assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
-  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), postgresDefaults)
+  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), { ...postgresDefaults, CONEXUS_VERIFY_STEP_CLASS: 'browser-postgres' })
   assert.throws(
     () => executionEnvironment(postgresStep, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
@@ -469,6 +470,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   const instrumentation = {
     CONEXUS_TEST_LEDGER_ROOT: '/work/conexus-os',
     CONEXUS_TEST_LEDGER: '/tmp/conexus-test-ledger-fixture.jsonl',
+    CONEXUS_VERIFY_STEP_CLASS: 'static',
   }
 
   assert.deepEqual(executionEnvironment(staticStep, { PATH: '/fixture/bin' }, ledger), {
@@ -486,6 +488,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   })
   assert.deepEqual(executionEnvironment(postgresStep, {}, ledger), {
     ...instrumentation,
+    CONEXUS_VERIFY_STEP_CLASS: 'postgres',
     NODE_OPTIONS: REPORTER_OPTIONS,
     CONEXUS_TEST_DB_HOST: '127.0.0.1',
     CONEXUS_TEST_DB_PORT: '5432',

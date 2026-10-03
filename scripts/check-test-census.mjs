@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { BROWSER_CLASSES } from './conexus-verify.mjs'
 
 export const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-e2b-live.test.mjs',
@@ -61,7 +62,6 @@ export function checkTestCensus({ root, candidateGraph, packageScripts, committe
   }
 }
 
-const BROWSER_CLASSES = new Set(['browser', 'browser-postgres', 'live'])
 const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
 
 // A test file that imports Playwright, registered in a step of a class without a browser, fails in CI

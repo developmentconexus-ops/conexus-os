@@ -27,6 +27,8 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
 
 // A class names what a step needs: PostgreSQL, a browser, or both.
 const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
+// The classes of a step that has a browser. A test that launches one in any other class fails in CI.
+export const BROWSER_CLASSES = new Set(['browser', 'browser-postgres', 'live'])
 
 const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
   scope,
@@ -452,7 +454,13 @@ export const newTestLedger = (root = repositoryRoot) => Object.freeze({
   file: resolve(tmpdir(), `conexus-test-ledger-${randomUUID()}.jsonl`),
 })
 
-export function executionEnvironment(entry, processEnvironment = process.env, testLedger = null) {
+// The step's class travels with it, so a helper that launches a browser can refuse in a step that has none.
+export const executionEnvironment = (entry, processEnvironment = process.env, testLedger = null) => ({
+  ...stepEnvironment(entry, processEnvironment, testLedger),
+  CONEXUS_VERIFY_STEP_CLASS: entry.environmentClass,
+})
+
+function stepEnvironment(entry, processEnvironment, testLedger) {
   const nodeOptions = processEnvironment.NODE_OPTIONS ?? ''
   const instrumented = testLedger ? {
     ...processEnvironment,
