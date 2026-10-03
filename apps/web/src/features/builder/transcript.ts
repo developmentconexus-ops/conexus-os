@@ -82,8 +82,6 @@ export type TranscriptEntry = MessageEntry | NoticeEntry | PromptEntry
 export type TranscriptState = Readonly<{
   conversationId: string
   entries: readonly TranscriptEntry[]
-  // The person spoke and the agent has not answered with text yet.
-  pending: boolean
   // The agent's own task list, from the controller's display state.
   tasks: readonly TaskSnapshot[]
 }>
@@ -98,7 +96,7 @@ export type TranscriptAction =
   | Readonly<{ type: 'mergeWindow'; messages: readonly MastraDBMessage[] }>
   | Readonly<{ type: 'reset'; conversationId: string }>
 
-export const emptyTranscript = (conversationId: string): TranscriptState => ({ conversationId, entries: [], pending: false, tasks: [] })
+export const emptyTranscript = (conversationId: string): TranscriptState => ({ conversationId, entries: [], tasks: [] })
 
 /** The local message of the send made under this idempotency key; a retry of it reuses the entry. */
 export const localMessageId = (idempotencyKey: string): string => `local-${idempotencyKey}`
@@ -118,7 +116,7 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
       const index = state.entries.findIndex((candidate) => candidate.id === action.id)
       const entries = index === -1 ? [...state.entries, entry] : state.entries.map((candidate, position) => position === index ? entry : candidate)
       // A new send is a new run, and the previous run's task list is not its own.
-      return { ...state, pending: true, entries, tasks: [] }
+      return { ...state, entries, tasks: [] }
     }
     case 'unknownLocalUser':
       return settleLocalUser(state, action.id, 'unknown')
@@ -137,7 +135,6 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
 
 const settleLocalUser = (state: TranscriptState, id: string, delivery: 'unknown' | 'failed'): TranscriptState => ({
   ...state,
-  pending: false,
   entries: state.entries.map((entry) => entry.kind === 'message' && entry.id === id && entry.delivery !== undefined ? { ...entry, delivery } : entry),
 })
 
@@ -149,7 +146,7 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
   const state = RETRY_ENDED.has(event.type) ? withoutEntry(previous, RETRY_NOTICE_ID) : previous
   switch (event.type) {
     case 'agent_end':
-      return { ...state, pending: false }
+      return state
     case 'message_start':
       return upsertMessage(state, event.message, true)
     case 'message_update': {
@@ -182,14 +179,14 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
       }
       const message = { ...entry.message, content: { ...entry.message.content, parts } }
       const next = { ...state, entries: state.entries.map((candidate, index) => index === entryIndex ? { ...entry, message, streaming: true } : candidate) }
-      return message.role === 'assistant' && hasAssistantText(next) ? { ...next, pending: false } : next
+      return next
     }
     case 'message_end': {
       const entryIndex = state.entries.findIndex((entry) => entry.kind === 'message' && (entry.id === event.id || entry.message.id === event.id))
       const entry = state.entries[entryIndex]
       if (entry?.kind !== 'message') return state
       const entries = state.entries.map((candidate, index) => index === entryIndex ? { ...entry, streaming: false } : candidate)
-      return entry.message.role === 'assistant' ? { ...state, entries, pending: false } : { ...state, entries }
+      return { ...state, entries }
     }
     case 'tool_start':
       return withTool(state, event.toolCallId, (tool) => ({ ...tool, toolName: event.toolName, args: event.args, status: 'running' }), { toolName: event.toolName, args: event.args })
@@ -570,11 +567,6 @@ const preserveRuntimeToolParts = (message: MastraDBMessage, previous?: MastraDBM
     }
   }
   return { ...message, content: { ...message.content, parts } }
-}
-
-const hasAssistantText = (state: TranscriptState): boolean => {
-  const entry = state.entries[latestAssistantIndex(state.entries)]
-  return entry?.kind === 'message' && entry.message.content.parts.some((part) => part.type === 'text' && part.text.trim().length > 0)
 }
 
 const toolAnchorIndex = (entries: readonly TranscriptEntry[], toolCallId: string): number => {
