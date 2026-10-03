@@ -79,7 +79,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'log-codes-check',
   'test-census',
   'flow-census',
-  'weak-tests-ratchet',
+  'ratchets',
   'test-quarantine',
   'patch-churn-report',
   'hub-baseline',
@@ -568,12 +568,12 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
 })
 
-test('the quick graph is the knip, biome, log code registry, test census, flow census and weak-test ratchet checks, all static and fast-checked', () => {
-  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
+test('the quick graph is the knip, biome, log code registry, test census, flow census and ratchet checks, all static and fast-checked', () => {
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'ratchets', 'test-quarantine', 'patch-churn-report'])
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
-  assert.deepEqual(result.records.map(record => record.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
+  assert.deepEqual(result.records.map(record => record.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'ratchets', 'test-quarantine', 'patch-churn-report'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {

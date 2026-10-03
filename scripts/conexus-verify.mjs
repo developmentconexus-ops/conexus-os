@@ -117,7 +117,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
   candidateStep('hub-log-sinks', 'node --test tests/repository/hub-log-sinks.test.mjs'),
   candidateStep('telemetry', 'node --test tests/implementation/telemetry-register.test.mjs tests/implementation/telemetry-redaction.test.mjs tests/implementation/telemetry-logs.test.mjs tests/implementation/telemetry-metrics.test.mjs tests/implementation/telemetry-trace-trust.test.mjs tests/implementation/telemetry-log-codes.test.mjs tests/implementation/hub-launch-flags.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-flow-census.test.mjs tests/repository/check-weak-tests.test.mjs tests/repository/check-patch-churn.test.mjs tests/repository/check-test-quarantine.test.mjs tests/repository/test-quarantine-helper.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs tests/repository/diff-shape.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-flow-census.test.mjs tests/repository/check-ratchets.test.mjs tests/repository/check-patch-churn.test.mjs tests/repository/check-test-quarantine.test.mjs tests/repository/test-quarantine-helper.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs tests/repository/diff-shape.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-iam-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-workspace-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-project-contracts.mjs --check'),
@@ -175,7 +175,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
   candidateStep('flow-census', 'node scripts/check-flow-census.mjs'),
-  candidateStep('weak-tests-ratchet', 'node scripts/check-weak-tests.mjs'),
+  candidateStep('ratchets', 'node scripts/check-ratchets.mjs'),
   candidateStep('test-quarantine', 'node scripts/check-test-quarantine.mjs'),
   candidateStep('patch-churn-report', 'node scripts/check-patch-churn.mjs --report'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
@@ -216,7 +216,7 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'log-codes-check',
   'test-census',
   'flow-census',
-  'weak-tests-ratchet',
+  'ratchets',
   'test-quarantine',
   'patch-churn-report',
 ])
@@ -270,7 +270,7 @@ export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHEC
 
 // The fast check to run before every push: the static gates CI otherwise reports minutes later, with
 // no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'ratchets', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

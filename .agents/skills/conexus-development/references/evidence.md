@@ -54,5 +54,5 @@ always has a code.
 
 - `git diff --numstat origin/main...HEAD`: lines added and deleted per file. Read product code apart
   from tests, SQL and generated files. A fix that mostly adds is a smell.
-- `check-patch-churn` (fixes per file in 30 days), `check-weak-tests` (assertions that cannot
-  fail), `knip` (unused code), all in `npm run verify:quick` or CI.
+- `check-patch-churn` (fixes per file in 30 days), `check-ratchets` (casts, long functions and files, weak and source-reading
+  tests, each a per-file count that only falls), `knip` (unused code), all in `npm run verify:quick` or CI.
