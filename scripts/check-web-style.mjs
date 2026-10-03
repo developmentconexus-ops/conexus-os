@@ -26,6 +26,8 @@ const SHORTHAND_FAMILY = /(?:^|\s)(?:\d*\.?\d+(?:px|rem|em|%|pt|vw|vh|ch|ex|lh)|
 // out of scope for this check; it is about hand classes next to a screen.
 const CLASS_CSS_ROOTS = ['apps/web/src', 'packages/brand/src']
 const CLASS_TSX_ROOT = 'apps/web/src'
+// The brand package paints the mark and wordmark, so its TSX counts as a use of its own classes.
+const CLASS_TSX_ROOTS = ['apps/web/src', 'packages/brand/src']
 const CONEXUS_PREFIX = /^(?:cx|cxs|builder)-[\w-]+$/
 const CLASS_DEFINITION = /\.((?:cx|cxs|builder)-[\w-]+)/g
 const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
@@ -37,6 +39,10 @@ const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`(
 const DYNAMIC_CLASSES = [
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
   { file: 'apps/web/src/features/builder/construir/lens-diff.tsx', token: 'cx-dt-${side}', resolves: ['cx-dt-add', 'cx-dt-del'] },
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
+  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-mark--${motion}', resolves: ['cx-mark--working', 'cx-mark--fit-once'] },
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
+  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-wordmark--${size}', resolves: ['cx-wordmark--xs', 'cx-wordmark--sm', 'cx-wordmark--md', 'cx-wordmark--lg'] },
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
   { file: 'apps/web/src/features/settings/components/states.tsx', token: 'cxs-chip-${tone}', resolves: ['cxs-chip-positive', 'cxs-chip-warning', 'cxs-chip-neutral'] },
 ]
@@ -185,7 +191,7 @@ const classCheck = (files, contentOf) => {
   }
   const used = new Set()
   const violations = []
-  for (const path of files.filter(candidate => candidate.endsWith('.tsx') && candidate.startsWith(`${CLASS_TSX_ROOT}/`))) {
+  for (const path of files.filter(candidate => candidate.endsWith('.tsx') && CLASS_TSX_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
     const { staticTokens, dynamicTokens } = classNameTokens(contentOf(path))
     for (const { line, token } of staticTokens) {
       used.add(token)
@@ -205,7 +211,7 @@ const classCheck = (files, contentOf) => {
   }
   const unused = [...defined]
     .filter(([name]) => !used.has(name))
-    .map(([name, { path, line }]) => ({ path, line, message: `class "${name}" is defined in CSS but no apps/web/src/**/*.tsx uses it` }))
+    .map(([name, { path, line }]) => ({ path, line, message: `class "${name}" is defined in CSS but no TSX under apps/web/src or packages/brand/src uses it` }))
   return { violations, unused }
 }
 
@@ -236,11 +242,10 @@ const main = () => {
     for (const { path, line, message } of violations) console.error(`${path}:${line}: ${message}`)
     return 1
   }
-  // A defined-but-unused Conexus class is debt, not a break: main carries some already, mostly
-  // classes a screen reaches through a dynamic template. It warns instead of failing CI.
+  // A dead rule is a defect: delete it, or list the template that builds the class in DYNAMIC_CLASSES.
   if (unused.length) {
-    console.warn(`${unused.length} Conexus class(es) defined in CSS with no apps/web/src/**/*.tsx use:`)
-    for (const { path, line, message } of unused) console.warn(`${path}:${line}: ${message}`)
+    for (const { path, line, message } of unused) console.error(`${path}:${line}: ${message}`)
+    return 1
   }
   console.log(`Web style check passed (files=${files.length}).`)
   return 0

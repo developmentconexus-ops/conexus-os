@@ -75,12 +75,8 @@
 .cx-run-facts dt { color: var(--cx-text-2); }
 .cx-run-facts dd { margin: 0; overflow-wrap: anywhere; }
 .cx-run-facts code { font-size: .75rem; }
-.cx-history { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.cx-history button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .75rem; align-items: baseline; width: 100%; padding: .5rem .6rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); font-size: .875rem; text-align: left; }
-.cx-history button[aria-pressed="true"] { background: var(--cx-surface-3); }
 .cx-history-time { color: var(--cx-text-2); font: 400 .75rem/1 var(--cx-font-mono); font-variant-numeric: tabular-nums; }
 .cx-history-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-history-state { color: var(--cx-text-2); font-size: .75rem; }
 .cx-trace ul { display: grid; gap: .25rem; margin: .5rem 0 0; padding: 0; list-style: none; }
 .cx-trace li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; font-size: .8125rem; }
 .cx-trace li[data-error] { color: var(--cx-danger); }
@@ -113,8 +109,6 @@
 .cx-pending-text code { font-size: .8125rem; }
 .cx-pending-detail pre { margin: .5rem 0 0; padding: .55rem; overflow-wrap: anywhere; white-space: pre-wrap; border-radius: 6px; background: var(--cx-surface-3); font: 400 .75rem/1.6 var(--cx-font-mono); }
 .cx-pending-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
-.cx-pending-answer { display: grid; gap: .5rem; margin: 0; }
-.cx-pending-answer textarea { width: 100%; padding: .5rem .6rem; border: 1px solid var(--cx-line); border-radius: 8px; resize: vertical; }
 .cx-plan-body { display: grid; gap: .6rem; }
 .cx-plan-intro { margin: 0; }
 .cx-plan-read { justify-self: start; }
@@ -139,7 +133,6 @@
 .cx-working[data-active] { color: var(--cx-text); }
 .cx-chat-step { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cx-elapsed { font-variant-numeric: tabular-nums; }
-.cx-working-stop { flex: none; }
 
 /* Tool rows and groups: Mastra's own ToolCall parts, sized by the library. */
 .cx-tool-rows { display: grid; }
