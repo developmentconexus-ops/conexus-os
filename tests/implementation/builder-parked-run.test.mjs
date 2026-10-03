@@ -454,13 +454,19 @@ test('a stop on a parked run tells the stream that follows its live session befo
 })
 
 test('a failed discard never fails the stop that asked for it', async (t) => {
-  const { serviceOver, row } = await endingOverThread(t)
+  const { store, row, serviceOver } = await endingOverThread(t)
   row.state = 'RUNNING'
   row.phase = 'PARKED'
+  // The stop lands on a parked run with no leg: the store settles it INTERRUPTED, so the service goes on to discard.
+  store.requestBuilderRunCancellation = async () => { row.state = 'INTERRUPTED'; row.phase = null; return summary('INTERRUPTED', null) }
+  let discards = 0
   const service = serviceOver(async () => { throw new Error('not used') }, {
-    runtime: { execute: async () => { throw new Error('not used') }, discardParked: async () => { throw new Error('thread unreachable') } },
+    runtime: { execute: async () => { throw new Error('not used') }, discardParked: async () => { discards += 1; throw new Error('thread unreachable') } },
   })
-  await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  const stopped = await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
+  assert.equal(discards, 1, 'the stop reached the discard that fails')
+  assert.equal(stopped.state, 'INTERRUPTED')
+  assert.equal(row.state, 'INTERRUPTED')
 })
 
 test('a sweep interrupts a run parked for 7 idle days, tells the stream that follows it, and settles its question as denied, once', async (t) => {

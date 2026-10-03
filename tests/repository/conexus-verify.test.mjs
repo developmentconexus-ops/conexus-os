@@ -78,6 +78,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'empty-tests',
   'flow-census',
   'test-quarantine',
   'patch-churn-report',
@@ -564,11 +565,11 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
 })
 
 test('the quick graph is both typechecks, the repository, style and contract projection checks and the lint, census and ratchet checks, all static and fast-checked', () => {
-  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'flow-census', 'test-quarantine', 'patch-churn-report'])
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
-  assert.deepEqual(result.records.map(record => record.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'flow-census', 'test-quarantine', 'patch-churn-report'])
+  assert.deepEqual(result.records.map(record => record.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {
