@@ -23,6 +23,8 @@ import type { DocsTools } from './context7.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import type { CheckReport } from '../application-check.js'
 import type { RunOperation } from '../run-operation.js'
+import type { CandidateGate } from '../candidate-gate.js'
+import { createScorer } from '@mastra/core/evals'
 
 /** The skills the Builder loads, one folder each under the skills root. */
 export const BUILDER_SKILL_NAMES = ['conexus-server', 'conexus-app', 'conexus-plan-new', 'conexus-plan-change', 'conexus-build', 'conexus-sankhya'] as const
@@ -141,7 +143,25 @@ const BUILDER_MAX_OUTPUT_TOKENS = 32_000
 const BUILDER_MODEL_STEP_TIMEOUT_MS = 5 * 60_000
 
 /** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
-export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined }>
+export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined; gate?: CandidateGate | undefined }>
+
+/**
+ * The run's finish gate as Mastra's own completion check (`isTaskComplete`): when the model stops on
+ * its own, one check of the checkout runs. A red check of the app's code goes back to the model as
+ * the check's feedback in the same turn. A Conexus fault scores complete, so the agent never sees
+ * it; the run settles it. The scorer never throws, since Mastra counts a throw as "keep working".
+ */
+const gateScorer = (gate: CandidateGate) => createScorer({ id: 'conexus-check', name: 'Verificação do Conexus', description: 'The run is done only when its candidate passes the Conexus check.' })
+  .preprocess(async () => gate.finish())
+  .generateScore(({ results }) => (results.preprocessStepResult.next === 'END' ? 1 : 0))
+  .generateReason(({ results }) => (results.preprocessStepResult.next === 'END' ? undefined : results.preprocessStepResult.feedback) as string)
+
+const gateOptions = (gate: CandidateGate | undefined) => gate ? {
+  isTaskComplete: { scorers: [gateScorer(gate)], strategy: 'all' as const },
+  // Past the budget the check's feedback is still written for the person to see, and the loop stops
+  // instead of going back to the model.
+  onIterationComplete: () => (gate.gaveUp() ? { continue: false } : undefined),
+} : {}
 
 const runToolsInput = (tools: RunTools | undefined): ToolsInput => ({
   ...(tools ? { [CHECK_TOOL]: createCheckTool(tools.check) } : {}),
@@ -206,10 +226,11 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
     workspace: undefined,
     errorProcessors: builderErrorProcessors(deps.modelRetryDelayMs),
     maxProcessorRetries: BUILDER_MAX_PROCESSOR_RETRIES,
-    defaultOptions: {
+    defaultOptions: (ctx: { requestContext: RequestContext }) => ({
       toolCallConcurrency: TOOL_CALL_CONCURRENCY,
       modelSettings: { maxOutputTokens: BUILDER_MAX_OUTPUT_TOKENS, timeout: { stepMs: deps.modelStepTimeoutMs ?? BUILDER_MODEL_STEP_TIMEOUT_MS } },
-    },
+      ...gateOptions(deps.runTools?.(ctx)?.gate),
+    }),
   })
 
   return new AgentController({

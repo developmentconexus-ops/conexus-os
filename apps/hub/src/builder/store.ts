@@ -69,6 +69,10 @@ export type BuilderStore = Readonly<{
   advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
   settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
   failBuilderRun(builderRunId: string, failureCode: string): Promise<void>
+  /** Spike: an admitted, green source Conexus failed to publish. */
+  settleBuilderRunPublishFailed(input: Readonly<{ builderRunId: string; sourceRevision: string; failureCode: string }>): Promise<void>
+  /** Spike: takes a publish-failed run back to RUNNING under this owner; false when it cannot be retried now. */
+  reopenBuilderRunPublish(builderRunId: string, ownerId: string): Promise<boolean>
   requestBuilderRunCancellation(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   interruptBuilderRun(builderRunId: string, reason: string): Promise<void>
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
@@ -207,6 +211,14 @@ export const createBuilderStore = ({
       [builderRunId, sourceRevision, artifactRevisionId ?? null, artifactDigest ?? null, failureCode ?? null],
     )
     if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_BUILD_SETTLEMENT_REFUSED')
+  },
+  settleBuilderRunPublishFailed: async ({ builderRunId, sourceRevision, failureCode }) => {
+    const result = await executorPool.query<{ value: boolean }>('SELECT builder.settle_builder_run_publish_failed($1,$2,$3) AS value', [builderRunId, sourceRevision, failureCode])
+    if (result.rows[0]?.value !== true) throw new Error('BUILDER_RUN_BUILD_SETTLEMENT_REFUSED')
+  },
+  reopenBuilderRunPublish: async (builderRunId, ownerId) => {
+    const result = await executorPool.query<{ value: boolean }>('SELECT builder.reopen_builder_run_publish($1,$2) AS value', [builderRunId, ownerId])
+    return result.rows[0]?.value === true
   },
   failBuilderRun: async (builderRunId, failureCode) => {
     const result = await executorPool.query<{ value: boolean }>(

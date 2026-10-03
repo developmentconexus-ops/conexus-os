@@ -1,7 +1,10 @@
 import { spawn } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { dirname, extname, join, relative, resolve, sep } from 'node:path'
+import { chromium } from '@playwright/test'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
+import { ensureCompilerRoot } from '../implementation/compiler-root.mjs'
 
 // The conversation's VM as a directory on this machine, for the Hub's `ConversationSandboxes` port
 // (apps/hub/src/builder/run-runtime.ts). Ported from the directory-backed fake in
@@ -18,6 +21,27 @@ const RM_RECURSIVE = /\brm\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*[rR][a-zA-Z]*\s+(?:--\s
 
 const succeeded = () => ({ success: true, exitCode: 0, stdout: '', stderr: '', executionTimeMs: 0 })
 
+// The media types the Hub's collector admits (application-artifact-runtime.ts, mediaTypeForPath).
+const MEDIA_TYPES = {
+  '.avif': 'image/avif', '.cjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8', '.ico': 'image/x-icon', '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.otf': 'font/otf', '.png': 'image/png', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8', '.wasm': 'application/wasm',
+  '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2',
+}
+const filesUnder = (directory) => readdirSync(directory, { recursive: true }).map(String).filter((path) => statSync(join(directory, path)).isFile()).sort()
+
+// The E2B image's compiler root, laid out under the VM's /opt/conexus as the template has it.
+const compilerRoot = await ensureCompilerRoot()
+const placeCompiler = (vm) => {
+  const compiler = join(vm, 'opt/conexus/compiler')
+  if (existsSync(join(compiler, 'vite.config.mjs'))) return
+  mkdirSync(compiler, { recursive: true })
+  for (const name of ['node_modules', 'full']) symlinkSync(join(compilerRoot, name), join(compiler, name))
+  for (const name of ['allowlist.mjs', 'generate-client.mjs', 'tsconfig.mjs', 'package.json']) copyFileSync(join(compilerRoot, name), join(compiler, name))
+  writeFileSync(join(compiler, 'vite.config.mjs'), readFileSync(join(compilerRoot, 'vite.config.mjs'), 'utf8').replace("'/workspace/.vite'", JSON.stringify(join(vm, 'tmp/vite-cache'))))
+}
+
 const execute = (command, args, { cwd, env }) => new Promise((settle) => {
   const startedAt = Date.now()
   const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -33,7 +57,7 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
  * @param {string} root the host directory that holds one directory per conversation
  * @param {object} workspaceTools the `tools` option of the agent's workspace (BUILDER_WORKSPACE_TOOLS_CONFIG of the built Hub)
  */
-export const localConversationSandboxes = (root, workspaceTools) => {
+export const localConversationSandboxes = (root, workspaceTools, parseCheckReport) => {
   const base = resolve(root)
   mkdirSync(base, { recursive: true })
   const directoryOf = (conversationId) => {
@@ -95,8 +119,27 @@ export const localConversationSandboxes = (root, workspaceTools) => {
         writeFileSync(target, bytes)
       },
       readAgentFile: async (path) => readFileSync(inside(path)),
-      // A flow that needs the application check must say so loudly; a stand-in report would pass on nothing.
-      runCheck: async () => { throw new Error('LIVE_SANDBOX_HAS_NO_APPLICATION_CHECK') },
+      readAgentFileIfPresent: async (path) => (existsSync(inside(path)) ? readFileSync(inside(path)) : null),
+      readAgentFileStream: async (path) => new Blob([readFileSync(inside(path))]).stream(),
+      // The Hub's own check.mjs, as the run placed it in /opt/conexus, on the real compiler and the
+      // Playwright Chromium. It runs as this machine's user: there is no root or agent identity here.
+      runCheck: async ({ root: tree, out, collect, thumbnail }) => {
+        placeCompiler(vm)
+        const tools = join(vm, 'opt/conexus')
+        const ran = await execute(process.execPath, [
+          join(tools, 'check.mjs'), '--root', inside(tree), '--out', inside(out), '--tools', tools, '--home', join(vm, 'home'),
+          '--chromium', chromium.executablePath(), ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
+        ], { cwd: vm, env: environment })
+        if (ran.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { stderr: ran.stderr.slice(-2_000) } })
+        const report = parseCheckReport(ran.stdout)
+        const dist = inside(out)
+        const files = collect && report.ok ? filesUnder(dist).map((path) => {
+          const bytes = new Uint8Array(readFileSync(join(dist, path)))
+          return { path: relative(dist, join(dist, path)).split(sep).join('/'), mediaType: MEDIA_TYPES[extname(path).toLowerCase()], bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
+        }) : null
+        const picture = files && thumbnail && existsSync(inside(thumbnail)) ? new Uint8Array(readFileSync(inside(thumbnail))) : null
+        return { report, files, thumbnail: picture && picture.byteLength > 0 ? { mediaType: 'image/png', bytes: picture } : null }
+      },
       holdOpen: async () => () => {},
       pause: async (parked = false) => {
         if (parked) kept.set(conversationId, instance)

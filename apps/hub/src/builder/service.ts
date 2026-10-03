@@ -3,7 +3,8 @@ import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { CandidateRefused } from './run-runtime.js'
 import type { BuilderRunRuntime } from './run-runtime.js'
-import type { ParkedCallStanding } from './runtime.js'
+import type { ApplicationBuildOutcome, ParkedCallStanding } from './runtime.js'
+import { RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
 import type { BuilderRunSummary, BuilderStore, TakenOverRun } from './store.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
@@ -19,6 +20,8 @@ export type BuilderAnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED'
 export type BuilderService = Readonly<{
   createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<BuilderRunSummary>
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
+  /** Spike: publishes a publish-failed run's admitted revision again, with no agent turn and no new commit. */
+  retryBuilderRunPublish(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<'RETRYING' | 'NOT_RETRYABLE'>
   /**
    * The person's answer to the call a parked run waits on, which takes the run back to work. An
    * answer to any other call leaves the run parked, so the same answer sent twice resumes it once.
@@ -176,6 +179,48 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }
     }
   }
+  // Publishing an admitted, green build: the artifact, the Preview's server and data, the thumbnail,
+  // then the settlement. A failure here is labelled where it happens: one the app's own source
+  // caused (a migration the Preview refuses) is a build failure the next turn reads; any other is
+  // Conexus's, settles as a publish failure, never reaches the agent, and can be retried.
+  const publishBuild = async ({ accountId, run, admitted, build, finalizing, note }: Readonly<{
+    accountId: string
+    run: Readonly<{ builderRunId: string; projectId: string }>
+    admitted: string
+    build: Extract<ApplicationBuildOutcome, { kind: 'BUILT' }>
+    finalizing(): Promise<void>
+    note(code: string, outcome: RunNote['outcome'], detail?: string): Promise<void>
+  }>): Promise<void> => {
+    try {
+      const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
+        accountId, projectId: run.projectId, builderRunId: run.builderRunId, sourceRevision: admitted, compiledApplication: build.compiledApplication,
+      })
+      const server = await prepareApplicationServer(applicationServer, build.compiledApplication)
+      if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
+      const thumbnail = build.thumbnail
+      if (thumbnail && applicationArtifacts.retainApplicationThumbnail && thumbnail.bytes.byteLength > 0 && thumbnail.bytes.byteLength <= 512000) {
+        await applicationArtifacts.retainApplicationThumbnail({
+          accountId, projectId: run.projectId, executionId: build.compiledApplication.executionId, sourceRevision: admitted,
+          artifactRevisionId: artifact.artifactRevisionId, mediaType: thumbnail.mediaType, bytes: thumbnail.bytes,
+        }).catch(() => undefined)
+      }
+      await finalizing()
+      await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: admitted, artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
+      if (build.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', build.bootProblems)
+    } catch (error) {
+      const code = failureCode(error)
+      if (code === 'BUILDER_RUN_CANCELLED' || code === 'APPLICATION_COMPILER_CANCELLED') throw error
+      await finalizing()
+      if (builderFailureCategory(code) === 'APPLICATION_BUILD_FAILED') {
+        await store.settleBuilderRunBuild({ builderRunId: run.builderRunId, sourceRevision: admitted, failureCode: code }).catch(() => undefined)
+        await note(code, 'BUILD_FAILED', error instanceof Error && typeof error.cause === 'string' ? error.cause : undefined)
+      } else {
+        logLine(`BUILDER_PUBLISH_FAILED:${run.builderRunId}:${code}`, 'warn')
+        await store.settleBuilderRunPublishFailed({ builderRunId: run.builderRunId, sourceRevision: admitted, failureCode: code }).catch(() => undefined)
+      }
+      throw error
+    }
+  }
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
@@ -267,51 +312,14 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // The agent's sandbox already compiled (and smoked) the artifact. A build or smoke failure
       // there still admitted the source, so it settles as a build failure and the last good
       // Preview stays in place.
-      if (result.applicationBuild.kind === 'BUILD_FAILED') {
+      if (result.applicationBuild.kind === 'UNRENDERED') {
         const { code, detail } = result.applicationBuild
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted, failureCode: code })
         await buildFailed(code, detail)
         return
       }
-      try {
-        const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
-          accountId: input.accountId, projectId: claimed.projectId, builderRunId: claimed.builderRunId,
-          sourceRevision: admitted,
-          compiledApplication: result.applicationBuild.compiledApplication,
-        })
-        const server = await prepareApplicationServer(applicationServer, result.applicationBuild.compiledApplication)
-        if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
-        // The registry admits a thumbnail only for a run that is still working, so it is retained before the settlement.
-        const thumbnail = result.applicationBuild.thumbnail
-        if (thumbnail && applicationArtifacts.retainApplicationThumbnail) {
-          if (thumbnail.bytes.byteLength > 0 && thumbnail.bytes.byteLength <= 512000) {
-            await applicationArtifacts.retainApplicationThumbnail({
-              accountId: input.accountId,
-              projectId: claimed.projectId,
-              executionId: result.applicationBuild.compiledApplication.executionId,
-              sourceRevision: admitted,
-              artifactRevisionId: artifact.artifactRevisionId,
-              mediaType: thumbnail.mediaType,
-              bytes: thumbnail.bytes,
-            }).catch(() => {
-              // Best-effort thumbnail retention: failure to retain does not fail the build settlement.
-            })
-          }
-        }
-        await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
-          artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
-        if (result.applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', result.applicationBuild.bootProblems)
-      } catch (error) {
-        const code = failureCode(error)
-        if (code === 'BUILDER_RUN_CANCELLED' || code === 'APPLICATION_COMPILER_CANCELLED') throw error
-        await finalizing()
-        await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
-          failureCode: code }).catch(() => undefined)
-        await buildFailed(code, error instanceof Error && typeof error.cause === 'string' ? error.cause : undefined)
-        throw error
-      }
+      await publishBuild({ accountId: input.accountId, run: claimed, admitted, build: result.applicationBuild, finalizing, note })
     })().catch(async (error) => {
       const code = failureCode(error)
       // Its source may be on main: the run stays running with its candidate until a sweep, once
@@ -403,6 +411,51 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       await publishRun(result)
       if (!leg && result.state === 'INTERRUPTED') await settleRun(result, 'USER_CANCELLED')
       return result
+    },
+    retryBuilderRunPublish: async ({ accountId, projectId, builderRunId }) => {
+      const latest = await store.readBuilderRun({ accountId, projectId })
+      const revision = latest?.resultSourceRevision
+      if (latest?.builderRunId !== builderRunId || latest.resultKind !== 'SOURCE_CHANGED_PUBLISH_FAILED' || !revision) return 'NOT_RETRYABLE'
+      // The failed version must still be the Project's source: a later change supersedes it.
+      if (await runs.git.readMain(projectId).catch(() => null) !== revision) return 'NOT_RETRYABLE'
+      if (!await store.reopenBuilderRunPublish(builderRunId, ownerId)) return 'NOT_RETRYABLE'
+      const controller = new AbortController()
+      const publish = async (): Promise<void> => {
+        const now = await store.readBuilderRun({ accountId, projectId }).catch(() => null)
+        if (now?.builderRunId === builderRunId) await publishRun(now)
+      }
+      await publish()
+      const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => runs.appendDiagnostic({
+        projectId, conversationId: latest.conversationId, builderRunId, code, outcome, sourceRevision: revision, ...(detail ? { detail } : {}),
+      }).catch(() => undefined)
+      const work = (async () => {
+        logLine(`BUILDER_PUBLISH_RETRY:${builderRunId}:${revision.slice(0, 12)}`, 'info')
+        const verdict = await runs.runtime.rebuild({
+          projectId, conversationId: latest.conversationId, executionId: builderRunId, revision,
+          providerSandboxId: await store.readConversationSandbox({ projectId, conversationId: latest.conversationId }),
+        }).catch((error: unknown) => ({ kind: 'RED_PLATFORM' as const, revision, code: failureCode(error) }))
+        logLine(`BUILDER_PUBLISH_RETRY_CHECKED:${builderRunId}:${verdict.kind}`, 'info')
+        if (verdict.kind !== 'GREEN') {
+          await store.settleBuilderRunPublishFailed({ builderRunId, sourceRevision: revision, failureCode: verdict.kind === 'RED_PLATFORM' ? verdict.code : 'BUILDER_PUBLISH_RETRY_NOT_GREEN' })
+          return
+        }
+        await publishBuild({
+          accountId, run: { builderRunId, projectId }, admitted: revision, finalizing: async () => undefined, note,
+          build: {
+            kind: 'BUILT',
+            compiledApplication: { projectId, executionId: builderRunId, sourceRevision: revision, templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: verdict.build.files },
+            ...(verdict.build.thumbnail ? { thumbnail: verdict.build.thumbnail } : {}),
+            ...(verdict.build.bootProblems ? { bootProblems: verdict.build.bootProblems } : {}),
+          },
+        })
+      })().catch((error: unknown) => {
+        logLine(`BUILDER_PUBLISH_RETRY_FAILED:${builderRunId}:${failureCode(error)}`, 'warn')
+      }).finally(async () => {
+        await publish()
+        if (builderActive.get(builderRunId)?.controller === controller) builderActive.delete(builderRunId)
+      })
+      builderActive.set(builderRunId, { controller, work, parking: Promise.resolve(false), answered: undefined })
+      return 'RETRYING'
     },
     answerBuilderRun: async ({ accountId, projectId, builderRunId, toolCallId, resumeData }) => {
       const latest = await store.readBuilderRun({ accountId, projectId })

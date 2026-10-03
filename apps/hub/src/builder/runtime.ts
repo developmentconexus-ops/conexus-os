@@ -19,7 +19,9 @@ type CodingWorkerResultScope = Readonly<{
 export type ApplicationBuildOutcome =
   /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
   | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; thumbnail?: CompiledApplicationThumbnail; bootProblems?: string }>
-  | Readonly<{ kind: 'BUILD_FAILED'; code: string; detail?: string }>
+  // C-033: the blocking steps passed and the page did not render. The only admitted source without a
+  // Preview; a source the check refuses is never admitted, so no "built and failed" outcome exists.
+  | Readonly<{ kind: 'UNRENDERED'; code: 'APPLICATION_SMOKE_FAILED'; detail: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
 

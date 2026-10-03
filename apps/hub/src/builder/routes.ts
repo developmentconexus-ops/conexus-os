@@ -157,6 +157,21 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
+  // Spike: "Tentar de novo" for a version Conexus failed to publish. No agent turn, no new commit.
+  app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/retry-publish', {
+    schema: {
+      params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } },
+      body: { type: 'object', additionalProperties: false },
+    },
+  }, async (request, reply) => {
+    const csrf = header(request.headers['x-conexus-csrf'])
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+    const session = await dependencies.resolveCurrentSession(request, true)
+    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    const outcome = await dependencies.service.retryBuilderRunPublish({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
+    return outcome === 'RETRYING' ? reply.code(202).send({ outcome }) : sendProblem(reply, 409, 'builder-run-not-retryable', 'BuilderRun not retryable')
+  })
+
   app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', {
     schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } },
   }, async (request, reply) => {

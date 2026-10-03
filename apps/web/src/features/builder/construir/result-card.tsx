@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
 import type { BuilderRun } from '../api'
-import { compareProjectSource } from '../api'
+import { compareProjectSource, retryBuilderRunPublish } from '../api'
 import { getProject, projectQueryKey } from '../../project/api'
 
 // The runs that changed the app are the only ones worth a card: a response-only turn already speaks
 // for itself in the message above it, and a run still in flight has no result yet.
 export const showsResultCard = (run: BuilderRun): boolean =>
-  run.resultKind === 'SOURCE_CHANGED' || run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED'
+  run.resultKind === 'SOURCE_CHANGED' || run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' || run.resultKind === 'SOURCE_CHANGED_PUBLISH_FAILED'
 
 /** The card that closes out a code-changing turn: what changed, whether it built, and where to look. */
 export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpenDiff }: Readonly<{
@@ -20,6 +20,7 @@ export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpe
 }>) {
   const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
   const built = run.resultKind === 'SOURCE_CHANGED'
+  const publishFailed = run.resultKind === 'SOURCE_CHANGED_PUBLISH_FAILED'
   const diff = useQuery({
     queryKey: ['builder-result-diff', projectId, run.baseSourceRevision, run.resultSourceRevision],
     queryFn: () => compareProjectSource(projectId, run.baseSourceRevision, run.resultSourceRevision ?? run.baseSourceRevision),
@@ -31,8 +32,9 @@ export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpe
   return <div className="cx-result-card">
     <p className="cx-result-card-title" data-tone={built ? undefined : 'danger'}>
       {built && <Check size={15} className="cx-result-card-check" aria-hidden="true" />}
-      {projectName} · versão {versionNumber} · {built ? 'Build passou' : 'Build falhou'}
+      {projectName} · versão {versionNumber} · {built ? 'Build passou' : publishFailed ? 'Não publicada por uma falha do Conexus' : 'Build falhou'}
     </p>
+    {publishFailed && <button type="button" className="cx-result-card-link" onClick={() => { void retryBuilderRunPublish(projectId, run.builderRunId) }}>Tentar de novo</button>}
     <div className="cx-result-card-actions">
       <button type="button" className="cx-result-card-link" onClick={onOpenPreview}>Ver aplicativo</button>
       <span className="cx-result-card-count">{fileCount === null ? '…' : `${fileCount} ${fileCount === 1 ? 'arquivo' : 'arquivos'}`}</span>

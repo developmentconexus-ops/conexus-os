@@ -20,10 +20,13 @@ process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
 
-export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
+export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'> & Readonly<{
+  /** Spike: a test stands in for a registry fault by wrapping the real store. */
+  wrapApplicationArtifacts?: (store: ReturnType<typeof createApplicationArtifactStore>) => ReturnType<typeof createApplicationArtifactStore>
+}>
 
 /** Composes and starts the Hub. The ports are what a test stands in for; the production entry passes none. */
-export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
+export const startHub = async ({ conversationSandboxes, wrapApplicationArtifacts }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
   const config = readHubConfig()
   const mainConnection = {
     host: config.database.host,
@@ -205,7 +208,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     factory: config.factory,
     secretKey: config.secretKey,
     ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
-    applicationArtifacts: createApplicationArtifactStore(),
+    applicationArtifacts: (wrapApplicationArtifacts ?? ((store) => store))(createApplicationArtifactStore()),
     // A Project with an application keeps its Preview data: a divergent migration history is refused, never
     // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
     // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.

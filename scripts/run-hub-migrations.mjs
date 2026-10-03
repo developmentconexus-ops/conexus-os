@@ -116,6 +116,7 @@ const migrationDigests = new Map([
   ['0050_hub_sign_out_provider_logout.sql', hubSignOutProviderLogoutDigest],
   ['0051_builder_run_lease.sql', runLeaseDigest],
   ['0052_builder_parked_run_expiry.sql', parkedRunExpiryDigest],
+  ['0053_spike_builder_run_publish_failed.sql', 'be9f5e03226a8f2f25a62e0a6e31509a06b38fa706ba6b18d6474c1f095dbea6'],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
