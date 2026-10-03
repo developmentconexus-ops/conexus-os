@@ -137,6 +137,11 @@ Phase 1 fixes, each with its own behavior test:
 - A daily backup runs with a restore check and a copy off the machine.
 - A new run is refused above a Hub memory threshold. A turn has no time limit. The decisions of
   2026-10-02 say what guards it instead.
+- A run cannot end as done while its app fails the check: the failure goes back to the agent in
+  the same turn, up to three times, and a failure Conexus caused is retried without the agent.
+- The Builder checks the screens it built as a person would, in a browser inside its sandbox, with
+  sample data it writes in each operation's output shape. The sample data proves the screen shows
+  what it receives, never that a number matches the source.
 
 Phase 1 guards land before any structural wave: a browser test harness against a real Hub, with
 the Builder flows a person uses; a list of flows per review area that CI requires for every change
@@ -275,6 +280,11 @@ application profile with a backend per Project, is a different thing and stays f
 
 Steps 4 to 10 may reorder by real demand. Step 1 comes first because it shapes how everything after
 it is built.
+
+On 2026-10-02 the operator deferred the proof that an application's numbers are right (a second
+computation of the same number, a control number the person knows, the business rules stated in
+the plan) to the redesign of the Builder's planning flow. It must work for every Connector, not one
+vendor.
 
 On 2026-10-02 the operator moved part of step 1 ahead of the Stage 2 close: auth, roles and users,
 and telemetry are built as Q5 preparation under specs 0005 to 0008. The rest of step 1 still
