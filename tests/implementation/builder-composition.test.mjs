@@ -180,13 +180,6 @@ test('the Context7 key file is optional and read from CONEXUS_BUILDER_CONTEXT7_A
   assert.equal(readHubConfig({ ...complete, CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: '/run/secrets/context7' }).builder.context7ApiKeyFile, '/run/secrets/context7')
 })
 
-test('the model stream recorder is off unless CONEXUS_BUILDER_STREAM_RECORD_DIR names an absolute directory', () => {
-  const complete = { ...baseEnvironment, ...storageEnvironment }
-  assert.equal(readHubConfig(complete).builder.modelStreamRecordDir, undefined)
-  assert.equal(readHubConfig({ ...complete, CONEXUS_BUILDER_STREAM_RECORD_DIR: '/var/tmp/stream-record' }).builder.modelStreamRecordDir, '/var/tmp/stream-record')
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_BUILDER_STREAM_RECORD_DIR: 'stream-record' }), /^Error: INVALID_CONFIG_CONEXUS_BUILDER_STREAM_RECORD_DIR$/)
-})
-
 test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the storage role', () => {
   const sha256 = 'ab'.repeat(32)
   const complete = { ...baseEnvironment, ...storageEnvironment }

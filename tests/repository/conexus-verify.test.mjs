@@ -310,7 +310,6 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/builder-submit-plan.test.mjs'), [['builder-harness', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-project-context.test.mjs'), [['builder-harness', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-memory.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-model-stream-recorder.test.mjs'), [['builder-harness', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-run-operation.test.mjs'), [['builder-harness', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-sankhya-reader.test.mjs'), [['builder-harness', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-agent-retry.test.mjs'), [['run-runtime', 'static']])
