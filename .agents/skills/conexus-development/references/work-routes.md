@@ -8,7 +8,7 @@ Each route walks one lane from [the delivery rules](../../../../docs/development
 2. The dev Factory triages the issue and writes a plan. A plan routed to "Await approval" waits for the operator. The Factory builds work that blocks no product gate; an implementer builds work that blocks a gate, per [the lane table](../../../../docs/development/delivery.md#pick-the-lane-by-risk).
 3. Build on a branch from `origin/main` in one WSL worktree. The change fits one pull request and appetite P.
 4. Open the pull request against `main`. Put "Closes #n" in the body and the lane label on it.
-5. Meet the fast-lane gates in the delivery rules. [Review by lane](review-and-delegation.md#review-by-lane) says how to triage Codex comments.
+5. Meet the fast-lane gates in the delivery rules. [The Review flow](flows.md#review) says how to triage Codex comments.
 
 ## Shaped lane
 
