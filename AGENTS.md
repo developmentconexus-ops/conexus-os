@@ -34,7 +34,7 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 - One writer per worktree. Work in an Ubuntu WSL2 worktree on the Linux filesystem.
 - Stop on a material product requirement, an owner or trust-boundary contradiction, an unauthorized production effect, or missing authority needed for correctness.
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create.
-- Never merge. The operator merges. [`delivery.md`](docs/development/delivery.md) owns the lanes and the merge gate.
+- Never merge unless [`delivery.md`](docs/development/delivery.md) names you as the one who merges. It owns the lanes and the merge gate.
 - An approved increment includes its routine reversible implementation and checks. Do not seek approval for each mechanical step.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot.
 - A contract change and its [`docs/product/operation-ledger.md`](docs/product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
@@ -43,12 +43,13 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 ## Verification
 
 ```bash
-npm ci
+npm ci # in a fresh clone
 npx --no-install playwright install chromium
-npm run verify
+# Run the focused checks this change touches.
+npm run verify:quick # before every push
 ```
 
-Do not run `npm run verify` locally. CI runs the same graph in
+Do not run `npm run verify` locally. CI runs the full graph in
 [`.github/workflows/verify.yml`](.github/workflows/verify.yml) at your exact head
 SHA. Run the focused checks your change touches, push, and confirm the run's head
 SHA equals yours. GitHub skips the workflow without saying so when a pull request

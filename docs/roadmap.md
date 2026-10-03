@@ -154,24 +154,43 @@ Phase 3, the screen check, comes before the specs of phase 4:
 Phase 2 waves, in this order. The code quality diagnosis of 2026-10-02 set the waves. On
 2026-10-03 the operator moved them ahead of the screen check and Q5, and S2 ahead of S3 and S4,
 because S2 decides who owns the session, the sandbox and an open question, and the reaper of S4
-only knows what expires once that is settled. CI under five minutes runs beside the others, since
-it changes no concept.
+only knows what expires once that is settled. The same day an audit of the whole codebase against
+the [codebase principles](development/codebase-principles.md) added the ratchets, the failure table
+and the sandbox tools, and widened S1; the operator approved that order.
 
-1. **Subtract.** Delete what has no consumer: unused package scripts, proofs of closed gates,
-   failure codes nothing produces, web routes with no screen, retired configuration.
-2. **S2.** The run as one state machine. One Mastra session and one sandbox per conversation; a
+1. **Subtract.** Delete what has no consumer or has the wrong shape: unused package scripts, proofs
+   of closed gates, failure codes nothing produces, web routes with no screen, retired
+   configuration, compatibility with old shapes, tests that read source text, second names for
+   the same command.
+2. **Ratchets.** CI fails when a file gains `as` casts, long functions or lines, when a test reads
+   production source, or when a rule promises a check that does not exist. Each count may only
+   fall.
+3. **One failure table.** Every failure code, its category, HTTP status and person-facing text
+   come from one table that the Hub, SQL, the web app and the starter template are generated
+   from. A platform failure never tells the person to try again. It comes before S2, which adds
+   end reasons.
+4. **S2.** The run as one state machine. One Mastra session and one sandbox per conversation; a
    question is a wait inside the run, answered on the live session; the browser and the agent share
    that session; one SQL builder for the run summary; a candidate checked once. A question whose
    session ended (a Hub restart, a long idle) ends with it, and the person's next message carries
-   the answer, as in Claude Code.
-3. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
+   the answer, as in Claude Code. The run file is split by subject first, and an idle session
+   retires, so memory does not grow with every conversation.
+5. **Sandbox tools as files.** The check, the server build and the egress recorder become real
+   files, typed and tested, shipped in the template image, instead of programs inside strings.
+6. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
    lifetimes S2 sets.
-4. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
+7. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
    the session lifetimes.
-5. **S1.** One generated contract between the web app and the Hub for every Builder route.
-6. **S5.** The Builder screen holds one record of the conversation.
-7. **CI under five minutes.** The Hub builds once, independent checks run together, and no test is
-   removed.
+8. **S1.** One generated contract between the web app and the Hub for every route the web app
+   calls, parsed at the edge into domain types, with branded ids.
+9. **S5.** The Builder screen holds one record of the conversation; browser tests run against a
+   real Hub.
+10. **CI under five minutes.** The Hub builds once, independent checks run together, and the verify
+    steps come from the test files instead of a hand-kept list. No test is removed.
+
+Beside the waves, each when its area is touched: one idempotent command and one transaction helper
+in the Hub, with a project started by one command; typed tests, after a design pass; and one
+migration baseline after S2.
 
 Every wave is built the same way:
 
@@ -315,8 +334,8 @@ enters when Stage 2 closes.
 
 ## Exact next action
 
-**Build a sound base in the [order of work](#order-of-work-to-q5): the phase 2 waves, Subtract
-then S2 first. Then the screen check, then the Q5 specs in their order, then the Q5 task.**
+**Build a sound base in the [order of work](#order-of-work-to-q5): the phase 2 waves, Subtract,
+the ratchets, the failure table and S2 first. Then the screen check, then the Q5 specs in their order, then the Q5 task.**
 
 The waves come first, so the screen check and Q5 are not built on shapes the waves replace. The
 screen check comes next. The Builder checks the screens it built in a browser inside its

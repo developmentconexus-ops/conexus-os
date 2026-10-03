@@ -29,12 +29,13 @@ notes. Each step names what to do and the skill that does it when the session ha
 | A question: how does X work, why is it built this way, where is the time going | Investigate |
 | Wrong behavior someone saw | Fix |
 | New behavior with a decided design | Build |
-| A shape that keeps breaking, or a roadmap wave | Redesign |
+| A roadmap wave or a redesign, from its approved spec | Redesign |
 | A pull request to judge | Review |
 | Any web, Builder or Preview screen | Frontend, on top of the flow above |
 
-A Fix becomes a Redesign when the premise under the bug already had two fixes. `check-patch-churn`
-in CI flags a file with three or more fixes in 30 days.
+A Fix whose premise already had two fixes stops and reports: the premise needs a redesign, which
+the session that plans the work owns. `check-patch-churn` in CI flags a file with three or more fixes
+in 30 days.
 
 ## Before writing code
 
@@ -44,6 +45,7 @@ in CI flags a file with three or more fixes in 30 days.
 4. Check the decided shapes in [`references/shapes.md`](references/shapes.md) and the
    [decision register](../../../docs/decisions/index.md).
 5. Say what the change deletes. Code stays because it is needed, never because it exists.
+6. Meet the [codebase principles](../../../docs/development/codebase-principles.md).
 
 Find the facts with [`references/evidence.md`](references/evidence.md): telemetry, Mastra's spans,
 the logs, the verify harness and the reference code. Measure before you guess.
@@ -66,15 +68,14 @@ operator. The [stop conditions](../../../docs/development/delivery.md#stop-then-
 - Before every push, run `npm run verify:quick` and the checks the change touches. CI runs the full
   `verify` at the head SHA; do not run it locally.
 - Never reset, clean, stash or force-push. Remove worktrees only with `npm run worktree:reap`.
-- Conventional commits, a pull request against `main` that links its issue, and never a merge.
+- Conventional commits and a pull request against `main` that links its issue. Merge only when `delivery.md` names you as the one who merges.
 
 ## Delegate
 
-Code subagents run on Sonnet 5.5; Opus 5.5 only for design across modules, concurrency, a subtle algorithm
-or security, with the reason in the prompt. The operator's `~/.claude/pstack-models.md` overrides
-this. The root session reads every delegate's diff and writes its own summary from it. A delegate
-prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files, names its worktree and its disjoint file set, forbids merge, reset, clean,
-stash, force-push and `git worktree prune`, and says to stop on a material fork.
+The session that plans the work picks who writes code and reads every delegate's diff. A delegate
+prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files, names its
+worktree and its disjoint file set, forbids merge, reset, clean, stash, force-push and
+`git worktree prune`, and says to stop on a material fork.
 
 ## Keep state out of this skill
 
