@@ -555,11 +555,11 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
-  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } })
   await run.start()
   await run.service.close()
   assert.equal(await run.main(), run.base)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_COMPILATION_FAILED']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_SMOKE_FAILED']])
   assert.equal(run.mirror(), run.result())
   assert.equal(run.checks.length, 2, 'a Conexus failure is not kept: settling checks once more, and nothing sent the agent back to work')
   assert.deepEqual(run.feedbacks, [])
@@ -1326,7 +1326,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': {},
     'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
-    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
+    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } },
   }
   const outcomes = {}
   for (const [name, { stop, ...options }] of Object.entries(cases)) {

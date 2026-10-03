@@ -688,7 +688,7 @@ test('a run that failed before the agent still shows the request and names why i
   const failedRun = {
     builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
+    failureCode: 'BUILDER_STARTER_ROOT_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -707,7 +707,7 @@ test('a run that failed before the agent still shows the request and names why i
   assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 1)
   // The failure code may now live only inside a closed <details>, so it must not be visible rather
   // than simply absent.
-  assert.equal(await page.getByText('BUILDER_SOURCE_MATERIALIZATION_REFUSED', { exact: true }).isVisible(), false,
+  assert.equal(await page.getByText('BUILDER_STARTER_ROOT_REFUSED', { exact: true }).isVisible(), false,
     'the internal code is never the sentence the operator reads')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
