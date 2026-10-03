@@ -45,6 +45,7 @@ in 30 days.
 4. Check the decided shapes in [`references/shapes.md`](references/shapes.md) and the
    [decision register](../../../docs/decisions/index.md).
 5. Say what the change deletes. Code stays because it is needed, never because it exists.
+6. Meet the [codebase principles](../../../docs/development/codebase-principles.md).
 
 Find the facts with [`references/evidence.md`](references/evidence.md): telemetry, Mastra's spans,
 the logs, the verify harness and the reference code. Measure before you guess.
