@@ -9,7 +9,7 @@ import { createPostgresPool } from '../platform/postgres.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { registerBuilderSessionRoutes } from './mastra-session-routes.js'
+import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import { parkedCallStanding } from './runtime.js'
@@ -181,7 +181,8 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     storage,
     agentControllers: { [BUILDER_CONTROLLER_ID]: controller },
     observability,
-    logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn' }),
+    logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn', filter: mountLogFilter }),
+    server: { onValidationError: mountValidationFailure },
   })
   const ready = controller.init()
   ready.catch(() => undefined)

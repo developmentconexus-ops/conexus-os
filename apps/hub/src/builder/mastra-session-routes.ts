@@ -8,7 +8,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ServerResponse } from 'node:http'
 import { failureProblem, sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { failureRow, logFailure, toFailure } from '../platform/failure.js'
+import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { ConversationSessions } from './conversation-sessions.js'
@@ -180,6 +180,20 @@ const failureRoute = (route: ServerRoute): ServerRoute =>
       throw new HTTPException(status, { res: new Response(JSON.stringify(failureProblem(failure)), { status, headers: { 'content-type': 'application/problem+json' } }) })
     }
   })
+
+/**
+ * Mastra's own hook for a request that fails its schemas. The mount answers it as the same
+ * problem+json row, so the browser reads one shape. (`server.onError` is not called for the Fastify
+ * adapter's own routes, so `failureRoute` stays for handler throws.)
+ */
+export const mountValidationFailure = (): Readonly<{ status: number; body: unknown }> => {
+  const failure = new Failure('REQUEST_VALIDATION_FAILED')
+  logFailure(logger, failure)
+  return { status: failureRow(failure).status, body: failureProblem(failure) }
+}
+
+/** Mastra's adapter logs every 5xx handler throw itself; `failureRoute` already logged it once, with the cause. */
+export const mountLogFilter = ({ message }: Readonly<{ message: string }>): boolean => message !== 'Error calling handler'
 
 type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
 

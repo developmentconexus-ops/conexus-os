@@ -6,6 +6,7 @@ const SCRIPT = `
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { ConsoleLogger } from '@mastra/core/logger'
 import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
@@ -13,7 +14,7 @@ const build = process.env.HUB_BUILD
 const { createHttpApp } = await import(build + '/http/app.js')
 const { Failure } = await import(build + '/platform/failure.js')
 const { logger } = await import(build + '/platform/logger.js')
-const { registerBuilderSessionRoutes } = await import(build + '/builder/mastra-session-routes.js')
+const { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } = await import(build + '/builder/mastra-session-routes.js')
 const { createBuilderController } = await import(build + '/builder/harness/controller.js')
 const { createConversationSessions } = await import(build + '/builder/conversation-sessions.js')
 
@@ -21,11 +22,18 @@ const root = mkdtempSync(join(tmpdir(), 'conexus-failure-http-'))
 const storage = new LibSQLStore({ id: 'failure-http', url: 'file:' + join(root, 'session.db') })
 const model = { specificationVersion: 'v2', provider: 'p', modelId: 'm', supportedUrls: {}, async doGenerate() { throw new Error('unused') }, async doStream() { throw new Error('unused') } }
 const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory: new Memory({ storage }), modelRetryDelayMs: () => 1, skillsPath: resolve('builder-skills') })
-const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
+const onErrorCalls = []
+const mastra = new Mastra({
+  storage,
+  agentControllers: { 'conexus-builder': controller },
+  logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn', filter: mountLogFilter }),
+  server: { onValidationError: mountValidationFailure, onError: (error, context) => { onErrorCalls.push(error.message); return context.json({}, 500) } },
+})
 await controller.init()
 const sessions = createConversationSessions({ controller, now: () => 0, sweepEveryMs: 3_600_000 })
 const PROJECT = '33333333-3333-4333-8333-333333333333'
 const THREADS = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/threads?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
+const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/model?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
 let threadsThrow = () => { throw new Error('unset') }
 controller.queryThreads = async () => threadsThrow()
 
@@ -56,6 +64,7 @@ const cases = [
   ['invalid body', { method: 'POST', url: '/validated', payload: { b: 1 } }],
   ['malformed JSON', { method: 'POST', url: '/validated', payload: '{bad', headers: { 'content-type': 'application/json' } }],
   ['unsupported media type', { method: 'POST', url: '/validated', payload: '<a/>', headers: { 'content-type': 'application/xml' } }],
+  ['mount invalid body', { method: 'POST', url: MODEL, cookies: { '__Host-conexus_session': 's', '__Host-conexus_csrf': 'c' }, headers: { origin: 'https://conexus.test', 'x-conexus-csrf': 'c', 'content-type': 'application/json' }, payload: { nope: 1 } }],
   ['mount plain Error', { url: THREADS, cookies: { '__Host-conexus_session': 's' }, before: () => { threadsThrow = () => { throw new Error('PLANTED_VENDOR_TEXT') } } }],
 ]
 const report = {}
@@ -66,7 +75,7 @@ for (const [name, { before, ...request }] of cases) {
   report[name] = [answer.statusCode, answer.headers['content-type'], answer.body]
 }
 logger.info('CASE end')
-console.log(JSON.stringify({ report }))
+console.log(JSON.stringify({ report, onErrorCalls }))
 await sessions.close()
 await app.close()
 await controller.destroy()
@@ -89,7 +98,7 @@ const run = async () => {
     const [status, type, body] = report[name]
     return { status, type, body: JSON.parse(body) }
   }
-  return { answer, logged, stdout: result.stdout }
+  return { answer, logged, stdout: result.stdout, stderr: result.stderr, onErrorCalls: records.find((record) => record.report).onErrorCalls }
 }
 
 test('every route shape answers a failure as problem+json and writes exactly one log line', async () => {
@@ -104,12 +113,14 @@ test('every route shape answers a failure as problem+json and writes exactly one
     ['invalid body', 400, 'REQUEST_VALIDATION_FAILED', 30],
     ['malformed JSON', 400, 'REQUEST_JSON_INVALID', 30],
     ['unsupported media type', 415, 'REQUEST_MEDIA_TYPE_UNSUPPORTED', 30],
+    ['mount invalid body', 400, 'REQUEST_VALIDATION_FAILED', 30],
     ['mount plain Error', 500, 'INTERNAL_UNEXPECTED', 50],
   ]
   for (const [name, status, code, level] of expected) {
     const { status: got, type, body } = answer(name)
     assert.equal(got, status, name)
-    assert.equal(type.startsWith('application/problem+json'), true, `${name}: ${type}`)
+    // Mastra sends a validation hook's body as plain JSON; the body is the same problem.
+    assert.equal(type.startsWith(name === 'mount invalid body' ? 'application/json' : 'application/problem+json'), true, `${name}: ${type}`)
     assert.deepEqual({ type: body.type, title: body.title, status: body.status, code: body.code }, { type: `urn:conexus:problem:${code}`, title: code, status, code }, name)
     const lines = logged(name)
     assert.deepEqual(lines.map((line) => [line.msg, line.level]), [[code, level]], `${name}: one line`)
@@ -128,4 +139,10 @@ test('a fault nobody named answers INTERNAL_UNEXPECTED with a trace id, and its 
   assert.equal(logged('root async Failure')[0]['failure.details.project'], 'p1')
   assert.equal(answer('root sync Failure').body.traceId, undefined, 'a USER row carries no trace id')
   assert.equal(stdout.includes('HTTP_SERVER_ERROR'), false)
+})
+
+test("Mastra's server.onError is not called for the mount's routes, and its own handler-error line is filtered so one line remains", async () => {
+  const { onErrorCalls, stdout, stderr } = await run()
+  assert.deepEqual(onErrorCalls, [])
+  assert.equal(`${stdout}${stderr}`.includes('Error calling handler'), false)
 })
