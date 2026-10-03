@@ -36,7 +36,6 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
     '/workspaces/:workspaceId/projects',
     '/workspaces/:workspaceId/projects/new',
     '/projects/:projectId',
-    '/projects/:projectId/build',
     '/projects/:projectId/c/:conversationId',
     '/workspaces',
     '/signed-out',
