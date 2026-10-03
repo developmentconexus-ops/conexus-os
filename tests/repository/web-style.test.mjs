@@ -187,3 +187,17 @@ test('a Tailwind utility whose escaped selector starts with a digit passes, and 
   assert.equal(result.status, 1)
   assert.match(result.stderr, /class "2xl:flux" has no rule/)
 })
+
+const withClassName = (expression) => screen('local', { 'apps/web/src/screen.tsx': `export const Screen = ({ x, kind, state }: Props) => <div className={${expression}} />\n` })
+
+test('values inside a condition, a call or an array are not classes', context => {
+  assert.equal(check(tree(context, withClassName("isOpen('open-now') ? 'local' : undefined"))).status, 0)
+  assert.equal(check(tree(context, withClassName("['open', kind].includes(state) ? 'local' : ''"))).status, 0)
+})
+
+test('an unknown class in a branch of a ternary fails, and a known one passes', context => {
+  assert.equal(check(tree(context, withClassName("x ? 'local' : 'text-brand'"))).status, 0)
+  const result = check(tree(context, withClassName("x ? 'local' : 'text-nope'")))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /class "text-nope" has no rule/)
+})

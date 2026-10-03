@@ -187,8 +187,9 @@ const classNameTokens = text => {
   return { staticTokens, dynamicTokens }
 }
 
-// The whole classes a className attribute names that are not Conexus ones, from every string and
-// template piece in its value. A template piece that touches a `${}` is half a name and is left out.
+// Contract: the classes measured are the ones a className renders as literals: a string, a string in
+// braces, the static parts of a template literal, and the two result branches of a ternary when they
+// are literals. A condition, a comparison, a call, an array or the holes of a template are not read.
 const foreignClassTokens = (path, text) => {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const found = []
@@ -196,21 +197,19 @@ const foreignClassTokens = (path, text) => {
     const tokens = content.split(/\s+/)
     tokens.forEach((token, index) => {
       const partial = (open && index === 0 && !/^\s/.test(content)) || (close && index === tokens.length - 1 && !/\s$/.test(content))
-      if (token && !partial && !CONEXUS_PREFIX.test(token) && !/^(?:cx|cxs|builder)-/.test(token)) found.push({ line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, token })
+      if (token && !partial && !/^(?:cx|cxs|builder)-/.test(token)) found.push({ line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, token })
     })
   }
   const collect = node => {
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.EqualsEqualsToken && node.operatorToken.kind <= ts.SyntaxKind.ExclamationEqualsEqualsToken) {
-      // A string compared with something is a value, not a class name.
-      for (const side of [node.left, node.right]) if (!ts.isStringLiteral(side)) collect(side)
-      return
-    }
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) add(node, node.text)
     else if (ts.isTemplateExpression(node)) {
       add(node.head, node.head.text, { close: true })
       for (const span of node.templateSpans) add(span.literal, span.literal.text, { open: true, close: !ts.isTemplateTail(span.literal) })
-    }
-    ts.forEachChild(node, collect)
+    } else if (ts.isConditionalExpression(node)) {
+      collect(node.whenTrue)
+      collect(node.whenFalse)
+    } else if (ts.isJsxExpression(node) && node.expression) collect(node.expression)
+    else if (ts.isParenthesizedExpression(node)) collect(node.expression)
   }
   const visit = node => {
     if (ts.isJsxAttribute(node) && node.name.getText(source) === 'className' && node.initializer) collect(node.initializer)
