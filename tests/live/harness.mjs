@@ -66,6 +66,8 @@ const startScriptedModel = () => new Promise((settle, reject) => {
       unanswered.push(call)
       return geminiError(response, 500, 'LIVE_MODEL_NO_SCRIPTED_TURN')
     }
+    // A turn may hold its answer, so a flow can look at the screen while the model "thinks".
+    if (turn.delayMs) await new Promise((wake) => { setTimeout(wake, turn.delayMs) })
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     const send = (chunk) => response.write(`data: ${JSON.stringify(chunk)}\r\n\r\n`)
     for (const part of turn.parts) send({ candidates: [{ content: { role: 'model', parts: [partOf(part)] } }] })
@@ -174,10 +176,11 @@ export const globalTeardown = async () => {
 
 /**
  * Registers one flow as a test named `<id>: <nome>`. The body gets a fresh browser context signed in as the
- * suite's person, the scripted model, and the Hub: `hub.db(sql)` reads, `hub.origin`, `hub.workspaceId`, and
- * `hub.signIn(page)` signs the suite's person in through Keycloak's form when the page holds no Keycloak session.
+ * suite's person, the scripted model, and the Hub: `hub.db(sql)` reads, `hub.origin`, `hub.workspaceId`, `hub.evidenceDir` (which
+ * holds `hub.log`), `hub.sandboxRoot` (the conversations' sandboxes), and `hub.signIn(page)` signs the suite's person in
+ * through Keycloak's form when the page holds no Keycloak session. A scripted turn with `delayMs` holds its answer that long.
  * @param {FlowDeclaration} declaration
- * @param {(world: { page: import('@playwright/test').Page, model: Pick<Awaited<ReturnType<typeof startScriptedModel>>, 'script' | 'calls'>, hub: { origin: string, workspaceId: string, db(sql: string): Promise<object[]>, signIn(page: import('@playwright/test').Page): Promise<void> } }) => Promise<void>} body
+ * @param {(world: { page: import('@playwright/test').Page, model: Pick<Awaited<ReturnType<typeof startScriptedModel>>, 'script' | 'calls'>, hub: { origin: string, workspaceId: string, evidenceDir: string, sandboxRoot: string, db(sql: string): Promise<object[]>, signIn(page: import('@playwright/test').Page): Promise<void> } }) => Promise<void>} body
  */
 export const liveFlow = (declaration, body) => {
   assert.match(declaration.id, FLOW_ID, `flow id ${declaration.id} is not <area>.<flow>`)
@@ -199,7 +202,7 @@ export const liveFlow = (declaration, body) => {
       await body({
         page,
         model: { script: model.script, calls: model.calls },
-        hub: { origin: state.origin, workspaceId, db: (sql) => query(state, sql), signIn: (signingIn) => signIn(signingIn, state) },
+        hub: { origin: state.origin, workspaceId, evidenceDir: state.evidenceDir, sandboxRoot: suite.sandboxRoot, db: (sql) => query(state, sql), signIn: (signingIn) => signIn(signingIn, state) },
       })
       assert.deepEqual(pageErrors, [], 'no uncaught error in the page')
       assert.equal(model.unanswered(), 0, 'every model call had a scripted turn')
