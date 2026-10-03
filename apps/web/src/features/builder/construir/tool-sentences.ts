@@ -120,19 +120,9 @@ const lookup = (toolName: string): Sentence | undefined => {
 /** The permission a pending call asks for, as in "O agente quer executar um comando". */
 export const toolRequest = (toolName: string): string => lookup(toolName)?.ask ?? 'usar uma ferramenta'
 
-// A name that still falls all the way through to the generic sentence names a real gap in the table
-// above; logging it once, instead of only showing "Usou uma ferramenta", is what makes that gap
-// findable from a live session instead of only from a source read.
-const loggedUnmapped = new Set<string>()
-
 export const toolSentence = (toolName: string, running: boolean): string => {
   const sentence = lookup(toolName)
   if (sentence) return running ? sentence.running : sentence.done
-  if (!loggedUnmapped.has(toolName)) {
-    loggedUnmapped.add(toolName)
-    // biome-ignore lint/suspicious/noConsole: deliberate, the only record of which real tool id has no sentence yet.
-    console.debug(`[construir] no pt-BR sentence for tool "${toolName}"; add it to tool-sentences.ts`)
-  }
   return running ? 'Usando uma ferramenta' : 'Usou uma ferramenta'
 }
 
