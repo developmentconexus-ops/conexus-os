@@ -1,4 +1,4 @@
-import type { MastraDBMessage } from '../mastra-session'
+import type { MastraDBMessage } from '@mastra/client-js'
 
 type MessagePart = MastraDBMessage['content']['parts'][number]
 

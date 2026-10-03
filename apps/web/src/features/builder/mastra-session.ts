@@ -11,9 +11,6 @@ import { type StreamState, useSessionStream, useStreamState } from './connection
 import { type MemoryGauge, type RuntimeState, emptyRuntime, runtimeReducer } from './runtime'
 import { type PromptEntry, type TranscriptAction, type TranscriptState, emptyTranscript, transcriptReducer } from './transcript'
 
-export type { MastraDBMessage }
-export type { MemoryGauge, MemoryOperation } from './runtime'
-export type { PromptEntry, TranscriptEntry } from './transcript'
 
 const clientAt = (apiPrefix: string) => new MastraClient({
   baseUrl: window.location.origin,

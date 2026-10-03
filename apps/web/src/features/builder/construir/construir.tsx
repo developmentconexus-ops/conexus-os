@@ -17,10 +17,10 @@ import { BuilderConversation, type PersistedRequest } from '../components/builde
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
 import { failureReason } from '../failure-reasons'
 import {
-  answerPendingCall, type Conversation, type PromptEntry, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
+  answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { localMessageId, promptIsOpenFor, type TaskSnapshot } from '../transcript.ts'
+import { localMessageId, promptIsOpenFor, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
