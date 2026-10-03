@@ -22,4 +22,4 @@ Then the `tests/implementation/` suites for what you touched.
 
 ## Review
 
-Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to: identity-session for `src/identity-access/`, data-migrations for `migrations/`, builder-factory for `src/builder/`, connectors for model accounts, Google AI Pro and GitHub, platform for the rest.
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to.
