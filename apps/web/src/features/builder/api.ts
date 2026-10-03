@@ -148,6 +148,14 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
   return response.json() as Promise<BuilderMessageAccepted>
 }
 
+/** Publishes a version Conexus failed to publish again, from the same source, with no agent turn. */
+export const retryBuilderRunPublish = async (projectId: string, builderRunId: string): Promise<void> => {
+  const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/retry-publish`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+  })
+  if (!response.ok) await reject(response)
+}
+
 export const getBuilderRunTrace =async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
   if (!response.ok) await reject(response)

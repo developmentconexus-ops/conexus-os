@@ -3,7 +3,7 @@ import { MastraClient, MastraClientError } from '@mastra/client-js'
 import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import { hubFetch } from '../../app/http'
 import { parseRunState } from './api'
 import { builderSessionKey, writeStreamedRun } from './builder-session'
@@ -194,6 +194,10 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   const rereadThread = (): void => { void queryClient.invalidateQueries({ queryKey: builderThreadMessagesKey(projectId, conversationId) }) }
   const rereadConversations = (): void => { void queryClient.invalidateQueries({ queryKey: conversationsKey(projectId) }) }
   const rereadSession = (): void => { void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) }) }
+  // The Conexus check's verdict reaches the thread inside the run, never through the stream: a run
+  // going back to its agent after a check reads the thread again, and once more when the agent speaks,
+  // by when its turn has stored the verdict.
+  const repair = useRef<{ checking: boolean; awaitingSpeech: boolean }>({ checking: false, awaitingSpeech: false })
   useSessionStream({
     key: streamKey,
     open: () => runSession(projectId, conversationId),
@@ -205,6 +209,16 @@ export const useBuilderConversation = (projectId: string, conversationId: string
       if (event.type === 'state_changed' && typeof event.state === 'object' && event.state !== null && 'conexusRun' in event.state) {
         const run = parseRunState(event.state.conexusRun)
         if (run) writeStreamedRun(queryClient, projectId, run)
+        const backToAgent = repair.current.checking && run?.phase === 'AGENT'
+        repair.current.checking = run?.phase === 'COMPILING'
+        if (backToAgent) {
+          repair.current.awaitingSpeech = true
+          rereadThread()
+        }
+      }
+      if (event.type === 'message_start' && repair.current.awaitingSpeech) {
+        repair.current.awaitingSpeech = false
+        rereadThread()
       }
       if (event.type === 'thread_title_updated') rereadConversations()
       if (event.type === 'agent_end') {
