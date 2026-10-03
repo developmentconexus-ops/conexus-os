@@ -1,7 +1,8 @@
 # Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator
 
-**Status:** PREPARED on 2026-09-24. **Amended on 2026-09-28:** the question is connector-generic
-(next section). Part 1 (Q4.0 to Q4.5) is on `main` since #246. Part 2 stopped after Q4.7 run 2.\
+**Status:** CLOSED on 2026-10-02 with verdict ACCEPT_WITH_BOUNDARY, frozen for the operator's
+decision ([evidence and verdict](../evidence/stage2-q4/README.md#verdict)). Kept as a record.
+Prepared on 2026-09-24 and amended on 2026-09-28: the question is connector-generic (next section).\
 **Type:** enterprise-credential and trust-boundary qualification (Q-a: the roadmap names it as a
 gate; Q-b: it creates a new runtime authority over an enterprise credential; Q-c: the real read and
 the pilot proof outlive the pull request)\
