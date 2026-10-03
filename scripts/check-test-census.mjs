@@ -61,6 +61,26 @@ export function checkTestCensus({ root, candidateGraph, packageScripts, committe
   }
 }
 
+const BROWSER_CLASSES = new Set(['browser', 'browser-postgres', 'live'])
+const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
+
+// A test file that imports Playwright, registered in a step of a class without a browser, fails in CI
+// at the group that has none, never on the machine that wrote it.
+export function browserTestsOutsideBrowserSteps({ candidateGraph, packageScripts, readText }) {
+  const found = []
+  for (const step of candidateGraph) {
+    if (BROWSER_CLASSES.has(step.environmentClass)) continue
+    for (const test of collectReachableTests([step], packageScripts)) {
+      if (PLAYWRIGHT_IMPORT.test(readText(test))) found.push({ test, step: step.scope, environmentClass: step.environmentClass })
+    }
+  }
+  return found
+}
+
+const browserMessage = (found) =>
+  `${found.length} test file(s) import Playwright but sit in a step of a class without one:\n` +
+  found.map(({ test, step, environmentClass }) => `  ${test} in step ${step} (${environmentClass})`).join('\n') + '\n'
+
 export const unreachedMessage = (unreached) =>
   `${unreached.length} committed test file(s) are not reachable from CANDIDATE_GRAPH or exempt:\n` +
   unreached.map((t) => `  ${t}`).join('\n') + '\n'
@@ -79,6 +99,16 @@ if (isMainModule) {
 
   if (result.unreached.length > 0) {
     process.stderr.write(unreachedMessage(result.unreached))
+    process.exit(1)
+  }
+
+  const misplaced = browserTestsOutsideBrowserSteps({
+    candidateGraph: CANDIDATE_GRAPH,
+    packageScripts: pkg.scripts ?? {},
+    readText: (path) => readFileSync(resolve(root, path), 'utf8'),
+  })
+  if (misplaced.length > 0) {
+    process.stderr.write(browserMessage(misplaced))
     process.exit(1)
   }
 
