@@ -1,66 +1,43 @@
 ---
 name: conexus-frontend
-description: This skill should be used for any change under `apps/web`, `packages/brand` or `apps/keycloak-theme` in Conexus OS, and whenever work adds or changes a screen, interface copy, a color, a font, spacing, layout, an icon, motion or any other visual. Triggers include "new screen", "nova tela", "tela de login", "sign-in page", "Keycloak theme", "redesign", "restyle", "layout", "cor", "ícone", "texto da interface", "copy", "brand", "tema escuro", "dark mode", "celular", "responsivo", "mobile", "acessibilidade", "screenshot", "print da tela", "Construir", "composer", "tokens.css", "mastra-theme.css", "Encaixe", "Claude Design", and requests to review, polish or verify the web UI.
+description: This skill should be used for any change under `apps/web`, `packages/brand` or `apps/keycloak-theme` in Conexus OS, and whenever work adds or changes a screen, interface copy, a color, a font, spacing, layout, an icon, motion or any other visual. Triggers include "new screen", "nova tela", "tela de login", "sign-in page", "Keycloak theme", "redesign", "restyle", "layout", "cor", "ícone", "texto da interface", "copy", "brand", "tema escuro", "dark mode", "celular", "responsivo", "mobile", "acessibilidade", "screenshot", "print da tela", "Construir", "composer", "Encaixe", and requests to review, polish or verify the web UI.
 ---
 
 # Conexus frontend
 
-This skill is how Conexus screens are designed, written, built and verified. It covers the web app (`apps/web`), the brand package (`packages/brand`) and the Keycloak sign-in theme (`apps/keycloak-theme`).
+How Conexus screens look, read and are proved: the web app (`apps/web`), the brand package (`packages/brand`) and the Keycloak sign-in theme (`apps/keycloak-theme`). The flow is the Frontend flow of [`conexus-development`](../conexus-development/references/flows.md#frontend) on top of Build, Fix or Redesign; this skill adds the rules below and owns no check. The code is the reference: read the nearest screen, and when `packages/brand/src/tokens.css` disagrees with any text here, the file wins.
 
-Load `.agents/skills/conexus-development/SKILL.md` first for bootstrap and the route of each lane. This skill adds only the frontend layer.
+## Rules no check catches
 
-## The repository is the source of truth
-
-- `packages/brand/src/tokens.css` defines every color, font, radius and easing. When anything else disagrees with it, including this skill, `tokens.css` wins.
-- The screens in `apps/web/src` are the reference implementation. Read the nearest existing screen before building a new one.
-- The Claude Design project "Conexus Design System" mirrors `main` for prototyping. Never copy its JSX kit into the repository: production takes only basic parts and agent display parts from `@mastra/playground-ui`, repainted with Conexus tokens, and the Mastra Factory is a feature reference, not a layout to match (the three kinds table below). When a pull request changes tokens, components or screens, say "Claude Design: re-sync from `main`" in its body. The operator re-syncs after merging.
-- `DESIGN.md` and `.impeccable/design.json` summarize the visual system for the impeccable tools. When a token changes, edit both by hand in the same pull request, or rerun `/impeccable document`.
-- `PRODUCT.md` owns the users and the product principles. `docs/reference/frontend-and-product-surfaces.md` owns what each surface means, including the Build surface's functional contract (section 33.6).
-
-## Workflow
-
-1. **Locate.** Find the screen, its route and its styles in `references/components-map.md`.
-2. **Decide the scope.** For a new route, a new region or a new material interaction, read `references/product-surfaces.md` first and answer its questions before writing code. A change inside an existing screen skips this step.
-3. **Write the copy** in pt-BR per `references/voice-and-copy.md`.
-4. **Build** with Mastra primitives, tokens and Lucide icons per `references/visual-foundations.md` and `references/iconography.md`.
-5. **Verify** in a real browser, in both themes and under reduced motion, with screenshots, per `references/verification.md`.
-6. **Sync.** If the change moved a token, update `DESIGN.md`, `.impeccable/design.json` and `tests/implementation/brand-tokens.test.mjs` in the same pull request, and ask for the Claude Design re-sync.
-
-## Rules that hold everywhere
-
-`references/visual-foundations.md` carries the values. These are the rules:
-
-- **pt-BR only.** Sentence case, verbs on buttons, failures that name the reason and what was preserved, no emoji.
-- **Tokens for color.** Every color is a `var(--cx-*)` token; `npm run web:style:check` fails on a raw hex outside `tokens.css`. The only exception is the black in shadows.
-- **One accent.** Ipê marks focus, selection, the active lens, hover tints and the agent at work. It is not a button fill, except the send button on hover.
-- **Ink primary buttons.** Fill `--cx-ink`, label `--cx-on-ink`.
+- **pt-BR only.** Sentence case, verbs on buttons, no emoji. [voice-and-copy](references/voice-and-copy.md).
+- **One accent.** Ipê marks focus, selection, the active lens and the agent at work. It is never a button fill.
+- **Ink primary buttons.** The primary action is `--cx-ink` with `--cx-on-ink`.
 - **Color never alone.** Every status travels with a word and usually a mark.
-- **Both themes.** Light and dark are first class; check every change in both.
-- **Three faces.** Bricolage Grotesque for headings, Hanken Grotesk for language, JetBrains Mono for facts only, through the `--cx-font-*` tokens.
-- **Hairlines, not shadows.** Radius comes from the scale; regions and panes take none. Shadows only where `visual-foundations.md` lists them.
+- **Three faces by role.** Display for headings, body for language, mono for facts only.
+- **Hairlines, not shadows.** Radius comes from the scale in `tokens.css`; regions and panes take none.
 - **Encaixe is the only authored motion.** Everything stops under `prefers-reduced-motion`.
-- **Structure is ours; Mastra is a parts bin.** Conexus designs every screen and page pattern. `@mastra/playground-ui` supplies three kinds of part, per the table in `references/components-map.md`: basic parts (preferred; `Button`, `Input`, dialogs, menus and the rest, repainted through `apps/web/src/mastra-theme.css`), agent display parts (allowed, because they render a Mastra run) and structure blocks (`AppShell`, `MainSidebar`, `ChatShell`, `new/settings`, frozen: existing uses stay, no new screen or section adopts one). Change a basic or agent part's size or layout through a `cx-*` class next to the screen, and replace any English text it brings. Never fork a part. A new hand class uses the `cx-` prefix and has CSS behind it; `npm run web:style:check` fails one that does not. C-031 in the decision register.
-- **Honest states.** Show only what the server says. Keep loading, empty, failed and unknown distinct. Never fake progress, counts or actions; mark unbuilt things "em breve".
+- **Honest states.** Show only what the server says; keep loading, empty, failed and unknown apart; never fake progress, counts or actions; mark unbuilt things "em breve".
+- **One way per need (C-031).** Conexus designs structure and page patterns. `@mastra/playground-ui` supplies parts only: basic parts and agent display parts, repainted through `apps/web/src/mastra-theme.css`; structure blocks (`AppShell`, `MainSidebar`, `ChatShell`) stay where they are and no new screen adopts one. Never fork a part. [`docs/decisions/index.md`](../../../docs/decisions/index.md) owns the decision.
 
-## Checks
+## What a check decides
 
-`references/verification.md` lists the checks for each kind of change: the style check, the typecheck, biome, the brand token test, `npm run keycloak-theme:check` for the sign-in theme, the browser suites, both themes, reduced motion, screenshots and accessibility. `apps/web/AGENTS.md` repeats the web app commands for a quick start.
+`npm run web:style:check` decides raw colors, fonts, native `title`, the CSRF cookie and every class a screen writes. Run it and fix what it prints; do not restate or work around it. `npm run verify:quick` runs it with the typechecks.
 
-## Known gaps: work to shape, not rules
+## Prove it
 
-These have no settled design yet. Do not treat an existing one-off as the standard. When a task touches one, shape it with the operator per `references/product-surfaces.md`, then record the result in the matching reference file.
+Do not stop at the typecheck. Prove the screen with the [`verify`](../verify/SKILL.md) skill: a disposable Hub with real PostgreSQL and Keycloak, driven in a browser. Its limit: the model and E2B are fake, so a Builder turn cannot be proved there. The browser suites in `tests/` and `npm run test:live` cover flows `verify` cannot. Then:
 
-- **Overlays.** Dropdown menu, popover, tooltip, dialog and combobox have no specification beyond the Mastra defaults, the popover shadow and `--cx-radius-object`.
-- **Q3 access screens.** The no-access screen, the access-grant screen and the application sign-in screen for Stage 2 Q3 are not designed.
-- **Keycloak theme.** `apps/keycloak-theme` follows the tokens but has no reviewed layout, copy or state set of its own.
-- **Mobile.** The frame and Construir adapt below 768px, but no screen has a reviewed phone layout, and there is no mobile navigation standard.
-- **State catalog.** Empty, loading and error states differ per screen. There is no shared catalog of their structure and copy.
+- Light and dark, and `prefers-reduced-motion` emulated.
+- Keyboard: Tab reaches every action in reading order, the focus ring shows, Esc closes what opened, no drag without a keyboard path.
+- Names: every input has a label, every icon-only button a pt-BR `aria-label`.
+- Reflow at 390px and 200% zoom, no sideways scroll. Console without errors or CSP violations.
+- No English left by a Mastra component, `aria-label` and placeholder included.
+- Sign-in theme: `npm run keycloak-theme:check`; no browser suite exercises it. Never type the operator's password.
 
 ## References
 
-- `references/voice-and-copy.md`: voice, product nouns, failure copy, agent activity, in pt-BR.
-- `references/visual-foundations.md`: color roles, type, spacing and frame, radii, elevation, Encaixe, hover and focus.
-- `references/iconography.md`: Lucide usage, sizes and the icon vocabulary.
-- `references/components-map.md`: Mastra primitives, where each token lives, and the screen-to-file map.
-- `references/verification.md`: static checks, browser proof, themes, reduced motion, screenshots, accessibility.
-- `references/product-surfaces.md`: how to shape a new product surface before building it.
+- [`voice-and-copy.md`](references/voice-and-copy.md): voice, nouns, failure and agent copy.
+- [`iconography.md`](references/iconography.md): Lucide rules.
+- [`visual-foundations.md`](references/visual-foundations.md): the intent of color, type, layout and motion.
+- [`product-surfaces.md`](references/product-surfaces.md): shape a new surface before building it.
+- Owners: [`frontend-and-product-surfaces.md`](../../../docs/reference/frontend-and-product-surfaces.md) (section 33.6 owns Build), [`apps/web/AGENTS.md`](../../../apps/web/AGENTS.md) (commands), [`review/frontend.md`](../../../docs/development/review/frontend.md) (what the reviewer checks), [`verify/features`](../verify/features/README.md) (screens by feature), `PRODUCT.md` (users).

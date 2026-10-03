@@ -73,4 +73,4 @@ The pilot is the operator's laptop install of the real Hub and application runne
 - The Hub serves `https://hub.conexus.localhost:3443`. A Hub left over from an earlier call can still hold the port, and the new one then fails with `EADDRINUSE`.
 - `scripts/run-hub-migrations.mjs` applies the Hub migrations. They are forward-only, so running it against the pilot from a branch with a later migration changes the pilot for good. That needs the operator's Aprovo.
 - The environment files and secrets live outside the repository. Never print them.
-- Never type the operator's password. Sign in as described in the frontend skill's [verification reference](../../conexus-frontend/references/verification.md#see-it-in-a-real-browser).
+- Never type the operator's password. Sign in as the [`verify`](../../verify/SKILL.md) skill does, with its test person, or with a saved session.

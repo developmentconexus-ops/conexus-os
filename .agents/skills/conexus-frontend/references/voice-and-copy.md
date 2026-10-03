@@ -1,6 +1,6 @@
 # Voz e texto da interface
 
-A interface do Conexus é só em português do Brasil. Este arquivo vale para todo texto que uma pessoa lê: rótulos, botões, títulos, mensagens de erro, estados vazios, o que o agente diz no chat e o texto alternativo.
+A interface do Conexus é só em português do Brasil. Vale para todo texto que uma pessoa lê: rótulos, botões, títulos, falhas, estados vazios, o que o agente diz no chat e o texto alternativo.
 
 ## Quem lê
 
@@ -10,61 +10,52 @@ Duas pessoas leem a mesma tela. Uma é da operação, de vendas ou de pessoas, n
 
 - Simples, calmo e responsável. Diga o que aconteceu e o que continua valendo.
 - Nunca animado, nunca com desculpas vazias, nunca com ponto de exclamação.
-- Sem emoji. Os únicos símbolos no texto são o separador `·` e as reticências `…` (um caractere só, não três pontos).
-- Sem nomes de clientes, depoimentos ou números inventados. `PRODUCT.md` proíbe isso.
+- Sem emoji. Os únicos símbolos no texto são o separador `·` e as reticências `…` (um caractere só).
+- Sem nomes de clientes, depoimentos ou números inventados. `PRODUCT.md` proíbe.
 
 ## Pessoa e nomes
 
-- O produto trata a pessoa por **você**.
-- O agente fala na primeira pessoa: "Vou abrir um campo de motivo…", "Pronto. Troquei o destaque da página."
+- O produto trata a pessoa por **você**. O agente fala na primeira pessoa: "Vou abrir um campo de motivo…", "Pronto. Troquei o destaque da página."
 - No chat, o agente se chama **Conexus**. No texto do sistema, é **o agente**: "O agente quer executar um comando."
 - Os substantivos do produto são nomes próprios, com maiúscula: **Workspace**, **Projeto**, **Prévia**, **Construir**. As lentes são **Prévia**, **Código**, **Alterações** e **Sobre**.
-- O código ainda mistura "Projeto" e "Project" (por exemplo, "Abrindo o Project…"). Em texto novo, use **Projeto**. Ao mexer numa tela que diz "Project", troque na mesma alteração.
+- Em texto novo, use **Projeto**, nunca "Project". Ao mexer numa tela que ainda diz "Project", troque na mesma alteração.
 
 ## Maiúsculas
 
-Só a primeira letra da frase, em todo lugar: botões, títulos, abas ("Criar e começar", "Minhas contas de modelo"). Caixa alta só nos rótulos pequenos de grupo (eyebrow), e mesmo o cabeçalho de seção do trilho lateral fica em caixa normal ("Em breve").
+Só a primeira letra da frase, em todo lugar: botões, títulos, abas. Caixa alta só nos rótulos pequenos de grupo.
 
 ## Ações são verbos
 
-Um botão diz o que acontece quando alguém clica: "Tentar de novo", "Permitir", "Recusar", "Responder", "Ver aplicativo", "Entrar de novo", "Desconectar", "Criar e começar". Nunca "OK", "Confirmar" ou "Enviar" sozinho quando existe um verbo mais exato.
+Um botão diz o que acontece quando alguém clica: "Permitir", "Recusar", "Responder", "Ver aplicativo", "Desconectar", "Criar e começar". Nunca "OK", "Confirmar" ou "Enviar" sozinho quando existe um verbo mais exato.
 
-## Falhas dizem o motivo e o que foi preservado
+## Falhas
 
-Toda mensagem de falha tem duas partes: o que deu errado, e o que continua de pé. O pedido da pessoa nunca se perde.
+O texto de uma falha vem da tabela única de falhas do código (`apps/web/src/features/builder/failure-reasons.ts`). Não escreva um texto de falha numa tela: use a entrada da tabela, ou acrescente a entrada lá.
 
-- "A última alteração não compilou. A prévia continua na versão anterior."
-- "Seus Projetos continuam onde estavam. O servidor não respondeu desta vez."
-- "Outra conversa mudou o app antes. Nada foi sobrescrito."
-- "O servidor não respondeu. Nada foi perdido; envie de novo."
-
-Quando uma execução falha, a tela mostra o pedido original da pessoa, o motivo em linguagem do produto e o código interno em fonte mono, com a ação de recuperação ao lado.
+- Toda falha diz o que deu errado e o que continua de pé. O pedido da pessoa nunca se perde: a tela o mostra de novo, com o motivo em linguagem do produto e o código interno em mono.
+- Falha da Conexus (erro nosso, serviço fora, plataforma) nunca pede "tente de novo" nem oferece um botão para repetir. A falha é consertada no código e a tela diz o que está preservado.
+- O que a pessoa pode corrigir, como um nome em uso ou um campo vazio, diz o que mudar.
 
 ## Atividade do agente
 
-Cada ferramenta vira uma frase simples, com uma forma enquanto roda e outra quando termina. A fonte da verdade é `apps/web/src/features/builder/construir/tool-sentences.ts`.
+Cada ferramenta vira uma frase, uma enquanto roda e outra quando termina ("Lendo um arquivo" → "Leu um arquivo"). A fonte é `apps/web/src/features/builder/construir/tool-sentences.ts`; ao ligar uma ferramenta nova, acrescente a frase lá. Nunca mostre o nome técnico no lugar dela.
 
-- "Lendo um arquivo" → "Leu um arquivo"
-- "Executando um comando" → "Executou um comando"
-- Três ou mais chamadas seguidas viram uma linha. Rodando, ela nomeia a chamada atual e mostra "2/5". Terminada, diz o que foi feito: "Editou 4 arquivos, executou 1 comando". Uma ou duas chamadas são linhas próprias. Uma chamada que falhou entra na linha como "1 falhou".
-- O raciocínio do modelo aparece só como "Pensando…" enquanto chega, e some depois: o resumo vem no idioma do provedor.
-- Pedido de permissão: "O agente quer executar um comando: `npm install date-fns`. Permitir?" A aprovação oferece só **Permitir** e **Recusar**. Nada que amplie a política.
+- Três ou mais chamadas seguidas viram uma linha: rodando, nomeia a atual e mostra "2/5"; terminada, resume ("Editou 4 arquivos, executou 1 comando"). Uma chamada que falhou entra como "1 falhou".
+- O raciocínio do modelo aparece só como "Pensando…" e some depois.
+- Pedido de permissão: "O agente quer executar um comando: `npm install date-fns`. Permitir?", com só **Permitir** e **Recusar**.
 
-Ao ligar uma ferramenta nova, adicione a frase dela em `tool-sentences.ts`. Não mostre o nome técnico da ferramenta no lugar da frase.
+## Honestidade
 
-## Honestidade sobre o que não existe
-
-- O que ainda não foi construído leva a etiqueta "em breve": "Anexar arquivo chega em breve".
-- Nunca mostre uma ação falsa, um número inventado ou um progresso que não vem de um fato. Se um dado não existe, diga que não está disponível.
+O que não foi construído leva "em breve": "Anexar arquivo chega em breve". Nunca mostre ação falsa, número inventado ou progresso que não vem de um fato; se o dado não existe, diga que não está disponível.
 
 ## Fatos em mono
 
-Prosa é sans. Fato é mono (`var(--cx-font-mono)`): id de modelo (`gemini-3.1-pro-low`), caminho (`app/pedidos.tsx`), comando (`npm install date-fns`), hora (`12:10`), duração (`8,4 s`), revisão (`a3f9c21`), código de erro (`BUILD_TYPECHECK_FAILED`), contagem (`+3`). Números seguem o formato brasileiro: vírgula decimal, e unidade separada por espaço.
+Prosa é sans. Fato é mono (`var(--cx-font-mono)`): id de modelo, caminho, comando, hora, duração, revisão, código de erro, contagem. Números seguem o formato brasileiro: vírgula decimal e unidade separada por espaço ("8,4 s").
 
-## Exemplos de ideia
+## Exemplos
 
-Quando a tela precisa de exemplo, use pedidos reais de uma empresa: "Controle de pedidos de férias", "Checklist de abertura de loja com fotos", "Cadastro de visitas a clientes", "Simulador de orçamento".
+Quando a tela precisa de exemplo, use pedidos reais de uma empresa: "Controle de pedidos de férias", "Checklist de abertura de loja com fotos", "Cadastro de visitas a clientes".
 
 ## Textos que vêm do Mastra
 
-Alguns componentes do `@mastra/playground-ui` trazem texto em inglês fixo. Substitua sempre. Os textos em português que substituem esses componentes ficam num lugar só: `apps/web/src/features/builder/construir/builder-copy.ts`. Antes de publicar uma tela, procure texto em inglês que tenha vazado de um componente da biblioteca, inclusive em `aria-label` e `title`.
+Alguns componentes do `@mastra/playground-ui` trazem inglês fixo. Substitua sempre, em `apps/web/src/features/builder/construir/builder-copy.ts`. Antes de publicar uma tela, procure inglês vazado, inclusive em `aria-label`, `title` e placeholder.
