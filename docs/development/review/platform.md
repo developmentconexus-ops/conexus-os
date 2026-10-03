@@ -44,7 +44,7 @@ root configuration.
   (`6ac6db76`), which moved the projection into the platform layer. Now at
   `scripts/check-import-law.mjs:249`.
 - #169 skipped browser leaves for pull requests that did not touch web paths, but the
-  `c020-compiler-runtime` leaf drove a real Chromium without the `browser` tag. Every Builder-only
+  `application-compiler-runtime` leaf drove a real Chromium without the `browser` tag. Every Builder-only
   pull request then failed Verify on a timeout. Fixed by #177 (`aa67e19e`), which tags the leaf.
   #304 removed the browser skip optimization completely so browser suites run on every pull request.
 - The runner sandbox tests ran with Node's permission layer on, so they could not show what the

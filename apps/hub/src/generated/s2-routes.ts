@@ -1,4 +1,4 @@
-// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s2-contracts.mjs. Do not edit.
+// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
 export const S2_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"

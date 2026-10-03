@@ -5,7 +5,7 @@
     // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
     "scripts/check-test-skips.mjs",
     "scripts/check-weak-tests.mjs",
-    "scripts/generate-r1-connector-contracts.mjs",
+    "scripts/generate-connector-contracts.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",
     "scripts/builder-eval/experiment.mjs",

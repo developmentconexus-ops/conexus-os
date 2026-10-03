@@ -42,14 +42,14 @@ const packageScripts = Object.freeze({
   verify: 'npm run repository:check',
   'test:one': 'node -e "process.exit(0)"',
   'test:two': 'node -e "process.exit(0)"',
-  'r1:g0:generate': 'node scripts/generate-r1-g0.mjs',
-  'r1:s1:receipt:record': 'node scripts/record-r1-s1-receipt.mjs',
-  'r1:history:foundation-pins': 'node --test --test-concurrency=1 tests/implementation/r1-foundation-pin-history.test.mjs',
+  'generate:fixture': 'node scripts/generate-fixture.mjs',
+  'record:receipt': 'node scripts/record-receipt.mjs',
+  'test:history': 'node --test --test-concurrency=1 tests/implementation/history.test.mjs',
 })
 
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
-  'c020-hub-typecheck',
-  'c020-web-typecheck',
+  'hub-typecheck',
+  'web-typecheck',
   'db-role-register',
   'repository-check',
   'repository-import-law',
@@ -83,8 +83,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'test-quarantine',
   'patch-churn-report',
   'hub-baseline',
-  'c020-migration-selection',
-  'c020-migration-postgres',
+  'migration-selection',
+  'migration-postgres',
   'iam-membership-authority',
   'iam-application-access',
   'iam-installation-administrator',
@@ -98,8 +98,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'connector-builder-brief',
   'connector-builder-tool',
   'builder-harness',
-  'c020-builder-postgres',
-  'c020-builder-request-text-postgres',
+  'builder-run-postgres',
+  'builder-request-text-postgres',
   'conexus-git-postgres',
   'factory-dependency-tree',
   'builder-composition',
@@ -119,17 +119,17 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'foundation-postgres',
   'project-summary-activity-postgres',
   'project-summary-routes',
-  'c020-registry',
-  'c020-source-runtime',
-  'c020-failure-vocabulary',
-  'c020-compiler-runtime',
-  'c020-browser',
+  'application-registry',
+  'working-source-runtime',
+  'builder-failure-vocabulary',
+  'application-compiler-runtime',
+  'builder-browser',
   'settings-browser',
   'application-access-browser',
   'connector-integrations-browser',
-  'c020-e2b-template',
-  'c020-compiler-v2',
-  'c020-web-build',
+  'e2b-template',
+  'compiler-generation',
+  'web-build',
   'db-catalog-snapshot',
   'db-baseline-file',
   'hub-lifecycle',
@@ -180,15 +180,15 @@ test('manifest exposes only the three bounded aliases and exact npm routing', ()
   })
   assert.equal(resolveScope('test:one', packageScripts).alias, false)
   assert.throws(() => resolveScope('not-allowlisted', packageScripts), /unknown verification scope/)
-  assert.throws(() => resolveScope('r1:g0:generate', packageScripts), /not permitted as a verification scope/)
-  assert.throws(() => resolveScope('r1:s1:receipt:record', packageScripts), /not permitted as a verification scope/)
+  assert.throws(() => resolveScope('generate:fixture', packageScripts), /not permitted as a verification scope/)
+  assert.throws(() => resolveScope('record:receipt', packageScripts), /not permitted as a verification scope/)
 })
 
 test('--list is deterministic and includes aliases plus explicit npm scripts', () => {
   const available = listScopes(packageScripts)
   assert.deepEqual(available.aliases.map(alias => alias.scope), ['preflight', 'repository', 'final'])
-  assert.deepEqual(available.scripts, ['conexus:preflight', 'r1:history:foundation-pins', 'repository:check', 'test:one', 'test:two', 'verify'])
-  assert.deepEqual(available.rejectedScripts, ['r1:g0:generate', 'r1:s1:receipt:record'])
+  assert.deepEqual(available.scripts, ['conexus:preflight', 'repository:check', 'test:history', 'test:one', 'test:two', 'verify'])
+  assert.deepEqual(available.rejectedScripts, ['generate:fixture', 'record:receipt'])
   assert.deepEqual(available.scopes.slice(0, 3), ['preflight', 'repository', 'final'])
   assert.ok(available.scopes.includes('test:one'))
 })
@@ -258,7 +258,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     },
   })
   assert.equal(result.exitCode, 1)
-  assert.deepEqual(seen.map(([scope]) => scope), ['c020-hub-typecheck', 'c020-web-typecheck', 'db-role-register'])
+  assert.deepEqual(seen.map(([scope]) => scope), ['hub-typecheck', 'web-typecheck', 'db-role-register'])
   assert.equal(seen[0][1], null)
   assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
@@ -321,7 +321,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['c020-browser', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['builder-browser', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
     'a PostgreSQL suite outside a postgres leaf would skip')
@@ -334,19 +334,19 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.equal(commands.some(command => /(?:^|\s|:)r[12](?:[-:]|\b)/.test(command)), false,
     'historical R1/R2 commands are explicit audits, not current Builder proof')
   assert.equal(scopes.some(scope => scope.includes('r1') || scope.includes('r2') || scope.includes('rb')), false)
-  const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-source-runtime').command
+  const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'working-source-runtime').command
   assert.equal(builderCommand.includes('-live.test.mjs'), false,
     'paid live experiments are explicit commands, not inherited flags in default verification')
   const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
   assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
     'the tripwire test runs with the run runtime suites')
 
-  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
+  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
   assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
   const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
   assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
   assert.equal(builderEval.environmentClass, 'browser')
-  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-compiler-runtime')
+  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'application-compiler-runtime')
   assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
   assert.equal(appCheck.environmentClass, 'browser')
   assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
@@ -406,10 +406,10 @@ test('candidate graph labels execution environments and passes shell argv correc
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
   assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'live', 'postgres', 'static'])
 
-  const c020Browser = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-browser')
-  const c020Postgres = CANDIDATE_GRAPH.find(entry => entry.scope === 'c020-builder-postgres')
-  assert.equal(c020Browser.environmentClass, 'browser')
-  assert.equal(c020Postgres.environmentClass, 'postgres')
+  const browserStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
+  const postgresStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-run-postgres')
+  assert.equal(browserStep.environmentClass, 'browser')
+  assert.equal(postgresStep.environmentClass, 'postgres')
 
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
   let observed
@@ -434,7 +434,7 @@ test('candidate graph labels execution environments and passes shell argv correc
     },
   })
 
-  const postgresDefaults = executionEnvironment(c020Postgres, { PATH: '/fixture/bin' })
+  const postgresDefaults = executionEnvironment(postgresStep, { PATH: '/fixture/bin' })
   assert.deepEqual(postgresDefaults, {
     PATH: '/fixture/bin',
     CONEXUS_TEST_DB_HOST: '127.0.0.1',
@@ -450,12 +450,12 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_USER: 'runner',
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
-  assert.deepEqual(executionEnvironment(c020Postgres, selectedPostgres), selectedPostgres)
+  assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), selectedPostgres)
   const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
   assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
   assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), postgresDefaults)
   assert.throws(
-    () => executionEnvironment(c020Postgres, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
+    () => executionEnvironment(postgresStep, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
   )
 })
@@ -537,7 +537,7 @@ test('the opt-in skip check runs last', () => {
 
 test('the cheap static checks run before every browser and PostgreSQL suite, and the Hub build stays first', () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
-  assert.equal(scopes[0], 'c020-hub-typecheck')
+  assert.equal(scopes[0], 'hub-typecheck')
   const fast = new Set(FAST_CHECK_SCOPES)
   const lastFast = Math.max(...FAST_CHECK_SCOPES.map(scope => scopes.indexOf(scope)))
   assert.equal(lastFast, FAST_CHECK_SCOPES.length - 1, 'the fast checks are one prefix of the graph')
@@ -545,9 +545,9 @@ test('the cheap static checks run before every browser and PostgreSQL suite, and
   assert.deepEqual([...new Set(environments)], ['static'])
   const slowStart = CANDIDATE_GRAPH.findIndex(entry => !fast.has(entry.scope))
   assert.equal(CANDIDATE_GRAPH.slice(slowStart).some(entry => fast.has(entry.scope)), false)
-  for (const scope of ['biome', 'knip', 'c020-web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census', 'flow-census']) {
+  for (const scope of ['biome', 'knip', 'web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census', 'flow-census']) {
     assert.ok(scopes.indexOf(scope) < scopes.indexOf('hub-baseline'), `${scope} runs before the first PostgreSQL suite`)
-    assert.ok(scopes.indexOf(scope) < scopes.indexOf('c020-browser'), `${scope} runs before the first browser suite`)
+    assert.ok(scopes.indexOf(scope) < scopes.indexOf('builder-browser'), `${scope} runs before the first browser suite`)
   }
 })
 
@@ -604,7 +604,7 @@ test('the CI helper tests run in the graph, so the census and the checks see the
 })
 
 test('every graph step belongs to exactly one group, except the two every group runs', () => {
-  const shared = ['c020-hub-typecheck', 'only-opt-in-skips']
+  const shared = ['hub-typecheck', 'only-opt-in-skips']
   for (const entry of CANDIDATE_GRAPH) {
     const groups = groupsOf(entry)
     assert.ok(groups.every(group => VERIFY_GROUPS.includes(group)), `${entry.scope} has a known group`)
@@ -618,13 +618,13 @@ test('every graph step belongs to exactly one group, except the two every group 
 test('a group runs the Hub build first and the skip check last, and keeps graph order between', () => {
   for (const group of VERIFY_GROUPS) {
     const scopes = graphForGroup(CANDIDATE_GRAPH, group).map(entry => entry.scope)
-    assert.equal(scopes[0], 'c020-hub-typecheck', group)
+    assert.equal(scopes[0], 'hub-typecheck', group)
     assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
   }
   for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
-  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['c020-hub-typecheck', 'c020-browser', 'only-opt-in-skips'])
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['hub-typecheck', 'builder-browser', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
-  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['c020-hub-typecheck', 'live-builder', 'only-opt-in-skips'])
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['hub-typecheck', 'live-builder', 'only-opt-in-skips'])
 })
 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {

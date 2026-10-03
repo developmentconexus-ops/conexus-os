@@ -11,9 +11,9 @@ Two functions: `canonicalBytes` serializes a value as RFC 8785 canonical JSON th
 ## Verify
 
 ```bash
-npm run r1:s2:hub:typecheck
-npm run r1:s2:import-law
-npm run r1:s2:check
+npm run typecheck:hub
+npm run test:import-law
+npm run check:contracts
 npx --no-install biome check packages/canonical-json/src
 ```
 

@@ -54,7 +54,7 @@ try {
   const sourceDigest = sha256(readFileSync(source))
   const projectionDigest = sha256(canonicalBytes(routeDefinitions))
   const output = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s3-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-project-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'", '',
     `export const S3_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const S3_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
@@ -72,7 +72,7 @@ try {
     `export const S3_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<S3OwnerId, S3RouteDefinition>)`, '',
   ].join('\n')
   const client = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s3-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-project-contracts.mjs. Do not edit.',
     `export const S3_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const S3_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type ProjectSummary = ${toTypeScript(byId.get('PRJ-01').schema.response['200'].items)}`,

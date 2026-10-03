@@ -10,7 +10,7 @@ Run the ones your change touches:
 
 ```bash
 npm run web:style:check                                   # no raw hex, only the three brand fonts
-npm run r1:a0:web:typecheck                               # apps/web TypeScript
+npm run typecheck:web                               # apps/web TypeScript
 npx --no-install biome check apps/web/src packages/brand/src
 node --test tests/implementation/brand-tokens.test.mjs    # after any change to tokens.css
 npm run keycloak-theme:check                              # after any change to apps/keycloak-theme

@@ -26,8 +26,6 @@
       "tests/implementation/installation-settings-*",
       "tests/implementation/workspace-membership-*",
       "tests/implementation/preview-application-*",
-      "tests/implementation/r1-s1-*",
-      "tests/implementation/r1-s2-*",
       "docs/tasks/specs/0005-app-access-perfis/**",
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
@@ -196,7 +194,7 @@
       "apps/hub/src/generated/**",
       "packages/canonical-json/**",
       "scripts/check-wire-*.mjs",
-      "scripts/generate-r1-s*-contracts.mjs",
+      "scripts/generate-*-contracts.mjs",
       "tests/repository/wire-bijection-gate.test.mjs",
       "tests/implementation/project-disclosure.test.mjs"
     ],
