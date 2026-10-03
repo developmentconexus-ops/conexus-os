@@ -16,6 +16,8 @@ const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
+// What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
+const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
 const NODE_BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]))
 
 function normalize(path) {
@@ -260,7 +262,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts') {
+          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts' && target !== FAILURE_CONTRACT) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {

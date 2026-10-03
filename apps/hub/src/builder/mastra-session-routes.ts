@@ -3,11 +3,13 @@ import type { AgentController } from '@mastra/core/agent-controller'
 import type { Mastra } from '@mastra/core/mastra'
 import { RequestContext } from '@mastra/core/request-context'
 import { MastraServer } from '@mastra/fastify'
-import { SERVER_ROUTES } from '@mastra/server/server-adapter'
+import { HTTPException, SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ServerResponse } from 'node:http'
-import { sendProblem } from '../http/problem.js'
+import { failureProblem, sendProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { failureRow, logFailure, toFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { ConversationSessions } from './conversation-sessions.js'
 import type { BuilderAnswerOutcome } from './service.js'
@@ -159,6 +161,24 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | 
     if (!(served instanceof ReadableStream)) return projection ? projection.value(withoutErrorText(served)) : withoutErrorText(served)
     const project = projection?.stream() ?? ((event: unknown) => event)
     return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(withoutErrorText(event))) }))
+  })
+
+// Mastra's adapter answers a handler's throw itself, as `{error: message}`, before Fastify's error
+// handler sees it, and a route's own handler has already wrapped the throw in an HTTPException that
+// keeps the original's message and stack. This is the one place that turns it into the problem+json
+// the Hub's handler sends, through an exception Mastra sends verbatim. A refusal Mastra means (an
+// HTTPException with its own response, or a 4xx) stays Mastra's to answer.
+const failureRoute = (route: ServerRoute): ServerRoute =>
+  withHandler(route, async (params) => {
+    try {
+      return await route.handler(params)
+    } catch (error) {
+      if (error instanceof HTTPException && (error.res || error.status < 500)) throw error
+      const failure = toFailure(error)
+      logFailure(logger, failure)
+      const { status } = failureRow(failure)
+      throw new HTTPException(status, { res: new Response(JSON.stringify(failureProblem(failure)), { status, headers: { 'content-type': 'application/problem+json' } }) })
+    }
   })
 
 type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
@@ -371,7 +391,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       const routeKey = `${served.method} ${served.path}`
       if (!mount.routes.has(routeKey)) continue
       const projected = PROJECTED_ROUTES.has(routeKey) ? projectedRoute(served, mount.toolPayloads) : served
-      await server.registerRoute(scope, routeKey === STREAM_ROUTE ? followedRoute(projected, mount.controller, following) : projected, { prefix: mount.prefix })
+      await server.registerRoute(scope, failureRoute(routeKey === STREAM_ROUTE ? followedRoute(projected, mount.controller, following) : projected), { prefix: mount.prefix })
     }
   })
 }

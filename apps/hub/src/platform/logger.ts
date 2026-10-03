@@ -20,15 +20,19 @@ const errorFields = (error: unknown): Attributes => {
   }
 }
 
-/** Logs a failure with its type, message and stack, and marks the active span as failed. */
+/**
+ * Logs a failure with its type, message and stack at the level given, and records it on the
+ * active span. Only an `error` level marks the span as failed.
+ */
 export const recordFailure = (
-  log: Pick<FastifyBaseLogger, 'error'>,
+  log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>,
   message: string,
   error: unknown,
   fields: Attributes = {},
+  level: 'error' | 'warn' | 'info' = 'error',
 ): void => {
-  log.error({ ...fields, ...errorFields(error) }, message)
+  log[level]({ ...fields, ...errorFields(error) }, message)
   const span = trace.getActiveSpan()
   span?.recordException(error instanceof Error ? error : new Error(String(error)))
-  span?.setStatus({ code: SpanStatusCode.ERROR })
+  if (level === 'error') span?.setStatus({ code: SpanStatusCode.ERROR })
 }

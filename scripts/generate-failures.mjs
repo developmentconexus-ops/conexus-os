@@ -1,0 +1,106 @@
+import { readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const repositoryRoot = resolve(import.meta.dirname, '..')
+const sourcePath = 'contracts/technical/failures.json'
+export const failureTargets = Object.freeze({
+  hub: 'apps/hub/src/platform/failures.generated.ts',
+  web: 'apps/web/src/generated/failures.ts',
+})
+
+const CATEGORIES = Object.freeze(['USER', 'SYSTEM', 'THIRD_PARTY'])
+const AUDIENCES = Object.freeze(['operator', 'person', 'person+app'])
+const RETRY_WORDS = /tente|novamente|de novo/i
+
+export const readFailures = (root = repositoryRoot) => JSON.parse(readFileSync(resolve(root, sourcePath), 'utf8'))
+
+/** Every rule a row of the table must keep, each as one sentence naming the code. */
+export const failureProblems = ({ actions, failures }) => {
+  const problems = []
+  const seen = new Set()
+  for (const row of failures) {
+    const where = `FAILURES_INVALID: ${row.code}`
+    if (!/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(row.code)) problems.push(`${where} is not UPPER_SNAKE`)
+    if (seen.has(row.code)) problems.push(`${where} appears twice`)
+    seen.add(row.code)
+    if (!CATEGORIES.includes(row.category)) problems.push(`${where} has category ${row.category}`)
+    if (!AUDIENCES.includes(row.audience)) problems.push(`${where} has audience ${row.audience}`)
+    if (row.status !== undefined && !(Number.isInteger(row.status) && row.status >= 400 && row.status <= 599)) problems.push(`${where} has status ${row.status}`)
+    if (row.audience === 'operator') {
+      if (row.message !== undefined || row.action !== undefined) problems.push(`${where} is an operator row and has no message or action`)
+      continue
+    }
+    if (typeof row.message !== 'string' || row.message === '') problems.push(`${where} has no message`)
+    else {
+      if (RETRY_WORDS.test(row.message)) problems.push(`${where} says "try again" in its message; the RETRY_LATER action is the only way`)
+      if (row.category === 'SYSTEM' && !/registrad/.test(row.message)) problems.push(`${where} is a SYSTEM row whose message does not say the failure was recorded`)
+    }
+    if (!Object.hasOwn(actions, row.action)) problems.push(`${where} has action ${row.action}`)
+    if (row.category === 'SYSTEM' && row.action === 'RETRY_LATER') problems.push(`${where} is a SYSTEM row with RETRY_LATER; Conexus failures are fixed in code, not retried`)
+  }
+  return problems
+}
+
+const header = `// GENERATED from ${sourcePath} by scripts/generate-failures.mjs. Do not edit.`
+const quoted = (value) => JSON.stringify(value).replaceAll('"', "'")
+
+export const renderHubFailures = ({ failures }) => [
+  header,
+  '',
+  "type FailureCategory = 'USER' | 'SYSTEM' | 'THIRD_PARTY'",
+  'type FailureRow = Readonly<{ category: FailureCategory; status: number }>',
+  '',
+  'export const FAILURES = {',
+  ...failures.map((row) => `  ${quoted(row.code)}: { category: ${quoted(row.category)}, status: ${row.status ?? 500} },`),
+  '} as const satisfies Readonly<Record<string, FailureRow>>',
+  '',
+  'export type FailureCode = keyof typeof FAILURES',
+  '',
+].join('\n')
+
+export const renderWebFailures = ({ actions, failures }) => [
+  header,
+  '',
+  'export const FAILURE_ACTIONS = {',
+  ...Object.entries(actions).map(([action, sentence]) => `  ${quoted(action)}: ${sentence === null ? 'null' : quoted(sentence)},`),
+  '} as const',
+  '',
+  'export type FailureAction = keyof typeof FAILURE_ACTIONS',
+  '',
+  'export const FAILURES = {',
+  ...failures.filter((row) => row.audience !== 'operator').map((row) => `  ${quoted(row.code)}: { message: ${quoted(row.message)}, action: ${quoted(row.action)} },`),
+  '} as const satisfies Readonly<Record<string, Readonly<{ message: string; action: FailureAction }>>>',
+  '',
+  'export type FailureCode = keyof typeof FAILURES',
+  '',
+].join('\n')
+
+/** Every problem in the table and every generated file that is not what the table renders. */
+export const failuresDrift = (table, generated) => {
+  const drift = failureProblems(table)
+  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table) }
+  for (const [target, rendered] of Object.entries(expected)) {
+    if (generated[target] !== rendered) drift.push(`FAILURES_STALE: ${target} is not generated from ${sourcePath}; run node scripts/generate-failures.mjs`)
+  }
+  return drift
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const table = readFailures()
+  if (process.argv.includes('--check')) {
+    const generated = Object.fromEntries(Object.values(failureTargets).map((target) => [target, readFileSync(resolve(repositoryRoot, target), 'utf8')]))
+    const drift = failuresDrift(table, generated)
+    if (drift.length > 0) {
+      process.stderr.write(`${drift.join('\n')}\n`)
+      process.exit(1)
+    }
+  } else {
+    const problems = failureProblems(table)
+    if (problems.length > 0) {
+      process.stderr.write(`${problems.join('\n')}\n`)
+      process.exit(1)
+    }
+    writeFileSync(resolve(repositoryRoot, failureTargets.hub), renderHubFailures(table))
+    writeFileSync(resolve(repositoryRoot, failureTargets.web), renderWebFailures(table))
+  }
+}

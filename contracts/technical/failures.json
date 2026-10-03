@@ -1,0 +1,20 @@
+{
+  "actions": {
+    "NONE": null,
+    "SIGN_IN": "Entre na sua conta para continuar.",
+    "CONNECT_MODEL_ACCOUNT": "Conecte uma conta de modelo em Configurações.",
+    "ASK_ADMIN": "Peça a quem administra o Conexus.",
+    "ASK_CHANGE": "Peça a quem pode alterar isso.",
+    "CHOOSE_OTHER_MODEL": "Escolha outro modelo.",
+    "RETRY_LATER": "Tente novamente mais tarde."
+  },
+  "failures": [
+    { "code": "INTERNAL_UNEXPECTED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.", "action": "NONE" },
+    { "code": "NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos o que você procurou.", "action": "NONE" },
+    { "code": "REQUEST_VALIDATION_FAILED", "category": "USER", "status": 400, "audience": "person", "message": "Alguns dados do pedido não são válidos.", "action": "NONE" },
+    { "code": "REQUEST_JSON_INVALID", "category": "USER", "status": 400, "audience": "person", "message": "O pedido chegou ao Conexus ilegível.", "action": "NONE" },
+    { "code": "REQUEST_JSON_EMPTY", "category": "USER", "status": 400, "audience": "person", "message": "O pedido chegou ao Conexus sem conteúdo.", "action": "NONE" },
+    { "code": "REQUEST_BODY_TOO_LARGE", "category": "USER", "status": 413, "audience": "person", "message": "O pedido é maior do que o Conexus aceita.", "action": "NONE" },
+    { "code": "REQUEST_MEDIA_TYPE_UNSUPPORTED", "category": "USER", "status": 415, "audience": "person", "message": "O Conexus não aceita esse formato de pedido.", "action": "NONE" }
+  ]
+}

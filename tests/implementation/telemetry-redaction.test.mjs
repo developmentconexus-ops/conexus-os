@@ -59,14 +59,14 @@ test('span events and links are redacted like the span', () => {
 
 test('an exported log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
   const logBodyCode = (body) => exportedBy(redactingLogs, [{ attributes: {}, body }])[0].body
-  assert.equal(logBodyCode('HTTP_SERVER_ERROR'), 'HTTP_SERVER_ERROR')
+  assert.equal(logBodyCode('INTERNAL_UNEXPECTED'), 'INTERNAL_UNEXPECTED')
   assert.equal(logBodyCode('BUILDER_RETENTION_PRUNED:builder.runs:12'), 'BUILDER_RETENTION_PRUNED')
   assert.equal(logBodyCode('BUILDER_RUN_FAILED SECRET cause'), 'BUILDER_RUN_FAILED')
   assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789'), 'UNCODED_LOG')
   assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789:detail'), 'UNCODED_LOG')
   assert.equal(logBodyCode('builder stream recorder stopped: SECRET'), 'UNCODED_LOG')
   assert.equal(logBodyCode('ACME failed'), 'UNCODED_LOG')
-  assert.equal(logBodyCode('HTTP_SERVER_ERROR-SECRET'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('INTERNAL_UNEXPECTED-SECRET'), 'UNCODED_LOG')
   assert.equal(logBodyCode('{"event":"prepare_failed"}'), 'UNCODED_LOG')
   assert.equal(logBodyCode(undefined), undefined)
 })
