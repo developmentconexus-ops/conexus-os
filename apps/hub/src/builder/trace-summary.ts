@@ -17,20 +17,18 @@ const totalOf = (inputTokens: number | null, outputTokens: number | null): numbe
   inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null
 
 type TokenDetails = InputTokenDetails | OutputTokenDetails
+type TokenCounts = Readonly<Record<string, number>>
 
-const finiteDetails = <Details extends TokenDetails>(details: Details | undefined): Details | undefined => {
-  const kept = Object.entries(details ?? {}).filter(([, count]) => finiteOrNull(count) !== null)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return kept.length > 0 ? (Object.freeze(Object.fromEntries(kept)) as unknown as Details) : undefined
+const finiteDetails = (details: TokenDetails | undefined): TokenCounts | undefined => {
+  const kept = Object.entries(details ?? {}).filter((entry): entry is [string, number] => finiteOrNull(entry[1]) !== null)
+  return kept.length > 0 ? Object.freeze(Object.fromEntries(kept)) : undefined
 }
 
-const addDetails = <Details extends TokenDetails>(left: Details | undefined, right: Details | undefined): Details | undefined => {
-  if (!left || !right) return left ?? right
-  const sum: Record<string, number> = { ...left }
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  for (const [key, count] of Object.entries(right)) sum[key] = (sum[key] ?? 0) + (count as number)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return Object.freeze(sum) as unknown as Details
+const addDetails = (left: TokenDetails | undefined, right: TokenDetails | undefined): TokenCounts | undefined => {
+  if (!left || !right) return finiteDetails(left ?? right)
+  const sum: Record<string, number> = { ...finiteDetails(left) }
+  for (const [key, count] of Object.entries(right)) sum[key] = (sum[key] ?? 0) + (finiteOrNull(count) ?? 0)
+  return Object.freeze(sum)
 }
 
 /**

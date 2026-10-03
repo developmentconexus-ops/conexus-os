@@ -97,8 +97,12 @@ const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_M
 const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
   const middleware = createAnthropicThinkingMiddleware(model, level)
   if (!middleware?.transformParams) return undefined
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const call = { type: 'stream', params: { prompt: [], providerOptions: {} }, model: {} } as unknown as Parameters<NonNullable<typeof middleware.transformParams>>[0]
+  const unused = (): never => { throw new Error('MODEL_ACCOUNT_PROBE_NOT_CALLABLE') }
+  const call: Parameters<NonNullable<typeof middleware.transformParams>>[0] = {
+    type: 'stream',
+    params: { prompt: [], providerOptions: {} },
+    model: { specificationVersion: 'v3', provider: ANTHROPIC_PROVIDER, modelId: model, supportedUrls: {}, doGenerate: unused, doStream: unused },
+  }
   return (await middleware.transformParams(call)).providerOptions?.anthropic
 }
 
