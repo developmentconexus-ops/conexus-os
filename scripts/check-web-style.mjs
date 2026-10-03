@@ -254,6 +254,18 @@ const tailwindRule = async root => {
   return token => classNamesIn(compiler.build([token])).has(token)
 }
 
+// A var(--cx-*) a stylesheet reads must be a custom property some scanned file defines, in CSS or in a style prop, so a typo or a deleted token
+// fails here instead of painting nothing.
+const TOKEN_DEFINITION = /(--cx-[\w-]+)['"]?\s*:/g
+const TOKEN_USE = /var\((--cx-[\w-]+)/g
+const tokenViolations = (files, contentOf) => {
+  if (!files.some(path => TOKEN_FILES.has(path))) return []
+  const defined = new Set(files.flatMap(path => [...contentOf(path).matchAll(TOKEN_DEFINITION)].map(match => match[1])))
+  return files.filter(path => path.endsWith('.css')).flatMap(path => [...contentOf(path).matchAll(TOKEN_USE)]
+    .filter(match => !defined.has(match[1]))
+    .map(match => ({ path, line: lineOf(contentOf(path), match.index), message: `uses undefined token ${match[1]}; define it in packages/brand/src/tokens.css or where it is used` })))
+}
+
 const classCheck = (files, contentOf, vendor, generates) => {
   const defined = new Map()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
@@ -299,8 +311,9 @@ const scanTree = (root, generates) => {
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
   const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
   const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
+  const tokenUses = tokenViolations(files, contentOf)
   const classResult = classCheck(files, contentOf, vendorClasses(root), generates)
-  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...classResult.violations], unused: classResult.unused }
+  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...tokenUses, ...classResult.violations], unused: classResult.unused }
 }
 
 const main = async () => {
