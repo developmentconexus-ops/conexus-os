@@ -9,13 +9,10 @@ are designed, built and verified. This page does not restate it.
 
 ## What to check
 
-- [ ] The change follows the skill's
-      [rules that hold everywhere](../../../.agents/skills/conexus-frontend/SKILL.md#rules-that-hold-everywhere).
-      Each rule the diff breaks is a failed item.
-- [ ] A screen uses a Mastra basic part where one fits, and does not fork it.
-- [ ] No new screen or section adopts a Mastra structure block (`AppShell`, `MainSidebar`,
-      `ChatShell`, `new/settings`); structure is a Conexus component.
-- [ ] The Mastra Factory's screens are cited only for features, never as the layout to match.
+The skill's [rules no check catches](../../../.agents/skills/conexus-frontend/SKILL.md#rules-no-check-catches)
+are the checklist for how the screen looks and reads; each one the diff breaks is a failed item. Beyond
+them:
+
 - [ ] Values match the issue's literal numbers and copy. Using a token or a class is not proof the
       value is right.
 - [ ] A token change updates `DESIGN.md`, `.impeccable/design.json` and
@@ -26,15 +23,14 @@ are designed, built and verified. This page does not restate it.
 
 ## Proof required
 
+- The change was proved as the skill's
+  [Prove it](../../../.agents/skills/conexus-frontend/SKILL.md#prove-it) section says, and
+  `npm run web:style:check` passed.
 - For a web app or brand change, the browser leaves ran at the head SHA. Every `verify` run
   executes the browser leaves. A skipped browser leaf is a failed item.
 - A sign-in theme change proves itself differently: no browser suite exercises
-  `apps/keycloak-theme/`, so browser suites passing is not proof for it.
-  The proof is `npm run keycloak-theme:check`'s output pasted in the pull request, plus the
-  screenshots below.
-- Screenshots in both themes and under reduced motion, per the skill's
-  [verification reference](../../../.agents/skills/conexus-frontend/references/verification.md).
-- `npm run web:style:check` passed.
+  `apps/keycloak-theme/`, so browser suites passing is not proof for it. The proof is
+  `npm run keycloak-theme:check`'s output pasted in the pull request, plus screenshots.
 
 ## Traps from history
 
