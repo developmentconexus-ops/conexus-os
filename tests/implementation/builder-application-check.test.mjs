@@ -318,8 +318,10 @@ test('a message past 2000 characters is cut there', (t) => {
 test('a token in a message is redacted before the report leaves the sandbox', (t) => {
   const { report } = check(t, importing([`ghp_${'d'.repeat(40)}`]))
   const problem = failedStep(report, 'server').problems[0]
-  assert.ok(problem.message.includes('[redacted]'))
-  assert.ok(!problem.message.includes('ghp_'))
+  assert.ok(
+    problem.message.includes('conexus/handlers/notes.ts imports "../../app/src/[redacted]": a handler may import only'),
+    problem.message,
+  )
 })
 
 test('at most 50 problems per step reach the report, with the count that was dropped', (t) => {

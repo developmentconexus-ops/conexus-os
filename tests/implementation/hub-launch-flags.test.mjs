@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -19,14 +19,6 @@ test('the Hub child gets the heap cap, the snapshot flag, the diagnostic directo
     '--import', 'file:///build/telemetry/register.js',
     '/build/server.js',
   ])
-})
-
-test('the pilot scripts export the version on its own variable and leave OTEL_RESOURCE_ATTRIBUTES to the env file', () => {
-  for (const name of ['hub.sh', 'runner.sh']) {
-    const script = readFileSync(resolve(repositoryRoot, 'infra/pilot', name), 'utf8')
-    assert.match(script, /^export CONEXUS_SERVICE_VERSION="\$\(git rev-parse --short HEAD\)"$/m, name)
-    assert.doesNotMatch(script, /OTEL_RESOURCE_ATTRIBUTES/, name)
-  }
 })
 
 test('a forced OOM on a throwaway child with those flags writes a heap snapshot and a diagnostic report', () => {

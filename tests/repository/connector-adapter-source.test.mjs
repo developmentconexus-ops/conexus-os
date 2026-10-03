@@ -4,8 +4,8 @@ import { basename, join, resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
 
-// Gate G0 read from the source itself: the Sankhya adapter's files hold exactly one service name,
-// the allow-listed read, and no write-capable service name in any form.
+// Gate G0 read from the source itself: the Sankhya adapter's files hold the allow-listed read
+// service names, and none of the write-capable service names listed below.
 const directory = resolve(import.meta.dirname, '../../apps/hub/src/connectors/sankhya')
 const files = readdirSync(directory).filter((name) => name.endsWith('.ts')).map((name) => join(directory, name))
 
@@ -30,7 +30,7 @@ test('G0: the service-name literals across the Sankhya adapter are exactly the t
   assert.deepEqual([...names], ['CRUDServiceProvider.loadRecords', 'DbExplorerSP.executeQuery'])
 })
 
-test('G0: no known write service name appears anywhere in the Sankhya adapter source', () => {
+test('G0: none of the listed write service names appears in the Sankhya adapter source', () => {
   const writes = ['CRUDServiceProvider.saveRecord', 'DatasetSP.save', 'CACSP.incluirNota', 'CACSP.IncluirNota', 'SelecaoDocumentoSP.faturar', 'removeRecord', 'cancelar', 'saveRecord', 'incluirNota', 'faturar', 'DatasetSP']
   for (const path of files) {
     const text = readFileSync(path, 'utf8')

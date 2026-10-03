@@ -14,13 +14,16 @@ const sentence = (running: string, done: string, ask: string, kind: ToolKind): S
 // workspace entry pulls Node's `os` and `path`), so the names are checked as types only.
 type WorkspacePrefix = `${typeof WORKSPACE_TOOLS_PREFIX}_`
 type BareWorkspaceTool = WorkspaceToolName extends `${WorkspacePrefix}${infer Name}` ? Name : never
+// The Builder has no screen to drive and no subagents, so those Mastra tools never reach the conversation.
+type OfferedWorkspaceTool = Exclude<BareWorkspaceTool, `computer_${string}`>
+type OfferedBuiltinTool = Exclude<BuiltinToolId, 'subagent'>
 
 const readFile = sentence('Lendo um arquivo', 'Leu um arquivo', 'ler um arquivo', 'ler')
 const editFile = sentence('Editando um arquivo', 'Editou um arquivo', 'editar um arquivo', 'editar')
 const grep = sentence('Buscando no código', 'Buscou no código', 'buscar no código', 'buscar')
 const deleteFile = sentence('Apagando um arquivo', 'Apagou um arquivo', 'apagar um arquivo', 'outros')
 
-const workspaceSentences: Readonly<Partial<Record<BareWorkspaceTool, Sentence>>> = {
+const workspaceSentences: Readonly<Record<OfferedWorkspaceTool, Sentence>> = {
   read_file: readFile,
   write_file: sentence('Escrevendo um arquivo', 'Escreveu um arquivo', 'escrever um arquivo', 'editar'),
   edit_file: editFile,
@@ -38,7 +41,7 @@ const workspaceSentences: Readonly<Partial<Record<BareWorkspaceTool, Sentence>>>
   mkdir: sentence('Criando uma pasta', 'Criou uma pasta', 'criar uma pasta', 'outros'),
 }
 
-const builtinSentences: Readonly<Partial<Record<BuiltinToolId, Sentence>>> = {
+const builtinSentences: Readonly<Record<OfferedBuiltinTool, Sentence>> = {
   ask_user: sentence('Perguntando a você', 'Perguntou a você', 'perguntar a você', 'outros'),
   submit_plan: sentence('Enviando o plano', 'Enviou o plano', 'enviar o plano', 'outros'),
   task_write: sentence('Organizando as tarefas', 'Organizou as tarefas', 'organizar as tarefas', 'outros'),
