@@ -270,6 +270,29 @@ test('a turn starts from main, from the mirror that holds it, or from a Hub merg
   assert.deepEqual(await git.startTurn(PROJECT, CONVERSATION, later), { conversationId: CONVERSATION, main: later, start: later, mirror: admitted, previous: admitted, conflicted: [] }, 'a mirror main already holds is left in place')
 })
 
+test('a pull answers the earlier candidate while the tree is as it left it, and nothing once the tree is back at the start', async (t) => {
+  const directory = scratch(t)
+  const root = join(directory, 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const checkout = join(directory, 'sandbox', 'workspace', 'repo')
+  const seedFile = join(directory, 'sandbox', 'seed', `${RUN}.bundle`)
+  const sandbox = localSandbox()
+  await startCheckout({ git, projectId: PROJECT, turn: fromMain(base), sandbox, checkout, seedFile })
+  const pull = (sameAs) => pullSnapshot({ git, projectId: PROJECT, snapshot: candidateSnapshot(RUN, base), scratch: 'candidate', sandbox, checkout, ...(sameAs ? { sameAs } : {}) })
+
+  writeFileSync(join(checkout, 'app/index.html'), '<main>one</main>\n')
+  const first = await pull()
+  assert.match(first, /^[0-9a-f]{40}$/)
+  assert.equal(await pull(first), first, 'an unchanged tree is the revision already pulled, not a new commit')
+  writeFileSync(join(checkout, 'app/index.html'), '<main>two</main>\n')
+  const second = await pull(first)
+  assert.notEqual(second, first)
+  assert.equal(bare(root, 'show', `${second}:app/index.html`), '<main>two</main>')
+  writeFileSync(join(checkout, 'app/index.html'), '<div id="root"></div>\n')
+  assert.equal(await pull(second), null, 'back at the start is no change, whatever was pulled before')
+})
+
 test('a run seeds its sandbox from main and hands back everything it changed as one commit', async (t) => {
   const directory = scratch(t)
   const root = join(directory, 'git')

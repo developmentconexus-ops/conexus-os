@@ -5,7 +5,7 @@ import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace 
 import { checkApplicationInSandbox, RECIPE_SHA256, TEMPLATE_REF } from './application-artifact-runtime.js'
 import type { ApplicationCheckRun } from './application-artifact-runtime.js'
 import type { CheckReport } from './application-check.js'
-import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
+import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource, checkSummary, failedBootStep } from './application-check.js'
 import { APPLICATION_CHECK_EXCLUDED, commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter } from './application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application-server-build.js'
 import { buildCandidateServer, createOperationRunner } from './run-operation.js'
@@ -19,10 +19,11 @@ import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
 import { collectEgress, ensureEgressLog } from './egress-log.js'
-import { admitApplicationTree, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage, SERVER_SOURCE_ROOTS } from './runtime.js'
+import { admitApplicationTree, APPLICATION_TREE_ROOTS, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
+import { classifyCheck, createCandidateGate, GATE_RED_BUDGET, type CandidateGate, type CandidateVerdict } from './candidate-gate.js'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
 type RunSandbox = Readonly<{
@@ -102,6 +103,8 @@ export type BuilderRunPorts = Readonly<{
     projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
     /** The check `conexus_check` runs: the Hub's script on the checkout, as the agent's user. */
     runCheck: () => Promise<CheckReport>
+    /** The run's finish gate, which Mastra's completion check calls when the agent says it is done. */
+    gate?: CandidateGate
     /** The operation run `conexus_run_operation` does; absent when the Hub has no Prévia runner. */
     runOperation?: RunOperation
   }>): Promise<RunSession>
@@ -158,11 +161,13 @@ export type BuilderRunRuntime = Readonly<{
   execute(input: BuilderRunInput): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult>
   /** Lets go of every parked run's session and sandbox instance held in memory; each answer then resumes from storage. Answers how many. */
   evictParked(): Promise<number>
+  /** Checks an admitted revision again on its conversation's VM, with no agent, for a publish retry. */
+  rebuild(input: Readonly<{ projectId: string; conversationId: string; executionId: string; revision: string; providerSandboxId: string | null }>): Promise<CandidateVerdict>
 }>
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
 export class CandidateRefused extends Error {
-  constructor(code: 'BUILDER_CHECK_FAILED', readonly detail: string) {
+  constructor(code: 'BUILDER_CHECK_FAILED' | 'BUILDER_APP_NOT_FIXED', readonly detail: string) {
     super(code)
   }
 }
@@ -186,6 +191,66 @@ const MIRROR_DEBOUNCE_MS = 5_000
 const FAILED_TURN_MIRROR_MS = 30_000
 // One seed bundle per VM, replaced at every turn that fetches one.
 const SEED_FILE = `${SEED_ROOT}/turn.bundle`
+
+/** Places the Hub's check and server build where only root can write, so nothing in the VM can change the gate. */
+const installCheck = async (asRoot: (script: string) => Promise<CommandResult>): Promise<void> => {
+  const installed = await asRoot([
+    `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
+    serverBuildScriptSource(),
+    'CONEXUS_SERVER_BUILD_EOF',
+    `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
+    checkScriptSource(),
+    'CONEXUS_CHECK_EOF',
+    `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
+    `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
+  ].join('\n'))
+  if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
+}
+
+const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; app/ e conexus/ aceitam só arquivos comuns (sem links), até 256 arquivos, cada um até 1 MiB e 12 MiB no total.'
+
+/**
+ * The one check of a candidate revision: the admission check and the Preview build in one, on the
+ * application tree from the Conexus Git, as root, from a root-only copy, with the build and its
+ * picture collected. The run's finish gate and a publish retry both call it.
+ */
+const judgeCandidate = async ({ git, projectId, executionId, revision, writeRootFile, asRoot, runCheck, log }: Readonly<{
+  git: Pick<ConexusGit, 'listFilesLong' | 'archive'>
+  projectId: string
+  executionId: string
+  revision: string
+  writeRootFile(path: string, bytes: Uint8Array): Promise<void>
+  asRoot(script: string): Promise<CommandResult>
+  runCheck: RunSandbox['runCheck']
+  log(line: string): void
+}>): Promise<CandidateVerdict> => {
+  // The tree's own limits are the app's to fix: a symlink, an oversized file or no app/index.html.
+  let admitted: readonly string[]
+  try {
+    admitted = admitApplicationTree(await git.listFilesLong(projectId, revision, APPLICATION_TREE_ROOTS.map((root) => `${root}/`)))
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== 'BUILDER_APPLICATION_SOURCE_REFUSED') throw error
+    return { kind: 'RED_APP', revision, detail: APPLICATION_TREE_LIMITS }
+  }
+  const roots = APPLICATION_TREE_ROOTS.filter((root) => admitted.some((path) => path.startsWith(`${root}/`)))
+  const candidateTar = `${SEED_ROOT}/${executionId}.candidate.tar`
+  await writeRootFile(candidateTar, await git.archive(projectId, revision, roots))
+  const checkRoot = `${BUILD_ROOT}/${executionId}`
+  const unpacked = await asRoot([
+    `rm -rf ${quoted(BUILD_ROOT)}`,
+    `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
+    `mkdir -m 755 ${quoted(checkRoot)}`,
+    `tar -x -C ${quoted(checkRoot)} -f ${quoted(candidateTar)}`,
+    `rm -f ${quoted(candidateTar)}`,
+  ].join(' && '))
+  if (unpacked.exitCode !== 0) throw new Error('BUILDER_CANDIDATE_UNPACK_FAILED')
+  const checked = await runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${executionId}.png`, user: 'root' })
+  log(`BUILDER_CHECK:gate:${executionId}:${revision.slice(0, 12)}:${checkSummary(checked.report)}`)
+  const verdict = classifyCheck(revision, checked)
+  const renderedWithProblems = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null
+  if (renderedWithProblems) log(`BUILDER_CHECK_BOOT_PROBLEMS:${executionId}:${JSON.stringify(renderedWithProblems.problems).slice(0, 2_000)}`)
+  return verdict
+}
 
 type TurnMirror = Readonly<{
   schedule(): void
@@ -305,6 +370,14 @@ type WarmParked = Readonly<{ builderRunId: string; session: RunSession; sandbox:
 export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => {
   // By conversation: one run of a Project at a time, so one parked run per conversation.
   const warm = new Map<string, WarmParked>()
+  // A run's red finishes across its legs, so a run that parks on a question keeps its count. By
+  // conversation, as a parked run is, and gone with the run's end. In memory: a run parked across a
+  // Hub restart starts its count again when it is answered.
+  const redFinishes = new Map<string, Readonly<{ builderRunId: string; count: number }>>()
+  const spentFinishes = (conversationId: string, builderRunId: string): number => {
+    const spent = redFinishes.get(conversationId)
+    return spent?.builderRunId === builderRunId ? spent.count : 0
+  }
   // A letting go still in flight, which the conversation's next leg waits on before it opens anything.
   const lettingGo = new Map<string, Promise<void>>()
   const take = (conversationId: string): WarmParked | undefined => {
@@ -334,6 +407,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     if (entry) await letGo(conversationId, entry, reason)
   }
   const discardParked: BuilderRunRuntime['discardParked'] = async (input) => {
+    redFinishes.delete(input.conversationId)
     const entry = take(input.conversationId)
     await lettingGo.get(input.conversationId)
     try {
@@ -483,17 +557,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // The Hub's check and its server build run from paths only root can write, so the agent and
       // the admission below see exactly the refusal the Conexus build would give, and neither can
       // change the gate.
-      const installed = await asRoot([
-        `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
-        serverBuildScriptSource(),
-        'CONEXUS_SERVER_BUILD_EOF',
-        `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
-        checkScriptSource(),
-        'CONEXUS_CHECK_EOF',
-        `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
-        `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
-      ].join('\n'))
-      if (installed.exitCode !== 0) throw new Error('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
+      await installCheck(asRoot)
       await (ports.materializeStarter ?? materializeRunStarter)({
         repositoryRoot: SANDBOX_CHECKOUT,
         directCommand: (command, args) => direct(command, [...args]),
@@ -517,11 +581,41 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         openConnectorPort: async () => (connectorRun ? connectorRun.openHandlerPort() : null),
         invoke: invokeOperation,
       }) : undefined
+      let pulled: string | null = null
+      const judge = (revision: string): Promise<CandidateVerdict> => judgeCandidate({
+        git: ports.git, projectId: input.projectId, executionId: input.executionId, revision, writeRootFile, asRoot,
+        runCheck: (check) => sandbox.runCheck(check), log: ports.log,
+      })
+      // The gate's phases are written in order: checking, then back to the agent on a red check.
+      let gatePhases: Promise<void> = Promise.resolve()
+      const gatePhase = (phase: BuilderRunPhase): void => { gatePhases = gatePhases.then(() => input.setPhase(phase)).catch(() => undefined) }
+      const gate = createCandidateGate({
+        // A checkout back at the turn's start is no change; one the agent left as it was reuses the
+        // revision already pulled, so its verdict is not checked again.
+        candidate: async () => {
+          pulled = await pullSnapshot({
+            git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
+            unchangedFrom: turnStart.start, ...(pulled ? { sameAs: pulled } : {}), scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
+          })
+          return pulled ?? (turnStart.start === base ? null : turnStart.start)
+        },
+        judge,
+        redFinishes: spentFinishes(input.conversationId, input.executionId),
+        onRedFinish: (count) => {
+          redFinishes.set(input.conversationId, { builderRunId: input.executionId, count })
+          if (count < GATE_RED_BUDGET) gatePhase('AGENT')
+        },
+        onChecking: (revision) => {
+          ports.log(`BUILDER_GATE_CHECKING:${input.executionId}:${revision.slice(0, 12)}`)
+          gatePhase('COMPILING')
+        },
+      })
       session = await ports.openSession({
         projectId: input.projectId, conversationId: input.conversationId, builderRunId: input.executionId,
         workspace: sandbox.workspace, bindContext,
         runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
         ...(runOperation ? { runOperation } : {}),
+        gate,
       })
       timing.mark('session')
       await input.setPhase('AGENT')
@@ -553,12 +647,12 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       })
       timing.mark('agent')
 
-      // A turn that changed nothing still offers the files it started from when they are not on `main`.
-      const changed = await pullSnapshot({
-        git: ports.git, projectId: input.projectId, snapshot: candidateSnapshot(input.executionId, turnStart.start),
-        scratch: 'candidate', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
-      })
-      const result = changed ?? (turnStart.start === base ? null : turnStart.start)
+      // The gate judged the candidate when the agent said it was done; settling reads that verdict,
+      // and checks only a revision the gate never saw (a turn the loop ended without its check).
+      // Every agent process goes first, so nothing changes the checkout after the last pull.
+      await sh('kill -KILL -1 2>/dev/null; true')
+      const verdict = await gate.settle()
+      const result = verdict?.revision ?? null
       await endMirror(result)
       timing.mark('pull')
       const scope = {
@@ -569,84 +663,35 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         baseSourceRevision: base,
         summary: turn.summary.trim() || (result ? 'Coding worker produced a candidate result.' : 'Coding worker produced a response without source changes.'),
       }
-      if (!result) {
+      if (!verdict) {
         if (cancelled()) throw new Error('BUILDER_LATE_RESULT_REFUSED')
         return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
       }
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-
-      // Admission (AC-9, AC-14): the Hub's own check passes on the candidate's tree, taken from the Conexus Git once every process of the agent's
-      // user is gone. The check runs as root on that copy and drops to the agent's user for every step
-      // that executes application code; nothing in the tree is ever run as the gate.
-      await input.setPhase('SOURCE_ADMISSION')
-      await sh('kill -KILL -1 2>/dev/null; true')
-      const candidateTar = `${SEED_ROOT}/${input.executionId}.candidate.tar`
-      await writeRootFile(candidateTar, await ports.git.archive(input.projectId, result, []))
-      const checkRoot = `${BUILD_ROOT}/${input.executionId}.admission`
-      const unpackedCandidate = await asRoot([
-        `rm -rf ${quoted(BUILD_ROOT)}`,
-        `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
-        `mkdir -m 755 ${quoted(checkRoot)}`,
-        `tar -x -C ${quoted(checkRoot)} -f ${quoted(candidateTar)}`,
-        `rm -f ${quoted(candidateTar)}`,
-      ].join(' && '))
-      if (unpackedCandidate.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-      const admission = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: false, user: 'root' })
-      ports.log(`BUILDER_CHECK:admission:${input.executionId}:${checkSummary(admission.report)}`)
-      const refusedStep = refusingStep(admission.report)
-      if (refusedStep) throw new CandidateRefused('BUILDER_CHECK_FAILED', failedStepEvidence(refusedStep))
+      ports.log(`BUILDER_GATE_SETTLED:${input.executionId}:${verdict.kind}`)
+      // Not admitted: the files stay in the conversation and `main` does not move.
+      if (verdict.kind === 'RED_PLATFORM') throw new Error(verdict.code)
+      if (verdict.kind === 'RED_APP') throw new CandidateRefused(gate.gaveUp() ? 'BUILDER_APP_NOT_FIXED' : 'BUILDER_CHECK_FAILED', verdict.detail)
+      const admitted = verdict.revision
 
       // The last step a stop can prevent. The candidate is recorded before `main` moves, so a restart
       // finds what may be on main; a stopped run is refused and stops here.
+      await gatePhases
+      await input.setPhase('SOURCE_ADMISSION')
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
-      await input.recordCandidate(result)
+      await input.recordCandidate(admitted)
       if (cancelled()) throw new Error('BUILDER_RUN_CANCELLED')
       // The compare-and-swap and the moment of admission: `main` moves from exactly the run's base.
-      await ports.git.fastForwardMain(input.projectId, { base, candidate: result })
+      await ports.git.fastForwardMain(input.projectId, { base, candidate: admitted })
       timing.mark('admission')
-
-      // Past admission a stop is too late, so the build takes no signal. A build the source broke
-      // settles as a build failure; the admitted source stays and the Preview is unavailable.
-      await input.setPhase('COMPILING').catch(() => undefined)
-      let applicationBuild: ApplicationBuildOutcome
-      try {
-        const admitted = admitApplicationTree(await ports.git.listFilesLong(input.projectId, result, ['app/', 'conexus/']))
-        const archived = ['app', ...SERVER_SOURCE_ROOTS.filter((root) => admitted.some((path) => path === root || path.startsWith(`${root}/`)))]
-        const buildRoot = `${BUILD_ROOT}/${input.executionId}`
-        const tree = `${BUILD_ROOT}/${input.executionId}.tar`
-        const prepared = await asRoot([
-          `rm -rf '${BUILD_ROOT}'`,
-          `mkdir -p -m 711 '${BUILD_ROOT}'`,
-          `mkdir -m 755 '${buildRoot}'`,
-        ].join(' && '))
-        if (prepared.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-        await writeRootFile(tree, await ports.git.archive(input.projectId, result, archived))
-        const unpacked = await asRoot(`tar -x -C '${buildRoot}' -f '${tree}' && rm -f '${tree}'`)
-        if (unpacked.exitCode !== 0) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-        // The Preview is built by the steps the model saw. A source the check refuses, or a page
-        // that threw or drew nothing, leaves the admitted source in place without a Preview.
-        const built = await sandbox.runCheck({ root: buildRoot, out: `${buildRoot}/dist`, collect: true, thumbnail: `${BUILD_ROOT}/${input.executionId}.png`, user: 'root' })
-        ports.log(`BUILDER_CHECK:preview:${input.executionId}:${checkSummary(built.report)}`)
-        const refused = refusingStep(built.report)
-        const notBooting = unrenderedBootStep(built.report)
-        const bootProblems = failedBootStep(built.report)
-        const renderedWithProblems = bootProblems && !notBooting ? bootProblems : null
-        if (renderedWithProblems) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(renderedWithProblems.problems).slice(0, 2_000)}`)
-        if (refused) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_COMPILATION_FAILED', detail: failedStepEvidence(refused) }
-        else if (notBooting) applicationBuild = { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_FAILED', detail: failedStepEvidence(notBooting) }
-        else if (built.files) applicationBuild = { kind: 'BUILT', compiledApplication: {
-          projectId: input.projectId, executionId: input.executionId, sourceRevision: result,
-          templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: built.files,
-        }, ...(built.thumbnail ? { thumbnail: built.thumbnail } : {}), ...(renderedWithProblems ? { bootProblems: failedStepEvidence(renderedWithProblems) } : {}) }
-        else throw new Error('APPLICATION_CHECK_UNREADABLE')
-      } catch (error) {
-        const code = error instanceof Error ? error.message : ''
-        if (code !== 'APPLICATION_COMPILATION_FAILED' && code !== 'BUILDER_APPLICATION_SOURCE_REFUSED' &&
-          !code.startsWith('APPLICATION_SMOKE_')) throw error
-        applicationBuild = { kind: 'BUILD_FAILED', code }
-      }
-      timing.mark('compile')
-      return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: result, applicationBuild })
+      // C-033 as it is: a page that did not render is admitted without a Preview.
+      const applicationBuild: ApplicationBuildOutcome = verdict.kind === 'UNRENDERED'
+        ? { kind: 'UNRENDERED', code: 'APPLICATION_SMOKE_FAILED', detail: verdict.detail }
+        : { kind: 'BUILT', compiledApplication: {
+          projectId: input.projectId, executionId: input.executionId, sourceRevision: admitted,
+          templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: verdict.build.files,
+        }, ...(verdict.build.thumbnail ? { thumbnail: verdict.build.thumbnail } : {}), ...(verdict.build.bootProblems ? { bootProblems: verdict.build.bootProblems } : {}) }
+      return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: admitted, applicationBuild })
     } catch (error) {
       const failure = keepaliveFailure ?? error
       // The run records only its failure code; a failure that carries command evidence says why.
@@ -703,13 +748,38 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         timer.unref?.()
         warm.set(input.conversationId, { builderRunId: input.executionId, session, sandbox, paused, timer })
       }
+      if (!parked) redFinishes.delete(input.conversationId)
       ports.log(timing.line(input.executionId))
     }
   }
-  return Object.freeze({ discardParked, evictParked, execute })
+  const rebuild: BuilderRunRuntime['rebuild'] = async ({ projectId, conversationId, executionId, revision, providerSandboxId }) => {
+    await lettingGo.get(conversationId)
+    const sandbox = ports.openSandbox({ conversationId, providerSandboxId })
+    let live = false
+    try {
+      await sandbox.start()
+      await sandbox.executeCommand('true', [], { env: {}, cwd: '/' })
+      live = true
+      const asRoot = (script: string): Promise<CommandResult> => sandbox.runAsRoot(script, {})
+      await installCheck(asRoot)
+      return await judgeCandidate({
+        git: ports.git, projectId, executionId, revision, writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes), asRoot,
+        runCheck: (check) => sandbox.runCheck(check), log: ports.log,
+      })
+    } finally {
+      if (live) await sandbox.pause().catch(() => undefined)
+    }
+  }
+  return Object.freeze({ discardParked, evictParked, execute, rebuild })
 }
 
 type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }>
+
+/** Mastra's completion-check feedback: written as an assistant message, but it is the gate speaking, not the Builder. */
+const isCompletionCheck = (message: RecordedMessage): boolean => {
+  const metadata = (message.content as { metadata?: { completionResult?: unknown } } | undefined)?.metadata
+  return metadata?.completionResult !== undefined
+}
 
 /**
  * How long a turn may go without one event from its session while the agent is working. A storage
@@ -776,13 +846,13 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
 }>): BuilderRunPorts['openSession'] => {
   /** The run that owns each scope now. Two runs on one conversation can share one session object, so only the owner may end it. */
   const owners = new Map<string, string>()
-  return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation }) => {
+  return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation, gate }) => {
   const resourceId = projectResourceId(projectId)
   const scope = conversationRunScope(conversationId)
   const requestContext = new RequestContext()
   bindContext(requestContext)
   conversationWorkspaces.set(conversationId, workspace)
-  runTools.set(builderRunId, { check: runCheck, runOperation })
+  runTools.set(builderRunId, { check: runCheck, runOperation, gate })
   runContexts.set(scope, bindContext)
   owners.set(scope, builderRunId)
   let session: ControllerSession | undefined
@@ -859,7 +929,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
       userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
       const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
-        .filter((message) => message.role === 'assistant').map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
+        .filter((message) => message.role === 'assistant' && !isCompletionCheck(message)).map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
       return { reason, userMessageId, summary, continuations }
     } catch (error) {
       // The stuck run still holds the session, so the next turn must not find it: the session is

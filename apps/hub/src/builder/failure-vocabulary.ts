@@ -64,6 +64,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   BUILDER_RUN_BASE_STALE: 'SOURCE_RESULT_REJECTED',
   // The candidate broke the Project's own rules (AC-9): its check failed, or its AGENTS.md did.
   BUILDER_CHECK_FAILED: 'SOURCE_RESULT_REJECTED',
+  BUILDER_APP_NOT_FIXED: 'SOURCE_RESULT_REJECTED',
 
   // The Project's repository moved while the run worked, so its result was not admitted and
   // nothing was overwritten.

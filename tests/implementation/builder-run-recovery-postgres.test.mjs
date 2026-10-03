@@ -99,7 +99,7 @@ const recoveryHarness = async (t, name, crashes) => {
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART' }
 const notAdmitted = { state: 'FAILED', result_kind: null, result_source_revision: null, failure_code: 'BUILDER_SOURCE_ADMISSION_FAILED' }
-const admitted = { state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: 'RESULT', failure_code: 'BUILDER_PREVIEW_NOT_BUILT' }
+const admitted = { state: 'FAILED', result_kind: 'SOURCE_CHANGED_PUBLISH_FAILED', result_source_revision: 'RESULT', failure_code: 'BUILDER_PREVIEW_NOT_BUILT' }
 const pending = { state: 'RUNNING', result_kind: null, result_source_revision: null, failure_code: null }
 
 test('a sweep settles every stale run by whether main holds its candidate, after a stop at each durable write', async (t) => {
@@ -159,10 +159,10 @@ test('a run that started in Planejar and built after the plan approval records, 
   await store.recordBuilderRunCandidate(builderRunId, candidate)
   await store.advanceBuilderRunSource(builderRunId, candidate)
   const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
-  await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
+  await store.settleBuilderRunPublishFailed({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   const [row] = (await query(connectionString, 'SELECT state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
   assert.deepEqual({ admitted: admitted.value, ...row }, {
-    admitted: true, state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
+    admitted: true, state: 'FAILED', result_kind: 'SOURCE_CHANGED_PUBLISH_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
   })
 })
 

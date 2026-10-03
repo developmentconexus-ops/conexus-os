@@ -70,17 +70,14 @@ test('every code a build failure can settle with names the build, not an interna
   const { readFileSync } = await import('node:fs')
   const { resolve: resolvePath } = await import('node:path')
   const runtime = readFileSync(resolvePath(import.meta.dirname, '../../apps/hub/src/builder/run-runtime.ts'), 'utf8')
-  // The run runtime turns exactly these into a BUILD_FAILED outcome, which the service then
-  // persists as the run's failure code. Anything it can persist has to be a declared build failure.
-  const guard = /if \(code !== '([A-Z_]+)' && code !== '([A-Z_]+)' &&\s*!code\.startsWith\('([A-Z_]+)'\)\) throw error/.exec(runtime)
-  assert.ok(guard, 'the build-failure guard in run-runtime.ts moved; this test must follow it')
-  for (const code of [guard[1], guard[2]]) {
-    assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
-  }
-  for (const code of ['APPLICATION_SMOKE_FAILED', 'APPLICATION_SMOKE_TIMEOUT', 'APPLICATION_SMOKE_NO_ROOT_CHILD', 'APPLICATION_SMOKE_UNCAUGHT_ERROR']) {
-    assert.equal(code.startsWith(guard[3]), true)
-    assert.equal(builderFailureCategory(code), 'APPLICATION_BUILD_FAILED', `${code} settles a build failure but is not declared as one`)
-  }
+  // A page that did not render is admitted with this code, and the service settles it as a build failure.
+  const unrendered = /kind: 'UNRENDERED', code: '([A-Z_]+)'/.exec(runtime)
+  assert.ok(unrendered, 'the UNRENDERED outcome in run-runtime.ts moved; this test must follow it')
+  assert.equal(builderFailureCategory(unrendered[1]), 'APPLICATION_BUILD_FAILED', `${unrendered[1]} settles a build failure but is not declared as one`)
+})
+
+test('a run that spent its red finishes reads as a rejected result', () => {
+  assert.equal(builderFailureCategory('BUILDER_APP_NOT_FIXED'), 'SOURCE_RESULT_REJECTED')
 })
 
 test("a candidate the Hub's check refuses reads as a rejected result (AC-9)", () => {
