@@ -29,7 +29,7 @@ export const encodeKey = ({ fileName, bytes }: AuthRecord): GoogleAiProKey => {
   return `${PREFIX}${Buffer.from(fileName).toString('base64url')}.${Buffer.from(bytes).toString('base64url')}` as GoogleAiProKey
 }
 
-export const decodeKey = (key: GoogleAiProKey): AuthRecord => {
+export const decodeKey = (key: string): AuthRecord => {
   const [name, body] = key.slice(PREFIX.length).split('.')
   return Object.freeze({ fileName: Buffer.from(name ?? '', 'base64url').toString(), bytes: new Uint8Array(Buffer.from(body ?? '', 'base64url')) })
 }
@@ -38,13 +38,11 @@ export const parseKey = (value: string): GoogleAiProKey | null => {
   if (!value.startsWith(PREFIX)) return null
   const parts = value.slice(PREFIX.length).split('.')
   if (parts.length !== 2 || !parts.every((part) => BASE64URL.test(part))) return null
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const record = decodeKey(value as GoogleAiProKey)
+  const record = decodeKey(value)
   if (!isAuthFileName(record.fileName) || record.bytes.byteLength === 0 || record.bytes.byteLength > MAX_RECORD_BYTES) return null
   try {
     const parsed: unknown = JSON.parse(Buffer.from(record.bytes).toString())
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (typeof parsed !== 'object' || parsed === null || (parsed as { type?: unknown }).type !== 'antigravity') return null
+    if (typeof parsed !== 'object' || parsed === null || !('type' in parsed) || parsed.type !== 'antigravity') return null
   } catch {
     return null
   }

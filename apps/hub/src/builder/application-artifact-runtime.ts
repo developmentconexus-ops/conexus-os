@@ -5,7 +5,7 @@ import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_
 import type { CheckReport } from './application-check.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import type { SANDBOX_AGENT_USER } from './sandbox.js'
-import { errorField } from '../platform/error-field.js'
+import { fieldOf } from '../platform/field-of.js'
 
 /** Who runs the check's command: root for the Hub's own runs, the agent's user for the Builder's tool. */
 type CheckUser = 'root' | typeof SANDBOX_AGENT_USER
@@ -210,9 +210,9 @@ export const checkApplicationInSandbox = async (
     )
   } catch (error) {
     // A script that exits non-zero is raised by E2B as an error that still carries what it printed.
-    const stdout = errorField(error, 'stdout')
-    const stderr = errorField(error, 'stderr')
-    const exitCode = errorField(error, 'exitCode')
+    const stdout = fieldOf(error, 'stdout')
+    const stderr = fieldOf(error, 'stderr')
+    const exitCode = fieldOf(error, 'exitCode')
     if (typeof stdout !== 'string' || typeof exitCode !== 'number') throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: error })
     result = { stdout, stderr: typeof stderr === 'string' ? stderr : '', exitCode }
   }

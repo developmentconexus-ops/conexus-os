@@ -1,7 +1,7 @@
 import pg from 'pg'
 import type { Pool, PoolConfig } from 'pg'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
-import { errorField } from './error-field.js'
+import { fieldOf } from './field-of.js'
 import { logLine } from './logger.js'
 
 export type PostgresPool = Pool
@@ -20,7 +20,7 @@ const capabilityFor = (role: string | undefined): string =>
   (role && CAPABILITY_BY_ROLE[role]) || role || 'unlabelled'
 
 export const errorCode = (error: unknown): string | undefined => {
-  const code = errorField(error, 'code')
+  const code = fieldOf(error, 'code')
   return typeof code === 'string' ? code : undefined
 }
 

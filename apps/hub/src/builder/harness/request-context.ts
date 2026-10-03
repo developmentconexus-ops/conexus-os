@@ -1,5 +1,6 @@
 import { isThinkingLevelSetting, resolveDefaultThinkingLevel, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { RequestContext } from '@mastra/core/request-context'
+import { fieldOf } from '../../platform/field-of.js'
 
 /**
  * Raw request-context keys the caller sets before a turn reaches the harness, so
@@ -17,8 +18,6 @@ export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'
 /** The paths the turn's start left with conflict markers when it brought `main` in, newline separated. */
 export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 
-type ControllerContextValue = Readonly<{ session?: Readonly<{ modelId?: unknown }>; getState?: () => Readonly<Record<string, unknown>> }>
-
 /**
  * The level a conversation runs at until the person picks one, resolved the way Mastra Code does.
  * The Hub sends it to the composer with the models, so the screen never holds a second copy.
@@ -31,15 +30,15 @@ export const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = resolveDefaultThinki
  * and `AgentController` restores from the thread when a run's session loads it.
  */
 export const readSessionThinkingLevel = (requestContext: RequestContext | undefined): ThinkingLevelSetting => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const level = (requestContext?.get('controller') as ControllerContextValue | undefined)?.getState?.().thinkingLevel
+  const controller = requestContext?.get('controller')
+  const getState = fieldOf(controller, 'getState')
+  const level = typeof getState === 'function' ? fieldOf(Reflect.apply(getState, controller, []), 'thinkingLevel') : undefined
   return isThinkingLevelSetting(level) ? level : DEFAULT_THINKING_LEVEL
 }
 
 /** The model the conversation's session runs on, from the `controller` context `AgentController` sets on every call. */
 export const readSessionModelId = (requestContext: RequestContext | undefined): string | undefined => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const modelId = (requestContext?.get('controller') as ControllerContextValue | undefined)?.session?.modelId
+  const modelId = fieldOf(fieldOf(requestContext?.get('controller'), 'session'), 'modelId')
   return typeof modelId === 'string' && modelId ? modelId : undefined
 }
 

@@ -3,7 +3,7 @@ import { parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
-import { errorField } from '../platform/error-field.js'
+import { fieldOf } from '../platform/field-of.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -64,7 +64,7 @@ type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILE
  * logs the cause of what the run throws.
  */
 const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined => {
-  const http = [errorField(error, 'statusCode'), errorField(error, 'status')].find((value): value is number => typeof value === 'number')
+  const http = [fieldOf(error, 'statusCode'), fieldOf(error, 'status')].find((value): value is number => typeof value === 'number')
   return http === undefined ? undefined : { statusCode: http }
 }
 

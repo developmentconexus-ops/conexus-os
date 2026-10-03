@@ -2,7 +2,7 @@ import type { AgentControllerEvent } from '@mastra/core/agent-controller'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, StreamErrorRetryProcessor } from '@mastra/core/processors'
 import type { RequestContext } from '@mastra/core/request-context'
-import { errorField } from '../../platform/error-field.js'
+import { fieldOf } from '../../platform/field-of.js'
 
 /*
  * The retry policy below is Mastra Code's, from `createMastraCode` in `@mastra/code-sdk`
@@ -33,8 +33,8 @@ const isTransientConnectionError = (error: unknown): boolean => {
 /** Mastra Code's `isTransientServerError`. */
 const isTransientServerError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
-  const status = errorField(error, 'status')
-  const statusCode = errorField(error, 'statusCode')
+  const status = fieldOf(error, 'status')
+  const statusCode = fieldOf(error, 'statusCode')
   if ((typeof status === 'number' && status >= 500 && status < 600) || (typeof statusCode === 'number' && statusCode >= 500 && statusCode < 600)) return true
   return error instanceof Error && TRANSIENT_SERVER_MESSAGE.test(error.message)
 }
@@ -46,7 +46,7 @@ const isTransientServerError = (error: unknown): boolean => {
  */
 const isNoResponseError = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false
-  return errorField(error, 'isRetryable') === true && errorField(error, 'statusCode') === undefined
+  return fieldOf(error, 'isRetryable') === true && fieldOf(error, 'statusCode') === undefined
 }
 
 /** Mastra Code's `getTransientRetryDelay`. */
@@ -60,23 +60,25 @@ type RetryEvent = Extract<AgentControllerEvent, { type: 'error' }>
  * from the status or code alone, never the provider's error.
  */
 const retryNoticeError = (error: unknown): Error => {
-  const code = errorField(error, 'code')
-  const http = [errorField(error, 'statusCode'), errorField(error, 'status')].find((value): value is number => typeof value === 'number')
+  const code = fieldOf(error, 'code')
+  const http = [fieldOf(error, 'statusCode'), fieldOf(error, 'status')].find((value): value is number => typeof value === 'number')
   return new Error(http !== undefined ? `MODEL_CALL_RETRYING_HTTP_${http}` : typeof code === 'string' && /^[A-Z_]+$/.test(code) ? `MODEL_CALL_RETRYING_${code}` : 'MODEL_CALL_RETRYING')
 }
 
 /** Mastra Code's `emitTransientRetry`: a retryable `error` event on the controller's event stream, which `AgentControllerEvent` already types with `retryAttempt`, `retryDelay` and `maxRetries`. */
 const emitTransientRetry = (error: unknown, retryCount: number, delayMs: number, requestContext: RequestContext | undefined): void => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const controller = requestContext?.get('controller') as { emitEvent?: (event: RetryEvent) => void } | undefined
-  controller?.emitEvent?.({
+  const controller = requestContext?.get('controller')
+  const emitEvent = fieldOf(controller, 'emitEvent')
+  if (typeof emitEvent !== 'function') return
+  const event: RetryEvent = {
     type: 'error',
     error: retryNoticeError(error),
     retryable: true,
     retryDelay: delayMs,
     retryAttempt: retryCount + 1,
     maxRetries: TRANSIENT_MAX_RETRIES,
-  })
+  }
+  Reflect.apply(emitEvent, controller, [event])
 }
 
 const transientMatcher = (match: (error: unknown) => boolean, delayFor: (retryCount: number) => number) => ({
