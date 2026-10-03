@@ -286,6 +286,29 @@ test('the workflow ends every group on the dirty tree check that makes the gener
   assert.ok(workflow.indexOf('--scope candidate --group') < workflow.indexOf('git status --porcelain'))
 })
 
+const workflowSteps = (file) => readFileSync(resolve(repositoryRoot, `.github/workflows/${file}`), 'utf8')
+  .split(/\n {6}- /)
+  .slice(1)
+
+test('each group sets up only what it needs', () => {
+  const steps = workflowSteps('verify.yml')
+  const setupOf = (name) => steps.find(step => step.includes(`name: ${name}`))
+  const ifLine = (name) => setupOf(name).split('\n').find(line => line.trim().startsWith('if:'))
+  const gatedTo = (name) => ['browser', 'postgres', 'rest', 'live'].filter(group => ifLine(name).includes(`'${group}'`))
+  assert.deepEqual(gatedTo('Install Playwright Chromium'), ['browser', 'live'])
+  assert.deepEqual(gatedTo('Start the Hub PostgreSQL'), ['browser', 'postgres'])
+  assert.deepEqual(gatedTo('Start the Applications PostgreSQL test cluster'), ['postgres'])
+  assert.deepEqual(gatedTo('Rootless sandbox for the application runner suite'), ['postgres'])
+  assert.equal(readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8').includes('services:'), false)
+})
+
+test('the aprovo gate runs on the same pull request events in its own workflow', () => {
+  const workflow = readFileSync(resolve(repositoryRoot, '.github/workflows/aprovo-gate.yml'), 'utf8')
+  assert.match(workflow, /types: \[opened, synchronize, reopened, edited, labeled, unlabeled\]/)
+  assert.match(workflow, /node scripts\/check-aprovo-gate\.mjs --base "origin\/\$\{\{ github\.base_ref \}\}"/)
+  assert.equal(readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8').includes('check-aprovo-gate'), false)
+})
+
 test('the static checks run before every test step, and the Hub build stays first', () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
   assert.equal(scopes[0], 'hub-typecheck')
