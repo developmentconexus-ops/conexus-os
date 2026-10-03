@@ -38,7 +38,7 @@ always has a code.
   and drives the web UI. Its model and E2B are fake, so it cannot prove a Builder turn.
 - A Builder turn is proved on the local Conexus with a real model and a real E2B sandbox, on a cheap
   model such as Haiku. Every E2B use needs the operator's ok.
-- `npm run rb:builder:live` probes the real E2B sandbox only. It calls no model, so it never proves a
+- `npm run builder:sandbox:live` probes the real E2B sandbox only. It calls no model, so it never proves a
   Builder turn.
 
 ## Reference code and docs

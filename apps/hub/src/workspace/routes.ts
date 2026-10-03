@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { S2_GENERATED_ROUTES } from '../generated/s2-routes.js'
-import type { S2OwnerId, Ws01Body, Ws02Params } from '../generated/s2-routes.js'
+import { WORKSPACE_GENERATED_ROUTES } from '../generated/workspace-routes.js'
+import type { WorkspaceOwnerId, Ws01Body, Ws02Params } from '../generated/workspace-routes.js'
 import { sendProblem } from '../http/problem.js'
 import { workspaceErrorCode } from './errors.js'
 import type { WorkspaceStore } from './store.js'
@@ -26,9 +26,9 @@ export type WorkspaceRouteDependencies = Readonly<{
 export const registerWorkspaceRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, config }: WorkspaceRouteDependencies,
-): Promise<readonly S2OwnerId[]> => {
+): Promise<readonly WorkspaceOwnerId[]> => {
   app.route<{ Body: Ws01Body }>({
-    ...S2_GENERATED_ROUTES['WS-01'],
+    ...WORKSPACE_GENERATED_ROUTES['WS-01'],
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
@@ -56,7 +56,7 @@ export const registerWorkspaceRoutes = async (
   })
 
   app.route<{ Params: Ws02Params }>({
-    ...S2_GENERATED_ROUTES['WS-02'],
+    ...WORKSPACE_GENERATED_ROUTES['WS-02'],
     handler: async (request, reply) => {
       const current = await resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')

@@ -265,7 +265,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
-          'apps/hub/src/generated/s1-routes.',
+          'apps/hub/src/generated/iam-routes.',
           'apps/hub/src/identity-access/',
           'apps/hub/src/platform/application-slug.',
           'apps/hub/src/platform/logger.',
@@ -292,7 +292,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
-          'apps/hub/src/generated/s2-routes.',
+          'apps/hub/src/generated/workspace-routes.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
           'apps/hub/src/platform/origin.',

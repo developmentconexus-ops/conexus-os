@@ -6,7 +6,7 @@ import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
-const target = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
+const target = resolve(repositoryRoot, 'apps/hub/src/generated/project-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/project-client.ts')
 const expectedOperations = [
   { ownerId: 'PRJ-01', operationId: 'ListProjects', method: 'GET', path: '/api/control/workspaces/{workspaceId}/projects' },
@@ -47,7 +47,7 @@ try {
   }
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
   if (definitions.length !== expectedOperations.length || definitions.some((definition, index) => !sameProjection(definition, expectedOperations[index]))) {
-    throw new Error(`S3_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
+    throw new Error(`PROJECT_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
   }
   const routeDefinitions = definitions.map(({ path: _path, ...definition }) => definition)
   const byId = new Map(routeDefinitions.map((definition) => [definition.ownerId, definition]))
@@ -56,9 +56,9 @@ try {
   const output = [
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-project-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'", '',
-    `export const S3_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S3_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
-    "export type S3OwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04'",
+    `export const PROJECT_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const PROJECT_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    "export type ProjectOwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04'",
     `export type Prj01Params = ${toTypeScript(byId.get('PRJ-01').schema.params)}`,
     `export type Prj01Response = ${toTypeScript(byId.get('PRJ-01').schema.response['200'])}`,
     `export type Prj02Params = ${toTypeScript(byId.get('PRJ-02').schema.params)}`,
@@ -68,13 +68,13 @@ try {
     `export type Prj03Response = ${toTypeScript(byId.get('PRJ-03').schema.response['201'])}`,
     `export type Prj04Params = ${toTypeScript(byId.get('PRJ-04').schema.params)}`,
     `export type Prj04Querystring = ${toTypeScript(byId.get('PRJ-04').schema.querystring)}`,
-    "export type S3RouteDefinition = Readonly<{ ownerId: S3OwnerId; operationId: string; method: 'GET' | 'POST' | 'DELETE'; url: string; schema: FastifySchema }>",
-    `export const S3_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<S3OwnerId, S3RouteDefinition>)`, '',
+    "export type ProjectRouteDefinition = Readonly<{ ownerId: ProjectOwnerId; operationId: string; method: 'GET' | 'POST' | 'DELETE'; url: string; schema: FastifySchema }>",
+    `export const PROJECT_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<ProjectOwnerId, ProjectRouteDefinition>)`, '',
   ].join('\n')
   const client = [
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-project-contracts.mjs. Do not edit.',
-    `export const S3_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S3_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    `export const PROJECT_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const PROJECT_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type ProjectSummary = ${toTypeScript(byId.get('PRJ-01').schema.response['200'].items)}`,
     `export type ProjectRepresentation = ${toTypeScript(byId.get('PRJ-02').schema.response['200'])}`,
     `export type CreateProjectInput = ${toTypeScript(byId.get('PRJ-03').schema.body)}`,
@@ -93,8 +93,8 @@ try {
   writeFileSync(stagedTarget, output, 'utf8')
   writeFileSync(stagedClientTarget, client, 'utf8')
   if (process.argv.includes('--check')) {
-    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('S3_GENERATED_ROUTE_DRIFT')
-    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('S3_GENERATED_CLIENT_DRIFT')
+    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('PROJECT_GENERATED_ROUTE_DRIFT')
+    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('PROJECT_GENERATED_CLIENT_DRIFT')
   } else publishAtomically([{ staged: stagedTarget, target }, { staged: stagedClientTarget, target: clientTarget }])
   process.stdout.write(`${JSON.stringify({ sourceDigest, projectionDigest, routes: definitions.length })}\n`)
 } finally {

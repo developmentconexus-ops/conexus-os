@@ -10,7 +10,7 @@ import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 // Paid: each test creates short-lived sandboxes on the Builder's real E2B template and kills them
-// before it ends. Run with `npm run rb:builder:live`, which reads the Hub env file.
+// before it ends. Run with `npm run builder:sandbox:live`, which reads the Hub env file.
 const live = process.env.CONEXUS_FACTORY_LIVE === 'true'
 const skip = !live && 'opt-in: CONEXUS_FACTORY_LIVE=true with CONEXUS_BUILDER_E2B_API_KEY_FILE and CONEXUS_BUILDER_E2B_TEMPLATE_ID'
 

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { sendProblem } from '../http/problem.js'
 import { recordFailure } from '../platform/logger.js'
-import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
-import type { Iam03Body, S1OwnerId } from '../generated/s1-routes.js'
+import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
+import type { Iam03Body, IamOwnerId } from '../generated/iam-routes.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
 import { opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
@@ -37,7 +37,7 @@ export type IdentityAccessRouteDependencies = Readonly<{
 export const registerIdentityAccessRoutes = async (
   app: FastifyInstance,
   { store, workspaceReader, oidc, config, resolveCurrentSession, hubSessions, applications }: IdentityAccessRouteDependencies,
-): Promise<readonly S1OwnerId[]> => {
+): Promise<readonly IamOwnerId[]> => {
   // An application host starts a sign-in with its slug and the digest of a binding only that browser
   // holds. Both or neither: the Hub's own sign-in takes no parameter.
   app.get<{ Querystring: Record<string, unknown> }>('/protocol/oidc/login', async (request, reply) => {
@@ -130,7 +130,7 @@ export const registerIdentityAccessRoutes = async (
   })
 
   app.route({
-    ...S1_GENERATED_ROUTES['IAM-01'],
+    ...IAM_GENERATED_ROUTES['IAM-01'],
     handler: async (request, reply) => {
       const current = await resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -140,7 +140,7 @@ export const registerIdentityAccessRoutes = async (
   })
 
   app.route({
-    ...S1_GENERATED_ROUTES['IAM-02'],
+    ...IAM_GENERATED_ROUTES['IAM-02'],
     handler: async (request, reply) => {
       if (!isExactOrigin(request.headers.origin, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
       const requestCsrf = header(request.headers['x-conexus-csrf'])
@@ -168,7 +168,7 @@ export const registerIdentityAccessRoutes = async (
   })
 
   app.route<{ Body: Iam03Body }>({
-    ...S1_GENERATED_ROUTES['IAM-03'],
+    ...IAM_GENERATED_ROUTES['IAM-03'],
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {

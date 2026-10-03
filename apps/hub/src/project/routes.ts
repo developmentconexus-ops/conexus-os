@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { S3_GENERATED_ROUTES } from '../generated/s3-routes.js'
+import { PROJECT_GENERATED_ROUTES } from '../generated/project-routes.js'
 import type {
   Prj01Params,
   Prj02Params,
@@ -7,7 +7,7 @@ import type {
   Prj03Params,
   Prj04Params,
   Prj04Querystring,
-} from '../generated/s3-routes.js'
+} from '../generated/project-routes.js'
 import { sendProblem } from '../http/problem.js'
 import { recordFailure } from '../platform/logger.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -31,7 +31,7 @@ export const registerProjectRoutes = async (
   }>,
 ): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04')[]> => {
   app.route<{ Params: Prj01Params }>({
-    ...S3_GENERATED_ROUTES['PRJ-01'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-01'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -49,7 +49,7 @@ export const registerProjectRoutes = async (
   })
 
   app.route<{ Params: Prj02Params }>({
-    ...S3_GENERATED_ROUTES['PRJ-02'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-02'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -69,7 +69,7 @@ export const registerProjectRoutes = async (
   })
 
   app.route<{ Params: Prj03Params; Body: Prj03Body }>({
-    ...S3_GENERATED_ROUTES['PRJ-03'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-03'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
@@ -105,7 +105,7 @@ export const registerProjectRoutes = async (
     },
   })
   app.route<{ Params: Prj04Params; Querystring: Prj04Querystring }>({
-    ...S3_GENERATED_ROUTES['PRJ-04'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-04'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {

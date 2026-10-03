@@ -6,7 +6,7 @@ import type {
   Prj02Response,
   Prj03Body,
   Prj03Response,
-} from '../generated/s3-routes.js'
+} from '../generated/project-routes.js'
 import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
