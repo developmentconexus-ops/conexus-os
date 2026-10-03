@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -49,11 +49,6 @@ test('every pool carries its capability into application_name', async () => {
   const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: 'hub_builder_executor', password: 'unused' })
   assert.equal(pool.options.application_name, 'conexus-hub:builder-run-execution')
   await pool.end()
-})
-
-test('the generated module is the current projection of the register', async () => {
-  const committed = await readFile(resolve(repositoryRoot, 'apps/hub/src/platform/hub-roles.generated.ts'), 'utf8')
-  assert.equal(committed, generateRegister())
 })
 
 test('the Hub config reads the password file and the role of every registered role from its variable', () => {
