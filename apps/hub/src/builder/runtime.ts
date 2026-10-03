@@ -55,8 +55,6 @@ const namesNoModelAccount = (error: unknown): boolean =>
 const namesStepTimeout = (error: unknown): boolean =>
   isMastraTimeoutError(error) ? error.timeoutType === 'step' : error instanceof Error && error.cause !== undefined && namesStepTimeout(error.cause)
 
-const MAX_CONTINUATION_DELAY_MS = 30_000
-
 type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | 'BUILDER_AGENT_PLATFORM_FAILED' | 'BUILDER_MODEL_STEP_TIMEOUT' | typeof NO_MODEL_ACCOUNT
 
 /**
@@ -70,31 +68,22 @@ const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined
   return http === undefined ? undefined : { statusCode: http }
 }
 
-/** A failure the agent ended with. `retryDelayMs` is set only when the same session may be continued. */
-class BuilderAgentError extends Error {
-  constructor(code: string, readonly retryDelayMs: number | null, options?: ErrorOptions) {
-    super(code, options)
-  }
-}
-
 const hasHttpStatus = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && ('statusCode' in error || 'status' in error)
 
 // A timeout or dropped connection with no HTTP status never reached a provider, so it came from
-// storage or the network under the loop, not from the model. Only that failure may be continued:
-// the model's own transient failures (5xx, ECONNRESET, 529) are retried inside the call by Mastra's
-// StreamErrorRetryProcessor (harness/error-processors.ts) before they ever reach this code.
-const classifyAgentFailure = (error: unknown): Readonly<{ code: AgentFailureCode | null; retryDelayMs: number | null }> => {
-  if (namesNoModelAccount(error)) return { code: NO_MODEL_ACCOUNT, retryDelayMs: null }
-  // One model call outran its time budget (`BUILDER_MODEL_STEP_TIMEOUT_MS`); continuing would only run it again.
-  if (namesStepTimeout(error)) return { code: 'BUILDER_MODEL_STEP_TIMEOUT', retryDelayMs: null }
-  const { type, retryable, retryDelay } = parseError(error)
-  if (type === 'rate_limit') return { code: 'BUILDER_MODEL_RATE_LIMITED', retryDelayMs: null }
-  if (type === 'auth') return { code: 'BUILDER_MODEL_AUTH_FAILED', retryDelayMs: null }
-  if ((type === 'timeout' || type === 'network') && !hasHttpStatus(error)) {
-    return { code: 'BUILDER_AGENT_PLATFORM_FAILED', retryDelayMs: retryable ? Math.min(retryDelay ?? 0, MAX_CONTINUATION_DELAY_MS) : null }
-  }
-  return { code: null, retryDelayMs: null }
+// storage or the network under the loop, not from the model. The model's own transient failures
+// (5xx, ECONNRESET, 529) are retried inside the call by Mastra's StreamErrorRetryProcessor
+// (harness/error-processors.ts) before they ever reach this code.
+const classifyAgentFailure = (error: unknown): AgentFailureCode | null => {
+  if (namesNoModelAccount(error)) return NO_MODEL_ACCOUNT
+  // One model call outran its time budget (`BUILDER_MODEL_STEP_TIMEOUT_MS`).
+  if (namesStepTimeout(error)) return 'BUILDER_MODEL_STEP_TIMEOUT'
+  const { type } = parseError(error)
+  if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
+  if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'
+  if ((type === 'timeout' || type === 'network') && !hasHttpStatus(error)) return 'BUILDER_AGENT_PLATFORM_FAILED'
+  return null
 }
 
 type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
@@ -154,7 +143,6 @@ const registerParkedCalls = (session: BuilderSession, calls: readonly ParkedCall
   for (const call of calls) session.suspensions.register({ ...call, threadId: session.thread.requireId(), resourceId: session.identity.getResourceId() })
 }
 
-/** @public Tests import this at runtime from the built module. */
 export const sendBuilderSessionMessage = async (
   session: BuilderSession,
   step: BuilderStep,
@@ -188,56 +176,18 @@ export const sendBuilderSessionMessage = async (
         await session.sendMessage({ ...step, ...(requestContext ? { requestContext } : {}) })
       }
     } catch (error) {
-      const { code, retryDelayMs } = classifyAgentFailure(error)
-      throw code ? new BuilderAgentError(code, retryDelayMs, { cause: safeCause(error) }) : error
+      const code = classifyAgentFailure(error)
+      throw code ? new Error(code, { cause: safeCause(error) }) : error
     }
     if (tripwire) throw new Error('BUILDER_AGENT_TRIPWIRE', { cause: tripwire })
     if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
     if (terminalReason === 'error') {
-      const { code, retryDelayMs } = agentError ? classifyAgentFailure(agentError) : { code: null, retryDelayMs: null }
-      throw new BuilderAgentError(code ?? 'BUILDER_MODEL_STREAM_FAILED', retryDelayMs, { cause: safeCause(agentError) })
+      throw new Error((agentError ? classifyAgentFailure(agentError) : null) ?? 'BUILDER_MODEL_STREAM_FAILED', { cause: safeCause(agentError) })
     }
     return terminalReason
   } finally {
     unsubscribe()
     stopWatching()
-  }
-}
-
-const MAX_CONTINUATIONS = 2
-// A storage fault ends the loop step, and a session has no call to carry on a turn: sendMessage
-// takes content and nothing else. So the continuation sends this one line, and the model resumes
-// from the thread's last saved message. It names the storage fault because that is the only fault
-// that reaches it; the model's own failures are retried by Mastra, with no message at all.
-const CONTINUE_MESSAGE = 'Uma falha passageira de armazenamento interrompeu a execução. Continue de onde parou.'
-
-const wait = (ms: number, signal: AbortSignal | undefined): Promise<void> => new Promise((resolve) => {
-  if (signal?.aborted) return resolve()
-  const done = (): void => { clearTimeout(timer); signal?.removeEventListener('abort', done); resolve() }
-  const timer = setTimeout(done, ms)
-  signal?.addEventListener('abort', done, { once: true })
-})
-
-/**
- * Sends the message, and when the agent ends on a platform fault under the loop (storage or the
- * network, never the model), continues the same session up to MAX_CONTINUATIONS times. Auth, tripwires, cancellation and everything
- * else that carries no retry delay end the turn on the first failure.
- */
-export const sendBuilderTurnMessage = async (
-  session: BuilderSession,
-  step: BuilderStep,
-  { requestContext, signal, onContinuation }: Readonly<{ requestContext?: RequestContext; signal?: AbortSignal; onContinuation?: (continuations: number) => void }> = {},
-): Promise<SendableAgentEndReason> => {
-  for (let continuations = 0; ; continuations += 1) {
-    try {
-      return await sendBuilderSessionMessage(session, continuations === 0 ? step : { content: CONTINUE_MESSAGE }, requestContext)
-    } catch (error) {
-      const delay = error instanceof BuilderAgentError ? error.retryDelayMs : null
-      if (delay === null || continuations === MAX_CONTINUATIONS || signal?.aborted) throw error
-      await wait(delay, signal)
-      if (signal?.aborted) throw error
-      onContinuation?.(continuations + 1)
-    }
   }
 }
 

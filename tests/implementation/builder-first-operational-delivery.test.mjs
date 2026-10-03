@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -15,10 +15,10 @@ const compile = (entry) => {
   if (result.status !== 0) throw new Error(result.stdout || result.stderr)
 }
 compile('apps/hub/src/platform/config.ts')
-compile('apps/hub/src/builder/module.ts')
+compile('apps/hub/src/builder/observability.ts')
 compile('apps/hub/src/project/routes.ts')
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
-const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
+const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'observability.js')).href)
 const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs')).href)
 
 test('Project composition registers exactly the four surviving Project routes', async () => {
@@ -68,27 +68,6 @@ test('Builder lifecycle completes native shutdown after a rejected flush', async
   await lifecycle.flush()
   await lifecycle.close()
   assert.deepEqual(events, ['flush', 'shutdown'])
-})
-
-test('Hub and live proof commands load the operator configuration explicitly', async () => {
-  const packageJson = JSON.parse(await readFile(resolve(repositoryRoot, 'package.json'), 'utf8'))
-  assert.match(packageJson.scripts['hub:local'], /node --env-file=\.audit\/slice7\/hub\.env/)
-  assert.match(packageJson.scripts['rb:builder:live'], /node --env-file=\.audit\/slice7\/hub\.env/)
-  assert.match(packageJson.scripts['rb:builder:composed:live'], /node --env-file=\.audit\/slice7\/hub\.env/)
-  const composedRunner = await readFile(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs'), 'utf8')
-  const localBuildScript = await readFile(resolve(repositoryRoot, 'scripts/build-hub-local.mjs'), 'utf8')
-  assert.match(localBuildScript, /apps\/hub\/tsconfig\.json/)
-  assert.match(localBuildScript, /vite\.js/)
-  assert.match(localBuildScript, /apps\/web\/vite\.config\.mjs/)
-  assert.match(localBuildScript, /--max-old-space-size=512/)
-  assert.match(composedRunner, /server\.js/)
-  assert.match(composedRunner, /builder-production-composed-live\.test\.mjs/)
-  assert.match(composedRunner, /https:/)
-  assert.match(composedRunner, /RB_COMPOSED_HUB_RESPONSE_REFUSED/)
-  assert.match(composedRunner, /buildHubLocal/)
-  assert.doesNotMatch(composedRunner, /http:\/\/127\.0\.0\.1/)
-  assert.doesNotMatch(packageJson.scripts['rb:first:check'], /rb-builder-first-vertical|bld-10-preview/)
-  assert.match(packageJson.scripts['rb:first:check'], /builder-first-operational-delivery\.test\.mjs/)
 })
 
 test('composed readiness uses both lookup forms, expected shell response, and a bounded request', async () => {

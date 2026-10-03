@@ -7,11 +7,8 @@ import type { IssuedToken, Redacted } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 import { isOneReadStatement } from './read-only-sql.js'
 
-/**
- * The gateway origins the Sankhya documentation publishes: production and sandbox.
- * @public Tests import this at runtime from the built module.
- */
-export const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
+/** The gateway origins the Sankhya documentation publishes: production and sandbox. */
+const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
 
 const LOAD_RECORDS = 'CRUDServiceProvider.loadRecords'
 

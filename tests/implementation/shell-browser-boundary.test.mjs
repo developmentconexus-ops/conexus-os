@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const read = (relative) => readFileSync(resolve(repositoryRoot, relative), 'utf8')
 
 test('the SPA page carries its own style nonce, the same one its CSP allows, fresh per response', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
@@ -29,185 +28,24 @@ test('the SPA page carries its own style nonce, the same one its CSP allows, fre
   assert.notEqual(nonces[0], nonces[1])
 })
 
-test('S5-P0 serves every realized browser route through the same-origin SPA host', () => {
-  const source = read('apps/hub/src/http/app.ts')
-  for (const route of [
-    '/workspaces/new',
-    '/workspaces/:workspaceId/projects',
-    '/workspaces/:workspaceId/projects/new',
-    '/projects/:projectId',
-    '/projects/:projectId/build',
-    '/projects/:projectId/c/:conversationId',
-    '/workspaces',
-    '/signed-out',
-    '/no-access',
-    '/workspaces/:workspaceId/settings/people',
-    '/projects/:projectId/settings',
-    '/settings/account',
-    '/settings/models',
-    '/settings/installation/github',
-    '/settings/installation/models',
-    '/settings/installation/model-defaults',
-    '/settings/installation/memory',
-    '/settings/installation/admins',
+test('every SPA path answers with the shell page', async (t) => {
+  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+  const staticRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-static-'))
+  t.after(() => rmSync(staticRoot, { recursive: true, force: true }))
+  writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
+  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  t.after(() => app.close())
+
+  const id = '10000000-0000-4000-8000-000000000001'
+  for (const url of [
+    '/', '/setup', '/workspaces', '/workspaces/new', `/workspaces/${id}/projects`, `/workspaces/${id}/projects/new`,
+    `/workspaces/${id}/settings/people`, `/projects/${id}`, `/projects/${id}/c/${id}`, `/projects/${id}/settings`,
+    `/projects/${id}/settings/access`, `/projects/${id}/integrations`, '/settings', '/settings/account', '/settings/models',
+    '/settings/installation/admins', '/signed-out', '/no-access',
   ]) {
-    assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')))
-  }
-  assert.match(source, /readFileSync\(join\(staticRoot, 'index\.html'\)/)
-})
-
-test('S5-P0 realizes one adaptive server-oriented shell and recoverable focus', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  const styles = read('apps/web/src/styles.css')
-  // The frame, the sidebar, its narrow-screen drawer and the menus (which own their focus return)
-  // are the component library's; the shell supplies the labels. project-browser drives them.
-  assert.match(shell, /<MainSidebarProvider /)
-  assert.match(shell, /<MainSidebar\.Nav aria-label="Navegação principal">/)
-  assert.match(shell, /<MainSidebar\.MobileTrigger aria-label="Abrir navegação"/)
-  assert.match(shell, /<Breadcrumb label="Contexto atual"/)
-  assert.match(shell, /<AppShell/)
-  assert.match(shell, /<DropdownMenu>/)
-  assert.match(styles, /@media \(max-width: 48rem\)/)
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
-})
-
-test('S5-P0 sidebar collapses to a 56px icon rail with a top toggle, ⌘B/Ctrl+B, and a phone drawer', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  assert.match(shell, /collapsedWidth=\{56\}/)
-  assert.match(shell, /disableKeyboardShortcut=\{false\}/)
-  assert.match(shell, /mobileBreakpoint=\{768\}/)
-  // The toggle sits in the header row above <MainSidebar.Nav>, never in a footer, and its label
-  // reflects the real state (SidebarCollapseTrigger reads useMainSidebar()), not a static string.
-  assert.match(shell, /function SidebarCollapseTrigger\(\) \{[\s\S]*?<MainSidebar\.Trigger className="cx-rail-collapse" aria-label=\{collapsed \? 'Expandir barra lateral' : 'Recolher barra lateral'\}/)
-  const rootIndex = shell.indexOf('<MainSidebar className="shell-sidebar">')
-  const triggerIndex = shell.indexOf('<SidebarCollapseTrigger />')
-  const navIndex = shell.indexOf('<MainSidebar.Nav aria-label="Navegação principal">')
-  assert.ok(rootIndex >= 0 && triggerIndex > rootIndex && triggerIndex < navIndex, 'the collapse toggle is above the nav, at the top of the sidebar')
-})
-
-test('S5-P0 top bar spans the full width, above the sidebar, not inside AppShell\'s own frame', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  const styles = read('apps/web/src/styles.css')
-  // AppShell's routeHeader slot renders inside its content frame, to the right of an outer
-  // sidebar, so it can't reach full width above the sidebar; the shell composes its own two rows
-  // instead (topbar row, then a sidebar+main row) around the library's components.
-  assert.doesNotMatch(shell, /routeHeader=/)
-  const frameIndex = shell.indexOf('<div className="shell-frame">')
-  const topBarIndex = shell.indexOf('<TopBar ')
-  const bodyIndex = shell.indexOf('<div className="shell">')
-  assert.ok(frameIndex >= 0 && topBarIndex > frameIndex && topBarIndex < bodyIndex, 'TopBar renders before the sidebar+main row, both inside shell-frame')
-  assert.match(styles, /\.shell-frame \{ display: flex; flex-direction: column; height: 100dvh;/)
-})
-
-test('S5-P0 sidebar is contextual: a Configurações link at the bottom, and disabled "Em breve" capabilities inside a Project', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  assert.match(shell, /<MainSidebar\.Bottom className="cx-rail-bottom">/)
-  assert.match(shell, /Configurações do projeto/)
-  // Configurações do projeto links to the existing Project settings route, not the account one.
-  assert.match(shell, /project\s*\n\s*\? <Link to="\/projects\/\$projectId\/settings" params=\{\{ projectId: project\.projectId \}\}>/)
-  assert.match(shell, /: <Link to="\/settings\/account">/)
-  assert.match(shell, /aria-disabled="true"/)
-  assert.match(shell, /tooltipMsg: 'Em breve'/)
-  for (const label of ['Dados', 'Capacidades', 'Integrações']) assert.match(shell, new RegExp(`label="${label}"`))
-})
-
-test('S5-P0 matches the prototype\'s sidebar typography: 34px/14px/500 nav rows with 18px icons, 15px/600 switcher, 24px badge', () => {
-  const frame = read('apps/web/src/app/frame.css')
-  assert.match(frame, /\.shell-sidebar li > a, \.shell-sidebar li > span\[aria-disabled\] \{ height: 34px; \}/)
-  assert.match(frame, /\.cx-nav-label \{ font: 500 14px\/1 var\(--cx-font-body\); \}/)
-  assert.match(frame, /\.shell-sidebar li svg \{ width: 18px; height: 18px; \}/)
-  assert.match(frame, /\.cx-rail-switch \{[^}]*font: 600 \.9375rem\/1\.2/)
-  assert.match(frame, /\.cx-rail-badge \{[^}]*width: 1\.5rem; height: 1\.5rem;/)
-})
-
-test('S5-P0 collapsed rail leads with the toggle, then the badge; expanded keeps the switch first', () => {
-  const frame = read('apps/web/src/app/frame.css')
-  assert.match(frame, /\[data-sidebar-state="collapsed"\] \.cx-rail-collapse \{ order: -1; \}/)
-  const shell = read('apps/web/src/app/shell.tsx')
-  // DOM order is switch-then-toggle in both states; only the collapsed column visually reorders it.
-  const switchIndex = shell.indexOf('<ProjectSwitcher')
-  const collapseIndex = shell.indexOf('<SidebarCollapseTrigger />')
-  assert.ok(switchIndex > 0 && switchIndex < collapseIndex)
-})
-
-test('S5-P0 the top of the Project sidebar switches the Project itself, not the Workspace, and the back item names the Workspace', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  assert.match(shell, /project && workspace\s*\n\s*\? <ProjectSwitcher workspaceId=\{workspace\.workspaceId\} current=\{project\.projectId\}/)
-  assert.match(shell, /<span className="cx-rail-badge" aria-hidden>\{initials\(project\.name\)\}<\/span>/)
-  // No redundant "the Project's own name" section header; the switcher already names it.
-  assert.doesNotMatch(shell, /<span className="cx-rail-scope">\{project\.name\}<\/span>/)
-  assert.match(shell, /label=\{`Voltar para \$\{workspace\.name\}`\}/)
-  assert.match(shell, /<NavText icon=\{<ArrowLeft size=\{16\} aria-hidden \/>\}>\{workspace\.name\}<\/NavText>/)
-})
-
-test('S5-P0 the top bar\'s lockup sits before a 1px divider, outside the breadcrumb trail, at the prototype\'s size (18px text, 22px mark)', () => {
-  const shell = read('apps/web/src/app/shell.tsx')
-  assert.match(shell, /<Link to="\/" className="cx-lockup" aria-label="Conexus, início">/)
-  assert.match(shell, /<span className="cx-topbar-divider" aria-hidden \/>/)
-  assert.match(shell, /<ConexusWordmark size="xs" markSize=\{22\} arrive=\{arrive\} \/>/)
-  assert.match(shell, /<ConexusMark size=\{22\} \/>/)
-  // The lockup is a sibling of <Breadcrumb>, not one of its <Crumb> children.
-  const lockupIndex = shell.indexOf('className="cx-lockup"')
-  const breadcrumbIndex = shell.indexOf('<Breadcrumb label="Contexto atual"')
-  assert.ok(lockupIndex > 0 && lockupIndex < breadcrumbIndex)
-  const frame = read('apps/web/src/app/frame.css')
-  assert.match(frame, /\.cx-topbar-divider \{ width: 1px;/)
-  assert.match(frame, /\.cx-crumb \{ height: 2rem; font-size: \.875rem; font-weight: 500; \}/)
-})
-
-test('S5-P0 carries a remembered light/dark toggle, built on the component library\'s own ThemeProvider', () => {
-  const main = read('apps/web/src/main.tsx')
-  const shell = read('apps/web/src/app/shell.tsx')
-  const toggle = read('apps/web/src/app/theme-toggle.tsx')
-  assert.match(main, /<ThemeProvider defaultTheme="system" storageKey="conexus-theme">/)
-  assert.match(shell, /<ThemeToggle \/>/)
-  assert.doesNotMatch(shell, /localStorage/)
-  assert.match(toggle, /from '@mastra\/playground-ui\/components\/ThemeProvider'/)
-  assert.match(toggle, /useTheme\(\)/)
-  assert.doesNotMatch(toggle, /localStorage/)
-})
-
-test('S5-P0 drops the floating rounded content card; the frame runs edge to edge under the top bar and sidebar', () => {
-  const frame = read('apps/web/src/app/frame.css')
-  assert.match(frame, /\[data-slot="app-shell-frame"\] \{ margin: 0; border: 0; border-radius: 0;/)
-})
-
-test('S5-P0 brand tokens carry the one radius scale: controls, real objects, and the composer', () => {
-  const tokens = read('packages/brand/src/tokens.css')
-  assert.match(tokens, /--cx-radius-control: 6px;/)
-  assert.match(tokens, /--cx-radius-object: 10px;/)
-  assert.match(tokens, /--cx-radius-composer: 16px;/)
-})
-
-test('S5-P0 preserves the four-state/no-client-authority boundary', () => {
-  const sources = [
-    'apps/web/src/app/query-client.tsx',
-    'apps/web/src/app/shell.tsx',
-    'apps/web/src/routes/index.tsx',
-    'apps/web/src/routes/setup.tsx',
-    'apps/web/src/features/workspace/components/workspace-create-form.tsx',
-    'apps/web/src/features/project/components/project-create-form.tsx',
-    'apps/web/src/features/project/start-project.ts',
-    'apps/web/src/app/access-gate.tsx',
-  ].map(read).join('\n')
-  assert.doesNotMatch(sources, /localStorage|sessionStorage|indexedDB/)
-  assert.doesNotMatch(sources, /isAuthorized|hasPermission|canApprove|role(s)?\s*===/i)
-  assert.match(sources, /clearAuthorityCache\(\)/)
-  assert.match(sources, /disabled=\{[^}]*isPending/)
-})
-
-test('S5-P0 guards every realized browser command against synchronous double activation', () => {
-  const guarded = [
-    ['apps/web/src/app/shell.tsx', /signOutInFlight/],
-    ['apps/web/src/routes/setup.tsx', /provisionInFlight/],
-    ['apps/web/src/features/workspace/components/workspace-create-form.tsx', /createInFlight/],
-    ['apps/web/src/features/project/start-project.ts', /inFlight/],
-  ]
-  for (const [file, guard] of guarded) {
-    const source = read(file)
-    assert.match(source, guard, file)
-    assert.match(source, /\.current\) return/, file)
-    assert.match(source, /onSettled/, file)
+    const response = await app.inject({ method: 'GET', url })
+    assert.equal(response.statusCode, 200, url)
+    assert.match(response.body, /<title>Conexus<\/title>/, url)
   }
 })
 

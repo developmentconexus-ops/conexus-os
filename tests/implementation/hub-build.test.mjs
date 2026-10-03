@@ -178,8 +178,8 @@ function isNestedInside(childDir, parentDir) {
 }
 
 test('the default shared-cache root never collides with the directory Verify wipes on every run', () => {
-  const hubTypecheckStep = CANDIDATE_GRAPH.find(step => step.scope === 'c020-hub-typecheck')
-  assert.ok(hubTypecheckStep, 'c020-hub-typecheck step must exist in the candidate graph')
+  const hubTypecheckStep = CANDIDATE_GRAPH.find(step => step.scope === 'hub-typecheck')
+  assert.ok(hubTypecheckStep, 'hub-typecheck step must exist in the candidate graph')
   const verifyHubBuildDir = resolve(verifyRepositoryRoot, hubTypecheckStep.publishes.CONEXUS_HUB_BUILD)
 
   assert.notEqual(DEFAULT_HUB_BUILD_CACHE_DIR, verifyHubBuildDir)

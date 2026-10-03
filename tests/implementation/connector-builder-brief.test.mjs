@@ -4,10 +4,15 @@ import test from 'node:test'
 import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { CONNECTOR_BRIEF_UNAVAILABLE, CONNECTOR_BRIEF_UNBOUND, createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { SANKHYA_GATEWAY_ORIGINS } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+
+const CONNECTOR_BRIEF_UNBOUND = 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
+  + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.'
+const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
+  + 'when the request needs data from an external system, change no files, tell the person it is unavailable right now and that they can ask again later, and stop.'
+const SANKHYA_GATEWAY_ORIGINS = ['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br']
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
 const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
@@ -30,8 +35,6 @@ const sankhyaReferences = ['topics.md', 'traps.md'].map((name) => [name, readSki
 
 test('a Project with no binding is told to change nothing and say a Conexão can be added; every binding is listed with its integrator skill', async () => {
   assert.equal(await briefOf(storeOf([]))(scope), CONNECTOR_BRIEF_UNBOUND)
-  assert.equal(CONNECTOR_BRIEF_UNBOUND, 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
-    + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.')
   const other = await briefOf(storeOf([bound('crm', 'synthetic-rest')]))(scope)
   assert.ok(other.startsWith(line('crm', 'synthetic-rest')), other)
   assert.equal(other.includes('conexus-sankhya'), false, 'a Project bound only to another integrator is not pointed at the Sankhya skill')
@@ -48,11 +51,6 @@ test('the brief carries the runtime cases in one place: too large, call limit, a
   assert.equal(text.includes(CONNECTOR_BRIEF_UNBOUND), false)
   assert.equal(text.includes('connectors.call'), false)
   assert.equal(sankhyaSkill.includes('RESPONSE_TOO_LARGE'), false)
-})
-
-test('the unavailable notice names connectors.fetch, not connectors.call', () => {
-  assert.ok(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.fetch'))
-  assert.equal(CONNECTOR_BRIEF_UNAVAILABLE.includes('connectors.call'), false)
 })
 
 test('the Builder guidance never teaches connectors.call: the server skill, the prompt and the Sankhya skill teach fetch', () => {

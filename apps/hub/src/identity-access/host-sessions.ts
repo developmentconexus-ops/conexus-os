@@ -87,11 +87,8 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
 
 type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-/**
- * A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session.
- * @public Tests import this at runtime from the built module.
- */
-export const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
+/** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
+const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
 
 type ApplicationRow = QueryResultRow & {
   account_id: string

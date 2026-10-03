@@ -9,7 +9,6 @@ export type BuilderRunApplicationBuildRequest = Readonly<{
   builderRunId: string
   sourceRevision: string
   compiledApplication: CompiledApplication
-  signal?: AbortSignal
 }>
 
 export type ApplicationSourceCoordinates = Readonly<{
@@ -124,8 +123,6 @@ export const prepareBuilderRunApplicationArtifact = async (
   dependencies: Readonly<{ applicationArtifacts: BuilderApplicationArtifacts }>,
   input: BuilderRunApplicationBuildRequest,
 ): Promise<ApplicationArtifactMetadata> => {
-  const cancelled = (): void => { if (input.signal?.aborted) throw new Error('BUILDER_APPLICATION_CANCELLED') }
-  cancelled()
   if (!z.uuid().safeParse(input.accountId).success || !z.uuid().safeParse(input.projectId).success ||
     !z.uuid().safeParse(input.builderRunId).success || !/^[0-9a-f]{40}$/i.test(input.sourceRevision)) {
     throw new Error('BUILDER_APPLICATION_REQUEST_REFUSED')
@@ -134,6 +131,5 @@ export const prepareBuilderRunApplicationArtifact = async (
   if (result.projectId !== input.projectId || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
     throw new Error('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
   }
-  cancelled()
   return dependencies.applicationArtifacts.retainApplication({ accountId: input.accountId, compiled: result })
 }

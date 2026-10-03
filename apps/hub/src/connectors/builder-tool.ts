@@ -10,11 +10,8 @@ import { nativeRequestSchema } from './native.js'
 import type { Consumer } from './integrator.js'
 import { revokeScope, scopeForBuilderRun } from './scope.js'
 
-/**
- * A Builder run's reads: the run revokes the scope when it ends, so the lifetime only bounds a run that never ends.
- * @public Tests import this at runtime from the built module.
- */
-export const BUILDER_RUN_TERMS = Object.freeze({ ttlMs: 2 * 60 * 60 * 1000, calls: 50 })
+/** A Builder run's reads: the run revokes the scope when it ends, so the lifetime only bounds a run that never ends. */
+const BUILDER_RUN_TERMS = Object.freeze({ ttlMs: 2 * 60 * 60 * 1000, calls: 50 })
 
 const RUN_CONSUMER_KEY = 'conexusConnectorConsumer'
 

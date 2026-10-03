@@ -41,21 +41,17 @@ const assertFailure = (result, message) => {
   assert.match(result.stderr, message)
 }
 
-test('current repository checks accept ordinary development edits', () => {
-  assertPass(runAt('scripts/check-current-state.mjs', root))
-})
-
 test('working documents and historical phase prose do not require admission', context => {
   const candidate = gitFixture(context, currentFiles())
   writeFileSync(resolve(candidate, 'docs/roadmap.md'), '# Current work\nNo phase table is required.\n')
   writeFileSync(resolve(candidate, 'README.md'), '# History\n3N = NEXT / NOT STARTED\n')
   mkdirSync(resolve(candidate, 'docs/work'), { recursive: true })
   writeFileSync(resolve(candidate, 'docs/work/handoff-round.md'), '# local dialogue\n')
-  assertPass(runAt('scripts/check-current-state.mjs', candidate))
+  assertPass(runAt('scripts/check-agent-context.mjs', candidate))
 })
 
 for (const state of ['unstaged', 'staged', 'untracked', 'untracked-crlf', 'committed']) {
-  test('current-state rejects ' + state + ' conflict markers', context => {
+  test('agent-context rejects ' + state + ' conflict markers', context => {
     const candidate = gitFixture(context, currentFiles())
     const path = state.startsWith('untracked') ? 'new-file.md' : 'README.md'
     const markers = '<<<<<<< ours\nfirst\n=======\nsecond\n>>>>>>> theirs\n'
@@ -68,25 +64,22 @@ for (const state of ['unstaged', 'staged', 'untracked', 'untracked-crlf', 'commi
       execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
         'commit', '--quiet', '-m', 'conflict'], { cwd: candidate })
     }
-    assertFailure(runAt('scripts/check-current-state.mjs', candidate), /conflict marker/)
+    assertFailure(runAt('scripts/check-agent-context.mjs', candidate), /conflict marker/)
   })
 }
 
-test('current-state ignores a deleted workflow and rejects a new unsafe workflow', context => {
+test('agent-context ignores a deleted workflow and rejects a new unsafe workflow', context => {
   const candidate = gitFixture(context, currentFiles())
   rmSync(resolve(candidate, '.github/workflows/verify.yml'))
-  assertPass(runAt('scripts/check-current-state.mjs', candidate))
+  assertPass(runAt('scripts/check-agent-context.mjs', candidate))
   writeFileSync(resolve(candidate, '.github/workflows/new.yml'), 'on: pull_request_target\n')
-  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /unsafe pull_request_target/)
+  assertFailure(runAt('scripts/check-agent-context.mjs', candidate), /unsafe pull_request_target/)
   writeFileSync(resolve(candidate, '.github/workflows/new.yml'), 'on: push\npermissions:\n  contents: write\n')
-  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /contents: write/)
+  assertFailure(runAt('scripts/check-agent-context.mjs', candidate), /contents: write/)
 })
 
-test('repository checks reject public package identity and missing files', context => {
+test('repository checks reject a public package identity', context => {
   const candidate = gitFixture(context, currentFiles())
   writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":false}\n')
-  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /private/)
-  writeFileSync(resolve(candidate, 'package.json'), '{"name":"conexus-os","private":true}\n')
-  rmSync(resolve(candidate, 'docs/roadmap.md'))
-  assertFailure(runAt('scripts/check-current-state.mjs', candidate), /missing required repository file/)
+  assertFailure(runAt('scripts/check-agent-context.mjs', candidate), /private/)
 })

@@ -140,13 +140,13 @@ same, [`s6-keycloak-events-before.json`](s6-keycloak-events-before.json),
 
 The member is the test operator (`conexus-test-operator`, a member of `sdasdsa`), whose saved Keycloak password
 signed them in without anyone typing. The Owner (`conexus_admin`) and the employee (`funcionario-teste`) were signed
-in by the operator in visible browser windows ([`scripts/q3-sign-in.mjs`](../../../scripts/q3-sign-in.mjs), now with
+in by the operator in visible browser windows ([`scripts/q3-sign-in.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/q3-sign-in.mjs), now with
 a banner naming who signs in). The first Owner window was used by mistake for the employee: the Hub refused the
 application-only Account and no session or state was kept, as Q3.6 expects; the attempt was discarded.
 
-The levers are [`scripts/q3-negative-proof.mjs`](../../../scripts/q3-negative-proof.mjs) for the Q3.6 and review cases
-and [`scripts/single-session-proof.mjs`](../../../scripts/single-session-proof.mjs) for the cases this task added.
-Each record holds the request, the answer and whether the expected result held.
+The levers are [`scripts/q3-negative-proof.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/q3-negative-proof.mjs) for the Q3.6 and review cases
+and [`scripts/single-session-proof.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/single-session-proof.mjs) for the cases this task added.
+Each record holds the request, the answer and whether the expected result held. The scripts no longer exist on `main`; they run in a checkout of revision `73d066777ea6a43a8a42fda9d375ccfea34d0e09`.
 
 | S6 case | Request | Answer | Record |
 | --- | --- | --- | --- |
@@ -172,7 +172,7 @@ tool now uses the criterion below and polls every 10 s; the rerun above held. It
 fails or no case runs, so a failed case no longer passes silently.
 
 **The five-minute criterion and its resolution.** Task section 8 rejects the hypothesis if a disabled or signed-out
-person keeps any host past five minutes. `scripts/single-session-proof.mjs` holds a case only when a request was
+person keeps any host past five minutes. [`scripts/single-session-proof.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/single-session-proof.mjs) holds a case only when a request was
 allowed after the event, no request that started 300 s or more after it was allowed, the first request after 300 s
 was refused, and the Preview's session ended with its Hub session (`PARENT_ENDED`). The proof polls every 10 s, so it
 places the refusal between 300 s and 310 s; it cannot resolve the instant inside that interval. Keycloak refreshes

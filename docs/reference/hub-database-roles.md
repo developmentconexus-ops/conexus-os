@@ -113,15 +113,6 @@ pilot, the only database on the old history, was adopted onto the baseline. No d
 old ledger exists any more, so there is no cluster left carrying these eighteen names, and the
 one-time adoption and role-drop scripts that did the work were deleted with it.
 
-An operator upgrading a deployment renames the secret files and the environment variables with
-`scripts/cutover-hub-role-names.mjs`, which is a dry run unless given `--apply`. It copies each
-secret file to its new name at mode 0600, rewrites the variable names in the environment file and
-keeps a timestamped backup, prints names only, and changes nothing on a second run. It never
-generates a password. After it, `npm run db:roles:provision` gives the new roles the passwords in
-those files, and the startup census should then report every role `ok`. The Hub refuses a stale
-environment rather than failing to authenticate: each retired variable name is rejected at startup
-with `RETIRED_CONFIG_<old>_USE_<new>`.
-
 ## Roles are cluster-global
 
 A role is not scoped to a database. A test that creates a throwaway database and then runs

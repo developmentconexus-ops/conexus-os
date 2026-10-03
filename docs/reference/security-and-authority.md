@@ -256,8 +256,7 @@ never from the request.
 
 Conexus holds no model provider credential. Model authentication, credentials, provider
 connection and model selection belong to Mastra Code and the Factory, per
-[C-022](../decisions/index.md). The Hub refuses to boot when a retired credential
-variable is set, with `RETIRED_CONFIG_<name>`.
+[C-022](../decisions/index.md).
 
 ## 6. Preview serving
 

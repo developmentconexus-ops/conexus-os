@@ -603,7 +603,7 @@ code and refused. The proofs live in two rerunnable suites, not a one-off script
   A wall-clock overrun is killed and its live SQL cancelled; a busy loop, a crash, heap and Buffer
   exhaustion each end the one worker and the next request is served. The relay admits only the pinned
   role on the pinned database and refuses every other identity.
-- Pilot secret paths: `tests/implementation/sandbox-probe/pilot-probe.mjs` runs the same cases
+- Pilot secret paths: [`tests/implementation/sandbox-probe/pilot-probe.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/tests/implementation/sandbox-probe/pilot-probe.mjs) runs the same cases
   through the real runner path on the pilot host, with the permission layer off. See
   [`review-fixes/pilot-namespace-probe.json`](review-fixes/pilot-namespace-probe.json).
 
@@ -611,7 +611,7 @@ code and refused. The proofs live in two rerunnable suites, not a one-off script
 in CI. On the pilot, two probes ran through the real supervisor, relay and sandbox with the
 runner's own configuration ([`q1.7-apps/`](q1.7-apps/)):
 
-- `tests/implementation/sandbox-probe/pilot-data-probe.mjs` is new. Its runtime handler runs 14
+- [`tests/implementation/sandbox-probe/pilot-data-probe.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/tests/implementation/sandbox-probe/pilot-data-probe.mjs) is new. Its runtime handler runs 14
   statements as a probe Project's runtime role on the pilot's Applications cluster. Reading run-2's
   table gets `42501`. `pg_database` lists only `conexus_apps`, `postgres`, `template0` and
   `template1`: the Hub database is not in this cluster. A `dblink` call to it gets `42883`. `CREATE
@@ -622,7 +622,7 @@ runner's own configuration ([`q1.7-apps/`](q1.7-apps/)):
   `ALTER ROLE` on its runtime role, `CREATE ROLE`, `CREATE SCHEMA`, a table in another Project's
   schema and a read of another Project's table all get `42501`, and a foreign server gets `42704`.
   25 of 25 match, `breach: false` ([`q1.7-apps/pilot-data-probe.json`](q1.7-apps/pilot-data-probe.json)).
-- `pilot-probe.mjs` also targets 5434 now, and it reads the relay TLS through the runner's own
+- [`pilot-probe.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/tests/implementation/sandbox-probe/pilot-probe.mjs) also targets 5434 now, and it reads the relay TLS through the runner's own
   reader. All 60 secret paths, including the new `apps-cluster-authority`, `apps-relay-tls` and
   `db-apps-root`, are unreadable. All 12 listener probes are refused, both clusters included, and
   the docker socket is `ENOENT`. `breach: false`
@@ -759,11 +759,11 @@ topology decision answers the first. Lane B's admission bound answers the second
 | Claude N6: the PUBLIC `CONNECT` revoke checks only roles connected now | On the Applications cluster it closes only `postgres`, where nothing but the superuser connects. The Hub database is no longer touched. | provisioning code |
 | New in this round: `pg_use_reserved_connections` never applied | The provisioner is `NOINHERIT`, so a plain grant gave it membership without the privilege, and Project sessions could take the runner's last slots. The grant now says `WITH INHERIT TRUE`. | The bounds test asserts the privilege. It failed before the fix. |
 
-**The guards are load-bearing.** [`tests/implementation/guard-mutations.mjs`](../../../tests/implementation/guard-mutations.mjs)
+**The guards are load-bearing.** [`tests/implementation/guard-mutations.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/tests/implementation/guard-mutations.mjs)
 removes one guard at a time, runs the suite that should catch it and restores the file. It ran on
 freshly created throwaway clusters:
 [`guard-mutations.txt`](guard-mutations.txt), driven by
-[`guard-mutations-fresh.sh`](guard-mutations-fresh.sh). All 20 mutations fail their suite, each
+[`guard-mutations-fresh.sh`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/docs/evidence/stage2-q1/guard-mutations-fresh.sh). The scripts no longer exist on `main`; they run in a checkout of revision `73d066777ea6a43a8a42fda9d375ccfea34d0e09`. All 20 mutations fail their suite, each
 naming the test that caught it: the language revoke and its startup check, the PUBLIC `CONNECT`
 revoke, the reserved-connection grant, the TLS key check, `VALID UNTIL`, the ledger policy, the
 runtime role's schema grants, the role `temp_file_limit` and `transaction_timeout`, both relay

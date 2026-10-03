@@ -245,21 +245,6 @@ components:
         baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
         resultSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: string, enum: [SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED] }
-    OpenBuilderPreviewRequest:
-      type: object
-      additionalProperties: false
-      required: []
-    PreviewLaunch:
-      type: object
-      additionalProperties: false
-      required: [entryUrl, previewUrl, entryGrant, artifactRevisionId, artifactDigest, expiresAt]
-      properties:
-        entryUrl: { type: string, format: uri }
-        previewUrl: { type: string, format: uri }
-        entryGrant: { type: string, minLength: 1 }
-        artifactRevisionId: { type: string, format: uuid }
-        artifactDigest: { type: string, pattern: '^[0-9a-f]{64}$' }
-        expiresAt: { type: string, format: date-time }
     BuilderSession:
       type: object
       additionalProperties: false

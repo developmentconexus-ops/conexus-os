@@ -12,7 +12,7 @@ const run = candidateRoot => spawnSync(process.execPath, [script, candidateRoot]
 
 const DELIVERY = 'docs/development/delivery.md'
 const baseFiles = {
-  'package.json': '{"name":"fixture","scripts":{"repository:check":"node check.mjs","verify":"node verify.mjs"}}\n',
+  'package.json': '{"name":"conexus-os","private":true,"scripts":{"repository:check":"node check.mjs","verify":"node verify.mjs"}}\n',
   'AGENTS.md': '# Agents\n\nTrunk is `main`.\nCI runs `npm run verify`.\n',
   [DELIVERY]: '# Delivery\n\n## Merge gate\n\nRead [AGENTS](../../AGENTS.md) and [the gate](#merge-gate).\nRun `npm run repository:check`.\n',
 }
@@ -34,13 +34,13 @@ test('the real tree passes', () => {
   const result = run(root)
   assert.equal(result.status, 0, result.stdout + result.stderr)
   assert.equal(result.stderr, '')
-  assert.match(result.stdout, /^Agent context checks passed \(files=\d+, warnings=\d+\)\.$/m)
+  assert.match(result.stdout, /^Agent context checks passed \(files=\d+\)\.$/m)
 })
 
 test('a clean fixture passes with no findings', context => {
   const result = run(fixture(context))
   assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'Agent context checks passed (files=2, warnings=0).\n')
+  assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
 })
 
 test('a cited npm script that package.json lacks fails', context => {
@@ -87,11 +87,21 @@ test('only the root AGENTS.md may tell a reader to run npm run verify', context 
   assert.equal(result.stderr, 'error docs/development/delivery.md:8: only the root AGENTS.md may tell a reader to run npm run verify\n')
 })
 
-test('the root AGENTS.md over 60 lines only warns', context => {
+test('the root AGENTS.md passes at 60 lines and fails at 61', context => {
+  assert.equal(run(fixture(context, { 'AGENTS.md': lines(60) })).status, 0)
   const result = run(fixture(context, { 'AGENTS.md': lines(61) }))
-  assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'warning AGENTS.md: 61 lines exceeds the cap of 60 (enforced once M6 rewrites the root AGENTS.md)\n'
-    + 'Agent context checks passed (files=2, warnings=1).\n')
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'error AGENTS.md: 61 lines exceeds the cap of 60\n')
+})
+
+test('a conflict marker and an unsafe workflow fail', context => {
+  const candidate = fixture(context)
+  plant(candidate, 'notes.txt', '<<<<<<< ours\nfirst\n=======\nsecond\n>>>>>>> theirs')
+  mkdirSync(resolve(candidate, '.github/workflows'), { recursive: true })
+  writeFileSync(resolve(candidate, '.github/workflows/a.yml'), 'on: pull_request_target\n')
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'error .github/workflows/a.yml: unsafe pull_request_target trigger\nerror notes.txt: unresolved merge-conflict marker\n')
 })
 
 test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context => {
@@ -99,7 +109,7 @@ test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context =
   const atCap = fixture(context, { [nested]: `${'x'.repeat(1799)}\n` })
   const passed = run(atCap)
   assert.equal(passed.status, 0, passed.stderr)
-  assert.equal(passed.stdout, 'Agent context checks passed (files=3, warnings=0).\n')
+  assert.equal(passed.stdout, 'Agent context checks passed (files=3).\n')
   const failed = run(fixture(context, { [nested]: `${'x'.repeat(1800)}\n` }))
   assert.equal(failed.status, 1)
   assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 1801 characters exceeds the cap of 1800 (about 500 tokens)\n')
@@ -117,5 +127,5 @@ test('the vendored Mastra skill is not checked against this package.json', conte
   const candidate = fixture(context, { '.agents/skills/mastra/SKILL.md': 'Run `npm run dev` in your Mastra project.\n' })
   const result = run(candidate)
   assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'Agent context checks passed (files=2, warnings=0).\n')
+  assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
 })

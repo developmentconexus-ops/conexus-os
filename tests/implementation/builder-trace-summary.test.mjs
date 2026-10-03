@@ -3,7 +3,10 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
-const { buildTraceSummary, summarizeRunUsage, summarizeScore, summarizeSpan, UNAVAILABLE_TRACE_SUMMARY } = await import(built('builder/trace-summary.js'))
+const { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } = await import(built('builder/trace-summary.js'))
+
+const summarize = (spans, scores = []) => buildTraceSummary({ traceId: 'trace-1', spans, scores })
+const spanOf = (span) => summarize([span]).spans[0]
 
 const agentRun = {
   spanId: 'span-root', parentSpanId: null, spanType: 'agent_run', name: 'agent run',
@@ -23,40 +26,41 @@ const toolCall = {
   startedAt: new Date('2026-09-23T10:00:00.500Z'), endedAt: new Date('2026-09-23T10:00:00.600Z'), error: new Error('boom'), attributes: null,
 }
 
-test('summarizeSpan projects identity, timing and error, and reads model/usage only off model_generation spans', () => {
-  assert.deepEqual(summarizeSpan(agentRun), {
+test('a span is projected to identity, timing and error, and reads model/usage only off model_generation spans', () => {
+  assert.deepEqual(spanOf(agentRun), {
     spanId: 'span-root', parentSpanId: null, spanType: 'agent_run', name: 'agent run',
     startedAt: '2026-09-23T10:00:00.000Z', durationMs: 5000, error: false, model: null, usage: null,
   })
-  assert.deepEqual(summarizeSpan(modelGeneration), {
+  assert.deepEqual(spanOf(modelGeneration), {
     spanId: 'span-model-1', parentSpanId: 'span-root', spanType: 'model_generation', name: 'gpt call',
     startedAt: '2026-09-23T10:00:00.100Z', durationMs: 1000, error: false, model: 'anthropic/claude',
     usage: { inputTokens: 120, outputTokens: 30, totalTokens: 150 },
   })
-  assert.deepEqual(summarizeSpan(toolCall), {
+  assert.deepEqual(spanOf(toolCall), {
     spanId: 'span-tool-1', parentSpanId: 'span-model-1', spanType: 'tool_call', name: 'write_file',
     startedAt: '2026-09-23T10:00:00.500Z', durationMs: 100, error: true, model: null, usage: null,
   })
   // No endedAt: duration and usage stay unavailable (null), never a fabricated zero.
-  assert.deepEqual(summarizeSpan(modelGenerationNoUsage).durationMs, null)
-  assert.equal(summarizeSpan(modelGenerationNoUsage).usage, null)
+  assert.deepEqual(spanOf(modelGenerationNoUsage).durationMs, null)
+  assert.equal(spanOf(modelGenerationNoUsage).usage, null)
 })
 
-test('summarizeRunUsage sums token counts across model_generation spans and stays null when none carried usage', () => {
-  assert.deepEqual(summarizeRunUsage([agentRun, modelGeneration, modelGenerationNoUsage, toolCall]), {
+test('the run usage sums token counts across model_generation spans and stays null when none carried usage', () => {
+  assert.deepEqual(summarize([agentRun, modelGeneration, modelGenerationNoUsage, toolCall]).usage, {
     inputTokens: 120, outputTokens: 30, totalTokens: 150,
   })
-  assert.equal(summarizeRunUsage([agentRun, toolCall]), null)
-  assert.equal(summarizeRunUsage([]), null)
+  assert.equal(summarize([agentRun, toolCall]).usage, null)
+  assert.equal(summarize([]).usage, null)
 })
 
-test('summarizeScore maps a stored score row to {scorer, score, reason}, null reason when absent', () => {
-  assert.deepEqual(summarizeScore({ scorerId: 'mastracode-outcome', score: 0.97, reason: 'Build: No build/typecheck ran [N/A]' }), {
-    scorer: 'mastracode-outcome', score: 0.97, reason: 'Build: No build/typecheck ran [N/A]',
-  })
-  assert.deepEqual(summarizeScore({ scorerId: 'mastracode-efficiency', score: 1 }), {
-    scorer: 'mastracode-efficiency', score: 1, reason: null,
-  })
+test('a stored score row maps a stored score row to {scorer, score, reason}, null reason when absent', () => {
+  assert.deepEqual(summarize([], [
+    { scorerId: 'mastracode-outcome', score: 0.97, reason: 'Build: No build/typecheck ran [N/A]' },
+    { scorerId: 'mastracode-efficiency', score: 1 },
+  ]).scores, [
+    { scorer: 'mastracode-outcome', score: 0.97, reason: 'Build: No build/typecheck ran [N/A]' },
+    { scorer: 'mastracode-efficiency', score: 1, reason: null },
+  ])
 })
 
 test('buildTraceSummary assembles the full literal response shape: spans, run totals, and scores', () => {
@@ -102,11 +106,11 @@ test('usage keeps Mastra UsageStats cache and reasoning breakdown per span and s
     ...modelGeneration, spanId: 'span-second',
     attributes: { model: 'anthropic/claude', usage: { inputTokens: 500, outputTokens: 40, inputDetails: { cacheRead: 450 }, outputDetails: { reasoning: 10, bogus: 'x' } } },
   }
-  assert.deepEqual(summarizeSpan(cached).usage, {
+  assert.deepEqual(spanOf(cached).usage, {
     inputTokens: 1000, outputTokens: 200, totalTokens: 1200,
     inputDetails: { text: 100, cacheRead: 800, cacheWrite: 100 }, outputDetails: { text: 150, reasoning: 50 },
   })
-  assert.deepEqual(summarizeRunUsage([cached, second, modelGeneration]), {
+  assert.deepEqual(summarize([cached, second, modelGeneration]).usage, {
     inputTokens: 1620, outputTokens: 270, totalTokens: 1890,
     inputDetails: { text: 100, cacheRead: 1250, cacheWrite: 100 }, outputDetails: { text: 150, reasoning: 60 },
   })

@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -294,9 +291,8 @@ test("signing in with ChatGPT runs Mastra's device flow against OpenAI and store
 
 test('a ChatGPT model calls the Codex endpoint with the person\'s bearer and account id, asks for the reasoning summary, and never sends max_output_tokens', async (t) => {
   const seen = fakeOpenAI(t, { onCodex: codexStream })
-  const recordDir = mkdtempSync(join(tmpdir(), 'codex-record-'))
   const live = tokens('live', Date.now() + 3_600_000)
-  const model = await codexModel('gpt-5.1', live, { streamRecordDir: recordDir })
+  const model = await codexModel('gpt-5.1', live)
   assert.equal(model.provider, 'openai.responses')
   const { stream } = await model.doStream({ prompt, maxOutputTokens: 1234 })
   assert.deepEqual(await drain(stream), ['stream-start', 'response-metadata', 'reasoning-start', 'reasoning-delta', 'reasoning-end', 'text-start', 'text-delta', 'text-end', 'finish'])
@@ -310,11 +306,6 @@ test('a ChatGPT model calls the Codex endpoint with the person\'s bearer and acc
     model: 'gpt-5.1-codex', store: false, reasoning: { effort: 'medium', summary: 'auto' }, stream: true, maxOutputTokens: undefined,
   })
   assert.match(sent.instructions, /^You are an interactive CLI tool/)
-
-  const [file] = readdirSync(recordDir)
-  const lines = readFileSync(join(recordDir, file), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
-  assert.deepEqual(lines.filter((line) => line.kind === 'chunk' && line.source === 'raw').map((line) => line.type).slice(0, 3), ['response.created', 'response.output_item.added', 'response.reasoning_summary_part.added'])
-  assert.doesNotMatch(lines.map((line) => JSON.stringify(line)).join('\n'), /access-live|Bearer/, 'the record never holds the credential')
 })
 
 test("the ChatGPT route serves each person's own row: an expired token is refreshed through Mastra, written back, and the call carries the new bearer", async (t) => {

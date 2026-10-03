@@ -6,7 +6,7 @@ import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createContext7Docs, CONTEXT7_URL } = await import(hubModuleUrl('builder/harness/context7.js'))
+const { createContext7Docs } = await import(hubModuleUrl('builder/harness/context7.js'))
 
 const textTool = (id, reply) => createTool({
   id, description: `remote ${id}`, inputSchema: z.object({ query: z.string() }), execute: async ({ query }) => ({ content: [{ type: 'text', text: `${reply}:${query}` }] }),
@@ -133,8 +133,18 @@ test('a query that could carry company data is refused before it leaves the Hub'
   }
 })
 
-test('Context7\'s default endpoint is its remote MCP', () => {
-  assert.equal(CONTEXT7_URL, 'https://mcp.context7.com/mcp')
+test('with no url given, the Hub reaches Context7\'s remote MCP', async () => {
+  const requested = []
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async (input) => { requested.push(String(input?.url ?? input)); return new Response('unavailable', { status: 503 }) }
+  const docs = createContext7Docs()
+  try {
+    assert.deepEqual(await docs.tools(), {})
+    assert.deepEqual([...new Set(requested)], ['https://mcp.context7.com/mcp'])
+  } finally {
+    globalThis.fetch = realFetch
+    await docs.close()
+  }
 })
 
 test('only the validated fields leave the Hub, whatever else the model adds to the call', async () => {

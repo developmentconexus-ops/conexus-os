@@ -37,6 +37,17 @@ const isTransientServerError = (error: unknown): boolean => {
   return error instanceof Error && TRANSIENT_SERVER_MESSAGE.test(error.message)
 }
 
+/**
+ * Ours, not Mastra Code's: a call that got no response at all. `@ai-sdk/provider-utils` turns Node's
+ * `fetch failed` (DNS failure, refused or unreachable network, timeout, whatever the cause code) into an
+ * `APICallError` that is retryable and has no HTTP status. A provider answer always carries a status.
+ */
+const isNoResponseError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false
+  const { isRetryable, statusCode } = error as { isRetryable?: unknown; statusCode?: unknown }
+  return isRetryable === true && statusCode === undefined
+}
+
 /** Mastra Code's `getTransientRetryDelay`. */
 const transientRetryDelayMs = (retryCount: number): number => Math.min(TRANSIENT_INITIAL_DELAY_MS * 2 ** retryCount, TRANSIENT_MAX_DELAY_MS)
 
@@ -92,6 +103,7 @@ export const builderErrorProcessors = (delayFor: (retryCount: number) => number 
       { match: isBadRequestError, maxRetries: 1, delayMs: 2000 },
       transientMatcher(isTransientConnectionError, delayFor),
       transientMatcher(isTransientServerError, delayFor),
+      transientMatcher(isNoResponseError, delayFor),
     ],
   }),
 ]

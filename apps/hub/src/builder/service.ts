@@ -189,7 +189,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     let endParking: (parked: boolean) => void = () => undefined
     const parking = new Promise<boolean>((resolve) => { endParking = resolve })
     const setPhase = async (phase: BuilderRunPhase): Promise<void> => {
-      if (typeof store.setBuilderRunPhase === 'function') await store.setBuilderRunPhase(run.builderRunId, phase)
+      await store.setBuilderRunPhase(run.builderRunId, phase)
       await publish()
     }
     // A run whose agent ran has tool calls in its conversation thread until its source is
@@ -303,7 +303,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         if (result.applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', result.applicationBuild.bootProblems)
       } catch (error) {
         const code = failureCode(error)
-        if (code === 'BUILDER_RUN_CANCELLED' || code === 'APPLICATION_COMPILER_CANCELLED') throw error
+        if (code === 'BUILDER_RUN_CANCELLED') throw error
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
           failureCode: code }).catch(() => undefined)
@@ -329,7 +329,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // The operator's cancellation or the Hub's own stop aborts this controller, and what the abort surfaces depends
       // on where the run was standing: a phase write the database now refuses is still a cancellation.
       const hubStopping = controller.signal.reason === HUB_STOPPING
-      const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'APPLICATION_COMPILER_CANCELLED' || code === 'BUILDER_RUN_PHASE_UPDATE_REFUSED'
+      const cancelled = controller.signal.aborted || code === 'BUILDER_RUN_CANCELLED' || code === 'BUILDER_LATE_RESULT_REFUSED' || code === 'BUILDER_RUN_PHASE_UPDATE_REFUSED'
       const terminal: SettleTerminal = hubStopping ? 'HUB_RESTART' : cancelled ? 'USER_CANCELLED' : 'FAILED'
       if (terminal === 'HUB_RESTART') {
         await writeEnding(run.builderRunId, () => store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))

@@ -70,22 +70,15 @@ const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
   return { run, storageCalls, controller }
 }
 
-const settle = (turn) => turn.then((value) => ({ settled: 'resolved', reason: value.reason, continuations: value.continuations }), (error) => ({ settled: 'rejected', code: error.message }))
+const settle = (turn) => turn.then((value) => ({ settled: 'resolved', reason: value.reason }), (error) => ({ settled: 'rejected', code: error.message }))
 
-test('a storage connect failure in one loop step continues the same session, and the turn completes with the retry counted', async (t) => {
+test('a storage connect failure in one loop step ends the turn as BUILDER_AGENT_PLATFORM_FAILED, never as a refused model request, and sends no second message', async (t) => {
   const { model, calls } = answering()
   const { run, storageCalls } = await openRun(t, { model, failsRead: (read) => read === 2 })
-  assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'resolved', reason: 'complete', continuations: 1 })
-  assert.equal(storageCalls.thrown, 1)
-  assert.equal(calls.length, 1)
-})
-
-test('a storage failure that never clears settles as BUILDER_AGENT_PLATFORM_FAILED after two continuations, never as a refused model request', async (t) => {
-  const { model } = answering()
-  const { run, storageCalls } = await openRun(t, { model, failsRead: (read) => read % 2 === 0 })
   const outcome = await settle(run.sendTurn('Faça o app.'))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_PLATFORM_FAILED' })
-  assert.equal(storageCalls.thrown, 3)
+  assert.equal(storageCalls.thrown, 1)
+  assert.equal(calls.length, 0)
   assert.equal(builderFailureCategory(outcome.code), 'INTERNAL_ERROR')
 })
 
@@ -114,19 +107,19 @@ const MODEL_FAILURES = [
   ['overloaded 529', Object.assign(new Error('Overloaded'), { statusCode: 529 })],
 ]
 for (const [label, failure] of MODEL_FAILURES) {
-  test(`a model ${label} three times is retried by Mastra inside the call, and the turn completes with no continuation message`, async (t) => {
+  test(`a model ${label} three times is retried by Mastra inside the call, and the turn completes`, async (t) => {
     const { model, calls } = answering(failure, 3)
     const { run, controller } = await openRun(t, { model, failsRead: () => false })
     const retryEvents = []
     const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
     session.subscribe((event) => { if (event.type === 'error') retryEvents.push([event.retryable, event.retryAttempt, event.maxRetries]) })
-    assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'resolved', reason: 'complete', continuations: 0 })
+    assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'resolved', reason: 'complete' })
     assert.equal(calls.length, 4, 'one call that failed three times, then the one that answered')
     assert.deepEqual(retryEvents, [[true, 1, 10], [true, 2, 10], [true, 3, 10]], 'each retry is announced as a retryable error event')
   })
 }
 
-test("a model 503 that never clears is retried ten times, Mastra Code's limit, then fails as a refused model request without a continuation", async (t) => {
+test("a model 503 that never clears is retried ten times, Mastra Code's limit, then fails as a refused model request", async (t) => {
   const { model, calls } = answering(Object.assign(new Error('Service Unavailable'), { statusCode: 503 }))
   const { run } = await openRun(t, { model, failsRead: () => false })
   const outcome = await settle(run.sendTurn('Faça o app.'))
@@ -135,7 +128,7 @@ test("a model 503 that never clears is retried ten times, Mastra Code's limit, t
   assert.equal(builderFailureCategory(outcome.code), 'MODEL_REQUEST_REFUSED')
 })
 
-test('a rate limit is retried by Mastra twice, then fails as rate limited, with no continuation message', async (t) => {
+test('a rate limit is retried by Mastra twice, then fails as rate limited', async (t) => {
   const { model, calls } = answering(Object.assign(new Error('Too many requests'), { statusCode: 429 }))
   const { run } = await openRun(t, { model, failsRead: () => false })
   assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
@@ -199,7 +192,7 @@ const transient = [['503', 503, 'api_error', 'Service Unavailable'], ['529', 529
 for (const [label, status, type, message] of transient) {
   test(`an Anthropic ${label} response, decoded by the real provider, is retried with a notice each time and the turn completes without exposing the key`, async (t) => {
     const r = await runOnUpstream(t, [anthropicError(status, type, message), anthropicError(status, type, message), anthropicAnswer])
-    assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
+    assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete' }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
   })
 }
 
@@ -235,7 +228,7 @@ const echoing = (status, type, message) => anthropicError(status, type, `${messa
 
 test('a transient Anthropic response that echoes the key is retried with notices that carry only the status, and the key is in no event the session emits', async (t) => {
   const r = await runOnUpstream(t, [echoing(503, 'api_error', 'Service Unavailable'), echoing(529, 'overloaded_error', 'Overloaded'), anthropicAnswer])
-  assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete', continuations: 0 }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
+  assert.deepEqual(r, { calls: 3, notices: [[true, 1, 10], [true, 2, 10]], outcome: { settled: 'resolved', reason: 'complete' }, exposed: false, leakingEvents: [], outcomeExposed: false, causeLogged: 'null' })
 })
 
 test('a transient Anthropic failure that echoes the key and never clears ends with the key in no retry notice and in no cause the run logs', async (t) => {

@@ -3,7 +3,6 @@ import { OPENAI_PREFIX, remapOpenAIModelForCodexOAuth } from '@mastra/code-sdk/p
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
-import { createModelStreamRecorder } from '../model-stream-recorder.js'
 import type { ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
 import { heldCodexCredentials, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens, type CodexTokens } from './credential.js'
@@ -35,24 +34,23 @@ const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
 /**
  * An `openai/*` model on a ChatGPT subscription: Mastra Code's Codex provider over the person's own
  * held row, at the call's thinking level as its `reasoningEffort` (Mastra Code's own mapping, which
- * reads no level as medium), the Codex id remap Mastra Code applies, and with `streamRecordDir`
- * each call's stream recorded.
+ * reads no level as medium), the Codex id remap Mastra Code applies.
  */
-const openaiCodexModel = (modelName: string, thinkingLevel: ThinkingLevelSetting | undefined, tokens: CodexTokens, current: () => Promise<CodexTokens>, streamRecordDir?: string) =>
+const openaiCodexModel = (modelName: string, thinkingLevel: ThinkingLevelSetting | undefined, tokens: CodexTokens, current: () => Promise<CodexTokens>) =>
   wrapLanguageModel({
     model: languageModelOf(openaiCodexProvider(remapOpenAIModelForCodexOAuth(`${OPENAI_PREFIX}${modelName}`).substring(OPENAI_PREFIX.length), {
       authStorage: heldCodexCredentials(tokens, current),
       ...thinkingLevel ? { thinkingLevel } : {},
     })),
-    middleware: [builderCodexOptions, ...streamRecordDir ? [createModelStreamRecorder(streamRecordDir)] : []],
+    middleware: [builderCodexOptions],
   })
 
 /** The `openai/*` route: the caller's ChatGPT row pays. Called from the Hub; the token never leaves it. */
-export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>, streamRecordDir?: string): ModelRoute => Object.freeze({
+export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>): ModelRoute => Object.freeze({
   accountProvider: OPENAI_CODEX_PROVIDER,
   take: (account) => {
     const tokens = parseCodexTokens(account.secret)
     const current = holds.hold(account.modelAccountId, tokens)
-    return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current, streamRecordDir) }
+    return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current) }
   },
 })

@@ -106,9 +106,8 @@ test('a failure before the agent keeps the operator request on the run and names
   const service = createBuilderService({
     store,
     runs: makeRuns({
-      // Materializing the base revision on the Factory's mirror still fails before the agent
-      // is ever opened, the same shape the local pipeline's pre-agent failure once took.
-      execute: async () => { throw new Error('BUILDER_SOURCE_MATERIALIZATION_REFUSED') },
+      // The starter root is refused before the agent is ever opened.
+      execute: async () => { throw new Error('BUILDER_STARTER_ROOT_REFUSED') },
     }),
     applicationArtifacts: {},
   })
@@ -116,10 +115,10 @@ test('a failure before the agent keeps the operator request on the run and names
   await service.close()
   assert.equal(stored, 'Crie um contador')
   assert.equal(accepted.requestText, 'Crie um contador')
-  assert.equal(failed, 'BUILDER_SOURCE_MATERIALIZATION_REFUSED')
+  assert.equal(failed, 'BUILDER_STARTER_ROOT_REFUSED')
   assert.deepEqual(projectBuilderRun(row('FAILED', failed)), {
     builderRunId: runId, projectId, state: 'FAILED', phase: null, baseSourceRevision: sourceRevision,
-    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_SOURCE_MATERIALIZATION_REFUSED',
+    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_STARTER_ROOT_REFUSED',
     failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt,
   })
 })

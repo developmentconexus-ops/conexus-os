@@ -64,10 +64,10 @@ export function NewTicketScreen() {
                 <FieldLabel>Urgência</FieldLabel>
                 <RadioGroup value={field.value} onValueChange={field.onChange}>
                   {PRIORITIES.map((priority) => (
-                    <label key={priority.value} className="flex items-center gap-2 text-sm">
-                      <RadioGroupItem value={priority.value} />
-                      {priority.label}
-                    </label>
+                    <div key={priority.value} className="flex items-center gap-2 text-sm">
+                      <RadioGroupItem id={`priority-${priority.value}`} value={priority.value} />
+                      <label htmlFor={`priority-${priority.value}`}>{priority.label}</label>
+                    </div>
                   ))}
                 </RadioGroup>
                 <FieldError errors={[fieldState.error]} />

@@ -7,12 +7,12 @@ The Conexus web app: React, strict TypeScript, Vite, TanStack Router and Query, 
 Run from the repository root, in WSL, after `source "$HOME/.nvm/nvm.sh"; nvm use`:
 
 ```bash
-npm run r1:a0:web:typecheck         # TypeScript
+npm run typecheck:web         # TypeScript
 npm run web:style:check             # no raw hex, only the three brand fonts
 npx --no-install biome check apps/web/src
 npx --no-install playwright install chromium
 node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs   # also builder-, settings-
-npm run hub:local                   # full Hub at https://hub.conexus.localhost:3443; needs .audit/slice7/hub.env
+npm run hub:local                   # full Hub at https://hub.conexus.localhost:3443; needs CONEXUS_HUB_ENV (the Hub env file)
 ```
 
 The browser suites serve this app through Vite and stub the API, so they need no Hub.

@@ -60,22 +60,13 @@ type OidcDiscovery = typeof oidc.discovery
 // has no way to tell the two apart. Logging the claim's JavaScript type, and never the email or
 // the claim's value, gives the operator that signal without disclosing anything about the
 // identity being provisioned.
-/** @public Tests import this at runtime from the built module. */
-export const isEmailVerifiedClaim = (
-  claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
-): boolean => {
+const isEmailVerifiedClaim = (claims: Record<string, unknown>): boolean => {
   if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
-    log({ event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified })
+    const line = { event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified }
+    logger.warn(line, line.event)
   }
   return claims.email_verified === true
 }
-
-/** @public Tests import this at runtime from the built module. */
-export const resolveVerifiedEmail = (
-  claims: Record<string, unknown>,
-  log: (line: Readonly<{ event: string; claimType: string }>) => void = (line) => logger.warn(line, line.event),
-): EmailAddress | null => (isEmailVerifiedClaim(claims, log) ? parseEmailAddress(claims.email) : null)
 
 export const createOidcAdapter = async ({
   issuer,

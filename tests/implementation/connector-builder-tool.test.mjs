@@ -16,7 +16,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
-const { BUILDER_RUN_TERMS, createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
 const { createToolPayloadProjection } = await import(hubModuleUrl('connectors/fetch-projection.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -105,7 +105,7 @@ test('a run that ended is refused, and so is a run past its lifetime, each after
 
   const expiring = toolOf(tools, await openRun())
   assert.deepEqual(await fetchThrough(expiring, read()), answered(EXPECTED_NATIVE_ORDER))
-  clock += BUILDER_RUN_TERMS.ttlMs + 60_000
+  clock += 2 * 60 * 60 * 1000 + 60_000
   assert.deepEqual(await fetchThrough(expiring, read()), { ok: false, code: 'NOT_GRANTED' })
   assert.equal(services(fake).length, 2, 'neither refusal reached the vendor')
 })
@@ -114,10 +114,10 @@ test("a run's calls are bounded: the call after the budget is CALL_LIMIT, before
   const { fake, tools, openRun } = await connectorsOf(t)
   const tool = toolOf(tools, await openRun())
   const answers = []
-  for (let call = 0; call <= BUILDER_RUN_TERMS.calls; call++) answers.push((await fetchThrough(tool, read())).ok ? 'OK' : 'REFUSED')
-  assert.deepEqual(answers, [...Array(BUILDER_RUN_TERMS.calls).fill('OK'), 'REFUSED'])
+  for (let call = 0; call <= 50; call++) answers.push((await fetchThrough(tool, read())).ok ? 'OK' : 'REFUSED')
+  assert.deepEqual(answers, [...Array(50).fill('OK'), 'REFUSED'])
   assert.deepEqual(await fetchThrough(tool, read()), { ok: false, code: 'CALL_LIMIT' })
-  assert.equal(services(fake).length, BUILDER_RUN_TERMS.calls)
+  assert.equal(services(fake).length, 50)
 })
 
 test('a route-level projection keeps the tool\'s projections and projects whatever reached it raw, with Mastra\'s model-output copy removed', async (t) => {

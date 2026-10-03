@@ -3,9 +3,9 @@
 # Safe to run again: it rewrites the unit files, reloads systemd and enables. A running unit keeps
 # running until you restart it. README.md has the runbook.
 #
-# Env (all optional):
+# Env:
 #   CONEXUS_UNIT_CHECKOUT      checkout the units run from (default ~/conexus-pilot)
-#   CONEXUS_PILOT_HUB_ENV      Hub env file (default ~/wt-rmmc/.audit/slice7/hub.env)
+#   CONEXUS_PILOT_HUB_ENV      Hub env file (required)
 #   CONEXUS_PILOT_RUNNER_ENV   runner env file (default ~/q3/runner.env)
 #   CONEXUS_PILOT_LOGS         log directory (default ~/conexus-pilot-logs)
 #   CONEXUS_UNIT_PREFIX        unit name prefix (default conexus; a throwaway prefix proves the units
@@ -14,7 +14,7 @@
 set -euo pipefail
 source_dir="$(cd "$(dirname "$0")" && pwd)/units"
 checkout="${CONEXUS_UNIT_CHECKOUT:-$HOME/conexus-pilot}"
-hub_env="${CONEXUS_PILOT_HUB_ENV:-$HOME/wt-rmmc/.audit/slice7/hub.env}"
+hub_env="${CONEXUS_PILOT_HUB_ENV:?set CONEXUS_PILOT_HUB_ENV}"
 runner_env="${CONEXUS_PILOT_RUNNER_ENV:-$HOME/q3/runner.env}"
 logs="${CONEXUS_PILOT_LOGS:-$HOME/conexus-pilot-logs}"
 prefix="${CONEXUS_UNIT_PREFIX:-conexus}"

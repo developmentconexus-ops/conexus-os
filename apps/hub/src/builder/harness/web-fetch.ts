@@ -13,8 +13,7 @@ const EMAIL = /\S+@\S+/
 const LONG_NUMBER = /\d{6,}/
 const PRINTABLE_ASCII = /^[!-~]+$/
 
-/** @public Tests import this at runtime from the built module. */
-export const WEB_FETCH_REFUSAL =
+const WEB_FETCH_REFUSAL =
   'Refused: fetch only a plain public address, with no query string, no # part and nothing from this company or Project in it. Use a general documentation page, or go on without it.'
 
 /**
@@ -24,9 +23,8 @@ export const WEB_FETCH_REFUSAL =
  * URL, each path segment and each host label, and refuses paths shaped like emails or long numbers
  * and hosts holding long numbers. A short path segment or host label of company words still passes. Mastra's tool itself sends only GET, refuses private,
  * loopback and link-local addresses, also after DNS, and checks each redirect again.
- * @public Tests import this at runtime from the built module.
  */
-export const outboundUrl = (input: unknown): string | undefined => {
+const outboundUrl = (input: unknown): string | undefined => {
   if (typeof input !== 'string' || input.length > MAX_URL_LENGTH) return undefined
   if (!PRINTABLE_ASCII.test(input) || /[?#]/.test(input)) return undefined
   let url: URL

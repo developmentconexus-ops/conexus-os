@@ -12,15 +12,10 @@ if [ -f "$HOME/.nvm/nvm.sh" ]; then
   source "$HOME/.nvm/nvm.sh"
   nvm use
 fi
-case "$(command -v node):$(command -v npm)" in *"/mnt/"*|*".exe"*) echo "Use Linux Node and npm, not Windows binaries" >&2; exit 1;; esac
-test "$(node -p 'process.platform')" = linux || { echo "Linux Node is required" >&2; exit 1; }
-test "$(node --version)" = "v$(tr -d '\r\n' < .nvmrc)" || { echo "Node does not match .nvmrc" >&2; exit 1; }
-expected_npm=$(node -p "require('./package.json').engines.npm")
-test "$(npm --version)" = "$expected_npm" || { echo "npm does not match package.json#engines.npm" >&2; exit 1; }
 npm run conexus:preflight
 ```
 
-The version checks stop before preflight on a mismatch. Without NVM, they use the pinned Linux `node` and `npm` already on PATH; Windows-interoperability binaries are rejected.
+The preflight stops on a mismatch with `.nvmrc` or `package.json#engines.npm`, and on a Windows-interoperability Node. Without NVM, it checks the pinned Linux `node` and `npm` already on PATH.
 
 Installing NVM or changing its versions changes the operator's host, so it needs the operator's authorization. Once authorized, install the exact `.nvmrc` Node and the exact `package.json#engines.npm`, and make that Node the NVM default. Never replace the repository pins with the host's versions.
 

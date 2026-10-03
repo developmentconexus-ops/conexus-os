@@ -98,9 +98,9 @@ const placeHubCheck = async (sandbox, files) => {
 
 const rootCheck = async (sandbox, extra = '') => {
   const ran = await sandbox.runAsRoot(`/usr/local/bin/node /opt/conexus/check.mjs --root ${CHECK_ROOT} --out ${CHECK_OUT} --as 1500:1500 ${extra}`, {})
-  const { parseCheckReport } = await (await loadHub())('builder/application-check.js')
+  const { readCheckReport } = await (await loadHub())('builder/application-check.js')
   assert.equal(ran.exitCode, 0, ran.stderr)
-  return parseCheckReport(ran.stdout)
+  return readCheckReport(ran.stdout)
 }
 
 const starterFiles = async () => {
@@ -126,15 +126,15 @@ test('the Hub check runs the starter in the real template as root with every ste
     // The same script as the agent user: what the Builder's tool will do.
     await sandbox.writeFiles(Object.entries(files).map(([path, content]) => ({ path: `/workspace/check-probe/${path}`, content })))
     const asAgent = await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })
-    const { parseCheckReport } = await (await loadHub())('builder/application-check.js')
-    const agentReport = parseCheckReport(asAgent.stdout)
+    const { readCheckReport } = await (await loadHub())('builder/application-check.js')
+    const agentReport = readCheckReport(asAgent.stdout)
     t.diagnostic(`agent check steps ${JSON.stringify(agentReport.steps.map((step) => [step.step, step.status, step.durationMs]))}`)
     assert.deepEqual(agentReport.steps.map((step) => step.status), ['passed', 'passed', 'passed', 'passed', 'passed'], 'Chromium boots the starter as the agent user')
 
     assert.notEqual((await sandbox.executeCommand('sh', ['-c', 'echo x > /opt/conexus/check.mjs'], { env: {}, cwd: '/workspace' })).exitCode, 0, 'the agent user cannot replace the script')
 
     await sandbox.writeFiles([{ path: '/workspace/check-probe/app/src/main.tsx', content: 'const answer: number = "six"\nexport { answer }\n' }])
-    const refused = parseCheckReport((await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })).stdout)
+    const refused = readCheckReport((await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })).stdout)
     assert.equal(refused.ok, false)
     assert.deepEqual(refused.steps.find((step) => step.status === 'failed').problems, [
       { file: 'app/src/main.tsx', line: 1, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
