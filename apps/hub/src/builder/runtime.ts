@@ -16,12 +16,14 @@ type CodingWorkerResultScope = Readonly<{
 // A failure the agent's work itself caused travels back as data, not as a rejected promise, so the
 // admitted source still settles as a build failure. Anything else (a workspace fault, cancellation)
 // is still a thrown failure.
+export const UNRENDERED_FAILURE_CODE = 'APPLICATION_SMOKE_FAILED'
+
 export type ApplicationBuildOutcome =
   /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
   | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; thumbnail?: CompiledApplicationThumbnail; bootProblems?: string }>
   // C-033: the blocking steps passed and the page did not render. The only admitted source without a
   // Preview; a source the check refuses is never admitted, so no "built and failed" outcome exists.
-  | Readonly<{ kind: 'UNRENDERED'; code: 'APPLICATION_SMOKE_FAILED'; detail: string }>
+  | Readonly<{ kind: 'UNRENDERED'; code: typeof UNRENDERED_FAILURE_CODE; detail: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
 

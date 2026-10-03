@@ -19,7 +19,7 @@ import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
 import { collectEgress, ensureEgressLog } from './egress-log.js'
-import { admitApplicationTree, APPLICATION_TREE_ROOTS, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderSessionMessage } from './runtime.js'
+import { admitApplicationTree, APPLICATION_TREE_ROOTS, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderSessionMessage, UNRENDERED_FAILURE_CODE } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
@@ -663,7 +663,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       timing.mark('admission')
       // C-033 as it is: a page that did not render is admitted without a Preview.
       const applicationBuild: ApplicationBuildOutcome = verdict.kind === 'UNRENDERED'
-        ? { kind: 'UNRENDERED', code: 'APPLICATION_SMOKE_FAILED', detail: verdict.detail }
+        ? { kind: 'UNRENDERED', code: UNRENDERED_FAILURE_CODE, detail: verdict.detail }
         : { kind: 'BUILT', compiledApplication: {
           projectId: input.projectId, executionId: input.executionId, sourceRevision: admitted,
           templateRef: TEMPLATE_REF, recipeSha256: RECIPE_SHA256, files: verdict.build.files,
