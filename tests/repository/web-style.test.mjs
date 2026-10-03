@@ -145,3 +145,29 @@ test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails
   assert.equal(result.status, 1)
   assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
 })
+
+const screen = (classes, extra = {}) => ({
+  'apps/web/src/styles.css': '@tailwind utilities;\n@theme { --color-brand: red; }\n',
+  'apps/web/src/local.css': '.local { margin: 0; }\n',
+  'node_modules/@mastra/playground-ui/dist/Slot.css': '.composer-slot { margin: 0; }\n.hover\\:vendor-util:hover { margin: 0; }\n',
+  'apps/web/src/screen.tsx': `export const Screen = () => <div className="${classes}" />\n`,
+  ...extra,
+})
+
+test('a class that is not a Conexus one passes when this app CSS, the Mastra package or the Tailwind build defines it', context => {
+  const result = check(tree(context, screen('local composer-slot hover:vendor-util text-brand flex')))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a class with no rule anywhere fails with its location, a typo included', context => {
+  const result = check(tree(context, screen('local text-nope')))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "text-nope" has no rule: not in this app\'s CSS, in node_modules/@mastra/playground-ui/dist or from the Tailwind build; use a cx- class\n')
+})
+
+test('a string a className compares with is a value, not a class', context => {
+  const result = check(tree(context, screen('local', {
+    'apps/web/src/screen.tsx': "export const Screen = ({ tag }: { tag: string }) => <div className={tag === 'plus' ? 'local' : undefined} />\n",
+  })))
+  assert.equal(result.status, 0, result.stderr)
+})
