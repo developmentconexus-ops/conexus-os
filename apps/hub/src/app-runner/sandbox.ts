@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { Readable } from 'node:stream'
 import { dirname, join } from 'node:path'
 import type { WorkerJob, WorkerResult } from './worker.js'
 
@@ -151,8 +152,12 @@ export const runWorker = (input: Readonly<{
     const timer = setTimeout(() => stop('TIMEOUT'), input.timeoutMs)
     child.stdout.on('data', keepLogs)
     child.stderr.on('data', keepLogs)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const resultStream = child.stdio[3] as NodeJS.ReadableStream
+    const resultStream = child.stdio[3]
+    if (!(resultStream instanceof Readable)) {
+      clearTimeout(timer)
+      child.kill('SIGKILL')
+      return resolve({ kind: 'CRASHED', exitCode: null, signal: null, ms: Math.round(performance.now() - started), logs })
+    }
     resultStream.on('data', (chunk: Buffer) => {
       result = Buffer.concat([result, chunk])
       if (result.byteLength > input.resultLimit + 1024) stop('RESULT_TOO_LARGE')

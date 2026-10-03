@@ -102,8 +102,8 @@ const finish = (result: WorkerResult): never => {
 const readJob = async (): Promise<WorkerJob> => {
   const chunks: Buffer[] = []
   let bytes = 0
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
+  for await (const chunk of process.stdin) {
+    if (!Buffer.isBuffer(chunk)) return finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
     bytes += chunk.byteLength
     if (bytes > MAX_JOB_BYTES) finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
     chunks.push(chunk)
