@@ -28,7 +28,7 @@ Run each command in its own terminal, from a checkout of this repository.
    only to Mastra's own tables in schema `factory`. It never changes a table definition.
 
    ```bash
-   env_file=${CONEXUS_PILOT_HUB_ENV:-$HOME/wt-rmmc/.audit/slice7/hub.env}
+   env_file=${CONEXUS_PILOT_HUB_ENV:?set CONEXUS_PILOT_HUB_ENV}
    export CONEXUS_EVAL_DATABASE_URL=$(node --env-file="$env_file" -e '
    	const { readFileSync } = require("node:fs")
    	const password = encodeURIComponent(readFileSync(process.env.CONEXUS_DB_FACTORY_PASSWORD_FILE, "utf8").trim())
