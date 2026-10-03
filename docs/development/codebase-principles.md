@@ -21,27 +21,27 @@ and the shapes that must not appear are in
    once at the edge, with a schema, into a domain type. Inside, the type is trusted: no `as`, no
    `any`, no second validation. Business logic is pure functions; the framework shell (Fastify,
    React) is thin.
-   Enforced by: `scripts/check-ratchets.mjs` (casts), `biome:noExplicitAny`, `biome:noNonNullAssertion`.
+   Enforced by: `biome:noUnsafeTypeAssertion`, `biome:noExplicitAny`, `biome:noNonNullAssertion`, `apps/hub/src/reset.d.ts` and `apps/web/src/reset.d.ts` (JSON arrives as unknown).
 4. **Native first.** Mastra, PostgreSQL, Keycloak and E2B do what they already do. Conexus code exists
    only where the product differs. No state beside state Mastra already holds.
    Enforced by: review (`docs/development/review/mastra-native.md`, Proof required).
 5. **Modules by subject, not by step.** A file knows one subject. No god file, no function that runs a
    whole lifecycle, no wrapper with one caller. A reader answers "where does this come from?" and
    "what changes it?" in under 30 seconds.
-   Enforced by: `scripts/check-ratchets.mjs` (functions over 80 lines, files over 500), `scripts/check-import-law.mjs`.
+   Enforced by: `biome:noExcessiveLinesPerFunction`, `biome:noExcessiveLinesPerFile`, `scripts/check-import-law.mjs`.
 6. **One pattern per need.** One way to handle an error, run a transaction, schedule a job, call the
    Hub from the web app, and draw each UI part. A second way to do the same thing is a defect.
-   Enforced by: `scripts/check-web-style.mjs` for the web app, and review (`docs/development/review-checklist.md`, Authority and design).
+   Enforced by: `scripts/check-web-style.mjs` for the web app, `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), and review (`docs/development/review-checklist.md`, Authority and design).
 7. **Named failures.** Every failure has a code from one table, and its category is decided where it is
    raised. A platform failure is fixed in code, never offered to the person as "try again".
-   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, and review (`docs/development/review-checklist.md`, Authority and design).
+   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `biome:noEmptyBlockStatements`, and review (`docs/development/review-checklist.md`, Authority and design).
 8. **Operations converge.** Every step can run again after a crash and reach the same end. One runner
    for periodic jobs and one reaper for what expires.
    Enforced by: review (`docs/development/review-checklist.md`, Authority and design).
 9. **Tests of behavior.** A test calls the code the way its user does and compares with a literal
    value. No test reads source text. Fake only what cannot run locally; a screen is proved in a browser
    against a real Hub.
-   Enforced by: `scripts/check-ratchets.mjs` (weak-only tests, tests that read production source), `scripts/check-test-census.mjs`, `scripts/check-test-skips.mjs`, `scripts/check-test-quarantine.mjs`.
+   Enforced by: `scripts/check-empty-tests.mjs` (a test with no assertion), `scripts/check-test-census.mjs`, `scripts/check-test-skips.mjs`, `scripts/check-test-quarantine.mjs`, and review (a test that reads source text).
 10. **Observable.** Structured logs with a code and a trace id. Every error a person sees leaves a log
     line.
    Enforced by: `tests/repository/hub-log-sinks.test.mjs`, `scripts/generate-log-codes.mjs`.
@@ -49,8 +49,8 @@ and the shapes that must not appear are in
     never seen, no comment that narrates the obvious. Each wave leaves the code smaller.
    Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`, `scripts/check-patch-churn.mjs`.
 12. **Lessons become structure.** A rule that has to be repeated becomes a check that fails: a type,
-    a lint, a CI ratchet. Text is ignored; a failing check is not.
-   Enforced by: `scripts/check-agent-context.mjs` (this list), `scripts/check-ratchets.mjs`, `scripts/check-web-style.mjs`.
+    a lint rule, a CI check. Text is ignored; a failing check is not.
+   Enforced by: `scripts/check-agent-context.mjs` (this list), `scripts/check-web-style.mjs`, and the Biome rules above.
 
 A finding against one of these names the property by number, the file and line, and the owner that
 fixes it: the change under review, or the roadmap wave that owns the shape.

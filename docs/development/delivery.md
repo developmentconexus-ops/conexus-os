@@ -108,7 +108,7 @@ operator dictating filenames or implementation.
 - Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected
   output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
   Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the four contract projections with `--check`, the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
-  check, the test census, the flow census, the test quarantine check and a patch churn report (see `review-checklist.md`), with no Docker, browser or network, in about half a minute.
+  check, the test census, the flow census, the empty-test check, the test quarantine check and a patch churn report (see `review-checklist.md`), with no Docker, browser or network, in about half a minute.
   The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
   `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.
   CI runs the graph as five jobs, `builder-ui`, `browser`, `postgres`, `rest` and `live` (`--group`), each on its own runner so no step shares
