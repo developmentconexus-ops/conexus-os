@@ -112,16 +112,6 @@ components:
           description: Identifier for this specific problem occurrence when disclosed.
       additionalProperties: true
   parameters:
-    IfMatch:
-      name: If-Match
-      in: header
-      required: true
-      description: >-
-        Strong current-representation precondition when the exact operation maps
-        an accepted IC2 obligation to HTTP representation state.
-      schema:
-        type: string
-        minLength: 1
     IdempotencyKey:
       name: Idempotency-Key
       in: header

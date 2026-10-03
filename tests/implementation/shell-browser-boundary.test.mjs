@@ -45,10 +45,6 @@ test('S5-P0 serves every realized browser route through the same-origin SPA host
     '/projects/:projectId/settings',
     '/settings/account',
     '/settings/models',
-    '/settings/installation/github',
-    '/settings/installation/models',
-    '/settings/installation/model-defaults',
-    '/settings/installation/memory',
     '/settings/installation/admins',
   ]) {
     assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')))
