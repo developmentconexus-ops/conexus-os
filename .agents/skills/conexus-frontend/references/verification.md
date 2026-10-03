@@ -35,7 +35,7 @@ node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs
 
 Assert what a person sees: the text, the role, the state after an action. A test that only proves the page rendered is not enough.
 
-**Live Hub.** `npm run hub:local` builds the web app and the Hub and serves them at `https://hub.conexus.localhost:3443`. It needs the local `.audit/slice7/hub.env`, which is not in the repository. Use it when the change depends on real server behavior. Never type the operator's password. Sign in with the local test operator or a saved session.
+**Live Hub.** `npm run hub:local` builds the web app and the Hub and serves them at `https://hub.conexus.localhost:3443`. It needs `CONEXUS_HUB_ENV` set to the Hub env file, which is not in the repository. Use it when the change depends on real server behavior. Never type the operator's password. Sign in with the local test operator or a saved session.
 
 ## Both themes and reduced motion
 
