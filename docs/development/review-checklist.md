@@ -88,7 +88,7 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 
 - A re-review that finds new defects in the same mechanism a prior pass already sent back names
   that mechanism's premise and asks whether a simpler contract removes the class of defect,
-  instead of asking for one more case to be handled. Principle 12 and Attack the Premise.
+  instead of asking for one more case to be handled. Principle 12.
 - A finding against one of the twelve principles names it by number, as step 4 of Load the pages
   says; the severity tag is not the principle.
 - The review names the head SHA, the pages it loaded, the census table or "no new mechanism", and each failed or unevaluated item with its evidence. Any failed or unevaluated item, or a correctness defect, is `request changes`, otherwise `approve`.
