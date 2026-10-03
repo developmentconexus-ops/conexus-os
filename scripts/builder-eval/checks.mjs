@@ -2,6 +2,8 @@
 // iframe. This module owns the shape (what a step is, what counts as a valid one) and the pure
 // executor (given something with `.locator()`, run the steps and report what happened) so run.mjs
 // stays about orchestrating the Hub and the browser, not about interpreting JSON.
+import { stripVTControlCharacters } from 'node:util'
+
 import { expect } from '@playwright/test'
 
 import { ADJUST_LABEL, PLAN_EXPECTATIONS } from './flow.mjs'
@@ -52,7 +54,7 @@ const STEP_TIMEOUT_MS = 15_000
 // record keeps the first ones, where the expected and received text live.
 const describeError = (error) => {
   if (!(error instanceof Error)) return String(error)
-  return error.message.replace(/\u001b\[[0-9;]*m/g, '').split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 4).join(' | ').slice(0, 500)
+  return stripVTControlCharacters(error.message).split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 4).join(' | ').slice(0, 500)
 }
 
 /** Run one step against a Playwright FrameLocator (or Page). Never throws: failures are data. */

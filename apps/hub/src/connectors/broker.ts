@@ -15,10 +15,8 @@ import type { BrokerStore } from './store.js'
 import { createTokenCache, inLane, Redacted } from './token-cache.js'
 import type { AccessToken, IssuedToken, TokenCache } from './token-cache.js'
 
-// biome-ignore lint/suspicious/noExplicitAny: the registry holds every Connector's own credential and session types
-type AnyDefinition = ConnectorDefinition<any>
-// biome-ignore lint/suspicious/noExplicitAny: paired with its definition's types at registration
-type AnyAdapter = Adapter<any>
+type AnyDefinition = ConnectorDefinition<unknown>
+type AnyAdapter = Adapter<unknown>
 
 /** A Definition and its adapter; `adapter` is null when server configuration pins no destination. */
 export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter: AnyAdapter | null }>

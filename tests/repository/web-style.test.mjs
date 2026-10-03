@@ -34,6 +34,15 @@ test('a raw hex color outside the token file fails with its location', context =
   assert.equal(result.stderr, 'apps/web/src/screen.css:2: raw hex color #C0FFEE; use a var(--cx-*) token from packages/brand/src/tokens.css\n')
 })
 
+test('a var(--cx-*) the brand does not define fails with its location', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.css': '.a { color: var(--cx-text); }\n.b { color: var(--cx-texxt); }\n',
+    'packages/brand/src/tokens.css': ':root { --cx-text: #121518; }\n',
+  }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/screen.css:2: uses undefined token --cx-texxt; define it in packages/brand/src/tokens.css or where it is used\n')
+})
+
 test('a font outside the three brand faces fails, in CSS and in TSX', context => {
   const result = check(tree(context, {
     'apps/web/src/screen.css': [
