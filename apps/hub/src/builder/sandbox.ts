@@ -178,11 +178,8 @@ const BUILDER_WORKSPACE_TOOLS: readonly string[] = [
   WORKSPACE_TOOLS.SANDBOX.GET_PROCESS_OUTPUT, WORKSPACE_TOOLS.SANDBOX.KILL_PROCESS,
 ]
 
-/**
- * @public Tests import this at runtime from the built module.
- * The workspace `tools` option: nothing is on unless the Builder has it.
- */
-export const BUILDER_WORKSPACE_TOOLS_CONFIG = Object.freeze({
+/** The workspace `tools` option: nothing is on unless the Builder has it. */
+const BUILDER_WORKSPACE_TOOLS_CONFIG = Object.freeze({
   enabled: false, ...Object.fromEntries(BUILDER_WORKSPACE_TOOLS.map((name) => [name, { enabled: true }])),
 })
 

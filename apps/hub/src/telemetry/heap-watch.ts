@@ -4,8 +4,8 @@ const HIGH = 0.8
 const LOW = 0.7
 const INTERVAL_MS = 15_000
 
-/** @public Tests import this at runtime from the built module. Fires once after two samples in a row above 0.8, and again only after the ratio fell below 0.7. */
-export const createHeapWatch = (onHigh: (ratio: number) => void): ((ratio: number) => void) => {
+/** Fires once after two samples in a row above 0.8, and again only after the ratio fell below 0.7. */
+const createHeapWatch = (onHigh: (ratio: number) => void): ((ratio: number) => void) => {
   let streak = 0
   let latched = false
   return (ratio) => {

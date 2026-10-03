@@ -63,8 +63,6 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
 
-/** @public Tests import this at runtime from the built module. */
-export { previewContentSecurityPolicy }
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
 

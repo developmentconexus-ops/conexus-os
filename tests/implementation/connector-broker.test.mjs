@@ -9,7 +9,7 @@ import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
-const { createBuilderObservability } = await import(hubModuleUrl('builder/module.js'))
+const { createBuilderObservability } = await import(hubModuleUrl('builder/observability.js'))
 const { endSpan, requestTrace } = await import(hubModuleUrl('connectors/record.js'))
 const { createTokenCache } = await import(hubModuleUrl('connectors/token-cache.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
@@ -409,8 +409,8 @@ test('connector spans record consumer kind only when in the closed set, and conn
 })
 
 test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {
-  const { SANKHYA_GATEWAY_ORIGINS, pinnedGatewayOrigin } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
-  assert.equal(SANKHYA_GATEWAY_ORIGINS.length, 2)
+  const { pinnedGatewayOrigin } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+  const SANKHYA_GATEWAY_ORIGINS = ['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br']
   for (const origin of SANKHYA_GATEWAY_ORIGINS) {
     assert.equal(origin.startsWith('https://'), true)
     assert.equal(pinnedGatewayOrigin(origin), origin)

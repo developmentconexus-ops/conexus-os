@@ -2,8 +2,8 @@ import { getHeapStatistics } from 'node:v8'
 
 const MEGABYTE = 1024 * 1024
 
-/** @public Tests import this at runtime from the built module. The --max-old-space-size (MB) V8 applies, or null when none is set. */
-export const oldSpaceCapBytes = (execArgv: readonly string[], nodeOptions: string | undefined): number | null => {
+/** The --max-old-space-size (MB) V8 applies, or null when none is set. */
+const oldSpaceCapBytes = (execArgv: readonly string[], nodeOptions: string | undefined): number | null => {
   // The command line wins over NODE_OPTIONS and the last flag wins within each (spec 0007, probe P6).
   const flags = [...(nodeOptions?.split(/\s+/) ?? []), ...execArgv]
   let megabytes: number | null = null

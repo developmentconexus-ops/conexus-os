@@ -3,7 +3,7 @@ import { inspect } from 'node:util'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createTokenCache, AccessToken, Redacted, refreshAt } = await import(hubModuleUrl('connectors/token-cache.js'))
+const { createTokenCache, AccessToken, Redacted } = await import(hubModuleUrl('connectors/token-cache.js'))
 const { AdapterFailure } = await import(hubModuleUrl('connectors/errors.js'))
 
 const CONNECTION = '11111111-1111-4111-8111-111111111111'
@@ -32,8 +32,6 @@ test('ten concurrent calls on a cold cache cause one issue and share its token',
 })
 
 test('a token is refreshed at expires_in minus max(60 s, 10 %), not after it expires', async () => {
-  assert.equal(refreshAt(0, 3600), 3_240_000)
-  assert.equal(refreshAt(0, 300), 240_000)
   let now = 0
   const cache = createTokenCache({ now: () => now })
   const { issue, count } = issuer({ expiresInSeconds: 3600 })
@@ -43,6 +41,23 @@ test('a token is refreshed at expires_in minus max(60 s, 10 %), not after it exp
   now = 3_240_000
   assert.equal(await cache.withToken(CONNECTION, issue, bearerOf), 'token-2')
   assert.equal(count(), 2)
+})
+
+test('a five-minute token is refreshed after 240 s, and a token shorter than the margin serves only the call that issued it', async () => {
+  let now = 0
+  const cache = createTokenCache({ now: () => now })
+  const five = issuer({ expiresInSeconds: 300 })
+  assert.equal(await cache.withToken(CONNECTION, five.issue, bearerOf), 'token-1')
+  now = 239_999
+  assert.equal(await cache.withToken(CONNECTION, five.issue, bearerOf), 'token-1')
+  now = 240_000
+  assert.equal(await cache.withToken(CONNECTION, five.issue, bearerOf), 'token-2')
+
+  const short = issuer({ expiresInSeconds: 30 })
+  now = 0
+  assert.equal(await cache.withToken('22222222-2222-4222-8222-222222222222', short.issue, bearerOf), 'token-1')
+  assert.equal(await cache.withToken('22222222-2222-4222-8222-222222222222', short.issue, bearerOf), 'token-2')
+  assert.equal(short.count(), 2)
 })
 
 test('a refused token is dropped and fetched again once, and the call succeeds', async () => {

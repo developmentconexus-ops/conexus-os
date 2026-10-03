@@ -7,7 +7,7 @@ import { Readable } from 'node:stream'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { MAX_RESULT_BUNDLE_BYTES, MAX_RESULT_FILE_BYTES, MAX_RESULT_FILES, candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
+const { candidateSnapshot, createConexusGit, mirrorSnapshot, pullSnapshot, startCheckout } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(hubModuleUrl('builder/source.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -415,7 +415,7 @@ test('a result bundle the sandbox reports above the cap is refused before the Hu
     ...local,
     direct: async (command, args) => {
       const result = await local.direct(command, args)
-      return { ...result, stdout: result.stdout.replace(/^size=\d+$/m, `size=${MAX_RESULT_BUNDLE_BYTES + 1}`) }
+      return { ...result, stdout: result.stdout.replace(/^size=\d+$/m, `size=${64 * MIB + 1}`) }
     },
     readAgentFile: async (path) => { reads.push(path); return local.readAgentFile(path) },
     readAgentFileStream: async (path) => { reads.push(path); return local.readAgentFileStream(path) },
@@ -437,7 +437,7 @@ test('a bundle that grows past the cap while it streams is cut off and leaves no
   const leftover = temporary()
 
   await assert.rejects(
-    git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: zeros({ left: MAX_RESULT_BUNDLE_BYTES + MIB }) }),
+    git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: zeros({ left: 65 * MIB }) }),
     { message: 'BUILDER_RESULT_BUNDLE_TOO_LARGE' },
   )
   assert.equal(refs(root), before)
@@ -459,13 +459,13 @@ test('a small bundle holding a file above the per-file cap is refused and its st
   }
   const before = refs(root)
 
-  const over = stage(MAX_RESULT_FILE_BYTES + 1)
+  const over = stage(12 * MIB + 1)
   assert.ok(over.bundle.byteLength < MIB, 'zeros compress, so the transport check cannot see this one')
   await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: over.bundle }), { message: 'BUILDER_RESULT_CONTENT_TOO_LARGE' })
   assert.equal(refs(root), before)
   assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
 
-  const exact = stage(MAX_RESULT_FILE_BYTES)
+  const exact = stage(12 * MIB)
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
   assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
 })
@@ -487,11 +487,11 @@ test('a result holding more files than the cap is refused and its staging ref is
   }
   const before = refs(root)
 
-  const over = stage(MAX_RESULT_FILES - held + 1)
+  const over = stage(256 - held + 1)
   await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: over.bundle }), { message: 'BUILDER_RESULT_CONTENT_TOO_LARGE' })
   assert.equal(refs(root), before)
   assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
 
-  const exact = stage(MAX_RESULT_FILES - held)
+  const exact = stage(256 - held)
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
 })

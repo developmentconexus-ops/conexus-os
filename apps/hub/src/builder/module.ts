@@ -1,25 +1,18 @@
 import type { FastifyInstance } from 'fastify'
-import { createHash } from 'node:crypto'
-import type { AgentController } from '@mastra/core/agent-controller'
 import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
-import type { ObservabilityInstance, SpanOutputProcessor } from '@mastra/core/observability'
-import { SpanType } from '@mastra/core/observability'
+import type { ObservabilityInstance } from '@mastra/core/observability'
 import { RequestContext } from '@mastra/core/request-context'
-import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import type { Workspace } from '@mastra/core/workspace'
-import { Observability, MastraStorageExporter } from '@mastra/observability'
-import { PostgresStore } from '@mastra/pg'
 import { createPostgresPool } from '../platform/postgres.js'
 import { logLine } from '../platform/logger.js'
-import type { PostgresPool } from '../platform/postgres.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
 import { registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
-import { BUILDER_TRACE_REQUEST_CONTEXT_KEYS, parkedCallStanding } from './runtime.js'
+import { parkedCallStanding } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
@@ -36,6 +29,9 @@ import { createConversations, projectResourceId } from './conversations.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
 import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
 import { scheduleRunLease } from './run-lease.js'
+import { createBuilderObservability, createBuilderObservabilityLifecycle } from './observability.js'
+import { createDiagnosticAppender } from './diagnostic-appender.js'
+import { createBuilderStorage, scheduleRetentionPrune } from './storage.js'
 import { listPausedConversationMachines } from './sandbox.js'
 import { createConversationSessions } from './conversation-sessions.js'
 import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
@@ -55,206 +51,11 @@ import { createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
-import type { BuilderRunDependencies, RunNote } from './service.js'
+import type { BuilderRunDependencies } from './service.js'
 
-const BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS = 5_000
 // The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
 // (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
 const AGENT_STORAGE_CONNECT_TIMEOUT_MS = 30_000
-
-type BuilderObservabilityLifecycle = Readonly<{
-  flush(): Promise<void>
-  close(): Promise<void>
-}>
-
-/** @public Tests import this at runtime from the built module. */
-export const createBuilderObservabilityLifecycle = (
-  observability: Pick<Observability, 'flush' | 'shutdown'>,
-  flushTimeoutMs = BUILDER_OBSERVABILITY_FLUSH_TIMEOUT_MS,
-): BuilderObservabilityLifecycle => {
-  let queued: Promise<void> = Promise.resolve()
-  let closing = false
-  let closePromise: Promise<void> | undefined
-  const reportFailure = (): void => {
-    process.emitWarning('BUILDER_PREPARATION_FAILED', { code: 'BUILDER_PREPARATION_FAILED' })
-  }
-  const enqueue = (operation: () => Promise<void>): Promise<void> => {
-    const result = queued.then(operation, operation)
-    queued = result.catch(() => undefined)
-    return result
-  }
-  const waitBounded = (operation: Promise<void>): Promise<'completed' | 'failed' | 'timed-out'> => new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve('timed-out'), flushTimeoutMs)
-    void operation.then(
-      () => { clearTimeout(timeout); resolve('completed') },
-      () => { clearTimeout(timeout); resolve('failed') },
-    )
-  })
-  return Object.freeze({
-    flush: async () => {
-      if (closing) return
-      const current = enqueue(() => observability.flush())
-      const result = await waitBounded(current)
-      if (result !== 'completed') reportFailure()
-    },
-    close: () => {
-      closePromise ??= (async () => {
-        closing = true
-        try {
-          await queued
-        } catch {
-          reportFailure()
-        }
-        try {
-          await observability.shutdown()
-        } catch {
-          reportFailure()
-        }
-      })()
-      return closePromise
-    },
-  })
-}
-
-// Deterministic on run+code so a retried call collapses onto the same message instead of
-// appending a duplicate diagnostic.
-const diagnosticMessageId = (builderRunId: string, code: string): string =>
-  createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
-
-// The next turn reads this thread, and an unadmitted run's tool calls in it describe edits that are
-// in the conversation's files but not on `main`, so the note is written for the agent as much as for the person.
-const kept = (sourceRevision: string): string =>
-  `Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${sourceRevision}. Leia os arquivos antes de confiar neste histórico.`
-
-const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>> = Object.freeze({
-  SOURCE_BASE_MOVED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${kept(sourceRevision)} Diagnóstico seguro: ${code}. Envie o pedido novamente: ele juntará os arquivos desta conversa com a versão atual da fonte.`,
-  RUN_NOT_FINISHED: ({ builderRunId, code, sourceRevision }) =>
-    `A execução ${builderRunId} não terminou e nada dela foi aplicado. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.`,
-  BUILD_FAILED: ({ builderRunId, code, detail }) =>
-    `A execução ${builderRunId} preservou a fonte, mas a compilação falhou. Diagnóstico seguro: ${code}.${detail ? ` Detalhe: ${detail}` : ''} Corrija a solicitação para tentar novamente.`,
-  PLATFORM_FAILED: ({ builderRunId, code }) =>
-    `A execução ${builderRunId} preservou a fonte, mas o Conexus não conseguiu gerar a prévia por uma falha da própria plataforma, não da fonte. Diagnóstico seguro: ${code}. Não altere os arquivos por causa desta falha; envie o pedido novamente quando a plataforma voltar.`,
-  CANDIDATE_REFUSED: ({ builderRunId, code, detail, sourceRevision }) =>
-    `A execução ${builderRunId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. ${kept(sourceRevision)} Diagnóstico seguro: ${code}.${detail ? ` Motivo: ${detail}` : ''} Corrija isso na próxima execução.`,
-  BOOT_PROBLEMS: ({ builderRunId, detail }) =>
-    `A execução ${builderRunId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas.${detail ? ` Detalhe: ${detail}` : ''} Corrija isso na próxima execução.`,
-  PREVIEW_DATA_RESET: ({ builderRunId }) =>
-    `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações rodaram de novo.`,
-})
-
-type NoteSession = Pick<Awaited<ReturnType<AgentController['createSession']>>, 'sendSignalToThread'>
-
-/**
- * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as
- * 6b in docs/reference/mastra-boundary.md): the next turn's model reads it as
- * `<notification source="conexus" ...>` context, and the thread stores it as a `signal` row the
- * browser renders as a notice, never as the Builder speaking. Its id is deterministic, so a retry
- * writes it once.
- */
-const noteSignal = (note: RunNote) => ({
-  id: diagnosticMessageId(note.builderRunId, note.code),
-  type: 'notification' as const,
-  contents: NOTE_TEXT[note.outcome](note),
-  attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
-})
-
-/** @public Tests import this at runtime from the built module. */
-export const createDiagnosticAppender = (openSession: (target: Readonly<{ resourceId: string; threadId: string }>) => Promise<NoteSession>) =>
-  async (note: RunNote): Promise<void> => {
-    const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
-    await (await openSession(target)).sendSignalToThread(noteSignal(note), target).accepted
-  }
-
-/** @public Tests import this at runtime from the built module. */
-export const compactProcessorRunPayloads: SpanOutputProcessor = {
-  name: 'builder-compact-processor-run-payloads',
-  process: (span) => {
-    if (span && span.type === SpanType.PROCESSOR_RUN) {
-      if (Array.isArray(span.input)) span.input = { messageCount: span.input.length }
-      if (Array.isArray(span.output)) span.output = { messageCount: span.output.length }
-    }
-    return span
-  },
-  shutdown: async () => {},
-}
-
-/** @public Tests import this at runtime from the built module. */
-export const createBuilderObservability = (serviceName: string, connectorObservability?: ObservabilityInstance): Observability => {
-  const observability = new Observability({
-    sensitiveDataFilter: true,
-    configs: {
-      default: {
-        serviceName,
-        requestContextKeys: [...BUILDER_TRACE_REQUEST_CONTEXT_KEYS],
-        exporters: [new MastraStorageExporter()],
-        spanOutputProcessors: [compactProcessorRunPayloads],
-        serializationOptions: { maxStringLength: 32_768 },
-        // The Postgres store keeps spans but has no log table; the Hub's logs go through its pino logger.
-        logging: { enabled: false },
-      },
-    },
-  })
-  if (connectorObservability) observability.registerInstance('connectors', connectorObservability)
-  return observability
-}
-
-const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
-
-// Spans hold prompts, tool I/O and source text. Bounding their age is the only retention: Builder
-// evidence lives in the threads' messages, so memory is never a retention key here.
-const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: { maxAge: '30d' } } }
-
-/**
- * The Builder's Mastra storage: threads, messages and traces in Postgres, so conversations survive a
- * restart. It lives in the `factory` schema through the `hub_factory` role until slice 7 moves it
- * to schema `mastra`.
- * @public Tests import this at runtime from the built module.
- */
-export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
-  new PostgresStore({ id: 'conexus-builder', pool, schemaName: 'factory', retention: OBSERVABILITY_SPAN_RETENTION })
-
-// Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
-// `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
-// waits for the store's own init, which creates the tables a fresh installation does not have yet.
-// `close()` stops the timer, aborts the prune in flight between batches, and settles after it, so the pool it uses can end after it.
-type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
-
-/** @public Tests import this at runtime from the built module. */
-export const scheduleRetentionPrune = (
-  storage: Pick<MastraCompositeStore, 'init' | 'prune'>,
-  log: (line: string) => void,
-  intervalMs = RETENTION_PRUNE_INTERVAL_MS,
-): RetentionSchedule => {
-  const inFlight = new Set<Promise<void>>()
-  const stop = new AbortController()
-  const run = async (): Promise<void> => {
-    await storage.init()
-    for (const result of await storage.prune({ signal: stop.signal })) {
-      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
-      if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
-    }
-  }
-  const tick = (): Promise<void> => {
-    const pass = run()
-    inFlight.add(pass)
-    const settled = (): void => { inFlight.delete(pass) }
-    pass.then(settled, settled)
-    return pass
-  }
-  const tickLogged = (): void => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }
-  tickLogged()
-  const timer = setInterval(tickLogged, intervalMs)
-  timer.unref()
-  return Object.freeze({
-    tick,
-    close: async () => {
-      clearInterval(timer)
-      stop.abort()
-      await Promise.allSettled([...inFlight])
-    },
-  })
-}
 
 // Kills what a crashed Hub left running before the router takes calls.
 const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig, persistFor: Parameters<typeof startModelRouter>[1]) => {

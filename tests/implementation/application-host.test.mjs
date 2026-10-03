@@ -143,7 +143,7 @@ test('the application host is configured by port and domain together, and only w
 })
 
 test('the application host is a standalone top-level site: no Preview sandbox, never framed, no CORS, and Preview keeps its own policy', async (t) => {
-  const { previewContentSecurityPolicy } = await import(hubModuleUrl('mar/preview-routes.js'))
+  const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
   const { app } = await harness(t)
   const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, origin: HUB }, ...signedIn })
   assert.equal(index.headers['content-security-policy'],

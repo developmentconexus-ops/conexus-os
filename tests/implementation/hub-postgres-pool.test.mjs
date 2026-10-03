@@ -4,7 +4,7 @@ import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { Client } = pg
-const { capabilityFor, createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
+const { createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
 
 const required = (name) => {
   const value = process.env[name]
@@ -47,7 +47,7 @@ test('idle pooled client termination does not crash the Hub and logs one diagnos
   assert.equal(termination.rows[0].terminated, true)
 
   // Poll until error listener receives the event
-  const expectedCapability = capabilityFor(connection.user)
+  const expectedCapability = pool.options.application_name.replace('conexus-hub:', '')
   const expectedLine = `HUB_POOL_ERROR:${expectedCapability}:57P01\n`
 
   const start = Date.now()
@@ -113,7 +113,7 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
   await assert.rejects(inFlight)
 
   // Poll until error listener receives the event
-  const expectedCapability = capabilityFor(connection.user)
+  const expectedCapability = pool.options.application_name.replace('conexus-hub:', '')
   const expectedLine = `HUB_POOL_ERROR:${expectedCapability}:\n`
 
   const start = Date.now()
@@ -157,7 +157,7 @@ test('checked-out pooled client termination between queries rejects next query c
   assert.equal(termination.rows[0].terminated, true)
 
   // Wait for the termination to be delivered to the client
-  const expectedCapability = capabilityFor(connection.user)
+  const expectedCapability = pool.options.application_name.replace('conexus-hub:', '')
   const start = Date.now()
   while (logs.length < 2 && Date.now() - start < 5000) {
     await new Promise((resolve) => setTimeout(resolve, 50))

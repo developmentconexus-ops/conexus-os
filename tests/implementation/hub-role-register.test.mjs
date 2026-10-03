@@ -16,7 +16,7 @@ const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
   resolve(repositoryRoot, 'apps/hub/src/platform/postgres.ts'), resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 if (result.status !== 0) throw new Error(result.stdout || result.stderr)
-const { capabilityFor, createPostgresPool } = await import(pathToFileURL(resolve(buildRoot, 'postgres.js')).href)
+const { createPostgresPool } = await import(pathToFileURL(resolve(buildRoot, 'postgres.js')).href)
 const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.js')).href)
 
 test.after(() => rm(buildRoot, { recursive: true, force: true }))
@@ -35,12 +35,14 @@ test('the register holds every role the Hub connects as, with the capability an 
   ])
 })
 
-test('a connection labels itself with the capability the register gives its role', () => {
-  assert.equal(capabilityFor('hub_builder_ingress'), 'builder-request')
-  assert.equal(capabilityFor('hub_project_command'), 'project-command')
-  assert.equal(capabilityFor('hub_workspace_read'), 'workspace-read')
-  assert.equal(capabilityFor('postgres'), 'postgres')
-  assert.equal(capabilityFor(undefined), 'unlabelled')
+test('a connection labels itself with the capability the register gives its role', async () => {
+  const labels = []
+  for (const role of ['hub_builder_ingress', 'hub_project_command', 'hub_workspace_read', 'postgres', undefined]) {
+    const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: role, password: 'unused' })
+    labels.push(pool.options.application_name)
+    await pool.end()
+  }
+  assert.deepEqual(labels, ['conexus-hub:builder-request', 'conexus-hub:project-command', 'conexus-hub:workspace-read', 'conexus-hub:postgres', 'conexus-hub:unlabelled'])
 })
 
 test('every pool carries its capability into application_name', async () => {

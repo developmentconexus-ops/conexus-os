@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { createServer } from 'node:http'
 import { test } from 'node:test'
 import * as openidClient from 'openid-client'
@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
-const { createOidcAdapter, resolveVerifiedEmail, isEmailVerifiedClaim } = await import(built('identity-access/oidc.js'))
+const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
 const { identityAccessError } = await import(built('identity-access/errors.js'))
 
 const origin = 'https://conexus.test'
@@ -348,47 +348,67 @@ test('malformed IAM-03 body fires the generated schema before owner code', async
   assert.equal(response.statusCode, 400)
 })
 
-test('an email_verified claim that is not the strict boolean true is refused, and only its type is logged', () => {
-  const logged = []
-  const log = (line) => logged.push(line)
+// A real sign-in completion: the adapter exchanges the code at a local token endpoint and checks the
+// signed id_token against a local key set, so the claims reach `complete` the way Keycloak's do.
+const completeSignInWith = async (t, claims) => {
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' }
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  let base = ''
+  const server = createServer((request, response) => {
+    request.resume()
+    request.on('end', () => {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      if (request.url === '/jwks') return response.end(JSON.stringify({ keys: [jwk] }))
+      const now = Math.floor(Date.now() / 1000)
+      const head = encode({ alg: 'RS256', kid: 'k1', typ: 'JWT' })
+      const body = encode({ iss: 'http://identity.test/realms/r1', aud: 'client', sub: 'subject-1', iat: now, exp: now + 300, nonce: 'nonce-1', ...claims })
+      const signature = sign('RSA-SHA256', Buffer.from(`${head}.${body}`), privateKey).toString('base64url')
+      response.end(JSON.stringify({ access_token: 'access', token_type: 'Bearer', id_token: `${head}.${body}.${signature}` }))
+    })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => { server.closeAllConnections(); server.close() })
+  base = `http://127.0.0.1:${server.address().port}`
+  const discovery = async (issuer, clientId, clientSecret, _authentication, options) => {
+    const configuration = new openidClient.Configuration({ issuer: issuer.href, token_endpoint: `${base}/token`, jwks_uri: `${base}/jwks`, id_token_signing_alg_values_supported: ['RS256'] }, clientId, clientSecret)
+    for (const hook of options.execute) hook(configuration)
+    return configuration
+  }
+  const adapter = await createOidcAdapter({ issuer: 'http://identity.test/realms/r1', clientId: 'client', clientSecret: 'secret', redirectUri: `${origin}/protocol/oidc/callback`, allowInsecureForTest: true }, { discovery })
+  t.after(() => adapter.close())
+  return capturePinoLogs(async (logs) => ({
+    signIn: await adapter.complete({ currentUrl: `${origin}/protocol/oidc/callback?code=code-1&state=state-1`, pkceVerifier: 'v'.repeat(43), expectedState: 'state-1', expectedNonce: 'nonce-1' }),
+    logs,
+  }))
+}
 
-  assert.equal(resolveVerifiedEmail({ email_verified: true, email: 'ana@example.test' }, log), 'ana@example.test')
-  assert.deepEqual(logged, [])
+test('completing a sign-in trusts an email only when email_verified is the strict boolean true, and logs only the claim type of anything else', async (t) => {
+  const verified = await completeSignInWith(t, { email_verified: true, email: 'ana@example.test' })
+  assert.equal(verified.signIn.emailVerified, true)
+  assert.equal(verified.signIn.verifiedEmail, 'ana@example.test')
+  assert.deepEqual(verified.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
 
-  assert.equal(resolveVerifiedEmail({ email_verified: false, email: 'ana@example.test' }, log), null)
-  assert.deepEqual(logged, [])
+  const unverified = await completeSignInWith(t, { email_verified: false, email: 'ana@example.test' })
+  assert.equal(unverified.signIn.emailVerified, false)
+  assert.equal(unverified.signIn.verifiedEmail, null)
+  assert.deepEqual(unverified.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
 
-  assert.equal(resolveVerifiedEmail({ email_verified: 'true', email: 'ana@example.test' }, log), null)
-  assert.equal(resolveVerifiedEmail({ email_verified: 'false', email: 'ana@example.test' }, log), null)
-  assert.deepEqual(logged, [
-    { event: 'oidc_email_verified_unexpected_type', claimType: 'string' },
-    { event: 'oidc_email_verified_unexpected_type', claimType: 'string' },
-  ])
-  for (const line of logged) {
-    assert.equal(JSON.stringify(line).includes('ana@example.test'), false)
-    assert.equal(JSON.stringify(line).includes('true'), false)
-    assert.equal(JSON.stringify(line).includes('false'), false)
+  for (const claim of ['true', 'false']) {
+    const stringly = await completeSignInWith(t, { email_verified: claim, email: 'ana@example.test' })
+    assert.equal(stringly.signIn.emailVerified, false)
+    assert.equal(stringly.signIn.verifiedEmail, null)
+    const warned = stringly.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type')
+    assert.equal(warned.length, 1)
+    assert.equal(warned[0].claimType, 'string')
+    assert.equal(JSON.stringify(stringly.logs).includes('ana@example.test'), false)
   }
 
-  assert.equal(resolveVerifiedEmail({ email: 'ana@example.test' }, log), null)
-  assert.deepEqual(logged.length, 2)
-})
-
-test('isEmailVerifiedClaim is false for a claim of any type but the strict boolean true, and for a realm that sends no claims at all', () => {
-  const logged = []
-  const log = (line) => logged.push(line)
-
-  assert.equal(isEmailVerifiedClaim({ email_verified: true, email: 'ana@example.test' }, log), true)
-  assert.deepEqual(logged, [])
-
-  assert.equal(isEmailVerifiedClaim({ email_verified: 'true', email: 'ana@example.test' }, log), false)
-  assert.deepEqual(logged, [{ event: 'oidc_email_verified_unexpected_type', claimType: 'string' }])
-
-  // A realm that sends neither email_verified nor email at all: 'email_verified' in claims is
-  // false, so no unexpected-type warning fires, and the claim is treated as unverified.
-  logged.length = 0
-  assert.equal(isEmailVerifiedClaim({}, log), false)
-  assert.deepEqual(logged, [])
+  // A realm that sends neither email_verified nor email: no warning, and the identity claims no invitation.
+  const silent = await completeSignInWith(t, {})
+  assert.equal(silent.signIn.emailVerified, false)
+  assert.equal(silent.signIn.verifiedEmail, null)
+  assert.deepEqual(silent.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
 })
 
 const PROJECT_ID = '66666666-6666-4666-8666-666666666666'
@@ -499,11 +519,16 @@ test('an app-only Account signing in at the Hub is refused with no session cooki
 })
 
 test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 503, not signed out', async (t) => {
-  const { providerUnavailable } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
+  const keycloakDown = createHostSessions({
+    pool: { query: async () => ({ rows: [{ account_id: '22222222-2222-4222-8222-222222222222', issuer: 'https://issuer.test', subject: 'subject-1', display_name: 'Operator', email: null, provider_checked_at: new Date(0), due_provider_refresh_token: 'sealed-refresh-token' }] }) },
+    refresh: async () => ({ kind: 'UNAVAILABLE' }),
+    envelope: { open: async () => 'refresh-token', seal: async (value) => value },
+  })
   const app = await createHttpApp({
     registerRoutes: (server) => registerIdentityAccessRoutes(server, {
       store: makeStore(), workspaceReader: makeStore(), oidc: makeOidc(), config, hubSessions: makeStore(),
-      resolveCurrentSession: async () => { throw providerUnavailable() },
+      resolveCurrentSession: (request) => keycloakDown.resolveHub({ sessionToken: request.cookies['__Host-conexus_session'] }),
     }),
     staticRoot: null,
   })

@@ -3,7 +3,9 @@ import { createServer } from 'node:http'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { guardedWebFetchTool, outboundUrl, WEB_FETCH_REFUSAL } = await import(hubModuleUrl('builder/harness/web-fetch.js'))
+const { guardedWebFetchTool } = await import(hubModuleUrl('builder/harness/web-fetch.js'))
+
+const REFUSAL = 'Refused: fetch only a plain public address, with no query string, no # part and nothing from this company or Project in it. Use a general documentation page, or go on without it.'
 
 const fetchUrl = (url) => guardedWebFetchTool.execute({ url }, {})
 
@@ -32,22 +34,22 @@ test('a URL that can carry data is refused before anything leaves', async () => 
     `https://${'a'.repeat(41)}.attacker.example/`,
   ]
   for (const url of refused) {
-    assert.equal(outboundUrl(url), undefined, url)
-    assert.deepEqual(await fetchUrl(url), { content: WEB_FETCH_REFUSAL, isError: true }, url)
+    assert.deepEqual(await fetchUrl(url), { content: REFUSAL, isError: true }, url)
   }
-  for (const value of ['', undefined, null, 42, { url: 'https://example.com/' }]) assert.equal(outboundUrl(value), undefined)
-  assert.match(WEB_FETCH_REFUSAL, /go on without it/)
+  for (const value of ['', undefined, null, 42, { url: 'https://example.com/' }]) assert.equal((await fetchUrl(value)).error, true, 'the tool input schema turns it away')
 })
 
-test('a plain documentation address passes unchanged', () => {
-  for (const url of [
-    'https://docs.example.com/guide/routing',
-    'https://registry.npmjs.org/zod',
-    'https://github.com/org/repo/blob/main/README.md',
-    'http://hono.dev/docs/api/routing',
-    'https://example.com',
+test('a plain documentation address is handed to Mastra, which tries that host', async () => {
+  for (const [url, host] of [
+    ['https://docs.example.invalid/guide/routing', 'docs.example.invalid'],
+    ['https://registry.example.invalid/zod', 'registry.example.invalid'],
+    ['https://github.example.invalid/org/repo/blob/main/README.md', 'github.example.invalid'],
+    ['http://hono.example.invalid/docs/api/routing', 'hono.example.invalid'],
+    ['https://example.invalid', 'example.invalid'],
   ]) {
-    assert.equal(outboundUrl(url), new URL(url).toString(), url)
+    const result = await fetchUrl(url)
+    assert.equal(result.isError, true, url)
+    assert.match(result.content, new RegExp(`^Failed to fetch URL: .*${host.replaceAll('.', '\\.')}$`), url)
   }
 })
 

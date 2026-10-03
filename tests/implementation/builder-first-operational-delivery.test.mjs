@@ -15,10 +15,10 @@ const compile = (entry) => {
   if (result.status !== 0) throw new Error(result.stdout || result.stderr)
 }
 compile('apps/hub/src/platform/config.ts')
-compile('apps/hub/src/builder/module.ts')
+compile('apps/hub/src/builder/observability.ts')
 compile('apps/hub/src/project/routes.ts')
 const { registerProjectRoutes } = await import(pathToFileURL(resolve(buildRoot, 'routes.js')).href)
-const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'module.js')).href)
+const { createBuilderObservabilityLifecycle } = await import(pathToFileURL(resolve(buildRoot, 'observability.js')).href)
 const { requestHubShell, waitForHub } = await import(pathToFileURL(resolve(repositoryRoot, 'tests/implementation/builder-production-composed-live-runner.mjs')).href)
 
 test('Project composition registers exactly the four surviving Project routes', async () => {

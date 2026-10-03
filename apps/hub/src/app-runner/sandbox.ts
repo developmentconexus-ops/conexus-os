@@ -21,8 +21,7 @@ export type SandboxConfig = Readonly<{
   nodePermission: boolean
 }>
 
-/** @public Tests import this at runtime from the built module. */
-export const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
+const DEFAULT_SANDBOX: SandboxConfig = Object.freeze({
   bwrap: '/usr/bin/bwrap',
   prlimit: '/usr/bin/prlimit',
   node: process.execPath,

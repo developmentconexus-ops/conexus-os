@@ -15,7 +15,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
-const { BUILDER_RUN_TERMS, createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
+const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -167,7 +167,7 @@ test('a handler\'s thrown message never reaches the tool result', async (t) => {
 test('the operation spends the run\'s Conexão budget: with one call left, its second read is CALL_LIMIT', async (t) => {
   const { tool, connectorFetch, fake } = await setup(t)
   const read = { connection: 'erp', method: 'POST', path: '/gateway/v1/mge/service.sbr', query: { serviceName: 'CRUDServiceProvider.loadRecords', outputType: 'json' }, body: { serviceName: 'CRUDServiceProvider.loadRecords', requestBody: { dataSet: NATIVE_ORDER_DATASET } } }
-  for (let call = 1; call < BUILDER_RUN_TERMS.calls; call += 1) assert.equal((await connectorFetch.execute(read)).ok, true)
+  for (let call = 1; call < 50; call += 1) assert.equal((await connectorFetch.execute(read)).ok, true)
   const report = await tool.execute({ operation: 'orderLines', input: { readHeaderFirst: true } }, inMode())
   assert.deepEqual(report, {
     ok: true,
@@ -175,7 +175,7 @@ test('the operation spends the run\'s Conexão budget: with one call left, its s
     lists: { '/items': 0 },
     fields: { '/items/*/code': { values: 0, filled: 0 }, '/items/*/price': { values: 0, filled: 0 }, '/items/*/promo': { values: 0, filled: 0 }, '/items/*/discount': { values: 0, filled: 0 }, '/failure': { values: 1, filled: 1 } },
   })
-  assert.equal(fake.requests.filter((r) => r.path === '/gateway/v1/mge/service.sbr').length, BUILDER_RUN_TERMS.calls)
+  assert.equal(fake.requests.filter((r) => r.path === '/gateway/v1/mge/service.sbr').length, 50)
   assert.deepEqual((await connectorFetch.execute(read)).code, 'CALL_LIMIT')
 })
 
