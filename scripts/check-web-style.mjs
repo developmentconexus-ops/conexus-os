@@ -226,8 +226,9 @@ const classNamesIn = css => {
   const walk = components => {
     for (const component of components) {
       if (component.type === 'class') names.add(component.name)
-      for (const inner of [component.selectors, component.selector]) {
-        if (Array.isArray(inner)) (Array.isArray(inner[0]) ? inner : [inner]).forEach(walk)
+      // Any list a pseudo-class carries (:is, :not, :has, `of` in :nth-child) is a selector or a list of them.
+      for (const inner of Object.values(component)) {
+        if (Array.isArray(inner) && inner.length > 0 && (Array.isArray(inner[0]) || inner[0]?.type !== undefined)) (Array.isArray(inner[0]) ? inner : [inner]).forEach(walk)
       }
     }
   }

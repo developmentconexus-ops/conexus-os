@@ -201,3 +201,10 @@ test('an unknown class in a branch of a ternary fails, and a known one passes', 
   assert.equal(result.status, 1)
   assert.match(result.stderr, /class "text-nope" has no rule/)
 })
+
+test('a class named only inside :nth-child(... of .class) counts as defined', context => {
+  const result = check(tree(context, screen('local picked', {
+    'apps/web/src/local.css': '.local { margin: 0; }\nli:nth-child(2n of .picked) { margin: 0; }\n',
+  })))
+  assert.equal(result.status, 0, result.stderr)
+})
