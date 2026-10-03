@@ -382,7 +382,7 @@ test('a Project holds several conversations, and switching between them leaves t
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sourceRevision, path: 'app/index.html', content: '<main>Contador</main>' }) })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(previewRequests.length, 1)
 
@@ -466,7 +466,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   // The model the next run uses is the controller's own selection, and the composer shows it.
   await page.getByRole('button', { name: new RegExp(`^Modelo ${SELECTED_MODEL_NAME}, `) }).waitFor()
   await openModelPicker(page)
@@ -542,7 +542,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
     })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await page.getByText('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.', { exact: true }).waitFor()
@@ -585,7 +585,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
     })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
@@ -649,7 +649,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
       artifactDigest: mismatched ? digestA : useB ? digestB : digestA, expiresAt: new Date(Date.now() + 60_000).toISOString(),
     }) })
   })
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.equal(previewRequests, 1)
   assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/entry-a`)
@@ -699,7 +699,7 @@ test('a run that failed before the agent still shows the request and names why i
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     runHistory: [failedRun],
   }) }))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
   await page.locator('.cx-messages .builder-turn-reason').getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
@@ -736,7 +736,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
     if (level) chosen.push(level)
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await messageBox(page).waitFor()
 
   const commandLevels = async () => {
@@ -793,7 +793,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
     preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     runHistory: [],
   }) }))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   const shown = page.locator('.cx-messages .builder-turn-notice')
   await shown.waitFor()
   assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
@@ -843,7 +843,7 @@ test('an agent that spoke once and then works in silence still reads as working,
     { type: 'message_start', message: assistantMessage('assistant-plan', 'Vou estruturar a interface de cadastro.') },
   )))
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Vou estruturar a interface de cadastro.', { exact: true }).waitFor()
   const status = page.locator('.cx-chat-step')
   await status.waitFor()
@@ -890,7 +890,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
     return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>app</title><main>ok</main>' })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByText('Acesso autorizado. Abrindo a prévia…', { exact: true }).waitFor()
   assert.equal(await page.getByText('Prévia aberta. Se a área ficar vazia, o aplicativo não desenhou nada.', { exact: true }).count(), 0,
     'about:blank fires its own load, which must not count as the application navigating')
@@ -919,7 +919,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-preview-toolbar .cx-chip').getByText(NEXT_SOURCE_UNCOMPILED).waitFor()
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
@@ -980,7 +980,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
       artifactDigest: useB ? digestB : digestA, expiresAt: new Date(Date.now() + 60_000).toISOString(),
     }) })
   })
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await firstLaunchStarted.promise
   assert.equal(previewRequests, 1)
   assert.equal(await page.getByTitle('Prévia do aplicativo').count(), 0)
@@ -1063,7 +1063,7 @@ test('a Project lists its conversations as the threads of its resource, and each
     return route.fulfill(sse({ type: 'message_start', message: assistantMessage('live-1', 'Trabalhando no repositório') }))
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Contador pronto', { exact: true }).waitFor()
   assert.deepEqual(await readConversationTitles(page, 2), ['Contador', 'Relógio'])
   assert.equal(await page.getByRole('button', { name: 'Renomear' }).count(), 0, 'the Builder has no conversation rename feature')
@@ -1154,7 +1154,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
     ))
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Atualize o texto em destaque', { exact: true }).waitFor()
   await page.getByTitle('Prévia do aplicativo').waitFor()
   await page.waitForTimeout(600)
@@ -1209,7 +1209,7 @@ test('a page opened while the run is parked shows the question card once from th
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByText(question, { exact: true }).waitFor()
   await page.getByRole('radio', { name: 'Pago' }).waitFor()
   assert.equal(await page.getByText(question, { exact: true }).count(), 1, 'one card for the question')
@@ -1274,7 +1274,7 @@ test('a suspended ask_user with options renders the options and submits the chos
     { type: 'tool_suspended', toolCallId: 'tool-ask-1', toolName: 'ask_user', args: { questions: [{ question, options }] }, suspendPayload: { questions: [{ question, options }] } },
   )))
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
 
   // The task list is the AgentController's own display state, not a parsed tool-call row: the
   // task_write call above never shows as a conversation row, and the checklist counts and names
@@ -1336,7 +1336,7 @@ const openLiveTurn = async (t, events) => {
     runHistory: [],
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   return page
 }
 
@@ -1369,7 +1369,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
     { type: 'state_changed', state: { yolo: true, conexusRun: { ...run, phase: 'COMPILING' } }, changedKeys: ['conexusRun'] },
   )))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-chat-step', { hasText: 'Verificando o app' }).waitFor()
 })
 
@@ -1611,7 +1611,7 @@ test('the eval driver answers every question of the real multi-question ask_user
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
     { type: 'tool_suspended', toolCallId: 'tool-ask-many', toolName: 'ask_user', args: { questions }, suspendPayload: { questions } },
   )))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByText('Contar provisórios?', { exact: true }).waitFor()
 
   const scripted = {
@@ -1665,7 +1665,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
     { type: 'tool_suspended', toolCallId: 'tool-ask-2', toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question }] } },
   )))
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
 
   await page.getByPlaceholder('Digite sua resposta…').waitFor()
   await page.getByRole('button', { name: 'Enviar resposta' }).waitFor()
@@ -1693,7 +1693,7 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
     runHistory: [],
   }) }))
   if (runId) await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...stream)))
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   return { page, state }
 }
 const OM_IDLE = {
@@ -1992,7 +1992,7 @@ for (const width of [1536, 1700]) {
       { type: 'tool_suspended', toolCallId: 'ask-w', toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question, options: [{ label: 'Aprovar e construir' }, { label: 'Pedir ajustes' }] }] } },
     )))
 
-    await page.goto(`${origin}/projects/${projectId}/build`)
+    await page.goto(`${origin}/projects/${projectId}`)
     await page.getByRole('radio', { name: 'Aprovar e construir' }).waitFor()
     if (process.env.CHATWIDTH_SHOT) await page.screenshot({ path: process.env.CHATWIDTH_SHOT })
     const measured = await page.evaluate(() => {
@@ -2118,7 +2118,7 @@ const pollNow = (page) => page.evaluate(() => document.dispatchEvent(new Event('
 // A poll that fires while the first session read is in flight joins it and never asks again, so a test
 // must see that read answered before it changes what the stub says.
 const openAfterFirstSessionRead = async (page, origin, projectId, firstRead) => {
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await firstRead
   await messageBox(page).waitFor()
 }
@@ -2182,7 +2182,7 @@ test('a first load that fails still shows the error page', async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   await stubSessionReads(page, accountId, projectId, () => 503)
 
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   await page.getByText('Não foi possível abrir o Construir').waitFor()
   assert.equal(await messageBox(page).count(), 0)
 })

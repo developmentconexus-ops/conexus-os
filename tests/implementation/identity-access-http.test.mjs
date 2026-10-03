@@ -207,11 +207,10 @@ test('production OIDC configuration refuses an insecure issuer', async () => {
   )
 })
 
-test('S1 exposes only generated IAM-01..03 through one sealed validator', async (t) => {
+test('S1 exposes only generated IAM-01..03', async (t) => {
   const app = await createHubApp({ store: makeStore(), oidc: makeOidc(), config })
   t.after(() => app.close())
   assert.deepEqual(app.routeCensus(), ['IAM-01', 'IAM-02', 'IAM-03'])
-  assert.equal(app.validatorInstallCount(), 1)
 })
 
 test('an existing account claims its invitations before its session starts', async (t) => {

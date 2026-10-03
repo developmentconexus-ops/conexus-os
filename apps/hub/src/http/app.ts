@@ -11,7 +11,6 @@ import { sendProblem } from './problem.js'
 
 export type HubHttpApp = FastifyInstance & Readonly<{
   routeCensus(): readonly string[]
-  validatorInstallCount(): number
 }>
 
 export type RouteRegistrar = (app: FastifyInstance) => Promise<readonly string[]>
@@ -60,9 +59,7 @@ export const createHttpApp = async ({
   ajv.addKeyword({ keyword: 'x-conexus-schema-source', schemaType: 'string', valid: true })
   const addFormats = addFormatsModule.default
   addFormats(ajv)
-  let validatorInstallCount = 0
   app.setValidatorCompiler(({ schema }) => ajv.compile(schema))
-  validatorInstallCount += 1
   await app.register(cookie)
   await app.register(helmet, {
     // CodeMirror keeps rewriting one <style> element, so no fixed hash covers it; the page hands
@@ -110,7 +107,6 @@ export const createHttpApp = async ({
       '/workspaces/:workspaceId/projects/new',
       '/workspaces/:workspaceId/settings/people',
       '/projects/:projectId',
-      '/projects/:projectId/build',
       '/projects/:projectId/c/:conversationId',
       '/projects/:projectId/settings',
       '/projects/:projectId/settings/access',
@@ -133,6 +129,5 @@ export const createHttpApp = async ({
   await app.ready()
   return Object.assign(app, {
     routeCensus: (): readonly string[] => [...registered],
-    validatorInstallCount: (): number => validatorInstallCount,
   }) as HubHttpApp
 }
