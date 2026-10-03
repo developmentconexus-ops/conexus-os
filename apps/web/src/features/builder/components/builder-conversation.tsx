@@ -17,7 +17,7 @@ import { humanizeModelName } from '../composer/model-display-name'
 import type { MastraDBMessage } from '@mastra/client-js'
 import type { BuilderModel } from '../mastra-session'
 import type { MessageEntry, PromptEntry, RuntimeTool, TranscriptEntry } from '../transcript.ts'
-import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
+import { failureCodeText } from '../../../app/failure'
 import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
 import { clockLabel } from '../construir/run-state'
@@ -324,7 +324,7 @@ const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<
 export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
   entries: readonly TranscriptEntry[]
   persistedRequests: readonly PersistedRequest[]
-  failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
+  failure: Readonly<{ failureCode: string | null }> | null
   model: BuilderModel | null
   // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
@@ -347,7 +347,7 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
   }
   const orphans = persistedRequests.filter((entry) => !covered(entry.text)).map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry }))
     .sort((left, right) => left.at - right.at)
-  const reason = failureReason(failure)
+  const reason = failureCodeText(failure?.failureCode)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
   const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
   const { revealed, caughtUp } = useRevealedTurn(messages, merged, working)

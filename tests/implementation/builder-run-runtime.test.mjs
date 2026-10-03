@@ -9,6 +9,8 @@ import { createWorkspaceTools, LocalFilesystem, Workspace } from '@mastra/core/w
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
@@ -198,7 +200,7 @@ const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate
     openSandbox: (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
-      if (!modelAccount) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+      if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     },
     openSession: async (input) => {
       events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
@@ -561,7 +563,7 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
   const run = await harness(t, { build: async () => {
     await new Promise((settle) => { setTimeout(settle, 1100) })
-    throw new Error('APPLICATION_SMOKE_FAILED')
+    throw new Failure('APPLICATION_SMOKE_FAILED')
   } })
   await run.start()
   await run.service.close()
@@ -1239,7 +1241,7 @@ test('a VM that died while the conversation was idle is replaced before the run 
 test('a starter inspection that fails writes its command evidence to the Hub log under the run', async (t) => {
   const run = await harness(t, {
     starter: async () => {
-      throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', { cause: { exitCode: 1, stdout: '', stderr: 'Error: sandbox not found' } })
+      throw new Failure('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', { cause: { exitCode: 1, stdout: '', stderr: 'Error: sandbox not found' } })
     },
   })
   await run.start()
@@ -1323,7 +1325,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': {},
     'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
-    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } },
+    'the check fails in Conexus after the turn': { build: async () => { throw new Failure('APPLICATION_SMOKE_FAILED') } },
   }
   const outcomes = {}
   for (const [name, { stop, ...options }] of Object.entries(cases)) {
@@ -1373,7 +1375,7 @@ test('a run whose session cannot open still revokes the scope it minted', async 
   await run.start()
   await run.settled()
   await run.service.close()
-  assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'BUILDER_SESSION_OPEN_FAILED'], [false]])
+  assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'INTERNAL_UNEXPECTED'], [false]])
 })
 
 const until = async (predicate, what) => {
@@ -1693,14 +1695,14 @@ test('a poll that fails is logged and the run still completes', async (t) => {
 })
 
 test('a failed run without a cause still logs BUILDER_RUN_FAILED with its code and run id, never the message text', async (t) => {
-  const coded = await harness(t, { turn: () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } })
+  const coded = await harness(t, { turn: () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } })
   await coded.start()
   await coded.service.close()
   assert.deepEqual(coded.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:BUILDER_MODEL_INCOMPLETE'])
   const prose = await harness(t, { turn: () => { throw new Error('the tool said sk-secret-token') } })
   await prose.start()
   await prose.service.close()
-  assert.deepEqual(prose.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:BUILDER_PREPARATION_FAILED'])
+  assert.deepEqual(prose.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:INTERNAL_UNEXPECTED'])
   assert.equal(prose.logs.some((line) => line.includes('sk-secret-token')), false)
 })
 

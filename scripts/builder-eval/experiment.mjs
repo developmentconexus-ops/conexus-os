@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
+import { armOwned } from './failure-owner.mjs'
 import { openHub } from './hub.mjs'
 import { DEFAULT_BASE_URL, DEFAULT_MAX_REPAIRS, resolveStatePath, runCase } from './run.mjs'
 import { fixtureById, SIM_DEFAULT_PORT } from './sankhya-sim.mjs'
@@ -32,7 +33,7 @@ import { createEvalMastra, evalStorage, findTraceIds, scoreRun } from './scorers
 /** @typedef {Readonly<{ id: string, input: CaseInput, truth: CaseTruth }>} Case  id is the file stem */
 /**
  * @typedef {Readonly<{ builderRunId: string, traceId: string | null, isRepair: boolean, state: string,
- *   failureCategory: string | null, failureCode: string | null }>} RunRecord
+ *   failureCode: string | null }>} RunRecord
  */
 /**
  * @typedef {Readonly<{ kind: 'observed', text: string, sourceRevision: string }>
@@ -138,22 +139,6 @@ export function loadCases(dir) {
   })
 }
 
-// An unlisted category is the platform's: retried and visible, never charged to the arm.
-const FAILURE_OWNER = Object.freeze({
-  APPLICATION_BUILD_FAILED: 'arm',
-  SOURCE_RESULT_REJECTED: 'arm',
-  // Only the Hub's restart recovery settles a run with BUILDER_PREVIEW_NOT_BUILT (factory-runtime.ts).
-  PREVIEW_NOT_BUILT: 'platform',
-  ENVIRONMENT_PREPARATION_FAILED: 'platform',
-  MODEL_CREDENTIAL_REFUSED: 'platform',
-  MODEL_RATE_LIMITED: 'platform',
-  MODEL_REQUEST_REFUSED: 'platform',
-  SOURCE_BASE_MOVED: 'platform',
-  RUN_CANCELLED: 'platform',
-  RUN_INTERRUPTED: 'platform',
-  INTERNAL_ERROR: 'platform',
-})
-
 const platformError = (code, message) => ({ kind: 'platform-error', code, message })
 
 // run.mjs failures that leave no Preview of the request through the arm's own doing: graded, not retried.
@@ -164,8 +149,8 @@ function classifyRun(result) {
   if (result.outcome === 'ERROR') return platformError('DRIVER_ERROR', result.error ?? 'run.mjs failed')
   const last = result.runs.at(-1)
   if (!last) return platformError('NO_RUN', 'no Builder run settled')
-  if (last.failureCategory && FAILURE_OWNER[last.failureCategory] !== 'arm') {
-    return platformError(last.failureCategory, `the last Builder run failed with ${last.failureCode ?? last.failureCategory}`)
+  if (last.failureCode && !armOwned(last.failureCode)) {
+    return platformError(last.failureCode, `the last Builder run failed with ${last.failureCode}`)
   }
   if (result.failure === 'PREVIEW_NOT_FROM_FINAL_RUN') return platformError('PREVIEW_NOT_FROM_FINAL_RUN', "the Preview never showed the final run's revision")
   if (!ARM_WITHOUT_PREVIEW.has(result.failure) && typeof result.previewText !== 'string') return platformError('PREVIEW_UNREADABLE', "the Preview's text could not be read")
@@ -182,7 +167,7 @@ const runOutput = (result, artifactsDir, preview, traceIds) => ({
   projectId: result.projectId, modelId: result.modelId, artifactsDir,
   runs: result.runs.map((run, index) => ({
     builderRunId: run.builderRunId, traceId: traceIds[index] ?? null, isRepair: run.isRepair, state: run.state,
-    failureCategory: run.failureCategory, failureCode: run.failureCode,
+    failureCode: run.failureCode,
   })),
   preview, wallTimeToUsablePreviewMs: result.wallTimeToUsablePreviewMs, unscored: [],
 })

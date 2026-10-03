@@ -11,6 +11,7 @@ import { homedir, loadavg } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checksPassed, parseCase, runChecks } from './checks.mjs'
+import { buildBroken } from './failure-owner.mjs'
 import { compareToOracle, loadOracle } from './oracle.mjs'
 import { ac13Metrics, ADJUST_LABEL, APPROVE_LABEL, foldLabel, isApprovalOptions } from './flow.mjs'
 import { correctionMessage, createPerson, fillSheet, fillValues, hiddenRuleOutcomes, loadValues, parseSheet } from './person.mjs'
@@ -432,11 +433,10 @@ async function pollForPreviewOf(page, projectId, sourceRevision) {
 
 // Only a build the source broke is the author's to repair. A platform fault (runner down, Hub
 // restart) sent as "corrija" teaches the model to delete correct code until the fault goes away.
-const needsRepair = (run) => run.failureCategory === 'APPLICATION_BUILD_FAILED'
 
 const recordOf = (run, isRepair) => ({
   builderRunId: run.builderRunId, isRepair, createdAt: run.createdAt, settledAt: new Date().toISOString(), state: run.state, resultKind: run.resultKind,
-  failureCode: run.failureCode, failureCategory: run.failureCategory,
+  failureCode: run.failureCode,
   baseSourceRevision: run.baseSourceRevision, resultSourceRevision: run.resultSourceRevision,
   requestText: run.requestText,
 })
@@ -606,7 +606,7 @@ async function sendAndSettle(page, options, caseFile, result) {
 /** Sends "o build falhou, corrija" while the last run's build failed on the source, up to the cap. */
 async function repairUntilBuilt(page, options, result, settled) {
   let current = settled
-  while (needsRepair(current.run) && result.repairIterations < options.maxRepairs) {
+  while (buildBroken(current.run.failureCode) && result.repairIterations < options.maxRepairs) {
     result.repairIterations += 1
     await sendMessage(page, REPAIR_MESSAGE)
     current = await pollForSettledRun(page, result.projectId, current.run.builderRunId, options.cards)

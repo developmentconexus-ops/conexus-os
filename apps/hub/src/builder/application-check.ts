@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { appPathClassifierSource } from '../platform/application-path.js'
 import { admitManifest } from '../app-runner/server-manifest.js'
+import { Failure } from '../platform/failure.js'
 
 /**
  * The Conexus check: one Hub owned script, `/opt/conexus/check.mjs`, that the Builder's tool, source
@@ -64,7 +65,7 @@ export const readCheckReport = (stdout: string): CheckReport => {
   try {
     return checkReportSchema.parse(JSON.parse(stdout.trim().split('\n').pop() ?? ''))
   } catch (cause) {
-    throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE', { cause })
+    throw new Failure('APPLICATION_CHECK_REPORT_UNREADABLE', { cause })
   }
 }
 
@@ -418,7 +419,7 @@ const runBoot = async () => {
       socket = new WebSocket(webSocketUrl)
       await new Promise((opened, failed) => {
         socket.addEventListener('open', () => opened(), { once: true })
-        socket.addEventListener('error', () => failed(new Error('BOOT_BROWSER_UNAVAILABLE')), { once: true })
+        socket.addEventListener('error', () => failed(new Failure('BOOT_BROWSER_UNAVAILABLE')), { once: true })
       })
       let nextId = 1
       const pending = new Map()

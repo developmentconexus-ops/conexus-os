@@ -12,7 +12,6 @@ const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-r
 const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
 const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))
-const { builderFailureCategory } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
@@ -79,7 +78,6 @@ test('a storage connect failure in one loop step ends the turn as BUILDER_AGENT_
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_PLATFORM_FAILED' })
   assert.equal(storageCalls.thrown, 1)
   assert.equal(calls.length, 0)
-  assert.equal(builderFailureCategory(outcome.code), 'INTERNAL_ERROR')
 })
 
 test('an auth failure from the model is not retried', async (t) => {
@@ -91,14 +89,14 @@ test('an auth failure from the model is not retried', async (t) => {
 })
 
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {
-  const { failureReason } = await import('../../apps/web/src/features/builder/failure-reasons.ts')
+  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
   assert.equal(
-    failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_AGENT_PLATFORM_FAILED' }),
-    'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
+    failureCodeText('BUILDER_AGENT_PLATFORM_FAILED'),
+    'Uma falha do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.',
   )
-  assert.equal(failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_PREPARATION_FAILED' }), 'Ocorreu um erro interno inesperado. Tente novamente.')
-  assert.equal(failureReason({ failureCategory: 'MODEL_REQUEST_REFUSED', failureCode: 'BUILDER_MODEL_STREAM_FAILED' }), 'O provedor do modelo recusou ou interrompeu o pedido. Tente novamente ou escolha outro modelo.')
-  assert.equal(failureReason(null), 'Ocorreu um erro interno inesperado. Tente novamente.')
+  assert.equal(failureCodeText('BUILDER_PREPARATION_FAILED'), 'O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.')
+  assert.equal(failureCodeText('BUILDER_MODEL_STREAM_FAILED'), 'O provedor do modelo recusou ou interrompeu o pedido. Escolha outro modelo.')
+  assert.equal(failureCodeText(null), 'O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.')
 })
 
 const MODEL_FAILURES = [
@@ -125,7 +123,6 @@ test("a model 503 that never clears is retried ten times, Mastra Code's limit, t
   const outcome = await settle(run.sendTurn('Faça o app.'))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' })
   assert.equal(calls.length, 11)
-  assert.equal(builderFailureCategory(outcome.code), 'MODEL_REQUEST_REFUSED')
 })
 
 test('a rate limit is retried by Mastra twice, then fails as rate limited', async (t) => {
@@ -211,7 +208,7 @@ test('an Anthropic 429 is retried twice, then ends as rate limited, without expo
 test('an Anthropic 401 ends the run as a refused credential at once, with no retry and no notice, and the key is in no event', async (t) => {
   const r = await runOnUpstream(t, [anthropicError(401, 'authentication_error', 'invalid x-api-key')])
   assert.deepEqual(r.outcome, { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' })
-  assert.deepEqual({ calls: r.calls, notices: r.notices, category: builderFailureCategory(r.outcome.code), exposed: r.exposed }, { calls: 1, notices: [], category: 'MODEL_CREDENTIAL_REFUSED', exposed: false })
+  assert.deepEqual({ calls: r.calls, notices: r.notices, exposed: r.exposed }, { calls: 1, notices: [], exposed: false })
 })
 
 test('an upstream that echoes the key in its 401 body still ends the run as a bare failure code, with the key nowhere in what the turn settles with', async (t) => {

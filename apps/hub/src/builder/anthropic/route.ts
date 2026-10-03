@@ -5,6 +5,7 @@ import type { HeldModelAccount, ModelAccountKind } from '../model-account-store.
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
 import { ANTHROPIC_PROVIDER, heldClaudeCredentials, parseClaudeTokens, type ClaudeTokens } from './credential.js'
+import { Failure } from '../../platform/failure.js'
 
 type AnthropicKind = Extract<ModelAccountKind, 'api_key' | 'oauth'>
 type ModelOf = (modelName: string, thinkingLevel?: ThinkingLevelSetting) => Promise<MastraModelConfig>
@@ -36,7 +37,7 @@ export const createAnthropicRoute = (holds: TokenHolds<ClaudeTokens>): ModelRout
   return Object.freeze({
     accountProvider: ANTHROPIC_PROVIDER,
     take: (account) => {
-      if (!isAnthropicKind(account.kind)) throw new Error('ANTHROPIC_STORED_RECORD_REFUSED')
+      if (!isAnthropicKind(account.kind)) throw new Failure('ANTHROPIC_STORED_RECORD_REFUSED')
       return { modelProvider: ANTHROPIC_PROVIDER, model: byKind[account.kind](account) }
     },
   })

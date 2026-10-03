@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, request as forward, type ServerResponse } from 'node:http'
 import { type GoogleAiProKey, parseKey } from './credential.js'
 import type { CliproxyPool, Lease, PersistGoogleAiProRefresh } from './pool.js'
+import { Failure } from '../../platform/failure.js'
 
 // In the shape of Gemini's own errors, which Mastra's Google provider reads the message from.
 const refuse = (response: ServerResponse, status: number, code: string, message: string): void => {
@@ -60,7 +61,7 @@ export const startModelRouter = (pool: Pick<CliproxyPool, 'acquire'>, persistFor
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      if (typeof address !== 'object' || !address) return reject(new Error('GOOGLE_AI_PRO_ROUTER_UNAVAILABLE'))
+      if (typeof address !== 'object' || !address) return reject(new Failure('GOOGLE_AI_PRO_ROUTER_UNAVAILABLE'))
       resolve(Object.freeze({
         url: `http://127.0.0.1:${address.port}`,
         close: () => new Promise<void>((done) => {

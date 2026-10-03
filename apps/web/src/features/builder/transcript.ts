@@ -9,7 +9,7 @@
 
 import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
-import { modelRetryNotice, modelStoppedNotice } from './failure-reasons.ts'
+import { modelRetryNotice, modelStoppedNotice } from './model-notices.ts'
 import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 
 type MessagePart = MastraDBMessage['content']['parts'][number]

@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
 import { redactEvidence } from './application-check.js'
+import { Failure } from '../platform/failure.js'
 
 export type FixedApplicationStarterResult = 'MATERIALIZED' | 'PRESERVED'
 
@@ -61,7 +62,7 @@ const inspectEntry = async (
   ])
   const state = result.stdout.trim()
   if (result.exitCode === 0 && (state === 'ABSENT' || state === 'PRESENT' || state === 'UNSAFE')) return state
-  throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', {
+  throw new Failure('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', {
     cause: { exitCode: result.exitCode, stdout: commandEvidence(result.stdout), stderr: commandEvidence(result.stderr) },
   })
 }
@@ -75,10 +76,10 @@ export const materializeFixedApplicationStarter = async ({
   directCommand: FixedApplicationStarterWorkspace['directCommand']
   writeFiles: FixedApplicationStarterWorkspace['writeFiles']
 }>): Promise<FixedApplicationStarterResult> => {
-  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Error('BUILDER_STARTER_ROOT_REFUSED')
+  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Failure('BUILDER_STARTER_ROOT_REFUSED')
   const appPath = join(repositoryRoot, 'app')
   const entry = await inspectEntry(directCommand, appPath)
-  if (entry === 'UNSAFE') throw new Error('BUILDER_STARTER_ENTRY_UNSAFE')
+  if (entry === 'UNSAFE') throw new Failure('BUILDER_STARTER_ENTRY_UNSAFE')
   if (entry === 'PRESENT') return 'PRESERVED'
 
   await writeFiles(fixedApplicationStarterFiles().map((file) => ({
@@ -98,12 +99,12 @@ export const materializeApplicationShape = async ({
   directCommand: FixedApplicationStarterWorkspace['directCommand']
   writeFiles: FixedApplicationStarterWorkspace['writeFiles']
 }>): Promise<void> => {
-  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Error('BUILDER_STARTER_ROOT_REFUSED')
+  if (!isAbsolute(repositoryRoot) || repositoryRoot.includes('\0')) throw new Failure('BUILDER_STARTER_ROOT_REFUSED')
   const missing: SandboxFileInput[] = []
   for (const file of APPLICATION_SHAPE_FILES) {
     const path = join(repositoryRoot, file.path)
     const entry = await inspectEntry(directCommand, path)
-    if (entry === 'UNSAFE') throw new Error('BUILDER_STARTER_ENTRY_UNSAFE')
+    if (entry === 'UNSAFE') throw new Failure('BUILDER_STARTER_ENTRY_UNSAFE')
     if (entry === 'ABSENT') missing.push({ path, content: file.content })
   }
   if (missing.length > 0) await writeFiles(missing)

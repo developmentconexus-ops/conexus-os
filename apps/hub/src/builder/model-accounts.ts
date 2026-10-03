@@ -92,7 +92,7 @@ const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_M
 const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
   const middleware = createAnthropicThinkingMiddleware(model, level)
   if (!middleware?.transformParams) return undefined
-  const unused = (): never => { throw new Error('MODEL_ACCOUNT_PROBE_NOT_CALLABLE') }
+  const unused = (): never => { throw new Failure('MODEL_ACCOUNT_PROBE_NOT_CALLABLE') }
   const call: Parameters<NonNullable<typeof middleware.transformParams>>[0] = {
     type: 'stream',
     params: { prompt: [], providerOptions: {} },

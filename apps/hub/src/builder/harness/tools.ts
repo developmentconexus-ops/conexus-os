@@ -1,9 +1,27 @@
 import { askUserTool, submitPlanTool } from '@mastra/core/agent-controller'
 import { createTool, formatQuestionAnswer } from '@mastra/core/tools'
 import { z } from 'zod'
+import { logFailure, toFailure } from '../../platform/failure.js'
+import { logger } from '../../platform/logger.js'
 import { checkReportSchema, type CheckReport } from '../application-check.js'
 import { operationRunReportSchema, type RunOperation } from '../run-operation.js'
 import { isPlanPath, PLAN_PATH, splitPlanFile } from './plan-file.js'
+
+/**
+ * A Conexus tool's `execute`, with its failure written once. Mastra wraps a throw as its own
+ * `TOOL_EXECUTION_FAILED` and writes no line, so the line is written here; the model receives the
+ * row's code, never a message that may carry a vendor's text.
+ */
+export const failing = <Args extends readonly unknown[], Result>(tool: string, execute: (...args: Args) => Promise<Result>) =>
+  async (...args: Args): Promise<Result> => {
+    try {
+      return await execute(...args)
+    } catch (error) {
+      const failure = toFailure(error)
+      logFailure(logger, failure, { 'tool.id': tool })
+      throw failure
+    }
+  }
 
 export const CHECK_TOOL = 'conexus_check'
 
@@ -19,7 +37,7 @@ export const createCheckTool = (runCheck: () => Promise<CheckReport>) => createT
   id: CHECK_TOOL,
   description: CHECK_DESCRIPTION,
   outputSchema: checkReportSchema,
-  execute: async () => runCheck(),
+  execute: failing(CHECK_TOOL, async () => runCheck()),
 })
 
 export const RUN_OPERATION_TOOL = 'conexus_run_operation'
@@ -40,7 +58,7 @@ export const createRunOperationTool = (runOperation: RunOperation) => createTool
     input: z.record(z.string(), z.unknown()),
   }),
   outputSchema: operationRunReportSchema,
-  execute: async (request) => runOperation(request),
+  execute: failing(RUN_OPERATION_TOOL, async (request: Parameters<RunOperation>[0]) => runOperation(request)),
 })
 
 export const SUBMIT_PLAN_TOOL = submitPlanTool.id

@@ -32,12 +32,17 @@ export async function readFailure(response: Response): Promise<HubFailure> {
 export const isFailure = (error: unknown, ...codes: readonly FailureCode[]): boolean =>
   error instanceof HubFailure && (codes.length === 0 || codes.includes(error.code))
 
-/** The sentence a person reads: the row's message and, when the row has one, what to do. */
-export function failureText(error: unknown): string {
-  const row = FAILURES[error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE']
+const sentence = (code: FailureCode): string => {
+  const row = FAILURES[code]
   const action = FAILURE_ACTIONS[row.action]
   return action === null ? row.message : `${row.message} ${action}`
 }
+
+/** The sentence a person reads: the row's message and, when the row has one, what to do. */
+export const failureText = (error: unknown): string => sentence(error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE')
+
+/** The same for a code the Hub stored, such as a settled run's `failureCode`; a code the table does not have is the unexpected failure. */
+export const failureCodeText = (code: string | null | undefined): string => sentence(code !== null && code !== undefined && isFailureCode(code) ? code : 'INTERNAL_UNEXPECTED')
 
 /** Whether the row tells the person to try again later: only a failure outside the Conexus code can. */
 export const isRetryable = (error: unknown): boolean =>

@@ -58,6 +58,7 @@ const projectSandboxesDigest = 'e000552a9b404a3ece26cc1cff658ab718eb720fbc044ba7
 const openRunConversationsDigest = '72a41c53b1ee67aed0153e78ba0a36a09df21a52d9fcc0b3a0e489908483f379'
 const listUnownedRunsDigest = 'b4653fc811f6bde04150b561aa240130cbe3da2ce2c93a954faf702ec3307dd9'
 const runLeaseDigest = '470019ea818885d1d729e16a2ac83020a30ce9ffb3599075b932293a1206324e'
+const failureCodesAreRowsDigest = 'eceeb7a9154ee8b7da85ffd963f25d8fc4743a8a2abe33f478eead79ae33efbc'
 const parkedRunExpiryDigest = 'ad64d6e9283dd8cfef24929aa0406a662f1e4b0192a06e4239a65d13d5e9f52b'
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
 const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
@@ -116,6 +117,7 @@ const migrationDigests = new Map([
   ['0050_hub_sign_out_provider_logout.sql', hubSignOutProviderLogoutDigest],
   ['0051_builder_run_lease.sql', runLeaseDigest],
   ['0052_builder_parked_run_expiry.sql', parkedRunExpiryDigest],
+  ['0053_builder_run_failure_codes_are_rows.sql', failureCodesAreRowsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

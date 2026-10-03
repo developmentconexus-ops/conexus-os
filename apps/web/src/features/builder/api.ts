@@ -1,5 +1,4 @@
 import { hubCall, hubFetch } from '../../app/http'
-import { type BuilderFailureCategory, isBuilderFailureCategory } from './failure-reasons'
 import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind, type BuilderRunState } from '../../generated/builder-run-vocabulary'
 export type SourceTree = Readonly<{
   sourceRevision: string
@@ -39,7 +38,6 @@ export type BuilderRun = Readonly<{
   resultSourceRevision: string | null
   resultKind: BuilderRunResultKind | null
   failureCode: string | null
-  failureCategory: BuilderFailureCategory | null
   requestText: string | null
   createdAt: string
   conversationId: string
@@ -147,7 +145,7 @@ export const parseRunState = (value: unknown): BuilderRun | null => {
   const run = value as Record<string, unknown>
   const valid = isText(run.builderRunId) && isText(run.projectId) && isText(run.conversationId) && isText(run.baseSourceRevision) && isText(run.createdAt)
     && RUN_STATES.has(run.state) && RUN_PHASES.has(run.phase) && RESULT_KINDS.has(run.resultKind)
-    && isTextOrNull(run.resultSourceRevision) && isTextOrNull(run.failureCode) && (run.failureCategory === null || isBuilderFailureCategory(run.failureCategory)) && isTextOrNull(run.requestText)
+    && isTextOrNull(run.resultSourceRevision) && isTextOrNull(run.failureCode) && isTextOrNull(run.requestText)
     && (run.cancellationRequested === undefined || typeof run.cancellationRequested === 'boolean')
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return valid ? run as BuilderRun : null

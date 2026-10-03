@@ -1,4 +1,5 @@
 import type { ModelAccountStore } from './model-account-store.js'
+import { Failure } from '../platform/failure.js'
 
 /** A subscription's tokens as far as holding them needs: when the access token stops working. */
 type Expiring = Readonly<{ expires: number }>
@@ -25,11 +26,11 @@ export const createTokenHolds = <T extends Expiring>({ store, parse, serialize, 
 
   const renew = async (modelAccountId: string): Promise<T> => {
     const row = await store.readById(modelAccountId)
-    if (!row) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+    if (!row) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     const stored = parse(row.secret)
     if (now() < stored.expires) return stored
     const refreshed = await refresh(stored)
-    if (!await store.rewrite(modelAccountId, serialize(refreshed))) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+    if (!await store.rewrite(modelAccountId, serialize(refreshed))) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     return refreshed
   }
 

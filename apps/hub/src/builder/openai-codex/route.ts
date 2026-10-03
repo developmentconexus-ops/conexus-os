@@ -6,6 +6,7 @@ import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import type { ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
 import { heldCodexCredentials, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens, type CodexTokens } from './credential.js'
+import { Failure } from '../../platform/failure.js'
 
 /**
  * What the Builder asks of the Codex call on top of Mastra Code's provider. The Builder caps every
@@ -27,7 +28,7 @@ type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]['model']
 
 /** Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there. */
 const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
-  if (typeof model !== 'object' || !('doStream' in model)) throw new Error('OPENAI_CODEX_MODEL_REFUSED')
+  if (typeof model !== 'object' || !('doStream' in model)) throw new Failure('OPENAI_CODEX_MODEL_REFUSED')
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return model as LanguageModelV3
 }

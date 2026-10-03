@@ -74,7 +74,7 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('not json')}`,
     `cxagy1.${encoded('antigravity-a.json')}`,
   ]) assert.equal(parseKey(refused), null, refused)
-  assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), /^Error: GOOGLE_AI_PRO_RECORD_REFUSED$/)
+  assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), { id: 'GOOGLE_AI_PRO_RECORD_REFUSED' })
 })
 
 test('the proxy config a person\'s proxy starts with sets no payload rule: the request itself asks Gemini for its thinking', async (t) => {
@@ -104,8 +104,8 @@ test('a binary whose sha256 differs from the pinned one is refused', async (t) =
   const { binary } = scratch(t)
   const pinned = createHash('sha256').update(readFileSync(binary)).digest('hex')
   await verifyCliproxyBinary(binary, pinned)
-  await assert.rejects(verifyCliproxyBinary(binary, '0'.repeat(64)), /^Error: GOOGLE_AI_PRO_BINARY_REFUSED$/)
-  await assert.rejects(verifyCliproxyBinary(join(binary, 'missing'), pinned), /^Error: GOOGLE_AI_PRO_BINARY_REFUSED$/)
+  await assert.rejects(verifyCliproxyBinary(binary, '0'.repeat(64)), { id: 'GOOGLE_AI_PRO_BINARY_REFUSED' })
+  await assert.rejects(verifyCliproxyBinary(join(binary, 'missing'), pinned), { id: 'GOOGLE_AI_PRO_BINARY_REFUSED' })
 })
 
 test('two people reach two proxies holding only their own record, and one person reuses one', async (t) => {

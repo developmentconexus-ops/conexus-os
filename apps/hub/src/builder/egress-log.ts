@@ -1,4 +1,5 @@
 import type { CommandResult } from '@mastra/core/workspace'
+import { Failure } from '../platform/failure.js'
 
 /**
  * The hosts a conversation's sandbox reaches (issue #418). Sandbox egress stays open (C-023); this is
@@ -183,7 +184,7 @@ export const ensureEgressLog = async (root: EgressRoot): Promise<void> => {
   await root.writeRootFile(DNS_SCRIPT_PATH, encoder.encode(dnsForwarderSource()))
   await root.writeRootFile(POLLER_SCRIPT_PATH, encoder.encode(tcpPollerSource()))
   const started = await root.asRoot(startScript)
-  if (started.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_START_FAILED', { cause: { stderr: started.stderr.slice(0, 500) } })
+  if (started.exitCode !== 0) throw new Failure('BUILDER_SANDBOX_EGRESS_START_FAILED', { cause: { stderr: started.stderr.slice(0, 500) } })
 }
 
 /** The complete lines of `bytes` after `offset`, parsed, and the offset after the last complete one. */
@@ -259,7 +260,7 @@ const readOffsets = async (ports: EgressCollectPorts): Promise<Offsets | null> =
 
 const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   const polled = await ports.asRoot(`python3 '${POLLER_SCRIPT_PATH}' --once`)
-  if (polled.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
+  if (polled.exitCode !== 0) throw new Failure('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
   const stored = await readOffsets(ports)
   const offsets = stored ?? { dns: 0, tcp: 0 }
   // The poller writes the log on first sighting: no file means no destinations. A read that fails otherwise fails the collection.
@@ -291,7 +292,7 @@ export const collectEgress = async (ports: EgressCollectPorts): Promise<void> =>
   try {
     await Promise.race([
       work,
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT')), ports.timeoutMs ?? EGRESS_COLLECT_TIMEOUT_MS) }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Failure('BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT')), ports.timeoutMs ?? EGRESS_COLLECT_TIMEOUT_MS) }),
     ])
   } catch (error) {
     ports.log(`BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:${ports.executionId}:${error instanceof Error ? error.message : String(error)}`)

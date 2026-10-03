@@ -4,7 +4,7 @@ import { Monitor, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import type { BuilderRun } from '../api'
-import { failureReason } from '../failure-reasons'
+import { failureCodeText } from '../../../app/failure'
 import './lens-surfaces.css'
 import type { PreviewWait } from './preview-wait'
 import { type RunView, elapsedLabel } from './run-state'
@@ -136,7 +136,7 @@ function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
 function FailureNote({ run }: Readonly<{ run: BuilderRun }>) {
   const sentence = run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED'
     ? 'A última alteração não compilou. A prévia continua na versão anterior.'
-    : failureReason(run)
+    : failureCodeText(run.failureCode)
   return <div className="cx-note" data-tone="warning" role="alert">
     <p>{sentence}</p>
     {run.failureCode && <details>

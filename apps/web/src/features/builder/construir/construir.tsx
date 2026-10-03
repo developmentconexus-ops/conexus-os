@@ -15,7 +15,7 @@ import { type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMes
 import { builderSessionKey, useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
-import { failureReason } from '../failure-reasons'
+import { failureCodeText } from '../../../app/failure'
 import {
   answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
@@ -56,7 +56,7 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     runId: entry.builderRunId,
     text: entry.requestText,
     createdAt: entry.createdAt,
-    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry) : null,
+    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureCodeText(entry.failureCode) : null,
   }])
 }
 

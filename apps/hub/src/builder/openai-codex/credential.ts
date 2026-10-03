@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { CredentialStore, OAuthCredentials } from '@mastra/code-sdk/auth/types'
 import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
+import { Failure } from '../../platform/failure.js'
 
 /**
  * A ChatGPT subscription is Mastra's `openai-codex` auth provider: the credential Mastra Code and
@@ -19,7 +20,7 @@ export type CodexTokens = Readonly<{ access: string; refresh: string; expires: n
 /** Mastra's sign-in and refresh answer with an open `OAuthCredentials`; the row keeps the fields a call needs. */
 export const toCodexTokens = (credentials: OAuthCredentials): CodexTokens => {
   const { access, refresh, expires, accountId, email } = credentials
-  if (typeof access !== 'string' || typeof refresh !== 'string' || typeof expires !== 'number' || typeof accountId !== 'string') throw new Error('OPENAI_CODEX_STORED_RECORD_REFUSED')
+  if (typeof access !== 'string' || typeof refresh !== 'string' || typeof expires !== 'number' || typeof accountId !== 'string') throw new Failure('OPENAI_CODEX_STORED_RECORD_REFUSED')
   return Object.freeze({ access, refresh, expires, accountId, ...(typeof email === 'string' ? { email } : {}) })
 }
 
@@ -30,7 +31,7 @@ const storedCodexRecord = z.looseObject({ type: z.literal('oauth'), access: z.st
 
 export const parseCodexTokens = (secret: string): CodexTokens => {
   const parsed = storedCodexRecord.safeParse(JSON.parse(secret))
-  if (!parsed.success) throw new Error('OPENAI_CODEX_STORED_RECORD_REFUSED')
+  if (!parsed.success) throw new Failure('OPENAI_CODEX_STORED_RECORD_REFUSED')
   return toCodexTokens(parsed.data)
 }
 

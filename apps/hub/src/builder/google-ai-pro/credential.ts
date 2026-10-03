@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { Failure } from '../../platform/failure.js'
 
 declare const brand: unique symbol
 
@@ -24,7 +25,7 @@ const MAX_RECORD_BYTES = 64 * 1024
 export const isAuthFileName = (name: string): boolean => FILE_NAME.test(name)
 
 export const encodeKey = ({ fileName, bytes }: AuthRecord): GoogleAiProKey => {
-  if (!isAuthFileName(fileName) || bytes.byteLength === 0 || bytes.byteLength > MAX_RECORD_BYTES) throw new Error('GOOGLE_AI_PRO_RECORD_REFUSED')
+  if (!isAuthFileName(fileName) || bytes.byteLength === 0 || bytes.byteLength > MAX_RECORD_BYTES) throw new Failure('GOOGLE_AI_PRO_RECORD_REFUSED')
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return `${PREFIX}${Buffer.from(fileName).toString('base64url')}.${Buffer.from(bytes).toString('base64url')}` as GoogleAiProKey
 }

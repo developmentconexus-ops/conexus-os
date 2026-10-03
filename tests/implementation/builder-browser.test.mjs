@@ -139,7 +139,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     buildCount += 1
     threadMessages.push(userMessage(`user-${threadMessages.length + 1}`, body.content))
     runFinished = false
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) =>
@@ -325,7 +325,7 @@ test('an untitled conversation shows the title the Hub announces on the run\'s s
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   // The Hub titles a conversation from its first request and tells the browser on the run's stream, while the run is still working.
@@ -432,7 +432,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const conversationId = 'conversation-history'
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
     builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null,
-    baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null, failureCategory: null,
+    baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null,
     requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
   })
   const tracedRuns = []
@@ -538,7 +538,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
     keys.push(route.request().headers()['idempotency-key'])
     return keys.length === 1 ? route.abort('connectionreset') : route.fulfill({
       status: 201, contentType: 'application/json',
-      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null } }),
     })
   })
 
@@ -581,7 +581,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
     keys.push(route.request().headers()['idempotency-key'])
     return keys.length === 1 ? route.fulfill(problem(500, 'INTERNAL_UNEXPECTED')) : route.fulfill({
       status: 201, contentType: 'application/json',
-      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null } }),
     })
   })
 
@@ -688,7 +688,7 @@ test('a run that failed before the agent still shows the request and names why i
   const failedRun = {
     builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: 'BUILDER_STARTER_ROOT_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
+    failureCode: 'BUILDER_STARTER_ROOT_REFUSED',
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -701,7 +701,7 @@ test('a run that failed before the agent still shows the request and names why i
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
-  await page.locator('.cx-messages .builder-turn-reason').getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
+  await page.locator('.cx-messages .builder-turn-reason').getByText('O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'the run appears once although it is both the latest run and a history entry')
   assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 1)
@@ -814,7 +814,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   const other = 'conversation-other'
   const baseRun = {
     builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT',
-    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null,
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null,
     requestText: 'Crie um cadastro de clientes', createdAt: new Date(Date.now() - 75_000).toISOString(),
   }
   const cancels = []
@@ -1037,7 +1037,7 @@ test('a Project lists its conversations as the threads of its resource, and each
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: conversations }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) }))
@@ -1129,7 +1129,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: runFinished ? 'SUCCEEDED' : 'RUNNING', phase: runFinished ? null : 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: runFinished ? sourceRevision : null, resultKind: runFinished ? 'SOURCE_CHANGED' : null,
-      failureCode: null, failureCategory: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: runFinished ? { baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: runFinished ? sourceRevision : null, lastGoodArtifactRevisionId: runFinished ? 'artifact' : null, lastGoodArtifactDigest: runFinished ? 'd'.repeat(64) : null },
@@ -1194,7 +1194,7 @@ test('a page opened while the run is parked shows the question card once from th
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'PARKED',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1258,7 +1258,7 @@ test('a suspended ask_user with options renders the options and submits the chos
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1329,7 +1329,7 @@ const openLiveTurn = async (t, events) => {
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1350,7 +1350,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   const run = {
     builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+    failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude o título')] }))
@@ -1598,7 +1598,7 @@ test('the eval driver answers every question of the real multi-question ask_user
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1654,7 +1654,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1686,7 +1686,7 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
     latestBuilderRun: runId ? {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
     } : null,
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1982,7 +1982,7 @@ for (const width of [1536, 1700]) {
       latestBuilderRun: {
         builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
         baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-        failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+        failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       },
       latestCodeChangingRun: null,
       preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },

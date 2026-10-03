@@ -4,7 +4,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
 const { logger } = await import(hubModuleUrl('platform/logger.js'))
-const { projectBuilderRun } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
 // A minimal BuilderRunDependencies fixture: every run is dispatched through runs.runtime.execute,
 // so each test only overrides the pieces it exercises.
@@ -107,7 +107,7 @@ test('a failure before the agent keeps the operator request on the run and names
     store,
     runs: makeRuns({
       // The starter root is refused before the agent is ever opened.
-      execute: async () => { throw new Error('BUILDER_STARTER_ROOT_REFUSED') },
+      execute: async () => { throw new Failure('BUILDER_STARTER_ROOT_REFUSED') },
     }),
     applicationArtifacts: {},
   })
@@ -116,11 +116,6 @@ test('a failure before the agent keeps the operator request on the run and names
   assert.equal(stored, 'Crie um contador')
   assert.equal(accepted.requestText, 'Crie um contador')
   assert.equal(failed, 'BUILDER_STARTER_ROOT_REFUSED')
-  assert.deepEqual(projectBuilderRun(row('FAILED', failed)), {
-    builderRunId: runId, projectId, state: 'FAILED', phase: null, baseSourceRevision: sourceRevision,
-    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_STARTER_ROOT_REFUSED',
-    failureCategory: 'ENVIRONMENT_PREPARATION_FAILED', requestText: 'Crie um contador', createdAt,
-  })
 })
 
 test('BuilderRun cancellation records intent, aborts native work, and interrupts once', async () => {
@@ -146,10 +141,10 @@ test('BuilderRun cancellation records intent, aborts native work, and interrupts
       execute: async (input) => {
         started()
         await new Promise((_resolve, reject) => {
-          if (input.signal?.aborted) return reject(new Error('BUILDER_RUN_CANCELLED'))
-          input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true })
+          if (input.signal?.aborted) return reject(new Failure('BUILDER_RUN_CANCELLED'))
+          input.signal?.addEventListener('abort', () => reject(new Failure('BUILDER_RUN_CANCELLED')), { once: true })
         })
-        throw new Error('BUILDER_RUN_CANCELLED')
+        throw new Failure('BUILDER_RUN_CANCELLED')
       },
     }),
     applicationArtifacts: {},
@@ -182,7 +177,7 @@ test('stopping the legs aborts a live one and interrupts its run as HUB_RESTART,
     runs: makeRuns({
       execute: async (input) => {
         started()
-        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true }))
+        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Failure('BUILDER_RUN_CANCELLED')), { once: true }))
       },
     }),
     applicationArtifacts: {},
@@ -218,7 +213,7 @@ test("a browser following the conversation is handed the run as the builder-sess
       execute: async (input) => {
         await input.setPhase('AGENT')
         started()
-        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Error('BUILDER_RUN_CANCELLED')), { once: true }))
+        await new Promise((_resolve, reject) => input.signal?.addEventListener('abort', () => reject(new Failure('BUILDER_RUN_CANCELLED')), { once: true }))
       },
     }),
     applicationArtifacts: {},
@@ -256,7 +251,7 @@ test('a run cancelled mid phase change is interrupted, not failed, whatever erro
       execute: async (input) => {
         started()
         await new Promise((resolve) => input.signal?.addEventListener('abort', resolve, { once: true }))
-        throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+        throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
       },
     }),
     applicationArtifacts: {},
@@ -375,7 +370,7 @@ test('a runtime failure still fails the run outright', async () => {
   const service = createBuilderService({
     store,
     runs: makeRuns({
-      execute: async () => { throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED') },
+      execute: async () => { throw new Failure('APPLICATION_COMPILER_WORKSPACE_REFUSED') },
     }),
     applicationArtifacts: {},
   })
@@ -417,7 +412,7 @@ test('a source-shape refusal from the application server settles with the runner
       appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
     }),
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
-    applicationServer: { prepare: async () => { throw new Error('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
+    applicationServer: { prepare: async () => { throw new Failure('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
@@ -457,7 +452,7 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
       appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
     }),
     applicationArtifacts: { retainApplication: async () => ({ artifactRevisionId: '77777777-0000-4000-8000-000000000000', artifactDigest: 'd'.repeat(64) }) },
-    applicationServer: { prepare: async () => { throw new Error('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
+    applicationServer: { prepare: async () => { throw new Failure('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
   })
   await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
   await service.close()
@@ -523,11 +518,11 @@ test('a run publishes the state it parks in, and the state it ends in, before it
   assert.deepEqual(ended.slice(-2), ['publish:SETTLED:null', 'close-session'])
   assert.equal(ended.filter((event) => event === 'close-session').length, 1)
   const failedId = '88888888-8888-4888-8888-88888888888d'
-  const failed = await drive(failedId, () => { throw new Error('BUILDER_MODEL_STREAM_FAILED') })
+  const failed = await drive(failedId, () => { throw new Failure('BUILDER_MODEL_STREAM_FAILED') })
   assert.deepEqual(failed.slice(failed.indexOf('publish:FAILED:null'), failed.indexOf('discard') + 1), ['publish:FAILED:null', 'close-session', 'discard'], 'a failed leg publishes FAILED, closes its session, then settles')
   assert.equal(failed.filter((event) => event === 'discard').length, 1)
   const cancelledId = '88888888-8888-4888-8888-88888888888e'
-  const cancelled = await drive(cancelledId, () => { throw new Error('BUILDER_RUN_CANCELLED') })
+  const cancelled = await drive(cancelledId, () => { throw new Failure('BUILDER_RUN_CANCELLED') })
   assert.deepEqual(cancelled.slice(cancelled.indexOf('publish:INTERRUPTED:null'), cancelled.indexOf('discard') + 1), ['publish:INTERRUPTED:null', 'close-session', 'discard'], 'a cancelled leg publishes INTERRUPTED, closes its session, then settles')
   assert.equal(cancelled.filter((event) => event === 'discard').length, 1)
 })
@@ -549,7 +544,7 @@ const settleHarness = async ({ failures }) => {
     setBuilderRunPhase: async () => {},
     bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
     failBuilderRun: async (_id, code) => {
-      if (refused < failures) { refused += 1; throw new Error('BUILDER_RUN_FAILURE_REFUSED') }
+      if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_FAILURE_REFUSED') }
       written.push(code)
     },
     heartbeatBuilderRuns: async (_owner, ids) => { beating = ids.includes(runId) },
@@ -560,7 +555,7 @@ const settleHarness = async ({ failures }) => {
   let beating = true
   const service = createBuilderService({
     store,
-    runs: { ...makeRuns({ execute: async () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } }), settleRetryMs: 1 },
+    runs: { ...makeRuns({ execute: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), settleRetryMs: 1 },
     applicationArtifacts: {},
   })
   await service.createBuilderRun({ accountId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', projectId, idempotencyKey: 'k', content: 'construa', conversationId: 'conv-build' })

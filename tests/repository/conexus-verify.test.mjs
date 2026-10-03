@@ -121,7 +121,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'project-summary-routes',
   'application-registry',
   'working-source-runtime',
-  'builder-failure-vocabulary',
+  'builder-failure-rows',
   'application-compiler-runtime',
   'builder-browser',
   'settings-browser',

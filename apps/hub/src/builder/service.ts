@@ -8,9 +8,9 @@ import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, Pro
 import type { BuilderRunSummary, BuilderStore, TakenOverRun } from './store.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
-import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
-import { Failure } from '../platform/failure.js'
+import { Failure, type FailureCode, toFailure } from '../platform/failure.js'
+import { FAILURES } from '../platform/failures.generated.js'
 import { logLine } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 
@@ -148,10 +148,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const publishRun = async (run: BuilderRunSummary): Promise<void> => {
     try { await runs.publishRun(run) } catch { /* the poll still serves the run */ }
   }
-  const failureCode = (error: unknown): string => {
-    const code = error instanceof Error ? error.message : ''
-    return /^[A-Z0-9_]{1,120}$/.test(code) ? code : 'BUILDER_PREPARATION_FAILED'
-  }
   // A run that ever asked a question leaves it open on the conversation thread whichever way it ends:
   // a stop during the park, a refused park, a failed resumed leg or a restart. Mastra's own discard
   // settles the open calls as denied; with none open it only reads the thread, so every ending
@@ -171,7 +167,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     for (let attempt = 1; attempt <= 3; attempt++) {
       try { await write(); return } catch (error) {
         if (attempt === 3) {
-          logLine(`BUILDER_RUN_SETTLE_FAILED:${builderRunId}:${failureCode(error)}`, 'error')
+          logLine(`BUILDER_RUN_SETTLE_FAILED:${builderRunId}:${toFailure(error).id}`, 'error')
           return
         }
         await new Promise((wake) => { setTimeout(wake, runs.settleRetryMs ?? 500) })
@@ -236,9 +232,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         recordMirror: (head: string) => store.recordConversationSession({ projectId: claimed.projectId, conversationId: claimed.conversationId, mirrorHead: head, syncedMain: claimed.baseSourceRevision, turnEnded: true }),
       })
       if (result.kind === 'SOURCE_ADMITTED') unadmittedAgentRun = null
-      if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Error('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
+      if (result.projectId !== claimed.projectId || result.executionId !== claimed.builderRunId || result.baseSourceRevision !== claimed.baseSourceRevision) throw new Failure('BUILDER_RUNTIME_RESULT_SCOPE_REFUSED')
       if (result.kind === 'PARKED') {
-        if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+        if (controller.signal.aborted) throw new Failure('BUILDER_RUN_CANCELLED')
         await setPhase('PARKED')
         await closeSession()
         // The leg is over: an answer starts the next one, which this entry must not shadow.
@@ -249,7 +245,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         return
       }
       if (result.kind === 'RESPONSE_ONLY') {
-        if (controller.signal.aborted) throw new Error('BUILDER_RUN_CANCELLED')
+        if (controller.signal.aborted) throw new Failure('BUILDER_RUN_CANCELLED')
         await setPhase('FINALIZING')
         await store.settleBuilderRun({ builderRunId: claimed.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
         return
@@ -266,8 +262,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }).catch(() => undefined)
       // Only a build the source broke asks the agent for a fix; a platform fault asking the same
       // teaches it to delete correct code until the fault goes away.
-      const buildFailed = (code: string, detail?: string): Promise<void> =>
-        note(code, builderFailureCategory(code) === 'APPLICATION_BUILD_FAILED' ? 'BUILD_FAILED' : 'PLATFORM_FAILED', detail)
+      const buildFailed = (code: FailureCode, detail?: string): Promise<void> =>
+        note(code, FAILURES[code].category === 'USER' ? 'BUILD_FAILED' : 'PLATFORM_FAILED', detail)
       // C-033: a page that did not render is admitted as a build failure, and the last good Preview stays.
       if (result.applicationBuild.kind === 'UNRENDERED') {
         const { code, detail } = result.applicationBuild
@@ -306,7 +302,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
         if (result.applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', result.applicationBuild.bootProblems)
       } catch (error) {
-        const code = failureCode(error)
+        const code = toFailure(error).id
         if (code === 'BUILDER_RUN_CANCELLED') throw error
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted,
@@ -315,7 +311,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         throw error
       }
     })().catch(async (error) => {
-      const code = failureCode(error)
+      const code = toFailure(error).id
       // Its source may be on main: the run stays running with its candidate until a sweep, once
       // this leg's heartbeat has lapsed, reads `main` and settles it.
       if (candidateRecorded && !NOT_ADMITTED.has(code)) return
@@ -358,12 +354,12 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     builderActive.set(run.builderRunId, { controller, work, parking, answered: input.resume?.toolCallId })
   }
   const getApplicationBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string }>): Promise<ApplicationArtifactMetadata | null> => {
-    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED'))
     if (!applicationArtifacts.getApplicationBySource) return Promise.resolve(null)
     return applicationArtifacts.getApplicationBySource(input)
   }
   const readApplicationFileBySource = (input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null> => {
-    if (applicationShutdown.signal.aborted) return Promise.reject(new Error('BUILDER_APPLICATION_CLOSED'))
+    if (applicationShutdown.signal.aborted) return Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED'))
     if (!applicationArtifacts.readApplicationFileBySource) return Promise.resolve(null)
     return applicationArtifacts.readApplicationFileBySource(input)
   }
@@ -435,16 +431,16 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       return 'RESUMED'
     },
     listSourceTree: async (input) => {
-      if (!await admitSource(input, input.sourceRevision)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      if (!await admitSource(input, input.sourceRevision)) throw new Failure('SOURCE_REVISION_NOT_FOUND')
       return runs.source.listSourceTree(input.projectId, input.sourceRevision)
     },
     getSourceFile: async (input) => {
-      if (!await admitSource(input, input.sourceRevision)) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      if (!await admitSource(input, input.sourceRevision)) throw new Failure('SOURCE_REVISION_NOT_FOUND')
       return runs.source.readSourceFile(input.projectId, input.sourceRevision, input.path)
     },
     compareSourceRevisions: async (input) => {
       const admitted = await Promise.all([admitSource(input, input.baseSourceRevision), admitSource(input, input.resultSourceRevision)])
-      if (!admitted[0] || !admitted[1]) throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND')
+      if (!admitted[0] || !admitted[1]) throw new Failure('SOURCE_REVISION_NOT_FOUND')
       return runs.source.compareRevisions(input.projectId, input.baseSourceRevision, input.resultSourceRevision)
     },
     getApplicationBySource,
@@ -467,7 +463,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           }
           takenOver.delete(run.builderRunId)
         } catch (error) {
-          logLine(`BUILDER_RUN_SWEEP_SETTLE_FAILED:${run.builderRunId}:${failureCode(error)}`, 'error')
+          logLine(`BUILDER_RUN_SWEEP_SETTLE_FAILED:${run.builderRunId}:${toFailure(error).id}`, 'error')
         }
       }
       for (const run of await store.expireParkedBuilderRuns(PARKED_RUN_IDLE_MS)) {

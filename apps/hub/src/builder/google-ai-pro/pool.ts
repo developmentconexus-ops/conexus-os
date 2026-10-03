@@ -7,6 +7,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { decodeKey, encodeKey, type GoogleAiProKey, type InstanceId, instanceIdOf, isAuthFileName } from './credential.js'
+import { Failure } from '../../platform/failure.js'
 
 type Ready = {
   state: 'ready'
@@ -54,9 +55,9 @@ export const verifyCliproxyBinary = async (binary: string, sha256: string): Prom
   try {
     for await (const chunk of createReadStream(binary)) hash.update(chunk)
   } catch {
-    throw new Error('GOOGLE_AI_PRO_BINARY_REFUSED')
+    throw new Failure('GOOGLE_AI_PRO_BINARY_REFUSED')
   }
-  if (hash.digest('hex') !== sha256) throw new Error('GOOGLE_AI_PRO_BINARY_REFUSED')
+  if (hash.digest('hex') !== sha256) throw new Failure('GOOGLE_AI_PRO_BINARY_REFUSED')
 }
 
 const freePort = (): Promise<number> => new Promise((resolve, reject) => {
@@ -64,7 +65,7 @@ const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   server.once('error', reject)
   server.listen(0, '127.0.0.1', () => {
     const address = server.address()
-    server.close(() => typeof address === 'object' && address ? resolve(address.port) : reject(new Error('GOOGLE_AI_PRO_PORT_UNAVAILABLE')))
+    server.close(() => typeof address === 'object' && address ? resolve(address.port) : reject(new Failure('GOOGLE_AI_PRO_PORT_UNAVAILABLE')))
   })
 })
 
@@ -194,7 +195,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       if (await waitReady(child, url, proxyKey)) return { child, url, proxyKey }
       await terminate(child)
     }
-    throw new Error('GOOGLE_AI_PRO_PROXY_START_FAILED')
+    throw new Failure('GOOGLE_AI_PRO_PROXY_START_FAILED')
   }
 
   const start = async (id: InstanceId, key: GoogleAiProKey): Promise<Ready> => {
@@ -208,7 +209,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       const { child, url, proxyKey } = await launch(dir, join(dir, 'auth'), { MANAGEMENT_PASSWORD: managementKey })
       if (!await waitAccountAvailable(child, url, managementKey)) {
         await terminate(child)
-        throw new Error('GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE')
+        throw new Failure('GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE')
       }
       const ready: Ready = { state: 'ready', dir, url, proxyKey, child, leases: 0, idleSince: Date.now() }
       child.once('exit', () => {
@@ -253,7 +254,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
     const id = instanceIdOf(key)
     if (persistRefresh) refreshTargets.set(id, persistRefresh)
     for (;;) {
-      if (closed) throw new Error('GOOGLE_AI_PRO_POOL_CLOSED')
+      if (closed) throw new Failure('GOOGLE_AI_PRO_POOL_CLOSED')
       const instance = instances.get(id)
       if (instance === undefined) {
         instances.set(id, { state: 'starting', ready: start(id, key) })
@@ -277,7 +278,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
   }
 
   const startLogin = async (): Promise<LoginInstance> => {
-    if (closed) throw new Error('GOOGLE_AI_PRO_POOL_CLOSED')
+    if (closed) throw new Failure('GOOGLE_AI_PRO_POOL_CLOSED')
     const dir = join(stateDir, `login-${randomBytes(8).toString('hex')}`)
     const authDir = join(dir, 'auth')
     await mkdir(authDir, { recursive: true, mode: 0o700 })

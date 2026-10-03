@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { type BuilderRun, getBuilderRunTrace } from '../api'
-import { failureReason } from '../failure-reasons'
+import { failureCodeText } from '../../../app/failure'
 import './lens-surfaces.css'
 import { clockLabel, statusLine, viewRun } from './run-state'
 
@@ -107,7 +107,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
       <ol className="cx-run-timeline">
         {runs.map((run) => {
           const failed = timelineTone(run) === 'fail'
-          const reason = failed ? failureReason(run) : null
+          const reason = failed ? failureCodeText(run.failureCode) : null
           return <li key={run.builderRunId} data-selected={run.builderRunId === selected.builderRunId || undefined}>
             <button type="button" className="cx-run-entry" aria-pressed={run.builderRunId === selected.builderRunId} onClick={() => onSelect(run.builderRunId)}>
               <time className="cx-history-time">{clockLabel(run.createdAt)}</time>

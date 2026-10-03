@@ -181,8 +181,8 @@ test('an Observer call outside a run has no one to pay for it and is refused bef
   const noRun = new RequestContext()
   noRun.setRaw(RUN_ACCOUNT_ID_KEY, ana)
 
-  await assert.rejects(routing.resolveMemory(noRun), /^Error: BUILDER_MODEL_NOT_SELECTED$/)
-  await assert.rejects(routing.resolveMemory(new RequestContext()), /^Error: BUILDER_MODEL_NOT_SELECTED$/)
+  await assert.rejects(routing.resolveMemory(noRun), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+  await assert.rejects(routing.resolveMemory(new RequestContext()), { id: 'BUILDER_MODEL_NOT_SELECTED' })
   assert.deepEqual(recorded, [])
 })
 
@@ -191,7 +191,7 @@ test('a run refuses to start when the installation has no memory default, and no
   const unset = createModelRouting({
     routes: {}, modelAccounts: { usable: async () => null }, conversationModel: async () => 'probe/main', readDefault: async () => null, record: async () => {},
   })
-  await assert.rejects(unset.check({ accountId: ana, projectId: 'p', conversationId: 'c' }), /^Error: BUILDER_MODEL_NOT_SELECTED$/)
+  await assert.rejects(unset.check({ accountId: ana, projectId: 'p', conversationId: 'c' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: 'p', conversationId: 'c' }))
 })
 

@@ -3,7 +3,6 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
-import { projectBuilderRun } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { isExactOrigin } from '../platform/origin.js'
@@ -16,14 +15,6 @@ const header = (value: string | string[] | undefined): string | undefined => Arr
 const unavailableAs = (code: FailureCode, details: Readonly<Record<string, string>>) => (error: unknown): never => {
   throw error instanceof Failure ? error : new Failure(code, { cause: error, details })
 }
-// The source reader's named refusals, until the reader throws rows itself.
-const sourceRefusal = (code: 'SOURCE_REVISION_NOT_FOUND' | 'SOURCE_FILE_NOT_FOUND', refused: ReadonlySet<string>, details: Readonly<Record<string, string>>) => (error: unknown): never => {
-  const named = error instanceof Error ? error.message : ''
-  if (refused.has(named)) throw new Failure(code)
-  return unavailableAs('BUILDER_SOURCE_UNAVAILABLE', details)(error)
-}
-const REVISION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_SOURCE_SUBJECT_NOT_FOUND', 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND'])
-const FILE_REFUSALS: ReadonlySet<string> = new Set([...REVISION_REFUSALS, 'BUILDER_SOURCE_READ_FILE_NOT_FOUND', 'BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE', 'BUILDER_SOURCE_READ_PATH_REFUSED'])
 const sourceQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
 const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, path: { type: 'string', minLength: 1, maxLength: 4096 } } } as const
 const sourceCompareQuery = { type: 'object', additionalProperties: false, required: ['baseSourceRevision', 'resultSourceRevision'], properties: { baseSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, resultSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
@@ -111,14 +102,14 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       ])
       return {
         projectId: snapshot.projectId,
-        latestBuilderRun: run ? projectBuilderRun(run) : null,
+        latestBuilderRun: run ?? null,
         latestCodeChangingRun: latestCodeChangingRun ? {
           baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
           resultSourceRevision: latestCodeChangingRun.resultSourceRevision,
           resultKind: latestCodeChangingRun.resultKind,
         } : null,
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
-        runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
+        runHistory: snapshot.runHistory,
       }
     }
     return read().catch(unavailableAs('BUILDER_SESSION_UNAVAILABLE', { projectId }))
@@ -139,7 +130,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       conversationId: request.body.conversationId,
       idempotencyKey, content: request.body.content,
     }).catch(unavailableAs('BUILDER_UNAVAILABLE', { projectId: request.params.projectId }))
-    return reply.code(201).send({ builderRun: projectBuilderRun(run) })
+    return reply.code(201).send({ builderRun: run })
   })
 
   app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel', {
@@ -152,7 +143,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     const accountId = await signedIn(request, true)
     const run = await dependencies.service.cancelBuilderRun({ accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
       .catch(unavailableAs('BUILDER_CANCELLATION_UNAVAILABLE', { projectId: request.params.projectId, builderRunId: request.params.builderRunId }))
-    return reply.code(200).send({ builderRun: projectBuilderRun(run) })
+    return reply.code(200).send({ builderRun: run })
   })
 
   app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', {
@@ -199,7 +190,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     '/api/control/projects/:projectId/source/tree', { schema: { params, querystring: sourceQuery } }, async (request) => {
       const accountId = await signedIn(request)
       return dependencies.service.listSourceTree({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision })
-        .catch(sourceRefusal('SOURCE_REVISION_NOT_FOUND', REVISION_REFUSALS, { projectId: request.params.projectId }))
+        .catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
     },
   )
 
@@ -207,7 +198,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     '/api/control/projects/:projectId/source/file', { schema: { params, querystring: sourceFileQuery } }, async (request) => {
       const accountId = await signedIn(request)
       return dependencies.service.getSourceFile({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision, path: request.query.path })
-        .catch(sourceRefusal('SOURCE_FILE_NOT_FOUND', FILE_REFUSALS, { projectId: request.params.projectId }))
+        .catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
     },
   )
 
@@ -217,7 +208,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return dependencies.service.compareSourceRevisions({
         accountId, projectId: request.params.projectId,
         baseSourceRevision: request.query.baseSourceRevision, resultSourceRevision: request.query.resultSourceRevision,
-      }).catch(sourceRefusal('SOURCE_REVISION_NOT_FOUND', REVISION_REFUSALS, { projectId: request.params.projectId }))
+      }).catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
     },
   )
 

@@ -96,7 +96,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('project-summary-routes', 'node --test tests/implementation/project-summary-routes.test.mjs'),
   candidateStep('application-registry', 'node --test --test-concurrency=1 tests/implementation/builder-application-registry.test.mjs tests/implementation/builder-application-registry-postgres.test.mjs', 'postgres'),
   candidateStep('working-source-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-working-source-runtime.test.mjs tests/implementation/builder-run-dispatch.test.mjs'),
-  candidateStep('builder-failure-vocabulary', 'node --test --test-concurrency=1 tests/implementation/builder-failure-vocabulary.test.mjs'),
+  candidateStep('builder-failure-rows', 'node --test --test-concurrency=1 tests/implementation/builder-failure-rows.test.mjs'),
   candidateStep('application-compiler-runtime', 'node --test --test-concurrency=1 tests/implementation/builder-application-runtime.test.mjs tests/implementation/builder-application-starter.test.mjs tests/implementation/builder-application-check.test.mjs', 'browser'),
   candidateStep('builder-browser', 'node --test --test-concurrency=1 tests/implementation/builder-browser.test.mjs tests/implementation/builder-parked-card-browser.test.mjs tests/implementation/builder-transcript.test.mjs tests/implementation/builder-conversation-rows.test.mjs tests/implementation/builder-memory-status.test.mjs tests/implementation/builder-plan-sections.test.mjs', 'browser'),
   candidateStep('settings-browser', 'node --test --test-concurrency=1 tests/implementation/settings-browser.test.mjs', 'browser'),

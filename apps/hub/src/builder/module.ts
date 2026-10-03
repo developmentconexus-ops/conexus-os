@@ -27,7 +27,6 @@ import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
-import { projectBuilderRun } from './failure-vocabulary.js'
 import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
 import { scheduleRunLease } from './run-lease.js'
 import { createBuilderObservability, createBuilderObservabilityLifecycle } from './observability.js'
@@ -201,7 +200,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const retentionPrune = scheduleRetentionPrune(storage, log)
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')
-    if (!memory) throw new Error('BUILDER_CONVERSATIONS_UNAVAILABLE')
+    if (!memory) throw new Failure('BUILDER_CONVERSATIONS_UNAVAILABLE')
     return memory
   })
 
@@ -249,7 +248,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
     publishRun: async (run) => {
       const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationRunScope(run.conversationId))
-      await session?.state.set({ conexusRun: projectBuilderRun(run) })
+      await session?.state.set({ conexusRun: run })
     },
   })
   const service = createBuilderService({

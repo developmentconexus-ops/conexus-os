@@ -399,7 +399,7 @@ test('the source compare route maps a not-found revision to 404 and any other fa
   const base = 'b'.repeat(40)
   const result = 'c'.repeat(40)
   const url = `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}`
-  const { app: notFoundApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND') } })
+  const { app: notFoundApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Failure('SOURCE_REVISION_NOT_FOUND') } })
   const notFound = await notFoundApp.inject({ method: 'GET', url, ...authentic })
   assert.equal(notFound.statusCode, 404)
   assert.equal(notFound.json().type.endsWith('SOURCE_REVISION_NOT_FOUND'), true)

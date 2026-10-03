@@ -18,7 +18,7 @@ import { z } from 'zod'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
+import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, failing, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
 import type { DocsTools } from './context7.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { CHECK_COMMAND_TIMEOUT_MS, type CheckReport } from '../application-check.js'
@@ -75,7 +75,7 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
     id: 'web_search',
     description: WEB_SEARCH_DESCRIPTION,
     inputSchema: z.strictObject({ query: z.string().min(1) }),
-    execute: async ({ query }, context) => {
+    execute: failing('web_search', async ({ query }: Readonly<{ query: string }>, context) => {
       const result = await searcher.generate(query, {
         maxSteps: 1,
         // The searcher is built once and resolves its model for each search, from the run's own request context.
@@ -86,7 +86,7 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
         text: result.text,
         sources: result.sources.flatMap(({ payload }) => payload.url ? [{ title: payload.title, url: payload.url }] : []),
       }
-    },
+    }),
   })
 }
 

@@ -4,6 +4,7 @@ import type { RequestContext } from '@mastra/core/request-context'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import type { HeldModelAccount, ModelAccountStore } from './model-account-store.js'
+import { Failure } from '../platform/failure.js'
 
 /**
  * How a model call pays for and reaches one provider's models: the `model.model_account` provider,
@@ -20,7 +21,7 @@ export type ModelRoute = Readonly<{
  * order. Mastra Code gives no thinking middleware for a model or level without thinking.
  */
 export const wrapGatewayModel = (model: GatewayLanguageModel, middleware: readonly (LanguageModelMiddleware | undefined)[]): MastraModelConfig => {
-  if (model.specificationVersion !== 'v3') throw new Error('BUILDER_GATEWAY_MODEL_REFUSED')
+  if (model.specificationVersion !== 'v3') throw new Failure('BUILDER_GATEWAY_MODEL_REFUSED')
   const applied = middleware.filter((each) => each !== undefined)
   return applied.length ? wrapLanguageModel({ model, middleware: applied }) : model
 }
@@ -57,13 +58,13 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   const accountFor = async (accountId: string, modelId: string | null) => {
     const route = modelId ? routes[providerOfModel(modelId)] : undefined
     const account = route ? await modelAccounts.usable(accountId, route.accountProvider) : null
-    if (!modelId || !route || !account) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+    if (!modelId || !route || !account) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     return { route, account, modelId }
   }
   const call = async (requestContext: RequestContext, modelId: string | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
     const runId = requestContext.getRaw(RUN_ID_KEY)
     const payer = requestContext.getRaw(RUN_ACCOUNT_ID_KEY)
-    if (typeof runId !== 'string' || typeof payer !== 'string') throw new Error('BUILDER_MODEL_NOT_SELECTED')
+    if (typeof runId !== 'string' || typeof payer !== 'string') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     const { route, account, modelId: selected } = await accountFor(payer, modelId)
     await record(runId, account.modelAccountId)
     const held = route.take(account)
