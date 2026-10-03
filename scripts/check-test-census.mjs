@@ -10,6 +10,10 @@ export const EXEMPT_TESTS = Object.freeze([
   // Manual Playwright proofs against a real Keycloak and PostgreSQL; they need secrets CI does not hold.
 ])
 
+// The Builder lab is run by hand when the prompt or the model changes, so no CI step runs its tests.
+// The census still reads these package.json scripts, so a lab test left out of them is unreached.
+const OPTIONAL_SCRIPTS = Object.freeze(['builder:eval', 'builder:eval:postgres'])
+
 export function collectReachableTests(candidateGraph, packageScripts) {
   const reachable = new Set()
   const visitedScripts = new Set()
@@ -47,9 +51,9 @@ function listCommittedTests(root) {
   return output.split('\n').filter(Boolean).sort()
 }
 
-export function checkTestCensus({ root, candidateGraph, packageScripts, committedTests }) {
+export function checkTestCensus({ root, candidateGraph, packageScripts, committedTests, optionalScripts = [] }) {
   const tests = committedTests ?? listCommittedTests(root)
-  const reachable = collectReachableTests(candidateGraph, packageScripts)
+  const reachable = collectReachableTests([...candidateGraph, ...optionalScripts.map(name => ({ command: `npm run ${name}` }))], packageScripts)
   const exemptSet = new Set(EXEMPT_TESTS)
 
   const unreached = tests.filter((path) => !reachable.has(path) && !exemptSet.has(path))
@@ -95,6 +99,7 @@ if (isMainModule) {
     root,
     candidateGraph: CANDIDATE_GRAPH,
     packageScripts: pkg.scripts ?? {},
+    optionalScripts: OPTIONAL_SCRIPTS,
   })
 
   if (result.unreached.length > 0) {

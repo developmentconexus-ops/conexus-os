@@ -116,3 +116,10 @@ test('browserTestsOutsideBrowserSteps accepts a Playwright test in a browser, br
   }))
   assert.deepEqual(browserTestsOutsideBrowserSteps({ candidateGraph, packageScripts: {}, readText }), [])
 })
+
+test('a test run only by an optional package script is reached, and one left out of it is not', () => {
+  const committedTests = ['tests/implementation/lab-a.test.mjs', 'tests/implementation/lab-b.test.mjs']
+  const packageScripts = { 'lab:run': 'node --test tests/implementation/lab-a.test.mjs' }
+  const result = checkTestCensus({ root: '.', candidateGraph: [], packageScripts, committedTests, optionalScripts: ['lab:run'] })
+  assert.deepEqual(result.unreached, ['tests/implementation/lab-b.test.mjs'])
+})

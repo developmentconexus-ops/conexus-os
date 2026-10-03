@@ -41,6 +41,8 @@
     "hub:local": "node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" scripts/build-hub-local.mjs",
     "builder:sandbox:live": "CONEXUS_FACTORY_LIVE=true node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" --test --test-concurrency=1 tests/implementation/builder-sandbox-e2b-live.test.mjs",
     "builder:composed:live": "CONEXUS_COMPOSED_LIVE=true node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" tests/implementation/builder-production-composed-live-runner.mjs",
+    "builder:eval": "node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs",
+    "builder:eval:postgres": "node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs",
     "wire:lint": "npx --yes @redocly/cli@2.47.0 lint contracts/api/product/openapi.yaml --extends=recommended",
     "wire:bundle": "npx --yes @redocly/cli@2.47.0 bundle contracts/api/product/openapi.yaml --output=/tmp/conexus-product-openapi.bundle.json --ext=json",
     "wire:bijection": "node scripts/check-wire-bijection.mjs",

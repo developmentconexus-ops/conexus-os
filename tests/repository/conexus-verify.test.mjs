@@ -161,9 +161,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-credential-generation',
   'builder-first-operational-delivery',
   'builder-planning-free-boot',
-  'builder-eval',
   'live-builder',
-  'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
   'only-opt-in-skips',
@@ -317,9 +315,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-turn-stall.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [['builder-eval', 'browser']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [], 'the Builder lab is opt-in, not a CI step')
   assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['builder-browser', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
@@ -343,9 +339,6 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
 
   const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
   assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
-  const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
-  assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
-  assert.equal(builderEval.environmentClass, 'browser')
   const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'application-compiler-runtime')
   assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
   assert.equal(appCheck.environmentClass, 'browser')
