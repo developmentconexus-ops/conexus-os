@@ -841,13 +841,6 @@ test('every agent-user command states an empty environment, and root commands ge
   assert.deepEqual(run.rootInvocations.filter(({ env }) => Object.keys(env).length > 0), [])
 })
 
-test('a turn that continued its session after a transient failure logs how many times', async (t) => {
-  const run = await harness(t, { turn: () => ({ ...completed(), continuations: 2 }) })
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_AGENT_CONTINUED:')), [`BUILDER_AGENT_CONTINUED:2:${runId}`])
-})
-
 test('an agent that aborts with no stop from the person fails with a named reason, never as cancelled by them', async (t) => {
   const run = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
   await run.start()

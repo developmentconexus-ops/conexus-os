@@ -19,7 +19,7 @@ import { turnDate } from './harness/prompt.js'
 import { createRunTiming } from './run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from './project-context.js'
 import { collectEgress, ensureEgressLog } from './egress-log.js'
-import { admitApplicationTree, APPLICATION_TREE_ROOTS, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderTurnMessage } from './runtime.js'
+import { admitApplicationTree, APPLICATION_TREE_ROOTS, isUserAuthoredMessage, messageText, readParkedCalls, sendBuilderSessionMessage } from './runtime.js'
 import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedResult, SourceAdmittedResult } from './runtime.js'
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
@@ -65,7 +65,7 @@ const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 const RUN_OPERATION_OUT = '/tmp/conexus-run-operation'
 
 /** How the agent's turn ended. */
-type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string; continuations: number }>
+type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string }>
 
 /** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
 type RunSession = Readonly<{
@@ -596,7 +596,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       timing.mark('session')
       await input.setPhase('AGENT')
       const turn = await (input.resume ? session.resumeTurn(input.resume, runSignal) : session.sendTurn(input.intent, runSignal))
-      if (turn.continuations > 0) ports.log(`BUILDER_AGENT_CONTINUED:${turn.continuations}:${input.executionId}`)
       if (keepaliveFailure) throw keepaliveFailure
       if (turn.reason === 'aborted') ports.log(`BUILDER_AGENT_END:aborted:${input.executionId}`)
       if (!turn.userMessageId) throw new Error('BUILDER_MESSAGE_ID_UNAVAILABLE')
@@ -859,7 +858,6 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
   }
   const takeTurn = async (step: BuilderStep, signal?: AbortSignal): Promise<AgentTurn> => {
     let userMessageId: string | undefined
-    let continuations = 0
     let limit: ReturnType<typeof setTimeout> | undefined
     let expire: (error: Error) => void = () => undefined
     const expired = new Promise<never>((_, reject) => { expire = reject })
@@ -874,9 +872,8 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
       }, turnSilenceMs)
       limit.unref?.()
     }
-    // A continuation is the Hub's own message; the person's request stays the turn's anchor.
     const detach = session.subscribe((event) => {
-      if (event.type === 'message_start' && continuations === 0 && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
+      if (event.type === 'message_start' && isUserAuthoredMessage(event.message)) userMessageId = event.message.id
       working()
     })
     const abort = (): void => { session.abort() }
@@ -884,12 +881,12 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     else signal?.addEventListener('abort', abort, { once: true })
     try {
       working()
-      const reason: string = await within(sendBuilderTurnMessage(session, step, { requestContext, ...(signal ? { signal } : {}), onContinuation: (count) => { continuations = count } })) ?? 'unknown'
+      const reason: string = await within(sendBuilderSessionMessage(session, step, requestContext)) ?? 'unknown'
       const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
       userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
       const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
         .filter((message) => message.role === 'assistant' && !isCompletionCheck(message)).map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
-      return { reason, userMessageId, summary, continuations }
+      return { reason, userMessageId, summary }
     } catch (error) {
       // The stuck run still holds the session, so the next turn must not find it: the session is
       // deleted, waiting only briefly, since the store that hung may not answer the delete either.

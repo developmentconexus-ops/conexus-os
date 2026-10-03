@@ -113,7 +113,7 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // nobody established.
   BUILDER_PREPARATION_FAILED: 'INTERNAL_ERROR',
   BUILDER_AGENT_TRIPWIRE: 'INTERNAL_ERROR',
-  // The agent loop's own storage or connection failed, after the continuations allowed; the model was not the cause.
+  // The agent loop's own storage or connection failed; the model was not the cause.
   BUILDER_AGENT_PLATFORM_FAILED: 'INTERNAL_ERROR',
   // One model step ran past its time budget while streaming, so the Hub ended the run.
   BUILDER_MODEL_STEP_TIMEOUT: 'INTERNAL_ERROR',
