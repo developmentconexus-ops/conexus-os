@@ -110,8 +110,6 @@ const CATEGORY_BY_CODE: Readonly<Record<string, BuilderFailureCategory>> = Objec
   // A question nobody answered for 7 days: the Hub let the run go so the Project is free.
   BUILDER_RUN_PARKED_EXPIRED: 'RUN_INTERRUPTED',
   BUILDER_RUN_CANCELLED: 'RUN_CANCELLED',
-  APPLICATION_COMPILER_CANCELLED: 'RUN_CANCELLED',
-  BUILDER_APPLICATION_CANCELLED: 'RUN_CANCELLED',
   BUILDER_LATE_RESULT_REFUSED: 'RUN_CANCELLED',
 
   // service.ts turns any error whose message is not an uppercase snake code into this one, so raw

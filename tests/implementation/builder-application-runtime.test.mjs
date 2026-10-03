@@ -124,14 +124,6 @@ test('a root or out path outside the sandbox folders refuses before any command 
   assert.equal(calls.length, 0)
 })
 
-test('an already-aborted request runs no command', async () => {
-  const { sandbox, calls } = fakeSandbox(new Map())
-  const controller = new AbortController()
-  controller.abort()
-  await assert.rejects(checkApplicationInSandbox(sandbox, { root, out, collect: false, signal: controller.signal }), /APPLICATION_COMPILER_CANCELLED/)
-  assert.equal(calls.length, 0)
-})
-
 for (const [name, entries, error] of [
   ['symlink', [{ path: `${out}/index.html`, type: 'symlink', size: 1 }], /SYMLINK_REFUSED/],
   ['traversal', [{ path: `${out}/../index.html`, type: 'file', size: 1 }], /PATH_REFUSED/],

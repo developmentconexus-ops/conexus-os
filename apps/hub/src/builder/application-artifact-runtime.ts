@@ -86,26 +86,18 @@ const outputPath = (place: BuildPlace, path: string): string => {
   return relative
 }
 
-const cancellation = (): Error => new Error('APPLICATION_COMPILER_CANCELLED')
-
-const assertNotAborted = (signal: AbortSignal | undefined): void => {
-  if (signal?.aborted) throw cancellation()
-}
-
-const requestOptions = (signal: AbortSignal | undefined, place?: BuildPlace): Readonly<{ requestTimeoutMs: number; signal?: AbortSignal; user?: CheckUser }> => ({
+const requestOptions = (place?: BuildPlace): Readonly<{ requestTimeoutMs: number; user?: CheckUser }> => ({
   requestTimeoutMs: REQUEST_TIMEOUT_MS,
-  ...(signal ? { signal } : {}),
   ...(place?.user ? { user: place.user } : {}),
 })
 
-const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: EntryInfo, signal: AbortSignal | undefined): Promise<Uint8Array> => {
-  const stream = await sandbox.files.read(entry.path, { format: 'stream', ...requestOptions(signal, place) })
+const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: EntryInfo): Promise<Uint8Array> => {
+  const stream = await sandbox.files.read(entry.path, { format: 'stream', ...requestOptions(place) })
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let totalBytes = 0
   try {
     while (true) {
-      assertNotAborted(signal)
       const next = await reader.read()
       if (next.done) break
       if (!(next.value instanceof Uint8Array) || next.value.byteLength > MAX_TOTAL_BYTES ||
@@ -132,9 +124,8 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
   return bytes
 }
 
-const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortSignal | undefined): Promise<readonly CompiledApplicationFile[]> => {
-  assertNotAborted(signal)
-  const entries = await sandbox.files.list(distRoot(place), { depth: MAX_FILES, ...requestOptions(signal, place) })
+const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<readonly CompiledApplicationFile[]> => {
+  const entries = await sandbox.files.list(distRoot(place), { depth: MAX_FILES, ...requestOptions(place) })
   if (entries.length > MAX_LIST_ENTRIES) throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   const files = new Map<string, EntryInfo>()
   let listedTotalBytes = 0
@@ -159,11 +150,9 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortS
   let totalBytes = 0
   const output: CompiledApplicationFile[] = []
   for (const path of [...files.keys()].sort()) {
-    assertNotAborted(signal)
     const entry = files.get(path)
     if (!entry) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
-    const bytes = await readBoundedOutput(sandbox, place, entry, signal)
-    assertNotAborted(signal)
+    const bytes = await readBoundedOutput(sandbox, place, entry)
     if (bytes.byteLength > MAX_TOTAL_BYTES || totalBytes + bytes.byteLength > MAX_TOTAL_BYTES) {
       throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     }
@@ -182,9 +171,9 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace, signal: AbortS
 const THUMBNAIL_MAX_BYTES = 512_000
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
 
-const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, path: string, signal: AbortSignal | undefined): Promise<CompiledApplicationThumbnail | null> => {
+const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, path: string): Promise<CompiledApplicationThumbnail | null> => {
   try {
-    const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(signal, place) })
+    const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(place) })
     if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
     return Object.freeze({ mediaType: 'image/png' as const, bytes: new Uint8Array(bytes) })
   } catch {
@@ -208,29 +197,25 @@ export type ApplicationCheckRun = Readonly<{
  */
 export const checkApplicationInSandbox = async (
   sandbox: Sandbox,
-  input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user?: CheckUser; signal?: AbortSignal }>,
+  input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user?: CheckUser}>,
 ): Promise<ApplicationCheckRun> => {
   if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out) || (input.thumbnail !== undefined && !SAFE_ABSOLUTE_PATH.test(input.thumbnail))) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
   const place: BuildPlace = { out: input.out, ...(input.user ? { user: input.user } : {}) }
-  assertNotAborted(input.signal)
   let result: CommandResult
   try {
     result = await sandbox.commands.run(
       `${CHECK_NODE_PATH} ${CHECK_SCRIPT_PATH} --root '${input.root}' --out '${input.out}'${input.thumbnail ? ` --thumbnail '${input.thumbnail}'` : ''} --as ${CHECK_AGENT_IDENTITY}`,
-      { cwd: '/', timeoutMs: CHECK_COMMAND_TIMEOUT_MS, ...(input.signal ? { signal: input.signal } : {}), ...(place.user ? { user: place.user } : {}) },
+      { cwd: '/', timeoutMs: CHECK_COMMAND_TIMEOUT_MS, ...(place.user ? { user: place.user } : {}) },
     )
   } catch (error) {
-    if (input.signal?.aborted) throw cancellation()
     // A script that exits non-zero is raised by E2B as an error that still carries what it printed.
     const raised = error as Partial<CommandResult>
     if (typeof raised?.stdout !== 'string' || typeof raised.exitCode !== 'number') throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: error })
     result = { stdout: raised.stdout, stderr: raised.stderr ?? '', exitCode: raised.exitCode } as CommandResult
   }
-  assertNotAborted(input.signal)
   if (result.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { exitCode: result.exitCode, stderr: redactEvidence(result.stderr.slice(-2_000)) } })
   const report = parseCheckReport(result.stdout)
-  const files = input.collect && report.ok ? await collectOutput(sandbox, place, input.signal) : null
-  assertNotAborted(input.signal)
-  const thumbnail = files && input.thumbnail ? await readThumbnail(sandbox, place, input.thumbnail, input.signal) : null
+  const files = input.collect && report.ok ? await collectOutput(sandbox, place) : null
+  const thumbnail = files && input.thumbnail ? await readThumbnail(sandbox, place, input.thumbnail) : null
   return Object.freeze({ report, files, thumbnail })
 }
