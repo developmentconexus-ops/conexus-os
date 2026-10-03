@@ -15,8 +15,8 @@ const connectionQueryKey = ['model-accounts', PROVIDER] as const
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'Google AI Pro conectado.',
-  failed: 'O Google recusou a entrada. Tente de novo.',
-  expired: 'A entrada expirou. Tente de novo.',
+  failed: 'O Google recusou a entrada.',
+  expired: 'A entrada expirou.',
 }
 
 const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> => {
@@ -106,7 +106,7 @@ export function GoogleAiProAccount() {
   if (connection.isPending || (connection.isError && isFailure(connection.error, 'NOT_FOUND'))) return null
   if (connection.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
-    <SectionError description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
+    <SectionError error={connection.error} description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
   </section>
   const { mine, shared } = connection.data
   return <section aria-labelledby={titleId}>

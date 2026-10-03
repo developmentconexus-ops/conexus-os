@@ -9,7 +9,7 @@ import { listConversations, openConversation } from '../features/builder/mastra-
 import { getProject, projectQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { rootRoute } from './__root'
-import { isFailure } from '../app/http'
+import { failureText, isFailure, isRetryable } from '../app/http'
 
 // The chat, editor and diff code is most of the application's weight, so it loads when Construir opens.
 const Construir = lazy(() => import('../features/builder/construir/construir').then((module) => ({ default: module.Construir })))
@@ -32,7 +32,8 @@ function ProjectScope({ context, projectId, children }: Readonly<{ context: Acce
   if (project.isError) {
     const hidden = isFailure(project.error, 'PROJECT_NOT_FOUND')
     return <Shell context={context}><Status title={hidden ? 'Projeto indisponível' : 'Não foi possível abrir o Projeto'}>
-      {hidden ? <p>Este Projeto não existe ou não está disponível para você.</p> : <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
+      <p>{failureText(project.error)}</p>
+      {!hidden && isRetryable(project.error) && <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
     </Status></Shell>
   }
   const workspace = project.data ? context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId) : undefined
@@ -64,7 +65,8 @@ function OpenConversation({ projectId }: Readonly<{ projectId: string }>) {
   }, [latest, navigate, projectId])
   if (conversations.isError || create.isError) {
     return <Status title="Não foi possível abrir a conversa">
-      <button type="button" onClick={() => { if (conversations.isError) void conversations.refetch(); else create.mutate() }}>Tentar novamente</button>
+      <p>{failureText(conversations.isError ? conversations.error : create.error)}</p>
+      {isRetryable(conversations.isError ? conversations.error : create.error) && <button type="button" onClick={() => { if (conversations.isError) void conversations.refetch(); else create.mutate() }}>Tentar novamente</button>}
     </Status>
   }
   return <Status title="Abrindo a conversa" working />

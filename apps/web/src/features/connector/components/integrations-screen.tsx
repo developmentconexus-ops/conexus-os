@@ -26,6 +26,7 @@ import {
 } from '../connector-api'
 import '../connector.css'
 import { failureText } from '../../../app/http'
+import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
@@ -56,11 +57,7 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
       {isConnectorAdminRequired(connections.error) ? (
         <div className="cx-state" role="alert"><h2>Só um administrador da instalação vê e administra as conexões do Workspace.</h2></div>
       ) : (
-        <div className="cx-state" role="alert">
-          <h2>Não foi possível carregar as conexões</h2>
-          <p>Nada foi alterado. O servidor não respondeu desta vez.</p>
-          <Button type="button" variant="outline" onClick={() => void connections.refetch()}>Tentar de novo</Button>
-        </div>
+        <FailureState title="Não foi possível carregar as conexões" error={connections.error} onRetry={() => void connections.refetch()} />
       )}
     </section>
   }
@@ -214,11 +211,7 @@ function BindingsSection({ projectId }: Readonly<{ projectId: string }>) {
       {isConnectorBindingsForbidden(bindings.error) ? (
         <div className="cx-state" role="alert"><h2>Só o Owner do Workspace vincula e desvincula conexões deste Projeto.</h2></div>
       ) : (
-        <div className="cx-state" role="alert">
-          <h2>Não foi possível carregar as integrações</h2>
-          <p>Nada foi alterado. O servidor não respondeu desta vez.</p>
-          <Button type="button" variant="outline" onClick={() => void bindings.refetch()}>Tentar de novo</Button>
-        </div>
+        <FailureState title="Não foi possível carregar as integrações" error={bindings.error} onRetry={() => void bindings.refetch()} />
       )}
     </section>
   }

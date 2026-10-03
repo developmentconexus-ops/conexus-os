@@ -49,7 +49,7 @@ function ProjectsHome({ workspaceId, workspaceName }: Readonly<{ workspaceId: st
           <Link to="/workspaces/$workspaceId/projects/new" params={{ workspaceId }} className="cx-new-project"><Plus size={15} aria-hidden="true" />Novo projeto</Link>
         </div>
         {summaries.isPending && <ProjectGridSkeleton />}
-        {summaries.isError && <ProjectGridFailure onRetry={() => void summaries.refetch()} />}
+        {summaries.isError && <ProjectGridFailure error={summaries.error} onRetry={() => void summaries.refetch()} />}
         {summaries.isSuccess && <ProjectGrid projects={active} />}
       </section>
     )}

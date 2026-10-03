@@ -25,7 +25,7 @@ function EntryRoute() {
   const access = useAccessContext()
   if (authorityLost || (access.isError && isAuthenticationRequired(access.error))) return <GoToSignIn />
   if (access.isPending) return <EntryLoading label="Abrindo o Conexus" />
-  if (access.isError) return <EntryFailure onRetry={() => void access.refetch()} />
+  if (access.isError) return <EntryFailure error={access.error} onRetry={() => void access.refetch()} />
   const destination = entryDestination(access.data.workspaces, readLastWorkspace())
   switch (destination.kind) {
     case 'create-workspace':

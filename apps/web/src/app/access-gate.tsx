@@ -14,6 +14,6 @@ export function AccessGate({ children }: Readonly<{ children: (context: AccessCo
   const access = useAccessContext()
   if (authorityLost || (access.isError && isAuthenticationRequired(access.error))) return <SignedOut />
   if (access.isPending) return <EntryLoading label="Abrindo o Conexus" />
-  if (access.isError) return <EntryFailure onRetry={() => void access.refetch()} />
+  if (access.isError) return <EntryFailure error={access.error} onRetry={() => void access.refetch()} />
   return children(access.data)
 }

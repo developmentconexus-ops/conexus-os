@@ -2133,7 +2133,7 @@ test('failed background polls keep the chat and show a note until a poll succeed
   const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
 
   await openAfterFirstSessionRead(page, origin, projectId, firstRead)
-  const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
+  const note = page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.')
   assert.equal(await note.count(), 0)
 
   status = 503

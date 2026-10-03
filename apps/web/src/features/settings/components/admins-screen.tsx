@@ -61,7 +61,7 @@ export function AdminsScreen() {
   return <main className="cxs-page">
     <PageHeader title="Administradores" lead="Quem pode conectar o GitHub, compartilhar contas e definir os padrões da instalação." />
     {administrators.isPending && <SectionLoading />}
-    {administrators.isError && <SectionError description="Não foi possível consultar os administradores." onRetry={() => void administrators.refetch()} />}
+    {administrators.isError && <SectionError error={administrators.error} description="Não foi possível consultar os administradores." onRetry={() => void administrators.refetch()} />}
     {administrators.isSuccess && <ul className="cxs-list">
       {administrators.data.administrators.map((administrator) => {
         const isViewer = administrator.accountId === access.data?.account.accountId

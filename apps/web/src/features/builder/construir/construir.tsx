@@ -31,7 +31,8 @@ import { ResultCard, showsResultCard } from './result-card'
 import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
-import { failureText, isFailure } from '../../../app/http'
+import { FailureNotice } from '../../../app/failure-state'
+import { failureText, isFailure, isRetryable } from '../../../app/http'
 
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]
@@ -204,7 +205,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const cancel = useMutation({
     mutationFn: () => runHere ? cancelBuilderRun(projectId, runHere.builderRunId) : Promise.reject(new Error('BUILDER_RUN_NOT_READY')),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }),
-    onError: () => setSendError('Não foi possível parar a execução. Tente de novo.'),
+    onError: (error) => setSendError(failureText(error)),
   })
 
   const preview = usePreview(projectId, session.data?.preview)
@@ -223,8 +224,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
       <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
-      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : 'O Conexus não conseguiu ler o estado deste Project agora.'}</p>
-      {!denied && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
+      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
+      {!denied && isRetryable(session.error) && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
     </section>
   }
 
@@ -320,7 +321,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <ChatShell.Column className="cx-messages">
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
-                : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
+                : history.isError ? <FailureNotice title="Não foi possível ler esta conversa." error={history.error} onRetry={() => void history.refetch()} />
                   : <BuilderConversation
                     entries={openEntries}
                     persistedRequests={persisted}
@@ -359,8 +360,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
         {session.isRefetchError && <div className="cx-note" data-tone="warning" role="status">
-          <p>Sem conexão com o Conexus. Tentando de novo…</p>
-          <Button size="sm" onClick={() => void session.refetch()}>Tentar agora</Button>
+          <p>{failureText(session.error)}</p>
         </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own

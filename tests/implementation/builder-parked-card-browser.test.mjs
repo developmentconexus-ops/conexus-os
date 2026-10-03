@@ -47,7 +47,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   })
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     requests.answers.push(route.request().postDataJSON())
-    if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: 'refused', status: refusal.status }) })
+    if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: refusal.type, status: refusal.status, code: refusal.type }) })
     run.phase = 'PREPARING'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
@@ -120,7 +120,7 @@ test('an answer the Hub refuses keeps the card and says why: already answered, n
   }
   assert.deepEqual(said, [
     'Esta pergunta já foi respondida.',
-    'O agente não está mais esperando esta resposta.',
-    'A resposta não chegou ao agente. Tente de novo.',
+    'A execução não está esperando essa resposta.',
+    'A sua resposta não chegou à execução. A falha foi registrada.',
   ])
 })

@@ -7,6 +7,7 @@ import type { AnswerOutcome, PendingReply } from '../mastra-session'
 import type { PromptEntry } from '../transcript'
 import { PlanPt } from './plan-pt'
 import { toolRequest } from './tool-sentences'
+import { FAILURES } from '../../../generated/failures'
 
 // submit_plan's suspend payload carries the plan it points at; like ask_user's, it is untrusted
 // wire data, so only a string field is shown.
@@ -56,9 +57,9 @@ const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
 
 // Why an answer did not take the run back to work, in the person's words.
 const REFUSAL_TEXT: Readonly<Record<Exclude<AnswerOutcome, 'RESUMED'>, string>> = {
-  ALREADY_ANSWERED: 'Esta pergunta já foi respondida.',
-  NOT_PARKED: 'O agente não está mais esperando esta resposta.',
-  UNAVAILABLE: 'A resposta não chegou ao agente. Tente de novo.',
+  ALREADY_ANSWERED: FAILURES.TOOL_ANSWER_ALREADY_GIVEN.message,
+  NOT_PARKED: FAILURES.PARKED_CALL_NOT_FOUND.message,
+  UNAVAILABLE: FAILURES.BUILDER_ANSWER_UNAVAILABLE.message,
 }
 
 /**

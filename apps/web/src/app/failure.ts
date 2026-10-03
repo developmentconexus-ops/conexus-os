@@ -38,3 +38,7 @@ export function failureText(error: unknown): string {
   const action = FAILURE_ACTIONS[row.action]
   return action === null ? row.message : `${row.message} ${action}`
 }
+
+/** Whether the row tells the person to try again later: only a failure outside the Conexus code can. */
+export const isRetryable = (error: unknown): boolean =>
+  FAILURES[error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE'].action === 'RETRY_LATER'

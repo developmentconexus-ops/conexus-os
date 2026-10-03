@@ -16,6 +16,7 @@ import { listProjects, projectListQueryKey } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { ThemeToggle } from './theme-toggle'
 import './frame.css'
+import { failureText } from './http'
 
 export type ShellScope = Readonly<{
   workspace?: Readonly<{ workspaceId: string; name: string }> | undefined
@@ -224,7 +225,7 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
       </DropdownMenu.Content>
     </DropdownMenu>
     {signOut.isError && (
-      <p className="cx-account-error" role="alert">Não foi possível sair agora. Tente de novo.</p>
+      <p className="cx-account-error" role="alert">{failureText(signOut.error)}</p>
     )}
   </div>
 }

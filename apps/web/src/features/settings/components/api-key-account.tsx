@@ -37,7 +37,7 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
   if (accounts.isPending) return null
   if (accounts.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>{title}</h2>
-    <SectionError description={`Não foi possível consultar a sua conta da ${name}.`} onRetry={() => void accounts.refetch()} />
+    <SectionError error={accounts.error} description={`Não foi possível consultar a sua conta da ${name}.`} onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === provider)
   const kind = account?.kind ?? null

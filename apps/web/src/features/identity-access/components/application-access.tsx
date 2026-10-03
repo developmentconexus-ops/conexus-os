@@ -19,6 +19,7 @@ import {
 import type { GrantEntry, InvitationEntry } from '../application-access-api'
 import '../people.css'
 import { failureText } from '../../../app/http'
+import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
@@ -60,11 +61,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
         <h2>{failureText(access.error)}</h2>
       </div>
     }
-    return <div className="cx-state" role="alert">
-      <h2>Não foi possível carregar o acesso</h2>
-      <p>Ninguém foi removido nem convidado. O servidor não respondeu desta vez.</p>
-      <Button type="button" variant="outline" onClick={() => void access.refetch()}>Tentar de novo</Button>
-    </div>
+    return <FailureState title="Não foi possível carregar o acesso" error={access.error} onRetry={() => void access.refetch()} />
   }
 
   const grants = access.data.entries.filter((entry): entry is GrantEntry => entry.kind === 'grant')

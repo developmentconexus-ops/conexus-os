@@ -35,4 +35,4 @@ export async function hubCall(request: Promise<Response>, expected: HubExpected 
   throw await hubFailure(response)
 }
 
-export { failureText, isFailure } from './failure.ts'
+export { failureText, isFailure, isRetryable } from './failure.ts'

@@ -1,10 +1,10 @@
-import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { Tree } from '@mastra/playground-ui/components/Tree'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, Folder } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { getProjectSourceFile, listProjectSourceTree, type SourceTree } from '../api'
+import { FailureNotice } from '../../../app/failure-state'
 
 const CodeView = lazy(() => import('./code-surfaces').then((module) => ({ default: module.CodeView })))
 
@@ -56,7 +56,7 @@ export function LensCode({ projectId, sourceRevision }: Readonly<{ projectId: st
 
   if (!sourceRevision) return <p className="cx-lens-empty">O Project ainda não tem código. Ele aparece aqui depois da primeira alteração.</p>
   if (tree.isPending) return <div className="cx-lens-split"><Skeleton className="cx-skeleton" /><Skeleton className="cx-skeleton" /></div>
-  if (tree.isError) return <div className="cx-note" role="alert"><p>Não foi possível ler os arquivos do Project.</p><Button size="sm" onClick={() => void tree.refetch()}>Tentar novamente</Button></div>
+  if (tree.isError) return <FailureNotice title="Não foi possível ler os arquivos do Project." error={tree.error} onRetry={() => void tree.refetch()} />
   if (!files.length) return <p className="cx-lens-empty">Esta versão não tem arquivos.</p>
 
   return <div className="cx-lens-split">
@@ -68,7 +68,7 @@ export function LensCode({ projectId, sourceRevision }: Readonly<{ projectId: st
     <section className="cx-file" aria-label={path ?? 'Arquivo'}>
       <header className="cx-file-head"><code>{path}</code><span className="cx-revision">versão {sourceRevision.slice(0, 7)}</span></header>
       {file.isPending && <Skeleton className="cx-skeleton" />}
-      {file.isError && <div className="cx-note" role="alert"><p>Não foi possível ler este arquivo.</p><Button size="sm" onClick={() => void file.refetch()}>Tentar novamente</Button></div>}
+      {file.isError && <FailureNotice title="Não foi possível ler este arquivo." error={file.error} onRetry={() => void file.refetch()} />}
       {file.data && path && <Suspense fallback={<Skeleton className="cx-skeleton" />}><CodeView path={path} content={file.data.content} /></Suspense>}
     </section>
   </div>

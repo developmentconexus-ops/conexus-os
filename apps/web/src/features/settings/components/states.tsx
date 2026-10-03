@@ -1,6 +1,7 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import type { ReactNode } from 'react'
+import { failureText, isRetryable } from '../../../app/http'
 
 export function SectionLoading({ rows = 3 }: Readonly<{ rows?: number }>) {
   // A pure loading placeholder: rows never reorder or get removed individually, so the position
@@ -10,10 +11,10 @@ export function SectionLoading({ rows = 3 }: Readonly<{ rows?: number }>) {
   </div>
 }
 
-export function SectionError({ description, onRetry }: Readonly<{ description: string; onRetry: () => void }>) {
+export function SectionError({ description, error, onRetry }: Readonly<{ description: string; error: unknown; onRetry: () => void }>) {
   return <div className="cxs-error" role="alert">
-    <p>{description}</p>
-    <Button type="button" variant="outline" onClick={onRetry}>Tentar de novo</Button>
+    <p>{description} {failureText(error)}</p>
+    {isRetryable(error) && <Button type="button" variant="outline" onClick={onRetry}>Tentar de novo</Button>}
   </div>
 }
 

@@ -23,6 +23,7 @@ import {
 import type { InvitationEntry, MemberEntry } from '../membership-api'
 import '../people.css'
 import { failureText } from '../../../app/http'
+import { FailureState } from '../../../app/failure-state'
 
 type Role = 'member' | 'owner'
 const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', member: 'Membro' }
@@ -92,11 +93,7 @@ export function WorkspaceMembers({
     </div>
   }
   if (roster.isError) {
-    return <div className="cx-state" role="alert">
-      <h2>Não foi possível carregar as pessoas</h2>
-      <p>Ninguém foi removido nem alterado. O servidor não respondeu desta vez.</p>
-      <Button type="button" variant="outline" onClick={() => void roster.refetch()}>Tentar de novo</Button>
-    </div>
+    return <FailureState title="Não foi possível carregar as pessoas" error={roster.error} onRetry={() => void roster.refetch()} />
   }
 
   // The server tells which role the viewer holds and refuses anything that role may not do.

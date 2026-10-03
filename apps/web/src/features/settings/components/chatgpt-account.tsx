@@ -13,8 +13,8 @@ const base = `/api/control/model-accounts/${PROVIDER}/oauth`
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'ChatGPT conectado.',
-  failed: 'A OpenAI recusou a entrada. Tente de novo.',
-  expired: 'O código expirou. Gere outro para tentar de novo.',
+  failed: 'A OpenAI recusou a entrada.',
+  expired: 'O código expirou. Gere outro código.',
 }
 
 // A live "M:SS" until the code expires. A reading aid only: the Hub still answers `expired`.
@@ -78,7 +78,7 @@ export function ChatGptAccount() {
   if (accounts.isPending) return null
   if (accounts.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>ChatGPT</h2>
-    <SectionError description="Não foi possível consultar a sua conta do ChatGPT." onRetry={() => void accounts.refetch()} />
+    <SectionError error={accounts.error} description="Não foi possível consultar a sua conta do ChatGPT." onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
   const mine = account?.mine === true

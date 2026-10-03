@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import type { ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../../packages/brand/src/index'
 import './entry.css'
+import { failureText, isRetryable } from '../../app/http'
 
 export const SIGN_IN_URL = '/protocol/oidc/login'
 
@@ -43,9 +44,9 @@ export function NoAccess() {
   </EntryFrame>
 }
 
-export function EntryFailure({ onRetry }: Readonly<{ onRetry: () => void }>) {
+export function EntryFailure({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
   return <EntryFrame title="Não foi possível abrir o Conexus">
-    <p>O servidor não respondeu. Nada foi alterado; tente de novo em alguns segundos.</p>
-    <Button type="button" variant="primary" size="lg" onClick={onRetry}>Tentar de novo</Button>
+    <p>{failureText(error)}</p>
+    {isRetryable(error) && <Button type="button" variant="primary" size="lg" onClick={onRetry}>Tentar de novo</Button>}
   </EntryFrame>
 }
