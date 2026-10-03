@@ -33,6 +33,7 @@
   "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],
   // @mastra/playground-ui publishes .d.ts files importing class-variance-authority but lists it
   // only as its own devDependency; our pin supplies those types for the web typecheck.
+  // conexus-verify.mjs runs biome as a string command, which knip cannot see.
   "ignoreDependencies": [
     "class-variance-authority",
     "@biomejs/biome"
