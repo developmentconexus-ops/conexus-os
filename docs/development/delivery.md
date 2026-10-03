@@ -42,6 +42,7 @@ An implementer spike answers one question, on its own branch and worktree, and n
 - a migration;
 - a change under an area marked `"gate": "aprovo"` in [`areas.json`](review/areas.json);
 - a screen the operator asked to see.
+The `aprovo-gate` workflow (`.github/workflows/aprovo-gate.yml`) fails a change under a gated area until the label is set.
 The label blocks auto-merge. Nothing else needs a per-pull-request "Aprovo" or a live pilot test by
 the operator. `needs:operator` marks an issue that waits on the operator for a fact or an action.
 
