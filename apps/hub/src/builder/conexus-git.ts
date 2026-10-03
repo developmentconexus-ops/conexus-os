@@ -380,7 +380,7 @@ export type RunSourceSandbox = Readonly<{
   readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
 }>
 
-const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
+export const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 const evidence = (value: string): string => value.slice(-2_000)
 
 type SeedInput = Readonly<{

@@ -116,7 +116,7 @@
   "longFiles": {
     "apps/hub/src/builder/application-check.ts": 571,
     "apps/hub/src/builder/conexus-git.ts": 506,
-    "apps/hub/src/builder/run-runtime.ts": 1033,
+    "apps/hub/src/builder/run-runtime.ts": 1032,
     "apps/web/src/features/builder/transcript.ts": 619
   },
   "weakTests": {

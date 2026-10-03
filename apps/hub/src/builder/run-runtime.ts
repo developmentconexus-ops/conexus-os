@@ -11,7 +11,7 @@ import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application
 import { buildCandidateServer, createOperationRunner } from './run-operation.js'
 import type { CandidateOperationPorts, RunOperation } from './run-operation.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
-import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
+import { candidateSnapshot, mirrorSnapshot, pullSnapshot, quoted, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from './harness/index.js'
@@ -182,8 +182,6 @@ const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> 
 const SEED_ROOT = '/var/lib/conexus-seed'
 const BUILD_ROOT = '/var/lib/conexus-build'
 
-const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
-
 const MIRROR_DEBOUNCE_MS = 5_000
 // A turn-end mirror after a failure waits no longer than this before the sandbox pauses.
 const FAILED_TURN_MIRROR_MS = 30_000
@@ -194,8 +192,8 @@ const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; a
 
 type TurnMirror = Readonly<{
   schedule(): void
-  /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout. Answers the mirror's head. */
-  end(candidate: string | null): Promise<string | null>
+  /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout (the `pulled` candidate itself when its tree is unchanged). Answers the mirror's head. */
+  end(candidate: string | null, pulled?: string | null): Promise<string | null>
   /** Ends the turn's mirror without a new write, for a sandbox that is gone. Settles once the write in flight has. */
   abandon(): Promise<void>
 }>
@@ -228,11 +226,12 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
     chain = chain.then(work).catch(fail)
     return chain
   }
-  const snapshot = async (): Promise<void> => {
+  const snapshot = async (pulled?: string | null): Promise<void> => {
     const next = await pullSnapshot({
       git, projectId, snapshot: mirrorSnapshot(conversationId, turnStart), expected, unchangedFrom: written ?? turnStart,
-      scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
+      ...(pulled ? { sameAs: pulled } : {}), scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
     })
+    if (next && next === pulled) await git.moveMirror(projectId, conversationId, { expected, next })
     if (next) expected = written = next
   }
   const stop = (): void => {
@@ -253,10 +252,10 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
         })
       }, debounceMs)
     },
-    end: (candidate) => {
+    end: (candidate, pulled) => {
       stop()
       ended ??= serial(async () => {
-        if (!candidate) return snapshot()
+        if (!candidate) return snapshot(pulled)
         await git.moveMirror(projectId, conversationId, { expected, next: candidate })
         expected = candidate
       }).then(() => expected)
@@ -397,9 +396,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       ports.log(`BUILDER_MIRROR_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
     }
     let mirrorEnded: Promise<void> | undefined
+    let pulled: string | null = null
     const endMirror = (candidate: string | null): Promise<void> => {
       mirrorEnded ??= (async () => {
-        const head = await mirror?.end(candidate)
+        const head = await mirror?.end(candidate, pulled)
         if (head) await input.recordMirror(head).catch(mirrorFailed)
       })()
       return mirrorEnded
@@ -568,7 +568,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (boot) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(boot.problems).slice(0, 2_000)}`)
         return verdict
       }
-      let pulled: string | null = null
       const gate = createCandidateGate({
         // A checkout back at the turn's start is no change; one the agent left as it was reuses the
         // revision already pulled, so its verdict is not checked again.

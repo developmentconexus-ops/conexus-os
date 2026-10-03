@@ -101,6 +101,17 @@ test('the browser is launched with the background Google services switched off',
   assert.deepEqual(argv.filter((arg) => arg.startsWith('--disable-features=')), ['--disable-features=Translate,OptimizationHints,MediaRouter,AutofillServerCommunication'])
 })
 
+test('boot waits for the DevTools port when the browser first leaves its file empty', (t) => {
+  const { report } = check(t, STARTER, {
+    chromiumPath: (scratch) => {
+      const wrapper = join(scratch, 'chromium-slow-port.sh')
+      writeFileSync(wrapper, `#!/bin/sh\nfor argument in "$@"; do case "$argument" in --user-data-dir=*) profile="\${argument#--user-data-dir=}";; esac; done\n: > "$profile/DevToolsActivePort"\nsleep 1\nexec ${JSON.stringify(chromium.executablePath())} "$@"\n`, { mode: 0o755 })
+      return wrapper
+    },
+  })
+  assert.deepEqual(report.steps.find((step) => step.step === 'boot')?.status, 'passed')
+})
+
 test('a starter with no server half passes all five steps and reports what it built', (t) => {
   const { report } = check(t, STARTER)
   assert.equal(report.ok, true)

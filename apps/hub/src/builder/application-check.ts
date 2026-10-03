@@ -405,16 +405,16 @@ const runBoot = async () => {
       chromium.once('error', (error) => { spawnError = error })
       let webSocketUrl
       const deadline = now() + 15_000
-      let devtoolsPort
+      let lastError = null
       while (!spawnError && now() < deadline && !webSocketUrl) {
         try {
-          devtoolsPort ??= Number.parseInt(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0], 10)
+          const devtoolsPort = Number.parseInt(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0], 10)
           const targets = await (await fetch('http://127.0.0.1:' + devtoolsPort + '/json/list')).json()
           webSocketUrl = targets.find((target) => target.type === 'page')?.webSocketDebuggerUrl
-        } catch {}
+        } catch (error) { lastError = error }
         if (!webSocketUrl) await new Promise((wait) => setTimeout(wait, 100))
       }
-      if (!webSocketUrl) return { skipped: 'BOOT_BROWSER_UNAVAILABLE' }
+      if (!webSocketUrl) return { skipped: ['BOOT_BROWSER_UNAVAILABLE', (spawnError ?? lastError)?.message].filter(Boolean).join(': ') }
       socket = new WebSocket(webSocketUrl)
       await new Promise((opened, failed) => {
         socket.addEventListener('open', () => opened(), { once: true })
