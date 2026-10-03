@@ -232,15 +232,13 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
   for (const line of listing.split('\n').filter(Boolean)) {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
-    const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (entry && !IN_APPLICATION_TREE.test(entry[2] as string)) continue
-    if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-    const bytes = Number(entry[1])
+    const [, size, path] = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line) ?? []
+    if (size === undefined || path === undefined) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    if (!IN_APPLICATION_TREE.test(path)) continue
+    const bytes = Number(size)
     if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     totalBytes += bytes
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    paths.push(entry[2] as string)
+    paths.push(path)
   }
   if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
   if (new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {

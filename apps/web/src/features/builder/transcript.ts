@@ -497,11 +497,7 @@ const toMessageEntry = (message: MastraDBMessage, options: Readonly<{ streaming?
   }
 }
 
-const lastIndexWhere = <T,>(items: readonly T[], matches: (item: T) => boolean): number => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  for (let index = items.length - 1; index >= 0; index -= 1) if (matches(items[index] as T)) return index
-  return -1
-}
+const lastIndexWhere = <T,>(items: readonly T[], matches: (item: T) => boolean): number => items.map(matches).lastIndexOf(true)
 
 const latestAssistantIndex = (entries: readonly TranscriptEntry[]): number =>
   lastIndexWhere(entries, (entry) => entry.kind === 'message' && entry.message.role === 'assistant')
