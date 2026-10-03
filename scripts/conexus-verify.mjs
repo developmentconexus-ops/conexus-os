@@ -124,7 +124,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('contract-projection-check-connector', 'node scripts/generate-connector-contracts.mjs --check'),
   candidateStep('repository-contract-checks', 'node scripts/generate-builder-run-vocabulary.mjs --check && node --test tests/repository/repository-contract.test.mjs tests/repository/builder-run-vocabulary.test.mjs'),
   candidateStep('knip', 'npx --no-install knip && node --test tests/repository/knip-config.test.mjs'),
-  candidateStep('biome', 'npx --no-install biome ci .'),
+  candidateStep('biome', 'npx --no-install biome ci . --error-on-warnings'),
 
   candidateStep('brand-wordmark-csp', 'node --test tests/implementation/brand-wordmark-csp.test.mjs', 'browser'),
   candidateStep('builder-tool-sentences', 'node --test tests/implementation/builder-tool-sentences.test.mjs'),

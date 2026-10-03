@@ -7,7 +7,7 @@ test('parses git worktree list --porcelain, including bare and detached entries'
     'worktree /home/u/repo.git\nbare',
     'worktree /home/u/wt-a\nHEAD aaa\nbranch refs/heads/feat/a',
     'worktree /home/u/wt-b\nHEAD bbb\ndetached',
-  ].join('\n\n') + '\n'
+  ].join('\n\n').concat('\n')
   assert.deepEqual(parseWorktrees(porcelain), [
     { path: '/home/u/repo.git', head: null, branch: null, bare: true },
     { path: '/home/u/wt-a', head: 'aaa', branch: 'feat/a', bare: false },

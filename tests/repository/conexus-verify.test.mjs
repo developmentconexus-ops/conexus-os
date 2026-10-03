@@ -300,7 +300,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'historical Builder verifier suite is not a current MVP blocker')
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
-  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
+  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci . --error-on-warnings')).length, 1)
   const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
@@ -326,7 +326,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
     'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
-  assert.equal(biomeCommand, 'npx --no-install biome ci .')
+  assert.equal(biomeCommand, 'npx --no-install biome ci . --error-on-warnings')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)

@@ -48,8 +48,8 @@ const setup = async (t, { limits, tokenPrefix, lookupDelayMs = 0 } = {}) => {
   const envelope = createSecretEnvelope('ef'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    listBindings: async ({ projectId, environment }) => (await new Promise((resolve) => setTimeout(resolve, lookupDelayMs)), environment === 'preview' && projectId === PROJECT
-      ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []),
+    listBindings: async ({ projectId, environment }) => { await new Promise((resolve) => setTimeout(resolve, lookupDelayMs)); return environment === 'preview' && projectId === PROJECT
+      ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : [] },
     readConnectionCredential: async () => sealed,
   }
   const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })

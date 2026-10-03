@@ -28,7 +28,7 @@ const leafDefinedOperations = () => {
   if (files.length === 0) throw new Error(`no leaf contract files found under ${productDirectory}`);
   for (const file of files) {
     const lines = fs.readFileSync(`${productDirectory}/${file}`, 'utf8').split('\n');
-    const pathsIndex = lines.findIndex((line) => line === 'paths:');
+    const pathsIndex = lines.indexOf('paths:');
     if (pathsIndex < 0) throw new Error(`leaf contract file has no top-level paths block: ${file}`);
     let currentPath = null;
     let current = null;

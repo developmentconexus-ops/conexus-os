@@ -94,7 +94,7 @@ const fatal = (message: string): Buffer => {
 const AUTH_OK = (() => { const packet = Buffer.alloc(9); packet.write('R', 0, 'latin1'); packet.writeInt32BE(8, 1); packet.writeInt32BE(0, 5); return packet })()
 
 const startupPacket = (parameters: ReadonlyMap<string, string>): Buffer => {
-  const fields = [...parameters].flatMap(([name, value]) => [name, value])
+  const fields = [...parameters].flat()
   const body = Buffer.concat([Buffer.from([0, 3, 0, 0]), Buffer.from(`${fields.join('\0')}\0\0`, 'utf8')])
   const length = Buffer.alloc(4)
   length.writeInt32BE(body.length + 4)

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { checkQuarantine, listTestNames } from '../../scripts/check-test-quarantine.mjs'
 
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the text is the test source the scanner reads, with a template title it must not accept
 const source = ["import test from 'node:test'", "test('flaky one', () => {})", 'test(`not a literal ${1}`, () => {})'].join('\n')
 const testFiles = new Map([['tests/a.test.mjs', source]])
 const today = '2026-10-02'

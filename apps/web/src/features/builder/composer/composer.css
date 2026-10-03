@@ -27,8 +27,8 @@
     var(--cx-accent) 302deg,
     color-mix(in srgb, var(--cx-accent) 45%, var(--cx-line)) 331deg,
     var(--cx-line) 360deg
-  ) !important;
-  box-shadow: none !important;
+  );
+  box-shadow: none;
   animation: cx-glow-spin 11s linear infinite;
 }
 .cx-composer .composer-ring::after {
@@ -46,7 +46,7 @@
 .cx-composer .composer-ring:focus-within::after { opacity: .45; }
 .cx-composer .composer-ring[data-busy="true"] {
   animation: cx-glow-spin 2.8s linear infinite;
-  box-shadow: none !important;
+  box-shadow: none;
   background-image: conic-gradient(
     from var(--cx-glow-angle),
     var(--cx-line) 0deg,
@@ -56,7 +56,7 @@
     color-mix(in srgb, var(--cx-accent) 40%, var(--cx-line)) 252deg,
     var(--cx-accent) 299deg,
     var(--cx-line) 342deg
-  ) !important;
+  );
 }
 .cx-composer .composer-ring[data-busy="true"]::after {
   opacity: .6;

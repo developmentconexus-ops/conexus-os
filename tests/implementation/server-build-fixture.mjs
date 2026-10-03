@@ -50,7 +50,7 @@ export const SHARED_LIBRARY_PROJECT = Object.freeze({
     },
   },
   'conexus/lib/cálculos.ts': `import { round } from './_shared'\nexport const times = (value: number, factor: number): number => round(value * factor)\n`,
-  'conexus/lib/_shared.ts': SUPPORTED_NODE_IMPORTS.map((name) => `import '${name}'\n`).join('') + 'export const round = (value: number): number => Math.round(value * 100) / 100\n',
+  'conexus/lib/_shared.ts': `${SUPPORTED_NODE_IMPORTS.map((name) => `import '${name}'\n`).join('')}export const round = (value: number): number => Math.round(value * 100) / 100\n`,
   'conexus/handlers/double.ts': `import { times } from '../lib/cálculos'\nexport async function doubleValue(input: { value: number }) { return { value: times(input.value, 2) } }\n`,
   'conexus/handlers/triple.ts': `import { times } from '../lib/cálculos'\nexport async function tripleValue(input: { value: number }) { return { value: times(input.value, 3) } }\n`,
 })
