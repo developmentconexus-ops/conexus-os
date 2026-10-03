@@ -4,7 +4,8 @@
 
 Before relying on chat, a handoff, or remembered state:
 
-1. run the read-only preflight in the pinned WSL environment;
+1. run `npm run conexus:preflight` in the pinned WSL environment (after `nvm use`); it checks the Linux
+   Node and npm against `.nvmrc` and `package.json`;
 2. read [`docs/roadmap.md`](docs/roadmap.md) for what exists, what is in flight, and the next action;
 3. use [`docs/index.md`](docs/index.md) to find the smallest owner of your question;
 4. for any Conexus planning, execution, review or handoff, read [`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md);
@@ -15,18 +16,7 @@ Before relying on chat, a handoff, or remembered state:
 
 For Mastra-sensitive work, also load `.agents/skills/mastra/SKILL.md`.
 
-```bash
-if [ -f "$HOME/.nvm/nvm.sh" ]; then source "$HOME/.nvm/nvm.sh"; nvm use; fi
-case "$(command -v node):$(command -v npm)" in *"/mnt/"*|*".exe"*) echo "Use Linux Node/npm" >&2; exit 1;; esac
-test "$(node -p 'process.platform')" = linux || exit 1
-test "$(node --version)" = "v$(tr -d '\r\n' < .nvmrc)" || exit 1
-expected_npm=$(node -p "require('./package.json').engines.npm")
-test "$(npm --version)" = "$expected_npm" || exit 1
-npm run conexus:preflight
-```
-
-The preflight reports facts. It does not grant work. Chat and handoffs are
-orientation only. **Global coverage does not require global context.**
+Chat and handoffs are orientation only. **Global coverage does not require global context.**
 
 ## Authority
 

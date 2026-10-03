@@ -12,7 +12,7 @@ const scriptFile = fileURLToPath(import.meta.url)
  * a second verification implementation or a claim about the state of a gate.
  */
 export const SCOPE_MANIFEST = Object.freeze({
-  preflight: Object.freeze({ npmScript: 'conexus:preflight', npmArgs: Object.freeze(['--no-network']) }),
+  preflight: Object.freeze({ npmScript: 'conexus:preflight', npmArgs: Object.freeze([]) }),
   repository: Object.freeze({ npmScript: 'repository:check', npmArgs: Object.freeze([]) }),
   final: Object.freeze({ npmScript: 'verify', npmArgs: Object.freeze([]) }),
 })

@@ -1,8 +1,9 @@
 // Checks the documents agents read before working: every `npm run X` they cite exists, every
 // relative link resolves, the trunk they name is `main`, only the root AGENTS.md tells a reader to
-// run `npm run verify`, and each file stays under its size cap.
+// run `npm run verify`, and each file stays under its size cap. It also checks the tree: no merge-conflict
+// marker, no unsafe workflow trigger, and the package stays the private conexus-os.
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,12 +26,12 @@ const CHARACTERS = { unit: 'characters', measure: text => text.length }
 // our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
 const NESTED_AGENTS_CHARACTERS = 1800
 
-// First match wins. A `warn` cap reports without failing until the named step rewrites the file.
+// First match wins.
 export const SIZE_CAPS = Object.freeze([
-  { match: path => path === 'AGENTS.md', ...LINES, max: 60, severity: 'warn', until: 'M6 rewrites the root AGENTS.md' },
-  { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, severity: 'error', note: 'about 500 tokens' },
-  { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90, severity: 'error' },
-  { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150, severity: 'error' },
+  { match: path => path === 'AGENTS.md', ...LINES, max: 60 },
+  { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
+  { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
+  { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
@@ -64,30 +65,29 @@ function linesOf(text) {
 
 export function checkFile(path, text, { root, scripts }) {
   const findings = []
-  const report = (severity, number, message) => findings.push({ severity, where: number ? `${path}:${number}` : path, message })
+  const report = (number, message) => findings.push({ where: number ? `${path}:${number}` : path, message })
 
   const cap = SIZE_CAPS.find(rule => rule.match(path))
   const size = cap?.measure(text)
   if (cap && size > cap.max) {
-    const gloss = cap.note ?? (cap.until && `enforced once ${cap.until}`)
-    report(cap.severity, 0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${gloss ? ` (${gloss})` : ''}`)
+    report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
   }
 
   for (const { line, number, fenced } of linesOf(text)) {
     for (const [, cited] of line.matchAll(/\bnpm run ([\w:.-]+)/g)) {
       const name = cited.replace(/[.:,-]+$/, '')
-      if (!Object.hasOwn(scripts, name)) report('error', number, `npm run ${name} is not a script in package.json`)
+      if (!Object.hasOwn(scripts, name)) report(number, `npm run ${name} is not a script in package.json`)
     }
     if (path !== 'AGENTS.md' && /\bnpm run verify(?![\w:-])/.test(line) && !/\b(do not|don't|never|not)\b/i.test(line)) {
-      report('error', number, 'only the root AGENTS.md may tell a reader to run npm run verify')
+      report(number, 'only the root AGENTS.md may tell a reader to run npm run verify')
     }
     for (const [, trunk] of line.matchAll(/\b(?:trunk(?:\s+is|:)|pull requests?\s+(?:against|into))\s+`([^`]+)`/gi)) {
-      if (trunk !== TRUNK) report('error', number, `names \`${trunk}\` as the trunk; the trunk is \`${TRUNK}\``)
+      if (trunk !== TRUNK) report(number, `names \`${trunk}\` as the trunk; the trunk is \`${TRUNK}\``)
     }
     if (fenced) continue
     for (const [, target] of line.matchAll(/(?<!!)\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g)) {
       const problem = brokenLink(path, target, text, root)
-      if (problem) report('error', number, problem)
+      if (problem) report(number, problem)
     }
   }
   return findings
@@ -106,12 +106,37 @@ function brokenLink(path, target, text, root) {
   return anchors.has(decodeURIComponent(anchor).toLowerCase()) ? null : `broken link: ${target} (no heading #${anchor} in ${resolved})`
 }
 
+// What a merge or an edit can leave in any file: a conflict marker, a workflow that runs fork code
+// with write access, a package that is no longer the private conexus-os.
+export function checkTree(root, tracked) {
+  const findings = []
+  const report = (where, message) => findings.push({ where, message })
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  if (pkg.name !== 'conexus-os' || pkg.private !== true) report('package.json', 'package identity must remain private conexus-os')
+  for (const path of tracked) {
+    const absolute = join(root, path)
+    if (!lstatSync(absolute).isFile()) continue
+    const bytes = readFileSync(absolute)
+    if (bytes.includes(0)) continue
+    const text = bytes.toString('utf8')
+    if (/^(?:<{7} |>{7} )/m.test(text)) report(path, 'unresolved merge-conflict marker')
+    if (path.startsWith('.github/workflows/')) {
+      if (text.includes('pull_request_target')) report(path, 'unsafe pull_request_target trigger')
+      if (/^\s*contents:\s*write\s*$/m.test(text)) report(path, 'workflow has contents: write permission')
+    }
+  }
+  return findings
+}
+
 export function checkRepository(root) {
   const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {}
-  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0').filter(path => path && inScope(path) && existsSync(join(root, path)))
-  const findings = [...new Set(files)].sort()
-    .flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts }))
+  const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
+    .split('\0').filter(path => path && existsSync(join(root, path))))].sort()
+  const files = tracked.filter(inScope)
+  const findings = [
+    ...files.flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts })),
+    ...checkTree(root, tracked),
+  ]
   return { files: files.length, findings }
 }
 
@@ -120,10 +145,7 @@ const repositoryRoot = dirname(fileURLToPath(new URL('../package.json', import.m
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const root = process.argv[2] ? resolve(process.argv[2]) : repositoryRoot
   const { files, findings } = checkRepository(root)
-  const errors = findings.filter(finding => finding.severity === 'error')
-  const warnings = findings.filter(finding => finding.severity === 'warn')
-  for (const finding of warnings) console.log(`warning ${finding.where}: ${finding.message}`)
-  for (const finding of errors) console.error(`error ${finding.where}: ${finding.message}`)
-  if (errors.length) process.exitCode = 1
-  else console.log(`Agent context checks passed (files=${files}, warnings=${warnings.length}).`)
+  for (const finding of findings) console.error(`error ${finding.where}: ${finding.message}`)
+  if (findings.length) process.exitCode = 1
+  else console.log(`Agent context checks passed (files=${files}).`)
 }

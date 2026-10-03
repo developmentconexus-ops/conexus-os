@@ -38,7 +38,7 @@ test('every test file the candidate graph names exists on disk', () => {
 
 const packageScripts = Object.freeze({
   'conexus:preflight': 'node scripts/conexus-preflight.mjs',
-  'repository:check': 'node scripts/check-current-state.mjs',
+  'repository:check': 'node scripts/check-agent-context.mjs',
   verify: 'npm run repository:check',
   'test:one': 'node -e "process.exit(0)"',
   'test:two': 'node -e "process.exit(0)"',
@@ -171,11 +171,11 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
 
 test('manifest exposes only the three bounded aliases and exact npm routing', () => {
   assert.deepEqual(ALLOWED_ALIASES, ['preflight', 'repository', 'final'])
-  assert.deepEqual(SCOPE_MANIFEST.preflight, { npmScript: 'conexus:preflight', npmArgs: ['--no-network'] })
+  assert.deepEqual(SCOPE_MANIFEST.preflight, { npmScript: 'conexus:preflight', npmArgs: [] })
   assert.deepEqual(resolveScope('preflight', packageScripts), {
     scope: 'preflight',
     npmScript: 'conexus:preflight',
-    npmArgs: ['--no-network'],
+    npmArgs: [],
     alias: true,
   })
   assert.equal(resolveScope('test:one', packageScripts).alias, false)
