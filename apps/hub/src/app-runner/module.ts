@@ -55,10 +55,9 @@ export const createApplicationRunnerClient = (socketPath: string): ApplicationRu
     const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS)
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (reply.status === 200) return reply.body as PrepareResult
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const error = (reply.body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | undefined)?.error
-    const runnerCode = typeof error?.code === 'string' && /^[A-Z_]+$/.test(error.code) ? error.code : undefined
-    const detail = typeof error?.detail === 'string' ? error.detail : undefined
+    const problem = typeof reply.body === 'object' && reply.body !== null ? reply.body : {}
+    const runnerCode = 'code' in problem && typeof problem.code === 'string' ? problem.code : undefined
+    const detail = 'detail' in problem && typeof problem.detail === 'string' ? problem.detail : undefined
     const code = runnerCode === 'SERVER_TREE_REFUSED' || runnerCode === 'MANIFEST_REFUSED' ? runnerCode : 'APPLICATION_SERVER_REFUSED'
     throw new Failure(code, { cause: detail ?? runnerCode ?? code })
   },

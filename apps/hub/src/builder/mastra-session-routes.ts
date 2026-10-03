@@ -202,14 +202,13 @@ const STREAM_ROUTE = sessionRoute('GET', '/stream')
 // Mastra's stream stays open, and silent, when the controller deletes the session it follows, and
 // the Hub replaces a run's session when the conversation's sandbox changes. Ending the stream is how
 // the browser learns to read the run again and follow the session that replaced it.
-const closableStream = (served: ReadableStream<unknown>, follow: (close: () => void) => () => void): ReadableStream<unknown> => {
+const closableStream = (served: ReadableStream<unknown>, follow: (close: () => void) => (() => void) | undefined): ReadableStream<unknown> => {
   const reader = served.getReader()
-  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-  let unfollow = (): void => {}
+  let unfollow: (() => void) | undefined
   return new ReadableStream({
     start(controller) {
       unfollow = follow(() => {
-        unfollow()
+        unfollow?.()
         void reader.cancel().catch(() => undefined)
         try { controller.close() } catch { /* the browser already left */ }
       })
@@ -217,11 +216,11 @@ const closableStream = (served: ReadableStream<unknown>, follow: (close: () => v
     async pull(controller) {
       const { done, value } = await reader.read()
       if (!done) return controller.enqueue(value)
-      unfollow()
+      unfollow?.()
       try { controller.close() } catch { /* closed by the session's deletion */ }
     },
     cancel(reason) {
-      unfollow()
+      unfollow?.()
       return reader.cancel(reason)
     },
   })
@@ -244,8 +243,7 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
     return closableStream(opening, (close) => {
       if (!session) {
         close()
-        // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-        return () => {}
+        return undefined
       }
       const closers = following.get(session) ?? new Set()
       following.set(session, closers)

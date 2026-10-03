@@ -37,12 +37,9 @@ export const createPostgresPool = (
     max: connection.max ?? 6,
     connectionTimeoutMillis: connection.connectionTimeoutMillis ?? DEFAULT_CONNECT_TIMEOUT_MS,
   })
-  // Listen on client directly so checked-out clients don't crash on dropped connections.
-  // Pool-level error handler prevents duplicate unhandled errors from idle client drops.
-  pool.on('connect', (client) => {
-    client.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
-  })
-  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-  pool.on('error', () => {})
+  // A checked-out client and an idle one both log their drop, and neither crashes the process.
+  const logPoolError = (error: Error): void => { write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`) }
+  pool.on('connect', (client) => { client.on('error', logPoolError) })
+  pool.on('error', logPoolError)
   return pool
 }

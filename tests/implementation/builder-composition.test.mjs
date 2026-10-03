@@ -10,6 +10,8 @@ const { ConexusRunSandbox, createConversationSandbox, createRunWorkspace } = awa
 const { createBuilderStorage } = await import(built('builder/storage.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
+const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
+
 const baseEnvironment = {
   NODE_ENV: 'test',
   CONEXUS_ORIGIN: 'https://hub.test',
@@ -166,7 +168,7 @@ test('with no Builder and no storage role the Hub boots, with the installation c
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
   assert.deepEqual(readHubConfig(environmentWithoutBuilder).secretKey, { file: '/secrets/installation-secret-key', previousFiles: [] })
   const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
-  assert.throws(() => readHubConfig(keyless), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/, 'every Hub seals its sessions\' refresh tokens')
+  assert.throws(() => readHubConfig(keyless), missing('CONEXUS_FACTORY_SECRET_KEY_FILE'), 'every Hub seals its sessions\' refresh tokens')
 })
 
 test("a Builder without its Mastra storage role is refused, and with it the role's password file is all the Hub reads", () => {
@@ -185,8 +187,8 @@ test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha
   const complete = { ...baseEnvironment, ...storageEnvironment }
   assert.equal(readHubConfig(complete).googleAiPro, undefined)
   assert.deepEqual(readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }).googleAiPro, { binary: '/opt/cliproxy/cli-proxy-api', sha256 })
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_BIN$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), missing('CONEXUS_CLIPROXY_SHA256'))
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), missing('CONEXUS_CLIPROXY_BIN'))
   assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: 'cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_BIN$/)
   assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: 'AB'.repeat(32) }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
   assert.throws(() => readHubConfig({ ...environmentWithoutBuilder, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED$/)

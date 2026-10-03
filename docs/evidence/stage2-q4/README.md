@@ -50,7 +50,7 @@ The verdict is not REJECT, because no falsifier of task section 8 fired:
 | --- | --- | --- |
 | Hub and runner | `main` at `f7967b81`, both processes started at 02:19 in `~/wt-builder` | `branch hub starting 2026-10-03T02:19:03Z head f7967b81` and `branch runner starting 2026-10-03T02:19:13Z head f7967b81` in the pilot logs; each process's working directory |
 | Main heads during the proof | `ce75ef7b` from 23:12 (#477), `c57b4a2c` from 23:57 (#479), `f7967b81` from 02:19 (#481) | The same log lines |
-| Compiler template | `REACT_VITE_V2`, `537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060`, recipe `4ce6f3a6b123…` | `CURRENT_TEMPLATE_PIN` in `apps/hub/src/platform/application-template-pins.ts`, equal to the pilot's `CONEXUS_BUILDER_E2B_TEMPLATE_ID` and to the `templateRef` of both stored builds |
+| Compiler template | `REACT_VITE_V2`, `537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81`, recipe `ce2a48f54c08…` | `CURRENT_TEMPLATE_PIN` in `apps/hub/src/platform/application-template-pins.ts`, equal to the pilot's `CONEXUS_BUILDER_E2B_TEMPLATE_ID` and to the `templateRef` of both stored builds |
 | Schema head | Migration `0052`, checksum `ad64d6e9…`, equal to `sha256sum` of `apps/hub/migrations/0052_builder_parked_run_expiry.sql` on `main` | `iam.schema_migration` |
 | Project | `dd5961d1-8a12-4fca-8bd5-2c06e2418813` | `builder.builder_run` |
 | Binding | `erp`, environment `preview`, on the Workspace's one Sankhya Connection, bound at 23:16:13, before the build run | `connector.project_binding` |

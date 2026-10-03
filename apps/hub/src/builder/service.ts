@@ -9,9 +9,9 @@ import type { BuilderRunSummary, BuilderStore, TakenOverRun } from './store.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
-import { Failure, type FailureCode, toFailure } from '../platform/failure.js'
+import { Failure, type FailureCode, logFailure, toFailure } from '../platform/failure.js'
 import { FAILURES } from '../platform/failures.generated.js'
-import { logLine } from '../platform/logger.js'
+import { logLine, logger } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 
 /** What became of a person's answer to a parked run. Only `RESUMED` took the run out of PARKED. */
@@ -146,7 +146,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
   // one never stops a run or a stop request.
   const publishRun = async (run: BuilderRunSummary): Promise<void> => {
-    try { await runs.publishRun(run) } catch { /* the poll still serves the run */ }
+    try {
+      await runs.publishRun(run)
+    } catch (error) {
+      logFailure(logger, toFailure(error), { 'builder.run_id': run.builderRunId })
+    }
   }
   // A run that ever asked a question leaves it open on the conversation thread whichever way it ends:
   // a stop during the park, a refused park, a failed resumed leg or a restart. Mastra's own discard

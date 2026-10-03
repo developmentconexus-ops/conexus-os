@@ -9,6 +9,8 @@ const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
 const { Failure } = await import(built('platform/failure.js'))
 const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
+const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
+
 const ORIGIN = 'https://conexus.test'
 const OPERATOR = Object.freeze({ account: { accountId: '11111111-1111-4111-8111-111111111111' }, issuer: 'https://issuer.test', subject: 'bootstrap' })
 const MEMBER = Object.freeze({ account: { accountId: '22222222-2222-4222-8222-222222222222' }, issuer: 'https://issuer.test', subject: 'member' })
@@ -41,10 +43,10 @@ test('local Preview config requires complete TLS, exact Hub origin and a separat
   }
   assert.deepEqual(readHubConfig(environment).preview, { port: 8081, certFile: '/secrets/local-cert', keyFile: '/secrets/local-key' })
   for (const [field, code] of [
-    ['CONEXUS_PREVIEW_PORT', 'MISSING_CONFIG_CONEXUS_PREVIEW_PORT'],
-    ['CONEXUS_PREVIEW_CERT_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_CERT_FILE'],
-    ['CONEXUS_PREVIEW_KEY_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_KEY_FILE'],
-  ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), { message: code })
+    ['CONEXUS_PREVIEW_PORT', 'CONEXUS_PREVIEW_PORT'],
+    ['CONEXUS_PREVIEW_CERT_FILE', 'CONEXUS_PREVIEW_CERT_FILE'],
+    ['CONEXUS_PREVIEW_KEY_FILE', 'CONEXUS_PREVIEW_KEY_FILE'],
+  ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), missing(code))
   assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), /INVALID_CONFIG_CONEXUS_PREVIEW_PORT/)
   for (const origin of ['http://hub.conexus.localhost:8080', 'https://preview.conexus.localhost:8080', 'https://hub.conexus.localhost:9090', 'https://hub.conexus.localhost:8080/path', 'https://user@hub.conexus.localhost:8080']) {
     assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), /INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW/)
@@ -56,7 +58,7 @@ test('S2 database capabilities are mandatory in production and preserve the pinn
   assert.equal(s1Test.database.workspace, undefined)
   assert.throws(
     () => readHubConfig(baseEnvironment),
-    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE/,
+    missing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE'),
   )
   assert.throws(
     () => readHubConfig({
@@ -64,7 +66,7 @@ test('S2 database capabilities are mandatory in production and preserve the pinn
       NODE_ENV: 'test',
       CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
     }),
-    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE/,
+    missing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE'),
   )
   assert.deepEqual(readHubConfig({
     ...baseEnvironment,

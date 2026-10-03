@@ -62,23 +62,11 @@ const typeOf = (schema) => {
   }
 }
 
-const ERROR_AND_CALL = `export class ConexusError extends Error {
-  readonly code: string
-  readonly detail: string
-  constructor(code: string, detail: string) {
-    super(detail === '' ? code : \`\${code}: \${detail}\`)
-    this.name = 'ConexusError'
-    this.code = code
-    this.detail = detail
-  }
-}
-
-const failure = (status: number, body: string): ConexusError => {
+const ERROR_AND_CALL = `const failure = (status: number, body: string): ConexusError => {
   try {
     const parsed: unknown = JSON.parse(body)
-    const error = typeof parsed === 'object' && parsed !== null ? (parsed as { error?: unknown }).error : undefined
-    if (typeof error === 'object' && error !== null) {
-      const { code, detail } = error as { code?: unknown; detail?: unknown }
+    if (typeof parsed === 'object' && parsed !== null) {
+      const { code, detail } = parsed as { code?: unknown; detail?: unknown }
       if (typeof code === 'string') return new ConexusError(code, typeof detail === 'string' ? detail : '')
     }
   } catch {}
@@ -114,6 +102,7 @@ export const generateClient = (manifest) => {
     return `  ${id}: { input: ${typeOf(input)}; output: ${typeOf(output)} }`
   })
   const apiGen = `${HEADER}import { z } from 'zod'
+import { ConexusError } from './failures.gen'
 
 export const schemas = {
 ${schemas.join('\n')}

@@ -287,8 +287,6 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
 export const collectEgress = async (ports: EgressCollectPorts): Promise<void> => {
   let timer: NodeJS.Timeout | undefined
   const work = collect(ports)
-  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-  work.catch(() => {})
   try {
     await Promise.race([
       work,

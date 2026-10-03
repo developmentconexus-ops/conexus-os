@@ -130,7 +130,7 @@ const run = async (): Promise<never> => {
     try {
       await applyPendingMigrations(client, job.schema, job.plan)
     } catch (error) {
-      return finish({ ok: false, code: 'MIGRATION_FAILED', detail: detail(error) })
+      return finish({ ok: false, code: 'APPLICATION_MIGRATION_FAILED', detail: detail(error) })
     }
     await client.end().catch(() => undefined)
     return finish({ ok: true, value: job.plan.map((migration) => migration.name) })

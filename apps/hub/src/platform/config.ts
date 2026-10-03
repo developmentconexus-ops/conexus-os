@@ -1,3 +1,4 @@
+import { Failure } from './failure.js'
 import { parseApplicationSlug } from './application-slug.js'
 
 export type ProjectRuntimeConfig = Readonly<{
@@ -88,9 +89,12 @@ const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string
   return files
 }
 
+/** The one operator row for a setting the Hub cannot start without; the setting's name is in the details. */
+const configMissing = (name: string): Failure => new Failure('CONFIG_MISSING', { details: { name } })
+
 const required = (environment: NodeJS.ProcessEnv, name: string): string => {
   const value = environment[name]
-  if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+  if (!value) throw configMissing(name)
   return value
 }
 
@@ -105,8 +109,8 @@ const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database'
   const readPasswordFile = environment.CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE
   if (commandPasswordFile && readPasswordFile) return { commandPasswordFile, readPasswordFile }
   if (commandPasswordFile || readPasswordFile || environment.NODE_ENV !== 'test') {
-    if (!commandPasswordFile) throw new Error('MISSING_CONFIG_CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE')
-    throw new Error('MISSING_CONFIG_CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE')
+    if (!commandPasswordFile) throw configMissing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE')
+    throw configMissing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE')
   }
   return undefined
 }
@@ -123,7 +127,7 @@ const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] =>
     for (const [name, value] of Object.entries({
       CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
       CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+    })) if (!value) throw configMissing(name)
   }
   if (!ordinaryComplete) return undefined
   const ordinary: ProjectRuntimeConfig = {
@@ -165,7 +169,7 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
       CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: values.modelAccountPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
-    })) if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+    })) if (!value) throw configMissing(name)
   }
   return undefined
 }
@@ -177,8 +181,8 @@ const googleAiProRuntime = (environment: NodeJS.ProcessEnv): HubConfig['googleAi
   const binary = environment.CONEXUS_CLIPROXY_BIN
   const sha256 = environment.CONEXUS_CLIPROXY_SHA256
   if (!binary && !sha256) return undefined
-  if (!binary) throw new Error('MISSING_CONFIG_CONEXUS_CLIPROXY_BIN')
-  if (!sha256) throw new Error('MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256')
+  if (!binary) throw configMissing('CONEXUS_CLIPROXY_BIN')
+  if (!sha256) throw configMissing('CONEXUS_CLIPROXY_SHA256')
   if (!binary.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CLIPROXY_BIN')
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256')
   return { binary, sha256 }
@@ -206,9 +210,9 @@ const previewRuntime = (environment: NodeJS.ProcessEnv, hubOrigin: string, hubPo
   const certFile = environment.CONEXUS_PREVIEW_CERT_FILE
   const keyFile = environment.CONEXUS_PREVIEW_KEY_FILE
   if (!portValue && !certFile && !keyFile) return undefined
-  if (!portValue) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_PORT')
-  if (!certFile) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_CERT_FILE')
-  if (!keyFile) throw new Error('MISSING_CONFIG_CONEXUS_PREVIEW_KEY_FILE')
+  if (!portValue) throw configMissing('CONEXUS_PREVIEW_PORT')
+  if (!certFile) throw configMissing('CONEXUS_PREVIEW_CERT_FILE')
+  if (!keyFile) throw configMissing('CONEXUS_PREVIEW_KEY_FILE')
   const previewPort = port(portValue, 'CONEXUS_PREVIEW_PORT')
   if (previewPort === hubPort) throw new Error('INVALID_CONFIG_CONEXUS_PREVIEW_PORT')
   let origin: URL
@@ -223,8 +227,8 @@ const applicationRuntime = (environment: NodeJS.ProcessEnv, hubPort: number, pre
   const portValue = environment.CONEXUS_APPLICATION_PORT
   const domain = environment.CONEXUS_APPLICATION_DOMAIN
   if (!portValue && !domain) return undefined
-  if (!portValue) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_PORT')
-  if (!domain) throw new Error('MISSING_CONFIG_CONEXUS_APPLICATION_DOMAIN')
+  if (!portValue) throw configMissing('CONEXUS_APPLICATION_PORT')
+  if (!domain) throw configMissing('CONEXUS_APPLICATION_DOMAIN')
   if (!DOMAIN.test(domain)) throw new Error('INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN')
   if (!preview) throw new Error('APPLICATION_PREVIEW_RUNTIME_REQUIRED')
   const applicationPort = port(portValue, 'CONEXUS_APPLICATION_PORT')

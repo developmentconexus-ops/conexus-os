@@ -368,6 +368,17 @@ test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, f
   assert.deepEqual(store.calls.map(([name]) => name), ['listBindings'])
 })
 
+test('a store or envelope fault is CONNECTOR_PLATFORM_FAILED, and only a credential the Conexus read and refused is CREDENTIAL_REFUSED', async (t) => {
+  const sealed = await envelope.seal(JSON.stringify({ clientId: 'GTW2468', clientSecret: 'CORE_E13579', xToken: 'GTW3501' }))
+  const unreadable = await setup(t, { store: memoryStore({ credential: 'not-a-sealed-credential' }) })
+  assert.deepEqual(await unreadable.broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
+  const refused = await setup(t, { store: memoryStore({ credential: await envelope.seal('{"unexpected":true}') }) })
+  assert.deepEqual(await refused.broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CREDENTIAL_REFUSED' })
+  const store = memoryStore({ credential: sealed })
+  const failing = await setup(t, { store: { ...store, readConnectionCredential: async () => { throw new Error('connection refused') } } })
+  assert.deepEqual(await failing.broker.checkCredential('sankhya', CONNECTION), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
+})
+
 test('a credential check runs the allow-listed authentication alone and caches nothing', async (t) => {
   const { fake, broker, facts } = await setup(t)
   assert.deepEqual(await broker.checkCredential('sankhya', CONNECTION), { ok: true, value: null })

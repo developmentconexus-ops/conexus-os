@@ -49,6 +49,7 @@ The pages are [mastra-native](review/mastra-native.md), [identity-session](revie
       its owning document or decision first.
 - [ ] Each meaning has one owner. The change adds no second source of truth.
 - [ ] A new dependency comes with the evidence the technology rule asks for.
+- [ ] A `catch` either rethrows, maps at a vendor boundary, or logs.
 
 ## Types
 

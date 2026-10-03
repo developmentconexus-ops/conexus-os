@@ -199,17 +199,16 @@ export const registerPreviewRoutes = async (
   type ApiRequest = FastifyRequest<{ Params: { operation: string }; Body: unknown }>
   app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, tracked<ApiRequest>(async (request, reply) => {
     securityHeaders(reply, dependencies.exactHubOrigin)
-    const refuse = (status: number, code: string): unknown => reply.code(status).type('application/json').send({ error: { code } })
-    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(415, 'CONTENT_TYPE_REFUSED')
+    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') throw new Failure('CONTENT_TYPE_REFUSED')
     const active = await activePreview(request)
-    if (typeof active === 'number') return refuse(active, 'PREVIEW_REFUSED')
+    if (typeof active === 'number') throw new Failure(active === 503 ? 'IDENTITY_PROVIDER_UNAVAILABLE' : 'PREVIEW_REFUSED')
     const { binding } = active
     // Only the Preview's own page may call its API: a cross-site POST carries no Lax cookie, and a
     // sibling Preview on the same site sends its own Origin.
-    if (!isExactOrigin(request.headers.origin, `https://${binding.exactHost}:${dependencies.previewPort}`)) return refuse(403, 'ORIGIN_REFUSED')
+    if (!isExactOrigin(request.headers.origin, `https://${binding.exactHost}:${dependencies.previewPort}`)) throw new Failure('ORIGIN_REFUSED')
     const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
-    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) return refuse(404, 'OPERATION_NOT_FOUND')
-    if (!dependencies.invokeApplication) return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
+    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
+    if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
     let result: Awaited<ReturnType<ApplicationInvoker>>
     try {
       result = await dependencies.invokeApplication({
@@ -219,10 +218,10 @@ export const registerPreviewRoutes = async (
         },
         serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
       })
-    } catch {
-      return refuse(503, 'APPLICATION_RUNNER_UNAVAILABLE')
+    } catch (error) {
+      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error })
     }
-    return reply.code(result.status).type('application/json').send(JSON.stringify(result.body))
+    return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   }))
   app.get('/', tracked(serve))
   app.get('/*', tracked(serve))

@@ -15,6 +15,7 @@ owner document decides, and the disagreement is a finding.
 | An external system is one integrator; a Project reads it through its own bindings and one executor, and every call is recorded | C-029, C-030 |
 | Generated apps use the app stack v2 | C-033 |
 | Conexus designs its screens; `@mastra/playground-ui` supplies parts | C-031 |
+| A failure is a row of `failures.json`; one `Failure` type; one exit logs it | [spec 0009](../../../../docs/tasks/specs/0009-one-failure-table/index.md) |
 | Every concept has one owner, Conexus or Factory | [single-owner map](../../../../docs/reference/single-owner-map.md) |
 
 ## Not here

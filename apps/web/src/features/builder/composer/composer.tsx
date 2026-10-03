@@ -56,7 +56,7 @@ export function BuilderComposer({
   draft: string
   onDraftChange: (value: string) => void
   onSend: (text: string) => void
-  onStop: () => void
+  onStop?: () => void
   onNewConversation: () => void
   mode: ComposerMode
   working: boolean
@@ -111,7 +111,7 @@ export function BuilderComposer({
   }
   const onFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (mode.kind === 'RUNNING') onStop()
+    if (mode.kind === 'RUNNING') onStop?.()
     else submit(draft)
   }
   const level = reasoning ? levelForModel(levels, reasoning) : null

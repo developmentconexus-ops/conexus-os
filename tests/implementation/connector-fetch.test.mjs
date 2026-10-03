@@ -239,7 +239,7 @@ test('P6 and P8: another Project, a missing binding, a forged scope and a bindin
   assert.deepEqual(fake.requests.map(({ path }) => path), ['/authenticate', ROUTE], 'the removed binding sent nothing')
 })
 
-test('a binding to an unregistered integrator, or to one with no pinned destination, is CONNECTOR_UNCONFIGURED, and a failing store is PROVIDER_UNAVAILABLE', async (t) => {
+test('a binding to an unregistered integrator, or to one with no pinned destination, is CONNECTOR_UNCONFIGURED, and a failing store is CONNECTOR_PLATFORM_FAILED', async (t) => {
   const store = memoryStore({ bindings: { [PROJECT]: [bound('erp', CONNECTION), bound('legacy', CONNECTION_A, 'unknown-erp')] } })
   const { fake, broker } = await setup(t, { store })
   assert.deepEqual(await broker.fetch(handler(), read({ connection: 'legacy' })), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
@@ -249,7 +249,7 @@ test('a binding to an unregistered integrator, or to one with no pinned destinat
     connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
     store: { ...store, listBindings: async () => { throw new Error('connection refused') } }, envelope, observability: connectorRecord().observability,
   })
-  assert.deepEqual(await failing.fetch(handler(), read()), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
+  assert.deepEqual(await failing.fetch(handler(), read()), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(await broker.fetch(handler(), read()), ORDER_READ)
 })

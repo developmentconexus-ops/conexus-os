@@ -7,6 +7,6 @@ export type ApplicationProfile = 'REACT_VITE_V2'
 
 export const CURRENT_TEMPLATE_PIN: Readonly<{ profile: ApplicationProfile; templateRef: string; recipeSha256: string }> = Object.freeze({
   profile: 'REACT_VITE_V2',
-  templateRef: '537fnzf4c16x9d7oz21k:449fd9f1-3b61-4c88-9a06-fd61bbfb4060',
-  recipeSha256: '4ce6f3a6b1233edb4a3f8741751239c7d43bf70c0b8e75318106ac08543ab05d',
+  templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81',
+  recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5',
 })

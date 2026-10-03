@@ -23,12 +23,9 @@ export function useStartProject(workspaceId: string) {
       if (!input.description) return { project, firstRequest: 'NONE' }
       try {
         await openConversation(project.projectId, current.conversationId)
-        // Best-effort: the model chosen before the Project existed follows the first request onto
-        // its new conversation. Losing these writes is not worth losing the Project or the first
-        // request over, so they never turn a started run into a refusal; the run falls back to
-        // the installation's default model instead.
-        // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-        await applyThreadSettings(project.projectId, current.conversationId, { modelId: input.modelId, reasoning: input.reasoning ?? null}).catch(() => {})
+        // The model chosen before the Project existed follows the first request onto its new
+        // conversation. If it cannot be set, the first request is refused instead of running on another model.
+        await applyThreadSettings(project.projectId, current.conversationId, { modelId: input.modelId, reasoning: input.reasoning ?? null })
         await sendBuilderMessage(project.projectId, current.conversationId, input.description, current.requestKey)
         return { project, firstRequest: 'SENT' }
       } catch (error) {
