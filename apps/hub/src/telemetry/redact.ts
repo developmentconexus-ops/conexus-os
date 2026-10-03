@@ -35,14 +35,13 @@ const logBodyCode = (body: unknown): string | undefined => {
 const allowed = (key: string): boolean => EXACT.has(key) || PREFIXES.some((prefix) => key.startsWith(prefix))
 
 /** Only allowlisted keys leave the process; everything else, known or new, is dropped. */
-const redactAttributes = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | undefined> => {
-  const kept: Record<string, V | undefined> = {}
+const redactAttributes = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | string | undefined> => {
+  const kept: Record<string, V | string | undefined> = {}
   for (const [key, value] of Object.entries(attributes)) {
     if (!allowed(key)) continue
     if (key === 'exception.stacktrace' && typeof value === 'string') {
       const frames = framesOf(value)
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      if (frames !== undefined) kept[key] = frames as V
+      if (frames !== undefined) kept[key] = frames
     } else kept[key] = value
   }
   return kept
@@ -53,7 +52,7 @@ const countDropped = (before: Readonly<Record<string, unknown>>, after: Readonly
   for (const key of Object.keys(before)) if (!(key in after)) counter.add(1, { key })
 }
 
-const redacted = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | undefined> => {
+const redacted = <V>(attributes: Readonly<Record<string, V | undefined>>): Record<string, V | string | undefined> => {
   const kept = redactAttributes(attributes)
   countDropped(attributes, kept)
   return kept

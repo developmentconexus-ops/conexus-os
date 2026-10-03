@@ -69,6 +69,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
 
   const grants = access.data.entries.filter((entry): entry is GrantEntry => entry.kind === 'grant')
   const invitations = access.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
+  const address = access.data.address
   const busy = revoke.isPending
 
   return <div className="cx-people">
@@ -77,11 +78,10 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
     <section aria-labelledby="access-address">
       <h2 id="access-address" className="cx-section-title">Endereço do aplicativo</h2>
       <div className="cx-app-address">
-        {access.data.address ? (
+        {address ? (
           <>
-            <code>{access.data.address}</code>
-            {/* biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave */}
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyAddress(access.data.address as string)}>
+            <code>{address}</code>
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyAddress(address)}>
               <Link2 size={16} aria-hidden /> Copiar
             </Button>
           </>

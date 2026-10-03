@@ -17,12 +17,13 @@ const RUN_CONSUMER_KEY = 'conexusConnectorConsumer'
 
 // Only a consumer this module built reaches the tool, so nothing a request context carries
 // from elsewhere becomes one.
-const runConsumers = new WeakSet<Consumer>()
+const runConsumers = new WeakSet<object>()
+
+const isRunConsumer = (value: unknown): value is Consumer => typeof value === 'object' && value !== null && runConsumers.has(value)
 
 const runConsumerOf = (requestContext: RequestContext): Consumer | null => {
   const value = requestContext.getRaw(RUN_CONSUMER_KEY)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return typeof value === 'object' && value !== null && runConsumers.has(value as Consumer) ? value as Consumer : null
+  return isRunConsumer(value) ? value : null
 }
 
 export type BuilderConnectorRun = Readonly<{

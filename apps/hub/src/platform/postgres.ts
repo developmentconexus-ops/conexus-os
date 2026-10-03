@@ -1,6 +1,7 @@
 import pg from 'pg'
 import type { Pool, PoolConfig } from 'pg'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
+import { fieldOf } from './field-of.js'
 import { logLine } from './logger.js'
 
 export type PostgresPool = Pool
@@ -18,12 +19,10 @@ export type PostgresConnection = PoolConfig
 const capabilityFor = (role: string | undefined): string =>
   (role && CAPABILITY_BY_ROLE[role]) || role || 'unlabelled'
 
-const errorCode = (error: unknown): string | undefined =>
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof error === 'object' && error !== null && 'code' in error && typeof (error as { code: unknown }).code === 'string'
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    ? (error as { code: string }).code
-    : undefined
+export const errorCode = (error: unknown): string | undefined => {
+  const code = fieldOf(error, 'code')
+  return typeof code === 'string' ? code : undefined
+}
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 5000
 

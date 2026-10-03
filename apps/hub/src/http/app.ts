@@ -9,9 +9,11 @@ import type { FastifyInstance } from 'fastify'
 import { recordFailure, logger } from '../platform/logger.js'
 import { sendProblem } from './problem.js'
 
-export type HubHttpApp = FastifyInstance & Readonly<{
-  routeCensus(): readonly string[]
-}>
+declare module 'fastify' {
+  interface FastifyInstance {
+    routeCensus(): readonly string[]
+  }
+}
 
 export type RouteRegistrar = (app: FastifyInstance) => Promise<readonly string[]>
 
@@ -31,7 +33,7 @@ export const createHttpApp = async ({
   staticRoot?: string | null
   https?: Readonly<{ cert: Buffer | string; key: Buffer | string }>
   previewCspSource?: string
-}>): Promise<HubHttpApp> => {
+}>): Promise<FastifyInstance> => {
   const app = Fastify({ loggerInstance: logger, forceCloseConnections: true, disableRequestLogging: true, trustProxy: false, ...(https ? { https } : {}) })
   // A client may label a DELETE with no body as JSON; Fastify refuses that empty body. Any other
   // method still needs a body its route validates.
@@ -127,9 +129,7 @@ export const createHttpApp = async ({
     }
   }
 
+  app.decorate('routeCensus', (): readonly string[] => [...registered])
   await app.ready()
-  return Object.assign(app, {
-    routeCensus: (): readonly string[] => [...registered],
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  }) as HubHttpApp
+  return app
 }

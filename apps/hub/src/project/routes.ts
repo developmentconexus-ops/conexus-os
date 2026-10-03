@@ -11,7 +11,7 @@ import type {
 import { sendProblem } from '../http/problem.js'
 import { recordFailure } from '../platform/logger.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { type ProjectError, projectErrorCode } from './errors.js'
+import { ProjectError, projectErrorCode } from './errors.js'
 import type { ProjectStore } from './store.js'
 import { isExactOrigin } from '../platform/origin.js'
 
@@ -94,8 +94,7 @@ export const registerProjectRoutes = async (
         if (code === 'SOURCE_INPUT_REFUSED') return sendProblem(reply, 422, 'project-source-refused', 'Project source refused')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.workspace_id': request.params.workspaceId })
-          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
+          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', error instanceof ProjectError ? error.reason ?? undefined : undefined)
         }
         if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN') {
           return sendProblem(reply, 409, 'project-create-conflict', 'Project creation conflict')
@@ -130,8 +129,7 @@ export const registerProjectRoutes = async (
         if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.project_id': request.params.projectId })
-          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
+          return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', error instanceof ProjectError ? error.reason ?? undefined : undefined)
         }
         if (code === 'DELETION_INCOMPLETE') {
           recordFailure(request.log, 'PROJECT_DELETION_INCOMPLETE', error, { 'conexus.project_id': request.params.projectId })

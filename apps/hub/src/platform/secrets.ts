@@ -45,7 +45,7 @@ export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly s
     seal: (value: string) => encryption.encrypt(value),
     open: async (sealed: string) => {
       if (!sealed.startsWith(ENVELOPE_PREFIX)) throw new Error('SECRET_NOT_SEALED')
-      const { value } = await encryption.decrypt<unknown>(sealed)
+      const { value } = await encryption.decrypt(sealed)
       if (typeof value !== 'string') throw new Error('SECRET_NOT_SEALED')
       return value
     },

@@ -1,4 +1,5 @@
 import { refreshAnthropicToken } from '@mastra/code-sdk/auth/providers/anthropic'
+import { z } from 'zod'
 import type { CredentialStore } from '@mastra/code-sdk/auth/types'
 import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
@@ -19,12 +20,13 @@ export type ClaudeTokens = Readonly<{ access: string; refresh: string; expires: 
 export const serializeClaudeTokens = (tokens: ClaudeTokens): string =>
   JSON.stringify({ type: 'oauth', access: tokens.access, refresh: tokens.refresh, expires: tokens.expires })
 
+const storedClaudeTokens = z.object({ type: z.literal('oauth'), access: z.string(), refresh: z.string(), expires: z.number() })
+
 export const parseClaudeTokens = (secret: string): ClaudeTokens => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const parsed = JSON.parse(secret) as Partial<ClaudeTokens> & { type?: unknown }
-  if (parsed.type !== 'oauth' || typeof parsed.access !== 'string' || typeof parsed.refresh !== 'string' ||
-    typeof parsed.expires !== 'number') throw new Error('ANTHROPIC_STORED_RECORD_REFUSED')
-  return Object.freeze({ access: parsed.access, refresh: parsed.refresh, expires: parsed.expires })
+  const parsed = storedClaudeTokens.safeParse(JSON.parse(secret))
+  if (!parsed.success) throw new Error('ANTHROPIC_STORED_RECORD_REFUSED')
+  const { access, refresh, expires } = parsed.data
+  return Object.freeze({ access, refresh, expires })
 }
 
 export const createClaudeHolds = ({ store, refresh = refreshAnthropicToken, now = Date.now }: Readonly<{

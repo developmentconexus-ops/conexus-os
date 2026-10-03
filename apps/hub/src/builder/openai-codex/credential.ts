@@ -1,4 +1,5 @@
 import { refreshOpenAICodexToken } from '@mastra/code-sdk/auth/providers/openai-codex'
+import { z } from 'zod'
 import type { CredentialStore, OAuthCredentials } from '@mastra/code-sdk/auth/types'
 import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
@@ -25,12 +26,12 @@ export const toCodexTokens = (credentials: OAuthCredentials): CodexTokens => {
 /** The row's secret: the tokens in Mastra Code's stored credential shape. */
 export const serializeCodexTokens = (tokens: CodexTokens): string => JSON.stringify({ type: 'oauth', ...tokens })
 
+const storedCodexRecord = z.looseObject({ type: z.literal('oauth'), access: z.string(), refresh: z.string(), expires: z.number(), accountId: z.string() })
+
 export const parseCodexTokens = (secret: string): CodexTokens => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const parsed = JSON.parse(secret) as Partial<CodexTokens> & { type?: unknown }
-  if (parsed.type !== 'oauth') throw new Error('OPENAI_CODEX_STORED_RECORD_REFUSED')
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return toCodexTokens(parsed as OAuthCredentials)
+  const parsed = storedCodexRecord.safeParse(JSON.parse(secret))
+  if (!parsed.success) throw new Error('OPENAI_CODEX_STORED_RECORD_REFUSED')
+  return toCodexTokens(parsed.data)
 }
 
 /** A ChatGPT row held by runs; refreshed and written back as `createTokenHolds` says. */

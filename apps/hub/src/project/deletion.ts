@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg'
-import type { PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/postgres.js'
 import { logger, recordFailure } from '../platform/logger.js'
 import { projectError, projectErrorCode } from './errors.js'
 
@@ -22,9 +22,7 @@ type TombstoneRow = QueryResultRow & Readonly<{
 }>
 
 const errorText = (error: unknown): string => error instanceof Error ? error.message : ''
-const isNotAdmitted = (error: unknown): boolean =>
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
+const isNotAdmitted = (error: unknown): boolean => errorCode(error) === '42501'
 
 export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readonly<{
   commandPool: PostgresPool

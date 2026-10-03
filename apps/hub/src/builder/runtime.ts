@@ -3,6 +3,7 @@ import { parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
+import { fieldOf } from '../platform/field-of.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -16,12 +17,14 @@ type CodingWorkerResultScope = Readonly<{
 // A failure the agent's work itself caused travels back as data, not as a rejected promise, so the
 // admitted source still settles as a build failure. Anything else (a workspace fault, cancellation)
 // is still a thrown failure.
+export const UNRENDERED_FAILURE_CODE = 'APPLICATION_SMOKE_FAILED'
+
 export type ApplicationBuildOutcome =
   /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
   | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; thumbnail?: CompiledApplicationThumbnail; bootProblems?: string }>
   // C-033: the blocking steps passed and the page did not render. The only admitted source without a
   // Preview; a source the check refuses is never admitted, so no "built and failed" outcome exists.
-  | Readonly<{ kind: 'UNRENDERED'; code: 'APPLICATION_SMOKE_FAILED'; detail: string }>
+  | Readonly<{ kind: 'UNRENDERED'; code: typeof UNRENDERED_FAILURE_CODE; detail: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
 
@@ -63,9 +66,7 @@ type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILE
  * logs the cause of what the run throws.
  */
 const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { statusCode, status } = (typeof error === 'object' && error !== null ? error : {}) as { statusCode?: unknown; status?: unknown }
-  const http = [statusCode, status].find((value): value is number => typeof value === 'number')
+  const http = [fieldOf(error, 'statusCode'), fieldOf(error, 'status')].find((value): value is number => typeof value === 'number')
   return http === undefined ? undefined : { statusCode: http }
 }
 
@@ -233,15 +234,13 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
   for (const line of listing.split('\n').filter(Boolean)) {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
-    const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (entry && !IN_APPLICATION_TREE.test(entry[2] as string)) continue
-    if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
-    const bytes = Number(entry[1])
+    const [, size, path] = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line) ?? []
+    if (size === undefined || path === undefined) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    if (!IN_APPLICATION_TREE.test(path)) continue
+    const bytes = Number(size)
     if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     totalBytes += bytes
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    paths.push(entry[2] as string)
+    paths.push(path)
   }
   if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
   if (new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {

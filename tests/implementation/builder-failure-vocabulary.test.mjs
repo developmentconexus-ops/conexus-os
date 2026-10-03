@@ -64,14 +64,9 @@ test('a code nobody declared and a raw provider message are both internal errors
   assert.equal(builderFailureCategory(null), null)
 })
 
-test('every code a build failure can settle with names the build, not an internal error', async () => {
-  const { readFileSync } = await import('node:fs')
-  const { resolve: resolvePath } = await import('node:path')
-  const runtime = readFileSync(resolvePath(import.meta.dirname, '../../apps/hub/src/builder/run-runtime.ts'), 'utf8')
-  // A page that did not render is admitted with this code, and the service settles it as a build failure.
-  const unrendered = /kind: 'UNRENDERED', code: '([A-Z_]+)'/.exec(runtime)
-  assert.ok(unrendered, 'the UNRENDERED outcome in run-runtime.ts moved; this test must follow it')
-  assert.equal(builderFailureCategory(unrendered[1]), 'APPLICATION_BUILD_FAILED', `${unrendered[1]} settles a build failure but is not declared as one`)
+test('the code a page that did not render is admitted with names the build, not an internal error', async () => {
+  const { UNRENDERED_FAILURE_CODE } = await import(hubModuleUrl('builder/runtime.js'))
+  assert.equal(builderFailureCategory(UNRENDERED_FAILURE_CODE), 'APPLICATION_BUILD_FAILED')
 })
 
 test('a run that spent its red finishes reads as a rejected result', () => {

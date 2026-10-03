@@ -145,16 +145,21 @@ const withoutErrorText = (value: unknown): unknown => {
   return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, failure && key === 'error' ? { name: 'Error', message: FAILURE_MESSAGE } : withoutErrorText(item)]))
 }
 
-const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | undefined): ServerRoute => ({
-  ...route,
-  handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
+type RouteParams = Parameters<ServerRoute['handler']>[0]
+
+// ServerRoute is a union of Mastra's routes, each with its own handler type. A wrapper keeps the
+// route's method, path and schemas and replaces only the handler, which no single member type says.
+const withHandler = (route: ServerRoute, handler: (params: RouteParams) => Promise<unknown>): ServerRoute =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
+  ({ ...route, handler }) as ServerRoute
+
+const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | undefined): ServerRoute =>
+  withHandler(route, async (params) => {
     const served: unknown = await route.handler(params)
     if (!(served instanceof ReadableStream)) return projection ? projection.value(withoutErrorText(served)) : withoutErrorText(served)
     const project = projection?.stream() ?? ((event: unknown) => event)
     return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(withoutErrorText(event))) }))
-  },
-// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-} as ServerRoute)
+  })
 
 type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
 
@@ -188,9 +193,8 @@ const closableStream = (served: ReadableStream<unknown>, follow: (close: () => v
   })
 }
 
-const followedRoute = (route: ServerRoute, controller: AgentController, following: WeakMap<BuilderSession, Set<() => void>>): ServerRoute => ({
-  ...route,
-  handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
+const followedRoute = (route: ServerRoute, controller: AgentController, following: WeakMap<BuilderSession, Set<() => void>>): ServerRoute =>
+  withHandler(route, async (params) => {
     const served: unknown = await route.handler(params)
     if (!(served instanceof ReadableStream)) return served
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
@@ -214,9 +218,7 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
       closers.add(close)
       return () => { closers.delete(close) }
     })
-  },
-// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-} as ServerRoute)
+  })
 
 type GuardedMount = Readonly<{
   mastra: Mastra

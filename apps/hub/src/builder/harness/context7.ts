@@ -1,5 +1,6 @@
 import { MCPClient } from '@mastra/mcp'
 import type { ToolsInput } from '@mastra/core/agent'
+import { fieldOf } from '../../platform/field-of.js'
 
 const CONTEXT7_URL = 'https://mcp.context7.com/mcp'
 const CONTEXT7_RESOLVE_TOOL = 'context7_resolve_library_id'
@@ -34,7 +35,7 @@ const LONG_NUMBER = /\d{6,}/
 const REFUSAL =
   'Refused: send only a library name or id and a short technical question, never company or Project data. Rephrase it generally, or go on without Context7.'
 
-const isCleanText = (value: unknown, maxLength: number): boolean =>
+const isCleanText = (value: unknown, maxLength: number): value is string =>
   typeof value === 'string' && value.length <= maxLength && !/[\r\n]/.test(value) && !EMAIL.test(value) && !LONG_NUMBER.test(value)
 
 /**
@@ -46,17 +47,15 @@ const isCleanText = (value: unknown, maxLength: number): boolean =>
  */
 const outboundArguments = (input: unknown): Readonly<{ query: string; libraryName?: string; libraryId?: string }> | undefined => {
   if (typeof input !== 'object' || input === null) return undefined
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { query, libraryName, libraryId } = input as Record<string, unknown>
+  const query = fieldOf(input, 'query')
+  const libraryName = fieldOf(input, 'libraryName')
+  const libraryId = fieldOf(input, 'libraryId')
   if (!isCleanText(query, MAX_QUERY_LENGTH)) return undefined
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const outbound: { query: string; libraryName?: string; libraryId?: string } = { query: query as string }
+  const outbound: { query: string; libraryName?: string; libraryId?: string } = { query }
   if (libraryName !== undefined) {
     if (!isCleanText(libraryName, MAX_LIBRARY_NAME_LENGTH)) return undefined
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if ((libraryName as string).trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return undefined
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    outbound.libraryName = libraryName as string
+    if (libraryName.trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return undefined
+    outbound.libraryName = libraryName
   }
   if (libraryId !== undefined) {
     if (!(typeof libraryId === 'string' && LIBRARY_ID.test(libraryId))) return undefined

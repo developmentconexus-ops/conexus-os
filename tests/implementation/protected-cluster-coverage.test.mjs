@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { createEmptyDatabase } from './hub-database.mjs'
 
 // The first version of this guard armed only the first test body in each file, so ten files
 // still reached ALTER ROLE without it. Hand-wiring is what failed. This asserts the coverage
@@ -17,8 +18,6 @@ const GUARD_CALL = 'refuseProtectedCluster()'
 // A body may reach the guard through hub-database.mjs, which calls it before it creates anything.
 // Delegating beats hand-wiring, so the helpers count, and the test below keeps them honest.
 const GUARDED = /refuseProtectedCluster\(\)|buildHubDatabase\(|createEmptyDatabase\(/
-const DATABASE_HELPER = 'hub-database.mjs'
-
 const EXEMPT = new Set()
 
 const bodies = (source) => {
@@ -26,9 +25,11 @@ const bodies = (source) => {
   return starts.map((start, index) => source.slice(start, starts[index + 1] ?? source.length))
 }
 
-test('the shared database helper refuses a protected cluster before it creates anything', () => {
-  const source = readFileSync(resolve(IMPLEMENTATION, DATABASE_HELPER), 'utf8')
-  assert.match(source, /await refuseProtectedCluster\(\)[\s\S]*CREATE DATABASE/)
+test('the shared database helper refuses a cluster it cannot prove disposable before it creates anything', async (t) => {
+  const keep = { ...process.env }
+  Object.assign(process.env, { CONEXUS_TEST_DB_HOST: '127.0.0.1', CONEXUS_TEST_DB_PORT: '1', CONEXUS_TEST_DB_NAME: 'postgres', CONEXUS_TEST_DB_USER: 'postgres', CONEXUS_TEST_DB_PASSWORD: 'unused', CONEXUS_PROTECTED_DATABASES: 'conexus_s7' })
+  t.after(() => { for (const name of Object.keys(process.env)) if (!(name in keep)) delete process.env[name]; Object.assign(process.env, keep) })
+  await assert.rejects(createEmptyDatabase(t), /PROTECTED_CLUSTER_UNVERIFIED: could not inspect 127\.0\.0\.1:1/)
 })
 
 test('every test body that alters a shared role refuses a protected cluster first', () => {

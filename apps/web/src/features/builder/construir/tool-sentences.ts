@@ -14,13 +14,16 @@ const sentence = (running: string, done: string, ask: string, kind: ToolKind): S
 // workspace entry pulls Node's `os` and `path`), so the names are checked as types only.
 type WorkspacePrefix = `${typeof WORKSPACE_TOOLS_PREFIX}_`
 type BareWorkspaceTool = WorkspaceToolName extends `${WorkspacePrefix}${infer Name}` ? Name : never
+// The Builder has no screen to drive and no subagents, so those Mastra tools never reach the conversation.
+type OfferedWorkspaceTool = Exclude<BareWorkspaceTool, `computer_${string}`>
+type OfferedBuiltinTool = Exclude<BuiltinToolId, 'subagent'>
 
 const readFile = sentence('Lendo um arquivo', 'Leu um arquivo', 'ler um arquivo', 'ler')
 const editFile = sentence('Editando um arquivo', 'Editou um arquivo', 'editar um arquivo', 'editar')
 const grep = sentence('Buscando no código', 'Buscou no código', 'buscar no código', 'buscar')
 const deleteFile = sentence('Apagando um arquivo', 'Apagou um arquivo', 'apagar um arquivo', 'outros')
 
-const workspaceSentences: Readonly<Partial<Record<BareWorkspaceTool, Sentence>>> = {
+const workspaceSentences: Readonly<Record<OfferedWorkspaceTool, Sentence>> = {
   read_file: readFile,
   write_file: sentence('Escrevendo um arquivo', 'Escreveu um arquivo', 'escrever um arquivo', 'editar'),
   edit_file: editFile,
@@ -38,7 +41,7 @@ const workspaceSentences: Readonly<Partial<Record<BareWorkspaceTool, Sentence>>>
   mkdir: sentence('Criando uma pasta', 'Criou uma pasta', 'criar uma pasta', 'outros'),
 }
 
-const builtinSentences: Readonly<Partial<Record<BuiltinToolId, Sentence>>> = {
+const builtinSentences: Readonly<Record<OfferedBuiltinTool, Sentence>> = {
   ask_user: sentence('Perguntando a você', 'Perguntou a você', 'perguntar a você', 'outros'),
   submit_plan: sentence('Enviando o plano', 'Enviou o plano', 'enviar o plano', 'outros'),
   task_write: sentence('Organizando as tarefas', 'Organizou as tarefas', 'organizar as tarefas', 'outros'),
@@ -117,19 +120,9 @@ const lookup = (toolName: string): Sentence | undefined => {
 /** The permission a pending call asks for, as in "O agente quer executar um comando". */
 export const toolRequest = (toolName: string): string => lookup(toolName)?.ask ?? 'usar uma ferramenta'
 
-// A name that still falls all the way through to the generic sentence names a real gap in the table
-// above; logging it once, instead of only showing "Usou uma ferramenta", is what makes that gap
-// findable from a live session instead of only from a source read.
-const loggedUnmapped = new Set<string>()
-
 export const toolSentence = (toolName: string, running: boolean): string => {
   const sentence = lookup(toolName)
   if (sentence) return running ? sentence.running : sentence.done
-  if (!loggedUnmapped.has(toolName)) {
-    loggedUnmapped.add(toolName)
-    // biome-ignore lint/suspicious/noConsole: deliberate, the only record of which real tool id has no sentence yet.
-    console.debug(`[construir] no pt-BR sentence for tool "${toolName}"; add it to tool-sentences.ts`)
-  }
   return running ? 'Usando uma ferramenta' : 'Usou uma ferramenta'
 }
 

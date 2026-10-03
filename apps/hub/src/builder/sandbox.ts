@@ -3,6 +3,7 @@ import { Workspace, WORKSPACE_TOOLS } from '@mastra/core/workspace'
 import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
 import { FileNotFoundError, Sandbox } from 'e2b'
+import { fieldOf } from '../platform/field-of.js'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
@@ -85,13 +86,14 @@ export class ConexusRunSandbox extends E2BSandbox {
       return { success: ran.exitCode === 0, exitCode: ran.exitCode, stdout: ran.stdout, stderr: ran.stderr, executionTimeMs: Date.now() - startedAt }
     } catch (error) {
       // The SDK throws for a nonzero exit; the caller reads the exit code.
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const failed = error as { exitCode?: unknown; stdout?: unknown; stderr?: unknown }
+      const exitCode = fieldOf(error, 'exitCode')
+      const stdout = fieldOf(error, 'stdout')
+      const stderr = fieldOf(error, 'stderr')
       return {
         success: false,
-        exitCode: typeof failed.exitCode === 'number' ? failed.exitCode : 1,
-        stdout: typeof failed.stdout === 'string' ? failed.stdout : '',
-        stderr: typeof failed.stderr === 'string' ? failed.stderr : '',
+        exitCode: typeof exitCode === 'number' ? exitCode : 1,
+        stdout: typeof stdout === 'string' ? stdout : '',
+        stderr: typeof stderr === 'string' ? stderr : '',
         executionTimeMs: Date.now() - startedAt,
       }
     }

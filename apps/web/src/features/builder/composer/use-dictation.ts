@@ -15,11 +15,16 @@ type Recognition = {
 }
 type RecognitionConstructor = new () => Recognition
 
+declare global {
+  interface Window {
+    SpeechRecognition?: RecognitionConstructor
+    webkitSpeechRecognition?: RecognitionConstructor
+  }
+}
+
 const recognitionConstructor = (): RecognitionConstructor | null => {
   if (typeof window === 'undefined') return null
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const scope = window as unknown as Readonly<{ SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }>
-  return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null
 }
 
 export type Dictation = Readonly<{ supported: boolean; listening: boolean; error: string | null; toggle: () => void }>

@@ -52,8 +52,7 @@ export const defaultCliproxyStateDir = (): string =>
 export const verifyCliproxyBinary = async (binary: string, sha256: string): Promise<void> => {
   const hash = createHash('sha256')
   try {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    for await (const chunk of createReadStream(binary)) hash.update(chunk as Buffer)
+    for await (const chunk of createReadStream(binary)) hash.update(chunk)
   } catch {
     throw new Error('GOOGLE_AI_PRO_BINARY_REFUSED')
   }

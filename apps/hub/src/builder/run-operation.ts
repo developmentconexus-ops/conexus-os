@@ -5,6 +5,8 @@ import type { ServerManifest, ValueSchema } from '../app-runner/server-manifest.
 import type { Caller } from '../platform/caller.js'
 import { commandEvidence } from './application-starter.js'
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
 /** One file of the candidate's built `conexus-server/` tree, as the runner takes it. */
 type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
 
@@ -60,8 +62,7 @@ const operationShape = (schema: ValueSchema, value: unknown): OperationShape => 
       lists[path || '/'] = (lists[path || '/'] ?? 0) + items.length
       for (const item of items) count(node.items, item, `${path}/*`)
     } else if (node.type === 'object') {
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const record = typeof current === 'object' && current !== null ? current as Record<string, unknown> : {}
+      const record = isRecord(current) ? current : {}
       for (const [key, property] of Object.entries(node.properties)) count(property, record[key], `${path}/${key}`)
     } else {
       const fill = fields[path || '/']

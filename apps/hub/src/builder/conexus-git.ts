@@ -334,9 +334,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       if (!await hasCommit(git, projectId, base) || !await hasCommit(git, projectId, result)) return null
       const fields = (await git(projectId, ['diff-tree', '-r', '-z', '-M', '--no-commit-id', '--name-status', base, result])).toString('utf8').split('\0')
       const changes: GitChange[] = []
-      for (let at = 0; at < fields.length && fields[at];) {
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        const status = fields[at] as string
+      for (let at = 0, status = fields[at]; status; status = fields[at]) {
         const renamed = status.startsWith('R') || status.startsWith('C')
         const previousPath = renamed ? fields[at + 1] ?? '' : null
         const path = fields[renamed ? at + 2 : at + 1] ?? ''

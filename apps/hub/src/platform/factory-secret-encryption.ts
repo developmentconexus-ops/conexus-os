@@ -12,11 +12,11 @@ const ENVELOPE_PREFIX = 'mastra:factory-secret:v1:'
 const ALGORITHM = 'aes-256-gcm'
 const IV_BYTES = 12
 
-type DecryptedFactorySecret<T> = Readonly<{ value: T; needsReencryption: boolean }>
+type DecryptedFactorySecret = Readonly<{ value: unknown; needsReencryption: boolean }>
 
 export type FactorySecretEncryption = Readonly<{
   encrypt<T>(value: T): Promise<string>
-  decrypt<T>(value: unknown): Promise<DecryptedFactorySecret<T>>
+  decrypt(value: unknown): Promise<DecryptedFactorySecret>
 }>
 
 export type FactorySecretEncryptionKey = Readonly<{ id: string; key: Uint8Array }>
@@ -37,10 +37,8 @@ const validateKey = ({ id, key }: FactorySecretEncryptionKey): Buffer => {
 
 const isEnvelopeShaped = (value: unknown): value is Envelope =>
   typeof value === 'object' && value !== null &&
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof (value as Envelope).keyId === 'string' && typeof (value as Envelope).iv === 'string' &&
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof (value as Envelope).ciphertext === 'string' && typeof (value as Envelope).tag === 'string'
+  'keyId' in value && typeof value.keyId === 'string' && 'iv' in value && typeof value.iv === 'string' &&
+  'ciphertext' in value && typeof value.ciphertext === 'string' && 'tag' in value && typeof value.tag === 'string'
 
 const parseEnvelope = (value: string): Envelope => {
   let parsed: unknown
@@ -77,10 +75,9 @@ export const createFactorySecretEncryption = (config: FactorySecretEncryptionCon
       }
       return `${ENVELOPE_PREFIX}${Buffer.from(JSON.stringify(envelope), 'utf8').toString('base64url')}`
     },
-    async decrypt<T>(value: unknown): Promise<DecryptedFactorySecret<T>> {
+    async decrypt(value: unknown): Promise<DecryptedFactorySecret> {
       if (typeof value !== 'string' || !value.startsWith(ENVELOPE_PREFIX)) {
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        return { value: structuredClone(value) as T, needsReencryption: true }
+        return { value: structuredClone(value), needsReencryption: true }
       }
       const envelope = parseEnvelope(value)
       const key = keys.get(envelope.keyId)
@@ -89,8 +86,7 @@ export const createFactorySecretEncryption = (config: FactorySecretEncryptionCon
         const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(envelope.iv, 'base64url'))
         decipher.setAuthTag(Buffer.from(envelope.tag, 'base64url'))
         const plaintext = Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext, 'base64url')), decipher.final()]).toString('utf8')
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        return { value: JSON.parse(plaintext) as T, needsReencryption: envelope.keyId !== config.primary.id }
+        return { value: JSON.parse(plaintext), needsReencryption: envelope.keyId !== config.primary.id }
       } catch {
         throw new Error('[FactorySecretEncryption] Unable to decrypt encrypted value.')
       }

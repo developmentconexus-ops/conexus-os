@@ -497,11 +497,7 @@ const toMessageEntry = (message: MastraDBMessage, options: Readonly<{ streaming?
   }
 }
 
-const lastIndexWhere = <T,>(items: readonly T[], matches: (item: T) => boolean): number => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  for (let index = items.length - 1; index >= 0; index -= 1) if (matches(items[index] as T)) return index
-  return -1
-}
+const lastIndexWhere = <T,>(items: readonly T[], matches: (item: T) => boolean): number => items.map(matches).lastIndexOf(true)
 
 const latestAssistantIndex = (entries: readonly TranscriptEntry[]): number =>
   lastIndexWhere(entries, (entry) => entry.kind === 'message' && entry.message.role === 'assistant')
@@ -598,9 +594,7 @@ const toolCallFromPart = (part: MessagePart | undefined): RuntimeTool | undefine
 
 const toolPart = (tool: RuntimeTool): MessagePart => tool.status === 'running'
   ? { type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args } }
-  // Mastra's part type omits isError, which an errored result carries.
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  : { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args, result: tool.result, ...(tool.status === 'error' ? { isError: true } : {}) } as ToolInvocationPart['toolInvocation'] }
+  : { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args, result: tool.result, ...(tool.status === 'error' ? { isError: true } : {}) } }
 
 const withTool = (state: TranscriptState, toolCallId: string, update: (tool: RuntimeTool) => RuntimeTool, seed?: Partial<RuntimeTool>): TranscriptState => {
   const entries = [...state.entries]

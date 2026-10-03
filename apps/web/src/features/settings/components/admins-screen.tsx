@@ -8,7 +8,7 @@ import { type FormEvent, useId, useState } from 'react'
 import { accessContextQueryKey, getAccessContext } from '../../identity-access/api'
 import { administratorErrorMessage } from '../error-messages'
 import {
-  type Administrator, administratorsQueryKey, grantAdministrator, type InstallationRequestError, installationQueryKey,
+  type Administrator, administratorsQueryKey, grantAdministrator, InstallationRequestError, installationQueryKey,
   listAdministrators, revokeAdministrator,
 } from '../installation-api'
 import { PageHeader } from './page-header'
@@ -28,8 +28,7 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
   const grant = useMutation({
     mutationFn: () => grantAdministrator(email.trim()),
     onSuccess: () => { setEmail(''); setMessage(null); onGranted() },
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    onError: (error) => setMessage(administratorErrorMessage((error as InstallationRequestError).type)),
+    onError: (error) => setMessage(administratorErrorMessage(error instanceof InstallationRequestError ? error.type : null)),
   })
   return <form className="cxs-form" onSubmit={(event: FormEvent) => { event.preventDefault(); grant.mutate() }}>
     <label htmlFor={emailId}>E-mail</label>
@@ -56,8 +55,7 @@ export function AdminsScreen() {
       refresh()
       if (accountId === access.data?.account.accountId) void navigate({ to: '/settings/account' })
     },
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    onError: (error) => setRevokeMessage(administratorErrorMessage((error as InstallationRequestError).type)),
+    onError: (error) => setRevokeMessage(administratorErrorMessage(error instanceof InstallationRequestError ? error.type : null)),
   })
 
   return <main className="cxs-page">

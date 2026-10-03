@@ -254,6 +254,29 @@ const tailwindRule = async root => {
   return token => classNamesIn(compiler.build([token])).has(token)
 }
 
+// A var(--cx-*) a stylesheet reads must be a custom property some scanned file defines, in CSS or in a style prop, so a typo or a deleted token
+// fails here instead of painting nothing.
+const TOKEN_DEFINITION = /(--cx-[\w-]+)['"]?\s*:/g
+const TOKEN_USE = /var\((--cx-[\w-]+)/g
+const tokenViolations = (files, contentOf) => {
+  if (!files.some(path => TOKEN_FILES.has(path))) return []
+  const defined = new Set(files.flatMap(path => [...contentOf(path).matchAll(TOKEN_DEFINITION)].map(match => match[1])))
+  return files.filter(path => path.endsWith('.css')).flatMap(path => [...contentOf(path).matchAll(TOKEN_USE)]
+    .filter(match => !defined.has(match[1]))
+    .map(match => ({ path, line: lineOf(contentOf(path), match.index), message: `uses undefined token ${match[1]}; define it in packages/brand/src/tokens.css or where it is used` })))
+}
+
+// The Mastra theme maps Mastra's own color variables onto the brand: each must be set to a --cx-* token.
+const MASTRA_THEME = 'apps/web/src/mastra-theme.css'
+const MASTRA_REPOINTED = [...[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map(step => `--brand-green-${step}`), '--accent1', '--positive1', '--notice-success', '--badge-green', '--color-emerald-400']
+const repointViolations = (files, contentOf) => {
+  if (!files.includes(MASTRA_THEME)) return []
+  const text = contentOf(MASTRA_THEME)
+  return MASTRA_REPOINTED
+    .filter(name => !new RegExp(`${name}:\\s*[^;]*--cx-`).test(text))
+    .map(name => ({ path: MASTRA_THEME, line: 1, message: `${name} is not re-pointed to a --cx-* token` }))
+}
+
 const classCheck = (files, contentOf, vendor, generates) => {
   const defined = new Map()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
@@ -299,8 +322,9 @@ const scanTree = (root, generates) => {
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
   const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
   const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
+  const tokenUses = [...tokenViolations(files, contentOf), ...repointViolations(files, contentOf)]
   const classResult = classCheck(files, contentOf, vendorClasses(root), generates)
-  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...classResult.violations], unused: classResult.unused }
+  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...tokenUses, ...classResult.violations], unused: classResult.unused }
 }
 
 const main = async () => {

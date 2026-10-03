@@ -52,35 +52,6 @@
   "overrides": [
     {
       "includes": [
-        "apps/hub/src/identity-access/routes.ts"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noImplicitAnyLet": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "apps/web/src/main.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noAutofocus": "off",
-            "noStaticElementInteractions": "off",
-            "useButtonType": "off"
-          },
-          "correctness": {
-            "useExhaustiveDependencies": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
         "apps/web/src/**",
         "packages/*/src/**"
       ],
@@ -108,12 +79,162 @@
     },
     {
       "includes": [
-        "scripts/builder-eval/checks.mjs"
+        "apps/*/src/**",
+        "packages/*/src/**"
       ],
       "linter": {
         "rules": {
+          "nursery": {
+            "noUnsafeTypeAssertion": "error"
+          },
           "suspicious": {
-            "noControlCharactersInRegex": "off"
+            "noEmptyBlockStatements": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/*/src/**",
+        "packages/*/src/**",
+        "scripts/**",
+        ".agents/**"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveLinesPerFunction": {
+              "level": "error",
+              "options": {
+                "maxLines": 80
+              }
+            }
+          },
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/**",
+        "!apps/web/src/app/http.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Principle 6: call the Hub through hubFetch in app/http.ts."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/hub/src/**",
+        "!apps/hub/src/platform/config.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        ".agents/skills/verify/scripts/control.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 563
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/hub/src/builder/run-runtime.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 974
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/features/builder/transcript.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 619
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "scripts/builder-eval/run.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 826
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "scripts/conexus-verify.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": {
+                "maxLines": 684
+              }
+            }
           }
         }
       }

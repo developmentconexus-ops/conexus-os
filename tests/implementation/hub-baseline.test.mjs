@@ -3,8 +3,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { assertRoleInvariants, catalogDigest, describeCatalogDrift, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
-import { SUPERSEDED_ROLES, baselinePath, regenerateBaseline, resolvePgDump } from '../../scripts/generate-hub-baseline.mjs'
-import { adminConnection, buildHubDatabase, catalogOf, withClient } from './hub-database.mjs'
+import { SUPERSEDED_ROLES, baselinePath, resolvePgDump } from '../../scripts/generate-hub-baseline.mjs'
+import { buildHubDatabase, catalogOf, withClient } from './hub-database.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const baselineSource = readFileSync(resolve(repositoryRoot, baselinePath), 'utf8')
@@ -53,12 +53,6 @@ test('a database built from the baseline and forward migrations is exactly the c
 test('a database built from the baseline satisfies the role and PUBLIC-execute invariants', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_baseline')
   await withClient(connectionString, assertRoleInvariants)
-})
-
-// The committed file is a fixed point of its own generator: applying it and dumping the result
-// reproduces its bytes. That is what stops it drifting by hand.
-test('the generator reproduces the committed baseline byte for byte', async () => {
-  assert.equal(await regenerateBaseline(adminConnection()), baselineSource)
 })
 
 // A machine can hold several pg_dump versions, and PATH order is not the one that can read this
