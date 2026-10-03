@@ -21,7 +21,7 @@ How Conexus screens look, read and are proved: the web app (`apps/web`), the bra
 
 ## What a check decides
 
-`npm run web:style:check` decides raw colors, fonts, native `title`, the CSRF cookie and every class a screen writes. Run it and fix what it prints; do not restate or work around it. `npm run verify:quick` runs it with the typechecks.
+`npm run web:style:check` decides raw colors, fonts, native `title`, the CSRF cookie and every class a screen writes. Run it and fix what it prints; do not restate or work around it.
 
 ## Prove it
 
