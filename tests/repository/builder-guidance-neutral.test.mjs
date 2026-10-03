@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import test from 'node:test'
+import { RequestContext } from '@mastra/core/request-context'
+import { hubModuleUrl } from '../implementation/hub-build.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 
@@ -37,13 +39,11 @@ const filesUnder = (directory, keep = () => true) =>
   })
 
 const TEXT_EXTENSION = /\.(md|tsx?|mjs|json|css|html)$/
-// Every text the Builder reads: the Sankhya guide and the brief around it, the tool descriptions, the
-// Builder prompt, the skills with their reference examples, the starter AGENTS.md and the
-// starter template's example files.
+// Every text the Builder reads: the Sankhya guide helper, the Builder prompt, the skills with their
+// reference examples, the starter AGENTS.md and the starter template's example files. The wording
+// built into the Hub (the connector brief and the tool descriptions) is read from the compiled Hub's
+// own exports, by hubTexts below.
 const BUILDER_TEXTS = [
-  'apps/hub/src/connectors/builder-brief.ts',
-  'apps/hub/src/connectors/builder-tool.ts',
-  'apps/hub/src/builder/harness/tools.ts',
   'apps/hub/src/builder/handler-kit/sankhya.ts',
   'apps/hub/src/builder/starter/AGENTS.md',
   ...filesUnder('apps/hub/src/builder/harness/prompt'),
@@ -51,11 +51,32 @@ const BUILDER_TEXTS = [
   ...filesUnder('apps/hub/starter-template/files/app/src', (path) => TEXT_EXTENSION.test(path) && !path.includes('/components/ui/')),
 ]
 
-const findLeaks = (files) =>
-  files.flatMap((file) => {
-    const text = readFileSync(resolve(root, file), 'utf8')
-    return DENYLIST.filter((term) => pattern(term).test(text)).map((term) => `${file} contains "${term}"`)
-  })
+const hubTexts = async () => {
+  const { createCheckTool, createRunOperationTool, createSubmitPlanTool, createAskUserTool } = await import(hubModuleUrl('builder/harness/tools.js'))
+  const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
+  const { openBuilderRun, createConnectorFetchTools } = await import(hubModuleUrl('connectors/builder-tool.js'))
+  const observability = { startSpan: () => ({ end() {}, error() {} }) }
+  const briefWith = (listBindings) => createConnectorBrief({ store: { listBindings }, observability })
+  const briefs = []
+  const fetchDescriptions = []
+  for (const listBindings of [async () => [{ name: 'erp', connectorId: 'sankhya' }], async () => [], async () => { throw new Error('down') }]) {
+    const run = await openBuilderRun({ brief: briefWith(listBindings), projectId: '00000000-0000-4000-8000-000000000001', builderRunId: '00000000-0000-4000-8000-000000000002' })
+    briefs.push(run.brief)
+    const requestContext = new RequestContext()
+    run.bind(requestContext)
+    fetchDescriptions.push(createConnectorFetchTools({})({ requestContext }).connector_fetch.description)
+    run.end()
+  }
+  return {
+    'the Hub tool descriptions': [createCheckTool(async () => ({})), createRunOperationTool(async () => ({})), createSubmitPlanTool('/checkout'), createAskUserTool()].map((tool) => tool.description).join('\n'),
+    'the connector briefs': briefs.join('\n'),
+    'the connector_fetch description': fetchDescriptions[0],
+  }
+}
+
+const leaksIn = (name, text) => DENYLIST.filter((term) => pattern(term).test(text)).map((term) => `${name} contains "${term}"`)
+
+const findLeaks = (files) => files.flatMap((file) => leaksIn(file, readFileSync(resolve(root, file), 'utf8')))
 
 test('the list of Builder texts covers the guide, the prompt, the skills, the starter and the tool descriptions', () => {
   for (const expected of [
@@ -75,6 +96,12 @@ test('the list of Builder texts covers the guide, the prompt, the skills, the st
 
 test('no text the Builder reads holds a word from a fixed case or a held out request', () => {
   assert.deepEqual(findLeaks(BUILDER_TEXTS), [])
+})
+
+test('no wording the Hub gives the Builder holds a word from a fixed case or a held out request', async () => {
+  const texts = await hubTexts()
+  for (const [name, text] of Object.entries(texts)) assert.ok(text.length > 100, `${name} is empty`)
+  assert.deepEqual(Object.entries(texts).flatMap(([name, text]) => leaksIn(name, text)), [])
 })
 
 test('the matcher bites: case words are found whole or as a stem, and ordinary words are not', () => {
