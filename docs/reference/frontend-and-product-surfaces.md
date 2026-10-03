@@ -47,7 +47,6 @@ redirect, not a screen; it is labeled as one below.
 /workspaces/$workspaceId/projects/new      create a Project
 /workspaces/$workspaceId/settings/people   the roster: members and pending invitations
 /projects/$projectId                       redirect: opens the Project's latest conversation, or starts one
-/projects/$projectId/build                 compatibility redirect to /projects/$projectId
 /projects/$projectId/c/$conversationId     the Build surface (33.6)
 /projects/$projectId/settings              About the Project: name, where its code lives, archive state
 /projects/$projectId/settings/access       Acesso ao aplicativo: application-only invitations (contract.md 3.1)

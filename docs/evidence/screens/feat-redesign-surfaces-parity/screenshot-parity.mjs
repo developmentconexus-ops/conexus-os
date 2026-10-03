@@ -97,7 +97,7 @@ const page = await context.newPage()
 await mockAll(page)
 
 await shots(page, 'hub-home', `/workspaces/${workspaceId}/projects`)
-await page.goto(`${origin}/projects/${projectId}/build`)
+await page.goto(`${origin}/projects/${projectId}`)
 await page.getByTitle('Prévia do aplicativo').waitFor()
 await page.waitForTimeout(500)
 await shots(page, 'hub-previa', null, { navigate: false })

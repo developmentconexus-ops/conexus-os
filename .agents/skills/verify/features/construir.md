@@ -23,7 +23,7 @@ Construir is the Project's conversation with the Builder. The person sends a mes
 
 - Start a Project from the Workspace home's composer (see [projects](./projects.md)). Construir opens on the new conversation.
 - Choose a Project card on the Workspace home, then `Construir` in the Project rail.
-- Open `/projects/<id>/build` or `/projects/<id>/c/<conversation id>`.
+- Open `/projects/<id>` or `/projects/<id>/c/<conversation id>`.
 
 ## Driving it with control.mjs
 

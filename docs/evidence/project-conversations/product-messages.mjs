@@ -47,7 +47,7 @@ const say = async (title, text) => {
 }
 
 try {
-  await page.goto(`${base}/projects/${projectId}/build`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${base}/projects/${projectId}`, { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { name: 'Conversas' }).waitFor({ timeout: 120_000 })
 
   await page.locator('.builder-model-select option').nth(1).waitFor({ state: 'attached', timeout: 120_000 })
