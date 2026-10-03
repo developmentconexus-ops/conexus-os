@@ -10,8 +10,8 @@ owner document decides, and the disagreement is a finding.
 | --- | --- |
 | A Project is a Mastra thread per conversation, Conexus-owned working state and a Git source; the Builder is our own Mastra agent controller, off the Factory | C-020, C-032 in the [decision register](../../../../docs/decisions/index.md), [Builder reference](../../../../docs/reference/builder-c020-mastra-native.md) |
 | A conversation owns one E2B sandbox and one branch mirror, kept across its turns | [spec 0002 amendment](../../../../docs/tasks/specs/0002-builder-own-harness/index.md#amendment-2026-09-29-a-conversation-owns-its-sandbox-and-its-branch) |
-| A run's states, phases and results come from one generated vocabulary that the Hub, the web app and SQL import | [`builder-run-vocabulary`](../../../../apps/hub/src/generated/builder-run-vocabulary.ts) |
-| The agent's "done" is one checked verdict on the candidate; a red check goes back to the agent in the same run | [`candidate-gate.ts`](../../../../apps/hub/src/builder/candidate-gate.ts) |
+| A run's states, phases and results come from one generated vocabulary that the Hub, the web app and SQL import | [roadmap, phase 1 guards](../../../../docs/roadmap.md#order-of-work-to-q5); generated as `builder-run-vocabulary.ts` |
+| The agent's "done" is one checked verdict on the candidate; a red check goes back to the agent in the same run | [roadmap, phase 1 fixes](../../../../docs/roadmap.md#order-of-work-to-q5); built in `candidate-gate.ts` |
 | An external system is one integrator; a Project reads it through its own bindings and one executor, and every call is recorded | C-029, C-030 |
 | Generated apps use the app stack v2 | C-033 |
 | Conexus designs its screens; `@mastra/playground-ui` supplies parts | C-031 |

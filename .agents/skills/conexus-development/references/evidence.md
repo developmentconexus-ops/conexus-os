@@ -13,8 +13,9 @@ The Hub and the runner export traces, logs and metrics over OpenTelemetry (spec 
 - Recent traces: `curl -s -u admin:admin 'http://127.0.0.1:3000/api/datasources/proxy/uid/tempo/api/search?limit=20'`.
 - One trace: `.../uid/tempo/api/traces/<traceId>`. Every Hub log line carries its `trace_id`, so a
   log code leads to its trace.
-- A trace shows each step's time and every outbound call (E2B, model, vendor). Use it before reading
-  code to explain slowness or a failure.
+- Today the traces hold the Hub's HTTP requests and their outbound HTTP calls (E2B among them),
+  with each one's time. Agent steps, model calls and tool calls are not in Tempo yet (spec 0007
+  slices 2 to 4); read them from Mastra's spans below.
 - Traces exist only from when telemetry was turned on.
 
 ## Mastra's own record
@@ -37,7 +38,8 @@ always has a code.
   and drives the web UI. Its model and E2B are fake, so it cannot prove a Builder turn.
 - A Builder turn is proved on the local Conexus with a real model and a real E2B sandbox, on a cheap
   model such as Haiku. Every E2B use needs the operator's ok.
-- `npm run rb:builder:live` runs the live harness flows.
+- `npm run rb:builder:live` probes the real E2B sandbox only. It calls no model, so it never proves a
+  Builder turn.
 
 ## Reference code and docs
 

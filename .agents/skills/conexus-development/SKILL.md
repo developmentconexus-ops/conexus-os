@@ -73,7 +73,7 @@ operator. The [stop conditions](../../../docs/development/delivery.md#stop-then-
 Code subagents run on Sonnet 5.5; Opus 5.5 only for design across modules, concurrency, a subtle algorithm
 or security, with the reason in the prompt. The operator's `~/.claude/pstack-models.md` overrides
 this. The root session reads every delegate's diff and writes its own summary from it. A delegate
-prompt points at files, names its worktree and its disjoint file set, forbids merge, reset, clean,
+prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files, names its worktree and its disjoint file set, forbids merge, reset, clean,
 stash, force-push and `git worktree prune`, and says to stop on a material fork.
 
 ## Keep state out of this skill
