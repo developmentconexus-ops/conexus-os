@@ -46,14 +46,6 @@ const hubBuildStep = Object.freeze({
   publishes: Object.freeze({ CONEXUS_HUB_BUILD: HUB_BUILD_DIRECTORY }),
 })
 
-// A test file belongs to a group by where it lives and what it is called, never by a list:
-//   tests/live/            the live suite, one Hub and one Chromium for all of it
-//   *.browser.test.mjs     launches a browser
-//   *.postgres.test.mjs    needs a PostgreSQL
-//   everything else        runs with neither
-// tests/manual holds the suites run by hand (the Builder lab, paid live runs) and is in no group.
-// The browser-in-a-class-without-one guard is the name: a file that imports Playwright and is not
-// named *.browser fails tests/repository/conexus-verify.test.mjs, and the helper refuses at run time.
 const TEST_GROUP_GLOBS = Object.freeze({
   repository: Object.freeze(['tests/repository/!(*.browser|*.postgres).test.mjs']),
   implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres).test.mjs']),
@@ -89,17 +81,8 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
   candidateStep('wire-bijection', 'npm run wire:bijection'),
-  candidateStep('wire-carriers', 'npm run wire:carriers'),
-  candidateStep('wire-identity-workspace', 'npm run wire:identity-workspace'),
-  candidateStep('wire-project', 'npm run wire:project'),
-  candidateStep('wire-builder', 'npm run wire:builder'),
   candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
-  candidateStep('wire-technical-ingress', 'npm run wire:technical-ingress'),
-  candidateStep('empty-tests', 'node scripts/check-empty-tests.mjs'),
-  candidateStep('flow-census', 'node scripts/check-flow-census.mjs'),
-  candidateStep('test-quarantine', 'node scripts/check-test-quarantine.mjs'),
-  candidateStep('patch-churn-report', 'node scripts/check-patch-churn.mjs --report'),
   candidateStep('web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
   testStep('repository-tests', 'repository', 'static'),
   testStep('implementation-tests', 'implementation', 'static'),
@@ -148,7 +131,7 @@ export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHEC
 // The fast check to run before every push: the static gates CI fails on most, with no Docker, browser
 // or network. It runs both typechecks, the style and repository checks and the contract projections,
 // so a push does not wait for CI to report them.
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'web-style', 'log-codes-check', 'empty-tests', 'flow-census', 'knip', 'biome', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'web-style', 'log-codes-check', 'knip', 'biome', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

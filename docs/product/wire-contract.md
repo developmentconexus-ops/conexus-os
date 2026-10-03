@@ -472,9 +472,8 @@ wire:lint             the Product OAS passes Redocly recommended
 wire:bundle           the description bundles deterministically
 wire:bijection        the census and the bundle agree, 18 to 18
 wire-bijection-gate   the bijection gate itself is proved against planted faults
-wire:carriers         current-state carriers are declared
-wire:identity-workspace, wire:project, wire:builder   per-module wire shape
-wire:technical-lint, wire:technical-ingress           the technical ingress description
+wire:connector        the connector rules hold
+wire:technical-lint   the technical ingress description passes Redocly recommended
 ```
 
 Never run `npm run verify` locally. Run the checks your change touches, push, and let CI

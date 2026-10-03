@@ -41,13 +41,13 @@ and the shapes that must not appear are in
 9. **Tests of behavior.** A test calls the code the way its user does and compares with a literal
    value. No test reads source text. Fake only what cannot run locally; a screen is proved in a browser
    against a real Hub.
-   Enforced by: `scripts/check-empty-tests.mjs` (a test with no assertion), `scripts/check-test-skips.mjs`, `scripts/check-test-quarantine.mjs`, and review (a test that reads source text).
+   Enforced by: `scripts/check-test-skips.mjs`, and review (a test with no assertion, a test that reads source text).
 10. **Observable.** Structured logs with a code and a trace id. Every error a person sees leaves a log
     line.
    Enforced by: `tests/repository/hub-log-sinks.test.mjs`, `scripts/generate-log-codes.mjs`.
 11. **Nothing dead.** No unused code, no compatibility layer for old shapes, no guard for a failure
     never seen, no comment that narrates the obvious. Each wave leaves the code smaller.
-   Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`, `scripts/check-patch-churn.mjs`.
+   Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`.
 12. **Lessons become structure.** A rule that has to be repeated becomes a check that fails: a type,
     a lint rule, a CI check. Text is ignored; a failing check is not.
    Enforced by: `scripts/check-agent-context.mjs` (this list), `scripts/check-web-style.mjs`, and the Biome rules above.

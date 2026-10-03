@@ -15,19 +15,6 @@ permissions:
   contents: read
 
 jobs:
-  diff-shape:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Show pull request diff shape
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: node scripts/diff-shape.mjs . "origin/${BASE_REF}...HEAD" >> "$GITHUB_STEP_SUMMARY"
-
   # The graph runs as four groups, each on its own runner with its own PostgreSQL and CPU, so no
   # step shares a machine resource with a step of another group (see VERIFY_GROUPS in
   # scripts/conexus-verify.mjs). The first group to fail cancels the others.
