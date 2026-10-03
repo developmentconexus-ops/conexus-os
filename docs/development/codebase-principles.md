@@ -50,7 +50,7 @@ and the shapes that must not appear are in
    Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`.
 12. **Lessons become structure.** A rule that has to be repeated becomes a check that fails: a type,
     a lint rule, a CI check. Text is ignored; a failing check is not.
-   Enforced by: `scripts/check-agent-context.mjs` (links and size caps), `scripts/check-web-style.mjs`, and the Biome rules above.
+   Enforced by: `scripts/check-agent-context.mjs` (links, size caps and the two workflow security guards), `scripts/check-web-style.mjs`, and the Biome rules above.
 
 A finding against one of these names the property by number, the file and line, and the owner that
 fixes it: the change under review, or the roadmap wave that owns the shape.

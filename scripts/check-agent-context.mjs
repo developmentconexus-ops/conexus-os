@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -96,6 +96,16 @@ function brokenLink(path, target, text, root) {
   return anchors.has(decodeURIComponent(anchor).toLowerCase()) ? null : `broken link: ${target} (no heading #${anchor} in ${resolved})`
 }
 
+export function checkWorkflows(tracked, root) {
+  return tracked.filter(path => path.startsWith('.github/workflows/') && lstatSync(join(root, path)).isFile()).flatMap(path => {
+    const text = readFileSync(join(root, path), 'utf8')
+    return [
+      ...(text.includes('pull_request_target') ? [{ where: path, message: 'unsafe pull_request_target trigger' }] : []),
+      ...(/^\s*contents:\s*write\s*$/m.test(text) ? [{ where: path, message: 'workflow has contents: write permission' }] : []),
+    ]
+  })
+}
+
 export function checkRepository(root) {
   const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {}
   const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
@@ -103,6 +113,7 @@ export function checkRepository(root) {
   const files = tracked.filter(inScope)
   const findings = [
     ...files.flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts })),
+    ...checkWorkflows(tracked, root),
   ]
   return { files: files.length, findings }
 }

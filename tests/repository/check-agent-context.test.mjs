@@ -69,6 +69,21 @@ test('a link to a missing heading fails', context => {
     'error AGENTS.md:5: broken link: docs/development/delivery.md#pick-the-lane (no heading #pick-the-lane in docs/development/delivery.md)\n')
 })
 
+test('a workflow with pull_request_target or contents: write fails, and a deleted workflow is ignored', context => {
+  const candidate = fixture(context)
+  mkdirSync(resolve(candidate, '.github/workflows'), { recursive: true })
+  writeFileSync(resolve(candidate, '.github/workflows/a.yml'), 'on: pull_request_target\n')
+  writeFileSync(resolve(candidate, '.github/workflows/b.yml'), 'on: push\npermissions:\n  contents: write\n')
+  writeFileSync(resolve(candidate, '.github/workflows/c.yml'), 'on: push\npermissions:\n  contents: read\n')
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'error .github/workflows/a.yml: unsafe pull_request_target trigger\nerror .github/workflows/b.yml: workflow has contents: write permission\n')
+  execFileSync('git', ['add', '.'], { cwd: candidate })
+  rmSync(resolve(candidate, '.github/workflows/a.yml'))
+  rmSync(resolve(candidate, '.github/workflows/b.yml'))
+  assert.equal(run(candidate).status, 0)
+})
+
 test('the root AGENTS.md passes at 60 lines and fails at 61', context => {
   assert.equal(run(fixture(context, { 'AGENTS.md': lines(60) })).status, 0)
   const result = run(fixture(context, { 'AGENTS.md': lines(61) }))

@@ -53,7 +53,8 @@ Evidence: `~/conexus-study/2026-10-03/checks-redesign/report.md` and its raw dat
   credential field is `writeOnly`, never appears in a success response, and current operations are
   schema closed).
 - **AC-6**: `check-web-style` keeps only "every class used in web has a CSS rule" and the brand token
-  re-point pins moved there in #493. `check-agent-context` keeps links, cited scripts and size caps.
+  re-point pins moved there in #493. `check-agent-context` keeps links, cited scripts, size caps and two workflow guards (no
+  `pull_request_target`, no `contents: write`; Leandro, 2026-10-03: the repository is public).
   `check-import-law` moves each plain "A may not import B" rule Biome can express into `biome.json`
   `noRestrictedImports` and keeps the rest.
 - **AC-7**: `verify.yml` runs four groups (postgres, browser, rest, live) with no separate static job:
