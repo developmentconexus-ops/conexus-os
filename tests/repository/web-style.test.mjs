@@ -147,7 +147,7 @@ test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails
 })
 
 const screen = (classes, extra = {}) => ({
-  'apps/web/src/styles.css': '@tailwind utilities;\n@theme { --color-brand: red; }\n',
+  'apps/web/src/styles.css': '@tailwind utilities;\n@theme { --color-brand: red; --breakpoint-2xl: 96rem; }\n',
   'apps/web/src/local.css': '.local { margin: 0; }\n',
   'node_modules/@mastra/playground-ui/dist/Slot.css': '.composer-slot { margin: 0; }\n.hover\\:vendor-util:hover { margin: 0; }\n',
   'apps/web/src/screen.tsx': `export const Screen = () => <div className="${classes}" />\n`,
@@ -170,4 +170,20 @@ test('a string a className compares with is a value, not a class', context => {
     'apps/web/src/screen.tsx': "export const Screen = ({ tag }: { tag: string }) => <div className={tag === 'plus' ? 'local' : undefined} />\n",
   })))
   assert.equal(result.status, 0, result.stderr)
+})
+
+test('a class that is only the start of a defined class fails, whichever file defines the longer one', context => {
+  const result = check(tree(context, screen('shell-fram', {
+    'apps/web/src/styles.css': '@tailwind utilities;\n.shell-frame { margin: 0; }\n',
+    'apps/web/src/local.css': '.local { margin: 0; }\n',
+  })))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /^apps\/web\/src\/screen\.tsx:1: class "shell-fram" has no rule/)
+})
+
+test('a Tailwind utility whose escaped selector starts with a digit passes, and an unknown utility fails', context => {
+  assert.equal(check(tree(context, screen('2xl:flex flex'))).status, 0)
+  const result = check(tree(context, screen('2xl:flux')))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /class "2xl:flux" has no rule/)
 })

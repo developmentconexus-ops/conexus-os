@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { transform } from 'lightningcss'
 import ts from 'typescript'
 
 // The trees whose CSS and TSX paint the product: the web app, the sign-in theme and the brand
@@ -35,7 +36,6 @@ const CLASS_DEFINITION = /\.((?:cx|cxs|builder)-[\w-]+)/g
 // Tailwind build (apps/web/src/styles.css, with the Mastra theme) generates a rule for.
 const TAILWIND_ENTRY = 'apps/web/src/styles.css'
 const VENDOR_CSS_ROOT = 'node_modules/@mastra/playground-ui/dist'
-const ANY_CLASS_DEFINITION = /\.((?:\\.|[\w-])+)/g
 const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
 const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/g
 
@@ -220,12 +220,28 @@ const foreignClassTokens = (path, text) => {
   return found
 }
 
+// Every class name a stylesheet's selectors name, read by a CSS parser: names come back unescaped
+// (`.\32 xl\:flex` is `2xl:flex`), and nesting, @media, @layer and :is()/:not() are followed.
+const classNamesIn = css => {
+  const names = new Set()
+  const walk = components => {
+    for (const component of components) {
+      if (component.type === 'class') names.add(component.name)
+      for (const inner of [component.selectors, component.selector]) {
+        if (Array.isArray(inner)) (Array.isArray(inner[0]) ? inner : [inner]).forEach(walk)
+      }
+    }
+  }
+  transform({ filename: 'classes.css', code: Buffer.from(css), errorRecovery: true, visitor: { Selector: walk } })
+  return names
+}
+
 const vendorClasses = root => {
   const names = new Set()
   const directory = resolve(root, VENDOR_CSS_ROOT)
   if (!existsSync(directory)) return names
   for (const file of readdirSync(directory, { recursive: true }).filter(entry => entry.endsWith('.css'))) {
-    for (const match of readFileSync(resolve(directory, file), 'utf8').matchAll(ANY_CLASS_DEFINITION)) names.add(match[1].replace(/\\(.)/g, '$1'))
+    for (const name of classNamesIn(readFileSync(resolve(directory, file), 'utf8'))) names.add(name)
   }
   return names
 }
@@ -237,7 +253,7 @@ const tailwindRule = async root => {
   const { compile } = await import('@tailwindcss/node')
   const base = dirname(resolve(root, TAILWIND_ENTRY))
   const compiler = await compile(readFileSync(resolve(root, TAILWIND_ENTRY), 'utf8'), { base, onDependency() {} })
-  return token => compiler.build([token]).includes(`.${token.replace(/[^\w-]/g, '\\$&')}`)
+  return token => classNamesIn(compiler.build([token])).has(token)
 }
 
 const classCheck = (files, contentOf, vendor, generates) => {
@@ -250,7 +266,7 @@ const classCheck = (files, contentOf, vendor, generates) => {
   }
   const own = new Set()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
-    for (const match of contentOf(path).matchAll(ANY_CLASS_DEFINITION)) own.add(match[1])
+    for (const name of classNamesIn(contentOf(path))) own.add(name)
   }
   const used = new Set()
   const violations = []
