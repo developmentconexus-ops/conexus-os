@@ -89,6 +89,23 @@ test('a Conexus class defined in every checked root passes', context => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('mastra-theme.css must re-point every Mastra color variable to a brand token', context => {
+  const names = [...[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map(step => `--brand-green-${step}`), '--accent1', '--positive1', '--notice-success', '--badge-green', '--color-emerald-400']
+  const css = name => `${name}: var(--cx-brand);\n`
+  const tree1 = tree(context, {
+    'packages/brand/src/tokens.css': ':root { --cx-brand: #123456; }\n',
+    'apps/web/src/mastra-theme.css': `:root {\n${names.filter(name => name !== '--accent1').map(css).join('')}  --accent1: green;\n}\n`,
+  })
+  const result = check(tree1)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/mastra-theme.css:1: --accent1 is not re-pointed to a --cx-* token\n')
+  const whole = check(tree(context, {
+    'packages/brand/src/tokens.css': ':root { --cx-brand: #123456; }\n',
+    'apps/web/src/mastra-theme.css': `:root {\n${names.map(css).join('')}}\n`,
+  }))
+  assert.equal(whole.status, 0, whole.stderr)
+})
+
 test('a class built from a template literal fails and says to use a literal class map', context => {
   const result = check(tree(context, {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${tone} for the script to parse, not a JS interpolation

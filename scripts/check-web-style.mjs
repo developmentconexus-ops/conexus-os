@@ -266,6 +266,17 @@ const tokenViolations = (files, contentOf) => {
     .map(match => ({ path, line: lineOf(contentOf(path), match.index), message: `uses undefined token ${match[1]}; define it in packages/brand/src/tokens.css or where it is used` })))
 }
 
+// The Mastra theme maps Mastra's own color variables onto the brand: each must be set to a --cx-* token.
+const MASTRA_THEME = 'apps/web/src/mastra-theme.css'
+const MASTRA_REPOINTED = [...[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map(step => `--brand-green-${step}`), '--accent1', '--positive1', '--notice-success', '--badge-green', '--color-emerald-400']
+const repointViolations = (files, contentOf) => {
+  if (!files.includes(MASTRA_THEME)) return []
+  const text = contentOf(MASTRA_THEME)
+  return MASTRA_REPOINTED
+    .filter(name => !new RegExp(`${name}:\\s*[^;]*--cx-`).test(text))
+    .map(name => ({ path: MASTRA_THEME, line: 1, message: `${name} is not re-pointed to a --cx-* token` }))
+}
+
 const classCheck = (files, contentOf, vendor, generates) => {
   const defined = new Map()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
@@ -311,7 +322,7 @@ const scanTree = (root, generates) => {
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
   const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
   const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
-  const tokenUses = tokenViolations(files, contentOf)
+  const tokenUses = [...tokenViolations(files, contentOf), ...repointViolations(files, contentOf)]
   const classResult = classCheck(files, contentOf, vendorClasses(root), generates)
   return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...tokenUses, ...classResult.violations], unused: classResult.unused }
 }
