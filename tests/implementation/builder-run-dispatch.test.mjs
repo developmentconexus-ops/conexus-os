@@ -312,7 +312,7 @@ test('BUILD source result is admitted by the runtime, compiled, settles Preview 
   ])
 })
 
-test('a build or smoke failure still admits and advances the source, and settles SOURCE_CHANGED_BUILD_FAILED', async () => {
+test('a page that did not render still admits and advances the source, and settles SOURCE_CHANGED_BUILD_FAILED', async () => {
   const runId = '44444444-4444-4444-8444-444444444445'
   const projectId = '55555555-5555-4555-8555-555555555555'
   const accountId = '66666666-6666-4666-8666-666666666666'
@@ -328,8 +328,8 @@ test('a build or smoke failure still admits and advances the source, and settles
     advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null]),
   }
-  // retainApplication must never be reached: there is no compiled application to retain when the
-  // sandbox reports a build or smoke failure, only the code that names it.
+  // retainApplication must never be reached: a page that did not render has no build to retain,
+  // only the code that names it.
   const service = createBuilderService({
     store,
     runs: makeRuns({
@@ -338,9 +338,10 @@ test('a build or smoke failure still admits and advances the source, and settles
         return {
           projectId, executionId: runId, sandboxId: 'sandbox', baseSourceRevision: base, summary: 'alterado', kind: 'SOURCE_ADMITTED',
           resultSourceRevision: resultRevision,
-          applicationBuild: { kind: 'BUILD_FAILED', code: 'APPLICATION_SMOKE_NO_ROOT_CHILD' },
+          applicationBuild: { kind: 'UNRENDERED', code: 'APPLICATION_SMOKE_FAILED', detail: 'boot failed:\nBOOT_NO_ROOT_CHILD nada na tela' },
         }
       },
+      appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
     }),
     applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
   })
@@ -350,11 +351,12 @@ test('a build or smoke failure still admits and advances the source, and settles
     ['phase', 'PREPARING'], ['phase', 'COMPILING'],
     ['advance', resultRevision],
     ['phase', 'FINALIZING'],
-    ['build-settle', 'APPLICATION_SMOKE_NO_ROOT_CHILD'],
+    ['build-settle', 'APPLICATION_SMOKE_FAILED'],
+    ['note', 'APPLICATION_SMOKE_FAILED', 'BUILD_FAILED', 'boot failed:\nBOOT_NO_ROOT_CHILD nada na tela'],
   ])
 })
 
-test('a runtime failure that is not a build or smoke failure still fails the run outright', async () => {
+test('a runtime failure still fails the run outright', async () => {
   const runId = '44444444-4444-4444-8444-444444444446'
   const projectId = '55555555-5555-4555-8555-555555555555'
   const accountId = '66666666-6666-4666-8666-666666666666'

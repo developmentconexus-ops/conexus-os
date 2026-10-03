@@ -454,16 +454,18 @@ export const startCheckout = async (input: SeedInput): Promise<CheckoutStart> =>
  * The Hub's commit of the checkout: the whole tree (ignored files and the `excluded` paths, such as
  * a methodology's uncommitted plan folder, left out) as one commit on the snapshot's parent, bundled in the sandbox and
  * accepted into the Conexus Git under the snapshot's ref. Answers null when the tree equals
- * `unchangedFrom`'s. Each `scratch` has its own index and bundle file in the checkout, so a mirror
+ * `unchangedFrom`'s, and `sameAs` when the tree equals that earlier snapshot's. Each `scratch` has its own index and bundle file in the checkout, so a mirror
  * and a candidate never remove each other's.
  */
-export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchangedFrom = snapshot.parent, scratch, sandbox, checkout, excluded = [] }: Readonly<{
+export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchangedFrom = snapshot.parent, sameAs, scratch, sandbox, checkout, excluded = [] }: Readonly<{
   git: Pick<ConexusGit, 'acceptSnapshot'>
   projectId: string
   snapshot: Snapshot
   /** Passed to `acceptSnapshot`: the ref's head this snapshot replaces. */
   expected?: string | null
   unchangedFrom?: string
+  /** An earlier snapshot of this ref, answered again when the tree has not changed since it. */
+  sameAs?: string
   scratch: 'candidate' | 'mirror'
   sandbox: RunSourceSandbox
   checkout: string
@@ -480,6 +482,7 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
     `git add --all -- . ${excluded.map((path) => quoted(`:(exclude)${path}`)).join(' ')}`,
     'tree=$(git write-tree)',
     `if [ "$tree" = "$(git rev-parse ${quoted(`${unchangedFrom}^{tree}`)})" ]; then echo UNCHANGED; exit 0; fi`,
+    ...(sameAs ? [`if [ "$tree" = "$(git rev-parse ${quoted(`${sameAs}^{tree}`)})" ]; then echo SAME; exit 0; fi`] : []),
     `commit=$(git -c user.name=${quoted(BUILDER_IDENTITY.name)} -c user.email=${quoted(BUILDER_IDENTITY.email)} commit-tree "$tree" -p ${quoted(parent)} -m 'Conexus Builder')`,
     `git update-ref ${quoted(ref)} "$commit"`,
     `rm -f ${quoted(bundleFile)}`,
@@ -489,10 +492,11 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
   ].join('\n')])
   const lines = committed.stdout.trim().split('\n')
   const reported = lines.pop() ?? ''
-  if (committed.exitCode !== 0 || (reported !== 'UNCHANGED' && !OID.test(reported))) {
+  if (committed.exitCode !== 0 || (reported !== 'UNCHANGED' && reported !== 'SAME' && !OID.test(reported))) {
     throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
   }
   if (reported === 'UNCHANGED') return null
+  if (reported === 'SAME' && sameAs) return sameAs
   const size = Number(/^size=(\d+)$/.exec(lines.pop() ?? '')?.[1])
   if (!Number.isSafeInteger(size)) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
   if (size > MAX_RESULT_BUNDLE_BYTES) throw new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE')

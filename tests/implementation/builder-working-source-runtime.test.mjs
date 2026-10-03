@@ -35,8 +35,8 @@ test('the application tree the sandbox compiles is held to the compile input lim
   refuses('not a tree listing at all', 'output that is not a listing')
 })
 
-test('the server half of conexus/ is compiled with the app, and the rest of conexus/ is not', () => {
+test('the application tree is app/ and all of conexus/, and nothing from the repository root', () => {
   const entry = (path) => `100644 blob ${'a'.repeat(40)}     120\t${path}`
-  const listing = ['app/index.html', 'conexus/SERVER.md', 'conexus/check.sh', 'conexus/handlers/notes.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'].map(entry).join('\n')
-  assert.deepEqual(admitApplicationTree(listing), ['app/index.html', 'conexus/handlers/notes.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'])
+  const listing = ['AGENTS.md', 'package.json', 'tsconfig.json', 'app/index.html', 'conexus/handlers/notes.ts', 'conexus/lib/total.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'].map(entry).join('\n')
+  assert.deepEqual(admitApplicationTree(listing), ['app/index.html', 'conexus/handlers/notes.ts', 'conexus/lib/total.ts', 'conexus/manifest.json', 'conexus/migrations/001_notes.sql'])
 })

@@ -30,6 +30,7 @@ export const isBuilderFailureCategory = (value: unknown): value is BuilderFailur
 
 // A code whose cause is known says so, instead of its category's sentence.
 const failureReasonsByCode: Readonly<Record<string, string>> = Object.freeze({
+  BUILDER_APP_NOT_FIXED: 'O agente tentou corrigir o app e a verificação do Conexus ainda falha. O que quebrou está na conversa, acima. A versão em uso não mudou, e os arquivos ficaram nesta conversa para o próximo pedido.',
   BUILDER_RUN_PARKED_EXPIRED: 'A pergunta do agente ficou 7 dias sem resposta, então a execução foi encerrada e o Project ficou livre. Envie o pedido novamente.',
   BUILDER_AGENT_PLATFORM_FAILED: 'Uma falha temporária do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
   BUILDER_AGENT_STALLED: 'O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',

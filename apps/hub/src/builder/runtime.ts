@@ -19,7 +19,9 @@ type CodingWorkerResultScope = Readonly<{
 export type ApplicationBuildOutcome =
   /** `bootProblems`: what the page did when opened that does not withhold the Preview, for the next turn. */
   | Readonly<{ kind: 'BUILT'; compiledApplication: CompiledApplication; thumbnail?: CompiledApplicationThumbnail; bootProblems?: string }>
-  | Readonly<{ kind: 'BUILD_FAILED'; code: string; detail?: string }>
+  // C-033: the blocking steps passed and the page did not render. The only admitted source without a
+  // Preview; a source the check refuses is never admitted, so no "built and failed" outcome exists.
+  | Readonly<{ kind: 'UNRENDERED'; code: 'APPLICATION_SMOKE_FAILED'; detail: string }>
 
 export type CodingWorkerResult = CodingWorkerResultScope & Readonly<{ kind: 'RESPONSE_ONLY' }>
 
@@ -259,11 +261,16 @@ export const isUserAuthoredMessage = (message: Readonly<{ role?: string; content
   return type === 'user' || type === 'user-message'
 }
 
-/** `git ls-tree -r -l HEAD app/` output, held to the limits the compile input has always had. */
-// The server half of the source a build compiles; the rest of conexus/ (its check) is not built.
-const SERVER_SOURCE = /^conexus\/(?:manifest\.json|handlers\/.+|migrations\/.+)$/
-export const SERVER_SOURCE_ROOTS = Object.freeze(['conexus/manifest.json', 'conexus/handlers', 'conexus/migrations'])
+/**
+ * The application tree: `app/` and all of `conexus/`, and nothing from the repository root. The
+ * check builds it, so one check result is both the admission and the Preview build. A root file
+ * never reaches the build: Vite reads the nearest `package.json` and `tsconfig.json` from `app/`
+ * upward, so a root one would change the build. A handler may import any file under `conexus/`.
+ */
+export const APPLICATION_TREE_ROOTS = Object.freeze(['app', 'conexus'])
+const IN_APPLICATION_TREE = /^(?:app|conexus)\//
 
+/** `git ls-tree -r -l` output of the application tree, held to the limits the compile input has always had. */
 export const admitApplicationTree = (listing: string): readonly string[] => {
   const paths: string[] = []
   let totalBytes = 0
@@ -271,7 +278,7 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
     const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
-    if (entry && !(entry[2] as string).startsWith('app/') && !SERVER_SOURCE.test(entry[2] as string)) continue
+    if (entry && !IN_APPLICATION_TREE.test(entry[2] as string)) continue
     if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     const bytes = Number(entry[1])
     if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')

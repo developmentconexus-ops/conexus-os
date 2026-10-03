@@ -55,7 +55,7 @@ const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissionCheck, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, warmParkedMs } = {}) => {
+const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, warmParkedMs } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -114,9 +114,11 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   }
   const invocations = []
   const rootInvocations = []
-  const builtFrom = []
-  const admissionChecks = []
+  // Each check the Hub ran on a candidate, with the tree it was handed and where `main` stood.
+  const checks = []
   const agentChecks = []
+  // What the gate told the agent at each "done" that went back to it.
+  const feedbacks = []
   const paused = []
   const killed = []
   const discards = []
@@ -127,8 +129,6 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
   const sessionContext = new Map()
   // What the service recorded of the conversation's session.
   const sessions = []
-  let buildStarted
-  const buildRunning = new Promise((started) => { buildStarted = started })
   const checkout = join(vm, 'workspace/repo')
   const sandbox = {
     sandboxId: 'sbx-1',
@@ -176,18 +176,12 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
         agentChecks.push({ root, out, collect })
         return { report: PASSING_REPORT, files: null }
       }
-      if (!collect) {
-        events.push('admission-check')
-        admissionChecks.push({ root, out, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8') })
-        await onAdmissionCheck?.(sandbox)
-        return { report: admissionReport ?? PASSING_REPORT, files: null }
-      }
-      events.push('build')
-      builtFrom.push({ buildRoot: root, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
-      buildStarted()
-      if (buildReport) return { report: buildReport, files: buildReport.ok ? [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }] : null }
+      events.push('check')
+      checks.push({ root, out, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
+      await onCheck?.(sandbox, checks.length)
+      const reported = typeof report === 'function' ? report(checks.length - 1) : report ?? PASSING_REPORT
       const files = build ? await build() : [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
-      return { report: PASSING_REPORT, files }
+      return { report: reported, files: reported.ok ? files : null }
     },
   }
   // A write the way the agent makes one: the workspace's write tool, with whatever hooks the run set on it.
@@ -206,12 +200,36 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
       if (openError) throw openError
       input.bindContext({ setRaw: (key, value) => sessionContext.set(key, value) })
+      // The turn as Mastra runs it: each time the agent says it is done the gate answers, and a red
+      // check sends it back to work on the next scripted repair.
+      const drive = async (signal, resume) => {
+        const finish = async () => {
+          const feedback = await input.gate.finish()
+          if (feedback !== null) feedbacks.push(feedback)
+          return feedback
+        }
+        const context = { signal, sandbox, checkout, runCheck: input.runCheck, write: writeThroughTool, bare: inBare, mirror, finish, resume }
+        let ended
+        if (turn) ended = await turn(context)
+        else {
+          writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+          ended = completed()
+        }
+        if (ended.reason !== 'complete' || skipGate) return ended
+        const queue = [...repairs]
+        for (;;) {
+          if (await finish() === null || input.gate.gaveUp()) return ended
+          await queue.shift()?.(context)
+        }
+      }
       return {
         sendTurn: async (_content, signal) => {
           events.push('turn')
-          if (turn) return turn({ signal, sandbox, checkout, runCheck: input.runCheck, write: writeThroughTool, bare: inBare, mirror })
-          writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-          return completed()
+          return drive(signal)
+        },
+        resumeTurn: async (resume, signal) => {
+          events.push('turn')
+          return drive(signal, resume)
         },
         end: async () => { events.push('close'); if (close) await close() },
         release: async () => { events.push('session-release') },
@@ -254,6 +272,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
       row.result = revision
     },
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
+    readLatestCodeChangingBuilderRun: async () => null,
     failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
@@ -317,7 +336,7 @@ const harness = async (t, { turn, build, admissionReport, buildReport, onAdmissi
     }
     return !row.running
   }
-  return { runtime, discards, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, buildRunning, builtFrom, admissionChecks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
+  return { runtime, runtimeInput: { projectId, accountId, conversationId, executionId: runId, intent: 'Mostre UNIT1-nonce', baseSourceRevision: base }, discards, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
 }
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -366,19 +385,13 @@ test('a writer that moves main between the read and the update is refused and ke
   }])
 })
 
-test('a stop during the compile is too late: main already holds the candidate and the run settles admitted', async (t) => {
-  let release
-  const building = new Promise((resume) => { release = resume })
+test('a stop once main already holds the candidate is too late, and the run settles admitted', async (t) => {
+  const context = {}
   const run = await harness(t, {
-    build: async () => {
-      await building
-      return [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
-    },
+    afterFastForward: () => { void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) },
   })
+  context.run = run
   await run.start()
-  await run.buildRunning
-  await run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
-  release()
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)
@@ -388,7 +401,7 @@ test('a stop during the compile is too late: main already holds the candidate an
 test('a stop that lands while the candidate is checked is refused the admission', async (t) => {
   const context = {}
   const run = await harness(t, {
-    onAdmissionCheck: () => { void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) },
+    onCheck: () => { void context.run.service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) },
   })
   context.run = run
   await run.start()
@@ -435,15 +448,12 @@ test('an artifact with a server tree reaches its Preview only after its migratio
   await unconfigured.start()
   await unconfigured.service.close()
   assert.deepEqual(unconfigured.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', unconfigured.result(), 'APPLICATION_RUNNER_UNAVAILABLE']])
-  // A runner the Hub cannot reach is not the source's fault, so the agent is not asked to fix it.
+  // A runner the Hub cannot reach is not the source's fault: the note tells the agent to change nothing.
   assert.deepEqual(unconfigured.diagnostics.map(({ code, outcome }) => [code, outcome]), [['APPLICATION_RUNNER_UNAVAILABLE', 'PLATFORM_FAILED']])
 })
 
 test('a fast forward that moved main and then failed is admitted by a sweep, never failed or disowned', async (t) => {
-  const run = await harness(t, {
-    build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') },
-    afterFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') },
-  })
+  const run = await harness(t, { afterFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') } })
   await run.start()
   assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()
@@ -544,18 +554,15 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
   assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a VM whose keepalive lapsed is killed, never kept')
 })
 
-test('a build failure still fast forwards main to the candidate and settles SOURCE_CHANGED_BUILD_FAILED', async (t) => {
+test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
   const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
   await run.start()
   await run.service.close()
-  const result = run.result()
-  assert.equal(await run.main(), result)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
-    ['advance', result], ['settleBuild', result, 'APPLICATION_COMPILATION_FAILED'],
-  ])
-  assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'APPLICATION_COMPILATION_FAILED', outcome: 'BUILD_FAILED', sourceRevision: result, from: 'service',
-  }])
+  assert.equal(await run.main(), run.base)
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_COMPILATION_FAILED']])
+  assert.equal(run.mirror(), run.result())
+  assert.equal(run.checks.length, 2, 'a Conexus failure is not kept: settling checks once more, and nothing sent the agent back to work')
+  assert.deepEqual(run.feedbacks, [])
 })
 
 test('an observational-memory failure while closing the session does not discard a candidate whose build passed', async (t) => {
@@ -732,19 +739,16 @@ test('a conflict with main is left in the checkout with its markers, and the tur
 })
 
 test('an admission that finds main already at the candidate counts it admitted', async (t) => {
-  const run = await harness(t, {
-    build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') },
-    beforeFastForward: ({ moveMain }) => { moveMain(run_.result()) },
-  })
+  const run = await harness(t, { beforeFastForward: ({ moveMain }) => { moveMain(run_.result()) } })
   const run_ = run
   await run.start()
   await run.service.close()
   const result = run.result()
   assert.equal(await run.main(), result)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', result], ['settleBuild', result, 'APPLICATION_COMPILATION_FAILED']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild'), [['advance', result], ['settleBuild', result, null]])
 })
 
-test('the build compiles the candidate from the Conexus Git in a root-only directory after the agent user\'s processes are killed, never the checkout', async (t) => {
+test("the check runs on the candidate from the Conexus Git in a root-only directory, and a process of the agent's that outlives its turn only makes a new candidate", async (t) => {
   const run = await harness(t, {
     turn: ({ checkout }) => {
       writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
@@ -758,14 +762,23 @@ test('the build compiles the candidate from the Conexus Git in a root-only direc
   const run_ = run
   await run.start()
   await run.service.close()
-  const buildRoot = `/var/lib/conexus-build/${runId}`
-  assert.deepEqual(run.builtFrom, [{ buildRoot, files: ['app/index.html'], index: '<h1>UNIT1</h1>\n', main: run.result() }], 'main already holds the candidate when the compile starts')
+  const checkRoot = `/var/lib/conexus-build/${runId}`
+  const result = run.result()
+  // The write after the kill is pulled and checked as a revision of its own, and that is what main admits.
+  assert.deepEqual(run.checks.map(({ root, out, files, index }) => [root, out, files, index]), [
+    [checkRoot, `${checkRoot}.dist`, ['app/index.html'], '<h1>UNIT1</h1>\n'],
+    [checkRoot, `${checkRoot}.dist`, ['app/index.html'], '<h1>late write</h1>\n'],
+  ])
+  assert.equal(run.checks[1].main, run.base, 'main still holds the base when the check runs')
+  assert.equal(await run.main(), result)
+  assert.equal(run.inBare('show', `${result}:app/index.html`), '<h1>late write</h1>')
   const killed = run.events.indexOf('sh -c kill -KILL -1 2>/dev/null; true')
-  const prepared = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].startsWith("rm -rf '/var/lib/conexus-build'"))
-  const written = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === `/var/lib/conexus-build/${runId}.tar`)
-  const unpacked = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].startsWith(`tar -x -C '${buildRoot}'`))
-  assert.ok(run.events.indexOf('turn') < killed && killed < prepared && prepared < written && written < unpacked && unpacked < run.events.indexOf('build'), JSON.stringify([killed, prepared, written, unpacked]))
-  assert.equal(run.commands().some((line) => line.includes('ls-tree') || line.includes(' archive ')), false, 'no agent-user command lists or archives the tree the build is admitted by')
+  const unpacked = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].startsWith("rm -rf '/var/lib/conexus-build'"))
+  const written = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1] === `/var/lib/conexus-seed/${runId}.candidate.tar`)
+  assert.match(run.events[unpacked][1], new RegExp(`mkdir -m 755 '${checkRoot}' && tar -x -C '${checkRoot}'`))
+  const checks = run.events.flatMap((event, index) => event === 'check' ? [index] : [])
+  assert.ok(run.events.indexOf('turn') < written && written < unpacked && unpacked < checks[0] && checks[0] < killed && killed < checks[1], JSON.stringify([written, unpacked, checks, killed]))
+  assert.equal(run.commands().some((line) => line.includes('ls-tree') || line.includes(' archive ')), false, 'no agent-user command lists or archives the tree the check admits')
 })
 
 test('a turn that writes the plan and the memory with its app change commits them with the version (AC-5)', async (t) => {
@@ -812,7 +825,7 @@ test('each run logs one BUILDER_RUN_TIMING line with the stages it reached, in r
   const built = await harness(t)
   await built.start()
   await built.service.close()
-  assert.deepEqual(timingStages(built), ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile'])
+  assert.deepEqual(timingStages(built), ['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission'])
 
   const answered = await harness(t, { turn: () => completed('Explicado.') })
   await answered.start()
@@ -821,7 +834,7 @@ test('each run logs one BUILDER_RUN_TIMING line with the stages it reached, in r
 })
 
 test('every agent-user command states an empty environment, and root commands get none', async (t) => {
-  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  const run = await harness(t, { report: failedReport('typecheck', [{ file: 'app/src/main.tsx', message: 'broken' }]) })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.invocations.filter(({ env }) => env === undefined || Object.keys(env).length > 0), [])
@@ -895,13 +908,21 @@ test('a candidate whose AGENTS.md is missing, over 8 KB or not UTF-8 is admitted
 // A server error the Builder needs whole to fix: longer than the 400 and 1,200 characters the record cut before.
 const LONG_SERVER_MESSAGE = `conexus/handlers/notes.ts imports "../../app/src/${'a'.repeat(700)}": a handler may import only .ts, .js or .json files inside conexus/ and node: built-ins`
 
-test("a candidate the Hub's check refuses is refused with the failed step's problems whole, main stays at the base, and nothing compiles (AC-9)", async (t) => {
-  const problems = [
-    { file: 'app/src/main.tsx', line: 3, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
-    { file: 'conexus/handlers/notes.ts', message: LONG_SERVER_MESSAGE },
-  ]
+const CHECK_PROBLEMS = [
+  { file: 'app/src/main.tsx', line: 3, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
+  { file: 'conexus/handlers/notes.ts', message: LONG_SERVER_MESSAGE },
+]
+const CHECK_DETAIL = [
+  'typecheck failed:',
+  "app/src/main.tsx:3:7: TS2322 Type 'string' is not assignable to type 'number'.",
+  `conexus/handlers/notes.ts: ${LONG_SERVER_MESSAGE}`,
+].join('\n')
+const redThenGreen = (n) => n === 0 ? failedReport('typecheck', CHECK_PROBLEMS) : PASSING_REPORT
+const writeIndex = (content) => ({ checkout }) => writeFileSync(join(checkout, 'app/index.html'), content)
+
+test("a red check goes back to the agent in the same turn with the failed step's problems whole, and a green repair is admitted with one check per revision (AC-9)", async (t) => {
   const run = await harness(t, {
-    admissionReport: failedReport('typecheck', problems),
+    report: redThenGreen,
     turn: ({ checkout }) => {
       writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
       // A check of the candidate's own that says everything is fine changes nothing.
@@ -909,19 +930,97 @@ test("a candidate the Hub's check refuses is refused with the failed step's prob
       writeFileSync(join(checkout, 'conexus/check.sh'), '#!/bin/sh\nexit 0\n')
       return completed()
     },
+    repairs: [writeIndex('<h1>repaired</h1>\n')],
   })
+  await run.start()
+  await run.service.close()
+  const result = run.result()
+  assert.deepEqual(run.feedbacks, [[
+    'Verificação do Conexus: o app não passou (1 de 3).',
+    CHECK_DETAIL,
+    'Corrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.',
+  ].join('\n')])
+  assert.deepEqual(run.checks.map(({ index }) => index), ['<h1>UNIT1</h1>\n', '<h1>repaired</h1>\n'])
+  assert.equal(run.events.filter((event) => event === 'turn').length, 1, 'the repair happened inside the one turn')
+  assert.equal(await run.main(), result)
+  assert.equal(run.inBare('show', `${result}:app/index.html`), '<h1>repaired</h1>')
+  assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
+  assert.deepEqual(run.diagnostics, [])
+  assert.equal(run.commands().some((line) => line.includes('check.sh')), false, 'no command runs a script of the candidate')
+  assert.ok(run.checks[0].files.includes('conexus/check.sh'), 'the candidate file is only data in the tree the Hub checks')
+  assert.equal(run.checks.every(({ main }) => main === run.base), true, 'main stays at the base until the check is green')
+})
+
+test('the third red finish ends the run refused with BUILDER_APP_NOT_FIXED, files kept and main at the base, with no second note', async (t) => {
+  const run = await harness(t, {
+    report: failedReport('typecheck', CHECK_PROBLEMS),
+    repairs: [writeIndex('<h1>second</h1>\n'), writeIndex('<h1>third</h1>\n')],
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.checks.length, 3, 'each changed revision is checked once')
+  assert.deepEqual(run.feedbacks.map((feedback) => feedback.split('\n')[0]), [
+    'Verificação do Conexus: o app não passou (1 de 3).',
+    'Verificação do Conexus: o app não passou (2 de 3).',
+    'Verificação do Conexus: o app não passou (3 de 3).',
+  ])
+  assert.ok(run.feedbacks[2].endsWith('O limite de tentativas acabou. A execução para aqui, e os arquivos ficam nesta conversa.'))
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
+  assert.equal(await run.main(), run.base)
+  assert.equal(run.inBare('show', `${run.MIRROR}:app/index.html`), '<h1>third</h1>')
+  assert.deepEqual(run.diagnostics, [], 'the last feedback already told the person why')
+})
+
+test('a done on a red revision the agent did not change spends a finish and does not check again', async (t) => {
+  const run = await harness(t, { report: failedReport('typecheck', CHECK_PROBLEMS) })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.checks.length, 1)
+  assert.equal(run.feedbacks.length, 3)
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
+})
+
+test('a run parked on a question keeps its red finishes for the next leg, which has only the rest of the budget', async (t) => {
+  const run = await harness(t, {
+    report: failedReport('typecheck', CHECK_PROBLEMS),
+    turn: async ({ checkout, finish, resume }) => {
+      if (resume) return completed()
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      assert.match(await finish(), /\(1 de 3\)/)
+      return SUSPENDED
+    },
+  })
+  await run.start()
+  await until(() => run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'PARKED') && run.events.includes('pause'), 'the park')
+  assert.equal(run.feedbacks.length, 1)
+  await assert.rejects(run.runtime.execute({
+    ...run.runtimeInput, resume: { toolCallId: 'c1', resumeData: ['Azul'] }, providerSandboxId: 'sbx-1',
+    bindPhysicalSandbox: async () => {}, bindMessage: async () => {}, setPhase: async () => {}, recordCandidate: async () => {}, recordMirror: async () => {},
+  }), { message: 'BUILDER_APP_NOT_FIXED' })
+  assert.deepEqual(run.feedbacks.map((feedback) => /\((\d de 3)\)/.exec(feedback)[1]), ['1 de 3', '2 de 3', '3 de 3'], 'the second leg counted on from one')
+  await run.service.close()
+})
+
+test('a candidate the loop ended without checking is checked when the turn settles, and a refused one leaves the problems for the next turn', async (t) => {
+  const run = await harness(t, { report: failedReport('typecheck', CHECK_PROBLEMS), skipGate: true })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_CHECK_FAILED'])
   assert.equal(await run.main(), run.base)
-  assert.equal(run.events.includes('build'), false)
-  assert.deepEqual(run.diagnostics.map(({ outcome, detail }) => [outcome, detail]), [['CANDIDATE_REFUSED', [
-    'typecheck failed:',
-    "app/src/main.tsx:3:7: TS2322 Type 'string' is not assignable to type 'number'.",
-    `conexus/handlers/notes.ts: ${LONG_SERVER_MESSAGE}`,
-  ].join('\n')]])
-  assert.equal(run.commands().some((line) => line.includes('check.sh')), false, 'no command runs a script of the candidate')
-  assert.ok(run.admissionChecks[0].files.includes('conexus/check.sh'), 'the candidate file is only data in the tree the Hub checks')
+  assert.deepEqual(run.diagnostics.map(({ outcome, detail }) => [outcome, detail]), [['CANDIDATE_REFUSED', CHECK_DETAIL]])
+})
+
+test("an agent that puts its checkout back to the turn's start after a red finish ends the turn as a response, with main at the base", async (t) => {
+  const run = await harness(t, {
+    report: failedReport('typecheck', CHECK_PROBLEMS),
+    repairs: [writeIndex('<h1>base</h1>\n')],
+  })
+  await run.start()
+  await run.service.close()
+  assert.equal(run.checks.length, 1, 'only the edited revision was checked')
+  assert.equal(run.feedbacks.length, 1)
+  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
+  assert.equal(await run.main(), run.base)
 })
 
 test('each check the run makes leaves one line in the Hub log with its steps', async (t) => {
@@ -929,7 +1028,7 @@ test('each check the run makes leaves one line in the Hub log with its steps', a
   await run.start()
   await run.service.close()
   const steps = 'generate=passed:1ms typecheck=passed:1ms build=passed:1ms server=passed:1ms boot=passed:1ms'
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:admission:${runId}:${steps}`, `BUILDER_CHECK:preview:${runId}:${steps}`])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:gate:${runId}:${run.result().slice(0, 12)}:${steps}`])
 })
 
 test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
@@ -944,23 +1043,6 @@ test('the Hub check is placed at run start, root owned and read only, before the
   // The harness maps /opt/conexus into its own folder in every script it runs.
   assert.ok(readFileSync(placed, 'utf8').trimEnd() === checkScriptSource().replaceAll('/opt/conexus', join(run.vm, 'opt/conexus')).trimEnd(), 'the placed script is the Hub script')
   assert.equal(statSync(placed).mode & 0o777, 0o555)
-})
-
-test("the check runs on the candidate's own tree from the Conexus Git, not on the checkout the agent can still change", async (t) => {
-  const run = await harness(t, {
-    turn: ({ checkout }) => {
-      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-      return completed()
-    },
-    onCommand: (_sandbox, line) => {
-      if (line.startsWith('sh -c kill -KILL -1')) writeFileSync(join(run_.checkout, 'app/index.html'), '<h1>late write</h1>\n')
-    },
-  })
-  const run_ = run
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.admissionChecks.map(({ root, out, index }) => [root, out, index]), [[`/var/lib/conexus-build/${runId}.admission`, `/var/lib/conexus-build/${runId}.admission.dist`, '<h1>UNIT1</h1>\n']])
-  assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['advance', run.result()], ['settleBuild', run.result(), null]])
 })
 
 test('a generated file the agent wrote never reaches Git, and a file beside it does', async (t) => {
@@ -986,7 +1068,7 @@ test('a generated file the agent wrote never reaches Git, and a file beside it d
 
 test('a boot problem that leaves the page rendered keeps the Preview, reaches the Hub log and tells the next turn', async (t) => {
   const problems = [{ code: 'BOOT_CONSOLE_ERROR', message: 'console.error: Failed to load notes' }]
-  const run = await harness(t, { buildReport: failedReport('boot', problems) })
+  const run = await harness(t, { report: failedReport('boot', problems) })
   await run.start()
   await run.service.close()
   const result = run.result()
@@ -997,7 +1079,7 @@ test('a boot problem that leaves the page rendered keeps the Preview, reaches th
 
 test('a page that does not boot leaves the admitted source without a Preview and tells the next turn why, whole', async (t) => {
   const thrown = `Error: ${'boom '.repeat(200)}`
-  const run = await harness(t, { buildReport: failedReport('boot', [{ code: 'BOOT_UNCAUGHT_ERROR', message: thrown, file: 'assets/index.js', line: 1, column: 9 }]) })
+  const run = await harness(t, { report: failedReport('boot', [{ code: 'BOOT_UNCAUGHT_ERROR', message: thrown, file: 'assets/index.js', line: 1, column: 9 }]) })
   await run.start()
   await run.service.close()
   const result = run.result()
@@ -1086,7 +1168,7 @@ test('a run deletes the session it opened, once, after the agent and its admissi
     assert.ok(run.events.indexOf('session-release') > run.events.indexOf('turn'), 'the session outlives the agent turn')
     assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM pauses')
   }
-  assert.ok(completedRun.events.indexOf('build') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the build in the session')
+  assert.ok(completedRun.events.indexOf('check') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the check in the session')
 })
 
 test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_PIN_REFUSED before the agent runs', async (t) => {
@@ -1141,7 +1223,6 @@ test('a VM whose commands run as root, from a template before the agent user, is
 test('a VM that died while the conversation was idle is replaced before the run records its incarnation', async (t) => {
   let replaced = false
   const run = await harness(t, {
-    build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') },
     onCommand: (sandbox) => {
       if (replaced) return
       replaced = true
@@ -1245,7 +1326,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': {},
     'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
-    'the compile fails after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
+    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
   }
   const outcomes = {}
   for (const [name, { stop, ...options }] of Object.entries(cases)) {
@@ -1274,7 +1355,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': { ...scoped, settled: 'settleBuild' },
     'the agent turn fails': { ...scoped, settled: 'fail' },
     'the person stops the run during the turn': { ...scoped, settled: 'interrupt' },
-    'the compile fails after the turn': { ...scoped, settled: 'settleBuild' },
+    'the check fails in Conexus after the turn': { ...scoped, settled: 'fail' },
   })
 })
 
@@ -1361,10 +1442,10 @@ test('a turn the person stops keeps its file in the mirror, written at the turn 
 })
 
 test('a candidate the check refuses stays in the mirror, and main stays at the base', async (t) => {
-  const run = await harness(t, { admissionReport: failedReport('typecheck', [{ file: 'app/src/main.tsx', message: 'broken' }]) })
+  const run = await harness(t, { report: failedReport('typecheck', [{ file: 'app/src/main.tsx', message: 'broken' }]) })
   await run.start()
   await run.service.close()
-  assert.equal(run.calls.at(-1)[0], 'fail')
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
   assert.equal(run.mirror(), run.result())
   assert.equal(run.inBare('show', `${run.MIRROR}:app/index.html`), '<h1>UNIT1</h1>')
   assert.equal(await run.main(), run.base)

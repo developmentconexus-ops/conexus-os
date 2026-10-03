@@ -36,7 +36,17 @@ const isUserAuthored = (message: MastraDBMessage): boolean =>
 
 // The Hub tells the thread what happened to a run with a Mastra `notification` signal. The model reads it
 // as context; the person reads it as a notice, never as something the Builder said.
-const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification'
+// Mastra's completion check writes its verdict as an assistant message; it is the Conexus check
+// speaking, so it is a notice too, in the check's own words.
+const isCompletionCheck = (message: MastraDBMessage): boolean =>
+  message.role === 'assistant' && typeof message.content.metadata === 'object' && message.content.metadata !== null && 'completionResult' in message.content.metadata
+const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification' || isCompletionCheck(message)
+
+// The check's reason, without Mastra's scoring frame around it: everything from `Reason:` to the
+// verdict line Mastra closes the message with, blank lines in the reason included.
+const COMPLETION_CHECK_REASON = /Reason: ([\s\S]*?)\n+(?:✅|⚠️|🔄)[^\n]*\s*$/u
+const completionCheckText = (message: MastraDBMessage): string =>
+  COMPLETION_CHECK_REASON.exec(userText(message))?.[1]?.trim() ?? 'O Conexus verificou o app.'
 
 type CallState = 'running' | 'failed' | 'done'
 
@@ -227,7 +237,7 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
     return text ? [{ kind: 'user', key, text, at: messageTime(message) || null, delivery: entry.delivery === 'unknown' || entry.delivery === 'failed' ? entry.delivery : undefined }] : []
   }
   if (isNotice(message)) {
-    const text = userText(message)
+    const text = isCompletionCheck(message) ? completionCheckText(message) : userText(message)
     return text ? [{ kind: 'notice', key, text }] : []
   }
   if (message.role !== 'assistant') return []

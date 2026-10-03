@@ -264,10 +264,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // teaches it to delete correct code until the fault goes away.
       const buildFailed = (code: string, detail?: string): Promise<void> =>
         note(code, builderFailureCategory(code) === 'APPLICATION_BUILD_FAILED' ? 'BUILD_FAILED' : 'PLATFORM_FAILED', detail)
-      // The agent's sandbox already compiled (and smoked) the artifact. A build or smoke failure
-      // there still admitted the source, so it settles as a build failure and the last good
-      // Preview stays in place.
-      if (result.applicationBuild.kind === 'BUILD_FAILED') {
+      // C-033: a page that did not render is admitted as a build failure, and the last good Preview stays.
+      if (result.applicationBuild.kind === 'UNRENDERED') {
         const { code, detail } = result.applicationBuild
         await finalizing()
         await store.settleBuilderRunBuild({ builderRunId: claimed.builderRunId, sourceRevision: admitted, failureCode: code })
@@ -318,7 +316,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // this leg's heartbeat has lapsed, reads `main` and settles it.
       if (candidateRecorded && !NOT_ADMITTED.has(code)) return
       const unadmitted: BuilderRunSummary | null = unadmittedAgentRun
-      if (unadmitted) {
+      // A run that spent its repair budget already told the person why, in the check's last notice.
+      if (unadmitted && code !== 'BUILDER_APP_NOT_FIXED') {
         // A refused candidate says why, so the next turn in this conversation can fix it.
         const refused = error instanceof CandidateRefused ? error : null
         await runs.appendDiagnostic({
