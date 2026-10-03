@@ -87,20 +87,20 @@ test('a test that reads production source text is counted, but one that reads ge
   assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/a.test.mjs: 0 -> 1\n')
 })
 
-test('a test that reads production source through a variable or a function of its own is counted, a test that writes a fixture there is not', (t) => {
+test('a literal production path in a test that reads files counts, wherever the read is and however the path travels', (t) => {
   const { root } = fixture({
-    'tests/walk.test.mjs': [
-      "const source = join(root, 'apps/hub/src')",
-      'const walk = (directory) => readdirSync(directory).flatMap((name) => walk(join(directory, name)))',
-      "test('t', () => { assert.deepEqual(walk(source), []) })",
+    'tests/helper.test.mjs': [
+      'const read = (label, path) => readFileSync(path)',
+      "test('t', () => { assert.equal(read('source', 'apps/hub/src/a.ts'), 'x') })",
     ].join('\n'),
-    'tests/fixture.test.mjs': [
-      "const sourceDir = resolve(root, 'apps/hub/src')",
-      "test('t', () => { mkdirSync(sourceDir); writeFileSync(join(sourceDir, 'a.ts'), 'x'); assert.equal(readFileSync(join(root, 'out.log'), 'utf8'), 'x') })",
+    'tests/scopes.test.mjs': [
+      "test('a', () => { const path = 'apps/hub/src/a.ts'; assert.equal(path, 'x') })",
+      "test('b', () => { const path = 'out.log'; assert.equal(readFileSync(path), 'x') })",
     ].join('\n'),
+    'tests/fixture.test.mjs': "test('t', () => { mkdirSync('apps/hub/src'); writeFileSync('apps/hub/src/a.ts', 'x'); assert.equal(1, 1) })",
   })
   t.after(() => rmSync(root, { recursive: true }))
-  assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/walk.test.mjs: 0 -> 1\n')
+  assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/helper.test.mjs: 0 -> 1\n  sourceReads tests/scopes.test.mjs: 0 -> 1\n')
 })
 
 test('a .spec.mjs file is measured like a .test.mjs file', (t) => {

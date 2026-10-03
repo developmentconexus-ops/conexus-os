@@ -178,12 +178,22 @@
     "tests/repository/worktree-new.test.mjs": 1
   },
   "sourceReads": {
-    "tests/implementation/brand-tokens.test.mjs": 2,
-    "tests/implementation/brand-wordmark-csp.test.mjs": 1,
+    "tests/implementation/brand-tokens.test.mjs": 4,
+    "tests/implementation/brand-wordmark-csp.test.mjs": 2,
+    "tests/implementation/builder-conversation-rows.test.mjs": 1,
     "tests/implementation/builder-failure-vocabulary.test.mjs": 1,
+    "tests/implementation/connection-census.test.mjs": 1,
     "tests/implementation/connector-adapter-source.test.mjs": 1,
+    "tests/implementation/hub-build.test.mjs": 1,
     "tests/implementation/hub-call-site-privileges-postgres.test.mjs": 1,
     "tests/implementation/hub-launch-flags.test.mjs": 1,
+    "tests/implementation/hub-role-register.test.mjs": 3,
+    "tests/implementation/provision-hub-roles.test.mjs": 1,
+    "tests/implementation/telemetry-log-codes.test.mjs": 3,
+    "tests/repository/builder-guidance-neutral.test.mjs": 3,
+    "tests/repository/builder-run-vocabulary.test.mjs": 4,
+    "tests/repository/check-ratchets.test.mjs": 18,
+    "tests/repository/ci-change-scope.test.mjs": 2,
     "tests/repository/hub-log-sinks.test.mjs": 2
   }
 }

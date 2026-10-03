@@ -119,62 +119,21 @@ const countWeakTests = (source) => {
   return weak
 }
 
-// A test reads production source when the path it reads, or the path it hands to a function of its
-// own that reads, names a file under production source, infra or .github. A path is followed through
-// the variables that hold it. Only a test that runs the code (esbuild, an import) or writes a
-// fixture is not a reader. It does not follow a path across files, so it is a floor.
+// Contract: in a test file that calls a file read, count the literal paths (strings and the static
+// parts of template literals, imports excluded) that name production source, infra or .github outside
+// the allowed kinds. A path built from parts, or handed through a variable or a helper, is not measured.
 const countSourceReads = (source) => {
-  const initializers = new Map()
-  const readers = new Set()
-  const isRead = (node) => ts.isCallExpression(node) && READ_CALLS.has((ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression).getText(source))
-  // A function reads what its caller hands it when a parameter reaches the path of a read in its body.
-  const readsItsParameter = (fn) => {
-    const parameters = new Set(fn.parameters.flatMap((parameter) => (ts.isIdentifier(parameter.name) ? [parameter.name.text] : [])))
-    const reaches = (node) => {
-      let found = false
-      ts.forEachChild(node, (child) => {
-        found ||= ts.isIdentifier(child) ? parameters.has(child.text) : reaches(child)
-      })
-      return found || (ts.isIdentifier(node) && parameters.has(node.text))
-    }
-    const search = (node) => {
-      let found = isRead(node) && node.arguments[0] !== undefined && reaches(node.arguments[0])
-      ts.forEachChild(node, (child) => {
-        found ||= search(child)
-      })
-      return found
-    }
-    return search(fn.body ?? fn)
-  }
-  const collect = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      initializers.set(node.name.text, node.initializer)
-      if ((ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) && readsItsParameter(node.initializer)) readers.add(node.name.text)
-    }
-    if (ts.isFunctionDeclaration(node) && node.name && readsItsParameter(node)) readers.add(node.name.text)
-    ts.forEachChild(node, collect)
-  }
-  collect(source)
-  const textsOf = (node, seen = new Set()) => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) return [node.text]
-    if (ts.isIdentifier(node) && initializers.has(node.text) && !seen.has(node.text) && !readers.has(node.text) && !ts.isFunctionLike(initializers.get(node.text))) return textsOf(initializers.get(node.text), new Set([...seen, node.text]))
-    const texts = []
-    ts.forEachChild(node, (child) => {
-      texts.push(...textsOf(child, seen))
-    })
-    return texts
-  }
-  const namesProduction = (node) => textsOf(node).some((text) => PRODUCTION_TEXT.test(text) && !LEGITIMATE_TEXT.test(text))
-  let reads = 0
+  let reads = false
+  let paths = 0
   const visit = (node) => {
-    if (ts.isCallExpression(node) && node.arguments[0]) {
-      const callee = ts.isIdentifier(node.expression) ? node.expression.text : ''
-      if ((isRead(node) || readers.has(callee)) && namesProduction(node.arguments[0])) reads += 1
-    }
+    if (ts.isCallExpression(node) && READ_CALLS.has((ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression).getText(source))) reads = true
+    const isText = ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)
+    const isImport = node.parent !== undefined && (ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent) || (ts.isCallExpression(node.parent) && node.parent.expression.kind === ts.SyntaxKind.ImportKeyword))
+    if (isText && !isImport && PRODUCTION_TEXT.test(node.text) && !LEGITIMATE_TEXT.test(node.text)) paths += 1
     ts.forEachChild(node, visit)
   }
   visit(source)
-  return reads
+  return reads ? paths : 0
 }
 
 export const measureTest = (file, text) => {
