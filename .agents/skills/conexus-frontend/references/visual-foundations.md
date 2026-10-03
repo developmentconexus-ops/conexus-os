@@ -14,6 +14,13 @@ The intent of the visual system. Every value lives in `packages/brand/src/tokens
 - Light and dark are both first class. Light is the default and dark follows `prefers-color-scheme`, with the top-bar toggle overriding. Check every rule in both.
 - Mastra follows the brand: `apps/web/src/mastra-theme.css` re-points its custom properties at tokens. Fix a color the palette lacks there, never with a per-component override. Size and layout go in a `cx-*` class next to the screen.
 
+## How styling is built
+
+- `apps/web/src/styles.css` imports Tailwind and the Mastra theme (`@mastra/playground-ui/theme.css`), and `@tailwindcss/vite` builds them. Mastra parts arrive styled by Tailwind utilities that read the Mastra theme's custom properties; `apps/web/src/mastra-theme.css` re-points those properties at our `--cx-*` tokens.
+- Conexus structure and screens use `cx-*` classes in a CSS file next to the screen; the shell frame's own classes (`shell-*`) live in `app/frame.css`.
+- Where we compose a Mastra part, the code adds Tailwind utilities in the TSX (`ask-user-pt.tsx`, `task-list-pt.tsx`, a `max-w-full` or `p-0` on a part). A screen's own structure is `cx-*`, not utilities; `sr-only` for visually hidden text is the one utility on our own elements.
+- `npm run web:style:check` fails a class that none of three places defines: our CSS, the Mastra package's CSS, or what the app's Tailwind build generates.
+
 ## Type
 
 - **Bricolage Grotesque** (`--cx-font-display`): headings, card and section titles, the wordmark.
