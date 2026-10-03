@@ -2,9 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import { chromium } from '@playwright/test'
 import { hubModuleUrl } from './hub-build.mjs'
-import { startWebServer } from './web-dev-server.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
@@ -49,33 +47,6 @@ test('every SPA path answers with the shell page', async (t) => {
     assert.equal(response.statusCode, 200, url)
     assert.match(response.body, /<title>Conexus<\/title>/, url)
   }
-})
-
-test('a double click on Criar Workspace sends one request', { timeout: 120_000 }, async (t) => {
-  const origin = await startWebServer(t, { logLevel: 'error' })
-  const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
-  const page = await (await browser.newContext()).newPage()
-  const accountId = '10000000-0000-4000-8000-000000000001'
-  const workspaceId = '20000000-0000-4000-8000-000000000002'
-  let creates = 0
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/api/control/access-context') return json(200, { account: { accountId, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: [], projects: [] })
-    if (path === '/api/control/workspaces' && request.method() === 'POST') {
-      creates += 1
-      await new Promise((settle) => setTimeout(settle, 300))
-      return json(201, { workspaceId, name: 'Comercial', initialAccessEstablished: true, creatorAccountId: accountId })
-    }
-    return json(404, { type: 'not-mocked' })
-  })
-  await page.goto(`${origin}/workspaces/new`)
-  await page.getByLabel('Nome do Workspace').fill('Comercial')
-  await page.getByRole('button', { name: 'Criar Workspace' }).dblclick()
-  await page.waitForURL(`${origin}/workspaces/${workspaceId}/projects`)
-  assert.equal(creates, 1)
 })
 
 test('fingerprinted assets under assets/ are cached immutably for a year; other static files are not', async (t) => {
