@@ -4,7 +4,7 @@
 
 ## Verdict
 
-**ACCEPT_WITH_BOUNDARY**, frozen on 2026-10-02 for the operator's decision (task section 11,
+**ACCEPT_WITH_BOUNDARY**, frozen on 2026-10-03 UTC (2026-10-02 in the operator's time, -03:00) for the operator's decision (task section 11,
 point 6). Every time below is UTC.
 
 A Project on the pilot read the company's Sankhya through the Connection bound to it as `erp`. The
