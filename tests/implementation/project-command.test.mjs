@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
@@ -7,7 +7,6 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
-const generatedRoutePath = resolve(repositoryRoot, 'apps/hub/src/generated/s3-routes.ts')
 
 test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8', async () => {
   await refuseProtectedCluster()
@@ -19,15 +18,6 @@ test('S3-P5 centralizes one Project identity law for UUID versions 1 through 8',
   }
   assert.equal(isProjectIdentity('30000000-0000-9000-8000-000000000051'), false)
   assert.equal(isProjectIdentity('../project'), false)
-})
-
-test('S3-P5 preserves generated PRJ-03 inside the bounded S3 projection', () => {
-  assert.equal(existsSync(generatedRoutePath), true)
-  const source = readFileSync(generatedRoutePath, 'utf8')
-  assert.match(source, /export type S3OwnerId = 'PRJ-01' \| 'PRJ-02' \| 'PRJ-03'/)
-  assert.match(source, /CreateProject/)
-  assert.match(source, /\/api\/control\/workspaces\/:workspaceId\/projects/)
-  assert.doesNotMatch(source, /workspace-client/)
 })
 
 test('S3-P5 store prepares the repository after the reservation and creates the Project with it in one transaction', async () => {

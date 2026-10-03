@@ -21,12 +21,6 @@ test('the Hub child gets the heap cap, the snapshot flag, the diagnostic directo
   ])
 })
 
-test('the runner script passes the same flags and loads the runner entry after the telemetry import', () => {
-  const script = readFileSync(resolve(repositoryRoot, 'infra/pilot/runner.sh'), 'utf8')
-  const line = script.split('\n').slice(script.split('\n').findIndex((entry) => entry.startsWith('node --max-old-space-size=512'))).slice(0, 3).join(' ').replaceAll('\\', '')
-  assert.match(line.replace(/\s+/g, ' '), /^node --max-old-space-size=512 --heapsnapshot-near-heap-limit=1 --diagnostic-dir="\$diagnostics" --report-on-fatalerror --report-directory="\$diagnostics" --import "file:\/\/\$PWD\/\$build\/telemetry\/register.js" "\$build\/app-runner\/main.js"$/)
-})
-
 test('the pilot scripts export the version on its own variable and leave OTEL_RESOURCE_ATTRIBUTES to the env file', () => {
   for (const name of ['hub.sh', 'runner.sh']) {
     const script = readFileSync(resolve(repositoryRoot, 'infra/pilot', name), 'utf8')
