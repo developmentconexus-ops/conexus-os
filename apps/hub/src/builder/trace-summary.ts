@@ -20,13 +20,16 @@ type TokenDetails = InputTokenDetails | OutputTokenDetails
 
 const finiteDetails = <Details extends TokenDetails>(details: Details | undefined): Details | undefined => {
   const kept = Object.entries(details ?? {}).filter(([, count]) => finiteOrNull(count) !== null)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return kept.length > 0 ? (Object.freeze(Object.fromEntries(kept)) as unknown as Details) : undefined
 }
 
 const addDetails = <Details extends TokenDetails>(left: Details | undefined, right: Details | undefined): Details | undefined => {
   if (!left || !right) return left ?? right
   const sum: Record<string, number> = { ...left }
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   for (const [key, count] of Object.entries(right)) sum[key] = (sum[key] ?? 0) + (count as number)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return Object.freeze(sum) as unknown as Details
 }
 
@@ -47,6 +50,7 @@ const usageOf = (inputTokens: number | null, outputTokens: number | null, inputD
 /** Token usage recorded on a MODEL_GENERATION span's attributes, or null when absent or zero-value. */
 const spanUsage = (span: ObservabilitySpanRecord): BuilderTraceUsage | null => {
   if (span.spanType !== SpanType.MODEL_GENERATION) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const usage = (span.attributes as Readonly<{ usage?: UsageStats }> | null | undefined)?.usage
   if (!usage) return null
   const inputTokens = finiteOrNull(usage.inputTokens)
@@ -57,6 +61,7 @@ const spanUsage = (span: ObservabilitySpanRecord): BuilderTraceUsage | null => {
 
 const spanModel = (span: ObservabilitySpanRecord): string | null => {
   if (span.spanType !== SpanType.MODEL_GENERATION) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const model = (span.attributes as Readonly<{ model?: unknown }> | null | undefined)?.model
   return typeof model === 'string' ? model : null
 }

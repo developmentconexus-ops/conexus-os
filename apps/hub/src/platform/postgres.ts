@@ -19,7 +19,9 @@ const capabilityFor = (role: string | undefined): string =>
   (role && CAPABILITY_BY_ROLE[role]) || role || 'unlabelled'
 
 const errorCode = (error: unknown): string | undefined =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof error === 'object' && error !== null && 'code' in error && typeof (error as { code: unknown }).code === 'string'
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     ? (error as { code: string }).code
     : undefined
 
@@ -41,6 +43,7 @@ export const createPostgresPool = (
   pool.on('connect', (client) => {
     client.on('error', (error) => write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`))
   })
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
   pool.on('error', () => {})
   return pool
 }

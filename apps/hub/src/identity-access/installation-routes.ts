@@ -86,6 +86,7 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { origin,
     const { accountId } = request.params
     if (!ACCOUNT_ID.test(accountId)) return sendProblem(reply, 404, 'account-not-found', 'Account not found')
     try {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       await installationAdministration.revoke({ actor: caller.accountId, account: accountId as AccountId })
       return reply.code(204).send()
     } catch (error) {

@@ -14,9 +14,11 @@ async function request<T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const problem = await response.json().catch(() => null) as { type?: string } | null
     throw new InstallationRequestError(response.status, problem?.type ?? null)
   }
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   if (response.status === 204) return undefined as T
   return schema.parse(await response.json())
 }

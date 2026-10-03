@@ -76,6 +76,7 @@ export type ProjectStore = Readonly<{
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
 const digestBody = (value: unknown): string => sha256(canonicalBytes(value))
 const isNotAdmitted = (error: unknown): boolean =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
 const mapDatabaseError = (error: unknown): never => {
   if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
@@ -94,6 +95,7 @@ const validReplay = (
     typeof body.projectRevision === 'string' && body.projectRevision.length > 0
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createProjectStore = ({
   commandPool,
   readPool,

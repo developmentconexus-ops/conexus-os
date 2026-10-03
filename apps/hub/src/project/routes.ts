@@ -22,6 +22,7 @@ const driverCode = (error: unknown): string | undefined => {
   return typeof error.code === 'string' ? error.code : undefined
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerProjectRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
@@ -93,6 +94,7 @@ export const registerProjectRoutes = async (
         if (code === 'SOURCE_INPUT_REFUSED') return sendProblem(reply, 422, 'project-source-refused', 'Project source refused')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.workspace_id': request.params.workspaceId })
+          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
         if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN') {
@@ -128,6 +130,7 @@ export const registerProjectRoutes = async (
         if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.project_id': request.params.projectId })
+          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
         if (code === 'DELETION_INCOMPLETE') {

@@ -20,6 +20,7 @@ export const serializeClaudeTokens = (tokens: ClaudeTokens): string =>
   JSON.stringify({ type: 'oauth', access: tokens.access, refresh: tokens.refresh, expires: tokens.expires })
 
 export const parseClaudeTokens = (secret: string): ClaudeTokens => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const parsed = JSON.parse(secret) as Partial<ClaudeTokens> & { type?: unknown }
   if (parsed.type !== 'oauth' || typeof parsed.access !== 'string' || typeof parsed.refresh !== 'string' ||
     typeof parsed.expires !== 'number') throw new Error('ANTHROPIC_STORED_RECORD_REFUSED')

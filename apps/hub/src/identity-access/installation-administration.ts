@@ -36,10 +36,12 @@ type AdministratorRow = QueryResultRow & Readonly<{
 }>
 
 const toAdministrator = (row: AdministratorRow): InstallationAdministrator => ({
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   accountId: row.account_id as AccountId,
   displayName: row.display_name,
   email: row.email,
   grantedVia: row.granted_via,
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   grantedBy: row.granted_by ? { accountId: row.granted_by as AccountId, displayName: row.granted_by_display_name ?? '' } : null,
   grantedAt: row.granted_at,
 })
@@ -63,6 +65,7 @@ export const createInstallationAdministration = ({ pool }: Readonly<{ pool: Post
   async grantByEmail({ actor, email }) {
     const result = await pool.query<QueryResultRow & { account_id: string }>(
       'SELECT iam.grant_installation_administrator_by_email($1, $2) AS account_id', [actor, email])
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     return result.rows[0]?.account_id as AccountId
   },
 })

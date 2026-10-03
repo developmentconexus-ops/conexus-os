@@ -37,6 +37,7 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
     response.on('data', (chunk: Buffer) => chunks.push(chunk))
     response.on('end', () => {
       try {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown })
       } catch (cause) {
         reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
@@ -53,7 +54,9 @@ export const createApplicationRunnerClient = (socketPath: string): ApplicationRu
   prepare: async (input) => {
     const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
     const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (reply.status === 200) return reply.body as PrepareResult
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const error = (reply.body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | undefined)?.error
     const runnerCode = typeof error?.code === 'string' && /^[A-Z_]+$/.test(error.code) ? error.code : undefined
     const detail = typeof error?.detail === 'string' ? error.detail : undefined

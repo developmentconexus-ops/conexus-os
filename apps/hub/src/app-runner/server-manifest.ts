@@ -29,6 +29,7 @@ export type ServerManifest = Readonly<{
  * It references nothing outside its own body: the Conexus build and the Project check run it inside
  * the build sandbox from `Function.prototype.toString`, so both refuse exactly what the runner refuses.
  */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function admitManifest(value: unknown, stage: 'source' | 'server'): SourceManifest | ServerManifest {
   const refuse = (where: string, why: string): never => { throw new Error(`MANIFEST_REFUSED: ${where}: ${why}`) }
   const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
@@ -45,6 +46,7 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
   const schema = (candidate: unknown, where: string, depth: number): unknown => {
     if (depth > 6) refuse(where, 'nested deeper than 6 levels')
     if (!isRecord(candidate)) refuse(where, 'must be an object with a "type"')
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const record = candidate as Record<string, unknown>
     switch (record.type) {
       case 'string':
@@ -72,6 +74,7 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
         onlyKeys(record, ['type', 'properties', 'required', 'additionalProperties'], where)
         if (record.additionalProperties !== false) refuse(where, '"additionalProperties" must be false')
         if (!isRecord(record.properties)) refuse(where, '"properties" must be an object')
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         const properties = record.properties as Record<string, unknown>
         const names = Object.keys(properties)
         if (names.length > 64) refuse(where, 'more than 64 properties')
@@ -105,10 +108,12 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
   const MIGRATION = /^[0-9]{3,6}_[a-z0-9_]{1,60}\.sql$/
 
   if (!isRecord(value)) refuse('manifest', 'must be a JSON object')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const manifest = value as Record<string, unknown>
   onlyKeys(manifest, stage === 'source' ? ['operations'] : ['version', 'operations', 'migrations'], 'manifest')
   if (stage === 'server' && manifest.version !== 1) refuse('manifest', '"version" must be 1')
   if (!isRecord(manifest.operations)) refuse('operations', 'must be an object')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const operations = manifest.operations as Record<string, unknown>
   const ids = Object.keys(operations)
   if (ids.length === 0 || ids.length > 32) refuse('operations', 'must declare between 1 and 32 operations')
@@ -117,6 +122,7 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
     if (!OPERATION.test(id)) refuse(where, 'an operation id is camelCase letters and digits, starting lowercase')
     const operation = operations[id]
     if (!isRecord(operation)) refuse(where, 'must be an object')
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const entry = operation as Record<string, unknown>
     const pathKey = stage === 'source' ? 'handler' : 'module'
     onlyKeys(entry, [pathKey, 'export', 'input', 'output'], where)
@@ -125,6 +131,7 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
       refuse(where, stage === 'source' ? '"handler" must be a path like handlers/notes.ts inside conexus/' : '"module" must be a bundled handler path')
     }
     if (typeof entry.export !== 'string' || !EXPORT.test(entry.export)) refuse(where, '"export" must name the handler function')
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const input = schema(entry.input, `${where}.input`, 0) as Record<string, unknown>
     if (input.type !== 'object') refuse(`${where}.input`, 'an operation input must be an object schema')
     schema(entry.output, `${where}.output`, 0)
@@ -132,19 +139,24 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Sourc
   if (stage === 'server') {
     if (!Array.isArray(manifest.migrations) || manifest.migrations.length > 64) refuse('migrations', 'must be a list of at most 64 migrations')
     const names = new Set<string>()
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     for (const [index, migration] of (manifest.migrations as unknown[]).entries()) {
       const where = `migrations[${index}]`
       if (!isRecord(migration)) refuse(where, 'must be an object')
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const entry = migration as Record<string, unknown>
       onlyKeys(entry, ['name', 'sha256', 'sql'], where)
       if (typeof entry.name !== 'string' || !MIGRATION.test(entry.name) || names.has(entry.name)) refuse(where, 'a migration is named like 001_create_notes.sql, once')
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       names.add(entry.name as string)
       if (typeof entry.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(entry.sha256)) refuse(where, '"sha256" must be a hex digest')
       if (typeof entry.sql !== 'string' || entry.sql.length === 0 || entry.sql.length > 256 * 1024) refuse(where, '"sql" must be 1 byte to 256 KiB')
     }
     const ordered = [...names]
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (ordered.some((name, index) => index > 0 && name <= (ordered[index - 1] as string))) refuse('migrations', 'must be in name order')
   }
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return value as SourceManifest | ServerManifest
 }
 
@@ -190,6 +202,7 @@ export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Bu
     if (typeof file?.path !== 'string' || typeof file.content !== 'string' || typeof file.sha256 !== 'string') refuse('tree', 'every file needs a path, content and sha256')
     const parts = file.path.split('/')
     if (parts[0] !== ROOT || parts.length < 2 || parts.length > 8) refuse(file.path, `must sit at most 7 levels under ${ROOT}/`)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const name = parts[parts.length - 1] as string
     const directories = parts.slice(1, -1)
     if (directories.some((part) => part === '..' || part === '.' || !DIRECTORY.test(part))) {
@@ -207,12 +220,14 @@ export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Bu
       } catch {
         refuse(file.path, 'is not valid JSON')
       }
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       manifest = admitManifest(parsed, 'server') as ServerManifest
     } else if (!relative.endsWith('.mjs')) refuse(file.path, 'only .mjs modules and manifest.json may be in the tree')
     else if (modules.has(relative)) refuse(file.path, 'appears twice')
     else modules.set(relative, bytes)
   }
   if (!manifest) refuse(`${ROOT}/manifest.json`, 'is missing')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const admitted = manifest as ServerManifest
   for (const [id, operation] of Object.entries(admitted.operations)) {
     if (!modules.has(operation.module)) refuse(`operations.${id}`, `module ${ROOT}/${operation.module} is not in the tree`)
@@ -254,6 +269,7 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, where = '')
     }
     case 'object': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return `${at}: expected object`
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const record = value as Record<string, unknown>
       // The key comes from the value, so one that is not a property name is not repeated.
       for (const key of Object.keys(record)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${UNDECLARED_KEY_NAME.test(key) ? key : '(key)'}: not declared`

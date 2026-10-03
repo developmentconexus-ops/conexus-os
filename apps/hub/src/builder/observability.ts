@@ -67,6 +67,7 @@ const compactProcessorRunPayloads: SpanOutputProcessor = {
     }
     return span
   },
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
   shutdown: async () => {},
 }
 

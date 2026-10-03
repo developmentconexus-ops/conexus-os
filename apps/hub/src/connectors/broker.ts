@@ -95,6 +95,7 @@ const codeOf = (error: unknown, signal: AbortSignal): BrokerErrorCode => {
   return signal.aborted ? 'PROVIDER_TIMEOUT' : 'RESPONSE_REFUSED'
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBroker = ({
   connectors,
   store,

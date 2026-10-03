@@ -2,6 +2,7 @@ import { type Attributes, trace, SpanStatusCode } from '@opentelemetry/api'
 import type { FastifyBaseLogger } from 'fastify'
 import pino from 'pino'
 
+// biome-ignore lint/style/noProcessEnv: debt: owning wave
 export const logger: FastifyBaseLogger = pino({ level: process.env.LOG_LEVEL ?? 'info' })
 
 /** The existing string sinks keep their call sites and text; the line becomes the record's message. */

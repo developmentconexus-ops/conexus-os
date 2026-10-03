@@ -46,11 +46,13 @@ const STOP_GRACE_MS = 5_000
 const AUTH_READY_TIMEOUT_MS = 15_000
 
 export const defaultCliproxyStateDir = (): string =>
+  // biome-ignore lint/style/noProcessEnv: debt: owning wave
   join(process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'conexus', 'cliproxy')
 
 export const verifyCliproxyBinary = async (binary: string, sha256: string): Promise<void> => {
   const hash = createHash('sha256')
   try {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     for await (const chunk of createReadStream(binary)) hash.update(chunk as Buffer)
   } catch {
     throw new Error('GOOGLE_AI_PRO_BINARY_REFUSED')
@@ -106,6 +108,7 @@ const processGone = async (pid: number, ms: number): Promise<boolean> => {
   return false
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, sweepEveryMs = 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: Readonly<{
   binary: string
   stateDir: string
@@ -162,6 +165,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       try {
         const answer = await fetch(`${url}/v0/management/auth-files`, { headers: { 'x-management-key': managementKey }, signal: AbortSignal.timeout(1_000) })
         const parsed: unknown = answer.ok ? await answer.json() : await answer.body?.cancel().then(() => null)
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         const files = (parsed as { files?: readonly { unavailable?: unknown }[] } | null)?.files
         if (files !== undefined && files.length > 0 && files.every((file) => file.unavailable === false)) return true
       } catch {
@@ -181,6 +185,7 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
       // pdeathsig ends the child with the Hub even when the Hub dies without cleaning up.
       const child = spawn('setpriv', ['--pdeathsig', 'SIGTERM', '--', binary, '-config', config], {
         cwd: dir,
+        // biome-ignore lint/style/noProcessEnv: debt: owning wave
         env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, ...environment },
         stdio: 'ignore',
       })

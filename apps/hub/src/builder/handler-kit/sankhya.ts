@@ -28,6 +28,7 @@ const read = (connectors: SankhyaConnectors, connection: string, serviceName: st
   })
 
 const record = (value: unknown): Record<string, unknown> | null =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
 
 // Sankhya sends a list with one element as the element itself.

@@ -34,6 +34,7 @@ export type IdentityAccessRouteDependencies = Readonly<{
   applications?: Readonly<{ sessions: Pick<HostSessions, 'applicationBySlug' | 'signIn'>; origin: (slug: string) => string }>
 }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerIdentityAccessRoutes = async (
   app: FastifyInstance,
   { store, workspaceReader, oidc, config, resolveCurrentSession, hubSessions, applications }: IdentityAccessRouteDependencies,

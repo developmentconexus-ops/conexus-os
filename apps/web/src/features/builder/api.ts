@@ -99,6 +99,7 @@ const sessionBase = (projectId: string) => `/api/control/projects/${encodeURICom
 export const getBuilderSession = async (projectId: string): Promise<BuilderSession> => {
   const response = await request(sessionBase(projectId))
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderSession>
 }
 export const sendBuilderMessage = async (
@@ -110,18 +111,21 @@ export const sendBuilderMessage = async (
     body: JSON.stringify({ content, conversationId }),
   })
   if (response.status !== 201) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderMessageAccepted>
 }
 export const listProjectSourceTree = async (projectId: string, sourceRevision: string): Promise<SourceTree> => {
   const query = new URLSearchParams({ sourceRevision })
   const response = await request(`${sourceBase(projectId)}/tree?${query}`)
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceTree>
 }
 export const getProjectSourceFile = async (projectId: string, sourceRevision: string, path: string): Promise<SourceFile> => {
   const query = new URLSearchParams({ sourceRevision, path })
   const response = await request(`${sourceBase(projectId)}/file?${query}`)
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceFile>
 }
 export type SourceChange = Readonly<{ path: string; status: 'ADDED' | 'REMOVED' | 'MODIFIED' | 'RENAMED'; previousPath: string | null }>
@@ -130,6 +134,7 @@ export const compareProjectSource = async (projectId: string, baseSourceRevision
   const query = new URLSearchParams({ baseSourceRevision, resultSourceRevision })
   const response = await request(`${sourceBase(projectId)}/compare?${query}`)
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<SourceComparison>
 }
 export const launchBuilderPreview =async (projectId: string): Promise<PreviewLaunch> => {
@@ -137,6 +142,7 @@ export const launchBuilderPreview =async (projectId: string): Promise<PreviewLau
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   if (response.status !== 201) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<PreviewLaunch>
 }
 
@@ -145,12 +151,14 @@ export const cancelBuilderRun = async (projectId: string, builderRunId: string):
     method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderMessageAccepted>
 }
 
 export const getBuilderRunTrace =async (projectId: string, builderRunId: string): Promise<BuilderTraceSummary> => {
   const response = await request(`${sessionBase(projectId)}/runs/${encodeURIComponent(builderRunId)}/trace`)
   if (!response.ok) await reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderTraceSummary>
 }
 
@@ -166,10 +174,12 @@ const isTextOrNull = (value: unknown): boolean => value === null || typeof value
  */
 export const parseRunState = (value: unknown): BuilderRun | null => {
   if (typeof value !== 'object' || value === null) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const run = value as Record<string, unknown>
   const valid = isText(run.builderRunId) && isText(run.projectId) && isText(run.conversationId) && isText(run.baseSourceRevision) && isText(run.createdAt)
     && RUN_STATES.has(run.state) && RUN_PHASES.has(run.phase) && RESULT_KINDS.has(run.resultKind)
     && isTextOrNull(run.resultSourceRevision) && isTextOrNull(run.failureCode) && (run.failureCategory === null || isBuilderFailureCategory(run.failureCategory)) && isTextOrNull(run.requestText)
     && (run.cancellationRequested === undefined || typeof run.cancellationRequested === 'boolean')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return valid ? run as BuilderRun : null
 }

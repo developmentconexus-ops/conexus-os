@@ -26,8 +26,10 @@ export const toCodexTokens = (credentials: OAuthCredentials): CodexTokens => {
 export const serializeCodexTokens = (tokens: CodexTokens): string => JSON.stringify({ type: 'oauth', ...tokens })
 
 export const parseCodexTokens = (secret: string): CodexTokens => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const parsed = JSON.parse(secret) as Partial<CodexTokens> & { type?: unknown }
   if (parsed.type !== 'oauth') throw new Error('OPENAI_CODEX_STORED_RECORD_REFUSED')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return toCodexTokens(parsed as OAuthCredentials)
 }
 

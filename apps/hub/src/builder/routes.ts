@@ -69,6 +69,7 @@ export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly
   expiresAt: string
 }>>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: BuilderStore
   service: BuilderService

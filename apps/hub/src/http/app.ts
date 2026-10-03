@@ -20,6 +20,7 @@ const errorStatus = (error: unknown): number => {
   return typeof error.statusCode === 'number' ? error.statusCode : 500
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createHttpApp = async ({
   registerRoutes,
   staticRoot = null,
@@ -129,5 +130,6 @@ export const createHttpApp = async ({
   await app.ready()
   return Object.assign(app, {
     routeCensus: (): readonly string[] => [...registered],
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   }) as HubHttpApp
 }

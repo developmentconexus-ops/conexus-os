@@ -81,6 +81,7 @@ const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, sig
     throw transportFailure(signal)
   }
   try {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
   } catch {
     throw new AdapterFailure('RESPONSE_REFUSED')
@@ -125,6 +126,7 @@ export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
     const parsed = envelope.safeParse(body)
     if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
     const { status } = parsed.data
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const envelopeStatus = RECORDED_ENVELOPE_STATUSES.has(status) ? status as EnvelopeStatus : 'other'
     return status === '1' ? Object.freeze({ kind: 'success', envelopeStatus }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status, envelopeStatus })
   },

@@ -85,6 +85,7 @@ export class ConexusRunSandbox extends E2BSandbox {
       return { success: ran.exitCode === 0, exitCode: ran.exitCode, stdout: ran.stdout, stderr: ran.stderr, executionTimeMs: Date.now() - startedAt }
     } catch (error) {
       // The SDK throws for a nonzero exit; the caller reads the exit code.
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const failed = error as { exitCode?: unknown; stdout?: unknown; stderr?: unknown }
       return {
         success: false,

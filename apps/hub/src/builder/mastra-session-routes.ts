@@ -78,6 +78,7 @@ const POLICY_CHANGING_DECISION = 'always_allow_category'
 const carriesPolicyChangingAnswer = (value: unknown): boolean => {
   if (typeof value === 'string') return value === POLICY_CHANGING_DECISION
   if (Array.isArray(value)) return value.some(carriesPolicyChangingAnswer)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   if (value && typeof value === 'object') return Object.values(value as Readonly<Record<string, unknown>>).some(carriesPolicyChangingAnswer)
   return false
 }
@@ -87,12 +88,16 @@ const carriesPolicyChangingAnswer = (value: unknown): boolean => {
 const STATE_ROUTES: readonly string[] = [sessionRoute('PUT', '/state')]
 const isReasoningLevelOnlyState = (body: unknown): boolean => {
   if (typeof body !== 'object' || body === null) return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const bodyKeys = Object.keys(body as Readonly<Record<string, unknown>>)
   if (bodyKeys.length !== 1 || bodyKeys[0] !== 'state') return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const state = (body as Readonly<{ state: unknown }>).state
   if (typeof state !== 'object' || state === null) return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const stateKeys = Object.keys(state as Readonly<Record<string, unknown>>)
   if (stateKeys.length !== 1 || stateKeys[0] !== 'thinkingLevel') return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const level = (state as Readonly<{ thinkingLevel: unknown }>).thinkingLevel
   return isThinkingLevelSetting(level)
 }
@@ -134,6 +139,7 @@ const FAILURE_MESSAGE = 'MODEL_CALL_FAILED'
 const withoutErrorText = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(withoutErrorText)
   if (typeof value !== 'object' || value === null) return value
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const node = value as Readonly<Record<string, unknown>>
   const failure = node.type === 'error' && typeof node.error === 'object' && node.error !== null && node.retryable !== true
   return Object.fromEntries(Object.entries(node).map(([key, item]) => [key, failure && key === 'error' ? { name: 'Error', message: FAILURE_MESSAGE } : withoutErrorText(item)]))
@@ -147,6 +153,7 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | 
     const project = projection?.stream() ?? ((event: unknown) => event)
     return served.pipeThrough(new TransformStream({ transform: (event, stream) => stream.enqueue(project(withoutErrorText(event))) }))
   },
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 } as ServerRoute)
 
 type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
@@ -158,6 +165,7 @@ const STREAM_ROUTE = sessionRoute('GET', '/stream')
 // the browser learns to read the run again and follow the session that replaced it.
 const closableStream = (served: ReadableStream<unknown>, follow: (close: () => void) => () => void): ReadableStream<unknown> => {
   const reader = served.getReader()
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
   let unfollow = (): void => {}
   return new ReadableStream({
     start(controller) {
@@ -185,6 +193,7 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
   handler: async (params: Parameters<ServerRoute['handler']>[0]) => {
     const served: unknown = await route.handler(params)
     if (!(served instanceof ReadableStream)) return served
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const { resourceId, sessionScope } = params as Readonly<{ resourceId?: string; sessionScope?: string }>
     const session = resourceId === undefined ? undefined : await controller.getSessionByResource(resourceId, sessionScope)
     // Mastra's stream sends nothing on subscribe, so a run that changed phase before the browser
@@ -197,6 +206,7 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
     return closableStream(opening, (close) => {
       if (!session) {
         close()
+        // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
         return () => {}
       }
       const closers = following.get(session) ?? new Set()
@@ -205,6 +215,7 @@ const followedRoute = (route: ServerRoute, controller: AgentController, followin
       return () => { closers.delete(close) }
     })
   },
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 } as ServerRoute)
 
 type GuardedMount = Readonly<{
@@ -236,9 +247,11 @@ type Admitted = Readonly<{ accountId: string; scope: string | undefined }>
 // The one guard the Builder's Mastra mount goes through. Mastra's context middleware merges a
 // requestContext taken from the body or the query into the server's, so a caller could name
 // another user or Project; only the Hub sets it, and a request carrying one is refused.
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMount): Promise<void> => {
   const admitted = new WeakMap<FastifyRequest, Admitted>()
   const route = (request: FastifyRequest): string => `${request.method} ${request.routeOptions.url?.slice(mount.prefix.length) ?? ''}`
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   await app.register(async (scope) => {
     const following = new WeakMap<BuilderSession, Set<() => void>>()
     const unwatch = mount.controller.onSessionDeleted((session) => {
@@ -254,7 +267,9 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
           return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
         }
       }
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const body = request.body as Readonly<Record<string, unknown>> | undefined
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       if ((request.query as Readonly<Record<string, unknown>>).requestContext !== undefined || (typeof body === 'object' && body !== null && 'requestContext' in body)) {
         return sendProblem(reply, 400, 'request-context-refused', 'Request context is set by the server')
       }
@@ -265,6 +280,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       if (STATE_ROUTES.includes(key) && !isReasoningLevelOnlyState(body)) {
         return sendProblem(reply, 400, 'session-state-refused', 'Only the reasoning level may be set')
       }
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
       if (params.controllerId !== mount.controllerId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
       const accountId = session.account.accountId
@@ -285,6 +301,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       const resource = `project:${projectId}`
       const sessionScope = creating
         ? (typeof opened.sessionScope === 'string' ? opened.sessionScope : undefined)
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         : (request.query as Readonly<{ sessionScope?: string }>).sessionScope
       if (SESSIONLESS_ROUTES.has(key)) {
         admitted.set(request, { accountId, scope: undefined })

@@ -23,5 +23,6 @@ export const callModelAccounts = async <T,>(method: 'GET' | 'POST' | 'PUT', url:
     ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
   })
   if (!response.ok) throw new ModelAccountsRequestError(response.status)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return (response.status === 204 ? undefined : await response.json()) as T
 }

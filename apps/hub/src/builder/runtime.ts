@@ -63,6 +63,7 @@ type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILE
  * logs the cause of what the run throws.
  */
 const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const { statusCode, status } = (typeof error === 'object' && error !== null ? error : {}) as { statusCode?: unknown; status?: unknown }
   const http = [statusCode, status].find((value): value is number => typeof value === 'number')
   return http === undefined ? undefined : { statusCode: http }
@@ -117,8 +118,10 @@ type ParkedCall = Readonly<{ toolCallId: string; toolName: string; runId: string
  * still waits (`state: 'call'`).
  */
 export const readParkedCalls = async (session: BuilderSession): Promise<readonly ParkedCall[]> => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const messages = await session.thread.listActiveMessages() as readonly Readonly<{ content?: { metadata?: unknown; parts?: readonly Readonly<{ type?: string; toolInvocation?: Readonly<{ toolCallId?: string; state?: string }> }>[] } }>[]
   for (const message of [...messages].reverse()) {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const suspended = (message.content?.metadata as { suspendedTools?: Readonly<Record<string, { toolCallId?: unknown; toolName?: unknown; runId?: unknown }>> } | undefined)?.suspendedTools
     const waiting = (toolCallId: string): boolean => message.content?.parts?.some((part) => part.type === 'tool-invocation' && part.toolInvocation?.toolCallId === toolCallId && part.toolInvocation.state === 'call') === true
     const calls = Object.values(suspended ?? {}).flatMap((call) =>
@@ -202,11 +205,14 @@ export const messageText = (message: Readonly<{ content?: Readonly<{ parts?: rea
 export const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unknown }>): boolean => {
   if (message.role === 'user') return true
   if (message.role !== 'signal' || typeof message.content !== 'object' || message.content === null) return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const content = message.content as Record<string, unknown>
   const metadata = content.metadata
   if (typeof metadata !== 'object' || metadata === null) return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const signal = (metadata as Record<string, unknown>).signal
   if (typeof signal !== 'object' || signal === null) return false
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const type = (signal as Record<string, unknown>).type
   return type === 'user' || type === 'user-message'
 }
@@ -228,11 +234,13 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
     const entry = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (entry && !IN_APPLICATION_TREE.test(entry[2] as string)) continue
     if (!entry) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     const bytes = Number(entry[1])
     if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
     totalBytes += bytes
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     paths.push(entry[2] as string)
   }
   if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')

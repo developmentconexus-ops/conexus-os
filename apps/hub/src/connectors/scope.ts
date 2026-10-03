@@ -18,6 +18,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const mint = (projectId: string, environment: Environment, term: Terms): ConsumerScope => {
   if (!UUID.test(projectId)) throw new Error('CONNECTOR_SCOPE_REFUSED')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const scope = Object.freeze({ projectId, environment }) as ConsumerScope
   terms.set(scope, term)
   return scope

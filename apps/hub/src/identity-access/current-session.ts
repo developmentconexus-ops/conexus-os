@@ -11,8 +11,11 @@ export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string;
 export type SessionRequest = Readonly<{ cookies: Readonly<Record<string, string | undefined>>; headers: Readonly<Record<string, string | string[] | undefined>> }>
 export type ResolveCurrentSession = (request: SessionRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
 
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const accountId = (value: string): AccountId => value as AccountId
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const workspaceId = (value: string): WorkspaceId => value as WorkspaceId
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const invitationId = (value: string): InvitationId => value as InvitationId
 
 const EMAIL = /^[^@\s]+@[^@\s]+$/
@@ -20,6 +23,7 @@ const EMAIL = /^[^@\s]+@[^@\s]+$/
 export const parseEmailAddress = (value: unknown): EmailAddress | null => {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return EMAIL.test(normalized) ? (normalized as EmailAddress) : null
 }
 

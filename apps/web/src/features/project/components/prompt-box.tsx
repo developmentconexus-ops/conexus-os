@@ -113,6 +113,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       draft={description}
       onDraftChange={(value) => { setDescription(value); if (message) setMessage('') }}
       onSend={onSend}
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
       onStop={() => {}}
       onNewConversation={() => { setDescription(''); setName(null) }}
       mode={mode}

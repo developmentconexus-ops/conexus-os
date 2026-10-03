@@ -68,6 +68,7 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
     name: 'Conexus web search',
     instructions: 'Search the web for the query and answer it from what you find. Keep each fact next to the source it came from.',
     model,
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     tools: { google_search: createGoogleGenerativeAI({}).tools.googleSearch({}) as ToolsInput[string] },
   })
   return createTool({
@@ -101,7 +102,9 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
  */
 const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig, searchOnly: () => ToolsInput[string]) => ToolsInput[string]>> = Object.freeze({
   // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   'openai.responses': () => createOpenAI({}).tools.webSearch() as ToolsInput[string],
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   'anthropic.messages': () => createAnthropic({}).tools.webSearch_20250305() as ToolsInput[string],
   'google.generative-ai': (_model, searchOnly) => searchOnly(),
 })

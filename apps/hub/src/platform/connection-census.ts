@@ -23,7 +23,9 @@ const AUTHENTICATION_SQLSTATES = new Set(['28P01', '28000'])
 // in error.code. A cluster that never got that far (ECONNREFUSED, ETIMEDOUT, a hung socket)
 // reports a Node/libuv error code instead, which is never a five-character SQLSTATE.
 const errorCode = (error: unknown): string | undefined =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof error === 'object' && error !== null && 'code' in error && typeof (error as { code: unknown }).code === 'string'
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     ? (error as { code: string }).code
     : undefined
 
@@ -43,6 +45,7 @@ const censusStateFor = (error: unknown): { state: 'invalid' | 'unreachable'; sql
 // into its result, so a census row is safe to log.
 export const censusConnections = async (
   database: ConnectionCensusDatabase,
+  // biome-ignore lint/style/noProcessEnv: debt: owning wave
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<readonly ConnectionCensusRow[]> => {
   const rows: ConnectionCensusRow[] = []

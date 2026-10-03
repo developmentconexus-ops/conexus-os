@@ -31,5 +31,6 @@ export async function createWorkspace(
     throw new WorkspaceRequestError(null)
   }
   if (response.status !== 201) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<CreateWorkspaceResponse>
 }

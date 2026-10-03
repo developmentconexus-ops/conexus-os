@@ -94,6 +94,7 @@ const dependencyClosure = (entry: string): ReadonlyMap<string, string> => {
       throw new Error(`RUNNER_DEPENDENCY_MISSING:${name}`)
     }
     found.set(name, directory)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> }
     for (const dependency of Object.keys(manifest.dependencies ?? {})) visit(dependency, directory, false)
     for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) visit(dependency, directory, true)
@@ -150,6 +151,7 @@ export const runWorker = (input: Readonly<{
     const timer = setTimeout(() => stop('TIMEOUT'), input.timeoutMs)
     child.stdout.on('data', keepLogs)
     child.stderr.on('data', keepLogs)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const resultStream = child.stdio[3] as NodeJS.ReadableStream
     resultStream.on('data', (chunk: Buffer) => {
       result = Buffer.concat([result, chunk])
@@ -164,6 +166,7 @@ export const runWorker = (input: Readonly<{
       if (verdict) return resolve({ kind: verdict, ms, logs })
       const line = result.toString('utf8').split('\n', 1)[0] ?? ''
       try {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         const parsed = JSON.parse(line) as WorkerResult
         if (parsed?.ok === true || (parsed?.ok === false && typeof parsed.code === 'string')) return resolve({ kind: 'RESULT', result: parsed, ms, logs })
       } catch {

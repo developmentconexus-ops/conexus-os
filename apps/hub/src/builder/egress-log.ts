@@ -249,7 +249,9 @@ export type EgressCollectPorts = Readonly<EgressRoot & {
 const readOffsets = async (ports: EgressCollectPorts): Promise<Offsets | null> => {
   try {
     const parsed: unknown = JSON.parse(Buffer.from((await ports.readAgentFile(OFFSET_PATH)) ?? new Uint8Array()).toString('utf8'))
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (isObject(parsed) && Number.isInteger(parsed.dns) && Number.isInteger(parsed.tcp) && (parsed.dns as number) >= 0 && (parsed.tcp as number) >= 0) {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       return { dns: parsed.dns as number, tcp: parsed.tcp as number }
     }
   } catch { /* a missing or damaged sidecar starts from the top of the logs */ }
@@ -285,6 +287,7 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
 export const collectEgress = async (ports: EgressCollectPorts): Promise<void> => {
   let timer: NodeJS.Timeout | undefined
   const work = collect(ports)
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
   work.catch(() => {})
   try {
     await Promise.race([

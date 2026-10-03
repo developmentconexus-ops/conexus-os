@@ -165,6 +165,7 @@ function violation(id, source, specifier, detail) {
   return { id, source, specifier, detail }
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function checkImportLaw(rootDirectory) {
   const root = resolve(rootDirectory)
   const census = productionRoots(root)

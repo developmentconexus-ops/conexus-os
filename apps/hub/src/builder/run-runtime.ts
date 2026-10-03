@@ -306,6 +306,7 @@ const WARM_PARKED_MS = 30 * 60_000
 /** What a parked run keeps in memory for its answer. */
 type WarmParked = Readonly<{ builderRunId: string; session: RunSession; sandbox: RunSandbox; paused: Promise<void>; timer: ReturnType<typeof setTimeout> }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => {
   // By conversation: one run of a Project at a time, so one parked run per conversation.
   const warm = new Map<string, WarmParked>()
@@ -360,6 +361,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     await Promise.all(conversations.map((conversationId) => evict(conversationId, 'HEAP')))
     return conversations.length
   }
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   const execute: BuilderRunRuntime['execute'] = async (input) => {
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
@@ -734,6 +736,7 @@ type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }
 
 /** Mastra's completion-check feedback: written as an assistant message, but it is the gate speaking, not the Builder. */
 const isCompletionCheck = (message: RecordedMessage): boolean => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const metadata = (message.content as { metadata?: { completionResult?: unknown } } | undefined)?.metadata
   return metadata?.completionResult !== undefined
 }
@@ -788,6 +791,7 @@ export const conversationRunScope = (conversationId: string): string => `builder
  * session until it is deleted, so the run deletes its own, and a parked run keeps it for the answer;
  * the thread, which holds the conversation, is in storage.
  */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
   controller: AgentController
   /** How long a working turn may go without an event before it settles as `BUILDER_AGENT_STALLED`. */
@@ -803,6 +807,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
 }>): BuilderRunPorts['openSession'] => {
   /** The run that owns each scope now. Two runs on one conversation can share one session object, so only the owner may end it. */
   const owners = new Map<string, string>()
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation, gate }) => {
   const resourceId = projectResourceId(projectId)
   const scope = conversationRunScope(conversationId)
@@ -881,9 +886,11 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     try {
       working()
       const reason: string = await within(sendBuilderSessionMessage(session, step, requestContext)) ?? 'unknown'
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
       userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
       const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         .filter((message) => message.role === 'assistant' && !isCompletionCheck(message)).map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
       return { reason, userMessageId, summary }
     } catch (error) {

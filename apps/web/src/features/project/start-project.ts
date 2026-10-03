@@ -34,6 +34,7 @@ export function useStartProject(workspaceId: string) {
         // its new conversation. Losing these writes is not worth losing the Project or the first
         // request over, so they never turn a started run into a refusal; the run falls back to
         // the installation's default model instead.
+        // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
         await applyThreadSettings(project.projectId, current.conversationId, { modelId: input.modelId, reasoning: input.reasoning ?? null}).catch(() => {})
         await sendBuilderMessage(project.projectId, current.conversationId, input.description, current.requestKey)
         return { project, firstRequest: 'SENT' }

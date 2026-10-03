@@ -21,6 +21,7 @@ const runConsumers = new WeakSet<Consumer>()
 
 const runConsumerOf = (requestContext: RequestContext): Consumer | null => {
   const value = requestContext.getRaw(RUN_CONSUMER_KEY)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return typeof value === 'object' && value !== null && runConsumers.has(value as Consumer) ? value as Consumer : null
 }
 

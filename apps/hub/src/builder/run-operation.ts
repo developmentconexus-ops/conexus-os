@@ -60,6 +60,7 @@ const operationShape = (schema: ValueSchema, value: unknown): OperationShape => 
       lists[path || '/'] = (lists[path || '/'] ?? 0) + items.length
       for (const item of items) count(node.items, item, `${path}/*`)
     } else if (node.type === 'object') {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const record = typeof current === 'object' && current !== null ? current as Record<string, unknown> : {}
       for (const [key, property] of Object.entries(node.properties)) count(property, record[key], `${path}/${key}`)
     } else {
@@ -99,6 +100,7 @@ const refused = (operation: string, code: string, detail?: string): OperationRun
   detail ? { ok: false, operation, code, detail: detail.slice(0, DETAIL_CHARS) } : { ok: false, operation, code }
 
 const runnerRefusal = (operation: string, body: unknown): OperationRunReport => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const error = (body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | null)?.error
   const code = typeof error?.code === 'string' && CODE.test(error.code) ? error.code : 'RUNNER_REFUSED'
   const shown = typeof error?.detail === 'string' ? DETAIL_SHOWN[code]?.(error.detail) : undefined
@@ -179,6 +181,7 @@ const runOnce = async (ports: CandidateOperationPorts, { operation, input }: Par
   if (!built.ok) return refused(operation, 'SERVER_BUILD_FAILED', built.detail)
   const manifestFile = built.files.find((file) => file.path === MANIFEST_PATH)
   if (!manifestFile) return refused(operation, 'SERVER_HALF_MISSING', 'the checkout has no conexus/manifest.json')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const manifest = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server') as ServerManifest
   const declared = Object.hasOwn(manifest.operations, operation) ? manifest.operations[operation] : undefined
   if (!declared) return refused(operation, 'OPERATION_NOT_FOUND', `declared: ${Object.keys(manifest.operations).join(', ')}`)

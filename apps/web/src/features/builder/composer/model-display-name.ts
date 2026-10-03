@@ -22,6 +22,7 @@ export type ReasoningSuffix = Readonly<{ base: string; level: ReasoningLevel }>
 export const parseReasoningSuffix = (modelName: string): ReasoningSuffix | null => {
   const match = reasoningSuffixPattern.exec(modelName)
   if (!match) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const level = match[1] as ReasoningLevel
   return { base: modelName.slice(0, -match[0].length), level }
 }

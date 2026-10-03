@@ -16,6 +16,7 @@ const oldSpaceCapBytes = (execArgv: readonly string[], nodeOptions: string | und
 
 // V8 dies when used heap reaches the old-space cap, which is below heap_size_limit (the cap plus the
 // young generation), so the ratio divides by the cap. Read once at start.
+// biome-ignore lint/style/noProcessEnv: debt: owning wave
 const denominator = oldSpaceCapBytes(process.execArgv, process.env.NODE_OPTIONS) ?? getHeapStatistics().heap_size_limit
 
 export const heapUsedRatio = (): number => getHeapStatistics().used_heap_size / denominator

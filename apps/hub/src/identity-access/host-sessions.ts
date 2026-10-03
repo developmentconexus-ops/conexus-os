@@ -133,6 +133,7 @@ const callerOf = (row: Readonly<{ account_id: string; email: string | null; disp
   return caller
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createHostSessions = ({
   pool,
   refresh,

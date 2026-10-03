@@ -33,6 +33,7 @@ const distrustTcpTraceContext = (request: IncomingMessage): Attributes => {
 
 // The launch script owns the version and the env file owns OTEL_RESOURCE_ATTRIBUTES, so neither overrides the other.
 const versionResource = (): resources.Resource | undefined => {
+  // biome-ignore lint/style/noProcessEnv: debt: owning wave
   const version = process.env.CONEXUS_SERVICE_VERSION
   return version ? resources.defaultResource().merge(resources.resourceFromAttributes({ 'service.version': version })) : undefined
 }

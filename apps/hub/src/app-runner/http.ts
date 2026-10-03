@@ -10,6 +10,7 @@ export type ApplicationRunnerSupervisor = Readonly<{
 }>
 
 const errorOf = (body: unknown): Readonly<{ code?: unknown; detail?: unknown }> | undefined =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   (body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | undefined)?.error
 
 // The supervisor writes these two details itself, from the manifest's schema: a JSON pointer and

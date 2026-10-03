@@ -16,6 +16,7 @@ const useLanguage = (path: string): LanguageSupport | null => {
       setSupport({ path, language: null })
       return undefined
     }
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
     void description.load().then((language) => { if (current) setSupport({ path, language }) }, () => {})
     return () => { current = false }
   }, [path])

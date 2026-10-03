@@ -35,6 +35,7 @@ const decode = (bytes: Uint8Array): string | null => {
 // The largest prefix of at most `limit` bytes that ends between two UTF-8 characters.
 const characterBoundary = (bytes: Uint8Array, limit: number): number => {
   let cut = Math.min(limit, bytes.length)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   while (cut > 0 && cut < bytes.length && ((bytes[cut] as number) & 0xc0) === 0x80) cut -= 1
   return cut
 }
