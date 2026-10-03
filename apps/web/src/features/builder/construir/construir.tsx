@@ -293,7 +293,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
         {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} requestText={diffRun?.requestText ?? null} requestTime={diffRun ? clockLabel(diffRun.createdAt) : null} version={diffVersion} />}
-        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} onRetry={setDraft} />}
+        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} />}
       </>}
     </div>
   </section>
